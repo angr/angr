@@ -33,673 +33,673 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("setupapi.dll")
 prototypes = \
     {
-        # 
+        #
         'SetupGetInfInformationA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfSpec", "SearchControl", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfInformationW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfSpec", "SearchControl", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQueryInfFileInformationA': SimTypeFunction([SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfInformation", "InfIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQueryInfFileInformationW': SimTypeFunction([SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfInformation", "InfIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQueryInfOriginalFileInformationA': SimTypeFunction([SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_ORIGINAL_FILE_INFO_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfInformation", "InfIndex", "AlternatePlatformInfo", "OriginalFileInfo"]),
-        # 
+        #
         'SetupQueryInfOriginalFileInformationW': SimTypeFunction([SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_ORIGINAL_FILE_INFO_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfInformation", "InfIndex", "AlternatePlatformInfo", "OriginalFileInfo"]),
-        # 
+        #
         'SetupQueryInfVersionInformationA': SimTypeFunction([SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfInformation", "InfIndex", "Key", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQueryInfVersionInformationW': SimTypeFunction([SimTypePointer(SimTypeRef("SP_INF_INFORMATION", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfInformation", "InfIndex", "Key", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfDriverStoreLocationA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "AlternatePlatformInfo", "LocaleName", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfDriverStoreLocationW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "AlternatePlatformInfo", "LocaleName", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfPublishedNameA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DriverStoreLocation", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfPublishedNameW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DriverStoreLocation", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfFileListA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="INF_STYLE"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DirectoryPath", "InfStyle", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetInfFileListW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="INF_STYLE"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DirectoryPath", "InfStyle", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupOpenInfFileW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="INF_STYLE"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["FileName", "InfClass", "InfStyle", "ErrorLine"]),
-        # 
+        #
         'SetupOpenInfFileA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="INF_STYLE"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["FileName", "InfClass", "InfStyle", "ErrorLine"]),
-        # 
+        #
         'SetupOpenMasterInf': SimTypeFunction([], SimTypePointer(SimTypeBottom(label="Void"), offset=0)),
-        # 
+        #
         'SetupOpenAppendInfFileW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "InfHandle", "ErrorLine"]),
-        # 
+        #
         'SetupOpenAppendInfFileA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "InfHandle", "ErrorLine"]),
-        # 
+        #
         'SetupCloseInfFile': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["InfHandle"]),
-        # 
+        #
         'SetupFindFirstLineA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Section", "Key", "Context"]),
-        # 
+        #
         'SetupFindFirstLineW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Section", "Key", "Context"]),
-        # 
+        #
         'SetupFindNextLine': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ContextIn", "ContextOut"]),
-        # 
+        #
         'SetupFindNextMatchLineA': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ContextIn", "Key", "ContextOut"]),
-        # 
+        #
         'SetupFindNextMatchLineW': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ContextIn", "Key", "ContextOut"]),
-        # 
+        #
         'SetupGetLineByIndexA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Section", "Index", "Context"]),
-        # 
+        #
         'SetupGetLineByIndexW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Section", "Index", "Context"]),
-        # 
+        #
         'SetupGetLineCountA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Section"]),
-        # 
+        #
         'SetupGetLineCountW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Section"]),
-        # 
+        #
         'SetupGetLineTextA': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "InfHandle", "Section", "Key", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetLineTextW': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "InfHandle", "Section", "Key", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetFieldCount': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context"]),
-        # 
+        #
         'SetupGetStringFieldA': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "FieldIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetStringFieldW': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "FieldIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetIntField': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "FieldIndex", "IntegerValue"]),
-        # 
+        #
         'SetupGetMultiSzFieldA': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "FieldIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetMultiSzFieldW': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "FieldIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetBinaryField': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "FieldIndex", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetFileCompressionInfoA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["SourceFileName", "ActualSourceFileName", "SourceFileSize", "TargetFileSize", "CompressionType"]),
-        # 
+        #
         'SetupGetFileCompressionInfoW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["SourceFileName", "ActualSourceFileName", "SourceFileSize", "TargetFileSize", "CompressionType"]),
-        # 
+        #
         'SetupGetFileCompressionInfoExA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SourceFileName", "ActualSourceFileNameBuffer", "ActualSourceFileNameBufferLen", "RequiredBufferLen", "SourceFileSize", "TargetFileSize", "CompressionType"]),
-        # 
+        #
         'SetupGetFileCompressionInfoExW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SourceFileName", "ActualSourceFileNameBuffer", "ActualSourceFileNameBufferLen", "RequiredBufferLen", "SourceFileSize", "TargetFileSize", "CompressionType"]),
-        # 
+        #
         'SetupDecompressOrCopyFileA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["SourceFileName", "TargetFileName", "CompressionType"]),
-        # 
+        #
         'SetupDecompressOrCopyFileW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["SourceFileName", "TargetFileName", "CompressionType"]),
-        # 
+        #
         'SetupGetSourceFileLocationA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "FileName", "SourceId", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetSourceFileLocationW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "FileName", "SourceId", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetSourceFileSizeA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "FileName", "Section", "FileSize", "RoundingFactor"]),
-        # 
+        #
         'SetupGetSourceFileSizeW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "FileName", "Section", "FileSize", "RoundingFactor"]),
-        # 
+        #
         'SetupGetTargetPathA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "Section", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetTargetPathW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "Section", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupSetSourceListA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "SourceList", "SourceCount"]),
-        # 
+        #
         'SetupSetSourceListW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "SourceList", "SourceCount"]),
-        # 
+        #
         'SetupCancelTemporarySourceList': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
-        # 
+        #
         'SetupAddToSourceListA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "Source"]),
-        # 
+        #
         'SetupAddToSourceListW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "Source"]),
-        # 
+        #
         'SetupRemoveFromSourceListA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "Source"]),
-        # 
+        #
         'SetupRemoveFromSourceListW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "Source"]),
-        # 
+        #
         'SetupQuerySourceListA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "List", "Count"]),
-        # 
+        #
         'SetupQuerySourceListW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "List", "Count"]),
-        # 
+        #
         'SetupFreeSourceListA': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["List", "Count"]),
-        # 
+        #
         'SetupFreeSourceListW': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["List", "Count"]),
-        # 
+        #
         'SetupPromptForDiskA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "DiskName", "PathToSource", "FileSought", "TagFile", "DiskPromptStyle", "PathBuffer", "PathBufferSize", "PathRequiredSize"]),
-        # 
+        #
         'SetupPromptForDiskW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "DiskName", "PathToSource", "FileSought", "TagFile", "DiskPromptStyle", "PathBuffer", "PathBufferSize", "PathRequiredSize"]),
-        # 
+        #
         'SetupCopyErrorA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "DiskName", "PathToSource", "SourceFile", "TargetPathFile", "Win32ErrorCode", "Style", "PathBuffer", "PathBufferSize", "PathRequiredSize"]),
-        # 
+        #
         'SetupCopyErrorW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "DiskName", "PathToSource", "SourceFile", "TargetPathFile", "Win32ErrorCode", "Style", "PathBuffer", "PathBufferSize", "PathRequiredSize"]),
-        # 
+        #
         'SetupRenameErrorA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "SourceFile", "TargetFile", "Win32ErrorCode", "Style"]),
-        # 
+        #
         'SetupRenameErrorW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "SourceFile", "TargetFile", "Win32ErrorCode", "Style"]),
-        # 
+        #
         'SetupDeleteErrorA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "File", "Win32ErrorCode", "Style"]),
-        # 
+        #
         'SetupDeleteErrorW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "File", "Win32ErrorCode", "Style"]),
-        # 
+        #
         'SetupBackupErrorA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "SourceFile", "TargetFile", "Win32ErrorCode", "Style"]),
-        # 
+        #
         'SetupBackupErrorW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndParent", "DialogTitle", "SourceFile", "TargetFile", "Win32ErrorCode", "Style"]),
-        # 
+        #
         'SetupSetDirectoryIdA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Id", "Directory"]),
-        # 
+        #
         'SetupSetDirectoryIdW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Id", "Directory"]),
-        # 
+        #
         'SetupSetDirectoryIdExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Id", "Directory", "Flags", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupSetDirectoryIdExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Id", "Directory", "Flags", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupGetSourceInfoA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SourceId", "InfoDesired", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupGetSourceInfoW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SourceId", "InfoDesired", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupInstallFileA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SP_COPY_STYLE"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "SourceFile", "SourcePathRoot", "DestinationName", "CopyStyle", "CopyMsgHandler", "Context"]),
-        # 
+        #
         'SetupInstallFileW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SP_COPY_STYLE"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "SourceFile", "SourcePathRoot", "DestinationName", "CopyStyle", "CopyMsgHandler", "Context"]),
-        # 
+        #
         'SetupInstallFileExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SP_COPY_STYLE"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "SourceFile", "SourcePathRoot", "DestinationName", "CopyStyle", "CopyMsgHandler", "Context", "FileWasInUse"]),
-        # 
+        #
         'SetupInstallFileExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SP_COPY_STYLE"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfContext", "SourceFile", "SourcePathRoot", "DestinationName", "CopyStyle", "CopyMsgHandler", "Context", "FileWasInUse"]),
-        # 
+        #
         'SetupOpenFileQueue': SimTypeFunction([], SimTypePointer(SimTypeBottom(label="Void"), offset=0)),
-        # 
+        #
         'SetupCloseFileQueue': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle"]),
-        # 
+        #
         'SetupSetFileQueueAlternatePlatformA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "AlternatePlatformInfo", "AlternateDefaultCatalogFile"]),
-        # 
+        #
         'SetupSetFileQueueAlternatePlatformW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "AlternatePlatformInfo", "AlternateDefaultCatalogFile"]),
-        # 
+        #
         'SetupSetPlatformPathOverrideA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Override"]),
-        # 
+        #
         'SetupSetPlatformPathOverrideW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Override"]),
-        # 
+        #
         'SetupQueueCopyA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "SourceRootPath", "SourcePath", "SourceFilename", "SourceDescription", "SourceTagfile", "TargetDirectory", "TargetFilename", "CopyStyle"]),
-        # 
+        #
         'SetupQueueCopyW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "SourceRootPath", "SourcePath", "SourceFilename", "SourceDescription", "SourceTagfile", "TargetDirectory", "TargetFilename", "CopyStyle"]),
-        # 
+        #
         'SetupQueueCopyIndirectA': SimTypeFunction([SimTypePointer(SimTypeRef("SP_FILE_COPY_PARAMS_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["CopyParams"]),
-        # 
+        #
         'SetupQueueCopyIndirectW': SimTypeFunction([SimTypePointer(SimTypeRef("SP_FILE_COPY_PARAMS_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["CopyParams"]),
-        # 
+        #
         'SetupQueueDefaultCopyA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "InfHandle", "SourceRootPath", "SourceFilename", "TargetFilename", "CopyStyle"]),
-        # 
+        #
         'SetupQueueDefaultCopyW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "InfHandle", "SourceRootPath", "SourceFilename", "TargetFilename", "CopyStyle"]),
-        # 
+        #
         'SetupQueueCopySectionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "SourceRootPath", "InfHandle", "ListInfHandle", "Section", "CopyStyle"]),
-        # 
+        #
         'SetupQueueCopySectionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "SourceRootPath", "InfHandle", "ListInfHandle", "Section", "CopyStyle"]),
-        # 
+        #
         'SetupQueueDeleteA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "PathPart1", "PathPart2"]),
-        # 
+        #
         'SetupQueueDeleteW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "PathPart1", "PathPart2"]),
-        # 
+        #
         'SetupQueueDeleteSectionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "InfHandle", "ListInfHandle", "Section"]),
-        # 
+        #
         'SetupQueueDeleteSectionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "InfHandle", "ListInfHandle", "Section"]),
-        # 
+        #
         'SetupQueueRenameA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "SourcePath", "SourceFilename", "TargetPath", "TargetFilename"]),
-        # 
+        #
         'SetupQueueRenameW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "SourcePath", "SourceFilename", "TargetPath", "TargetFilename"]),
-        # 
+        #
         'SetupQueueRenameSectionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "InfHandle", "ListInfHandle", "Section"]),
-        # 
+        #
         'SetupQueueRenameSectionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "InfHandle", "ListInfHandle", "Section"]),
-        # 
+        #
         'SetupCommitFileQueueA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Owner", "QueueHandle", "MsgHandler", "Context"]),
-        # 
+        #
         'SetupCommitFileQueueW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Owner", "QueueHandle", "MsgHandler", "Context"]),
-        # 
+        #
         'SetupScanFileQueueA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="SETUPSCANFILEQUEUE_FLAGS"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "Flags", "Window", "CallbackRoutine", "CallbackContext", "Result"]),
-        # 
+        #
         'SetupScanFileQueueW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="SETUPSCANFILEQUEUE_FLAGS"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "Flags", "Window", "CallbackRoutine", "CallbackContext", "Result"]),
-        # 
+        #
         'SetupGetFileQueueCount': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "SubQueueFileOp", "NumOperations"]),
-        # 
+        #
         'SetupGetFileQueueFlags': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "Flags"]),
-        # 
+        #
         'SetupSetFileQueueFlags': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "FlagMask", "Flags"]),
-        # 
+        #
         'SetupCopyOEMInfA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="OEM_SOURCE_MEDIA_TYPE"), SimTypeInt(signed=False, label="SP_COPY_STYLE"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SourceInfFileName", "OEMSourceMediaLocation", "OEMSourceMediaType", "CopyStyle", "DestinationInfFileName", "DestinationInfFileNameSize", "RequiredSize", "DestinationInfFileNameComponent"]),
-        # 
+        #
         'SetupCopyOEMInfW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="OEM_SOURCE_MEDIA_TYPE"), SimTypeInt(signed=False, label="SP_COPY_STYLE"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SourceInfFileName", "OEMSourceMediaLocation", "OEMSourceMediaType", "CopyStyle", "DestinationInfFileName", "DestinationInfFileNameSize", "RequiredSize", "DestinationInfFileNameComponent"]),
-        # 
+        #
         'SetupUninstallOEMInfA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfFileName", "Flags", "Reserved"]),
-        # 
+        #
         'SetupUninstallOEMInfW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfFileName", "Flags", "Reserved"]),
-        # 
+        #
         'SetupUninstallNewlyCopiedInfs': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "Flags", "Reserved"]),
-        # 
+        #
         'SetupCreateDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["Reserved1", "Reserved2", "Flags"]),
-        # 
+        #
         'SetupCreateDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["Reserved1", "Reserved2", "Flags"]),
-        # 
+        #
         'SetupDuplicateDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["DiskSpace", "Reserved1", "Reserved2", "Flags"]),
-        # 
+        #
         'SetupDuplicateDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["DiskSpace", "Reserved1", "Reserved2", "Flags"]),
-        # 
+        #
         'SetupDestroyDiskSpaceList': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace"]),
-        # 
+        #
         'SetupQueryDrivesInDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQueryDrivesInDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "ReturnBuffer", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQuerySpaceRequiredOnDriveA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeLongLong(signed=True, label="Int64"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "DriveSpec", "SpaceRequired", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupQuerySpaceRequiredOnDriveW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeLongLong(signed=True, label="Int64"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "DriveSpec", "SpaceRequired", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAdjustDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=True, label="Int64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "DriveRoot", "Amount", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAdjustDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=True, label="Int64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "DriveRoot", "Amount", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAddToDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=True, label="Int64"), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "TargetFilespec", "FileSize", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAddToDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=True, label="Int64"), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "TargetFilespec", "FileSize", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAddSectionToDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "ListInfHandle", "SectionName", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAddSectionToDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "ListInfHandle", "SectionName", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAddInstallSectionToDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "LayoutInfHandle", "SectionName", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupAddInstallSectionToDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "LayoutInfHandle", "SectionName", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupRemoveFromDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "TargetFilespec", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupRemoveFromDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "TargetFilespec", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupRemoveSectionFromDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "ListInfHandle", "SectionName", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupRemoveSectionFromDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SETUP_FILE_OPERATION"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "ListInfHandle", "SectionName", "Operation", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupRemoveInstallSectionFromDiskSpaceListA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "LayoutInfHandle", "SectionName", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupRemoveInstallSectionFromDiskSpaceListW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DiskSpace", "InfHandle", "LayoutInfHandle", "SectionName", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupIterateCabinetA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["CabinetFile", "Reserved", "MsgHandler", "Context"]),
-        # 
+        #
         'SetupIterateCabinetW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["CabinetFile", "Reserved", "MsgHandler", "Context"]),
-        # 
+        #
         'SetupPromptReboot': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["FileQueue", "Owner", "ScanOnly"]),
-        # 
+        #
         'SetupInitDefaultQueueCallback': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["OwnerWindow"]),
-        # 
+        #
         'SetupInitDefaultQueueCallbackEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["OwnerWindow", "AlternateProgressWindow", "ProgressMessage", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupTermDefaultQueueCallback': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["Context"]),
-        # 
+        #
         'SetupDefaultQueueCallbackA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]),
-        # 
+        #
         'SetupDefaultQueueCallbackW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]),
-        # 
+        #
         'SetupInstallFromInfSectionA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Owner", "InfHandle", "SectionName", "Flags", "RelativeKeyRoot", "SourceRootPath", "CopyFlags", "MsgHandler", "Context", "DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupInstallFromInfSectionW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Context", "Notification", "Param1", "Param2"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Owner", "InfHandle", "SectionName", "Flags", "RelativeKeyRoot", "SourceRootPath", "CopyFlags", "MsgHandler", "Context", "DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupInstallFilesFromInfSectionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "LayoutInfHandle", "FileQueue", "SectionName", "SourceRootPath", "CopyFlags"]),
-        # 
+        #
         'SetupInstallFilesFromInfSectionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "LayoutInfHandle", "FileQueue", "SectionName", "SourceRootPath", "CopyFlags"]),
-        # 
+        #
         'SetupInstallServicesFromInfSectionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SPSVCINST_FLAGS")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SectionName", "Flags"]),
-        # 
+        #
         'SetupInstallServicesFromInfSectionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SPSVCINST_FLAGS")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SectionName", "Flags"]),
-        # 
+        #
         'SetupInstallServicesFromInfSectionExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SPSVCINST_FLAGS"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SectionName", "Flags", "DeviceInfoSet", "DeviceInfoData", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupInstallServicesFromInfSectionExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SPSVCINST_FLAGS"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SectionName", "Flags", "DeviceInfoSet", "DeviceInfoData", "Reserved1", "Reserved2"]),
-        # 
+        #
         'InstallHinfSectionA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeBottom(label="Void"), arg_names=["Window", "ModuleHandle", "CommandLine", "ShowCommand"]),
-        # 
+        #
         'InstallHinfSectionW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeBottom(label="Void"), arg_names=["Window", "ModuleHandle", "CommandLine", "ShowCommand"]),
-        # 
+        #
         'SetupInitializeFileLogA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["LogFileName", "Flags"]),
-        # 
+        #
         'SetupInitializeFileLogW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["LogFileName", "Flags"]),
-        # 
+        #
         'SetupTerminateFileLog': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle"]),
-        # 
+        #
         'SetupLogFileA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle", "LogSectionName", "SourceFilename", "TargetFilename", "Checksum", "DiskTagfile", "DiskDescription", "OtherInfo", "Flags"]),
-        # 
+        #
         'SetupLogFileW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle", "LogSectionName", "SourceFilename", "TargetFilename", "Checksum", "DiskTagfile", "DiskDescription", "OtherInfo", "Flags"]),
-        # 
+        #
         'SetupRemoveFileLogEntryA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle", "LogSectionName", "TargetFilename"]),
-        # 
+        #
         'SetupRemoveFileLogEntryW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle", "LogSectionName", "TargetFilename"]),
-        # 
+        #
         'SetupQueryFileLogA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SetupFileLogInfo"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle", "LogSectionName", "TargetFilename", "DesiredInfo", "DataOut", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupQueryFileLogW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SetupFileLogInfo"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileLogHandle", "LogSectionName", "TargetFilename", "DesiredInfo", "DataOut", "ReturnBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupOpenLog': SimTypeFunction([SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["Erase"]),
-        # 
+        #
         'SetupLogErrorA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["MessageString", "Severity"]),
-        # 
+        #
         'SetupLogErrorW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["MessageString", "Severity"]),
-        # 
+        #
         'SetupCloseLog': SimTypeFunction([], SimTypeBottom(label="Void")),
-        # 
+        #
         'SetupGetThreadLogToken': SimTypeFunction([], SimTypeLongLong(signed=False, label="UInt64")),
-        # 
+        #
         'SetupSetThreadLogToken': SimTypeFunction([SimTypeLongLong(signed=False, label="UInt64")], SimTypeBottom(label="Void"), arg_names=["LogToken"]),
-        # 
+        #
         'SetupWriteTextLog': SimTypeFunction([SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeBottom(label="Void"), arg_names=["LogToken", "Category", "Flags", "MessageStr"]),
-        # 
+        #
         'SetupWriteTextLogError': SimTypeFunction([SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeBottom(label="Void"), arg_names=["LogToken", "Category", "LogFlags", "Error", "MessageStr"]),
-        # 
+        #
         'SetupWriteTextLogInfLine': SimTypeFunction([SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0)], SimTypeBottom(label="Void"), arg_names=["LogToken", "Flags", "InfHandle", "Context"]),
-        # 
+        #
         'SetupGetBackupInformationA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("SP_BACKUP_QUEUE_PARAMS_V2_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "BackupParams"]),
-        # 
+        #
         'SetupGetBackupInformationW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("SP_BACKUP_QUEUE_PARAMS_V2_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "BackupParams"]),
-        # 
+        #
         'SetupPrepareQueueForRestoreA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "BackupPath", "RestoreFlags"]),
-        # 
+        #
         'SetupPrepareQueueForRestoreW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["QueueHandle", "BackupPath", "RestoreFlags"]),
-        # 
+        #
         'SetupSetNonInteractiveMode': SimTypeFunction([SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["NonInteractiveFlag"]),
-        # 
+        #
         'SetupGetNonInteractiveMode': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
-        # 
+        #
         'SetupDiCreateDeviceInfoList': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "hwndParent"]),
-        # 
+        #
         'SetupDiCreateDeviceInfoListExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "hwndParent", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiCreateDeviceInfoListExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "hwndParent", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetDeviceInfoListClass': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "ClassGuid"]),
-        # 
+        #
         'SetupDiGetDeviceInfoListDetailA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_LIST_DETAIL_DATA_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoSetDetailData"]),
-        # 
+        #
         'SetupDiGetDeviceInfoListDetailW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_LIST_DETAIL_DATA_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoSetDetailData"]),
-        # 
+        #
         'SetupDiCreateDeviceInfoA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SETUP_DI_DEVICE_CREATION_FLAGS"), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceName", "ClassGuid", "DeviceDescription", "hwndParent", "CreationFlags", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiCreateDeviceInfoW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SETUP_DI_DEVICE_CREATION_FLAGS"), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceName", "ClassGuid", "DeviceDescription", "hwndParent", "CreationFlags", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiOpenDeviceInfoA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInstanceId", "hwndParent", "OpenFlags", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiOpenDeviceInfoW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInstanceId", "hwndParent", "OpenFlags", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiGetDeviceInstanceIdA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DeviceInstanceId", "DeviceInstanceIdSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetDeviceInstanceIdW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DeviceInstanceId", "DeviceInstanceIdSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiDeleteDeviceInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiEnumDeviceInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "MemberIndex", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiDestroyDeviceInfoList': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet"]),
-        # 
+        #
         'SetupDiEnumDeviceInterfaces': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "InterfaceClassGuid", "MemberIndex", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiCreateDeviceInterfaceA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "InterfaceClassGuid", "ReferenceString", "CreationFlags", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiCreateDeviceInterfaceW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "InterfaceClassGuid", "ReferenceString", "CreationFlags", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiOpenDeviceInterfaceA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DevicePath", "OpenFlags", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiOpenDeviceInterfaceW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DevicePath", "OpenFlags", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiGetDeviceInterfaceAlias': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "AliasInterfaceClassGuid", "AliasDeviceInterfaceData"]),
-        # 
+        #
         'SetupDiDeleteDeviceInterfaceData': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiRemoveDeviceInterface': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData"]),
-        # 
+        #
         'SetupDiGetDeviceInterfaceDetailA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DETAIL_DATA_A", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "DeviceInterfaceDetailData", "DeviceInterfaceDetailDataSize", "RequiredSize", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiGetDeviceInterfaceDetailW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DETAIL_DATA_W", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "DeviceInterfaceDetailData", "DeviceInterfaceDetailDataSize", "RequiredSize", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiInstallDeviceInterfaces': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiSetDeviceInterfaceDefault': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "Flags", "Reserved"]),
-        # 
+        #
         'SetupDiRegisterDeviceInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["DeviceInfoSet", "NewDeviceData", "ExistingDeviceData", "CompareContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "Flags", "CompareProc", "CompareContext", "DupDeviceInfoData"]),
-        # 
+        #
         'SetupDiBuildDriverInfoList': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_DRIVER_TYPE")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverType"]),
-        # 
+        #
         'SetupDiCancelDriverInfoSearch': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet"]),
-        # 
+        #
         'SetupDiEnumDriverInfoA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_DRIVER_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverType", "MemberIndex", "DriverInfoData"]),
-        # 
+        #
         'SetupDiEnumDriverInfoW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_DRIVER_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverType", "MemberIndex", "DriverInfoData"]),
-        # 
+        #
         'SetupDiGetSelectedDriverA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData"]),
-        # 
+        #
         'SetupDiGetSelectedDriverW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData"]),
-        # 
+        #
         'SetupDiSetSelectedDriverA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData"]),
-        # 
+        #
         'SetupDiSetSelectedDriverW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData"]),
-        # 
+        #
         'SetupDiGetDriverInfoDetailA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_A", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DETAIL_DATA_A", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData", "DriverInfoDetailData", "DriverInfoDetailDataSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetDriverInfoDetailW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_W", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DETAIL_DATA_W", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData", "DriverInfoDetailData", "DriverInfoDetailDataSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiDestroyDriverInfoList': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_DRIVER_TYPE")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverType"]),
-        # 
+        #
         'SetupDiGetClassDevsA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SETUP_DI_GET_CLASS_DEVS_FLAGS")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "Enumerator", "hwndParent", "Flags"]),
-        # 
+        #
         'SetupDiGetClassDevsW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SETUP_DI_GET_CLASS_DEVS_FLAGS")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "Enumerator", "hwndParent", "Flags"]),
-        # 
+        #
         'SetupDiGetClassDevsExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SETUP_DI_GET_CLASS_DEVS_FLAGS"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "Enumerator", "hwndParent", "Flags", "DeviceInfoSet", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassDevsExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SETUP_DI_GET_CLASS_DEVS_FLAGS"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "Enumerator", "hwndParent", "Flags", "DeviceInfoSet", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetINFClassA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfName", "ClassGuid", "ClassName", "ClassNameSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetINFClassW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfName", "ClassGuid", "ClassName", "ClassNameSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiBuildClassInfoList': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "ClassGuidList", "ClassGuidListSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiBuildClassInfoListExA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "ClassGuidList", "ClassGuidListSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiBuildClassInfoListExW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags", "ClassGuidList", "ClassGuidListSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassDescriptionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassDescription", "ClassDescriptionSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetClassDescriptionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassDescription", "ClassDescriptionSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetClassDescriptionExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassDescription", "ClassDescriptionSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassDescriptionExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassDescription", "ClassDescriptionSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiCallClassInstaller': SimTypeFunction([SimTypeInt(signed=False, label="DI_FUNCTION"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InstallFunction", "DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiSelectDevice': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiSelectBestCompatDrv': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiInstallDevice': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiInstallDriverFiles': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiRegisterCoDeviceInstallers': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiRemoveDevice': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiUnremoveDevice': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiRestartDevices': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiChangeState': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiInstallClassA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent", "InfFileName", "Flags", "FileQueue"]),
-        # 
+        #
         'SetupDiInstallClassW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent", "InfFileName", "Flags", "FileQueue"]),
-        # 
+        #
         'SetupDiInstallClassExA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent", "InfFileName", "Flags", "FileQueue", "InterfaceClassGuid", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupDiInstallClassExW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent", "InfFileName", "Flags", "FileQueue", "InterfaceClassGuid", "Reserved1", "Reserved2"]),
-        # 
+        #
         'SetupDiOpenClassRegKey': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "samDesired"]),
-        # 
+        #
         'SetupDiOpenClassRegKeyExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "samDesired", "Flags", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiOpenClassRegKeyExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["ClassGuid", "samDesired", "Flags", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiCreateDeviceInterfaceRegKeyA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "Reserved", "samDesired", "InfHandle", "InfSectionName"]),
-        # 
+        #
         'SetupDiCreateDeviceInterfaceRegKeyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "Reserved", "samDesired", "InfHandle", "InfSectionName"]),
-        # 
+        #
         'SetupDiOpenDeviceInterfaceRegKey': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "Reserved", "samDesired"]),
-        # 
+        #
         'SetupDiDeleteDeviceInterfaceRegKey': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "Reserved"]),
-        # 
+        #
         'SetupDiCreateDevRegKeyA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInfoData", "Scope", "HwProfile", "KeyType", "InfHandle", "InfSectionName"]),
-        # 
+        #
         'SetupDiCreateDevRegKeyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInfoData", "Scope", "HwProfile", "KeyType", "InfHandle", "InfSectionName"]),
-        # 
+        #
         'SetupDiOpenDevRegKey': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInfoData", "Scope", "HwProfile", "KeyType", "samDesired"]),
-        # 
+        #
         'SetupDiDeleteDevRegKey': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "Scope", "HwProfile", "KeyType"]),
-        # 
+        #
         'SetupDiGetHwProfileList': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfileList", "HwProfileListSize", "RequiredSize", "CurrentlyActiveIndex"]),
-        # 
+        #
         'SetupDiGetHwProfileListExA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfileList", "HwProfileListSize", "RequiredSize", "CurrentlyActiveIndex", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetHwProfileListExW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfileList", "HwProfileListSize", "RequiredSize", "CurrentlyActiveIndex", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetDevicePropertyKeys': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "PropertyKeyArray", "PropertyKeyCount", "RequiredPropertyKeyCount", "Flags"]),
-        # 
+        #
         'SetupDiGetDevicePropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="DEVPROPTYPE"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize", "Flags"]),
-        # 
+        #
         'SetupDiSetDevicePropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypeInt(signed=False, label="DEVPROPTYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "Flags"]),
-        # 
+        #
         'SetupDiGetDeviceInterfacePropertyKeys': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "PropertyKeyArray", "PropertyKeyCount", "RequiredPropertyKeyCount", "Flags"]),
-        # 
+        #
         'SetupDiGetDeviceInterfacePropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="DEVPROPTYPE"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize", "Flags"]),
-        # 
+        #
         'SetupDiSetDeviceInterfacePropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVICE_INTERFACE_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypeInt(signed=False, label="DEVPROPTYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInterfaceData", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "Flags"]),
-        # 
+        #
         'SetupDiGetClassPropertyKeys': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "PropertyKeyArray", "PropertyKeyCount", "RequiredPropertyKeyCount", "Flags"]),
-        # 
+        #
         'SetupDiGetClassPropertyKeysExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "PropertyKeyArray", "PropertyKeyCount", "RequiredPropertyKeyCount", "Flags", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassPropertyW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="DEVPROPTYPE"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize", "Flags"]),
-        # 
+        #
         'SetupDiGetClassPropertyExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="DEVPROPTYPE"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize", "Flags", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiSetClassPropertyW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypeInt(signed=False, label="DEVPROPTYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "Flags"]),
-        # 
+        #
         'SetupDiSetClassPropertyExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("DEVPROPKEY", SimStruct), offset=0), SimTypeInt(signed=False, label="DEVPROPTYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "PropertyKey", "PropertyType", "PropertyBuffer", "PropertyBufferSize", "Flags", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetDeviceRegistryPropertyA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_REGISTRY_PROPERTY"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "Property", "PropertyRegDataType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetDeviceRegistryPropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_REGISTRY_PROPERTY"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "Property", "PropertyRegDataType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetClassRegistryPropertyA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "Property", "PropertyRegDataType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassRegistryPropertyW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "Property", "PropertyRegDataType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiSetDeviceRegistryPropertyA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_REGISTRY_PROPERTY"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "Property", "PropertyBuffer", "PropertyBufferSize"]),
-        # 
+        #
         'SetupDiSetDeviceRegistryPropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SETUP_DI_REGISTRY_PROPERTY"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "Property", "PropertyBuffer", "PropertyBufferSize"]),
-        # 
+        #
         'SetupDiSetClassRegistryPropertyA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "Property", "PropertyBuffer", "PropertyBufferSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiSetClassRegistryPropertyW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "Property", "PropertyBuffer", "PropertyBufferSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetDeviceInstallParamsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVINSTALL_PARAMS_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DeviceInstallParams"]),
-        # 
+        #
         'SetupDiGetDeviceInstallParamsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVINSTALL_PARAMS_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DeviceInstallParams"]),
-        # 
+        #
         'SetupDiGetClassInstallParamsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_CLASSINSTALL_HEADER", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "ClassInstallParams", "ClassInstallParamsSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetClassInstallParamsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_CLASSINSTALL_HEADER", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "ClassInstallParams", "ClassInstallParamsSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiSetDeviceInstallParamsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVINSTALL_PARAMS_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DeviceInstallParams"]),
-        # 
+        #
         'SetupDiSetDeviceInstallParamsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DEVINSTALL_PARAMS_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DeviceInstallParams"]),
-        # 
+        #
         'SetupDiSetClassInstallParamsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_CLASSINSTALL_HEADER", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "ClassInstallParams", "ClassInstallParamsSize"]),
-        # 
+        #
         'SetupDiSetClassInstallParamsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_CLASSINSTALL_HEADER", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "ClassInstallParams", "ClassInstallParamsSize"]),
-        # 
+        #
         'SetupDiGetDriverInstallParamsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_A", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINSTALL_PARAMS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData", "DriverInstallParams"]),
-        # 
+        #
         'SetupDiGetDriverInstallParamsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_W", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINSTALL_PARAMS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData", "DriverInstallParams"]),
-        # 
+        #
         'SetupDiSetDriverInstallParamsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_A", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINSTALL_PARAMS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData", "DriverInstallParams"]),
-        # 
+        #
         'SetupDiSetDriverInstallParamsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINFO_DATA_V2_W", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_DRVINSTALL_PARAMS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "DriverInfoData", "DriverInstallParams"]),
-        # 
+        #
         'SetupDiLoadClassIcon': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "LargeIcon", "MiniIconIndex"]),
-        # 
+        #
         'SetupDiLoadDeviceIcon': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "cxIcon", "cyIcon", "Flags", "hIcon"]),
-        # 
+        #
         'SetupDiDrawMiniIcon': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeRef("RECT", SimStruct), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hdc", "rc", "MiniIconIndex", "Flags"]),
-        # 
+        #
         'SetupDiGetClassBitmapIndex': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "MiniIconIndex"]),
-        # 
+        #
         'SetupDiGetClassImageList': SimTypeFunction([SimTypePointer(SimTypeRef("SP_CLASSIMAGELIST_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassImageListData"]),
-        # 
+        #
         'SetupDiGetClassImageListExA': SimTypeFunction([SimTypePointer(SimTypeRef("SP_CLASSIMAGELIST_DATA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassImageListData", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassImageListExW': SimTypeFunction([SimTypePointer(SimTypeRef("SP_CLASSIMAGELIST_DATA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassImageListData", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetClassImageIndex': SimTypeFunction([SimTypePointer(SimTypeRef("SP_CLASSIMAGELIST_DATA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassImageListData", "ClassGuid", "ImageIndex"]),
-        # 
+        #
         'SetupDiDestroyClassImageList': SimTypeFunction([SimTypePointer(SimTypeRef("SP_CLASSIMAGELIST_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassImageListData"]),
-        # 
+        #
         'SetupDiGetClassDevPropertySheetsA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("PROPSHEETHEADERA_V2", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "PropertySheetHeader", "PropertySheetHeaderPageListSize", "RequiredSize", "PropertySheetType"]),
-        # 
+        #
         'SetupDiGetClassDevPropertySheetsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("PROPSHEETHEADERW_V2", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "PropertySheetHeader", "PropertySheetHeaderPageListSize", "RequiredSize", "PropertySheetType"]),
-        # 
+        #
         'SetupDiAskForOEMDisk': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiSelectOEMDrv': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent", "DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiClassNameFromGuidA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassName", "ClassNameSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiClassNameFromGuidW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassName", "ClassNameSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiClassNameFromGuidExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassName", "ClassNameSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiClassNameFromGuidExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassGuid", "ClassName", "ClassNameSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiClassGuidsFromNameA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassName", "ClassGuidList", "ClassGuidListSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiClassGuidsFromNameW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassName", "ClassGuidList", "ClassGuidListSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiClassGuidsFromNameExA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassName", "ClassGuidList", "ClassGuidListSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiClassGuidsFromNameExW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ClassName", "ClassGuidList", "ClassGuidListSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetHwProfileFriendlyNameA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfile", "FriendlyName", "FriendlyNameSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetHwProfileFriendlyNameW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfile", "FriendlyName", "FriendlyNameSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetHwProfileFriendlyNameExA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfile", "FriendlyName", "FriendlyNameSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetHwProfileFriendlyNameExW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["HwProfile", "FriendlyName", "FriendlyNameSize", "RequiredSize", "MachineName", "Reserved"]),
-        # 
+        #
         'SetupDiGetWizardPage': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_INSTALLWIZARD_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["DeviceInfoSet", "DeviceInfoData", "InstallWizardData", "PageType", "Flags"]),
-        # 
+        #
         'SetupDiGetSelectedDevice': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiSetSelectedDevice': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData"]),
-        # 
+        #
         'SetupDiGetActualModelsSectionA': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "AlternatePlatformInfo", "InfSectionWithExt", "InfSectionWithExtSize", "RequiredSize", "Reserved"]),
-        # 
+        #
         'SetupDiGetActualModelsSectionW': SimTypeFunction([SimTypePointer(SimTypeRef("INFCONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Context", "AlternatePlatformInfo", "InfSectionWithExt", "InfSectionWithExtSize", "RequiredSize", "Reserved"]),
-        # 
+        #
         'SetupDiGetActualSectionToInstallA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfSectionName", "InfSectionWithExt", "InfSectionWithExtSize", "RequiredSize", "Extension"]),
-        # 
+        #
         'SetupDiGetActualSectionToInstallW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfSectionName", "InfSectionWithExt", "InfSectionWithExtSize", "RequiredSize", "Extension"]),
-        # 
+        #
         'SetupDiGetActualSectionToInstallExA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfSectionName", "AlternatePlatformInfo", "InfSectionWithExt", "InfSectionWithExtSize", "RequiredSize", "Extension", "Reserved"]),
-        # 
+        #
         'SetupDiGetActualSectionToInstallExW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "InfSectionName", "AlternatePlatformInfo", "InfSectionWithExt", "InfSectionWithExtSize", "RequiredSize", "Extension", "Reserved"]),
-        # 
+        #
         'SetupEnumInfSectionsA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Index", "Buffer", "Size", "SizeNeeded"]),
-        # 
+        #
         'SetupEnumInfSectionsW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "Index", "Buffer", "Size", "SizeNeeded"]),
-        # 
+        #
         'SetupVerifyInfFileA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_INF_SIGNER_INFO_V2_A", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfName", "AltPlatformInfo", "InfSignerInfo"]),
-        # 
+        #
         'SetupVerifyInfFileW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("SP_ALTPLATFORM_INFO_V2", SimStruct), offset=0), SimTypePointer(SimTypeRef("SP_INF_SIGNER_INFO_V2_W", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InfName", "AltPlatformInfo", "InfSignerInfo"]),
-        # 
+        #
         'SetupDiGetCustomDevicePropertyA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "CustomPropertyName", "Flags", "PropertyRegDataType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupDiGetCustomDevicePropertyW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SP_DEVINFO_DATA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DeviceInfoSet", "DeviceInfoData", "CustomPropertyName", "Flags", "PropertyRegDataType", "PropertyBuffer", "PropertyBufferSize", "RequiredSize"]),
-        # 
+        #
         'SetupConfigureWmiFromInfSectionA': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SectionName", "Flags"]),
-        # 
+        #
         'SetupConfigureWmiFromInfSectionW': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["InfHandle", "SectionName", "Flags"]),
     }
 

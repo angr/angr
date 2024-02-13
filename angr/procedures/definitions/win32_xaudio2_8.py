@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("xaudio2_8.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateFX': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="IUnknown"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["clsid", "pEffect", "pInitDat", "InitDataByteSize"]),
-        # 
+        #
         'XAudio2CreateWithVersionInfo': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IXAudio2"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["ppXAudio2", "Flags", "XAudio2Processor", "ntddiVersion"]),
-        # 
+        #
         'CreateAudioVolumeMeter': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IUnknown"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ppApo"]),
-        # 
+        #
         'CreateAudioReverb': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IUnknown"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ppApo"]),
     }
 

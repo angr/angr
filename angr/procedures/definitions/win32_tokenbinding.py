@@ -33,25 +33,25 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("tokenbinding.dll")
 prototypes = \
     {
-        # 
+        #
         'TokenBindingGenerateBinding': SimTypeFunction([SimTypeInt(signed=False, label="TOKENBINDING_KEY_PARAMETERS_TYPE"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="TOKENBINDING_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="TOKENBINDING_EXTENSION_FORMAT"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("TOKENBINDING_RESULT_DATA", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyType", "targetURL", "bindingType", "tlsEKM", "tlsEKMSize", "extensionFormat", "extensionData", "tokenBinding", "tokenBindingSize", "resultData"]),
-        # 
+        #
         'TokenBindingGenerateMessage': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["tokenBindings", "tokenBindingsSize", "tokenBindingsCount", "tokenBindingMessage", "tokenBindingMessageSize"]),
-        # 
+        #
         'TokenBindingVerifyMessage': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="TOKENBINDING_KEY_PARAMETERS_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("TOKENBINDING_RESULT_LIST", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["tokenBindingMessage", "tokenBindingMessageSize", "keyType", "tlsEKM", "tlsEKMSize", "resultList"]),
-        # 
+        #
         'TokenBindingGetKeyTypesClient': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeRef("TOKENBINDING_KEY_TYPES", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyTypes"]),
-        # 
+        #
         'TokenBindingGetKeyTypesServer': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeRef("TOKENBINDING_KEY_TYPES", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyTypes"]),
-        # 
+        #
         'TokenBindingDeleteBinding': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["targetURL"]),
-        # 
+        #
         'TokenBindingDeleteAllBindings': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
-        # 
+        #
         'TokenBindingGenerateID': SimTypeFunction([SimTypeInt(signed=False, label="TOKENBINDING_KEY_PARAMETERS_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("TOKENBINDING_RESULT_DATA", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyType", "publicKey", "publicKeySize", "resultData"]),
-        # 
+        #
         'TokenBindingGenerateIDForUri': SimTypeFunction([SimTypeInt(signed=False, label="TOKENBINDING_KEY_PARAMETERS_TYPE"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("TOKENBINDING_RESULT_DATA", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyType", "targetUri", "resultData"]),
-        # 
+        #
         'TokenBindingGetHighestSupportedVersion': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["majorVersion", "minorVersion"]),
     }
 

@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("winhvemulation.dll")
 prototypes = \
     {
-        # 
+        #
         'WHvEmulatorCreateEmulator': SimTypeFunction([SimTypePointer(SimTypeRef("WHV_EMULATOR_CALLBACKS", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Callbacks", "Emulator"]),
-        # 
+        #
         'WHvEmulatorDestroyEmulator': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Emulator"]),
-        # 
+        #
         'WHvEmulatorTryIoEmulation': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("WHV_VP_EXIT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("WHV_X64_IO_PORT_ACCESS_CONTEXT", SimStruct), offset=0), SimTypePointer(SimUnion({"Anonymous": SimStruct(OrderedDict((("_bitfield", SimTypeInt(signed=False, label="UInt32")),)), name="_Anonymous_e__Struct", pack=False, align=None), "AsUINT32": SimTypeInt(signed=False, label="UInt32")}, name="<anon>", label="None"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Emulator", "Context", "VpContext", "IoInstructionContext", "EmulatorReturnStatus"]),
-        # 
+        #
         'WHvEmulatorTryMmioEmulation': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("WHV_VP_EXIT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("WHV_MEMORY_ACCESS_CONTEXT", SimStruct), offset=0), SimTypePointer(SimUnion({"Anonymous": SimStruct(OrderedDict((("_bitfield", SimTypeInt(signed=False, label="UInt32")),)), name="_Anonymous_e__Struct", pack=False, align=None), "AsUINT32": SimTypeInt(signed=False, label="UInt32")}, name="<anon>", label="None"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Emulator", "Context", "VpContext", "MmioInstructionContext", "EmulatorReturnStatus"]),
     }
 

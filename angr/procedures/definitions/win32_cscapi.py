@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("cscapi.dll")
 prototypes = \
     {
-        # 
+        #
         'OfflineFilesEnable': SimTypeFunction([SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["bEnable", "pbRebootRequired"]),
-        # 
+        #
         'OfflineFilesStart': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
-        # 
+        #
         'OfflineFilesQueryStatus': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pbActive", "pbEnabled"]),
-        # 
+        #
         'OfflineFilesQueryStatusEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pbActive", "pbEnabled", "pbAvailable"]),
     }
 

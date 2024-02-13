@@ -33,21 +33,21 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("windows.media.mediacontrol.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateRenderAudioStateMonitor': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["audioStateMonitor"]),
-        # 
+        #
         'CreateRenderAudioStateMonitorForCategory': SimTypeFunction([SimTypeInt(signed=False, label="AUDIO_STREAM_CATEGORY"), SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["category", "audioStateMonitor"]),
-        # 
+        #
         'CreateRenderAudioStateMonitorForCategoryAndDeviceRole': SimTypeFunction([SimTypeInt(signed=False, label="AUDIO_STREAM_CATEGORY"), SimTypeInt(signed=False, label="ERole"), SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["category", "role", "audioStateMonitor"]),
-        # 
+        #
         'CreateRenderAudioStateMonitorForCategoryAndDeviceId': SimTypeFunction([SimTypeInt(signed=False, label="AUDIO_STREAM_CATEGORY"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["category", "deviceId", "audioStateMonitor"]),
-        # 
+        #
         'CreateCaptureAudioStateMonitor': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["audioStateMonitor"]),
-        # 
+        #
         'CreateCaptureAudioStateMonitorForCategory': SimTypeFunction([SimTypeInt(signed=False, label="AUDIO_STREAM_CATEGORY"), SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["category", "audioStateMonitor"]),
-        # 
+        #
         'CreateCaptureAudioStateMonitorForCategoryAndDeviceRole': SimTypeFunction([SimTypeInt(signed=False, label="AUDIO_STREAM_CATEGORY"), SimTypeInt(signed=False, label="ERole"), SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["category", "role", "audioStateMonitor"]),
-        # 
+        #
         'CreateCaptureAudioStateMonitorForCategoryAndDeviceId': SimTypeFunction([SimTypeInt(signed=False, label="AUDIO_STREAM_CATEGORY"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="IAudioStateMonitor"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["category", "deviceId", "audioStateMonitor"]),
     }
 

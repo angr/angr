@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mtxdm.dll")
 prototypes = \
     {
-        # 
+        #
         'GetDispenserManager': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IDispenserManager"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
     }
 

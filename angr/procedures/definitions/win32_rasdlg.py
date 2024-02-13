@@ -33,17 +33,17 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("rasdlg.dll")
 prototypes = \
     {
-        # 
+        #
         'RasPhonebookDlgA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("RASPBDLGA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpszPhonebook", "lpszEntry", "lpInfo"]),
-        # 
+        #
         'RasPhonebookDlgW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("RASPBDLGW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpszPhonebook", "lpszEntry", "lpInfo"]),
-        # 
+        #
         'RasEntryDlgA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("RASENTRYDLGA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpszPhonebook", "lpszEntry", "lpInfo"]),
-        # 
+        #
         'RasEntryDlgW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("RASENTRYDLGW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpszPhonebook", "lpszEntry", "lpInfo"]),
-        # 
+        #
         'RasDialDlgA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("RASDIALDLG", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpszPhonebook", "lpszEntry", "lpszPhoneNumber", "lpInfo"]),
-        # 
+        #
         'RasDialDlgW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("RASDIALDLG", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpszPhonebook", "lpszEntry", "lpszPhoneNumber", "lpInfo"]),
     }
 

@@ -3273,7 +3273,7 @@ def dereference_simtype(
         real_type.elem_type = real_elem_type
         return real_type
     elif isinstance(t, SimUnion):
-        real_members = dict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.members.items())
+        real_members = {k: dereference_simtype(v, type_collections, memo=memo) for k, v in t.members.items()}
         real_type = t.copy()
         real_type.members = real_members
         return real_type

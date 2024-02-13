@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("sti.dll")
 prototypes = \
     {
-        # 
+        #
         'StiCreateInstanceW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="IStillImageW"), offset=0), SimTypeBottom(label="IUnknown")], SimTypeInt(signed=True, label="Int32"), arg_names=["hinst", "dwVer", "ppSti", "punkOuter"]),
     }
 

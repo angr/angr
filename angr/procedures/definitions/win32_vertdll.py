@@ -33,19 +33,19 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("vertdll.dll")
 prototypes = \
     {
-        # 
+        #
         'CallEnclave': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpRoutine", "lpParameter", "fWaitForThread", "lpReturnValue"]),
-        # 
+        #
         'TerminateEnclave': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["lpAddress", "fWait"]),
-        # 
+        #
         'EnclaveGetAttestationReport': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["EnclaveData", "Report", "BufferSize", "OutputSize"]),
-        # 
+        #
         'EnclaveVerifyAttestationReport': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["EnclaveType", "Report", "ReportSize"]),
-        # 
+        #
         'EnclaveSealData': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="ENCLAVE_SEALING_IDENTITY_POLICY"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DataToEncrypt", "DataToEncryptSize", "IdentityPolicy", "RuntimePolicy", "ProtectedBlob", "BufferSize", "ProtectedBlobSize"]),
-        # 
+        #
         'EnclaveUnsealData': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("ENCLAVE_IDENTITY", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ProtectedBlob", "ProtectedBlobSize", "DecryptedData", "BufferSize", "DecryptedDataSize", "SealingIdentity", "UnsealingFlags"]),
-        # 
+        #
         'EnclaveGetEnclaveInformation': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("ENCLAVE_INFORMATION", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["InformationSize", "EnclaveInformation"]),
     }
 

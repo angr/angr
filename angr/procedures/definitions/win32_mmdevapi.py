@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mmdevapi.dll")
 prototypes = \
     {
-        # 
+        #
         'ActivateAudioInterfaceAsync': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeRef("PROPVARIANT", SimStruct), offset=0), SimTypeBottom(label="IActivateAudioInterfaceCompletionHandler"), SimTypePointer(SimTypeBottom(label="IActivateAudioInterfaceAsyncOperation"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["deviceInterfacePath", "riid", "activationParams", "completionHandler", "activationOperation"]),
     }
 

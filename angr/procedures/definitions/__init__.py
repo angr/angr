@@ -68,7 +68,7 @@ class SimTypeCollection:
 
     def init_str(self) -> str:
         lines = [
-            f"typelib = SimTypeCollection()",
+            "typelib = SimTypeCollection()",
             "" if not self.names else f"typelib.set_names(*{self.names})",
             "typelib.types = {",
         ]

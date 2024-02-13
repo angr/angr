@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("ualapi.dll")
 prototypes = \
     {
-        # 
+        #
         'UalStart': SimTypeFunction([SimTypePointer(SimTypeRef("UAL_DATA_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Data"]),
-        # 
+        #
         'UalStop': SimTypeFunction([SimTypePointer(SimTypeRef("UAL_DATA_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Data"]),
-        # 
+        #
         'UalInstrument': SimTypeFunction([SimTypePointer(SimTypeRef("UAL_DATA_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Data"]),
-        # 
+        #
         'UalRegisterProduct': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["wszProductName", "wszRoleName", "wszGuid"]),
     }
 

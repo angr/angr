@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("msctfmonitor.dll")
 prototypes = \
     {
-        # 
+        #
         'DoMsCtfMonitor': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags", "hEventForServiceStop"]),
-        # 
+        #
         'InitLocalMsCtfMonitor': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags"]),
-        # 
+        #
         'UninitLocalMsCtfMonitor': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
     }
 

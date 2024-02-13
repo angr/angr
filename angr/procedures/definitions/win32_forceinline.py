@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("forceinline")
 prototypes = \
     {
-        # 
+        #
         'GetCurrentProcessToken': SimTypeFunction([], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)),
-        # 
+        #
         'GetCurrentThreadToken': SimTypeFunction([], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)),
-        # 
+        #
         'GetCurrentThreadEffectiveToken': SimTypeFunction([], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)),
     }
 

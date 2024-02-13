@@ -33,15 +33,15 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("scarddlg.dll")
 prototypes = \
     {
-        # 
+        #
         'SCardUIDlgSelectCardA': SimTypeFunction([SimTypePointer(SimTypeRef("OPENCARDNAME_EXA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
-        # 
+        #
         'SCardUIDlgSelectCardW': SimTypeFunction([SimTypePointer(SimTypeRef("OPENCARDNAME_EXW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
-        # 
+        #
         'GetOpenCardNameA': SimTypeFunction([SimTypePointer(SimTypeRef("OPENCARDNAMEA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
-        # 
+        #
         'GetOpenCardNameW': SimTypeFunction([SimTypePointer(SimTypeRef("OPENCARDNAMEW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
-        # 
+        #
         'SCardDlgExtendedError': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
     }
 

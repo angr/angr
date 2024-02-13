@@ -33,17 +33,17 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("kernelbase.dll")
 prototypes = \
     {
-        # 
+        #
         'TryCreatePackageDependency': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeRef("PACKAGE_VERSION", SimStruct), SimTypeInt(signed=False, label="PackageDependencyProcessorArchitectures"), SimTypeInt(signed=False, label="PackageDependencyLifetimeKind"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="CreatePackageDependencyOptions"), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["user", "packageFamilyName", "minVersion", "packageDependencyProcessorArchitectures", "lifetimeKind", "lifetimeArtifact", "options", "packageDependencyId"]),
-        # 
+        #
         'DeletePackageDependency': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageDependencyId"]),
-        # 
+        #
         'AddPackageDependency': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=False, label="AddPackageDependencyOptions"), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageDependencyId", "rank", "options", "packageDependencyContext", "packageFullName"]),
-        # 
+        #
         'RemovePackageDependency': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageDependencyContext"]),
-        # 
+        #
         'GetResolvedPackageFullNameForPackageDependency': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageDependencyId", "packageFullName"]),
-        # 
+        #
         'GetIdForPackageDependencyContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageDependencyContext", "packageDependencyId"]),
     }
 

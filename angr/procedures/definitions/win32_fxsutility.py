@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("fxsutility.dll")
 prototypes = \
     {
-        # 
+        #
         'CanSendToFaxRecipient': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
-        # 
+        #
         'SendToFaxRecipient': SimTypeFunction([SimTypeInt(signed=False, label="SendToMode"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["sndMode", "lpFileName"]),
     }
 

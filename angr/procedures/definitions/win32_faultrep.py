@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("faultrep.dll")
 prototypes = \
     {
-        # 
+        #
         'ReportFault': SimTypeFunction([SimTypePointer(SimTypeRef("EXCEPTION_POINTERS", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="EFaultRepRetVal"), arg_names=["pep", "dwOpt"]),
-        # 
+        #
         'AddERExcludedApplicationA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["szApplication"]),
-        # 
+        #
         'AddERExcludedApplicationW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["wszApplication"]),
-        # 
+        #
         'WerReportHang': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndHungApp", "pwzHungApplicationName"]),
     }
 

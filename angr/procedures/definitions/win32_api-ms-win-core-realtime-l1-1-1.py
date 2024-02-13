@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-realtime-l1-1-1.dll")
 prototypes = \
     {
-        # 
+        #
         'QueryInterruptTimePrecise': SimTypeFunction([SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeBottom(label="Void"), arg_names=["lpInterruptTimePrecise"]),
-        # 
+        #
         'QueryUnbiasedInterruptTimePrecise': SimTypeFunction([SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeBottom(label="Void"), arg_names=["lpUnbiasedInterruptTimePrecise"]),
-        # 
+        #
         'QueryInterruptTime': SimTypeFunction([SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeBottom(label="Void"), arg_names=["lpInterruptTime"]),
     }
 

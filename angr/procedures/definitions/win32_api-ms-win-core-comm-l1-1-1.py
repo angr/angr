@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-comm-l1-1-1.dll")
 prototypes = \
     {
-        # 
+        #
         'OpenCommPort': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["uPortNumber", "dwDesiredAccess", "dwFlagsAndAttributes"]),
     }
 

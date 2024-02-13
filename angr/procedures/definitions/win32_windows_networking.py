@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("windows.networking.dll")
 prototypes = \
     {
-        # 
+        #
         'SetSocketMediaStreamingMode': SimTypeFunction([SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["value"]),
     }
 

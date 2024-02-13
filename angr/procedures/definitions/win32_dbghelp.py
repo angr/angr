@@ -33,443 +33,443 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("dbghelp.dll")
 prototypes = \
     {
-        # 
+        #
         'ImageNtHeader': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS64", SimStruct), offset=0), arg_names=["Base"]),
-        # 
+        #
         'ImageRvaToSection': SimTypeFunction([SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS64", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("IMAGE_SECTION_HEADER", SimStruct), offset=0), arg_names=["NtHeaders", "Base", "Rva"]),
-        # 
+        #
         'ImageRvaToVa': SimTypeFunction([SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS64", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("IMAGE_SECTION_HEADER", SimStruct), offset=0), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["NtHeaders", "Base", "Rva", "LastRvaSection"]),
-        # 
+        #
         'MiniDumpWriteDump': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="MINIDUMP_TYPE"), SimTypePointer(SimTypeRef("MINIDUMP_EXCEPTION_INFORMATION", SimStruct), offset=0), SimTypePointer(SimTypeRef("MINIDUMP_USER_STREAM_INFORMATION", SimStruct), offset=0), SimTypePointer(SimTypeRef("MINIDUMP_CALLBACK_INFORMATION", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ProcessId", "hFile", "DumpType", "ExceptionParam", "UserStreamParam", "CallbackParam"]),
-        # 
+        #
         'MiniDumpReadDumpStream': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("MINIDUMP_DIRECTORY", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["BaseOfDump", "StreamNumber", "Dir", "StreamPointer", "StreamSize"]),
-        # 
+        #
         'SymFindDebugInfoFile': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["hProcess", "FileName", "DebugFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'SymFindDebugInfoFileW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["hProcess", "FileName", "DebugFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'FindDebugInfoFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["FileName", "SymbolPath", "DebugFilePath"]),
-        # 
+        #
         'FindDebugInfoFileEx': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["FileName", "SymbolPath", "DebugFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'FindDebugInfoFileExW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["FileName", "SymbolPath", "DebugFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'SymFindFileInPath': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="SYM_FIND_ID_OPTION"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["filename", "context"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hprocess", "SearchPathA", "FileName", "id", "two", "three", "flags", "FoundFile", "callback", "context"]),
-        # 
+        #
         'SymFindFileInPathW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="SYM_FIND_ID_OPTION"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["filename", "context"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hprocess", "SearchPathA", "FileName", "id", "two", "three", "flags", "FoundFile", "callback", "context"]),
-        # 
+        #
         'SymFindExecutableImage': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["hProcess", "FileName", "ImageFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'SymFindExecutableImageW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["hProcess", "FileName", "ImageFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'FindExecutableImage': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["FileName", "SymbolPath", "ImageFilePath"]),
-        # 
+        #
         'FindExecutableImageEx': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["FileName", "SymbolPath", "ImageFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'FindExecutableImageExW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileHandle", "FileName", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["FileName", "SymbolPath", "ImageFilePath", "Callback", "CallerData"]),
-        # 
+        #
         'ImageNtHeader': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS32", SimStruct), offset=0), arg_names=["Base"]),
-        # 
+        #
         'ImageDirectoryEntryToDataEx': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeChar(label="Byte"), SimTypeInt(signed=False, label="IMAGE_DIRECTORY_ENTRY"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("IMAGE_SECTION_HEADER", SimStruct), offset=0), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["Base", "MappedAsImage", "DirectoryEntry", "Size", "FoundHeader"]),
-        # 
+        #
         'ImageDirectoryEntryToData': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeChar(label="Byte"), SimTypeInt(signed=False, label="IMAGE_DIRECTORY_ENTRY"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["Base", "MappedAsImage", "DirectoryEntry", "Size"]),
-        # 
+        #
         'ImageRvaToSection': SimTypeFunction([SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS32", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("IMAGE_SECTION_HEADER", SimStruct), offset=0), arg_names=["NtHeaders", "Base", "Rva"]),
-        # 
+        #
         'ImageRvaToVa': SimTypeFunction([SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS32", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("IMAGE_SECTION_HEADER", SimStruct), offset=0), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["NtHeaders", "Base", "Rva", "LastRvaSection"]),
-        # 
+        #
         'SearchTreeForFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["RootPath", "InputPathName", "OutputPathBuffer"]),
-        # 
+        #
         'SearchTreeForFileW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["RootPath", "InputPathName", "OutputPathBuffer"]),
-        # 
+        #
         'EnumDirTree': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FilePath", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "RootPath", "InputPathName", "OutputPathBuffer", "cb", "data"]),
-        # 
+        #
         'EnumDirTreeW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FilePath", "CallerData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "RootPath", "InputPathName", "OutputPathBuffer", "cb", "data"]),
-        # 
+        #
         'MakeSureDirectoryPathExists': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DirPath"]),
-        # 
+        #
         'UnDecorateSymbolName': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["name", "outputString", "maxStringLength", "flags"]),
-        # 
+        #
         'UnDecorateSymbolNameW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["name", "outputString", "maxStringLength", "flags"]),
-        # 
+        #
         'StackWalk64': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("STACKFRAME64", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwBaseAddress", "lpBuffer", "nSize", "lpNumberOfBytesRead"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["ahProcess", "AddrBase"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "Address"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("ADDRESS64", SimStruct), offset=0)], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "hThread", "lpaddr"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["MachineType", "hProcess", "hThread", "StackFrame", "ContextRecord", "ReadMemoryRoutine", "FunctionTableAccessRoutine", "GetModuleBaseRoutine", "TranslateAddress"]),
-        # 
+        #
         'StackWalkEx': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("STACKFRAME_EX", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwBaseAddress", "lpBuffer", "nSize", "lpNumberOfBytesRead"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["ahProcess", "AddrBase"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "Address"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("ADDRESS64", SimStruct), offset=0)], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "hThread", "lpaddr"]), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["MachineType", "hProcess", "hThread", "StackFrame", "ContextRecord", "ReadMemoryRoutine", "FunctionTableAccessRoutine", "GetModuleBaseRoutine", "TranslateAddress", "Flags"]),
-        # 
+        #
         'StackWalk2': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("STACKFRAME_EX", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwBaseAddress", "lpBuffer", "nSize", "lpNumberOfBytesRead"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["ahProcess", "AddrBase"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "Address"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("ADDRESS64", SimStruct), offset=0)], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "hThread", "lpaddr"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Attribute", "AttributeData", "AttributeValue"]), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["MachineType", "hProcess", "hThread", "StackFrame", "ContextRecord", "ReadMemoryRoutine", "FunctionTableAccessRoutine", "GetModuleBaseRoutine", "TranslateAddress", "GetTargetAttributeValue", "Flags"]),
-        # 
+        #
         'StackWalk': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("STACKFRAME", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "lpBaseAddress", "lpBuffer", "nSize", "lpNumberOfBytesRead"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProcess", "AddrBase"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "Address"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("ADDRESS", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "hThread", "lpaddr"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["MachineType", "hProcess", "hThread", "StackFrame", "ContextRecord", "ReadMemoryRoutine", "FunctionTableAccessRoutine", "GetModuleBaseRoutine", "TranslateAddress"]),
-        # 
+        #
         'ImagehlpApiVersion': SimTypeFunction([], SimTypePointer(SimTypeRef("API_VERSION", SimStruct), offset=0)),
-        # 
+        #
         'ImagehlpApiVersionEx': SimTypeFunction([SimTypePointer(SimTypeRef("API_VERSION", SimStruct), offset=0)], SimTypePointer(SimTypeRef("API_VERSION", SimStruct), offset=0), arg_names=["AppVersion"]),
-        # 
+        #
         'GetTimestampForLoadedLibrary': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Module"]),
-        # 
+        #
         'SymSetParentWindow': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd"]),
-        # 
+        #
         'SymSetHomeDirectory': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["hProcess", "dir"]),
-        # 
+        #
         'SymSetHomeDirectoryW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["hProcess", "dir"]),
-        # 
+        #
         'SymGetHomeDirectory': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["type", "dir", "size"]),
-        # 
+        #
         'SymGetHomeDirectoryW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["type", "dir", "size"]),
-        # 
+        #
         'SymGetOmaps': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypePointer(SimTypeRef("OMAP", SimStruct), offset=0), offset=0), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("OMAP", SimStruct), offset=0), offset=0), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "OmapTo", "cOmapTo", "OmapFrom", "cOmapFrom"]),
-        # 
+        #
         'SymSetOptions': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["SymOptions"]),
-        # 
+        #
         'SymGetOptions': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
-        # 
+        #
         'SymCleanup': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess"]),
-        # 
+        #
         'SymGetExtendedOption': SimTypeFunction([SimTypeInt(signed=False, label="IMAGEHLP_EXTENDED_OPTIONS")], SimTypeInt(signed=True, label="Int32"), arg_names=["option"]),
-        # 
+        #
         'SymSetExtendedOption': SimTypeFunction([SimTypeInt(signed=False, label="IMAGEHLP_EXTENDED_OPTIONS"), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["option", "value"]),
-        # 
+        #
         'SymMatchString': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["string", "expression", "fCase"]),
-        # 
+        #
         'SymMatchStringA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["string", "expression", "fCase"]),
-        # 
+        #
         'SymMatchStringW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["string", "expression", "fCase"]),
-        # 
+        #
         'SymEnumSourceFiles': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SOURCEFILE", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSourceFile", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModBase", "Mask", "cbSrcFiles", "UserContext"]),
-        # 
+        #
         'SymEnumSourceFilesW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SOURCEFILEW", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSourceFile", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModBase", "Mask", "cbSrcFiles", "UserContext"]),
-        # 
+        #
         'SymEnumerateModules64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "BaseOfDll", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumModulesCallback", "UserContext"]),
-        # 
+        #
         'SymEnumerateModulesW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "BaseOfDll", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumModulesCallback", "UserContext"]),
-        # 
+        #
         'SymEnumerateModules': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "BaseOfDll", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumModulesCallback", "UserContext"]),
-        # 
+        #
         'EnumerateLoadedModulesEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "ModuleBase", "ModuleSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumLoadedModulesCallback", "UserContext"]),
-        # 
+        #
         'EnumerateLoadedModulesExW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "ModuleBase", "ModuleSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumLoadedModulesCallback", "UserContext"]),
-        # 
+        #
         'EnumerateLoadedModules64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "ModuleBase", "ModuleSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumLoadedModulesCallback", "UserContext"]),
-        # 
+        #
         'EnumerateLoadedModulesW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "ModuleBase", "ModuleSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumLoadedModulesCallback", "UserContext"]),
-        # 
+        #
         'EnumerateLoadedModules': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ModuleName", "ModuleBase", "ModuleSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "EnumLoadedModulesCallback", "UserContext"]),
-        # 
+        #
         'SymFunctionTableAccess64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProcess", "AddrBase"]),
-        # 
+        #
         'SymFunctionTableAccess64AccessRoutines': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwBaseAddress", "lpBuffer", "nSize", "lpNumberOfBytesRead"]), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "Address"]), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProcess", "AddrBase", "ReadMemoryRoutine", "GetModuleBaseRoutine"]),
-        # 
+        #
         'SymFunctionTableAccess': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProcess", "AddrBase"]),
-        # 
+        #
         'SymGetUnwindInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "Buffer", "Size"]),
-        # 
+        #
         'SymGetModuleInfo64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeRef("IMAGEHLP_MODULE64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwAddr", "ModuleInfo"]),
-        # 
+        #
         'SymGetModuleInfoW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeRef("IMAGEHLP_MODULEW64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwAddr", "ModuleInfo"]),
-        # 
+        #
         'SymGetModuleInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("IMAGEHLP_MODULE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "dwAddr", "ModuleInfo"]),
-        # 
+        #
         'SymGetModuleInfoW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("IMAGEHLP_MODULEW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "dwAddr", "ModuleInfo"]),
-        # 
+        #
         'SymGetModuleBase64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "qwAddr"]),
-        # 
+        #
         'SymGetModuleBase': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "dwAddr"]),
-        # 
+        #
         'SymEnumLines': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SRCCODEINFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["LineInfo", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Obj", "File", "EnumLinesCallback", "UserContext"]),
-        # 
+        #
         'SymEnumLinesW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SRCCODEINFOW", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["LineInfo", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Obj", "File", "EnumLinesCallback", "UserContext"]),
-        # 
+        #
         'SymGetLineFromAddr64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwAddr", "pdwDisplacement", "Line64"]),
-        # 
+        #
         'SymGetLineFromAddrW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINEW64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "dwAddr", "pdwDisplacement", "Line"]),
-        # 
+        #
         'SymGetLineFromInlineContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwAddr", "InlineContext", "qwModuleBaseAddress", "pdwDisplacement", "Line64"]),
-        # 
+        #
         'SymGetLineFromInlineContextW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINEW64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "dwAddr", "InlineContext", "qwModuleBaseAddress", "pdwDisplacement", "Line"]),
-        # 
+        #
         'SymEnumSourceLines': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SRCCODEINFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["LineInfo", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Obj", "File", "Line", "Flags", "EnumLinesCallback", "UserContext"]),
-        # 
+        #
         'SymEnumSourceLinesW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SRCCODEINFOW", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["LineInfo", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Obj", "File", "Line", "Flags", "EnumLinesCallback", "UserContext"]),
-        # 
+        #
         'SymAddrIncludeInlineTrace': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "Address"]),
-        # 
+        #
         'SymCompareInlineTrace': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "Address1", "InlineContext1", "RetAddress1", "Address2", "RetAddress2"]),
-        # 
+        #
         'SymQueryInlineTrace': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "StartAddress", "StartContext", "StartRetAddress", "CurAddress", "CurContext", "CurFrameIndex"]),
-        # 
+        #
         'SymGetLineFromAddr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "dwAddr", "pdwDisplacement", "Line"]),
-        # 
+        #
         'SymGetLineFromName64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModuleName", "FileName", "dwLineNumber", "plDisplacement", "Line"]),
-        # 
+        #
         'SymGetLineFromNameW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINEW64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModuleName", "FileName", "dwLineNumber", "plDisplacement", "Line"]),
-        # 
+        #
         'SymGetLineFromName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModuleName", "FileName", "dwLineNumber", "plDisplacement", "Line"]),
-        # 
+        #
         'SymGetLineNext64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Line"]),
-        # 
+        #
         'SymGetLineNextW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINEW64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Line"]),
-        # 
+        #
         'SymGetLineNext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Line"]),
-        # 
+        #
         'SymGetLinePrev64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Line"]),
-        # 
+        #
         'SymGetLinePrevW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINEW64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Line"]),
-        # 
+        #
         'SymGetLinePrev': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_LINE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Line"]),
-        # 
+        #
         'SymGetFileLineOffsets64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "ModuleName", "FileName", "Buffer", "BufferLines"]),
-        # 
+        #
         'SymMatchFileName': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "Match", "FileNameStop", "MatchStop"]),
-        # 
+        #
         'SymMatchFileNameW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "Match", "FileNameStop", "MatchStop"]),
-        # 
+        #
         'SymGetSourceFile': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Params", "FileSpec", "FilePath", "Size"]),
-        # 
+        #
         'SymGetSourceFileW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Params", "FileSpec", "FilePath", "Size"]),
-        # 
+        #
         'SymGetSourceFileToken': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "Token", "Size"]),
-        # 
+        #
         'SymGetSourceFileTokenByTokenName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "TokenName", "TokenParameters", "Token", "Size"]),
-        # 
+        #
         'SymGetSourceFileChecksumW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "pCheckSumType", "pChecksum", "checksumSize", "pActualBytesWritten"]),
-        # 
+        #
         'SymGetSourceFileChecksum': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "pCheckSumType", "pChecksum", "checksumSize", "pActualBytesWritten"]),
-        # 
+        #
         'SymGetSourceFileTokenW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "Token", "Size"]),
-        # 
+        #
         'SymGetSourceFileTokenByTokenNameW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "TokenName", "TokenParameters", "Token", "Size"]),
-        # 
+        #
         'SymGetSourceFileFromToken': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Token", "Params", "FilePath", "Size"]),
-        # 
+        #
         'SymGetSourceFileFromTokenByTokenName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Token", "TokenName", "Params", "FilePath", "Size"]),
-        # 
+        #
         'SymGetSourceFileFromTokenW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Token", "Params", "FilePath", "Size"]),
-        # 
+        #
         'SymGetSourceFileFromTokenByTokenNameW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Token", "TokenName", "Params", "FilePath", "Size"]),
-        # 
+        #
         'SymGetSourceVarFromToken': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Token", "Params", "VarName", "Value", "Size"]),
-        # 
+        #
         'SymGetSourceVarFromTokenW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Token", "Params", "VarName", "Value", "Size"]),
-        # 
+        #
         'SymEnumSourceFileTokens': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["token", "size"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Callback"]),
-        # 
+        #
         'SymInitialize': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "UserSearchPath", "fInvadeProcess"]),
-        # 
+        #
         'SymInitializeW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "UserSearchPath", "fInvadeProcess"]),
-        # 
+        #
         'SymGetSearchPath': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SearchPathA", "SearchPathLength"]),
-        # 
+        #
         'SymGetSearchPathW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SearchPathA", "SearchPathLength"]),
-        # 
+        #
         'SymSetSearchPath': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SearchPathA"]),
-        # 
+        #
         'SymSetSearchPathW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SearchPathA"]),
-        # 
+        #
         'SymLoadModuleEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("MODLOAD_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SYM_LOAD_FLAGS")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "hFile", "ImageName", "ModuleName", "BaseOfDll", "DllSize", "Data", "Flags"]),
-        # 
+        #
         'SymLoadModuleExW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("MODLOAD_DATA", SimStruct), offset=0), SimTypeInt(signed=False, label="SYM_LOAD_FLAGS")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "hFile", "ImageName", "ModuleName", "BaseOfDll", "DllSize", "Data", "Flags"]),
-        # 
+        #
         'SymUnloadModule64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll"]),
-        # 
+        #
         'SymUnloadModule': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll"]),
-        # 
+        #
         'SymUnDName64': SimTypeFunction([SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL64", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["sym", "UnDecName", "UnDecNameLength"]),
-        # 
+        #
         'SymUnDName': SimTypeFunction([SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["sym", "UnDecName", "UnDecNameLength"]),
-        # 
+        #
         'SymRegisterCallback64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ActionCode", "CallbackData", "UserContext"]), offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "CallbackFunction", "UserContext"]),
-        # 
+        #
         'SymRegisterCallbackW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ActionCode", "CallbackData", "UserContext"]), offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "CallbackFunction", "UserContext"]),
-        # 
+        #
         'SymRegisterFunctionEntryCallback64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProcess", "AddrBase", "UserContext"]), offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "CallbackFunction", "UserContext"]),
-        # 
+        #
         'SymRegisterCallback': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ActionCode", "CallbackData", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "CallbackFunction", "UserContext"]),
-        # 
+        #
         'SymRegisterFunctionEntryCallback': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProcess", "AddrBase", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "CallbackFunction", "UserContext"]),
-        # 
+        #
         'SymSetContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_STACK_FRAME", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "StackFrame", "Context"]),
-        # 
+        #
         'SymSetScopeFromAddr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address"]),
-        # 
+        #
         'SymSetScopeFromInlineContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "InlineContext"]),
-        # 
+        #
         'SymSetScopeFromIndex': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index"]),
-        # 
+        #
         'SymEnumProcesses': SimTypeFunction([SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["EnumProcessesCallback", "UserContext"]),
-        # 
+        #
         'SymFromAddr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "Displacement", "Symbol"]),
-        # 
+        #
         'SymFromAddrW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "Displacement", "Symbol"]),
-        # 
+        #
         'SymFromInlineContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "InlineContext", "Displacement", "Symbol"]),
-        # 
+        #
         'SymFromInlineContextW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "InlineContext", "Displacement", "Symbol"]),
-        # 
+        #
         'SymFromToken': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Token", "Symbol"]),
-        # 
+        #
         'SymFromTokenW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "Token", "Symbol"]),
-        # 
+        #
         'SymNext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "si"]),
-        # 
+        #
         'SymNextW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "siw"]),
-        # 
+        #
         'SymPrev': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "si"]),
-        # 
+        #
         'SymPrevW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "siw"]),
-        # 
+        #
         'SymFromName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Name", "Symbol"]),
-        # 
+        #
         'SymFromNameW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Name", "Symbol"]),
-        # 
+        #
         'SymEnumSymbols': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Mask", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumSymbolsEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Mask", "EnumSymbolsCallback", "UserContext", "Options"]),
-        # 
+        #
         'SymEnumSymbolsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Mask", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumSymbolsExW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Mask", "EnumSymbolsCallback", "UserContext", "Options"]),
-        # 
+        #
         'SymEnumSymbolsForAddr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumSymbolsForAddrW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Address", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymSearch': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index", "SymTag", "Mask", "Address", "EnumSymbolsCallback", "UserContext", "Options"]),
-        # 
+        #
         'SymSearchW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index", "SymTag", "Mask", "Address", "EnumSymbolsCallback", "UserContext", "Options"]),
-        # 
+        #
         'SymGetScope': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index", "Symbol"]),
-        # 
+        #
         'SymGetScopeW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index", "Symbol"]),
-        # 
+        #
         'SymFromIndex': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index", "Symbol"]),
-        # 
+        #
         'SymFromIndexW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Index", "Symbol"]),
-        # 
+        #
         'SymGetTypeInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="IMAGEHLP_SYMBOL_TYPE_INFO"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModBase", "TypeId", "GetType", "pInfo"]),
-        # 
+        #
         'SymGetTypeInfoEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeRef("IMAGEHLP_GET_TYPE_INFO_PARAMS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "ModBase", "Params"]),
-        # 
+        #
         'SymEnumTypes': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumTypesW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumTypesByName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "mask", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumTypesByNameW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "mask", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymGetTypeFromName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Name", "Symbol"]),
-        # 
+        #
         'SymGetTypeFromNameW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("SYMBOL_INFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Name", "Symbol"]),
-        # 
+        #
         'SymAddSymbol': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Name", "Address", "Size", "Flags"]),
-        # 
+        #
         'SymAddSymbolW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Name", "Address", "Size", "Flags"]),
-        # 
+        #
         'SymDeleteSymbol': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Name", "Address", "Flags"]),
-        # 
+        #
         'SymDeleteSymbolW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "Name", "Address", "Flags"]),
-        # 
+        #
         'SymRefreshModuleList': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess"]),
-        # 
+        #
         'SymAddSourceStream': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "StreamFile", "Buffer", "Size"]),
-        # 
+        #
         'SymAddSourceStreamA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "StreamFile", "Buffer", "Size"]),
-        # 
+        #
         'SymAddSourceStreamW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Base", "FileSpec", "Buffer", "Size"]),
-        # 
+        #
         'SymSrvIsStoreW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "path"]),
-        # 
+        #
         'SymSrvIsStore': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "path"]),
-        # 
+        #
         'SymSrvDeltaName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["hProcess", "SymPath", "Type", "File1", "File2"]),
-        # 
+        #
         'SymSrvDeltaNameW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["hProcess", "SymPath", "Type", "File1", "File2"]),
-        # 
+        #
         'SymSrvGetSupplement': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["hProcess", "SymPath", "Node", "File"]),
-        # 
+        #
         'SymSrvGetSupplementW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["hProcess", "SymPath", "Node", "File"]),
-        # 
+        #
         'SymSrvGetFileIndexes': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["File", "Id", "Val1", "Val2", "Flags"]),
-        # 
+        #
         'SymSrvGetFileIndexesW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["File", "Id", "Val1", "Val2", "Flags"]),
-        # 
+        #
         'SymSrvGetFileIndexStringW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SrvPath", "File", "Index", "Size", "Flags"]),
-        # 
+        #
         'SymSrvGetFileIndexString': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SrvPath", "File", "Index", "Size", "Flags"]),
-        # 
+        #
         'SymSrvGetFileIndexInfo': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("SYMSRV_INDEX_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["File", "Info", "Flags"]),
-        # 
+        #
         'SymSrvGetFileIndexInfoW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("SYMSRV_INDEX_INFOW", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["File", "Info", "Flags"]),
-        # 
+        #
         'SymSrvStoreSupplement': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["hProcess", "SrvPath", "Node", "File", "Flags"]),
-        # 
+        #
         'SymSrvStoreSupplementW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["hProcess", "SymPath", "Node", "File", "Flags"]),
-        # 
+        #
         'SymSrvStoreFile': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="SYM_SRV_STORE_FILE_FLAGS")], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["hProcess", "SrvPath", "File", "Flags"]),
-        # 
+        #
         'SymSrvStoreFileW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="SYM_SRV_STORE_FILE_FLAGS")], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["hProcess", "SrvPath", "File", "Flags"]),
-        # 
+        #
         'SymGetSymbolFile': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SymPath", "ImageFile", "Type", "SymbolFile", "cSymbolFile", "DbgFile", "cDbgFile"]),
-        # 
+        #
         'SymGetSymbolFileW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "SymPath", "ImageFile", "Type", "SymbolFile", "cSymbolFile", "DbgFile", "cDbgFile"]),
-        # 
+        #
         'DbgHelpCreateUserDump': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DataType", "Data", "DataLength", "UserData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "Callback", "UserData"]),
-        # 
+        #
         'DbgHelpCreateUserDumpW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["DataType", "Data", "DataLength", "UserData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "Callback", "UserData"]),
-        # 
+        #
         'SymGetSymFromAddr64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "qwAddr", "pdwDisplacement", "Symbol"]),
-        # 
+        #
         'SymGetSymFromAddr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "dwAddr", "pdwDisplacement", "Symbol"]),
-        # 
+        #
         'SymGetSymFromName64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Name", "Symbol"]),
-        # 
+        #
         'SymGetSymFromName': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Name", "Symbol"]),
-        # 
+        #
         'FindFileInPath': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hprocess", "SearchPathA", "FileName", "id", "two", "three", "flags", "FilePath"]),
-        # 
+        #
         'FindFileInSearchPath': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hprocess", "SearchPathA", "FileName", "one", "two", "three", "FilePath"]),
-        # 
+        #
         'SymEnumSym': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("SYMBOL_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSymInfo", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumerateSymbols64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SymbolName", "SymbolAddress", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumerateSymbolsW64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SymbolName", "SymbolAddress", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumerateSymbols': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SymbolName", "SymbolAddress", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymEnumerateSymbolsW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["SymbolName", "SymbolAddress", "SymbolSize", "UserContext"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "BaseOfDll", "EnumSymbolsCallback", "UserContext"]),
-        # 
+        #
         'SymLoadModule64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32")], SimTypeLongLong(signed=False, label="UInt64"), arg_names=["hProcess", "hFile", "ImageName", "ModuleName", "BaseOfDll", "SizeOfDll"]),
-        # 
+        #
         'SymLoadModule': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hProcess", "hFile", "ImageName", "ModuleName", "BaseOfDll", "SizeOfDll"]),
-        # 
+        #
         'SymGetSymNext64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Symbol"]),
-        # 
+        #
         'SymGetSymNext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Symbol"]),
-        # 
+        #
         'SymGetSymPrev64': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL64", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Symbol"]),
-        # 
+        #
         'SymGetSymPrev': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("IMAGEHLP_SYMBOL", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "Symbol"]),
-        # 
+        #
         'SetCheckUserInterruptShared': SimTypeFunction([SimTypePointer(SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")), offset=0)], SimTypeBottom(label="Void"), arg_names=["lpStartAddress"]),
-        # 
+        #
         'GetSymLoadError': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
-        # 
+        #
         'SetSymLoadError': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypeBottom(label="Void"), arg_names=["error"]),
-        # 
+        #
         'ReportSymbolLoadSummary': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("DBGHELP_DATA_REPORT_STRUCT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hProcess", "pLoadModule", "pSymbolData"]),
-        # 
+        #
         'RemoveInvalidModuleList': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeBottom(label="Void"), arg_names=["hProcess"]),
-        # 
+        #
         'RangeMapCreate': SimTypeFunction([], SimTypePointer(SimTypeBottom(label="Void"), offset=0)),
-        # 
+        #
         'RangeMapFree': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["RmapHandle"]),
-        # 
+        #
         'RangeMapAddPeImageSections': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeLongLong(signed=False, label="UInt64"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["RmapHandle", "ImageName", "MappedImage", "MappingBytes", "ImageBase", "UserTag", "MappingFlags"]),
-        # 
+        #
         'RangeMapRemove': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["RmapHandle", "UserTag"]),
-        # 
+        #
         'RangeMapRead': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["RmapHandle", "Offset", "Buffer", "RequestBytes", "Flags", "DoneBytes"]),
-        # 
+        #
         'RangeMapWrite': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["RmapHandle", "Offset", "Buffer", "RequestBytes", "Flags", "DoneBytes"]),
     }
 

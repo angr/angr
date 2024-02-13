@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("normaliz.dll")
 prototypes = \
     {
-        # 
+        #
         'IdnToAscii': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags", "lpUnicodeCharStr", "cchUnicodeChar", "lpASCIICharStr", "cchASCIIChar"]),
-        # 
+        #
         'IdnToUnicode': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags", "lpASCIICharStr", "cchASCIIChar", "lpUnicodeCharStr", "cchUnicodeChar"]),
     }
 

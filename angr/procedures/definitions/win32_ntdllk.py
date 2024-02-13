@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("ntdllk.dll")
 prototypes = \
     {
-        # 
+        #
         'RtlGetSystemGlobalData': SimTypeFunction([SimTypeInt(signed=False, label="RTL_SYSTEM_GLOBAL_DATA_ID"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["DataId", "Buffer", "Size"]),
     }
 

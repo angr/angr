@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("xpsprint.dll")
 prototypes = \
     {
-        # 
+        #
         'StartXpsPrintJob': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="IXpsPrintJob"), offset=0), SimTypePointer(SimTypeBottom(label="IXpsPrintJobStream"), offset=0), SimTypePointer(SimTypeBottom(label="IXpsPrintJobStream"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["printerName", "jobName", "outputFileName", "progressEvent", "completionEvent", "printablePagesOn", "printablePagesOnCount", "xpsPrintJob", "documentStream", "printTicketStream"]),
-        # 
+        #
         'StartXpsPrintJob1': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="IXpsPrintJob"), offset=0), SimTypePointer(SimTypeBottom(label="IXpsOMPackageTarget"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["printerName", "jobName", "outputFileName", "progressEvent", "completionEvent", "xpsPrintJob", "printContentReceiver"]),
     }
 

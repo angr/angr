@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("deviceaccess.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateDeviceAccessInstance': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ICreateDeviceAccessAsync"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["deviceInterfacePath", "desiredAccess", "createAsync"]),
     }
 

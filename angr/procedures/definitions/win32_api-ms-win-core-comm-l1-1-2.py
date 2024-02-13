@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-comm-l1-1-2.dll")
 prototypes = \
     {
-        # 
+        #
         'GetCommPorts': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpPortNumbers", "uPortNumbersCount", "puPortNumbersFound"]),
     }
 

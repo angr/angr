@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("directml.dll")
 prototypes = \
     {
-        # 
+        #
         'DMLCreateDevice': SimTypeFunction([SimTypeBottom(label="ID3D12Device"), SimTypeInt(signed=False, label="DML_CREATE_DEVICE_FLAGS"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["d3d12Device", "flags", "riid", "ppv"]),
-        # 
+        #
         'DMLCreateDevice1': SimTypeFunction([SimTypeBottom(label="ID3D12Device"), SimTypeInt(signed=False, label="DML_CREATE_DEVICE_FLAGS"), SimTypeInt(signed=False, label="DML_FEATURE_LEVEL"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["d3d12Device", "flags", "minimumFeatureLevel", "riid", "ppv"]),
     }
 

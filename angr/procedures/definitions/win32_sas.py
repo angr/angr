@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("sas.dll")
 prototypes = \
     {
-        # 
+        #
         'SendSAS': SimTypeFunction([SimTypeInt(signed=True, label="Int32")], SimTypeBottom(label="Void"), arg_names=["AsUser"]),
     }
 

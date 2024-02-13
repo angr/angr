@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("dbgmodel.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateDataModelManager': SimTypeFunction([SimTypeBottom(label="IDebugHost"), SimTypePointer(SimTypeBottom(label="IDataModelManager"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["debugHost", "manager"]),
     }
 

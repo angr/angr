@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-security-isolatedcontainer-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'IsProcessInIsolatedContainer': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["isProcessInIsolatedContainer"]),
     }
 

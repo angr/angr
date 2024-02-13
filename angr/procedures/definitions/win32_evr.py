@@ -33,19 +33,19 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("evr.dll")
 prototypes = \
     {
-        # 
+        #
         'MFIsFormatYUV': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["Format"]),
-        # 
+        #
         'MFGetPlaneSize': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["format", "dwWidth", "dwHeight", "pdwPlaneSize"]),
-        # 
+        #
         'MFCreateVideoPresenter': SimTypeFunction([SimTypeBottom(label="IUnknown"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pOwner", "riidDevice", "riid", "ppVideoPresenter"]),
-        # 
+        #
         'MFCreateVideoMixer': SimTypeFunction([SimTypeBottom(label="IUnknown"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pOwner", "riidDevice", "riid", "ppv"]),
-        # 
+        #
         'MFCreateVideoMixerAndPresenter': SimTypeFunction([SimTypeBottom(label="IUnknown"), SimTypeBottom(label="IUnknown"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pMixerOwner", "pPresenterOwner", "riidMixer", "ppvVideoMixer", "riidPresenter", "ppvVideoPresenter"]),
-        # 
+        #
         'MFCreateVideoSampleFromSurface': SimTypeFunction([SimTypeBottom(label="IUnknown"), SimTypePointer(SimTypeBottom(label="IMFSample"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pUnkSurface", "ppSample"]),
-        # 
+        #
         'MFCreateVideoSampleAllocator': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["riid", "ppSampleAllocator"]),
     }
 

@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-service-core-l1-1-3.dll")
 prototypes = \
     {
-        # 
+        #
         'GetServiceRegistryStateKey': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SERVICE_REGISTRY_STATE_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["ServiceStatusHandle", "StateType", "AccessMask", "ServiceStateKey"]),
     }
 

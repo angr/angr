@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-featurestaging-l1-1-1.dll")
 prototypes = \
     {
-        # 
+        #
         'GetFeatureVariant': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="FEATURE_CHANGE_TIME"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["featureId", "changeTime", "payloadId", "hasNotification"]),
     }
 

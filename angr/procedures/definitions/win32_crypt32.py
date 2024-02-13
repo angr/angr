@@ -33,463 +33,463 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("crypt32.dll")
 prototypes = \
     {
-        # 
+        #
         'CryptFormatObject': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "dwFormatType", "dwFormatStrType", "pFormatStruct", "lpszStructType", "pbEncoded", "cbEncoded", "pbFormat", "pcbFormat"]),
-        # 
+        #
         'CryptEncodeObjectEx': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CRYPT_ENCODE_OBJECT_FLAGS"), SimTypePointer(SimTypeRef("CRYPT_ENCODE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "lpszStructType", "pvStructInfo", "dwFlags", "pEncodePara", "pvEncoded", "pcbEncoded"]),
-        # 
+        #
         'CryptEncodeObject': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "lpszStructType", "pvStructInfo", "pbEncoded", "pcbEncoded"]),
-        # 
+        #
         'CryptDecodeObjectEx': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_DECODE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "lpszStructType", "pbEncoded", "cbEncoded", "dwFlags", "pDecodePara", "pvStructInfo", "pcbStructInfo"]),
-        # 
+        #
         'CryptDecodeObject': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "lpszStructType", "pbEncoded", "cbEncoded", "dwFlags", "pvStructInfo", "pcbStructInfo"]),
-        # 
+        #
         'CryptInstallOIDFunctionAddress': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_OID_FUNC_ENTRY", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hModule", "dwEncodingType", "pszFuncName", "cFuncEntry", "rgFuncEntry", "dwFlags"]),
-        # 
+        #
         'CryptInitOIDFunctionSet': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["pszFuncName", "dwFlags"]),
-        # 
+        #
         'CryptGetOIDFunctionAddress': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hFuncSet", "dwEncodingType", "pszOID", "dwFlags", "ppvFuncAddr", "phFuncAddr"]),
-        # 
+        #
         'CryptGetDefaultOIDDllList': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hFuncSet", "dwEncodingType", "pwszDllList", "pcchDllList"]),
-        # 
+        #
         'CryptGetDefaultOIDFunctionAddress': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hFuncSet", "dwEncodingType", "pwszDll", "dwFlags", "ppvFuncAddr", "phFuncAddr"]),
-        # 
+        #
         'CryptFreeOIDFunctionAddress': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hFuncAddr", "dwFlags"]),
-        # 
+        #
         'CryptRegisterOIDFunction': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pszOID", "pwszDll", "pszOverrideFuncName"]),
-        # 
+        #
         'CryptUnregisterOIDFunction': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pszOID"]),
-        # 
+        #
         'CryptRegisterDefaultOIDFunction': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "dwIndex", "pwszDll"]),
-        # 
+        #
         'CryptUnregisterDefaultOIDFunction': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pwszDll"]),
-        # 
+        #
         'CryptSetOIDFunctionValue': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="REG_VALUE_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pszOID", "pwszValueName", "dwValueType", "pbValueData", "cbValueData"]),
-        # 
+        #
         'CryptGetOIDFunctionValue': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pszOID", "pwszValueName", "pdwValueType", "pbValueData", "pcbValueData"]),
-        # 
+        #
         'CryptEnumOIDFunction': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pszOID", "cValue", "rgdwValueType", "rgpwszValueName", "rgpbValueData", "rgcbValueData", "pvArg"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pszFuncName", "pszOID", "dwFlags", "pvArg", "pfnEnumOIDFunc"]),
-        # 
+        #
         'CryptFindOIDInfo': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("CRYPT_OID_INFO", SimStruct), offset=0), arg_names=["dwKeyType", "pvKey", "dwGroupId"]),
-        # 
+        #
         'CryptRegisterOIDInfo': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_OID_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pInfo", "dwFlags"]),
-        # 
+        #
         'CryptUnregisterOIDInfo': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_OID_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pInfo"]),
-        # 
+        #
         'CryptEnumOIDInfo': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_OID_INFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pInfo", "pvArg"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwGroupId", "dwFlags", "pvArg", "pfnEnumOIDInfo"]),
-        # 
+        #
         'CryptFindLocalizedName': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeChar(label="Char"), offset=0), arg_names=["pwszCryptName"]),
-        # 
+        #
         'CryptMsgOpenToEncode': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CRYPT_MSG_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("CMSG_STREAM_INFO", SimStruct), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["dwMsgEncodingType", "dwFlags", "dwMsgType", "pvMsgEncodeInfo", "pszInnerContentObjID", "pStreamInfo"]),
-        # 
+        #
         'CryptMsgCalculateEncodedLength': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwMsgEncodingType", "dwFlags", "dwMsgType", "pvMsgEncodeInfo", "pszInnerContentObjID", "cbData"]),
-        # 
+        #
         'CryptMsgOpenToDecode': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0), SimTypePointer(SimTypeRef("CMSG_STREAM_INFO", SimStruct), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["dwMsgEncodingType", "dwFlags", "dwMsgType", "hCryptProv", "pRecipientInfo", "pStreamInfo"]),
-        # 
+        #
         'CryptMsgDuplicate': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hCryptMsg"]),
-        # 
+        #
         'CryptMsgClose': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptMsg"]),
-        # 
+        #
         'CryptMsgUpdate': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptMsg", "pbData", "cbData", "fFinal"]),
-        # 
+        #
         'CryptMsgGetParam': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptMsg", "dwParamType", "dwIndex", "pvData", "pcbData"]),
-        # 
+        #
         'CryptMsgControl': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptMsg", "dwFlags", "dwCtrlType", "pvCtrlPara"]),
-        # 
+        #
         'CryptMsgVerifyCountersignatureEncoded': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwEncodingType", "pbSignerInfo", "cbSignerInfo", "pbSignerInfoCountersignature", "cbSignerInfoCountersignature", "pciCountersigner"]),
-        # 
+        #
         'CryptMsgVerifyCountersignatureEncodedEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwEncodingType", "pbSignerInfo", "cbSignerInfo", "pbSignerInfoCountersignature", "cbSignerInfoCountersignature", "dwSignerType", "pvSigner", "dwFlags", "pvExtra"]),
-        # 
+        #
         'CryptMsgCountersign': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CMSG_SIGNER_ENCODE_INFO", SimStruct), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptMsg", "dwIndex", "cCountersigners", "rgCountersigners"]),
-        # 
+        #
         'CryptMsgCountersignEncoded': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CMSG_SIGNER_ENCODE_INFO", SimStruct), label="LPArray", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "pbSignerInfo", "cbSignerInfo", "cCountersigners", "rgCountersigners", "pbCountersignature", "pcbCountersignature"]),
-        # 
+        #
         'CertOpenStore': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_OPEN_STORE_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["lpszStoreProvider", "dwEncodingType", "hCryptProv", "dwFlags", "pvPara"]),
-        # 
+        #
         'CertDuplicateStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hCertStore"]),
-        # 
+        #
         'CertSaveStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="CERT_STORE_SAVE_AS"), SimTypeInt(signed=False, label="CERT_STORE_SAVE_TO"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwEncodingType", "dwSaveAs", "dwSaveTo", "pvSaveToPara", "dwFlags"]),
-        # 
+        #
         'CertCloseStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwFlags"]),
-        # 
+        #
         'CertGetSubjectCertificateFromStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "dwCertEncodingType", "pCertId"]),
-        # 
+        #
         'CertEnumCertificatesInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "pPrevCertContext"]),
-        # 
+        #
         'CertFindCertificateInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CERT_FIND_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "dwCertEncodingType", "dwFindFlags", "dwFindType", "pvFindPara", "pPrevCertContext"]),
-        # 
+        #
         'CertGetIssuerCertificateFromStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "pSubjectContext", "pPrevIssuerContext", "pdwFlags"]),
-        # 
+        #
         'CertVerifySubjectCertificateContext': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSubject", "pIssuer", "pdwFlags"]),
-        # 
+        #
         'CertDuplicateCertificateContext': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["pCertContext"]),
-        # 
+        #
         'CertCreateCertificateContext': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["dwCertEncodingType", "pbCertEncoded", "cbCertEncoded"]),
-        # 
+        #
         'CertFreeCertificateContext': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext"]),
-        # 
+        #
         'CertSetCertificateContextProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "dwPropId", "dwFlags", "pvData"]),
-        # 
+        #
         'CertGetCertificateContextProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "dwPropId", "pvData", "pcbData"]),
-        # 
+        #
         'CertEnumCertificateContextProperties': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["pCertContext", "dwPropId"]),
-        # 
+        #
         'CertCreateCTLEntryFromCertificateContextProperties': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_ATTRIBUTE", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_ENTRY", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "cOptAttr", "rgOptAttr", "dwFlags", "pvReserved", "pCtlEntry", "pcbCtlEntry"]),
-        # 
+        #
         'CertSetCertificateContextPropertiesFromCTLEntry': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CTL_ENTRY", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "pCtlEntry", "dwFlags"]),
-        # 
+        #
         'CertGetCRLFromStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "pIssuerContext", "pPrevCrlContext", "pdwFlags"]),
-        # 
+        #
         'CertEnumCRLsInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "pPrevCrlContext"]),
-        # 
+        #
         'CertFindCRLInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "dwCertEncodingType", "dwFindFlags", "dwFindType", "pvFindPara", "pPrevCrlContext"]),
-        # 
+        #
         'CertDuplicateCRLContext': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), arg_names=["pCrlContext"]),
-        # 
+        #
         'CertCreateCRLContext': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), arg_names=["dwCertEncodingType", "pbCrlEncoded", "cbCrlEncoded"]),
-        # 
+        #
         'CertFreeCRLContext': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCrlContext"]),
-        # 
+        #
         'CertSetCRLContextProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCrlContext", "dwPropId", "dwFlags", "pvData"]),
-        # 
+        #
         'CertGetCRLContextProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCrlContext", "dwPropId", "pvData", "pcbData"]),
-        # 
+        #
         'CertEnumCRLContextProperties': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["pCrlContext", "dwPropId"]),
-        # 
+        #
         'CertFindCertificateInCRL': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CRL_ENTRY", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCert", "pCrlContext", "dwFlags", "pvReserved", "ppCrlEntry"]),
-        # 
+        #
         'CertIsValidCRLForCertificate': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCert", "pCrl", "dwFlags", "pvReserved"]),
-        # 
+        #
         'CertAddEncodedCertificateToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwCertEncodingType", "pbCertEncoded", "cbCertEncoded", "dwAddDisposition", "ppCertContext"]),
-        # 
+        #
         'CertAddCertificateContextToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pCertContext", "dwAddDisposition", "ppStoreContext"]),
-        # 
+        #
         'CertAddSerializedElementToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pbElement", "cbElement", "dwAddDisposition", "dwFlags", "dwContextTypeFlags", "pdwContextType", "ppvContext"]),
-        # 
+        #
         'CertDeleteCertificateFromStore': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext"]),
-        # 
+        #
         'CertAddEncodedCRLToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwCertEncodingType", "pbCrlEncoded", "cbCrlEncoded", "dwAddDisposition", "ppCrlContext"]),
-        # 
+        #
         'CertAddCRLContextToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pCrlContext", "dwAddDisposition", "ppStoreContext"]),
-        # 
+        #
         'CertDeleteCRLFromStore': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCrlContext"]),
-        # 
+        #
         'CertSerializeCertificateStoreElement': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "dwFlags", "pbElement", "pcbElement"]),
-        # 
+        #
         'CertSerializeCRLStoreElement': SimTypeFunction([SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCrlContext", "dwFlags", "pbElement", "pcbElement"]),
-        # 
+        #
         'CertDuplicateCTLContext': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), arg_names=["pCtlContext"]),
-        # 
+        #
         'CertCreateCTLContext': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), arg_names=["dwMsgAndCertEncodingType", "pbCtlEncoded", "cbCtlEncoded"]),
-        # 
+        #
         'CertFreeCTLContext': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCtlContext"]),
-        # 
+        #
         'CertSetCTLContextProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCtlContext", "dwPropId", "dwFlags", "pvData"]),
-        # 
+        #
         'CertGetCTLContextProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCtlContext", "dwPropId", "pvData", "pcbData"]),
-        # 
+        #
         'CertEnumCTLContextProperties': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["pCtlContext", "dwPropId"]),
-        # 
+        #
         'CertEnumCTLsInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "pPrevCtlContext"]),
-        # 
+        #
         'CertFindSubjectInCTL': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeRef("CTL_ENTRY", SimStruct), offset=0), arg_names=["dwEncodingType", "dwSubjectType", "pvSubject", "pCtlContext", "dwFlags"]),
-        # 
+        #
         'CertFindCTLInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CERT_FIND_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "dwMsgAndCertEncodingType", "dwFindFlags", "dwFindType", "pvFindPara", "pPrevCtlContext"]),
-        # 
+        #
         'CertAddEncodedCTLToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwMsgAndCertEncodingType", "pbCtlEncoded", "cbCtlEncoded", "dwAddDisposition", "ppCtlContext"]),
-        # 
+        #
         'CertAddCTLContextToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pCtlContext", "dwAddDisposition", "ppStoreContext"]),
-        # 
+        #
         'CertSerializeCTLStoreElement': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCtlContext", "dwFlags", "pbElement", "pcbElement"]),
-        # 
+        #
         'CertDeleteCTLFromStore': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCtlContext"]),
-        # 
+        #
         'CertAddCertificateLinkToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pCertContext", "dwAddDisposition", "ppStoreContext"]),
-        # 
+        #
         'CertAddCRLLinkToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CRL_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pCrlContext", "dwAddDisposition", "ppStoreContext"]),
-        # 
+        #
         'CertAddCTLLinkToStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "pCtlContext", "dwAddDisposition", "ppStoreContext"]),
-        # 
+        #
         'CertAddStoreToCollection': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hCollectionStore", "hSiblingStore", "dwUpdateFlags", "dwPriority"]),
-        # 
+        #
         'CertRemoveStoreFromCollection': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["hCollectionStore", "hSiblingStore"]),
-        # 
+        #
         'CertControlStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_CONTROL_STORE_FLAGS"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwFlags", "dwCtrlType", "pvCtrlPara"]),
-        # 
+        #
         'CertSetStoreProperty': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwPropId", "dwFlags", "pvData"]),
-        # 
+        #
         'CertGetStoreProperty': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCertStore", "dwPropId", "pvData", "pcbData"]),
-        # 
+        #
         'CertCreateContext': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_CREATE_CONTEXT_PARA", SimStruct), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["dwContextType", "dwEncodingType", "pbEncoded", "cbEncoded", "dwFlags", "pCreatePara"]),
-        # 
+        #
         'CertRegisterSystemStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_SYSTEM_STORE_INFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags", "pStoreInfo", "pvReserved"]),
-        # 
+        #
         'CertRegisterPhysicalStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("CERT_PHYSICAL_STORE_INFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags", "pwszStoreName", "pStoreInfo", "pvReserved"]),
-        # 
+        #
         'CertUnregisterSystemStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags"]),
-        # 
+        #
         'CertUnregisterPhysicalStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags", "pwszStoreName"]),
-        # 
+        #
         'CertEnumSystemStoreLocation': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pwszStoreLocation", "dwFlags", "pvReserved", "pvArg"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags", "pvArg", "pfnEnum"]),
-        # 
+        #
         'CertEnumSystemStore': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_SYSTEM_STORE_FLAGS"), SimTypePointer(SimTypeRef("CERT_SYSTEM_STORE_INFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags", "pStoreInfo", "pvReserved", "pvArg"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags", "pvSystemStoreLocationPara", "pvArg", "pfnEnum"]),
-        # 
+        #
         'CertEnumPhysicalStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("CERT_PHYSICAL_STORE_INFO", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags", "pwszStoreName", "pStoreInfo", "pvReserved", "pvArg"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pvSystemStore", "dwFlags", "pvArg", "pfnEnum"]),
-        # 
+        #
         'CertGetEnhancedKeyUsage': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CTL_USAGE", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "dwFlags", "pUsage", "pcbUsage"]),
-        # 
+        #
         'CertSetEnhancedKeyUsage': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CTL_USAGE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "pUsage"]),
-        # 
+        #
         'CertAddEnhancedKeyUsageIdentifier': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "pszUsageIdentifier"]),
-        # 
+        #
         'CertRemoveEnhancedKeyUsageIdentifier': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "pszUsageIdentifier"]),
-        # 
+        #
         'CertGetValidUsages': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["cCerts", "rghCerts", "cNumOIDs", "rghOIDs", "pcbOIDs"]),
-        # 
+        #
         'CryptMsgGetAndVerifySigner': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptMsg", "cSignerStore", "rghSignerStore", "dwFlags", "ppSigner", "pdwSignerIndex"]),
-        # 
+        #
         'CryptMsgSignCTL': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CMSG_SIGNED_ENCODE_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwMsgEncodingType", "pbCtlContent", "cbCtlContent", "pSignInfo", "dwFlags", "pbEncoded", "pcbEncoded"]),
-        # 
+        #
         'CryptMsgEncodeAndSignCTL': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CTL_INFO", SimStruct), offset=0), SimTypePointer(SimTypeRef("CMSG_SIGNED_ENCODE_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwMsgEncodingType", "pCtlInfo", "pSignInfo", "dwFlags", "pbEncoded", "pcbEncoded"]),
-        # 
+        #
         'CertFindSubjectInSortedCTL': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSubjectIdentifier", "pCtlContext", "dwFlags", "pvReserved", "pEncodedAttributes"]),
-        # 
+        #
         'CertEnumSubjectInSortedCTL': SimTypeFunction([SimTypePointer(SimTypeRef("CTL_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCtlContext", "ppvNextSubject", "pSubjectIdentifier", "pEncodedAttributes"]),
-        # 
+        #
         'CertVerifyCTLUsage': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CTL_USAGE", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CTL_VERIFY_USAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CTL_VERIFY_USAGE_STATUS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "dwSubjectType", "pvSubject", "pSubjectUsage", "dwFlags", "pVerifyUsagePara", "pVerifyUsageStatus"]),
-        # 
+        #
         'CertVerifyRevocation': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_REVOCATION_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_REVOCATION_STATUS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwEncodingType", "dwRevType", "cContext", "rgpvContext", "dwFlags", "pRevPara", "pRevStatus"]),
-        # 
+        #
         'CertCompareIntegerBlob': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pInt1", "pInt2"]),
-        # 
+        #
         'CertCompareCertificate': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pCertId1", "pCertId2"]),
-        # 
+        #
         'CertCompareCertificateName': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pCertName1", "pCertName2"]),
-        # 
+        #
         'CertIsRDNAttrsInCertificateName': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_RDN", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "dwFlags", "pCertName", "pRDN"]),
-        # 
+        #
         'CertComparePublicKeyInfo': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pPublicKey1", "pPublicKey2"]),
-        # 
+        #
         'CertGetPublicKeyLength': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwCertEncodingType", "pPublicKey"]),
-        # 
+        #
         'CryptVerifyCertificateSignature': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwCertEncodingType", "pbEncoded", "cbEncoded", "pPublicKey"]),
-        # 
+        #
         'CryptVerifyCertificateSignatureEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CRYPT_VERIFY_CERT_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwCertEncodingType", "dwSubjectType", "pvSubject", "dwIssuerType", "pvIssuer", "dwFlags", "pvExtra"]),
-        # 
+        #
         'CertIsStrongHashToSign': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_STRONG_SIGN_PARA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pStrongSignPara", "pwszCNGHashAlgid", "pSigningCert"]),
-        # 
+        #
         'CryptHashToBeSigned': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwCertEncodingType", "pbEncoded", "cbEncoded", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CryptHashCertificate': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="ALG_ID"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "Algid", "dwFlags", "pbEncoded", "cbEncoded", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CryptHashCertificate2': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pwszCNGHashAlgid", "dwFlags", "pvReserved", "pbEncoded", "cbEncoded", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CryptSignCertificate': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_ALGORITHM_IDENTIFIER", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProvOrNCryptKey", "dwKeySpec", "dwCertEncodingType", "pbEncodedToBeSigned", "cbEncodedToBeSigned", "pSignatureAlgorithm", "pvHashAuxInfo", "pbSignature", "pcbSignature"]),
-        # 
+        #
         'CryptSignAndEncodeCertificate': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_KEY_SPEC"), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRYPT_ALGORITHM_IDENTIFIER", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProvOrNCryptKey", "dwKeySpec", "dwCertEncodingType", "lpszStructType", "pvStructInfo", "pSignatureAlgorithm", "pvHashAuxInfo", "pbEncoded", "pcbEncoded"]),
-        # 
+        #
         'CertVerifyTimeValidity': SimTypeFunction([SimTypePointer(SimTypeRef("FILETIME", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pTimeToVerify", "pCertInfo"]),
-        # 
+        #
         'CertVerifyCRLTimeValidity': SimTypeFunction([SimTypePointer(SimTypeRef("FILETIME", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRL_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pTimeToVerify", "pCrlInfo"]),
-        # 
+        #
         'CertVerifyValidityNesting': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSubjectInfo", "pIssuerInfo"]),
-        # 
+        #
         'CertVerifyCRLRevocation': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CRL_INFO", SimStruct), offset=0), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pCertId", "cCrlInfo", "rgpCrlInfo"]),
-        # 
+        #
         'CertAlgIdToOID': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeChar(label="Byte"), offset=0), arg_names=["dwAlgId"]),
-        # 
+        #
         'CertOIDToAlgId': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pszObjId"]),
-        # 
+        #
         'CertFindExtension': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_EXTENSION", SimStruct), label="LPArray", offset=0)], SimTypePointer(SimTypeRef("CERT_EXTENSION", SimStruct), offset=0), arg_names=["pszObjId", "cExtensions", "rgExtensions"]),
-        # 
+        #
         'CertFindAttribute': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_ATTRIBUTE", SimStruct), label="LPArray", offset=0)], SimTypePointer(SimTypeRef("CRYPT_ATTRIBUTE", SimStruct), offset=0), arg_names=["pszObjId", "cAttr", "rgAttr"]),
-        # 
+        #
         'CertFindRDNAttr': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("CERT_NAME_INFO", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_RDN_ATTR", SimStruct), offset=0), arg_names=["pszObjId", "pName"]),
-        # 
+        #
         'CertGetIntendedKeyUsage': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_INFO", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pCertInfo", "pbKeyUsage", "cbKeyUsage"]),
-        # 
+        #
         'CryptInstallDefaultContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CRYPT_DEFAULT_CONTEXT_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CRYPT_DEFAULT_CONTEXT_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwDefaultType", "pvDefaultPara", "dwFlags", "pvReserved", "phDefaultContext"]),
-        # 
+        #
         'CryptUninstallDefaultContext': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDefaultContext", "dwFlags", "pvReserved"]),
-        # 
+        #
         'CryptExportPublicKeyInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProvOrNCryptKey", "dwKeySpec", "dwCertEncodingType", "pInfo", "pcbInfo"]),
-        # 
+        #
         'CryptExportPublicKeyInfoEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProvOrNCryptKey", "dwKeySpec", "dwCertEncodingType", "pszPublicKeyObjId", "dwFlags", "pvAuxInfo", "pInfo", "pcbInfo"]),
-        # 
+        #
         'CryptExportPublicKeyInfoFromBCryptKeyHandle': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hBCryptKey", "dwCertEncodingType", "pszPublicKeyObjId", "dwFlags", "pvAuxInfo", "pInfo", "pcbInfo"]),
-        # 
+        #
         'CryptImportPublicKeyInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwCertEncodingType", "pInfo", "phKey"]),
-        # 
+        #
         'CryptImportPublicKeyInfoEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="ALG_ID"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwCertEncodingType", "pInfo", "aiKeyAlg", "dwFlags", "pvAuxInfo", "phKey"]),
-        # 
+        #
         'CryptImportPublicKeyInfoEx2': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="CRYPT_IMPORT_PUBLIC_KEY_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pInfo", "dwFlags", "pvAuxInfo", "phKey"]),
-        # 
+        #
         'CryptAcquireCertificatePrivateKey': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="CRYPT_ACQUIRE_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="CERT_KEY_SPEC"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCert", "dwFlags", "pvParameters", "phCryptProvOrNCryptKey", "pdwKeySpec", "pfCallerFreeProvOrNCryptKey"]),
-        # 
+        #
         'CryptFindCertificateKeyProvInfo': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="CRYPT_FIND_FLAGS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCert", "dwFlags", "pvReserved"]),
-        # 
+        #
         'CryptImportPKCS8': SimTypeFunction([SimTypeRef("CRYPT_PKCS8_IMPORT_PARAMS", SimStruct), SimTypeInt(signed=False, label="CRYPT_KEY_FLAGS"), SimTypePointer(SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["sPrivateKeyAndParams", "dwFlags", "phCryptProv", "pvAuxInfo"]),
-        # 
+        #
         'CryptExportPKCS8': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "dwKeySpec", "pszPrivateKeyObjId", "dwFlags", "pvAuxInfo", "pbPrivateKeyBlob", "pcbPrivateKeyBlob"]),
-        # 
+        #
         'CryptHashPublicKeyInfo': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="ALG_ID"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hCryptProv", "Algid", "dwFlags", "dwCertEncodingType", "pInfo", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CertRDNValueToStrA': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwValueType", "pValue", "psz", "csz"]),
-        # 
+        #
         'CertRDNValueToStrW': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwValueType", "pValue", "psz", "csz"]),
-        # 
+        #
         'CertNameToStrA': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="CERT_STRING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwCertEncodingType", "pName", "dwStrType", "psz", "csz"]),
-        # 
+        #
         'CertNameToStrW': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="CERT_STRING_TYPE"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwCertEncodingType", "pName", "dwStrType", "psz", "csz"]),
-        # 
+        #
         'CertStrToNameA': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="CERT_STRING_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pszX500", "dwStrType", "pvReserved", "pbEncoded", "pcbEncoded", "ppszError"]),
-        # 
+        #
         'CertStrToNameW': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="CERT_STRING_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pszX500", "dwStrType", "pvReserved", "pbEncoded", "pcbEncoded", "ppszError"]),
-        # 
+        #
         'CertGetNameStringA': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["pCertContext", "dwType", "dwFlags", "pvTypePara", "pszNameString", "cchNameString"]),
-        # 
+        #
         'CertGetNameStringW': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["pCertContext", "dwType", "dwFlags", "pvTypePara", "pszNameString", "cchNameString"]),
-        # 
+        #
         'CryptSignMessage': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_SIGN_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSignPara", "fDetachedSignature", "cToBeSigned", "rgpbToBeSigned", "rgcbToBeSigned", "pbSignedBlob", "pcbSignedBlob"]),
-        # 
+        #
         'CryptVerifyMessageSignature': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_VERIFY_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pVerifyPara", "dwSignerIndex", "pbSignedBlob", "cbSignedBlob", "pbDecoded", "pcbDecoded", "ppSignerCert"]),
-        # 
+        #
         'CryptGetMessageSignerCount': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwMsgEncodingType", "pbSignedBlob", "cbSignedBlob"]),
-        # 
+        #
         'CryptGetMessageCertificates': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["dwMsgAndCertEncodingType", "hCryptProv", "dwFlags", "pbSignedBlob", "cbSignedBlob"]),
-        # 
+        #
         'CryptVerifyDetachedMessageSignature': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_VERIFY_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pVerifyPara", "dwSignerIndex", "pbDetachedSignBlob", "cbDetachedSignBlob", "cToBeSigned", "rgpbToBeSigned", "rgcbToBeSigned", "ppSignerCert"]),
-        # 
+        #
         'CryptEncryptMessage': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_ENCRYPT_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pEncryptPara", "cRecipientCert", "rgpRecipientCert", "pbToBeEncrypted", "cbToBeEncrypted", "pbEncryptedBlob", "pcbEncryptedBlob"]),
-        # 
+        #
         'CryptDecryptMessage': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_DECRYPT_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDecryptPara", "pbEncryptedBlob", "cbEncryptedBlob", "pbDecrypted", "pcbDecrypted", "ppXchgCert"]),
-        # 
+        #
         'CryptSignAndEncryptMessage': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_SIGN_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_ENCRYPT_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSignPara", "pEncryptPara", "cRecipientCert", "rgpRecipientCert", "pbToBeSignedAndEncrypted", "cbToBeSignedAndEncrypted", "pbSignedAndEncryptedBlob", "pcbSignedAndEncryptedBlob"]),
-        # 
+        #
         'CryptDecryptAndVerifyMessageSignature': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_DECRYPT_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_VERIFY_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDecryptPara", "pVerifyPara", "dwSignerIndex", "pbEncryptedBlob", "cbEncryptedBlob", "pbDecrypted", "pcbDecrypted", "ppXchgCert", "ppSignerCert"]),
-        # 
+        #
         'CryptDecodeMessage': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_DECRYPT_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_VERIFY_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwMsgTypeFlags", "pDecryptPara", "pVerifyPara", "dwSignerIndex", "pbEncodedBlob", "cbEncodedBlob", "dwPrevInnerContentType", "pdwMsgType", "pdwInnerContentType", "pbDecoded", "pcbDecoded", "ppXchgCert", "ppSignerCert"]),
-        # 
+        #
         'CryptHashMessage': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_HASH_MESSAGE_PARA", SimStruct), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pHashPara", "fDetachedHash", "cToBeHashed", "rgpbToBeHashed", "rgcbToBeHashed", "pbHashedBlob", "pcbHashedBlob", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CryptVerifyMessageHash': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_HASH_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pHashPara", "pbHashedBlob", "cbHashedBlob", "pbToBeHashed", "pcbToBeHashed", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CryptVerifyDetachedMessageHash': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_HASH_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pHashPara", "pbDetachedHashBlob", "cbDetachedHashBlob", "cToBeHashed", "rgpbToBeHashed", "rgcbToBeHashed", "pbComputedHash", "pcbComputedHash"]),
-        # 
+        #
         'CryptSignMessageWithKey': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_KEY_SIGN_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSignPara", "pbToBeSigned", "cbToBeSigned", "pbSignedBlob", "pcbSignedBlob"]),
-        # 
+        #
         'CryptVerifyMessageSignatureWithKey': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_KEY_VERIFY_MESSAGE_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_PUBLIC_KEY_INFO", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pVerifyPara", "pPublicKeyInfo", "pbSignedBlob", "cbSignedBlob", "pbDecoded", "pcbDecoded"]),
-        # 
+        #
         'CertOpenSystemStoreA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProv", "szSubsystemProtocol"]),
-        # 
+        #
         'CertOpenSystemStoreW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["hProv", "szSubsystemProtocol"]),
-        # 
+        #
         'CertAddEncodedCertificateToSystemStoreA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["szCertStoreName", "pbCertEncoded", "cbCertEncoded"]),
-        # 
+        #
         'CertAddEncodedCertificateToSystemStoreW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["szCertStoreName", "pbCertEncoded", "cbCertEncoded"]),
-        # 
+        #
         'CryptQueryObject': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_OBJECT_TYPE"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_CONTENT_TYPE_FLAGS"), SimTypeInt(signed=False, label="CERT_QUERY_FORMAT_TYPE_FLAGS"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="CERT_QUERY_CONTENT_TYPE"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="CERT_QUERY_FORMAT_TYPE"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwObjectType", "pvObject", "dwExpectedContentTypeFlags", "dwExpectedFormatTypeFlags", "dwFlags", "pdwMsgAndCertEncodingType", "pdwContentType", "pdwFormatType", "phCertStore", "phMsg", "ppvContext"]),
-        # 
+        #
         'CryptMemAlloc': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["cbSize"]),
-        # 
+        #
         'CryptMemRealloc': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["pv", "cbSize"]),
-        # 
+        #
         'CryptMemFree': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["pv"]),
-        # 
+        #
         'CryptCreateAsyncHandle': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwFlags", "phAsync"]),
-        # 
+        #
         'CryptSetAsyncParam': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["pszParamOid", "pvParam"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hAsync", "pszParamOid", "pvParam", "pfnFree"]),
-        # 
+        #
         'CryptGetAsyncParam': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["pszParamOid", "pvParam"]), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hAsync", "pszParamOid", "ppvParam", "ppfnFree"]),
-        # 
+        #
         'CryptCloseAsyncHandle': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hAsync"]),
-        # 
+        #
         'CertCreateSelfSignCertificate': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="CERT_CREATE_SELFSIGN_FLAGS"), SimTypePointer(SimTypeRef("CRYPT_KEY_PROV_INFO", SimStruct), offset=0), SimTypePointer(SimTypeRef("CRYPT_ALGORITHM_IDENTIFIER", SimStruct), offset=0), SimTypePointer(SimTypeRef("SYSTEMTIME", SimStruct), offset=0), SimTypePointer(SimTypeRef("SYSTEMTIME", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_EXTENSIONS", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), arg_names=["hCryptProvOrNCryptKey", "pSubjectIssuerBlob", "dwFlags", "pKeyProvInfo", "pSignatureAlgorithm", "pStartTime", "pEndTime", "pExtensions"]),
-        # 
+        #
         'CryptGetKeyIdentifierProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pKeyIdentifier", "dwPropId", "dwFlags", "pwszComputerName", "pvReserved", "pvData", "pcbData"]),
-        # 
+        #
         'CryptSetKeyIdentifierProperty': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pKeyIdentifier", "dwPropId", "dwFlags", "pwszComputerName", "pvReserved", "pvData"]),
-        # 
+        #
         'CryptEnumKeyIdentifierProperties': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pKeyIdentifier", "dwFlags", "pvReserved", "pvArg", "cProp", "rgdwPropId", "rgpvData", "rgcbData"]), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pKeyIdentifier", "dwPropId", "dwFlags", "pwszComputerName", "pvReserved", "pvArg", "pfnEnum"]),
-        # 
+        #
         'CryptCreateKeyIdentifierFromCSP': SimTypeFunction([SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("PUBLICKEYSTRUC", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwCertEncodingType", "pszPubKeyOID", "pPubKeyStruc", "cbPubKeyStruc", "dwFlags", "pvReserved", "pbHash", "pcbHash"]),
-        # 
+        #
         'CertCreateCertificateChainEngine': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CHAIN_ENGINE_CONFIG", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pConfig", "phChainEngine"]),
-        # 
+        #
         'CertFreeCertificateChainEngine': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeBottom(label="Void"), arg_names=["hChainEngine"]),
-        # 
+        #
         'CertResyncCertificateChainEngine': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hChainEngine"]),
-        # 
+        #
         'CertGetCertificateChain': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("FILETIME", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CHAIN_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hChainEngine", "pCertContext", "pTime", "hAdditionalStore", "pChainPara", "dwFlags", "pvReserved", "ppChainContext"]),
-        # 
+        #
         'CertFreeCertificateChain': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0)], SimTypeBottom(label="Void"), arg_names=["pChainContext"]),
-        # 
+        #
         'CertDuplicateCertificateChain': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), arg_names=["pChainContext"]),
-        # 
+        #
         'CertFindChainInStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="CERT_QUERY_ENCODING_TYPE"), SimTypeInt(signed=False, label="CERT_FIND_CHAIN_IN_STORE_FLAGS"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0)], SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), arg_names=["hCertStore", "dwCertEncodingType", "dwFindFlags", "dwFindType", "pvFindPara", "pPrevChainContext"]),
-        # 
+        #
         'CertVerifyCertificateChainPolicy': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_CHAIN_POLICY_PARA", SimStruct), offset=0), SimTypePointer(SimTypeRef("CERT_CHAIN_POLICY_STATUS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszPolicyOID", "pChainContext", "pPolicyPara", "pPolicyStatus"]),
-        # 
+        #
         'CryptStringToBinaryA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CRYPT_STRING"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszString", "cchString", "dwFlags", "pbBinary", "pcbBinary", "pdwSkip", "pdwFlags"]),
-        # 
+        #
         'CryptStringToBinaryW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CRYPT_STRING"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszString", "cchString", "dwFlags", "pbBinary", "pcbBinary", "pdwSkip", "pdwFlags"]),
-        # 
+        #
         'CryptBinaryToStringA': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CRYPT_STRING"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pbBinary", "cbBinary", "dwFlags", "pszString", "pcchString"]),
-        # 
+        #
         'CryptBinaryToStringW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="CRYPT_STRING"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pbBinary", "cbBinary", "dwFlags", "pszString", "pcchString"]),
-        # 
+        #
         'PFXImportCertStore': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="CRYPT_KEY_FLAGS")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["pPFX", "szPassword", "dwFlags"]),
-        # 
+        #
         'PFXIsPFXBlob': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pPFX"]),
-        # 
+        #
         'PFXVerifyPassword': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pPFX", "szPassword", "dwFlags"]),
-        # 
+        #
         'PFXExportCertStoreEx': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hStore", "pPFX", "szPassword", "pvPara", "dwFlags"]),
-        # 
+        #
         'PFXExportCertStore': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hStore", "pPFX", "szPassword", "dwFlags"]),
-        # 
+        #
         'CertOpenServerOcspResponse': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_SERVER_OCSP_RESPONSE_OPEN_PARA", SimStruct), offset=0)], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["pChainContext", "dwFlags", "pOpenPara"]),
-        # 
+        #
         'CertAddRefServerOcspResponse': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["hServerOcspResponse"]),
-        # 
+        #
         'CertCloseServerOcspResponse': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeBottom(label="Void"), arg_names=["hServerOcspResponse", "dwFlags"]),
-        # 
+        #
         'CertGetServerOcspResponseContext': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeRef("CERT_SERVER_OCSP_RESPONSE_CONTEXT", SimStruct), offset=0), arg_names=["hServerOcspResponse", "dwFlags", "pvReserved"]),
-        # 
+        #
         'CertAddRefServerOcspResponseContext': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_SERVER_OCSP_RESPONSE_CONTEXT", SimStruct), offset=0)], SimTypeBottom(label="Void"), arg_names=["pServerOcspResponseContext"]),
-        # 
+        #
         'CertFreeServerOcspResponseContext': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_SERVER_OCSP_RESPONSE_CONTEXT", SimStruct), offset=0)], SimTypeBottom(label="Void"), arg_names=["pServerOcspResponseContext"]),
-        # 
+        #
         'CertRetrieveLogoOrBiometricInfo': SimTypeFunction([SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pCertContext", "lpszLogoOrBiometricType", "dwRetrievalFlags", "dwTimeout", "dwFlags", "pvReserved", "ppbData", "pcbData", "ppwszMimeType"]),
-        # 
+        #
         'CertSelectCertificateChains': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_SELECT_CHAIN_PARA", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_SELECT_CRITERIA", SimStruct), label="LPArray", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSelectionContext", "dwFlags", "pChainParameters", "cCriteria", "rgpCriteria", "hStore", "pcSelection", "pprgpSelection"]),
-        # 
+        #
         'CertFreeCertificateChainList': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), offset=0)], SimTypeBottom(label="Void"), arg_names=["prgpSelection"]),
-        # 
+        #
         'CryptRetrieveTimeStamp': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("CRYPT_TIMESTAMP_PARA", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeRef("CRYPT_TIMESTAMP_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["wszUrl", "dwRetrievalFlags", "dwTimeout", "pszHashId", "pPara", "pbData", "cbData", "ppTsContext", "ppTsSigner", "phStore"]),
-        # 
+        #
         'CryptVerifyTimeStampSignature': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CRYPT_TIMESTAMP_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("CERT_CONTEXT", SimStruct), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pbTSContentInfo", "cbTSContentInfo", "pbData", "cbData", "hAdditionalStore", "ppTsContext", "ppTsSigner", "phStore"]),
-        # 
+        #
         'CertIsWeakHash': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CERT_CHAIN_CONTEXT", SimStruct), offset=0), SimTypePointer(SimTypeRef("FILETIME", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwHashUseType", "pwszCNGHashAlgid", "dwChainFlags", "pSignerChainContext", "pTimeStamp", "pwszFileName"]),
-        # 
+        #
         'CryptProtectData': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRYPTPROTECT_PROMPTSTRUCT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDataIn", "szDataDescr", "pOptionalEntropy", "pvReserved", "pPromptStruct", "dwFlags", "pDataOut"]),
-        # 
+        #
         'CryptUnprotectData': SimTypeFunction([SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("CRYPTPROTECT_PROMPTSTRUCT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("CRYPT_INTEGER_BLOB", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDataIn", "ppszDataDescr", "pOptionalEntropy", "pvReserved", "pPromptStruct", "dwFlags", "pDataOut"]),
-        # 
+        #
         'CryptUpdateProtectedState': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pOldSid", "pwszOldPassword", "dwFlags", "pdwSuccessCount", "pdwFailureCount"]),
-        # 
+        #
         'CryptProtectMemory': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pDataIn", "cbDataIn", "dwFlags"]),
-        # 
+        #
         'CryptUnprotectMemory': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pDataIn", "cbDataIn", "dwFlags"]),
-        # 
+        #
         'CryptSIPLoad': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("SIP_DISPATCH_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pgSubject", "dwFlags", "pSipDispatch"]),
-        # 
+        #
         'CryptSIPRetrieveSubjectGuid': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "hFileIn", "pgSubject"]),
-        # 
+        #
         'CryptSIPRetrieveSubjectGuidForCatalogFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["FileName", "hFileIn", "pgSubject"]),
-        # 
+        #
         'CryptSIPAddProvider': SimTypeFunction([SimTypePointer(SimTypeRef("SIP_ADD_NEWPROVIDER", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["psNewProv"]),
-        # 
+        #
         'CryptSIPRemoveProvider': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pgProv"]),
     }
 

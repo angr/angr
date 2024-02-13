@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("srclient.dll")
 prototypes = \
     {
-        # 
+        #
         'SRRemoveRestorePoint': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["dwRPNum"]),
     }
 

@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mfplay.dll")
 prototypes = \
     {
-        # 
+        #
         'MFPCreateMediaPlayer': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=False, label="MFP_CREATION_OPTIONS"), SimTypeBottom(label="IMFPMediaPlayerCallback"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="IMFPMediaPlayer"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pwszURL", "fStartPlayback", "creationOptions", "pCallback", "hWnd", "ppMediaPlayer"]),
     }
 

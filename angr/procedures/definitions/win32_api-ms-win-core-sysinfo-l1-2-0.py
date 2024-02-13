@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-sysinfo-l1-2-0.dll")
 prototypes = \
     {
-        # 
+        #
         'GetOsSafeBootMode': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Flags"]),
     }
 

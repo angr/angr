@@ -33,17 +33,17 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("pshed.dll")
 prototypes = \
     {
-        # 
+        #
         'PshedAllocateMemory': SimTypeFunction([SimTypeInt(signed=False, label="UInt32")], SimTypePointer(SimTypeBottom(label="Void"), offset=0), arg_names=["Size"]),
-        # 
+        #
         'PshedFreeMemory': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["Address"]),
-        # 
+        #
         'PshedIsSystemWheaEnabled': SimTypeFunction([], SimTypeChar(label="Byte")),
-        # 
+        #
         'PshedRegisterPlugin': SimTypeFunction([SimTypePointer(SimTypeRef("WHEA_PSHED_PLUGIN_REGISTRATION_PACKET_V2", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Packet"]),
-        # 
+        #
         'PshedUnregisterPlugin': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["PluginHandle"]),
-        # 
+        #
         'PshedSynchronizeExecution': SimTypeFunction([SimTypePointer(SimTypeRef("WHEA_ERROR_SOURCE_DESCRIPTOR", SimStruct), offset=0), SimTypePointer(SimTypeFunction([], SimTypeChar(label="Byte")), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeChar(label="Byte"), arg_names=["ErrorSource", "SynchronizeRoutine", "SynchronizeContext"]),
     }
 

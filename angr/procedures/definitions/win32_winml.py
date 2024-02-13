@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("winml.dll")
 prototypes = \
     {
-        # 
+        #
         'WinMLCreateRuntime': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IWinMLRuntime"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["runtime"]),
     }
 

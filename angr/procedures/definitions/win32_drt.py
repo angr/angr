@@ -33,37 +33,37 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("drt.dll")
 prototypes = \
     {
-        # 
+        #
         'DrtOpen': SimTypeFunction([SimTypePointer(SimTypeRef("DRT_SETTINGS", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSettings", "hEvent", "pvContext", "phDrt"]),
-        # 
+        #
         'DrtClose': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["hDrt"]),
-        # 
+        #
         'DrtGetEventDataSize': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDrt", "pulEventDataLen"]),
-        # 
+        #
         'DrtGetEventData': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DRT_EVENT_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDrt", "ulEventDataLen", "pEventData"]),
-        # 
+        #
         'DrtRegisterKey': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("DRT_REGISTRATION", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDrt", "pRegistration", "pvKeyContext", "phKeyRegistration"]),
-        # 
+        #
         'DrtUpdateKey': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("DRT_DATA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hKeyRegistration", "pAppData"]),
-        # 
+        #
         'DrtUnregisterKey': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["hKeyRegistration"]),
-        # 
+        #
         'DrtStartSearch': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("DRT_DATA", SimStruct), offset=0), SimTypePointer(SimTypeRef("DRT_SEARCH_INFO", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDrt", "pKey", "pInfo", "timeout", "hEvent", "pvContext", "hSearchContext"]),
-        # 
+        #
         'DrtContinueSearch': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSearchContext"]),
-        # 
+        #
         'DrtGetSearchResultSize': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSearchContext", "pulSearchResultSize"]),
-        # 
+        #
         'DrtGetSearchResult': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DRT_SEARCH_RESULT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSearchContext", "ulSearchResultSize", "pSearchResult"]),
-        # 
+        #
         'DrtGetSearchPathSize': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSearchContext", "pulSearchPathSize"]),
-        # 
+        #
         'DrtGetSearchPath': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DRT_ADDRESS_LIST", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSearchContext", "ulSearchPathSize", "pSearchPath"]),
-        # 
+        #
         'DrtEndSearch': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSearchContext"]),
-        # 
+        #
         'DrtGetInstanceName': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDrt", "ulcbInstanceNameSize", "pwzDrtInstanceName"]),
-        # 
+        #
         'DrtGetInstanceNameSize': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hDrt", "pulcbInstanceNameSize"]),
     }
 

@@ -33,31 +33,31 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("wdstptc.dll")
 prototypes = \
     {
-        # 
+        #
         'WdsTransportClientInitialize': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
-        # 
+        #
         'WdsTransportClientInitializeSession': SimTypeFunction([SimTypePointer(SimTypeRef("WDS_TRANSPORTCLIENT_REQUEST", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pSessionRequest", "pCallerData", "hSessionKey"]),
-        # 
+        #
         'WdsTransportClientRegisterCallback': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="TRANSPORTCLIENT_CALLBACK_ID"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey", "CallbackId", "pfnCallback"]),
-        # 
+        #
         'WdsTransportClientStartSession': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey"]),
-        # 
+        #
         'WdsTransportClientCompleteReceive': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey", "ulSize", "pullOffset"]),
-        # 
+        #
         'WdsTransportClientCancelSession': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey"]),
-        # 
+        #
         'WdsTransportClientCancelSessionEx': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey", "dwErrorCode"]),
-        # 
+        #
         'WdsTransportClientWaitForCompletion': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey", "uTimeout"]),
-        # 
+        #
         'WdsTransportClientQueryStatus': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey", "puStatus", "puErrorCode"]),
-        # 
+        #
         'WdsTransportClientCloseSession': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSessionKey"]),
-        # 
+        #
         'WdsTransportClientAddRefBuffer': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pvBuffer"]),
-        # 
+        #
         'WdsTransportClientReleaseBuffer': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pvBuffer"]),
-        # 
+        #
         'WdsTransportClientShutdown': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
     }
 

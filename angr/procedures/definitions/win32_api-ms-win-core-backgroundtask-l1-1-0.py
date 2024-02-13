@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-backgroundtask-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'RaiseCustomSystemEventTrigger': SimTypeFunction([SimTypePointer(SimTypeRef("CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["CustomSystemEventTriggerConfig"]),
     }
 

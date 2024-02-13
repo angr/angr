@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-service-core-l1-1-4.dll")
 prototypes = \
     {
-        # 
+        #
         'GetServiceDirectory': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="SERVICE_DIRECTORY_TYPE"), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hServiceStatus", "eDirectoryType", "lpPathBuffer", "cchPathBufferLength", "lpcchRequiredBufferLength"]),
     }
 

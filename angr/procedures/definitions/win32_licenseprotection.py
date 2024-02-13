@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("licenseprotection.dll")
 prototypes = \
     {
-        # 
+        #
         'RegisterLicenseKeyWithExpiration': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="LicenseProtectionStatus"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["licenseKey", "validityInDays", "status"]),
-        # 
+        #
         'ValidateLicenseKeyProtection': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("FILETIME", SimStruct), offset=0), SimTypePointer(SimTypeRef("FILETIME", SimStruct), offset=0), SimTypePointer(SimTypeInt(signed=False, label="LicenseProtectionStatus"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["licenseKey", "notValidBefore", "notValidAfter", "status"]),
     }
 

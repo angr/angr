@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-appmodel-runtime-l1-1-6.dll")
 prototypes = \
     {
-        # 
+        #
         'GetPackageGraphRevisionId': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
     }
 

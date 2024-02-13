@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("opmxbox.dll")
 prototypes = \
     {
-        # 
+        #
         'OPMXboxEnableHDCP': SimTypeFunction([SimTypeInt(signed=False, label="OPM_HDCP_TYPE")], SimTypeInt(signed=True, label="Int32"), arg_names=["HDCPType"]),
-        # 
+        #
         'OPMXboxGetHDCPStatus': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="OPM_HDCP_STATUS"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pHDCPStatus"]),
-        # 
+        #
         'OPMXboxGetHDCPStatusAndType': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="OPM_HDCP_STATUS"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="OPM_HDCP_TYPE"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pHDCPStatus", "pHDCPType"]),
     }
 

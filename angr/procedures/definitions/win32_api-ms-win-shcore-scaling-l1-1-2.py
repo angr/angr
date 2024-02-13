@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-shcore-scaling-l1-1-2.dll")
 prototypes = \
     {
-        # 
+        #
         'GetDpiForShellUIComponent': SimTypeFunction([SimTypeInt(signed=False, label="SHELL_UI_COMPONENT")], SimTypeInt(signed=False, label="UInt32"), arg_names=["param0"]),
     }
 

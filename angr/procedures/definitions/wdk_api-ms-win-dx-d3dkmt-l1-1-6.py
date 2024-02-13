@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-dx-d3dkmt-l1-1-6.dll")
 prototypes = \
     {
-        # 
+        #
         'D3DKMTEnumAdapters3': SimTypeFunction([SimTypePointer(SimTypeRef("D3DKMT_ENUMADAPTERS3", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
     }
 

@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("drttransport.dll")
 prototypes = \
     {
-        # 
+        #
         'DrtCreateIpv6UdpTransport': SimTypeFunction([SimTypeInt(signed=False, label="DRT_SCOPE"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeShort(signed=False, label="UInt16"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["scope", "dwScopeId", "dwLocalityThreshold", "pwPort", "phTransport"]),
-        # 
+        #
         'DrtDeleteIpv6UdpTransport': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hTransport"]),
     }
 

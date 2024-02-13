@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("dsuiext.dll")
 prototypes = \
     {
-        # 
+        #
         'DsBrowseForContainerW': SimTypeFunction([SimTypePointer(SimTypeRef("DSBROWSEINFOW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pInfo"]),
-        # 
+        #
         'DsBrowseForContainerA': SimTypeFunction([SimTypePointer(SimTypeRef("DSBROWSEINFOA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pInfo"]),
-        # 
+        #
         'DsGetIcon': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=True, label="Int32")], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["dwFlags", "pszObjectClass", "cxImage", "cyImage"]),
-        # 
+        #
         'DsGetFriendlyClassName': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pszObjectClass", "pszBuffer", "cchBuffer"]),
     }
 

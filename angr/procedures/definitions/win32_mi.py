@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mi.dll")
 prototypes = \
     {
-        # 
+        #
         'MI_Application_InitializeV1': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeShort(signed=False, label="UInt16"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("MI_Instance", SimStruct), offset=0), offset=0), SimTypePointer(SimTypeRef("MI_Application", SimStruct), offset=0)], SimTypeInt(signed=False, label="MI_Result"), arg_names=["flags", "applicationID", "extendedError", "application"]),
     }
 

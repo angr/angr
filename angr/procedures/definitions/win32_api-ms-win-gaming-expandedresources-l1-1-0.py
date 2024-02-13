@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-gaming-expandedresources-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'HasExpandedResources': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hasExpandedResources"]),
-        # 
+        #
         'GetExpandedResourceExclusiveCpuCount': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["exclusiveCpuCount"]),
-        # 
+        #
         'ReleaseExclusiveCpuSets': SimTypeFunction([], SimTypeInt(signed=True, label="Int32")),
     }
 

@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("icmui.dll")
 prototypes = \
     {
-        # 
+        #
         'SetupColorMatchingW': SimTypeFunction([SimTypePointer(SimTypeRef("COLORMATCHSETUPW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pcms"]),
-        # 
+        #
         'SetupColorMatchingA': SimTypeFunction([SimTypePointer(SimTypeRef("COLORMATCHSETUPA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pcms"]),
     }
 

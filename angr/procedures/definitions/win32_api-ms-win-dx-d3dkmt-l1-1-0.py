@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-dx-d3dkmt-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'GdiEntry13': SimTypeFunction([], SimTypeInt(signed=False, label="UInt32")),
     }
 

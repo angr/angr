@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-sysinfo-l1-2-6.dll")
 prototypes = \
     {
-        # 
+        #
         'GetDeveloperDriveEnablementState': SimTypeFunction([], SimTypeInt(signed=False, label="DEVELOPER_DRIVE_ENABLEMENT_STATE")),
     }
 

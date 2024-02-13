@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("keycredmgr.dll")
 prototypes = \
     {
-        # 
+        #
         'KeyCredentialManagerGetOperationErrorStates': SimTypeFunction([SimTypeInt(signed=False, label="KeyCredentialManagerOperationType"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="KeyCredentialManagerOperationErrorStates"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyCredentialManagerOperationType", "isReady", "keyCredentialManagerOperationErrorStates"]),
-        # 
+        #
         'KeyCredentialManagerShowUIOperation': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="KeyCredentialManagerOperationType")], SimTypeInt(signed=True, label="Int32"), arg_names=["hWndOwner", "keyCredentialManagerOperationType"]),
-        # 
+        #
         'KeyCredentialManagerGetInformation': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeRef("KeyCredentialManagerInfo", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["keyCredentialManagerInfo"]),
-        # 
+        #
         'KeyCredentialManagerFreeInformation': SimTypeFunction([SimTypePointer(SimTypeRef("KeyCredentialManagerInfo", SimStruct), offset=0)], SimTypeBottom(label="Void"), arg_names=["keyCredentialManagerInfo"]),
     }
 

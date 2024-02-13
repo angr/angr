@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-errorhandling-l1-1-3.dll")
 prototypes = \
     {
-        # 
+        #
         'TerminateProcessOnMemoryExhaustion': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)], SimTypeBottom(label="Void"), arg_names=["FailedAllocationSize"]),
     }
 

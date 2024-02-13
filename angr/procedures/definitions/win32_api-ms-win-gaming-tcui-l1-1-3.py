@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-gaming-tcui-l1-1-3.dll")
 prototypes = \
     {
-        # 
+        #
         'ShowGameInviteUIWithContext': SimTypeFunction([SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypePointer(SimTypeFunction([SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["returnCode", "context"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["serviceConfigurationId", "sessionTemplateName", "sessionId", "invitationDisplayText", "customActivationContext", "completionRoutine", "context"]),
-        # 
+        #
         'ShowGameInviteUIWithContextForUser': SimTypeFunction([SimTypeBottom(label="IInspectable"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypeBottom(label="HSTRING"), SimTypePointer(SimTypeFunction([SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["returnCode", "context"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["user", "serviceConfigurationId", "sessionTemplateName", "sessionId", "invitationDisplayText", "customActivationContext", "completionRoutine", "context"]),
     }
 

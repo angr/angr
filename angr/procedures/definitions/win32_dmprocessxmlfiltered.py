@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("dmprocessxmlfiltered.dll")
 prototypes = \
     {
-        # 
+        #
         'DMProcessConfigXMLFiltered': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszXmlIn", "rgszAllowedCspNodes", "dwNumAllowedCspNodes", "pbstrXmlOut"]),
     }
 

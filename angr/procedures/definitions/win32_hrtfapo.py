@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("hrtfapo.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateHrtfApo': SimTypeFunction([SimTypePointer(SimTypeRef("HrtfApoInit", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="IXAPO"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["init", "xApo"]),
     }
 

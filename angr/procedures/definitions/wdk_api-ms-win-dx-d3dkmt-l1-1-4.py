@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-dx-d3dkmt-l1-1-4.dll")
 prototypes = \
     {
-        # 
+        #
         'D3DKMTSubmitPresentBltToHwQueue': SimTypeFunction([SimTypePointer(SimTypeRef("D3DKMT_SUBMITPRESENTBLTTOHWQUEUE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
-        # 
+        #
         'D3DKMTSubmitPresentToHwQueue': SimTypeFunction([SimTypePointer(SimTypeRef("D3DKMT_SUBMITPRESENTTOHWQUEUE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
-        # 
+        #
         'D3DKMTOutputDuplPresentToHwQueue': SimTypeFunction([SimTypePointer(SimTypeRef("D3DKMT_OUTPUTDUPLPRESENTTOHWQUEUE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["param0"]),
     }
 

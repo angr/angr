@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mfcore.dll")
 prototypes = \
     {
-        # 
+        #
         'MFCreateExtendedCameraIntrinsics': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IMFExtendedCameraIntrinsics"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ppExtendedCameraIntrinsics"]),
-        # 
+        #
         'MFCreateExtendedCameraIntrinsicModel': SimTypeFunction([SimTypeInt(signed=False, label="MFCameraIntrinsic_DistortionModelType"), SimTypePointer(SimTypeBottom(label="IMFExtendedCameraIntrinsicModel"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["distortionModelType", "ppExtendedCameraIntrinsicModel"]),
     }
 

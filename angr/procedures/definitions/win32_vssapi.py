@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("vssapi.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateVssExpressWriterInternal': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IVssExpressWriter"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ppWriter"]),
     }
 

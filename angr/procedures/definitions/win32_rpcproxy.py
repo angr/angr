@@ -33,13 +33,13 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("rpcproxy.dll")
 prototypes = \
     {
-        # 
+        #
         'GetExtensionVersion': SimTypeFunction([SimTypePointer(SimTypeRef("HSE_VERSION_INFO", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pVer"]),
-        # 
+        #
         'HttpExtensionProc': SimTypeFunction([SimTypePointer(SimTypeRef("EXTENSION_CONTROL_BLOCK", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pECB"]),
-        # 
+        #
         'HttpFilterProc': SimTypeFunction([SimTypePointer(SimTypeRef("HTTP_FILTER_CONTEXT", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pfc", "NotificationType", "pvNotification"]),
-        # 
+        #
         'GetFilterVersion': SimTypeFunction([SimTypePointer(SimTypeRef("HTTP_FILTER_VERSION", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pVer"]),
     }
 

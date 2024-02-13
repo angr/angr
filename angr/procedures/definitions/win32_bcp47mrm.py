@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("bcp47mrm.dll")
 prototypes = \
     {
-        # 
+        #
         'GetDistanceOfClosestLanguageInList': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeChar(label="Char"), SimTypePointer(SimTypeFloat(size=64), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszLanguage", "pszLanguagesList", "wchListDelimiter", "pClosestDistance"]),
-        # 
+        #
         'IsWellFormedTag': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeChar(label="Byte"), arg_names=["pszTag"]),
     }
 

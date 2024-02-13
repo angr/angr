@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("netshell.dll")
 prototypes = \
     {
-        # 
+        #
         'NcFreeNetconProperties': SimTypeFunction([SimTypePointer(SimTypeRef("NETCON_PROPERTIES", SimStruct), offset=0)], SimTypeBottom(label="Void"), arg_names=["pProps"]),
-        # 
+        #
         'NcIsValidConnectionName': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszwName"]),
     }
 

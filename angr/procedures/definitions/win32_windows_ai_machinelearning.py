@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("windows.ai.machinelearning.dll")
 prototypes = \
     {
-        # 
+        #
         'MLCreateOperatorRegistry': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IMLOperatorRegistry"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["registry"]),
     }
 

@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("slwga.dll")
 prototypes = \
     {
-        # 
+        #
         'SLIsGenuineLocal': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="SL_GENUINE_STATE"), offset=0), SimTypePointer(SimTypeRef("SL_NONGENUINE_UI_OPTIONS", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pAppId", "pGenuineState", "pUIOptions"]),
     }
 

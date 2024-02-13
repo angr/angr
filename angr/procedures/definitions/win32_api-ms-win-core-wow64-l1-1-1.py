@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-wow64-l1-1-1.dll")
 prototypes = \
     {
-        # 
+        #
         'GetSystemWow64Directory2A': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="IMAGE_FILE_MACHINE")], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpBuffer", "uSize", "ImageFileMachineType"]),
-        # 
+        #
         'GetSystemWow64Directory2W': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="IMAGE_FILE_MACHINE")], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpBuffer", "uSize", "ImageFileMachineType"]),
-        # 
+        #
         'Wow64SetThreadDefaultGuestMachine': SimTypeFunction([SimTypeShort(signed=False, label="UInt16")], SimTypeShort(signed=False, label="UInt16"), arg_names=["Machine"]),
     }
 

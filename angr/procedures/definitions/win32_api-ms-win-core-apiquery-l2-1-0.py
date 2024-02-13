@@ -33,7 +33,7 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-apiquery-l2-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'IsApiSetImplemented': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Contract"]),
     }
 

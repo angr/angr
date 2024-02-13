@@ -33,9 +33,9 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mfsrcsnk.dll")
 prototypes = \
     {
-        # 
+        #
         'MFCreateAVIMediaSink': SimTypeFunction([SimTypeBottom(label="IMFByteStream"), SimTypeBottom(label="IMFMediaType"), SimTypeBottom(label="IMFMediaType"), SimTypePointer(SimTypeBottom(label="IMFMediaSink"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pIByteStream", "pVideoMediaType", "pAudioMediaType", "ppIMediaSink"]),
-        # 
+        #
         'MFCreateWAVEMediaSink': SimTypeFunction([SimTypeBottom(label="IMFByteStream"), SimTypeBottom(label="IMFMediaType"), SimTypePointer(SimTypeBottom(label="IMFMediaSink"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pTargetByteStream", "pAudioMediaType", "ppMediaSink"]),
     }
 

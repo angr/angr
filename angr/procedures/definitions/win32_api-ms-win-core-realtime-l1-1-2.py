@@ -33,11 +33,11 @@ lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-realtime-l1-1-2.dll")
 prototypes = \
     {
-        # 
+        #
         'QueryAuxiliaryCounterFrequency': SimTypeFunction([SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["lpAuxiliaryCounterFrequency"]),
-        # 
+        #
         'ConvertAuxiliaryCounterToPerformanceCounter': SimTypeFunction([SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ullAuxiliaryCounterValue", "lpPerformanceCounterValue", "lpConversionError"]),
-        # 
+        #
         'ConvertPerformanceCounterToAuxiliaryCounter': SimTypeFunction([SimTypeLongLong(signed=False, label="UInt64"), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ullPerformanceCounterValue", "lpAuxiliaryCounterValue", "lpConversionError"]),
     }
 

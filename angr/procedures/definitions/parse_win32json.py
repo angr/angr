@@ -191,7 +191,7 @@ def do_it(in_dir, out_file):
             for t in types:
                 try:
                     create_angr_type_from_json(t)
-                except AngrMissingTypeError as ex:
+                except AngrMissingTypeError:
                     # skip this type for now
                     nosuchtype += 1
                     missing_types.add(t["Name"])
