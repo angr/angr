@@ -2,7 +2,7 @@
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
-from typing import Optional, Dict, Any, Tuple, List, Union
+from typing import Optional, Dict, Any, Tuple, List, Union, Type, TYPE_CHECKING
 import logging
 
 try:
@@ -18,7 +18,11 @@ except ImportError:
 from archinfo import Endness
 import claripy
 
+from angr.errors import AngrMissingTypeError
 from .misc.ux import deprecated
+
+if TYPE_CHECKING:
+    from angr.procedures.definitions import SimTypeCollection
 
 
 l = logging.getLogger(name=__name__)
@@ -1246,10 +1250,10 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @staticmethod
     def _field_str(field_name, field_type):
-        return f'"{field_name}": {field_type._init_str()}'
+        return f'("{field_name}", {field_type._init_str()})'
 
     def _init_str(self):
-        return '{}({{{}}}, name="{}", pack={}, align={})'.format(
+        return '{}(OrderedDict(({},)), name="{}", pack={}, align={})'.format(
             self.__class__.__name__,
             ", ".join([self._field_str(f, ty) for f, ty in self.fields.items()]),
             self._name,
@@ -1588,6 +1592,37 @@ class SimTypeNumOffset(SimTypeNum):
 
     def copy(self):
         return SimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
+
+
+class SimTypeRef(SimType):
+    """
+    SimTypeRef is a to-be-resolved reference to another SimType.
+
+    SimTypeRef is not SimTypeReference.
+    """
+
+    def __init__(self, name, original_type: Type[SimStruct]):
+        super().__init__(label=name)
+        self.original_type = original_type
+
+    @property
+    def name(self) -> str:
+        return self.label
+
+    def set_size(self, v: int):
+        self._size = v
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0) -> str:
+        prefix = "unknown"
+        if self.original_type is SimStruct:
+            prefix = "struct"
+        if name is None:
+            name = ""
+        return f"{prefix}{name} {self.name}"
+
+    def _init_str(self) -> str:
+        original_type_name = self.original_type.__name__.split(".")[-1]
+        return f'SimTypeRef("{self.name}", {original_type_name})'
 
 
 ALL_TYPES = {}
@@ -3194,6 +3229,64 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
         func_decls[func_name] = proto
 
     return func_decls, {}
+
+
+def dereference_simtype(
+    t: SimType, type_collections: List["SimTypeCollection"], memo: Optional[Dict[str, SimType]] = None
+) -> SimType:
+    if memo is None:
+        memo = {}
+
+    if isinstance(t, SimTypeRef):
+        real_type = None
+
+        if t.name in memo:
+            return memo[t.name]
+
+        if type_collections:
+            for tc in type_collections:
+                try:
+                    real_type = tc.get(t.name)
+                    break
+                except AngrMissingTypeError:
+                    continue
+        if real_type is None:
+            raise AngrMissingTypeError(f"Missing type {t.name}")
+        return dereference_simtype(real_type, type_collections, memo=memo)
+    elif isinstance(t, SimStruct):
+        if t.name in memo:
+            return memo[t.name]
+
+        real_type = t.copy()
+        memo[t.name] = real_type
+        fields = OrderedDict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.fields.items())
+        real_type.fields = fields
+        return real_type
+    elif isinstance(t, SimTypePointer):
+        real_pts_to = dereference_simtype(t.pts_to, type_collections, memo=memo)
+        real_type = t.copy()
+        real_type.pts_to = real_pts_to
+        return real_type
+    elif isinstance(t, SimTypeArray):
+        real_elem_type = dereference_simtype(t.elem_type, type_collections, memo=memo)
+        real_type = t.copy()
+        real_type.elem_type = real_elem_type
+        return real_type
+    elif isinstance(t, SimUnion):
+        real_members = dict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.members.items())
+        real_type = t.copy()
+        real_type.members = real_members
+        return real_type
+    elif isinstance(t, SimTypeFunction):
+        real_args = [dereference_simtype(arg, type_collections, memo=memo) for arg in t.args]
+        real_return_type = (
+            dereference_simtype(t.returnty, type_collections, memo=memo) if t.returnty is not None else None
+        )
+        real_type = t.copy()
+        real_type.args = real_args
+        real_type.return_type = real_return_type
+        return real_type
+    return t
 
 
 if pycparser is not None:

@@ -10,7 +10,8 @@ import itanium_demangler
 
 import archinfo
 
-from ...sim_type import parse_cpp_file, SimTypeFunction
+from ...errors import AngrMissingTypeError
+from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeBottom
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 from ...misc.ux import once
@@ -20,10 +21,66 @@ from ..stubs.syscall_stub import syscall as stub_syscall
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCCSyscall
+    from angr.sim_type import SimType
 
 
 l = logging.getLogger(name=__name__)
 SIM_LIBRARIES: Dict[str, "SimLibrary"] = {}
+SIM_TYPE_COLLECTIONS: Dict[str, "SimTypeCollection"] = {}
+
+
+class SimTypeCollection:
+    """
+    A type collection is the mechanism for describing types. Types in a type collection can be referenced using
+    """
+    def __init__(self):
+        self.names: Optional[List[str]] = None
+        self.types: Dict[str, "SimType"] = {}
+
+    def set_names(self, *names):
+        self.names = names
+        for name in names:
+            SIM_TYPE_COLLECTIONS[name] = self
+
+    def add(self, name: str, t: "SimType") -> None:
+        """
+        Add a type to the collection.
+
+        :param name:    Name of the type to add.
+        :param t:       The SimType object to add to the collection.
+        """
+
+        self.types[name] = t
+
+    def get(self, name: str, bottom_on_missing: bool = False) -> "SimType":
+        """
+        Get a SimType object from the collection as identified by the name.
+
+        :param name:    Name of the type to get.
+        :param bottom_on_missing:    Return a SimTypeBottom object if the required type does not exist.
+        :return:        The SimType object.
+        """
+        if bottom_on_missing and name not in self.types:
+            return SimTypeBottom(label=name)
+        if name not in self.types:
+            raise AngrMissingTypeError(f"Type {name} is missing")
+        return self.types[name]
+
+    def init_str(self) -> str:
+        lines = [
+            f"typelib = SimTypeCollection()",
+            "" if not self.names else f"typelib.set_names(*{self.names})",
+            "typelib.types = {",
+        ]
+        for name in sorted(self.types):
+            t = self.types[name]
+            lines.append(f"    \"{name}\": {t._init_str()},")
+        lines.append("}")
+
+        return "\n".join(lines)
+
+    def __repr__(self):
+        return f"<SimTypeCollection with {len(self.types)} types>"
 
 
 class SimLibrary:
@@ -40,6 +97,7 @@ class SimLibrary:
     """
 
     def __init__(self):
+        self.type_collection_names: List[str] = []
         self.procedures = {}
         self.non_returning = set()
         self.prototypes: Dict[str, SimTypeFunction] = {}
@@ -147,7 +205,7 @@ class SimLibrary:
 
     def add(self, name, proc_cls, **kwargs):
         """
-        Add a function implementation fo the library.
+        Add a function implementation to the library.
 
         :param name:        The name of the function as a string
         :param proc_cls:    The implementation of the function as a SimProcedure _class_, not instance
@@ -630,6 +688,15 @@ _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
 _EXTERNAL_DEFINITIONS_DIRS: Optional[List[str]] = None
 
 
+def load_type_collections() -> None:
+    for _ in autoimport.auto_import_modules(
+            "angr.procedures.definitions",
+            _DEFINITIONS_BASEDIR,
+            filter_func=lambda module_name: module_name.startswith("types_"),
+    ):
+        pass
+
+
 def load_external_definitions():
     """
     Load library definitions from specific directories. By default it parses ANGR_EXTERNAL_DEFINITIONS_DIRS as a
@@ -661,7 +728,7 @@ def load_win32api_definitions():
         for _ in autoimport.auto_import_modules(
             "angr.procedures.definitions",
             _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith("win32_")
+            filter_func=lambda module_name: module_name.startswith("win32_") or module_name.startswith("wdk_")
             or module_name in {"ntoskrnl", "ntdll", "user32"},
         ):
             pass
@@ -693,3 +760,6 @@ for _ in autoimport.auto_import_modules(
     filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
 ):
     pass
+
+
+load_type_collections()

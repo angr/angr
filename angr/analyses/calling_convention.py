@@ -108,6 +108,7 @@ class CallingConventionAnalysis(Analysis):
 
         self.cc: Optional[SimCC] = None
         self.prototype: Optional[SimTypeFunction] = None
+        self.prototype_libname: Optional[str] = None
 
         if self._cfg is None and "CFGFast" in self.kb.cfgs:
             self._cfg = self.kb.cfgs["CFGFast"]
@@ -157,6 +158,7 @@ class CallingConventionAnalysis(Analysis):
 
             self.cc = self._function.calling_convention
             self.prototype = self._function.prototype
+            self.prototype_libname = self._function.prototype_libname
 
             if self.cc is None or self.prototype is None:
                 for include_callsite_preds in [False, True]:

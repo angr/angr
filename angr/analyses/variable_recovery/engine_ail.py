@@ -6,9 +6,10 @@ import ailment
 import claripy
 from unique_log_filter import UniqueLogFilter
 
+from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.utils.constants import MAX_POINTSTO_BITS
 from ...calling_conventions import SimRegArg
-from ...sim_type import SimTypeFunction
+from ...sim_type import SimTypeFunction, dereference_simtype
 from ...engines.light import SimEngineLightAILMixin
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter
@@ -130,13 +131,16 @@ class SimEngineVRAIL(
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
+        prototype_libname: Optional[str] = None
         if stmt.prototype is not None:
             prototype = stmt.prototype
-        elif isinstance(stmt.target, ailment.Expr.Const):
+        if isinstance(stmt.target, ailment.Expr.Const):
             func_addr = stmt.target.value
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
-                prototype = func.prototype
+                if prototype is None:
+                    prototype = func.prototype
+                prototype_libname = func.prototype_libname
 
         # dump the type of the return value
         if prototype is not None:
@@ -169,8 +173,17 @@ class SimEngineVRAIL(
 
         if prototype is not None and args:
             # add type constraints
+
+            type_collections = []
+            if prototype_libname is not None:
+                prototype_lib = SIM_LIBRARIES[prototype_libname]
+                if prototype_lib.type_collection_names:
+                    for typelib_name in prototype_lib.type_collection_names:
+                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
+                    arg_type = dereference_simtype(arg_type, type_collections).with_arch(arg_type._arch)
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                     self.state.add_type_constraint(type_constraint)
