@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,33 +27,34 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("msdmo.dll")
 prototypes = \
     {
         #
-        'DMORegister': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"type": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid")}, name="DMO_PARTIAL_MEDIATYPE", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"type": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid")}, name="DMO_PARTIAL_MEDIATYPE", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["szName", "clsidDMO", "guidCategory", "dwFlags", "cInTypes", "pInTypes", "cOutTypes", "pOutTypes"]),
+        'DMORegister': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DMO_PARTIAL_MEDIATYPE", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DMO_PARTIAL_MEDIATYPE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["szName", "clsidDMO", "guidCategory", "dwFlags", "cInTypes", "pInTypes", "cOutTypes", "pOutTypes"]),
         #
         'DMOUnregister': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["clsidDMO", "guidCategory"]),
         #
-        'DMOEnum': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"type": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid")}, name="DMO_PARTIAL_MEDIATYPE", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"type": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid")}, name="DMO_PARTIAL_MEDIATYPE", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="IEnumDMO"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["guidCategory", "dwFlags", "cInTypes", "pInTypes", "cOutTypes", "pOutTypes", "ppEnum"]),
+        'DMOEnum': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DMO_PARTIAL_MEDIATYPE", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("DMO_PARTIAL_MEDIATYPE", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="IEnumDMO"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["guidCategory", "dwFlags", "cInTypes", "pInTypes", "cOutTypes", "pOutTypes", "ppEnum"]),
         #
-        'DMOGetTypes': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimStruct({"type": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid")}, name="DMO_PARTIAL_MEDIATYPE", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimStruct({"type": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid")}, name="DMO_PARTIAL_MEDIATYPE", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["clsidDMO", "ulInputTypesRequested", "pulInputTypesSupplied", "pInputTypes", "ulOutputTypesRequested", "pulOutputTypesSupplied", "pOutputTypes"]),
+        'DMOGetTypes': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("DMO_PARTIAL_MEDIATYPE", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeRef("DMO_PARTIAL_MEDIATYPE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["clsidDMO", "ulInputTypesRequested", "pulInputTypesSupplied", "pInputTypes", "ulOutputTypesRequested", "pulOutputTypesSupplied", "pOutputTypes"]),
         #
         'DMOGetName': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["clsidDMO", "szName"]),
         #
-        'MoInitMediaType': SimTypeFunction([SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pmt", "cbFormat"]),
+        'MoInitMediaType': SimTypeFunction([SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pmt", "cbFormat"]),
         #
-        'MoFreeMediaType': SimTypeFunction([SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pmt"]),
+        'MoFreeMediaType': SimTypeFunction([SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pmt"]),
         #
-        'MoCopyMediaType': SimTypeFunction([SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pmtDest", "pmtSrc"]),
+        'MoCopyMediaType': SimTypeFunction([SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0), SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pmtDest", "pmtSrc"]),
         #
-        'MoCreateMediaType': SimTypeFunction([SimTypePointer(SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["ppmt", "cbFormat"]),
+        'MoCreateMediaType': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["ppmt", "cbFormat"]),
         #
-        'MoDeleteMediaType': SimTypeFunction([SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pmt"]),
+        'MoDeleteMediaType': SimTypeFunction([SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pmt"]),
         #
-        'MoDuplicateMediaType': SimTypeFunction([SimTypePointer(SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimStruct({"majortype": SimTypeBottom(label="Guid"), "subtype": SimTypeBottom(label="Guid"), "bFixedSizeSamples": SimTypeInt(signed=True, label="Int32"), "bTemporalCompression": SimTypeInt(signed=True, label="Int32"), "lSampleSize": SimTypeInt(signed=False, label="UInt32"), "formattype": SimTypeBottom(label="Guid"), "pUnk": SimTypeBottom(label="IUnknown"), "cbFormat": SimTypeInt(signed=False, label="UInt32"), "pbFormat": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="AM_MEDIA_TYPE", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ppmtDest", "pmtSrc"]),
+        'MoDuplicateMediaType': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0), offset=0), SimTypePointer(SimTypeRef("DMO_MEDIA_TYPE", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["ppmtDest", "pmtSrc"]),
     }
 
 lib.set_prototypes(prototypes)

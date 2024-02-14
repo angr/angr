@@ -1123,6 +1123,7 @@ class Clinic(Analysis):
     def _recover_and_link_variables(self, ail_graph, arg_list):
         # variable recovery
         tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
+        tmp_kb.functions = self.kb.functions
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             func_graph=ail_graph,

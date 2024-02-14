@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("mrmsupport.dll")
 prototypes = \
     {
@@ -21,37 +38,41 @@ prototypes = \
         #
         'DestroyResourceIndexer': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["resourceIndexer"]),
         #
-        'IndexFilePath': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimStruct({"name": SimTypePointer(SimTypeChar(label="Char"), offset=0), "value": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="IndexedResourceQualifier", pack=False, align=None), offset=0), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["resourceIndexer", "filePath", "ppResourceUri", "pQualifierCount", "ppQualifiers"]),
+        'IndexFilePath': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeRef("IndexedResourceQualifier", SimStruct), offset=0), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["resourceIndexer", "filePath", "ppResourceUri", "pQualifierCount", "ppQualifiers"]),
         #
-        'DestroyIndexedResults': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"name": SimTypePointer(SimTypeChar(label="Char"), offset=0), "value": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="IndexedResourceQualifier", pack=False, align=None), label="LPArray", offset=0)], SimTypeBottom(label="Void"), arg_names=["resourceUri", "qualifierCount", "qualifiers"]),
+        'DestroyIndexedResults': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("IndexedResourceQualifier", SimStruct), label="LPArray", offset=0)], SimTypeBottom(label="Void"), arg_names=["resourceUri", "qualifierCount", "qualifiers"]),
         #
-        'MrmCreateResourceIndexer': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageFamilyName", "projectRoot", "platformVersion", "defaultQualifiers", "indexer"]),
+        'MrmCreateResourceIndexer': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("MrmResourceIndexerHandle", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageFamilyName", "projectRoot", "platformVersion", "defaultQualifiers", "indexer"]),
         #
-        'MrmCreateResourceIndexerFromPreviousSchemaFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "schemaFile", "indexer"]),
+        'MrmCreateResourceIndexerFromPreviousSchemaFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("MrmResourceIndexerHandle", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "schemaFile", "indexer"]),
         #
-        'MrmCreateResourceIndexerFromPreviousPriFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "priFile", "indexer"]),
+        'MrmCreateResourceIndexerFromPreviousPriFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("MrmResourceIndexerHandle", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "priFile", "indexer"]),
         #
-        'MrmCreateResourceIndexerFromPreviousSchemaData': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "schemaXmlData", "schemaXmlSize", "indexer"]),
+        'MrmCreateResourceIndexerFromPreviousSchemaData': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("MrmResourceIndexerHandle", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "schemaXmlData", "schemaXmlSize", "indexer"]),
         #
-        'MrmCreateResourceIndexerFromPreviousPriData': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "priData", "priSize", "indexer"]),
+        'MrmCreateResourceIndexerFromPreviousPriData': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("MrmResourceIndexerHandle", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["projectRoot", "platformVersion", "defaultQualifiers", "priData", "priSize", "indexer"]),
         #
-        'MrmIndexString': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "resourceUri", "resourceString", "qualifiers"]),
+        'MrmCreateResourceIndexerWithFlags': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="MrmIndexerFlags"), SimTypePointer(SimTypeRef("MrmResourceIndexerHandle", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["packageFamilyName", "projectRoot", "platformVersion", "defaultQualifiers", "flags", "indexer"]),
         #
-        'MrmIndexEmbeddedData': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "resourceUri", "embeddedData", "embeddedDataSize", "qualifiers"]),
+        'MrmIndexString': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "resourceUri", "resourceString", "qualifiers"]),
         #
-        'MrmIndexFile': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "resourceUri", "filePath", "qualifiers"]),
+        'MrmIndexEmbeddedData': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "resourceUri", "embeddedData", "embeddedDataSize", "qualifiers"]),
         #
-        'MrmIndexFileAutoQualifiers': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "filePath"]),
+        'MrmIndexFile': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "resourceUri", "filePath", "qualifiers"]),
         #
-        'MrmIndexResourceContainerAutoQualifiers': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "containerPath"]),
+        'MrmIndexFileAutoQualifiers': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "filePath"]),
         #
-        'MrmCreateResourceFile': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypeInt(signed=False, label="MrmPackagingMode"), SimTypeInt(signed=False, label="MrmPackagingOptions"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "packagingMode", "packagingOptions", "outputDirectory"]),
+        'MrmIndexResourceContainerAutoQualifiers': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "containerPath"]),
         #
-        'MrmCreateResourceFileInMemory': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypeInt(signed=False, label="MrmPackagingMode"), SimTypeInt(signed=False, label="MrmPackagingOptions"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "packagingMode", "packagingOptions", "outputPriData", "outputPriSize"]),
+        'MrmCreateResourceFile': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypeInt(signed=False, label="MrmPackagingMode"), SimTypeInt(signed=False, label="MrmPackagingOptions"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "packagingMode", "packagingOptions", "outputDirectory"]),
         #
-        'MrmPeekResourceIndexerMessages': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None), SimTypePointer(SimTypePointer(SimStruct({"severity": SimTypeInt(signed=False, label="MrmResourceIndexerMessageSeverity"), "id": SimTypeInt(signed=False, label="UInt32"), "text": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="MrmResourceIndexerMessage", pack=False, align=None), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["handle", "messages", "numMsgs"]),
+        'MrmCreateResourceFileWithChecksum': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypeInt(signed=False, label="MrmPackagingMode"), SimTypeInt(signed=False, label="MrmPackagingOptions"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "packagingMode", "packagingOptions", "checksum", "outputDirectory"]),
         #
-        'MrmDestroyIndexerAndMessages': SimTypeFunction([SimStruct({"handle": SimTypePointer(SimTypeBottom(label="Void"), offset=0)}, name="MrmResourceIndexerHandle", pack=False, align=None)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer"]),
+        'MrmCreateResourceFileInMemory': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypeInt(signed=False, label="MrmPackagingMode"), SimTypeInt(signed=False, label="MrmPackagingOptions"), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer", "packagingMode", "packagingOptions", "outputPriData", "outputPriSize"]),
+        #
+        'MrmPeekResourceIndexerMessages': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct), SimTypePointer(SimTypePointer(SimTypeRef("MrmResourceIndexerMessage", SimStruct), offset=0), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["handle", "messages", "numMsgs"]),
+        #
+        'MrmDestroyIndexerAndMessages': SimTypeFunction([SimTypeRef("MrmResourceIndexerHandle", SimStruct)], SimTypeInt(signed=True, label="Int32"), arg_names=["indexer"]),
         #
         'MrmFreeMemory': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["data"]),
         #
@@ -64,6 +85,8 @@ prototypes = \
         'MrmCreateConfig': SimTypeFunction([SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["platformVersion", "defaultQualifiers", "outputXmlFile"]),
         #
         'MrmCreateConfigInMemory': SimTypeFunction([SimTypeInt(signed=False, label="MrmPlatformVersion"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(label="Byte"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["platformVersion", "defaultQualifiers", "outputXmlData", "outputXmlSize"]),
+        #
+        'MrmGetPriFileContentChecksum': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["priFile", "checksum"]),
     }
 
 lib.set_prototypes(prototypes)

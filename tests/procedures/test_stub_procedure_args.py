@@ -8,7 +8,7 @@ import unittest
 import archinfo
 
 import angr
-from angr.procedures.definitions.user32 import lib
+from angr.procedures.definitions.win32_user32 import lib
 from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar
 from angr.engines.successors import SimSuccessors
 from angr.calling_conventions import SimCCStdcall, SimStackArg

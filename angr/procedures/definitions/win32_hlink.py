@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("hlink.dll")
 prototypes = \
     {
@@ -39,9 +56,9 @@ prototypes = \
         #
         'HlinkOnRenameDocument': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypeBottom(label="IHlinkBrowseContext"), SimTypeBottom(label="IMoniker"), SimTypeBottom(label="IMoniker")], SimTypeInt(signed=True, label="Int32"), arg_names=["dwReserved", "pihlbc", "pimkOld", "pimkNew"]),
         #
-        'HlinkResolveMonikerForData': SimTypeFunction([SimTypeBottom(label="IMoniker"), SimTypeInt(signed=False, label="UInt32"), SimTypeBottom(label="IBindCtx"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"cfFormat": SimTypeShort(signed=False, label="UInt16"), "ptd": SimTypePointer(SimStruct({"tdSize": SimTypeInt(signed=False, label="UInt32"), "tdDriverNameOffset": SimTypeShort(signed=False, label="UInt16"), "tdDeviceNameOffset": SimTypeShort(signed=False, label="UInt16"), "tdPortNameOffset": SimTypeShort(signed=False, label="UInt16"), "tdExtDevmodeOffset": SimTypeShort(signed=False, label="UInt16"), "tdData": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="DVTARGETDEVICE", pack=False, align=None), offset=0), "dwAspect": SimTypeInt(signed=False, label="UInt32"), "lindex": SimTypeInt(signed=True, label="Int32"), "tymed": SimTypeInt(signed=False, label="UInt32")}, name="FORMATETC", pack=False, align=None), offset=0), SimTypeBottom(label="IBindStatusCallback"), SimTypeBottom(label="IMoniker")], SimTypeInt(signed=True, label="Int32"), arg_names=["pimkReference", "reserved", "pibc", "cFmtetc", "rgFmtetc", "pibsc", "pimkBase"]),
+        'HlinkResolveMonikerForData': SimTypeFunction([SimTypeBottom(label="IMoniker"), SimTypeInt(signed=False, label="UInt32"), SimTypeBottom(label="IBindCtx"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("FORMATETC", SimStruct), offset=0), SimTypeBottom(label="IBindStatusCallback"), SimTypeBottom(label="IMoniker")], SimTypeInt(signed=True, label="Int32"), arg_names=["pimkReference", "reserved", "pibc", "cFmtetc", "rgFmtetc", "pibsc", "pimkBase"]),
         #
-        'HlinkResolveStringForData': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeBottom(label="IBindCtx"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"cfFormat": SimTypeShort(signed=False, label="UInt16"), "ptd": SimTypePointer(SimStruct({"tdSize": SimTypeInt(signed=False, label="UInt32"), "tdDriverNameOffset": SimTypeShort(signed=False, label="UInt16"), "tdDeviceNameOffset": SimTypeShort(signed=False, label="UInt16"), "tdPortNameOffset": SimTypeShort(signed=False, label="UInt16"), "tdExtDevmodeOffset": SimTypeShort(signed=False, label="UInt16"), "tdData": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="DVTARGETDEVICE", pack=False, align=None), offset=0), "dwAspect": SimTypeInt(signed=False, label="UInt32"), "lindex": SimTypeInt(signed=True, label="Int32"), "tymed": SimTypeInt(signed=False, label="UInt32")}, name="FORMATETC", pack=False, align=None), offset=0), SimTypeBottom(label="IBindStatusCallback"), SimTypeBottom(label="IMoniker")], SimTypeInt(signed=True, label="Int32"), arg_names=["pwzReference", "reserved", "pibc", "cFmtetc", "rgFmtetc", "pibsc", "pimkBase"]),
+        'HlinkResolveStringForData': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeBottom(label="IBindCtx"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("FORMATETC", SimStruct), offset=0), SimTypeBottom(label="IBindStatusCallback"), SimTypeBottom(label="IMoniker")], SimTypeInt(signed=True, label="Int32"), arg_names=["pwzReference", "reserved", "pibc", "cFmtetc", "rgFmtetc", "pibsc", "pimkBase"]),
         #
         'HlinkParseDisplayName': SimTypeFunction([SimTypeBottom(label="IBindCtx"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="IMoniker"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pibc", "pwzDisplayName", "fNoForceAbs", "pcchEaten", "ppimk"]),
         #

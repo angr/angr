@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("chakra.dll")
 prototypes = \
     {
@@ -41,11 +58,15 @@ prototypes = \
         #
         'JsRelease': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["ref", "count"]),
         #
+        'JsCreateContext': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeBottom(label="IDebugApplication32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["runtime", "debugApplication", "newContext"]),
+        #
         'JsGetCurrentContext': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["currentContext"]),
         #
         'JsSetCurrentContext': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["context"]),
         #
         'JsGetRuntime': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["context", "runtime"]),
+        #
+        'JsStartDebugging': SimTypeFunction([SimTypeBottom(label="IDebugApplication32")], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["debugApplication"]),
         #
         'JsIdle': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["nextIdleTick"]),
         #
@@ -95,9 +116,9 @@ prototypes = \
         #
         'JsConvertValueToString': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["value", "stringValue"]),
         #
-        'JsVariantToValue': SimTypeFunction([SimTypePointer(SimStruct({"Anonymous": SimUnion({"Anonymous": SimStruct({"vt": SimTypeShort(signed=False, label="UInt16"), "wReserved1": SimTypeShort(signed=False, label="UInt16"), "wReserved2": SimTypeShort(signed=False, label="UInt16"), "wReserved3": SimTypeShort(signed=False, label="UInt16"), "Anonymous": SimUnion({"llVal": SimTypeLongLong(signed=True, label="Int64"), "lVal": SimTypeInt(signed=True, label="Int32"), "bVal": SimTypeChar(label="Byte"), "iVal": SimTypeShort(signed=True, label="Int16"), "fltVal": SimTypeFloat(size=32), "dblVal": SimTypeFloat(size=64), "boolVal": SimTypeShort(signed=True, label="Int16"), "__OBSOLETE__VARIANT_BOOL": SimTypeShort(signed=True, label="Int16"), "scode": SimTypeInt(signed=True, label="Int32"), "cyVal": SimTypeBottom(label="CY"), "date": SimTypeFloat(size=64), "bstrVal": SimTypePointer(SimTypeChar(label="Char"), offset=0), "punkVal": SimTypeBottom(label="IUnknown"), "pdispVal": SimTypeBottom(label="IDispatch"), "parray": SimTypePointer(SimStruct({"cDims": SimTypeShort(signed=False, label="UInt16"), "fFeatures": SimTypeShort(signed=False, label="UInt16"), "cbElements": SimTypeInt(signed=False, label="UInt32"), "cLocks": SimTypeInt(signed=False, label="UInt32"), "pvData": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "rgsabound": SimTypePointer(SimStruct({"cElements": SimTypeInt(signed=False, label="UInt32"), "lLbound": SimTypeInt(signed=True, label="Int32")}, name="SAFEARRAYBOUND", pack=False, align=None), offset=0)}, name="SAFEARRAY", pack=False, align=None), offset=0), "pbVal": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "piVal": SimTypePointer(SimTypeShort(signed=True, label="Int16"), offset=0), "plVal": SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), "pllVal": SimTypePointer(SimTypeLongLong(signed=True, label="Int64"), offset=0), "pfltVal": SimTypePointer(SimTypeFloat(size=32), offset=0), "pdblVal": SimTypePointer(SimTypeFloat(size=64), offset=0), "pboolVal": SimTypePointer(SimTypeShort(signed=True, label="Int16"), offset=0), "__OBSOLETE__VARIANT_PBOOL": SimTypePointer(SimTypeShort(signed=True, label="Int16"), offset=0), "pscode": SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), "pcyVal": SimTypePointer(SimTypeBottom(label="CY"), offset=0), "pdate": SimTypePointer(SimTypeFloat(size=64), offset=0), "pbstrVal": SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), "ppunkVal": SimTypePointer(SimTypeBottom(label="IUnknown"), offset=0), "ppdispVal": SimTypePointer(SimTypeBottom(label="IDispatch"), offset=0), "pparray": SimTypePointer(SimTypePointer(SimStruct({"cDims": SimTypeShort(signed=False, label="UInt16"), "fFeatures": SimTypeShort(signed=False, label="UInt16"), "cbElements": SimTypeInt(signed=False, label="UInt32"), "cLocks": SimTypeInt(signed=False, label="UInt32"), "pvData": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "rgsabound": SimTypePointer(SimStruct({"cElements": SimTypeInt(signed=False, label="UInt32"), "lLbound": SimTypeInt(signed=True, label="Int32")}, name="SAFEARRAYBOUND", pack=False, align=None), offset=0)}, name="SAFEARRAY", pack=False, align=None), offset=0), offset=0), "pvarVal": SimTypePointer(SimTypeBottom(label="VARIANT"), offset=0), "byref": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "cVal": SimTypeBottom(label="CHAR"), "uiVal": SimTypeShort(signed=False, label="UInt16"), "ulVal": SimTypeInt(signed=False, label="UInt32"), "ullVal": SimTypeLongLong(signed=False, label="UInt64"), "intVal": SimTypeInt(signed=True, label="Int32"), "uintVal": SimTypeInt(signed=False, label="UInt32"), "pdecVal": SimTypePointer(SimTypeBottom(label="DECIMAL"), offset=0), "pcVal": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "puiVal": SimTypePointer(SimTypeShort(signed=False, label="UInt16"), offset=0), "pulVal": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), "pullVal": SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), "pintVal": SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), "puintVal": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), "Anonymous": SimStruct({"pvRecord": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "pRecInfo": SimTypeBottom(label="IRecordInfo")}, name="_Anonymous_e__Struct", pack=False, align=None)}, name="<anon>", label="None")}, name="_Anonymous_e__Struct", pack=False, align=None), "decVal": SimTypeBottom(label="DECIMAL")}, name="<anon>", label="None")}, name="VARIANT", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["variant", "value"]),
+        'JsVariantToValue': SimTypeFunction([SimTypePointer(SimTypeRef("VARIANT", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["variant", "value"]),
         #
-        'JsValueToVariant': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimStruct({"Anonymous": SimUnion({"Anonymous": SimStruct({"vt": SimTypeShort(signed=False, label="UInt16"), "wReserved1": SimTypeShort(signed=False, label="UInt16"), "wReserved2": SimTypeShort(signed=False, label="UInt16"), "wReserved3": SimTypeShort(signed=False, label="UInt16"), "Anonymous": SimUnion({"llVal": SimTypeLongLong(signed=True, label="Int64"), "lVal": SimTypeInt(signed=True, label="Int32"), "bVal": SimTypeChar(label="Byte"), "iVal": SimTypeShort(signed=True, label="Int16"), "fltVal": SimTypeFloat(size=32), "dblVal": SimTypeFloat(size=64), "boolVal": SimTypeShort(signed=True, label="Int16"), "__OBSOLETE__VARIANT_BOOL": SimTypeShort(signed=True, label="Int16"), "scode": SimTypeInt(signed=True, label="Int32"), "cyVal": SimTypeBottom(label="CY"), "date": SimTypeFloat(size=64), "bstrVal": SimTypePointer(SimTypeChar(label="Char"), offset=0), "punkVal": SimTypeBottom(label="IUnknown"), "pdispVal": SimTypeBottom(label="IDispatch"), "parray": SimTypePointer(SimStruct({"cDims": SimTypeShort(signed=False, label="UInt16"), "fFeatures": SimTypeShort(signed=False, label="UInt16"), "cbElements": SimTypeInt(signed=False, label="UInt32"), "cLocks": SimTypeInt(signed=False, label="UInt32"), "pvData": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "rgsabound": SimTypePointer(SimStruct({"cElements": SimTypeInt(signed=False, label="UInt32"), "lLbound": SimTypeInt(signed=True, label="Int32")}, name="SAFEARRAYBOUND", pack=False, align=None), offset=0)}, name="SAFEARRAY", pack=False, align=None), offset=0), "pbVal": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "piVal": SimTypePointer(SimTypeShort(signed=True, label="Int16"), offset=0), "plVal": SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), "pllVal": SimTypePointer(SimTypeLongLong(signed=True, label="Int64"), offset=0), "pfltVal": SimTypePointer(SimTypeFloat(size=32), offset=0), "pdblVal": SimTypePointer(SimTypeFloat(size=64), offset=0), "pboolVal": SimTypePointer(SimTypeShort(signed=True, label="Int16"), offset=0), "__OBSOLETE__VARIANT_PBOOL": SimTypePointer(SimTypeShort(signed=True, label="Int16"), offset=0), "pscode": SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), "pcyVal": SimTypePointer(SimTypeBottom(label="CY"), offset=0), "pdate": SimTypePointer(SimTypeFloat(size=64), offset=0), "pbstrVal": SimTypePointer(SimTypePointer(SimTypeChar(label="Char"), offset=0), offset=0), "ppunkVal": SimTypePointer(SimTypeBottom(label="IUnknown"), offset=0), "ppdispVal": SimTypePointer(SimTypeBottom(label="IDispatch"), offset=0), "pparray": SimTypePointer(SimTypePointer(SimStruct({"cDims": SimTypeShort(signed=False, label="UInt16"), "fFeatures": SimTypeShort(signed=False, label="UInt16"), "cbElements": SimTypeInt(signed=False, label="UInt32"), "cLocks": SimTypeInt(signed=False, label="UInt32"), "pvData": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "rgsabound": SimTypePointer(SimStruct({"cElements": SimTypeInt(signed=False, label="UInt32"), "lLbound": SimTypeInt(signed=True, label="Int32")}, name="SAFEARRAYBOUND", pack=False, align=None), offset=0)}, name="SAFEARRAY", pack=False, align=None), offset=0), offset=0), "pvarVal": SimTypePointer(SimTypeBottom(label="VARIANT"), offset=0), "byref": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "cVal": SimTypeBottom(label="CHAR"), "uiVal": SimTypeShort(signed=False, label="UInt16"), "ulVal": SimTypeInt(signed=False, label="UInt32"), "ullVal": SimTypeLongLong(signed=False, label="UInt64"), "intVal": SimTypeInt(signed=True, label="Int32"), "uintVal": SimTypeInt(signed=False, label="UInt32"), "pdecVal": SimTypePointer(SimTypeBottom(label="DECIMAL"), offset=0), "pcVal": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "puiVal": SimTypePointer(SimTypeShort(signed=False, label="UInt16"), offset=0), "pulVal": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), "pullVal": SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0), "pintVal": SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0), "puintVal": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), "Anonymous": SimStruct({"pvRecord": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "pRecInfo": SimTypeBottom(label="IRecordInfo")}, name="_Anonymous_e__Struct", pack=False, align=None)}, name="<anon>", label="None")}, name="_Anonymous_e__Struct", pack=False, align=None), "decVal": SimTypeBottom(label="DECIMAL")}, name="<anon>", label="None")}, name="VARIANT", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["object", "variant"]),
+        'JsValueToVariant': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeRef("VARIANT", SimStruct), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["object", "variant"]),
         #
         'JsGetGlobalObject': SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["globalObject"]),
         #
@@ -186,10 +207,6 @@ prototypes = \
         'JsEnumerateHeap': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IActiveScriptProfilerHeapEnum"), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["enumerator"]),
         #
         'JsIsEnumeratingHeap': SimTypeFunction([SimTypePointer(SimTypeBool(), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["isEnumeratingHeap"]),
-        #
-        'JsCreateContext': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeBottom(label="IDebugApplication32"), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["runtime", "debugApplication", "newContext"]),
-        #
-        'JsStartDebugging': SimTypeFunction([SimTypeBottom(label="IDebugApplication32")], SimTypeInt(signed=False, label="JsErrorCode"), arg_names=["debugApplication"]),
     }
 
 lib.set_prototypes(prototypes)

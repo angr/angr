@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("wsnmp32.dll")
 prototypes = \
     {
@@ -33,7 +50,7 @@ prototypes = \
         #
         'SnmpSetRetry': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hEntity", "nPolicyRetry"]),
         #
-        'SnmpGetVendorInfo': SimTypeFunction([SimTypePointer(SimStruct({"vendorName": SimTypeFixedSizeArray(SimTypeBottom(label="CHAR"), 64), "vendorContact": SimTypeFixedSizeArray(SimTypeBottom(label="CHAR"), 64), "vendorVersionId": SimTypeFixedSizeArray(SimTypeBottom(label="CHAR"), 32), "vendorVersionDate": SimTypeFixedSizeArray(SimTypeBottom(label="CHAR"), 32), "vendorEnterprise": SimTypeInt(signed=False, label="UInt32")}, name="smiVENDORINFO", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vendorInfo"]),
+        'SnmpGetVendorInfo': SimTypeFunction([SimTypePointer(SimTypeRef("smiVENDORINFO", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vendorInfo"]),
         #
         'SnmpStartup': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="SNMP_API_TRANSLATE_MODE"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="SNMP_STATUS"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["nMajorVersion", "nMinorVersion", "nLevel", "nTranslateMode", "nRetransmitMode"]),
         #
@@ -47,7 +64,7 @@ prototypes = \
         #
         'SnmpRecvMsg': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "PDU"]),
         #
-        'SnmpRegister': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="SNMP_STATUS")], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "notification", "state"]),
+        'SnmpRegister': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypeInt(signed=False, label="SNMP_STATUS")], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "notification", "state"]),
         #
         'SnmpCreateSession': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["hSession", "hWnd", "wMsg", "wParam", "lParam", "lpClientData"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["hWnd", "wMsg", "fCallBack", "lpClientData"]),
         #
@@ -67,9 +84,9 @@ prototypes = \
         #
         'SnmpFreeEntity': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["entity"]),
         #
-        'SnmpStrToContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["session", "string"]),
+        'SnmpStrToContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("smiOCTETS", SimStruct), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["session", "string"]),
         #
-        'SnmpContextToStr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["context", "string"]),
+        'SnmpContextToStr': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("smiOCTETS", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["context", "string"]),
         #
         'SnmpFreeContext': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["context"]),
         #
@@ -85,7 +102,7 @@ prototypes = \
         #
         'SnmpFreePdu': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["PDU"]),
         #
-        'SnmpCreateVbl': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"syntax": SimTypeInt(signed=False, label="UInt32"), "value": SimUnion({"sNumber": SimTypeInt(signed=True, label="Int32"), "uNumber": SimTypeInt(signed=False, label="UInt32"), "hNumber": SimStruct({"hipart": SimTypeInt(signed=False, label="UInt32"), "lopart": SimTypeInt(signed=False, label="UInt32")}, name="smiCNTR64", pack=False, align=None), "string": SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), "oid": SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), "empty": SimTypeChar(label="Byte")}, name="<anon>", label="None")}, name="smiVALUE", pack=False, align=None), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["session", "name", "value"]),
+        'SnmpCreateVbl': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypePointer(SimTypeRef("smiVALUE", SimStruct), offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["session", "name", "value"]),
         #
         'SnmpDuplicateVbl': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), arg_names=["session", "vbl"]),
         #
@@ -93,27 +110,27 @@ prototypes = \
         #
         'SnmpCountVbl': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vbl"]),
         #
-        'SnmpGetVb': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"syntax": SimTypeInt(signed=False, label="UInt32"), "value": SimUnion({"sNumber": SimTypeInt(signed=True, label="Int32"), "uNumber": SimTypeInt(signed=False, label="UInt32"), "hNumber": SimStruct({"hipart": SimTypeInt(signed=False, label="UInt32"), "lopart": SimTypeInt(signed=False, label="UInt32")}, name="smiCNTR64", pack=False, align=None), "string": SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), "oid": SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), "empty": SimTypeChar(label="Byte")}, name="<anon>", label="None")}, name="smiVALUE", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vbl", "index", "name", "value"]),
+        'SnmpGetVb': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypePointer(SimTypeRef("smiVALUE", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vbl", "index", "name", "value"]),
         #
-        'SnmpSetVb': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"syntax": SimTypeInt(signed=False, label="UInt32"), "value": SimUnion({"sNumber": SimTypeInt(signed=True, label="Int32"), "uNumber": SimTypeInt(signed=False, label="UInt32"), "hNumber": SimStruct({"hipart": SimTypeInt(signed=False, label="UInt32"), "lopart": SimTypeInt(signed=False, label="UInt32")}, name="smiCNTR64", pack=False, align=None), "string": SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), "oid": SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), "empty": SimTypeChar(label="Byte")}, name="<anon>", label="None")}, name="smiVALUE", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vbl", "index", "name", "value"]),
+        'SnmpSetVb': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypePointer(SimTypeRef("smiVALUE", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["vbl", "index", "name", "value"]),
         #
         'SnmpDeleteVb': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["vbl", "index"]),
         #
         'SnmpGetLastError': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["session"]),
         #
-        'SnmpStrToOid': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["string", "dstOID"]),
+        'SnmpStrToOid': SimTypeFunction([SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["string", "dstOID"]),
         #
-        'SnmpOidToStr': SimTypeFunction([SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["srcOID", "size", "string"]),
+        'SnmpOidToStr': SimTypeFunction([SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["srcOID", "size", "string"]),
         #
-        'SnmpOidCopy': SimTypeFunction([SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["srcOID", "dstOID"]),
+        'SnmpOidCopy': SimTypeFunction([SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["srcOID", "dstOID"]),
         #
-        'SnmpOidCompare': SimTypeFunction([SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)}, name="smiOID", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["xOID", "yOID", "maxlen", "result"]),
+        'SnmpOidCompare': SimTypeFunction([SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypePointer(SimTypeRef("smiOID", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=True, label="Int32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["xOID", "yOID", "maxlen", "result"]),
         #
-        'SnmpEncodeMsg': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "pdu", "msgBufDesc"]),
+        'SnmpEncodeMsg': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("smiOCTETS", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "pdu", "msgBufDesc"]),
         #
-        'SnmpDecodeMsg': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "pdu", "msgBufDesc"]),
+        'SnmpDecodeMsg': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0), SimTypePointer(SimTypeRef("smiOCTETS", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["session", "srcEntity", "dstEntity", "context", "pdu", "msgBufDesc"]),
         #
-        'SnmpFreeDescriptor': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"len": SimTypeInt(signed=False, label="UInt32"), "ptr": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="smiOCTETS", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["syntax", "descriptor"]),
+        'SnmpFreeDescriptor': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("smiOCTETS", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["syntax", "descriptor"]),
     }
 
 lib.set_prototypes(prototypes)

@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,25 +27,24 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("d3dcompiler_47.dll")
 prototypes = \
     {
-        #
-        'D3DDisassemble11Trace': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeBottom(label="ID3D11ShaderTrace"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pTrace", "StartStep", "NumSteps", "Flags", "ppDisassembly"]),
         #
         'D3DReadFileToBlob': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pFileName", "ppContents"]),
         #
         'D3DWriteBlobToFile': SimTypeFunction([SimTypeBottom(label="ID3DBlob"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["pBlob", "pFileName", "bOverwrite"]),
         #
-        'D3DCompile': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimStruct({"Name": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "Definition": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="D3D_SHADER_MACRO", pack=False, align=None), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pSourceName", "pDefines", "pInclude", "pEntrypoint", "pTarget", "Flags1", "Flags2", "ppCode", "ppErrorMsgs"]),
+        'D3DCompile': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("D3D_SHADER_MACRO", SimStruct), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pSourceName", "pDefines", "pInclude", "pEntrypoint", "pTarget", "Flags1", "Flags2", "ppCode", "ppErrorMsgs"]),
         #
-        'D3DCompile2': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimStruct({"Name": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "Definition": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="D3D_SHADER_MACRO", pack=False, align=None), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pSourceName", "pDefines", "pInclude", "pEntrypoint", "pTarget", "Flags1", "Flags2", "SecondaryDataFlags", "pSecondaryData", "SecondaryDataSize", "ppCode", "ppErrorMsgs"]),
+        'D3DCompile2': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("D3D_SHADER_MACRO", SimStruct), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pSourceName", "pDefines", "pInclude", "pEntrypoint", "pTarget", "Flags1", "Flags2", "SecondaryDataFlags", "pSecondaryData", "SecondaryDataSize", "ppCode", "ppErrorMsgs"]),
         #
-        'D3DCompileFromFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"Name": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "Definition": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="D3D_SHADER_MACRO", pack=False, align=None), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pFileName", "pDefines", "pInclude", "pEntrypoint", "pTarget", "Flags1", "Flags2", "ppCode", "ppErrorMsgs"]),
+        'D3DCompileFromFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("D3D_SHADER_MACRO", SimStruct), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pFileName", "pDefines", "pInclude", "pEntrypoint", "pTarget", "Flags1", "Flags2", "ppCode", "ppErrorMsgs"]),
         #
-        'D3DPreprocess': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimStruct({"Name": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "Definition": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="D3D_SHADER_MACRO", pack=False, align=None), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pSourceName", "pDefines", "pInclude", "ppCodeText", "ppErrorMsgs"]),
+        'D3DPreprocess': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("D3D_SHADER_MACRO", SimStruct), offset=0), SimTypeBottom(label="ID3DInclude"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pSourceName", "pDefines", "pInclude", "ppCodeText", "ppErrorMsgs"]),
         #
         'D3DGetDebugInfo': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "ppDebugInfo"]),
         #
@@ -63,11 +78,13 @@ prototypes = \
         #
         'D3DCreateBlob': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Size", "ppBlob"]),
         #
-        'D3DCompressShaders': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"pBytecode": SimTypePointer(SimTypeBottom(label="Void"), offset=0), "BytecodeLength": SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0)}, name="D3D_SHADER_DATA", pack=False, align=None), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["uNumShaders", "pShaderData", "uFlags", "ppCompressedData"]),
+        'D3DCompressShaders': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("D3D_SHADER_DATA", SimStruct), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["uNumShaders", "pShaderData", "uFlags", "ppCompressedData"]),
         #
         'D3DDecompressShaders': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), label="LPArray", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "uNumShaders", "uStartIndex", "pIndices", "uFlags", "ppShaders", "pTotalShaders"]),
         #
         'D3DDisassemble10Effect': SimTypeFunction([SimTypeBottom(label="ID3D10Effect"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pEffect", "Flags", "ppDisassembly"]),
+        #
+        'D3DDisassemble11Trace': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt"), label="UIntPtr", offset=0), SimTypeBottom(label="ID3D11ShaderTrace"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="ID3DBlob"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pSrcData", "SrcDataSize", "pTrace", "StartStep", "NumSteps", "Flags", "ppDisassembly"]),
     }
 
 lib.set_prototypes(prototypes)

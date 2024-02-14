@@ -22,12 +22,13 @@ class TypeLifter:
     Lift SimTypes to type constants.
     """
 
-    __slots__ = ("bits",)
+    __slots__ = ("bits", "memo")
 
     def __init__(self, bits: int):
         if bits not in (32, 64):
             raise ValueError("TypeLifter only supports 32-bit or 64-bit pointers.")
         self.bits = bits
+        self.memo = {}
 
     def lift(self, ty: SimType):
         handler = _mapping.get(type(ty), None)
@@ -56,6 +57,11 @@ class TypeLifter:
         raise ValueError("Unsupported bits %s." % self.bits)
 
     def _lift_SimStruct(self, ty: SimStruct) -> Union["TypeConstant", BottomType]:
+        if ty in self.memo:
+            return BottomType()
+
+        obj = Struct(fields={}, name=ty.name)
+        self.memo[ty] = obj
         converted_fields = {}
         field_names = {}
         ty_offsets = ty.offsets
@@ -64,7 +70,9 @@ class TypeLifter:
                 return BottomType()
             converted_fields[ty_offsets[field_name]] = self.lift(simtype)
             field_names[ty_offsets[field_name]] = field_name
-        return Struct(fields=converted_fields, name=ty.name, field_names=field_names)
+        obj.fields = converted_fields
+        obj.field_names = field_names
+        return obj
 
     def _lift_SimTypeArray(self, ty: SimTypeArray) -> Array:
         elem_type = self.lift(ty.elem_type)

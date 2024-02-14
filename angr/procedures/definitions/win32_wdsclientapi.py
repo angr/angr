@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("wdsclientapi.dll")
 prototypes = \
     {
@@ -33,9 +50,9 @@ prototypes = \
         #
         'WdsCliGetImageHandleFromTransferHandle': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hTransfer", "phImageHandle"]),
         #
-        'WdsCliCreateSession': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"pwszUserName": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pwszDomain": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pwszPassword": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="WDS_CLI_CRED", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pwszServer", "pCred", "phSession"]),
+        'WdsCliCreateSession': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("WDS_CLI_CRED", SimStruct), offset=0), SimTypePointer(SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pwszServer", "pCred", "phSession"]),
         #
-        'WdsCliAuthorizeSession': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"pwszUserName": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pwszDomain": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pwszPassword": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="WDS_CLI_CRED", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSession", "pCred"]),
+        'WdsCliAuthorizeSession': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("WDS_CLI_CRED", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSession", "pCred"]),
         #
         'WdsCliInitializeLog': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="CPU_ARCHITECTURE"), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hSession", "ulClientArchitecture", "pwszClientId", "pwszClientAddress"]),
         #
@@ -61,7 +78,7 @@ prototypes = \
         #
         'WdsCliGetImageArchitecture': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="CPU_ARCHITECTURE"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hIfh", "pdwValue"]),
         #
-        'WdsCliGetImageLastModifiedTime': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimStruct({"wYear": SimTypeShort(signed=False, label="UInt16"), "wMonth": SimTypeShort(signed=False, label="UInt16"), "wDayOfWeek": SimTypeShort(signed=False, label="UInt16"), "wDay": SimTypeShort(signed=False, label="UInt16"), "wHour": SimTypeShort(signed=False, label="UInt16"), "wMinute": SimTypeShort(signed=False, label="UInt16"), "wSecond": SimTypeShort(signed=False, label="UInt16"), "wMilliseconds": SimTypeShort(signed=False, label="UInt16")}, name="SYSTEMTIME", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hIfh", "ppSysTimeValue"]),
+        'WdsCliGetImageLastModifiedTime': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypePointer(SimTypeRef("SYSTEMTIME", SimStruct), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hIfh", "ppSysTimeValue"]),
         #
         'WdsCliGetImageSize': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeLongLong(signed=False, label="UInt64"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hIfh", "pullValue"]),
         #

@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("advpack.dll")
 prototypes = \
     {
@@ -33,15 +50,15 @@ prototypes = \
         #
         'TranslateInfStringW': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pszInfFilename", "pszInstallSection", "pszTranslateSection", "pszTranslateKey", "pszBuffer", "cchBuffer", "pdwRequiredSize", "pvReserved"]),
         #
-        'RegInstallA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimStruct({"cEntries": SimTypeInt(signed=False, label="UInt32"), "pse": SimTypePointer(SimStruct({"pszName": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "pszValue": SimTypePointer(SimTypeChar(label="Byte"), offset=0)}, name="STRENTRYA", pack=False, align=None), offset=0)}, name="STRTABLEA", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hmod", "pszSection", "pstTable"]),
+        'RegInstallA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeRef("STRTABLEA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hmod", "pszSection", "pstTable"]),
         #
-        'RegInstallW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"cEntries": SimTypeInt(signed=False, label="UInt32"), "pse": SimTypePointer(SimStruct({"pszName": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pszValue": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="STRENTRYW", pack=False, align=None), offset=0)}, name="STRTABLEW", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hmod", "pszSection", "pstTable"]),
+        'RegInstallW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("STRTABLEW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hmod", "pszSection", "pstTable"]),
         #
         'LaunchINFSectionExW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "hInstance", "pszParms", "nShow"]),
         #
-        'ExecuteCabA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"pszCab": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "pszInf": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "pszSection": SimTypePointer(SimTypeChar(label="Byte"), offset=0), "szSrcPath": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 260), "dwFlags": SimTypeInt(signed=False, label="UInt32")}, name="CABINFOA", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "pCab", "pReserved"]),
+        'ExecuteCabA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("CABINFOA", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "pCab", "pReserved"]),
         #
-        'ExecuteCabW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"pszCab": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pszInf": SimTypePointer(SimTypeChar(label="Char"), offset=0), "pszSection": SimTypePointer(SimTypeChar(label="Char"), offset=0), "szSrcPath": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 260), "dwFlags": SimTypeInt(signed=False, label="UInt32")}, name="CABINFOW", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "pCab", "pReserved"]),
+        'ExecuteCabW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("CABINFOW", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "pCab", "pReserved"]),
         #
         'AdvInstallFileA': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "lpszSourceDir", "lpszSourceFile", "lpszDestDir", "lpszDestFile", "dwFlags", "dwReserved"]),
         #
@@ -113,9 +130,9 @@ prototypes = \
         #
         'UserUnInstStubWrapperW': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hwnd", "hInstance", "pszParms", "nShow"]),
         #
-        'SetPerUserSecValuesA': SimTypeFunction([SimTypePointer(SimStruct({"szGUID": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 59), "szDispName": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 128), "szLocale": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 10), "szStub": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 1040), "szVersion": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 32), "szCompID": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 128), "dwIsInstalled": SimTypeInt(signed=False, label="UInt32"), "bRollback": SimTypeInt(signed=True, label="Int32")}, name="PERUSERSECTIONA", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pPerUser"]),
+        'SetPerUserSecValuesA': SimTypeFunction([SimTypePointer(SimTypeRef("PERUSERSECTIONA", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pPerUser"]),
         #
-        'SetPerUserSecValuesW': SimTypeFunction([SimTypePointer(SimStruct({"szGUID": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 59), "szDispName": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 128), "szLocale": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 10), "szStub": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 1040), "szVersion": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 32), "szCompID": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 128), "dwIsInstalled": SimTypeInt(signed=False, label="UInt32"), "bRollback": SimTypeInt(signed=True, label="Int32")}, name="PERUSERSECTIONW", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pPerUser"]),
+        'SetPerUserSecValuesW': SimTypeFunction([SimTypePointer(SimTypeRef("PERUSERSECTIONW", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pPerUser"]),
     }
 
 lib.set_prototypes(prototypes)

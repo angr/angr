@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("dxva2.dll")
 prototypes = \
     {
@@ -21,13 +38,13 @@ prototypes = \
         #
         'GetNumberOfPhysicalMonitorsFromIDirect3DDevice9': SimTypeFunction([SimTypeBottom(label="IDirect3DDevice9"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDirect3DDevice9", "pdwNumberOfPhysicalMonitors"]),
         #
-        'GetPhysicalMonitorsFromHMONITOR': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"hPhysicalMonitor": SimTypeBottom(label="HANDLE"), "szPhysicalMonitorDescription": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 128)}, name="PHYSICAL_MONITOR", pack=False, align=None), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "dwPhysicalMonitorArraySize", "pPhysicalMonitorArray"]),
+        'GetPhysicalMonitorsFromHMONITOR': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("PHYSICAL_MONITOR", SimStruct), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "dwPhysicalMonitorArraySize", "pPhysicalMonitorArray"]),
         #
-        'GetPhysicalMonitorsFromIDirect3DDevice9': SimTypeFunction([SimTypeBottom(label="IDirect3DDevice9"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"hPhysicalMonitor": SimTypeBottom(label="HANDLE"), "szPhysicalMonitorDescription": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 128)}, name="PHYSICAL_MONITOR", pack=False, align=None), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDirect3DDevice9", "dwPhysicalMonitorArraySize", "pPhysicalMonitorArray"]),
+        'GetPhysicalMonitorsFromIDirect3DDevice9': SimTypeFunction([SimTypeBottom(label="IDirect3DDevice9"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("PHYSICAL_MONITOR", SimStruct), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDirect3DDevice9", "dwPhysicalMonitorArraySize", "pPhysicalMonitorArray"]),
         #
         'DestroyPhysicalMonitor': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor"]),
         #
-        'DestroyPhysicalMonitors': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimStruct({"hPhysicalMonitor": SimTypeBottom(label="HANDLE"), "szPhysicalMonitorDescription": SimTypeFixedSizeArray(SimTypeChar(label="Char"), 128)}, name="PHYSICAL_MONITOR", pack=False, align=None), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwPhysicalMonitorArraySize", "pPhysicalMonitorArray"]),
+        'DestroyPhysicalMonitors': SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeRef("PHYSICAL_MONITOR", SimStruct), label="LPArray", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["dwPhysicalMonitorArraySize", "pPhysicalMonitorArray"]),
         #
         'GetVCPFeatureAndVCPFeatureReply': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeChar(label="Byte"), SimTypePointer(SimTypeInt(signed=False, label="MC_VCP_CODE_TYPE"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "bVCPCode", "pvct", "pdwCurrentValue", "pdwMaximumValue"]),
         #
@@ -39,7 +56,7 @@ prototypes = \
         #
         'CapabilitiesRequestAndCapabilitiesReply': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeChar(label="Byte"), label="LPArray", offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "pszASCIICapabilitiesString", "dwCapabilitiesStringLengthInCharacters"]),
         #
-        'GetTimingReport': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"dwHorizontalFrequencyInHZ": SimTypeInt(signed=False, label="UInt32"), "dwVerticalFrequencyInHZ": SimTypeInt(signed=False, label="UInt32"), "bTimingStatusByte": SimTypeChar(label="Byte")}, name="MC_TIMING_REPORT", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "pmtrMonitorTimingReport"]),
+        'GetTimingReport': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("MC_TIMING_REPORT", SimStruct), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "pmtrMonitorTimingReport"]),
         #
         'GetMonitorCapabilities': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "pdwMonitorCapabilities", "pdwSupportedColorTemperatures"]),
         #
@@ -81,7 +98,7 @@ prototypes = \
         #
         'RestoreMonitorFactoryDefaults': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor"]),
         #
-        'DXVAHD_CreateDevice': SimTypeFunction([SimTypeBottom(label="IDirect3DDevice9Ex"), SimTypePointer(SimStruct({"InputFrameFormat": SimTypeInt(signed=False, label="DXVAHD_FRAME_FORMAT"), "InputFrameRate": SimStruct({"Numerator": SimTypeInt(signed=False, label="UInt32"), "Denominator": SimTypeInt(signed=False, label="UInt32")}, name="DXVAHD_RATIONAL", pack=False, align=None), "InputWidth": SimTypeInt(signed=False, label="UInt32"), "InputHeight": SimTypeInt(signed=False, label="UInt32"), "OutputFrameRate": SimStruct({"Numerator": SimTypeInt(signed=False, label="UInt32"), "Denominator": SimTypeInt(signed=False, label="UInt32")}, name="DXVAHD_RATIONAL", pack=False, align=None), "OutputWidth": SimTypeInt(signed=False, label="UInt32"), "OutputHeight": SimTypeInt(signed=False, label="UInt32")}, name="DXVAHD_CONTENT_DESC", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="DXVAHD_DEVICE_USAGE"), SimTypePointer(SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Size", "pCallbacks"]), offset=0), SimTypePointer(SimTypeBottom(label="IDXVAHD_Device"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pD3DDevice", "pContentDesc", "Usage", "pPlugin", "ppDevice"]),
+        'DXVAHD_CreateDevice': SimTypeFunction([SimTypeBottom(label="IDirect3DDevice9Ex"), SimTypePointer(SimTypeRef("DXVAHD_CONTENT_DESC", SimStruct), offset=0), SimTypeInt(signed=False, label="DXVAHD_DEVICE_USAGE"), SimTypePointer(SimTypeFunction([SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Size", "pCallbacks"]), offset=0), SimTypePointer(SimTypeBottom(label="IDXVAHD_Device"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pD3DDevice", "pContentDesc", "Usage", "pPlugin", "ppDevice"]),
         #
         'DXVA2CreateDirect3DDeviceManager9': SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypeBottom(label="IDirect3DDeviceManager9"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pResetToken", "ppDeviceManager"]),
         #
@@ -89,7 +106,7 @@ prototypes = \
         #
         'OPMGetVideoOutputsFromHMONITOR': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="OPM_VIDEO_OUTPUT_SEMANTICS"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="IOPMVideoOutput"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hMonitor", "vos", "pulNumVideoOutputs", "pppOPMVideoOutputArray"]),
         #
-        'OPMGetVideoOutputForTarget': SimTypeFunction([SimTypePointer(SimStruct({"LowPart": SimTypeInt(signed=False, label="UInt32"), "HighPart": SimTypeInt(signed=True, label="Int32")}, name="LUID", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="OPM_VIDEO_OUTPUT_SEMANTICS"), SimTypePointer(SimTypeBottom(label="IOPMVideoOutput"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pAdapterLuid", "VidPnTarget", "vos", "ppOPMVideoOutput"]),
+        'OPMGetVideoOutputForTarget': SimTypeFunction([SimTypePointer(SimTypeRef("LUID", SimStruct), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="OPM_VIDEO_OUTPUT_SEMANTICS"), SimTypePointer(SimTypeBottom(label="IOPMVideoOutput"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pAdapterLuid", "VidPnTarget", "vos", "ppOPMVideoOutput"]),
         #
         'OPMGetVideoOutputsFromIDirect3DDevice9Object': SimTypeFunction([SimTypeBottom(label="IDirect3DDevice9"), SimTypeInt(signed=False, label="OPM_VIDEO_OUTPUT_SEMANTICS"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="IOPMVideoOutput"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDirect3DDevice9", "vos", "pulNumVideoOutputs", "pppOPMVideoOutputArray"]),
     }

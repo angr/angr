@@ -65,6 +65,7 @@ class Function(Serializable):
         "sp_delta",
         "calling_convention",
         "prototype",
+        "prototype_libname",
         "_returning",
         "prepared_registers",
         "prepared_stack_variables",
@@ -144,6 +145,7 @@ class Function(Serializable):
         self.calling_convention: Optional[SimCC] = None
         # Function prototype
         self.prototype: Optional[SimTypeFunction] = None
+        self.prototype_libname: Optional[str] = None
         self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -1545,6 +1547,7 @@ class Function(Serializable):
                     )
                     return False
                 self.prototype = proto.with_arch(self.project.arch)
+                self.prototype_libname = library.name
 
                 # update self.calling_convention if necessary
                 if self.calling_convention is None:

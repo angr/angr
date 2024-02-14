@@ -1,7 +1,23 @@
 # pylint:disable=line-too-long
 import logging
+from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
@@ -11,8 +27,9 @@ _l = logging.getLogger(name=__name__)
 
 
 lib = SimLibrary()
-lib.set_default_cc('X86', SimCCStdcall)
-lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.type_collection_names = ["win32"]
+lib.set_default_cc("X86", SimCCStdcall)
+lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 lib.set_library_names("ntlanman.dll")
 prototypes = \
     {
@@ -27,11 +44,13 @@ prototypes = \
         #
         'SetAppInstanceCsvFlags': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["ProcessHandle", "Mask", "Flags"]),
         #
-        'NPAddConnection4': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"dwScope": SimTypeInt(signed=False, label="NET_RESOURCE_SCOPE"), "dwType": SimTypeInt(signed=False, label="NET_RESOURCE_TYPE"), "dwDisplayType": SimTypeInt(signed=False, label="UInt32"), "dwUsage": SimTypeInt(signed=False, label="UInt32"), "lpLocalName": SimTypePointer(SimTypeChar(label="Char"), offset=0), "lpRemoteName": SimTypePointer(SimTypeChar(label="Char"), offset=0), "lpComment": SimTypePointer(SimTypeChar(label="Char"), offset=0), "lpProvider": SimTypePointer(SimTypeChar(label="Char"), offset=0)}, name="NETRESOURCEW", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndOwner", "lpNetResource", "lpAuthBuffer", "cbAuthBuffer", "dwFlags", "lpUseOptions", "cbUseOptions"]),
+        'NPAddConnection4': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimTypeRef("NETRESOURCEW", SimStruct), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["hwndOwner", "lpNetResource", "lpAuthBuffer", "cbAuthBuffer", "dwFlags", "lpUseOptions", "cbUseOptions"]),
+        #
+        'NPCancelConnection2': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=True, label="Int32"), SimTypeInt(signed=False, label="UInt32")], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpName", "fForce", "dwFlags"]),
         #
         'NPGetConnection3': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpLocalName", "dwLevel", "lpBuffer", "lpBufferSize"]),
         #
-        'NPGetConnectionPerformance': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"cbStructure": SimTypeInt(signed=False, label="UInt32"), "dwFlags": SimTypeInt(signed=False, label="UInt32"), "dwSpeed": SimTypeInt(signed=False, label="UInt32"), "dwDelay": SimTypeInt(signed=False, label="UInt32"), "dwOptDataSize": SimTypeInt(signed=False, label="UInt32")}, name="NETCONNECTINFOSTRUCT", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpRemoteName", "lpNetConnectInfo"]),
+        'NPGetConnectionPerformance': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeRef("NETCONNECTINFOSTRUCT", SimStruct), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpRemoteName", "lpNetConnectInfo"]),
         #
         'NPGetPersistentUseOptionsForConnection': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeChar(label="Byte"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["lpRemotePath", "lpReadUseOptions", "cbReadUseOptions", "lpWriteUseOptions", "lpSizeWriteUseOptions"]),
     }

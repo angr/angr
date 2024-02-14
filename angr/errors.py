@@ -89,6 +89,10 @@ class AngrTypeError(AngrError, TypeError):
     pass
 
 
+class AngrMissingTypeError(AngrTypeError):
+    pass
+
+
 # Congruency check failure
 class AngrIncongruencyError(AngrAnalysisError):
     pass
