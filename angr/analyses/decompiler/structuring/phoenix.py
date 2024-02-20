@@ -637,8 +637,15 @@ class PhoenixStructurer(StructurerBase):
                             outgoing_edges.append((pred, succ))
 
         if outgoing_edges:
-            # convert all out-going edges into breaks (if there is a single successor) or gotos (if there are multiple
-            # successors)
+            # if there is a single successor, we convert all out-going edges into breaks;
+            # if there are multiple successors, and if the current region does not have a parent region, then we
+            # convert all out-going edges into gotos;
+            # otherwise we give up.
+
+            if self._parent_region is not None and len(set(dst for _, dst in outgoing_edges)) > 1:
+                # give up because there is a parent region
+                return False
+
             if successor is None:
                 successor_and_edgecounts = defaultdict(int)
                 for _, dst in outgoing_edges:
