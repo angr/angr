@@ -78,6 +78,7 @@ class BlockSimilarityMaximizer(OptimizationPass):
         self, b0_stmts, b1_stmts, up=False, down=False
     ) -> Tuple[bool, Tuple[List[Statement], List[Statement]]]:
         self._assert_up_or_down(up, down)
+        # TODO: Implement this method based on notes
 
     def _move_to_end(self, stmt, stmts, up=False, down=False):
         self._assert_up_or_down(up, down)
