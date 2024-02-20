@@ -586,10 +586,10 @@ class PhoenixStructurer(StructurerBase):
         sorted_loop_heads = GraphUtils.quasi_topological_sort_nodes(self._region.graph, nodes=list(loop_heads))
 
         for head in sorted_loop_heads:
+            l.debug("... refining cyclic at %r", head)
             refined = self._refine_cyclic_core(head)
-            l.debug("refining cyclic at %r", head)
+            l.debug("... refined: %s", refined)
             if refined:
-                l.debug("refined at %r", head)
                 return True
         return False
 
@@ -640,7 +640,7 @@ class PhoenixStructurer(StructurerBase):
             # natural loop. select *any* exit edge to determine the successor
             # well actually, to maintain determinism, we select the successor with the highest address
             successor_candidates = set()
-            for node in graph.nodes:
+            for node in networkx.descendants(graph, loop_head):
                 for succ in fullgraph.successors(node):
                     if succ not in graph:
                         successor_candidates.add(succ)
@@ -820,7 +820,7 @@ class PhoenixStructurer(StructurerBase):
                     # case being the loop head. in such cases, we can just remove the edge.
                     if src.addr not in self.kb.cfgs["CFGFast"].jump_tables:
                         l.warning(
-                            "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r."
+                            "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r. "
                             "Remove the edge anyway.",
                             src,
                             continue_node,
@@ -873,6 +873,7 @@ class PhoenixStructurer(StructurerBase):
     def _refine_cyclic_is_while_loop(
         self, graph, fullgraph, loop_head, head_succs
     ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
+
         if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
             # make sure the head_pred is not already structured
             _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
@@ -2268,6 +2269,11 @@ class PhoenixStructurer(StructurerBase):
                 elif len(block.statements) > 1:
                     last_stmt = block.statements[-1]
                     if _check(last_stmt):
+                        walker.parent_and_block.append((walker.block_id, parent, block))
+                    elif (
+                        not isinstance(last_stmt, (Jump, ConditionalJump))
+                        and block.addr + block.original_size == dst_addr
+                    ):
                         walker.parent_and_block.append((walker.block_id, parent, block))
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
