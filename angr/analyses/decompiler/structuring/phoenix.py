@@ -642,7 +642,7 @@ class PhoenixStructurer(StructurerBase):
             # convert all out-going edges into gotos;
             # otherwise we give up.
 
-            if self._parent_region is not None and len(set(dst for _, dst in outgoing_edges)) > 1:
+            if self._parent_region is not None and len({dst for _, dst in outgoing_edges}) > 1:
                 # give up because there is a parent region
                 return False
 
