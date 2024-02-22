@@ -360,7 +360,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  model=None,
                  remove_insts=None,
                  start_deobfuscation_immediately=False,
-                 deobfuscation_start_addr = None
+                 deobfuscation_start_addr=None,
+                 deobfuscation_end_addr=None,
                  ):
         """
         All parameters are optional.
@@ -416,6 +417,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self.remove_insts = remove_insts
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
         self.deobfuscation_start_addr = deobfuscation_start_addr
+        self.deobfuscation_end_addr = deobfuscation_end_addr
         ##If an existing graph is being passed that needs to be analysed
         graph_visitor = None
         self._graph = None
@@ -1523,6 +1525,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 succ.globals['start_deobfuscation'] = True
 
             job.state.globals['start_deobfuscation'] = True
+
+        if self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
+            for succ in sim_successors.all_successors:
+                succ.globals['call_stack_context_sensitivity_on'] = True
+                succ.globals['start_deobfuscation'] = False
+                succ.globals['cur_vm_vpc'] = None
+
+            job.state.globals['start_deobfuscation'] = False
+            job.state.globals['cur_vm_vpc'] = None
 
         if self.data_sensitive:
             if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0:
