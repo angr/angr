@@ -390,6 +390,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         "demangled_name",
         "unified_local_vars",
         "show_demangled_name",
+        "omit_header",
     )
 
     def __init__(
@@ -403,6 +404,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         variable_manager,
         demangled_name=None,
         show_demangled_name=True,
+        omit_header=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -417,6 +419,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.demangled_name = demangled_name
         self.unified_local_vars: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = self.get_unified_local_vars()
         self.show_demangled_name = show_demangled_name
+        self.omit_header = omit_header
 
     def get_unified_local_vars(self) -> Dict[SimVariable, Set[Tuple["CVariable", SimType]]]:
         unified_to_var_and_types: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = defaultdict(set)
@@ -521,8 +524,17 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield "\n", None
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        indent_str = self.indent_str(indent)
+        if self.omit_header:
+            yield from self.headerless_c_repr_chunks(indent=indent)
+        else:
+            yield from self.full_c_repr_chunks(indent=indent, asexpr=asexpr)
 
+    def headerless_c_repr_chunks(self, indent=0):
+        yield from self.statements.c_repr_chunks(indent=indent)
+        yield "\n", None
+
+    def full_c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent)
         if self.codegen.show_local_types:
             local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             for ty in local_types:
@@ -2344,6 +2356,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ail_graph=None,
         simplify_else_scope=True,
         cstyle_ifs=True,
+        omit_func_header=False,
     ):
         super().__init__(flavor=flavor)
 
@@ -2411,6 +2424,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
+        self.omit_func_header = omit_func_header
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2474,6 +2488,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             demangled_name=self._func.demangled_name,
             show_demangled_name=self.show_demangled_name,
             codegen=self,
+            omit_header=self.omit_func_header,
         )
         self.cfunc = FieldReferenceCleanup.handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer.handle(self.cfunc)
