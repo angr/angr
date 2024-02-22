@@ -1,6 +1,6 @@
-import ipdb
 import networkx
-
+from functools import wraps
+import time
 import angr
 import logging
 import pyvex
@@ -33,6 +33,7 @@ from ...engines.light.data import SpOffset
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...utils.constants import DEFAULT_STATEMENT
 
+from .pretty_dump_ail_cfg import pretty_dump_ail_cfg
 to_break = False
 #logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
@@ -43,6 +44,8 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 l = logging.getLogger(name=__name__)
+
+TIMING = True
 
 class DataSensitiveU64(pyvex.const.U64):
     def __init__(self, value, block_id):
@@ -332,7 +335,51 @@ def remove_breakpoints(state):
     state.globals['call_stack_context_sensitivity_on'] = True
     #state.globals['cur_vm_vpc'] = None
 
+time_so_far = 0
+total_time = defaultdict(float)
+time_distribution = defaultdict(list)
+depth = 0
+def logtime(func):
+    @wraps(func)
+    def timed_func(*args, **kwargs):
+        if TIMING:
 
+            def _t():
+                return time.perf_counter_ns() / 1000000
+
+            global depth
+            depth += 1
+
+            global time_so_far
+
+            start = _t()
+            l.info(f"Started: {func.__name__}")
+            r = func(*args, **kwargs)
+            l.info(f"Finished: {func.__name__}")
+            millisec = _t() - start
+            sec = millisec / 1000
+
+            indent = " " * ((depth - 1) * 2)
+            if sec > 1.0:
+                l.info(f"[timing] {indent}{func.__name__} took {sec:f} seconds ({millisec:f} milliseconds).")
+            else:
+                l.info(f"[timing] {indent}{func.__name__} took {millisec:f} milliseconds.")
+            total_time[func] += millisec
+
+            time_so_far += millisec
+            sec = time_so_far / 1000
+            if sec > 1.0:
+                l.info(f"time taken so far {sec:f} seconds ({time_so_far:f} milliseconds).")
+            else:
+                l.info(f"time taken so far {time_so_far:f} milliseconds.")
+
+            time_distribution[func].append(millisec)
+            depth -= 1
+            return r
+        else:
+            return func(*args, **kwargs)
+
+    return timed_func
 class VMDeobfuscation(Analysis):
 
     def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None,
@@ -340,7 +387,7 @@ class VMDeobfuscation(Analysis):
                  constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
-                 deobfuscation_start_addr=None, vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
+                 deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None):
 
         # This is the address of the node where the virtual machine implementation starts
@@ -351,6 +398,7 @@ class VMDeobfuscation(Analysis):
         self.constant_prop_func_replacements = constant_prop_func_replacements
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
         self.deobfuscation_start_addr = deobfuscation_start_addr
+        self.deobfuscation_end_addr = deobfuscation_end_addr
         self.vpc_loc = vpc_loc
         self.vpc_mem_loc = vpc_mem_loc
         calls_as_rets = {}
@@ -538,6 +586,7 @@ class VMDeobfuscation(Analysis):
         print("start")
         for i in range(4):
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
             self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
 
             new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
@@ -707,11 +756,25 @@ class VMDeobfuscation(Analysis):
         # # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
         # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result_enc_addr.svg"))
-        import ipdb;ipdb.set_trace()
+
+        self.log_timing_results()
 
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    def log_timing_results(self):
+        global total_time
+        global time_distribution
+
+        with open('./logs/total_time', 'w') as f:
+            for key, value in total_time.items():
+                f.write(str(key)+": " + str(value) + "\n")
+
+        with open('./logs/time_distribution', 'w') as f:
+            for key, value in time_distribution.items():
+                f.write(str(key)+": " + str(value) + "\n")
+
 
     def merge_symbolic_expr_locations_blockwise(self, all_symbolic_expr_locations_blockwise, cur_symbolic_expr_locations_blockwise):
         for block_id, codeloc_dict in cur_symbolic_expr_locations_blockwise.items():
@@ -756,6 +819,7 @@ class VMDeobfuscation(Analysis):
 
 
         return cfg
+    @logtime
     def split_redundant_branch_themida(self, cfg):
         #                     node_A (guard_cond_A)
         #                     /\
@@ -849,7 +913,7 @@ class VMDeobfuscation(Analysis):
                             to_split_nodes.append(r_branch)
 
         return to_split_nodes
-
+    @logtime
     def split_redundant_branch_obf(self, cfg, saved_same_guard_cond_to_merge):
         def get_new_node(old_node, new_vm_vpc, cfg):
             new_block_id = BlockID(old_node.block_id.addr, old_node.block_id.callsite_tuples,
@@ -937,6 +1001,7 @@ class VMDeobfuscation(Analysis):
             cfg.remove_node(node.block_id, node)
 
         return cfg
+    @logtime
     def remove_segment_selector_vex_inst(self, cfg):
         if self.project.arch.bits == 32:
             for node in cfg.nodes():
@@ -979,6 +1044,8 @@ class VMDeobfuscation(Analysis):
             for node in new_cfg.nodes():
                 node.block_id._hash = None
             return new_cfg
+
+    @logtime
     def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None, decomp_function_prototypes=None,
                           semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False):
         visited_nodes = {}
@@ -1117,7 +1184,6 @@ class VMDeobfuscation(Analysis):
                     # skip the functions nodes, and add only the return node
                     while len(func_stack) != 0:
                         cur_func_node = func_stack.pop(0)
-                        print(cur_func_node)
                         if cur_func_node.block_id in visited_nodes:
                             continue
                         # mark these as visited so that we don't visit them again in the outer loop
@@ -1158,11 +1224,13 @@ class VMDeobfuscation(Analysis):
         self.project.new_block_id_embed_dict = new_block_id_embed_dict
 
         dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim)
-        print("Decompilation result:")
-        print(dec.codegen.text)
-        import ipdb;
-        ipdb.set_trace()
 
+        with open("last_decomp_result.c", "w") as f:
+            f.write(dec.codegen.text)
+
+        pretty_dump_ail_cfg(dec.clinic.cc_graph, self.project)
+
+    @logtime
     def CAS_to_mov_simplification(self, cfg, proj):
         # this is specifically for themida to convert CAS stmts to simple store stmts if the comparision is always True
         # only for converting CAS from xchg to simple stores
@@ -1246,6 +1314,12 @@ class VMDeobfuscation(Analysis):
         A.layout(prog="dot")
         A.draw(path="./graph_for_paper.svg", format="svg")
 
+    def find_exit_stmt(self, irsb):
+
+        for stmt_idx, stmt in reversed(list(enumerate(irsb.statements))):
+            if isinstance(stmt, pyvex.stmt.Exit):
+                return stmt, stmt_idx
+        return None, None
 
     def create_new_node_with_block_id_addr(self, old_node, new_model, old_graph, new_block_id_embed_dict, end_node_block_ids,
                                            decomp_function_addresses=[],
@@ -1280,9 +1354,9 @@ class VMDeobfuscation(Analysis):
             elif old_node.irsb.jumpkind == "Ijk_Ret" and not successors[0].is_simprocedure and successors[0].addr not in decomp_function_addresses:
                 new_jumpkind = "Ijk_Boring"
 
-
+            orig_exit_stmt, orig_exit_stmt_idx = self.find_exit_stmt(old_node.irsb)
             # replace indirect jumps that are acutally a branch, by adding exit statement
-            if len(successors) == 2 and not isinstance(old_node.irsb.statements[-1], pyvex.stmt.Exit):
+            if len(successors) == 2 and not orig_exit_stmt:
                 new_jumpkind = "Ijk_Boring"
 
 
@@ -1294,12 +1368,12 @@ class VMDeobfuscation(Analysis):
                     false_addr_enc = self.convert_addr_to_int(successors[1].addr, successors[1].block_id)
                     jmp_tmp_no = old_node.irsb.next.tmp
                     cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ64", [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
-                    exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
+                    new_exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
                                     U64(true_addr_enc),
                                     "Ijk_Boring",
                                     self.project.arch.registers['ip'][0])
 
-                    new_statements = new_statements + [cmp_stmt, exit_stmt]
+                    new_statements = new_statements + [cmp_stmt, new_exit_stmt]
                     new_next = pyvex.expr.Const(U64(false_addr_enc))
                 elif self.project.arch.bits == 32:
                     true_addr = pyvex.expr.Const(U32(true_addr_int))
@@ -1308,40 +1382,40 @@ class VMDeobfuscation(Analysis):
                     jmp_tmp_no = old_node.irsb.next.tmp
                     cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ32",
                                                                              [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
-                    exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
+                    new_exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
                                                 U32(true_addr_enc),
                                                 "Ijk_Boring",
                                                 self.project.arch.registers['ip'][0])
 
-                    new_statements = new_statements + [cmp_stmt, exit_stmt]
+                    new_statements = new_statements + [cmp_stmt, new_exit_stmt]
                     new_next = pyvex.expr.Const(U32(false_addr_enc))
                 else:
                     import ipdb;ipdb.set_trace()
 
                 old_node.irsb.tyenv.types.append('Ity_I1')
 
-            elif len(successors) == 2 and isinstance(old_node.irsb.statements[-1], pyvex.stmt.Exit):
+            elif len(successors) == 2 and orig_exit_stmt:
                 # For existing branches we need to replace the addrs with the new hashed addresses
                 true_addr_block_id = None
                 false_addr_block_id = None
                 for succ in successors:
-                    if succ.addr == old_node.irsb.statements[-1].dst.value:
+                    if succ.addr == orig_exit_stmt.dst.value:
                         true_addr_block_id = succ.block_id
                     elif succ.addr == old_node.irsb.next.con.value:
                         false_addr_block_id = succ.block_id
                     else:
                         import ipdb;ipdb.set_trace()
 
-                true_addr_int = self.convert_addr_to_int(old_node.irsb.statements[-1].dst.value, true_addr_block_id)
+                true_addr_int = self.convert_addr_to_int(orig_exit_stmt.dst.value, true_addr_block_id)
 
                 false_addr_int = self.convert_addr_to_int(old_node.irsb.next.con.value, false_addr_block_id)
 
-                exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(old_node.irsb.statements[-1].guard.tmp),
+                new_exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(orig_exit_stmt.guard.tmp),
                                             U32(true_addr_int),
                                             "Ijk_Boring",
                                             self.project.arch.registers['ip'][0])
                 new_next = pyvex.expr.Const(U32(false_addr_int))
-                new_statements = new_statements[:-1] + [exit_stmt]
+                new_statements = new_statements[:orig_exit_stmt_idx] + [new_exit_stmt] + new_statements[orig_exit_stmt_idx+1:]
 
         elif len(successors) == 0 and old_node.irsb.jumpkind == "Ijk_Call":
             new_jumpkind = "Ijk_Ret"
@@ -1410,6 +1484,7 @@ class VMDeobfuscation(Analysis):
 
         return cfg
 
+    @logtime
     def replace_jumpkinds(self, new_cfg):
         # TO DO: replace the instructions, can't just replace return with call, semantics change
         calls_as_rets = {}
@@ -1434,6 +1509,8 @@ class VMDeobfuscation(Analysis):
                                     break
 
         return new_cfg, calls_as_rets
+
+    @logtime
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
                              prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
                              return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
@@ -1570,6 +1647,7 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return new_model, prop.symbolic_expr_locations_blockwise
 
+    @logtime
     def symbolify_exprs(self, proj, symbolic_expr_locations_blockwise, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
         start_state.globals['to_use_symbolic_exprs'] = []
         start_state.globals['expr_loc_map'] = {}
@@ -1587,13 +1665,15 @@ class VMDeobfuscation(Analysis):
                                                avoid_runs=avoid_runs,
                                                remove_insts=remove_insts,
                                                start_deobfuscation_immediately=self.start_deobfuscation_immediately,
-                                               deobfuscation_start_addr=self.deobfuscation_start_addr
+                                               deobfuscation_start_addr=self.deobfuscation_start_addr,
+                                               deobfuscation_end_addr = self.deobfuscation_end_addr,
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations_blockwise = None
 
         return cfg, cfg.to_use_symbolic_exprs
 
+    @logtime
     def remove_push_ret(self, cfg, proj, start_addr, start_state=None,options=None, decomp_function_addresses=None):
         # this pass is to simplify push x, retn to x kind of jumps
         for node in cfg.graph.nodes():
@@ -1652,7 +1732,7 @@ class VMDeobfuscation(Analysis):
                     node.irsb.jumpkind = new_jumpkind
         return cfg
 
-
+    @logtime
     def keep_only_one_graph(self, cfg, start_addr):
         conn_comps = nx.weakly_connected_components(cfg.graph)
         conn_comps = list(conn_comps)
@@ -1808,6 +1888,7 @@ class VMDeobfuscation(Analysis):
 
         return cfg
 
+    @logtime
     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
     def remove_useless_jump_instructions(self, cfg, keep_sp_changes_dae=None):
         print("Remove useless jmp insts")
@@ -1920,6 +2001,7 @@ class VMDeobfuscation(Analysis):
         return new_model
 
 
+    @logtime
     def join_basic_blocks(self, cfg, proj, start_addr, start_state):
         print("Join Basic blocks")
         #new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
@@ -2030,6 +2112,7 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return new_model
 
+    @logtime
     def convert_to_data_sensitive_irsb(self, cfg, proj, start_state):
         print("Convert to data sensisitve irsb")
         #new_model = self.new_model_graph(cfg.graph, proj, 'data_sensitive_irsb')
@@ -2224,6 +2307,7 @@ class VMDeobfuscation(Analysis):
         elif isinstance(expr, pyvex.expr.Const):
             return expr.con.value
 
+    @logtime
     def remove_redundant_Get_Put(self, cfg, proj, start_state=None):
         print("Remove redundant Get Put")
         #PUT(rsp) = t334        ===>      PUT(rsp) = t334
@@ -2323,6 +2407,7 @@ class VMDeobfuscation(Analysis):
 
 
 
+    @logtime
     def remove_redundant_assignment(self, cfg, proj, start_state=None):
         # This looks like
         # t33 = t27
@@ -2420,6 +2505,7 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return dsa_new_model
 
+    @logtime
     def remove_redundant_store_load(self, cfg, proj, start_state=None):
         # removing redundant store and loads in a block that look like this
         #------ IMark(0x401212, 0, 0) ------
@@ -2536,6 +2622,7 @@ class VMDeobfuscation(Analysis):
 
 
 # Eliminated dead stack-memdefs and regdefs in the whoel CFG
+    @logtime
     def testing_new_improved_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, keep_sp_changes_dae=False):
         print("Whole CFG RDA based dead ass elimination")
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'test_rda_dae')
@@ -2606,7 +2693,10 @@ class VMDeobfuscation(Analysis):
                     if keep_sp_changes_dae:
                         if d.atom.reg_offset == self.project.arch.sp_offset:
                             continue
-                    vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                    try:
+                        vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                    except:
+                        vs = None
                 elif isinstance(d.atom, atoms.MemoryLocation) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
@@ -2678,6 +2768,8 @@ class VMDeobfuscation(Analysis):
 
         return dsa_new_model
     # Eliminates dead memdefs, tmpdefs and regdefs in a single basic block
+
+    @logtime
     def _eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dae')
@@ -2900,6 +2992,7 @@ class VMDeobfuscation(Analysis):
                     imark_ind = ind
         return imark_ind
 
+    @logtime
     def block_arithmetic_simplifications_using_dep_graph(self, cfg, proj):
         print("Block arithmetic simplification using dep graph")
         def check_stmt_add_sub(stmt):
@@ -2955,6 +3048,12 @@ class VMDeobfuscation(Analysis):
             for stmt_idx, stmt in enumerate(node.irsb.statements):
                 new_stmt = stmt
                 if check_stmt_add_sub(stmt):
+
+                    if isinstance(stmt.data.args[0], pyvex.expr.Const) and isinstance(stmt.data.args[1], pyvex.expr.Const):
+                        # this was skipped by constant prop because it's outside the VM area so we skip it
+                        new_stmts.append(new_stmt)
+                        continue
+
                     only_one_pred, pred_stmt, pred_stmt_idx = get_single_pred_stmt(stmt.tmp, node.irsb.statements)
 
                     if only_one_pred and check_stmt_add_sub(pred_stmt) and one_const(stmt):
@@ -3656,6 +3755,7 @@ class VMDeobfuscation(Analysis):
     #     start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
     #     start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
+    @logtime
     def data_sensitive_graph(self, filename, start_addr, start_state, cfg_fast_graph, avoid_runs, remove_insts=None):
         #proj = angr.Project(filename)
         proj = self.project
@@ -3685,7 +3785,8 @@ class VMDeobfuscation(Analysis):
                                         avoid_runs=avoid_runs,
                                         remove_insts=remove_insts,
                                         start_deobfuscation_immediately=self.start_deobfuscation_immediately,
-                                        deobfuscation_start_addr=self.deobfuscation_start_addr
+                                        deobfuscation_start_addr=self.deobfuscation_start_addr,
+                                        deobfuscation_end_addr=self.deobfuscation_end_addr,
                                         # enable_advanced_backward_slicing=True
                                         )
         return cfg, proj
@@ -4040,7 +4141,7 @@ class VMDeobfuscation(Analysis):
         return new_cfg, changed
 
     ### Draw the graph with vex statements
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=False):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True):
         node_limit = 10000
         no_nodes = 0
         print("saving graph "+str(filename))
