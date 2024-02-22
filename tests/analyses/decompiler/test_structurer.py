@@ -278,8 +278,10 @@ class TestStructurer(unittest.TestCase):
 
         # do an entire round of decompilation and code generation to get a sequence and full function
         # to test against
-        d = p.analyses[Decompiler](f, cfg=cfg.model)
-        top_sequence = d.seq_node
+        dec = p.analyses[Decompiler](f, cfg=cfg.model)
+        top_sequence = dec.seq_node
+        full_text = dec.codegen.text.replace("\n", "")
+        codegen = dec.codegen
 
         # full code, without the header and variable definitions
         # the outputed code will be missing corrected variable names, which can be corrected by passing
@@ -293,6 +295,16 @@ class TestStructurer(unittest.TestCase):
         assert "if" in if_code
         assert "accepted()" in if_code
         assert "read" not in if_code  # should only be found in the code above the if
+
+        # generate only code under first if-stmt with correct variables by modifying the original codegen object
+        codegen._sequence = if_seq
+        codegen._indent = 4
+        codegen.omit_func_header = True
+        codegen._analyze()
+        if_code_corrected = codegen.text.replace("\n", "")
+        assert "if" in if_code_corrected
+        assert if_code_corrected in full_text
+        assert if_code_corrected != full_text
 
 
 if __name__ == "__main__":
