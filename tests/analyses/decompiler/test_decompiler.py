@@ -3352,7 +3352,7 @@ class TestDecompiler(unittest.TestCase):
         assert "::libc.so.0::puts" in d.codegen.text
 
     def test_code_motion_down_opt(self, decompiler_options=None):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "max_ex")
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "code_motion_1")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
