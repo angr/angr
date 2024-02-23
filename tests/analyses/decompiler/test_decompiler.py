@@ -3351,6 +3351,19 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler](proj.kb.functions.function(name="puts", plt=True), cfg=cfg.model)
         assert "::libc.so.0::puts" in d.codegen.text
 
+    def test_code_motion_down_opt(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "max_ex")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        text = d.codegen.text
+
+        assert text.count("v2 = 2") == 1
+        assert text.count("v3 = 3") == 1
+        assert "else" not in text
+
 
 if __name__ == "__main__":
     unittest.main()

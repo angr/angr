@@ -22,6 +22,7 @@ from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .cross_jump_reverter import CrossJumpReverter
+from .code_motion import CodeMotionOptimization
 
 # order matters!
 _all_optimization_passes = [
@@ -38,6 +39,7 @@ _all_optimization_passes = [
     (ITERegionConverter, True),
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
+    (CodeMotionOptimization, True),
     (ReturnDuplicator, True),
     (LoweredSwitchSimplifier, False),
     (ReturnDeduplicator, True),

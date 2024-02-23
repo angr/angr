@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any, Optional, Union, List
 
 from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
@@ -21,21 +21,22 @@ from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Registe
 from ailment.block_walker import AILBlockWalkerBase
 
 
-class AILBlockIOFinder(AILBlockWalkerBase):
+class AILStmtIOFinder(AILBlockWalkerBase):
     """
     Finds the input and output locations of each statement in an AIL block.
     I/O locations can be a Register, MemoryLocation, or SpOffset (wrapped in a Memory Location).
     """
 
-    def __init__(self, block, project, as_atom=True):
+    def __init__(self, ail_obj: Union[Block, List[Statement]], project, as_atom=True):
         super().__init__()
         self.expr_handlers[StackBaseOffset] = self._handle_StackBaseOffset
         self._as_atom = as_atom
-        self.project = project
+        self._project = project
 
         self.inputs_by_stmt = defaultdict(set)
         self.outputs_by_stmt = defaultdict(set)
 
+        block = Block(0, len(ail_obj), statements=ail_obj) if isinstance(ail_obj, list) else ail_obj
         self.walk(block)
 
     @staticmethod
@@ -51,6 +52,14 @@ class AILBlockIOFinder(AILBlockWalkerBase):
             s.update(v)
         else:
             s.add(v)
+
+    #
+    # I/O helpers
+    #
+
+    def depends_on(self, idx, target_idx):
+        # TODO: MUST FINISH THIS
+        return self.inputs_by_stmt[idx].intersection(self.outputs_by_stmt[target_idx])
 
     #
     # Statements (all with side effects)
@@ -214,5 +223,7 @@ class AILBlockIOFinder(AILBlockWalkerBase):
         is_memory=False,
     ):
         if self._as_atom:
-            return MemoryLocation(SpOffset(self.project.arch.bits, expr.size), expr.size * self.project.arch.byte_width)
+            return MemoryLocation(
+                SpOffset(self._project.arch.bits, expr.size), expr.size * self._project.arch.byte_width
+            )
         return expr
