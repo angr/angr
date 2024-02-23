@@ -39,16 +39,18 @@ _all_optimization_passes = [
     (ITERegionConverter, True),
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
-    (CodeMotionOptimization, True),
     (ReturnDuplicator, True),
     (LoweredSwitchSimplifier, False),
     (ReturnDeduplicator, True),
+    (CodeMotionOptimization, True),
     (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicator, CrossJumpReverter]
+# these passes may destroy blocks by merging them into semantically equivalent blocks
+CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator]
 
 
 def get_optimization_passes(arch, platform):

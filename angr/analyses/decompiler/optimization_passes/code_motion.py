@@ -8,7 +8,7 @@ import networkx as nx
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.block_similarity import is_similar, index_of_similar_stmts
-from angr.analyses.decompiler.ailblock_io_finder import AILBlockIOFinder
+from angr.analyses.decompiler.block_io_finder import BlockIOFinder
 from angr.analyses.decompiler.utils import to_ail_supergraph, remove_labels, add_labels
 
 _l = logging.getLogger(name=__name__)
@@ -309,7 +309,7 @@ class CodeMotionOptimization(OptimizationPass):
         stmt_idx = new_stmts.index(stmt)
         swap_offset = -1 if up else 1
         swap_order = range(stmt_idx + 1, len(new_stmts)) if down else range(stmt_idx - 1, -1, -1)
-        io_finder = AILBlockIOFinder(new_stmts, self.project)
+        io_finder = BlockIOFinder(new_stmts, self.project)
         for swap_pos in swap_order:
             src_stmt = new_stmts[stmt_idx]
             if io_finder.can_swap(src_stmt, new_stmts, 1 if down else -1):

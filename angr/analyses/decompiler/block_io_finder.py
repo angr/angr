@@ -21,7 +21,7 @@ from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Registe
 from ailment.block_walker import AILBlockWalkerBase
 
 
-class AILBlockIOFinder(AILBlockWalkerBase):
+class BlockIOFinder(AILBlockWalkerBase):
     """
     Finds the input and output locations of each statement in an AIL block.
     I/O locations can be a Register, MemoryLocation, or SpOffset (wrapped in a Memory Location).
@@ -58,10 +58,21 @@ class AILBlockIOFinder(AILBlockWalkerBase):
     # I/O helpers
     #
 
+    @staticmethod
+    def _is_dangerous_memory(loc):
+        """
+        Assume any memory location that is NOT on the stack is a dangerous memory location.
+        """
+        return isinstance(loc, MemoryLocation) and not loc.is_on_stack
+
+    def _has_dangerous_deref(self, stmt_idx):
+        derefs = self.derefed_at.get(stmt_idx, set())
+        return any(self._is_dangerous_memory(d) for d in derefs)
+
     def _input_defined_by_other_stmt(self, target_idx, other_idx):
         target_inputs = self.inputs_by_stmt[target_idx]
         # any memory location, not on stack, is not movable
-        if any(isinstance(i, MemoryLocation) and not i.is_on_stack for i in target_inputs):
+        if any(self._is_dangerous_memory(i) for i in target_inputs):
             return True
 
         other_outputs = self.outputs_by_stmt[other_idx]
@@ -70,7 +81,7 @@ class AILBlockIOFinder(AILBlockWalkerBase):
     def _output_used_by_other_stmt(self, target_idx, other_idx):
         target_output = self.outputs_by_stmt[target_idx]
         # any memory location, not on stack, is not movable
-        if any(isinstance(o, MemoryLocation) and not o.is_on_stack for o in target_output):
+        if any(self._is_dangerous_memory(o) for o in target_output):
             return True
 
         other_input = self.inputs_by_stmt[other_idx]
@@ -80,13 +91,19 @@ class AILBlockIOFinder(AILBlockWalkerBase):
         all_stmts = (ail_obj.statements or []) if isinstance(ail_obj, Block) else ail_obj
         if stmt not in all_stmts:
             raise NotImplementedError("Statement not in block, and we can't compute moving a stmt to a new block!")
-        # jumps are not movable
-        if isinstance(stmt, (ConditionalJump, Jump)):
-            return False
-
         curr_idx = all_stmts.index(stmt)
         new_idx = curr_idx + offset
-        if new_idx < 0 or new_idx >= len(all_stmts):
+        if (
+            # movement must be within bounds
+            (new_idx < 0 or new_idx >= len(all_stmts))
+            or
+            # you can never move jumps
+            isinstance(stmt, (ConditionalJump, Jump))
+            or
+            # we can't handle memory locations
+            self._has_dangerous_deref(curr_idx)
+            or self._has_dangerous_deref(new_idx)
+        ):
             return False
 
         # equivalent to swapping "down"
@@ -170,7 +187,7 @@ class AILBlockIOFinder(AILBlockWalkerBase):
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=True
     ):
         load_loc = self._handle_expr(0, expr.addr, stmt_idx, stmt, block, is_memory=True)
-        self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, load_loc)
+        self._add_or_update_dict(self.derefed_at, stmt_idx, load_loc)
         return load_loc
 
     def _handle_CallExpr(
@@ -256,6 +273,7 @@ class AILBlockIOFinder(AILBlockWalkerBase):
             is_memory,
         )
 
+    # pylint: disable=unused-argument
     def _handle_StackBaseOffset(
         self,
         expr_idx: int,
