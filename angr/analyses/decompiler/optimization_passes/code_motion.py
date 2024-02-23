@@ -1,5 +1,5 @@
 import itertools
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 import logging
 
 from ailment import Block
@@ -8,7 +8,7 @@ import networkx as nx
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.block_similarity import is_similar, index_of_similar_stmts
-from angr.analyses.decompiler.ailblock_io_finder import AILStmtIOFinder
+from angr.analyses.decompiler.ailblock_io_finder import AILBlockIOFinder
 from angr.analyses.decompiler.utils import to_ail_supergraph, remove_labels, add_labels
 
 _l = logging.getLogger(name=__name__)
@@ -66,20 +66,56 @@ class CodeMotionOptimization(OptimizationPass):
         while optimization_runs < self._max_optimization_runs and updates:
             optimization_runs += 1
             super_graph = to_ail_supergraph(graph_copy)
-            updates, updated_blocks = self._move_common_code(graph_copy)
+            updates, updated_blocks = self._move_common_code(super_graph)
             if updates:
-                graph_copy = self.update_original_blocks_with_supers(graph_copy, super_graph, updated_blocks)
+                critical_fail = self.update_graph_with_super_edits(graph_copy, super_graph, updated_blocks)
+                if critical_fail:
+                    _l.error("Critical failure in updating graph with super edits, aborting")
+                    break
+                else:
+                    graph_changed = True
 
         if graph_changed:
-            self._graph = add_labels(graph_copy)
+            self.out_graph = add_labels(graph_copy)
 
-    def update_original_blocks_with_supers(
-        self, original_graph, super_graph, updated_blocks: List[Block]
-    ) -> nx.DiGraph:
-        # TODO: MUST COMPLETE THIS
-        return original_graph
+    def update_graph_with_super_edits(
+        self, original_graph: nx.DiGraph, super_graph: nx.DiGraph, updated_blocks: Dict[Block, Block]
+    ) -> bool:
+        og_to_super = {}
+        for old_super, new_super in updated_blocks.items():
+            original_blocks = super_graph.nodes[old_super]["original_nodes"]
+            for original_block in original_blocks:
+                og_to_super[original_block] = new_super
 
-    def _move_common_code(self, graph) -> Tuple[bool, Optional[List[Block]]]:
+        for old_super, new_super in updated_blocks.items():
+            original_blocks = super_graph.nodes[old_super]["original_nodes"]
+            first_node_preds = []
+            last_node_preds = []
+            for original_block in original_blocks:
+                if original_block not in original_graph.nodes:
+                    return True
+
+                external_preds = [
+                    pred for pred in original_graph.predecessors(original_block) if pred not in original_blocks
+                ]
+                external_succs = [
+                    succ for succ in original_graph.successors(original_block) if succ not in original_blocks
+                ]
+                if external_preds:
+                    first_node_preds = external_preds
+                if external_succs:
+                    last_node_preds = external_succs
+
+            original_graph.remove_nodes_from(original_blocks)
+            original_graph.add_node(new_super)
+            for pred in first_node_preds:
+                original_graph.add_edge(og_to_super[pred] if pred in og_to_super else pred, new_super)
+            for succ in last_node_preds:
+                original_graph.add_edge(new_super, og_to_super[succ] if succ in og_to_super else succ)
+
+        return False
+
+    def _move_common_code(self, graph) -> Tuple[bool, Optional[Dict[Block, Block]]]:
         """
         Returns a list of blocks that have been updated in some way.
         """
@@ -103,13 +139,13 @@ class CodeMotionOptimization(OptimizationPass):
             b0_succs = list(graph.successors(b0))
             b1_succs = list(graph.successors(b1))
             if (len(b0_succs) == len(b1_succs) == 1) and b0_succs[0] == b1_succs[0]:
-                success, updated_blocks = self._move_common_code_down(b0, b1, b0_succs[0])
+                success, updated_blocks = self._move_common_code_to_child(b0, b1, b0_succs[0])
                 if success:
                     return True, updated_blocks
 
         return False, None
 
-    def _move_common_code_up(self, b0: Block, b1: Block, parent: Block):
+    def _move_common_code_to_parent(self, b0: Block, b1: Block, parent: Block):
         # TODO: this function does not work yet because you need to figure out if you can move a stmt above
         #   a conditional jump, which requires cross-block analysis
         changed, new_b0, new_b1 = self._make_stmts_end_similar(b0, b1, up=True)
@@ -137,9 +173,9 @@ class CodeMotionOptimization(OptimizationPass):
             parent_stmts = parent_stmts[:-1] + common_stmts + [parent_stmts[-1]]
         new_parent = parent.copy(statements=parent_stmts)
 
-        return True, [new_b0, new_b1, new_parent]
+        return True, {b0: new_b0, b1: new_b1, parent: new_parent}
 
-    def _move_common_code_down(self, b0: Block, b1: Block, child: Block):
+    def _move_common_code_to_child(self, b0: Block, b1: Block, child: Block):
         changed, new_b0, new_b1 = self._make_stmts_end_similar(b0, b1, down=True)
         if not changed:
             return False, None
@@ -148,8 +184,8 @@ class CodeMotionOptimization(OptimizationPass):
         new_b0_stmts = new_b0.statements
         new_b1_stmts = new_b1.statements
         common_len = 0
-        # start from the end and move towards the beginning
-        for idx in range(max(len(new_b0_stmts), len(new_b1_stmts)) - 1, -1, -1):
+        # start from the -1 index and go backwards
+        for idx in range(-1, -(min(len(new_b0_stmts), len(new_b1_stmts))) - 1, -1):
             if not new_b0_stmts[idx].likes(new_b1_stmts[idx]):
                 break
             common_len += 1
@@ -162,9 +198,9 @@ class CodeMotionOptimization(OptimizationPass):
             new_b1_stmts.pop()
 
         child_stmts = child.statements.copy() or []
-        new_child = child.copy(statements=common_stmts + child_stmts)
+        new_child = child.copy(statements=common_stmts[::-1] + child_stmts)
 
-        return True, [new_b0, new_b1, new_child]
+        return True, {b0: new_b0, b1: new_b1, child: new_child}
 
     def _make_stmts_end_similar(
         self, b0: Block, b1: Block, up=False, down=False
@@ -244,7 +280,10 @@ class CodeMotionOptimization(OptimizationPass):
         for blk in (b0, b1):
             new_stmts = curr_stmts[blk]
             for stmt, idx in matched_stmts[blk][::-1]:
-                new_stmts.insert(idx, stmt)
+                if idx == -1:
+                    new_stmts.append(stmt)
+                else:
+                    new_stmts.insert(idx, stmt)
 
             new_blks[blk] = blk.copy(statements=new_stmts)
 
@@ -270,23 +309,16 @@ class CodeMotionOptimization(OptimizationPass):
         stmt_idx = new_stmts.index(stmt)
         swap_offset = -1 if up else 1
         swap_order = range(stmt_idx + 1, len(new_stmts)) if down else range(stmt_idx - 1, -1, -1)
-        io_finder = AILStmtIOFinder(new_stmts, self.project)
+        io_finder = AILBlockIOFinder(new_stmts, self.project)
         for swap_pos in swap_order:
             src_stmt = new_stmts[stmt_idx]
-            dst_stmt = new_stmts[swap_pos]
-            if self._can_swap(src_stmt, dst_stmt, io_finder, up=up, down=down):
+            if io_finder.can_swap(src_stmt, new_stmts, 1 if down else -1):
                 new_stmts[stmt_idx], new_stmts[swap_pos] = new_stmts[swap_pos], new_stmts[stmt_idx]
                 stmt_idx += swap_offset
             else:
                 return False, stmts
 
         return True, new_stmts
-
-    def _can_swap(
-        self, src_stmt: Statement, dst_stmt: List[Statement], io_finder: AILStmtIOFinder, up=False, down=False
-    ):
-        # TODO: MUST COMPLETE THIS, requires finishing the AILStmtIOFinder
-        pass
 
     def _assert_up_or_down(self, up, down):
         if up and down:

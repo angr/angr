@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Any, Optional, Union, List
 
 from ailment import Block
-from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
+from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
 from ailment.expression import (
     Load,
     Expression,
@@ -21,7 +21,7 @@ from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Registe
 from ailment.block_walker import AILBlockWalkerBase
 
 
-class AILStmtIOFinder(AILBlockWalkerBase):
+class AILBlockIOFinder(AILBlockWalkerBase):
     """
     Finds the input and output locations of each statement in an AIL block.
     I/O locations can be a Register, MemoryLocation, or SpOffset (wrapped in a Memory Location).
@@ -35,6 +35,7 @@ class AILStmtIOFinder(AILBlockWalkerBase):
 
         self.inputs_by_stmt = defaultdict(set)
         self.outputs_by_stmt = defaultdict(set)
+        self.derefed_at = defaultdict(set)
 
         block = Block(0, len(ail_obj), statements=ail_obj) if isinstance(ail_obj, list) else ail_obj
         self.walk(block)
@@ -57,9 +58,49 @@ class AILStmtIOFinder(AILBlockWalkerBase):
     # I/O helpers
     #
 
-    def depends_on(self, idx, target_idx):
-        # TODO: MUST FINISH THIS
-        return self.inputs_by_stmt[idx].intersection(self.outputs_by_stmt[target_idx])
+    def _input_defined_by_other_stmt(self, target_idx, other_idx):
+        target_inputs = self.inputs_by_stmt[target_idx]
+        # any memory location, not on stack, is not movable
+        if any(isinstance(i, MemoryLocation) and not i.is_on_stack for i in target_inputs):
+            return True
+
+        other_outputs = self.outputs_by_stmt[other_idx]
+        return target_inputs.intersection(other_outputs)
+
+    def _output_used_by_other_stmt(self, target_idx, other_idx):
+        target_output = self.outputs_by_stmt[target_idx]
+        # any memory location, not on stack, is not movable
+        if any(isinstance(o, MemoryLocation) and not o.is_on_stack for o in target_output):
+            return True
+
+        other_input = self.inputs_by_stmt[other_idx]
+        return target_output.intersection(other_input)
+
+    def can_swap(self, stmt, ail_obj: Union[Block, List[Statement]], offset: int):
+        all_stmts = (ail_obj.statements or []) if isinstance(ail_obj, Block) else ail_obj
+        if stmt not in all_stmts:
+            raise NotImplementedError("Statement not in block, and we can't compute moving a stmt to a new block!")
+        # jumps are not movable
+        if isinstance(stmt, (ConditionalJump, Jump)):
+            return False
+
+        curr_idx = all_stmts.index(stmt)
+        new_idx = curr_idx + offset
+        if new_idx < 0 or new_idx >= len(all_stmts):
+            return False
+
+        # equivalent to swapping "down"
+        if offset == 1:
+            if self._output_used_by_other_stmt(curr_idx, new_idx):
+                return False
+        # equivalent to swapping "up"
+        elif offset == -1:
+            if self._input_defined_by_other_stmt(curr_idx, new_idx):
+                return False
+        else:
+            raise NotImplementedError("Offset must be -1 or 1")
+
+        return True
 
     #
     # Statements (all with side effects)
@@ -128,7 +169,9 @@ class AILStmtIOFinder(AILBlockWalkerBase):
     def _handle_Load(
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=True
     ):
-        return self._handle_expr(0, expr.addr, stmt_idx, stmt, block, is_memory=True)
+        load_loc = self._handle_expr(0, expr.addr, stmt_idx, stmt, block, is_memory=True)
+        self.derefed_at[stmt_idx].add(load_loc)
+        return load_loc
 
     def _handle_CallExpr(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
