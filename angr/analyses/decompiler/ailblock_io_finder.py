@@ -170,7 +170,7 @@ class AILBlockIOFinder(AILBlockWalkerBase):
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=True
     ):
         load_loc = self._handle_expr(0, expr.addr, stmt_idx, stmt, block, is_memory=True)
-        self.derefed_at[stmt_idx].add(load_loc)
+        self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, load_loc)
         return load_loc
 
     def _handle_CallExpr(
