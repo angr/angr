@@ -240,20 +240,26 @@ class CodeMotionOptimization(OptimizationPass):
 
                 if up:
                     # maximize up
-                    if t0_stmts[0].likes(t1_stmts[0]):
-                        matched_stmts[b0].append((t0_stmts.pop(0), 0))
-                        matched_stmts[b1].append((t1_stmts.pop(0), 0))
-                        if not t0_stmts or not t1_stmts:
+                    while t0_stmts and t1_stmts:
+                        if t0_stmts[0].likes(t1_stmts[0]):
+                            matched_stmts[b0].append((t0_stmts.pop(0), 0))
+                            matched_stmts[b1].append((t1_stmts.pop(0), 0))
+                            try_next_swap = True
+                        else:
                             break
-                        try_next_swap = True
+                    if not t0_stmts or not t1_stmts:
+                        break
                 elif down:
                     # maximize down
-                    if t0_stmts[-1].likes(t1_stmts[-1]):
-                        matched_stmts[b0].append((t0_stmts.pop(), -1))
-                        matched_stmts[b1].append((t1_stmts.pop(), -1))
-                        if not t0_stmts or not t1_stmts:
+                    while t0_stmts and t1_stmts:
+                        if t0_stmts[-1].likes(t1_stmts[-1]):
+                            matched_stmts[b0].append((t0_stmts.pop(), -1))
+                            matched_stmts[b1].append((t1_stmts.pop(), -1))
+                            try_next_swap = True
+                        else:
                             break
-                        try_next_swap = True
+                    if not t0_stmts or not t1_stmts:
+                        break
 
                 if not try_next_swap:
                     continue
@@ -301,7 +307,7 @@ class CodeMotionOptimization(OptimizationPass):
 
         target_stmt = b1_stmts[idx_similar]
         success, new_b1_stmts = self._move_to_end(target_stmt, b1_stmts, up=up, down=down)
-        return success, (b0_stmts, new_b1_stmts)
+        return (success and (b1_stmts != new_b1_stmts)), (b0_stmts, new_b1_stmts)
 
     def _move_to_end(self, stmt, stmts, up=False, down=False) -> Tuple[bool, List[Statement]]:
         new_stmts = stmts.copy()
