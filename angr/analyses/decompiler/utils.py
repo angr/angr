@@ -1,13 +1,11 @@
-# pylint:disable=wrong-import-position
+# pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
 import pathlib
 import copy
 from typing import Optional, Tuple, Any, Union, List, Iterable
 import logging
 
 import networkx
-
 import ailment
-import networkx as nx
 
 import angr
 from .call_counter import AILBlockCallCounter
@@ -291,7 +289,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
     """
     # make a copy of the graph
     transition_graph = networkx.DiGraph(transition_graph)
-    nx.set_node_attributes(transition_graph, {node: {node} for node in transition_graph.nodes}, "original_nodes")
+    networkx.set_node_attributes(transition_graph, {node: {node} for node in transition_graph.nodes}, "original_nodes")
 
     while True:
         for src, dst, data in transition_graph.edges(data=True):
@@ -743,7 +741,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
         if _get_addr(block) == addr:
             break
     else:
-        raise Exception("The block is not in the graph!")
+        raise KeyError("The block is not in the graph!")
 
     return block
 

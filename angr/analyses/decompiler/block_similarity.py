@@ -38,8 +38,7 @@ def is_similar(
         for stmt1, stmt2 in zip(ail_obj1.statements, ail_obj2.statements):
             if not is_similar(stmt1, stmt2, graph=graph):
                 return False
-        else:
-            return True
+        return True
 
     # AIL Statements
     elif isinstance(ail_obj1, Statement):
@@ -62,7 +61,7 @@ def is_similar(
                 t1, t2 = getattr(ail_obj1, attr).value, getattr(ail_obj2, attr).value
                 try:
                     t1_blk, t2_blk = find_block_by_addr(graph, t1), find_block_by_addr(graph, t2)
-                except Exception:
+                except KeyError:
                     return False
 
                 # special checks for when a node is empty:
@@ -81,8 +80,7 @@ def is_similar(
 
                 if not is_similar(t1_blk, t2_blk, graph=graph):
                     return False
-            else:
-                return True
+            return True
 
         # Generic Statement Handler
         else:
@@ -109,10 +107,8 @@ def _kmp_search_ail_obj(search_pattern, stmt_seq, graph=None, partial=True):
     # build table of shift amounts
     shifts = [1] * (len(search_pattern) + 1)
     shift = 1
-    for pos in range(len(search_pattern)):
-        while shift <= pos and not is_similar(
-            search_pattern[pos], search_pattern[pos - shift], graph=graph, partial=partial
-        ):
+    for pos, curr_pattern in enumerate(search_pattern):
+        while shift <= pos and not is_similar(curr_pattern, search_pattern[pos - shift], graph=graph, partial=partial):
             shift += shifts[pos - shift]
         shifts[pos + 1] = shift
 

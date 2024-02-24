@@ -49,7 +49,7 @@ class CodeMotionOptimization(OptimizationPass):
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     DESCRIPTION = __doc__
 
-    def __init__(self, func, max_iters=10, *args, node_idx_start: int = 0, **kwargs):
+    def __init__(self, func, *args, max_iters=10, node_idx_start: int = 0, **kwargs):
         super().__init__(func, *args, **kwargs)
         self._node_idx_start = node_idx_start
         self._max_optimization_runs = max_iters
@@ -72,14 +72,14 @@ class CodeMotionOptimization(OptimizationPass):
                 if critical_fail:
                     _l.error("Critical failure in updating graph with super edits, aborting")
                     break
-                else:
-                    graph_changed = True
+                graph_changed = True
 
         if graph_changed:
             self.out_graph = add_labels(graph_copy)
 
+    @staticmethod
     def update_graph_with_super_edits(
-        self, original_graph: nx.DiGraph, super_graph: nx.DiGraph, updated_blocks: Dict[Block, Block]
+        original_graph: nx.DiGraph, super_graph: nx.DiGraph, updated_blocks: Dict[Block, Block]
     ) -> bool:
         og_to_super = {}
         for old_super, new_super in updated_blocks.items():
@@ -156,8 +156,8 @@ class CodeMotionOptimization(OptimizationPass):
         new_b0_stmts = new_b0.statements
         new_b1_stmts = new_b1.statements
         common_len = 0
-        for idx in range(len(new_b0_stmts)):
-            if not new_b0_stmts[idx].likes(new_b1_stmts[idx]):
+        for idx, new_b0_stmt in enumerate(new_b0_stmts):
+            if not new_b0_stmt.likes(new_b1_stmts[idx]):
                 break
             common_len += 1
 
@@ -264,8 +264,8 @@ class CodeMotionOptimization(OptimizationPass):
                     stmts_updated = True
                     curr_stmts[b0], curr_stmts[b1] = new_stmts
                     break
-                else:
-                    try_next_swap = True
+
+                try_next_swap = True
 
             curr_iters += 1
             if curr_iters > max_iters:
@@ -301,8 +301,7 @@ class CodeMotionOptimization(OptimizationPass):
 
         target_stmt = b1_stmts[idx_similar]
         success, new_b1_stmts = self._move_to_end(target_stmt, b1_stmts, up=up, down=down)
-        changes = new_b1_stmts != b1_stmts
-        return changes, (b0_stmts, new_b1_stmts)
+        return success, (b0_stmts, new_b1_stmts)
 
     def _move_to_end(self, stmt, stmts, up=False, down=False) -> Tuple[bool, List[Statement]]:
         new_stmts = stmts.copy()
@@ -320,7 +319,8 @@ class CodeMotionOptimization(OptimizationPass):
 
         return True, new_stmts
 
-    def _assert_up_or_down(self, up, down):
+    @staticmethod
+    def _assert_up_or_down(up, down):
         if up and down:
             raise ValueError("Cannot maximize both up and down")
         if not up and not down:

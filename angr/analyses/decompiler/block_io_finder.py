@@ -14,11 +14,10 @@ from ailment.expression import (
     Const,
     StackBaseOffset,
 )
+from ailment.block_walker import AILBlockWalkerBase
 
 
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset, ConstantSrc
-
-from ailment.block_walker import AILBlockWalkerBase
 
 
 class BlockIOFinder(AILBlockWalkerBase):
@@ -183,6 +182,7 @@ class BlockIOFinder(AILBlockWalkerBase):
             return handler(expr_idx, expr, stmt_idx, stmt, block, is_memory=is_memory)
         return None
 
+    # pylint: disable=unused-argument
     def _handle_Load(
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=True
     ):
@@ -246,6 +246,7 @@ class BlockIOFinder(AILBlockWalkerBase):
     # Base locations
     #
 
+    # pylint: disable=unused-argument
     def _handle_Tmp(
         self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
     ):
@@ -254,6 +255,7 @@ class BlockIOFinder(AILBlockWalkerBase):
         else:
             return expr
 
+    # pylint: disable=unused-argument
     def _handle_Register(
         self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
     ):
