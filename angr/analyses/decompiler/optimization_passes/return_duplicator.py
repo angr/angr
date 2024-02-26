@@ -336,6 +336,11 @@ class ReturnDuplicator(StructuringOptimizationPass):
 
         # gather return stmts
         ret_stmt = stmts[-1]
+        if not isinstance(ret_stmt, Return):
+            if isinstance(ret_stmt, Jump):
+                _l.warning("Found a jump at the end of a return graph, did function analysis fail?")
+            return False
+
         ret_exprs = ret_stmt.ret_exprs
         # must be 1 or none
         if ret_exprs and len(ret_exprs) > 1:
