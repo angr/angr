@@ -488,7 +488,7 @@ class PropagatorVEXState(PropagatorState):
                 merged_replacements, _ = self._merge_replacements(merged_replacements, state._replacements)
 
         if merged_concrete_state is None:
-            import ipdb;ipdb.set_trace()
+            print("Merged state is None")
 
         return PropagatorVEXState(arch=self.arch, concrete_states=merged_concrete_states, replacements=merged_replacements), None
 
@@ -991,14 +991,16 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
-                            import ipdb;
-                            ipdb.set_trace()
+                            # import ipdb;
+                            # ipdb.set_trace()
                             new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                             new_sim_successors.artifacts = sim_successors.artifacts
                             new_sim_successors.engine = sim_successors.engine
                             new_sim_successors.processed = sim_successors.processed
                             new_sim_successors.description = sim_successors.description
                             new_sim_successors.sort = sim_successors.sort
+
+                            assert len(list(self.graph.successors(node))) == 1
 
                             uncon_succ.regs.ip = list(self.graph.successors(node))[0].addr
 
