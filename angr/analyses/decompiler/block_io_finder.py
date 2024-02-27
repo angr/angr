@@ -287,6 +287,6 @@ class BlockIOFinder(AILBlockWalkerBase):
     ):
         if self._as_atom:
             return MemoryLocation(
-                SpOffset(self._project.arch.bits, expr.size), expr.size * self._project.arch.byte_width
+                SpOffset(self._project.arch.bits, expr.offset), expr.size * self._project.arch.byte_width
             )
         return expr

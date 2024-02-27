@@ -46,7 +46,7 @@ class CodeMotionOptimization(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     NAME = "Move common statements out of blocks"
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     DESCRIPTION = __doc__
 
     def __init__(self, func, *args, max_iters=10, node_idx_start: int = 0, **kwargs):
