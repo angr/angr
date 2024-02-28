@@ -3263,6 +3263,20 @@ class TestDecompiler(unittest.TestCase):
         # bad_matches = re.findall(r'\bif\s*\(\s*[^!].*\)', text)
         # assert len(bad_matches) == 0
 
+    @structuring_algo("phoenix")
+    def test_decompiling_tr_O2_parse_str(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr_O2.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["parse_str"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        line_count = d.codegen.text.count("\n")
+        assert line_count > 20  # there should be at least 20 lines of code. it was failing structuring
+
     def test_test_binop_ret_dup(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
