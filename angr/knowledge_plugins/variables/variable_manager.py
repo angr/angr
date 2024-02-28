@@ -82,9 +82,9 @@ class VariableManagerInternal(Serializable):
 
         self._variable_accesses: Dict[SimVariable, Set[VariableAccess]] = defaultdict(set)
         self._insn_to_variable: Dict[int, Set[Tuple[SimVariable, int]]] = defaultdict(set)
-        self._stmt_to_variable: Dict[
-            Union[Tuple[int, int], Tuple[int, int, int]], Set[Tuple[SimVariable, int]]
-        ] = defaultdict(set)
+        self._stmt_to_variable: Dict[Union[Tuple[int, int], Tuple[int, int, int]], Set[Tuple[SimVariable, int]]] = (
+            defaultdict(set)
+        )
         self._variable_to_stmt: Dict[SimVariable, Set[Union[Tuple[int, int], Tuple[int, int, int]]]] = defaultdict(set)
         self._atom_to_variable: Dict[
             Union[Tuple[int, int], Tuple[int, int, int]], Dict[int, Set[Tuple[SimVariable, int]]]
