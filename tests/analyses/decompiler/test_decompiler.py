@@ -525,7 +525,11 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_1after909_doit(self, decompiler_options=None):
-        # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
+        """
+        The doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73.
+        The original source code can be found here:
+        https://github.com/shellphish/ictf20-challenges/blob/1e0b7c1fde9b5c8ff2d3e1ca428c4396d63e046e/1after909/src/1after909.c#L298
+        """
 
         bin_path = os.path.join(test_location, "x86_64", "1after909")
         p = angr.Project(bin_path, auto_load_libs=False)

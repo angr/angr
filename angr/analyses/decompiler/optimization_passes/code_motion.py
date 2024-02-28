@@ -131,29 +131,28 @@ class CodeMotionOptimization(OptimizationPass):
 
         To understand the limitations of this approach, see the TODOs.
         """
-        # TODO: how can you handle an odd-numbered switch case?
+        # TODO: how can you handle an odd-numbered switch case? or many blocks with the same child?
         for b0, b1 in itertools.combinations(graph.nodes, 2):
             # ignore exact copies
             if b0 is b1 or not b0.statements or not b1.statements or is_similar(b0, b1):
                 continue
 
-            # TODO: re-add this when you figure out how to handle the conditional jump rda, see move code
-            # TODO: also, how do you deal with short-circuiting?
-            # first, target any blocks with one (and only) parent that is shared
-            # b0_preds = list(graph.predecessors(b0))
-            # b1_preds = list(graph.predecessors(b1))
-            # if (len(b0_preds) == len(b1_preds) == 1) and b0_preds[0] == b1_preds[0]:
-            #    success, updated_blocks = self._move_common_code_up(b0, b1, b0_preds[0])
-            #    if success:
-            #        return True, updated_blocks
+            # TODO: add support for moving code to a shared parent block, which requires that we figure out how to
+            #   move code above conditional jumps. Hard since you need to know if the condition executes code.
+            # TODO: also, how do you deal with short-circuiting, which is a region parent, not just a block?
 
-            # second, target any blocks with one (and only) child that is shared
+            # target any blocks that have a shared child and move common code to the child
             b0_succs = list(graph.successors(b0))
             b1_succs = list(graph.successors(b1))
             if (len(b0_succs) == len(b1_succs) == 1) and b0_succs[0] == b1_succs[0]:
-                success, updated_blocks = self._move_common_code_to_child(b0, b1, b0_succs[0])
-                if success:
-                    return True, updated_blocks
+                common_succ = b0_succs[0]
+                common_succ_preds = list(graph.predecessors(common_succ))
+                # you can only safely move code to a child if all the common_succ's preds are the ones
+                # we are moving code from (2 nodes).
+                if all(csp in (b0, b1) for csp in common_succ_preds):
+                    success, updated_blocks = self._move_common_code_to_parent(b0, b1, common_succ)
+                    if success:
+                        return True, updated_blocks
 
         return False, None
 
