@@ -125,15 +125,11 @@ def handle_json_type(t, create_missing: bool = False):
 def create_angr_type_from_json(t):
     if t["Kind"] == "NativeTypedef":
         new_typedef = handle_json_type(t["Def"])
-        real_new_type = typelib.add(t["Name"], new_typedef)
+        typelib.add(t["Name"], new_typedef)
     elif t["Kind"] == "Enum":
+        # TODO: Handle Enums
         ty = angr.types.SimTypeInt(signed=False, label=t["Name"])
         typelib.add(t["Name"], ty)
-        # new_enum = binaryninja.types.Enumeration()
-        # for member in t["Values"]:
-        #     new_enum.append(member["Name"], int(member["Value"]))
-        # real_new_type = binaryninja.types.Type.named_type_from_type(t["Name"], binaryninja.types.Type.enumeration_type(arch,new_enum))
-        # typelib.add_named_type(t["Name"], real_new_type)
     elif t["Kind"] == "Struct":
         known_struct_names.add(t["Name"])
         real_new_type = handle_json_type(t)
@@ -150,18 +146,8 @@ def create_angr_type_from_json(t):
             t["Name"], angr.types.SimTypePointer(angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names))
         )
     elif t["Kind"] == "Com":
+        # TODO: Handle Com
         typelib.add(t["Name"], angr.types.SimTypeBottom(label=t["Name"]))
-        # new_struct = binaryninja.types.Structure()
-        # for method in t["Methods"]:
-        #     ret_type = handle_json_type(method["ReturnType"])
-        #     param_list = []
-        #     for param in method["Params"]:
-        #         new_param = handle_json_type(param["Type"])
-        #         real_new_param = binaryninja.types.FunctionParameter(new_param, param["Name"])
-        #         param_list.append(real_new_param)
-        #     new_func = binaryninja.types.Type.function(ret_type, param_list)
-        #     new_struct.append(binaryninja.types.Type.pointer(arch, new_func), method["Name"])
-        # typelib.add_named_type(t["Name"], binaryninja.types.Type.structure_type(new_struct))
     elif t["Kind"] == "ComClassID":
         return None
     elif t["Kind"] == "Union":
