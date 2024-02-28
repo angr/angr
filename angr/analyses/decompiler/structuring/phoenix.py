@@ -14,7 +14,7 @@ from ailment.expression import Const, UnaryOp, MultiStatementExpression
 from angr.utils.graph import GraphUtils
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, to_acyclic_graph
+from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,
@@ -140,6 +140,10 @@ class PhoenixStructurer(StructurerBase):
         if len(self._region.graph.nodes) == 1 and has_cycle:
             self._analyze_cyclic()
 
+        # backup the region prior to conducting a cyclic refinement because we may not be able to structure a cycle out
+        # of the refined graph. in that case, we restore the original region and return.
+        pre_refinement_region = None
+
         while len(self._region.graph.nodes) > 1:
             progressed = self._analyze_acyclic()
             if progressed and self._region.head not in self._region.graph:
@@ -151,12 +155,14 @@ class PhoenixStructurer(StructurerBase):
             if has_cycle:
                 progressed |= self._analyze_cyclic()
                 if progressed:
+                    pre_refinement_region = None
                     if self._region.head not in self._region.graph:
                         # update the loop head
                         self._region.head = next(
                             iter(node for node in self._region.graph.nodes if node.addr == self._region.head.addr)
                         )
-                else:
+                elif pre_refinement_region is None:
+                    pre_refinement_region = self._region.copy()
                     refined = self._refine_cyclic()
                     if refined:
                         if self._region.head not in self._region.graph:
@@ -194,6 +200,10 @@ class PhoenixStructurer(StructurerBase):
             # successfully structured
             self.result = next(iter(self._region.graph.nodes))
         else:
+            if pre_refinement_region is not None:
+                # we could not make a loop after the last cycle refinement. restore the graph
+                self._region = pre_refinement_region
+
             self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
 
     def _analyze_cyclic(self) -> bool:
@@ -572,7 +582,16 @@ class PhoenixStructurer(StructurerBase):
         return True, loop_node
 
     def _refine_cyclic(self) -> bool:
-        return self._refine_cyclic_core(self._region.head)
+        loop_heads = {t for _, t in dfs_back_edges(self._region.graph, self._region.head)}
+        sorted_loop_heads = GraphUtils.quasi_topological_sort_nodes(self._region.graph, nodes=list(loop_heads))
+
+        for head in sorted_loop_heads:
+            l.debug("... refining cyclic at %r", head)
+            refined = self._refine_cyclic_core(head)
+            l.debug("... refined: %s", refined)
+            if refined:
+                return True
+        return False
 
     def _refine_cyclic_core(self, loop_head) -> bool:
         graph: networkx.DiGraph = self._region.graph
@@ -621,7 +640,7 @@ class PhoenixStructurer(StructurerBase):
             # natural loop. select *any* exit edge to determine the successor
             # well actually, to maintain determinism, we select the successor with the highest address
             successor_candidates = set()
-            for node in graph.nodes:
+            for node in networkx.descendants(graph, loop_head):
                 for succ in fullgraph.successors(node):
                     if succ not in graph:
                         successor_candidates.add(succ)
@@ -637,8 +656,15 @@ class PhoenixStructurer(StructurerBase):
                             outgoing_edges.append((pred, succ))
 
         if outgoing_edges:
-            # convert all out-going edges into breaks (if there is a single successor) or gotos (if there are multiple
-            # successors)
+            # if there is a single successor, we convert all out-going edges into breaks;
+            # if there are multiple successors, and if the current region does not have a parent region, then we
+            # convert all out-going edges into gotos;
+            # otherwise we give up.
+
+            if self._parent_region is not None and len({dst for _, dst in outgoing_edges}) > 1:
+                # give up because there is a parent region
+                return False
+
             if successor is None:
                 successor_and_edgecounts = defaultdict(int)
                 for _, dst in outgoing_edges:
@@ -794,7 +820,7 @@ class PhoenixStructurer(StructurerBase):
                     # case being the loop head. in such cases, we can just remove the edge.
                     if src.addr not in self.kb.cfgs["CFGFast"].jump_tables:
                         l.warning(
-                            "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r."
+                            "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r. "
                             "Remove the edge anyway.",
                             src,
                             continue_node,
@@ -847,6 +873,7 @@ class PhoenixStructurer(StructurerBase):
     def _refine_cyclic_is_while_loop(
         self, graph, fullgraph, loop_head, head_succs
     ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
+
         if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
             # make sure the head_pred is not already structured
             _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
@@ -857,7 +884,7 @@ class PhoenixStructurer(StructurerBase):
                 continue_edges: List[Tuple[BaseNode, BaseNode]] = []
                 outgoing_edges = []
                 successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
-                for node in graph.nodes:
+                for node in networkx.descendants(graph, loop_head):
                     succs = list(fullgraph.successors(node))
                     if loop_head in succs:
                         continue_edges.append((node, loop_head))
@@ -888,7 +915,7 @@ class PhoenixStructurer(StructurerBase):
                     # virtualize all other edges
                     successor = next(iter(nn for nn in head_pred_succs if nn not in graph))
                     continue_node = head_pred
-                    for node in graph.nodes:
+                    for node in networkx.descendants(graph, loop_head):
                         if node is head_pred:
                             continue
                         succs = list(fullgraph.successors(node))
@@ -2242,6 +2269,11 @@ class PhoenixStructurer(StructurerBase):
                 elif len(block.statements) > 1:
                     last_stmt = block.statements[-1]
                     if _check(last_stmt):
+                        walker.parent_and_block.append((walker.block_id, parent, block))
+                    elif (
+                        not isinstance(last_stmt, (Jump, ConditionalJump))
+                        and block.addr + block.original_size == dst_addr
+                    ):
                         walker.parent_and_block.append((walker.block_id, parent, block))
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
