@@ -37,7 +37,7 @@ class CodeMotionOptimization(OptimizationPass):
     b = 2;
     c = 3;
 
-    Current limitations (conservative):
+    Current limitations (for very conservative operations):
     - moving statements above conditional jumps is not supported
     - only immediate children and parents are considered for moving statements
     - when moving statements down, a block is only considered if already has a matching statement at the end
@@ -81,6 +81,14 @@ class CodeMotionOptimization(OptimizationPass):
     def update_graph_with_super_edits(
         original_graph: nx.DiGraph, super_graph: nx.DiGraph, updated_blocks: Dict[Block, Block]
     ) -> bool:
+        """
+        This function updates an graph when doing block edits on a supergraph version of that same graph.
+        The updated blocks must be provided as a dictionary where the keys are original block in the supergraph and
+        the values are the new blocks that should replace them.
+
+        The supergraph MUST be generated using the to_ail_supergraph function, since it stores the original nodes
+        each super node represents. This is necessary to update the original graph with the new super nodes.
+        """
         og_to_super = {}
         for old_super, new_super in updated_blocks.items():
             original_blocks = super_graph.nodes[old_super]["original_nodes"]
@@ -117,7 +125,11 @@ class CodeMotionOptimization(OptimizationPass):
 
     def _move_common_code(self, graph) -> Tuple[bool, Optional[Dict[Block, Block]]]:
         """
-        Returns a list of blocks that have been updated in some way.
+        Does two things at a high level:
+        1. rearrange code in blocks to maximize the number of similar statements at the end of the block
+        2. move common code out of blocks
+
+        To understand the limitations of this approach, see the TODOs.
         """
         # TODO: how can you handle an odd-numbered switch case?
         for b0, b1 in itertools.combinations(graph.nodes, 2):
@@ -205,6 +217,14 @@ class CodeMotionOptimization(OptimizationPass):
     def _make_stmts_end_similar(
         self, b0: Block, b1: Block, up=False, down=False
     ) -> Tuple[bool, Optional[Block], Optional[Block]]:
+        """
+        This algorithm attempts to rearrange two blocks to have the longest common sequence of statements
+        at either ends of the blocks. It is flawed in that it currently only attempts to do this rearrangement
+        if the blocks have at least one matching statement at the end.
+
+        This algorithm iteratively removes statements from the ends of the blocks and then attempts to match
+        the ends of the blocks. It will only do this if one of the two ends has a matching statement in the other.
+        """
         self._assert_up_or_down(up, down)
         # copy the statements while filtering out statements that are not needed in the specific
         # movement case (up or down)
@@ -264,10 +284,10 @@ class CodeMotionOptimization(OptimizationPass):
                 if not try_next_swap:
                     continue
 
+                stmts_updated = True
                 swap_occurred, new_stmts = self._maximize_ends(t0_stmts, t1_stmts, up=up, down=down)
                 if swap_occurred:
                     changed = True
-                    stmts_updated = True
                     curr_stmts[b0], curr_stmts[b1] = new_stmts
                     break
 
@@ -310,6 +330,10 @@ class CodeMotionOptimization(OptimizationPass):
         return (success and (b1_stmts != new_b1_stmts)), (b0_stmts, new_b1_stmts)
 
     def _move_to_end(self, stmt, stmts, up=False, down=False) -> Tuple[bool, List[Statement]]:
+        """
+        Attempts to move a stmt to either the top or the bottom of stmts.
+        It does this by attempting to swap, 1 by 1, in either direction it is targeting.
+        """
         new_stmts = stmts.copy()
         stmt_idx = new_stmts.index(stmt)
         swap_offset = -1 if up else 1
