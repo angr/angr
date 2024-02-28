@@ -5,8 +5,7 @@ from .plugin import KnowledgeBasePlugin
 
 class IndirectJumps(KnowledgeBasePlugin, dict):
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb=kb)
         self.unresolved = set()
 
         # dict format: {indirect_address: [resolved_addresses]}

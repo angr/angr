@@ -11,8 +11,7 @@ class CallsitePrototypes(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb=kb)
 
         self._prototypes: Dict[int, Tuple[SimCC, SimTypeFunction, bool]] = {}
 

@@ -131,8 +131,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb: "KnowledgeBase"):
-        super().__init__()
-        self._kb: "KnowledgeBase" = kb
+        super().__init__(kb=kb)
         self._dvar_containers = {}
 
     def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:

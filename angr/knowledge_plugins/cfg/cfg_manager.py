@@ -9,9 +9,8 @@ from .cfg_model import CFGModel
 
 class CFGManager(KnowledgeBasePlugin):
     def __init__(self, kb):
-        super().__init__()
+        super().__init__(kb=kb)
 
-        self._kb = kb
         self.cfgs = {}
 
     def __repr__(self):

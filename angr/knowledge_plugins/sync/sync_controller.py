@@ -90,9 +90,8 @@ class SyncController(KnowledgeBasePlugin):
         # import binsync upon the first use of this class
         import_binsync()
 
-        super().__init__()
+        super().__init__(kb=kb)
 
-        self._kb: KnowledgeBasePlugin = kb
         self.client: Optional["binsync.client.Client"] = None
 
     #

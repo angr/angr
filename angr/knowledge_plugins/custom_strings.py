@@ -9,8 +9,7 @@ class CustomStrings(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb=kb)
 
         self.string_id = 0
         self.strings: Dict[int, bytes] = {}

@@ -29,7 +29,6 @@ from ..types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
-    from ...knowledge_base import KnowledgeBase
     from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
@@ -83,9 +82,9 @@ class VariableManagerInternal(Serializable):
 
         self._variable_accesses: Dict[SimVariable, Set[VariableAccess]] = defaultdict(set)
         self._insn_to_variable: Dict[int, Set[Tuple[SimVariable, int]]] = defaultdict(set)
-        self._stmt_to_variable: Dict[Union[Tuple[int, int], Tuple[int, int, int]], Set[Tuple[SimVariable, int]]] = (
-            defaultdict(set)
-        )
+        self._stmt_to_variable: Dict[
+            Union[Tuple[int, int], Tuple[int, int, int]], Set[Tuple[SimVariable, int]]
+        ] = defaultdict(set)
         self._variable_to_stmt: Dict[SimVariable, Set[Union[Tuple[int, int], Tuple[int, int, int]]]] = defaultdict(set)
         self._atom_to_variable: Dict[
             Union[Tuple[int, int], Tuple[int, int, int]], Dict[int, Set[Tuple[SimVariable, int]]]
@@ -1012,8 +1011,7 @@ class VariableManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self._kb: "KnowledgeBase" = kb
+        super().__init__(kb=kb)
         self.global_manager = VariableManagerInternal(self)
         self.function_managers: Dict[int, VariableManagerInternal] = {}
 
