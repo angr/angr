@@ -150,7 +150,7 @@ class CodeMotionOptimization(OptimizationPass):
                 # you can only safely move code to a child if all the common_succ's preds are the ones
                 # we are moving code from (2 nodes).
                 if all(csp in (b0, b1) for csp in common_succ_preds):
-                    success, updated_blocks = self._move_common_code_to_parent(b0, b1, common_succ)
+                    success, updated_blocks = self._move_common_code_to_child(b0, b1, common_succ)
                     if success:
                         return True, updated_blocks
 
