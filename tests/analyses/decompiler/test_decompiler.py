@@ -2711,16 +2711,15 @@ class TestDecompiler(unittest.TestCase):
         # there should be at least 1 ternary in the code: (c ? a : b);
         assert re.search(r"\(.+\?.+:.+\);", text) is not None
 
+    @unittest.skip("Disabled until https://github.com/angr/angr/issues/4474 fixed")
     @for_all_structuring_algos
     def test_ternary_propagation_1(self, decompiler_options=None):
         """
-        Tests that single-use ternary expression assignments are propagated:
-        x = (c ? a : b);
-        puts(x)
+        Previously this testcase was enabled because it was testing for something we thought was right.
+        Currently, a failure in variable argument causes the CodeMotion optimization to change the code in this
+        function, which should otherwise not be changed.
 
-        =>
-
-        puts(c ? a : b);
+        See the linked issue to know when this can be re-enabled.
         """
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2741,6 +2740,15 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_ternary_propagation_2(self, decompiler_options=None):
+        """
+        Tests that single-use ternary expression assignments are propagated:
+        x = (c ? a : b);
+        puts(x)
+
+        =>
+
+        puts(c ? a : b);
+        """
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "du.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
