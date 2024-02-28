@@ -2197,8 +2197,8 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(d)
 
-        # there should only be two goto statements
-        assert d.codegen.text.count("goto ") == 2
+        # there should be three goto statements when return duplicator is disabled
+        assert d.codegen.text.count("goto ") == 3
 
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):
