@@ -170,7 +170,7 @@ def parsedcprotos2py(
                 if (func_name, i) in fd_spots:
                     proto_.args[i] = SimTypeFd(label=arg.label)
 
-        line1 = " " * 8 + "# " + decl + "\n"
+        line1 = " " * 8 + "#" + ((" " + decl) if decl else "") + "\n"
         line2 = " " * 8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + "," + "\n"
         s += line1 + line2
     return s

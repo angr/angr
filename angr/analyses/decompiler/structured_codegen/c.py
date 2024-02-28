@@ -9,6 +9,7 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
+from ....procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from ....sim_type import (
     SimTypeLongLong,
     SimTypeInt,
@@ -28,6 +29,7 @@ from ....sim_type import (
     SimTypeFixedSizeArray,
     SimTypeLength,
     SimTypeReg,
+    dereference_simtype,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -1234,7 +1236,16 @@ class CFunctionCall(CStatement, CExpression):
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
-            return self.callee_func.prototype
+            proto = self.callee_func.prototype
+            if self.callee_func.prototype_libname is not None:
+                # we need to deref the prototype in case it uses SimTypeRef internally
+                type_collections = []
+                prototype_lib = SIM_LIBRARIES[self.callee_func.prototype_libname]
+                if prototype_lib.type_collection_names:
+                    for typelib_name in prototype_lib.type_collection_names:
+                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                    proto = dereference_simtype(proto, type_collections)
+            return proto
         returnty = SimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
