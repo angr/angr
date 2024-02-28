@@ -3277,6 +3277,19 @@ class TestDecompiler(unittest.TestCase):
         line_count = d.codegen.text.count("\n")
         assert line_count > 20  # there should be at least 20 lines of code. it was failing structuring
 
+    @structuring_algo("phoenix")
+    def test_decompiling_sioctl_140005250(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "sioctl.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x140005250]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert 'DbgPrint("SIOCTL.SYS: ");' in d.codegen.text
+
     def test_test_binop_ret_dup(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)

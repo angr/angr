@@ -50,15 +50,23 @@ class SimType:
         """
         self.label = label
 
-    def __eq__(self, other):
+    def __eq__(self, other, avoid=None):
         if type(self) != type(other):
             return False
 
         for attr in self._fields:
             if attr == "size" and self._arch is None and other._arch is None:
                 continue
-            if getattr(self, attr) != getattr(other, attr):
-                return False
+            attr_self = getattr(self, attr)
+            attr_other = getattr(other, attr)
+            if isinstance(attr_self, SimType):
+                if avoid is not None and attr_self in avoid["self"] and attr_other in avoid["other"]:
+                    continue
+                if not attr_self.__eq__(attr_other, avoid=avoid):
+                    return False
+            else:
+                if attr_self != attr_other:
+                    return False
 
         return True
 
@@ -154,7 +162,7 @@ class TypeRef(SimType):
         """
         return self._name
 
-    def __eq__(self, other):
+    def __eq__(self, other, avoid=None):
         return type(other) is TypeRef and self.type == other.type
 
     def __hash__(self):
@@ -1116,7 +1124,6 @@ class SimStruct(NamedTypeMixin, SimType):
 
         self._pack = pack
         self._align = align
-        self._pack = pack
         self.fields = fields
 
         self._arch_memo = {}
@@ -1263,6 +1270,35 @@ class SimStruct(NamedTypeMixin, SimType):
 
     def copy(self):
         return SimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+
+    def __eq__(self, other, avoid=None):
+        if not isinstance(other, SimStruct):
+            return False
+        if not (
+            self._pack == other._pack
+            and self._align == other._align
+            and self.label == other.label
+            and self._name == other._name
+            and self._arch == other._arch
+        ):
+            return False
+        # fields comparison that accounts for self references
+        if not self.fields and not other.fields:
+            return True
+        keys_self = list(self.fields)
+        keys_other = list(other.fields)
+        if keys_self != keys_other:
+            return False
+        if avoid is None:
+            avoid = {"self": {self}, "other": {other}}
+        for key in keys_self:
+            field_self = self.fields[key]
+            field_other = other.fields[key]
+            if field_self in avoid["self"] and field_other in avoid["other"]:
+                continue
+            if not field_self.__eq__(field_other, avoid=avoid):
+                return False
+        return True
 
 
 class SimStructValue:
@@ -3253,7 +3289,9 @@ def dereference_simtype(
         if real_type is None:
             raise AngrMissingTypeError(f"Missing type {t.name}")
         return dereference_simtype(real_type, type_collections, memo=memo)
-    elif isinstance(t, SimStruct):
+
+    # the following code prepares a real_type SimType object that will be returned at the end of this method
+    if isinstance(t, SimStruct):
         if t.name in memo:
             return memo[t.name]
 
@@ -3261,22 +3299,18 @@ def dereference_simtype(
         memo[t.name] = real_type
         fields = OrderedDict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.fields.items())
         real_type.fields = fields
-        return real_type
     elif isinstance(t, SimTypePointer):
         real_pts_to = dereference_simtype(t.pts_to, type_collections, memo=memo)
         real_type = t.copy()
         real_type.pts_to = real_pts_to
-        return real_type
     elif isinstance(t, SimTypeArray):
         real_elem_type = dereference_simtype(t.elem_type, type_collections, memo=memo)
         real_type = t.copy()
         real_type.elem_type = real_elem_type
-        return real_type
     elif isinstance(t, SimUnion):
         real_members = {k: dereference_simtype(v, type_collections, memo=memo) for k, v in t.members.items()}
         real_type = t.copy()
         real_type.members = real_members
-        return real_type
     elif isinstance(t, SimTypeFunction):
         real_args = [dereference_simtype(arg, type_collections, memo=memo) for arg in t.args]
         real_return_type = (
@@ -3284,9 +3318,13 @@ def dereference_simtype(
         )
         real_type = t.copy()
         real_type.args = real_args
-        real_type.return_type = real_return_type
-        return real_type
-    return t
+        real_type.returnty = real_return_type
+    else:
+        return t
+
+    if t._arch is not None:
+        real_type = real_type.with_arch(t._arch)
+    return real_type
 
 
 if pycparser is not None:
