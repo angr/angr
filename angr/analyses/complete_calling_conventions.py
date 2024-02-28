@@ -373,7 +373,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         for callee in self.kb.functions.callgraph.successors(caller_func_addr):
             if callee != caller_func_addr and callee not in d:
                 func = self.kb.functions.get_by_addr(callee)
-                tpl = func.calling_convention, func.prototype, func.prototype.name
+                tpl = func.calling_convention, func.prototype, getattr(func.prototype, "name", None)
                 d[callee] = tpl
         return d
 
