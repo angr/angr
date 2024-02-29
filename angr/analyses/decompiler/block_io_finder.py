@@ -89,7 +89,8 @@ class BlockIOFinder(AILBlockWalkerBase):
     def can_swap(self, stmt, ail_obj: Union[Block, List[Statement]], offset: int):
         all_stmts = (ail_obj.statements or []) if isinstance(ail_obj, Block) else ail_obj
         if stmt not in all_stmts:
-            raise NotImplementedError("Statement not in block, and we can't compute moving a stmt to a new block!")
+            raise RuntimeError("Statement not in block, and we can't compute moving a stmt to a new block!")
+
         curr_idx = all_stmts.index(stmt)
         new_idx = curr_idx + offset
         if (
@@ -114,7 +115,7 @@ class BlockIOFinder(AILBlockWalkerBase):
             if self._input_defined_by_other_stmt(curr_idx, new_idx):
                 return False
         else:
-            raise NotImplementedError("Offset must be -1 or 1")
+            raise RuntimeError("Offset must be -1 or 1")
 
         return True
 

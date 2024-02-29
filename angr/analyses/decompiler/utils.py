@@ -726,24 +726,12 @@ def calls_in_graph(graph: networkx.DiGraph) -> int:
     return counter.calls
 
 
-def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
-    if insn_addr:
-
-        def _get_addr(b):
-            return b.statements[0].ins_addr
-
-    else:
-
-        def _get_addr(b):
-            return b.addr
-
+def find_block_by_addr(graph: networkx.DiGraph, addr: int):
     for block in graph.nodes():
-        if _get_addr(block) == addr:
-            break
-    else:
-        raise KeyError("The block is not in the graph!")
+        if block.addr == addr:
+            return block
 
-    return block
+    raise KeyError("The block is not in the graph!")
 
 
 # delayed import

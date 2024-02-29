@@ -45,7 +45,7 @@ class CodeMotionOptimization(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
-    NAME = "Move common statements out of blocks"
+    NAME = "Merge common statements in sub-scopes"
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     DESCRIPTION = __doc__
 
