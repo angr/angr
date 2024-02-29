@@ -200,9 +200,53 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             exit_jumpkind = exit_state.history.jumpkind if exit_state.history.jumpkind else ""
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
-                exit_state.registers.store(
-                    exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
+                # Modified by Hongwei
+                try:
+                    target_func_call_addr = exit_state.addr
+                    call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
+
+                    # Get function arguments from sypy_path plugin
+                    # function_info: {func_call_addr: {'func_name': func_name, 'func_obj': func_obj}
+                    assert target_func_call_addr in exit_state.sypy_path.function_info
+                    target_func_name = exit_state.sypy_path.function_info[target_func_call_addr]["func_name"]
+                except:
+                    # Handle indirect function call
+                    target_func_name = "Func_indirect_call" + str(exit_state.ip)
+                    call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
+
+                    # Fixing an issue that the next instruction after indirect call is not executed
+                    # update successors (move unconstrained successors to flat successors)
+                    # Check existence:
+                    if exit_state in successors.unconstrained_successors:
+                        print("HEAVY, move from unconstrained_successors to flat_successors: ", exit_state)
+                        successors.unconstrained_successors.remove(exit_state)
+                        successors.flat_successors.append(exit_state)
+
+                # function_calls: {func_name: {call_insn_addr: [[arg1, arg2, ...], [arg1, arg2, ...], ...]}
+                # Same function call at the same address could have different list of arguments in mutiple paths,
+                # We take the last one
+                assert call_insn_addr in exit_state.sypy_path.function_calls[target_func_name]
+                target_func_args = exit_state.sypy_path.function_calls[target_func_name][call_insn_addr][-1]
+
+                # Add dummy argument when generating function AST
+                claripy_func_args = [target_func_name] + target_func_args
+                target_func_ast = claripy.ast.func.Func(
+                    op=target_func_name, args=claripy_func_args, _ret_size=exit_state.arch.bits
                 )
+                target_func_ast_result = target_func_ast.func_op(*claripy_func_args)
+
+                # Remove dummy argument
+                if len(target_func_ast_result.args) > 0 and target_func_name in str(target_func_ast_result.args[0]):
+                    target_func_ast_result.args = target_func_ast_result.args[1:]
+
+                print("HEAVY, func call: ", target_func_ast_result)
+                exit_state.registers.store(exit_state.arch.ret_offset, target_func_ast_result)
+
+                # exit_state.registers.store(
+                #     exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
+                # )
+
+                # End of modification
                 exit_state.scratch.target = exit_state.solver.BVV(successors.addr + irsb.size, exit_state.arch.bits)
                 exit_state.history.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target

@@ -7,7 +7,7 @@ from ... import sim_options as options
 from ... import concretization_strategies
 from ...sim_state_options import SimStateOptions
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
+from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError, SimValueError
 from ...storage import DUMMY_SYMBOLIC_READ_VALUE
 
 
@@ -273,6 +273,38 @@ class AddressConcretizationMixin(MemoryMixin):
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
             return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
+
+        # Modified by Hongwei: return a self-defined MemoryLoad value instead of a default value,
+        # Do not even try to concretize the address, therefore we can avoid the BackendError
+        # if self.state.solver.symbolic(addr):
+        try:
+            # If 'MemoryLoad' or 'Func_' in AST, it's a customized AST, don't try to concretize it
+            if addr.op == "MemoryLoad" or addr.op.startswith("Func_"):
+                print("MemoryLoad or Func_ in AST, return a customized MemoryLoad value, addr: ", addr)
+                raise SimUnsatError
+            # Add atleast to handle the case when ast is in solver.constraints
+            self.state.solver.eval_atleast(addr, 2)
+            # Add atmost to support the cases of indirect jumps/calls with symbolic target
+            self.state.solver.eval_atmost(addr, 32)
+            try:
+                concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
+            except SimMemoryError:
+                if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
+                    return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
+                else:
+                    raise
+        except SimValueError or SimUnsatError:
+            # Try to get it from state.sypy_path.memory_writes
+            if hasattr(self.state, "sypy_path"):
+                key = (addr.cache_key, size)
+                if key in self.state.sypy_path.memory_writes:
+                    return self.state.sypy_path.memory_writes[key]
+                else:
+                    # Create a new MemoryLoad value
+                    args = [addr]
+                    MemoryLoad_decl = claripy.ast.func.MemoryLoad(op="MemoryLoad", args=args, _ret_size=size * 8)
+                    new_value = MemoryLoad_decl.op(*args)
+                    return new_value
 
         try:
             concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))

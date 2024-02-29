@@ -508,6 +508,40 @@ class SimulationManager:
         error_list = error_list if error_list is not None else self._errored
         try:
             successors = self.successors(state, successor_func=successor_func, **run_args)
+
+            # Hongwei: Handle break edges for loops
+            # If current ip is a breaking address of a loop, and the loop is already executed:
+            # Iterate current unsat_successors and find out all break edges
+            # Then move them from unsat_successors to flat_successors (force to execute the break edges)
+
+            try:
+                # 1. Check if current state ip is a 'breaking address'
+                if hasattr(state, "sypy_path") and state.addr in state.sypy_path.breaking_addr_to_loop_addr.keys():
+                    loop_addr = state.sypy_path.breaking_addr_to_loop_addr[state.addr]
+
+                    # 2. Check if the loop is already executed
+                    # By checking if the loop_addr is visited more than once in sypy_path.bb_addrs
+                    if list(state.history.bbl_addrs).count(loop_addr) > 1:
+                        break_edges = state.sypy_path.loop_info[loop_addr]["break_edges"]
+                        # Use a list to store the unsat successors that need to be moved to flat_successors
+                        # because we cannot modify the unsat_successors list while iterating it
+                        successors_to_move = []
+                        # 3. If yes, then check if any unsat successor matches with the break edges
+                        for unsat_successor in successors.unsat_successors:
+                            if unsat_successor.addr in break_edges[state.addr]:
+                                successors_to_move.append(unsat_successor)
+
+                        # 4. move the unsat successor to flat_successors
+                        for successor_to_move in successors_to_move:
+                            successors.unsat_successors.remove(successor_to_move)
+                            successors.flat_successors.append(successor_to_move)
+            except Exception as e:
+                import traceback
+
+                traceback.print_exc()
+                raise e
+            # End of Hongwei's code
+
             stashes = {
                 None: successors.flat_successors,
                 "unsat": successors.unsat_successors,
