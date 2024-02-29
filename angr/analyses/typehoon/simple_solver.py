@@ -419,13 +419,29 @@ class SimpleSolver:
         for tv in typevars:
             if tv in self._constraints:
                 constraints |= self._constraints[tv]
+
+        # collect typevars used in the constraint set
+        constrained_typevars = set()
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                for t in (constraint.sub_type, constraint.super_type):
+                    if isinstance(t, DerivedTypeVariable):
+                        if t.type_var in typevars:
+                            constrained_typevars.add(t.type_var)
+                    elif isinstance(t, TypeVariable):
+                        if t in typevars:
+                            constrained_typevars.add(t)
+
         equivalence_classes, sketches = self.infer_shapes(typevars, constraints)
         # TODO: Handle global variables
 
         type_schemes = constraints
 
-        for tv in typevars:
-            primitive_constraints = self._generate_primitive_constraints(type_schemes, {tv})
+        for idx, tv in enumerate(constrained_typevars):
+            # build a sub constraint set for the type variable
+            constraint_subset = self._generate_constraint_subset(constraints, {tv})
+
+            primitive_constraints = self._generate_primitive_constraints(constraint_subset, {tv})
             for primitive_constraint in primitive_constraints:
                 sketches[tv].add_constraint(primitive_constraint)
 
@@ -701,6 +717,40 @@ class SimpleSolver:
     #
     # Constraint graph
     #
+
+    def _generate_constraint_subset(
+        self, constraints: Set[TypeConstraint], typevars: Set[TypeVariable]
+    ) -> Set[TypeConstraint]:
+        subset = set()
+        related_typevars = set(typevars)
+        while True:
+            new = set()
+            for constraint in constraints:
+                if constraint in subset:
+                    continue
+                if isinstance(constraint, Subtype):
+                    if isinstance(constraint.sub_type, DerivedTypeVariable):
+                        subt = constraint.sub_type.type_var
+                    elif isinstance(constraint.sub_type, TypeVariable):
+                        subt = constraint.sub_type
+                    else:
+                        subt = None
+                    if isinstance(constraint.super_type, DerivedTypeVariable):
+                        supert = constraint.super_type.type_var
+                    elif isinstance(constraint.super_type, TypeVariable):
+                        supert = constraint.super_type
+                    else:
+                        supert = None
+                    if subt in related_typevars or supert in related_typevars:
+                        new.add(constraint)
+                        if subt is not None:
+                            related_typevars.add(subt)
+                        if supert is not None:
+                            related_typevars.add(supert)
+            if not new:
+                break
+            subset |= new
+        return subset
 
     def _generate_constraint_graph(
         self, constraints: Set[TypeConstraint], interesting_variables: Set[DerivedTypeVariable]
