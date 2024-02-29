@@ -22,6 +22,7 @@ from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .cross_jump_reverter import CrossJumpReverter
+from .code_motion import CodeMotionOptimization
 
 # order matters!
 _all_optimization_passes = [
@@ -41,12 +42,15 @@ _all_optimization_passes = [
     (ReturnDuplicator, True),
     (LoweredSwitchSimplifier, False),
     (ReturnDeduplicator, True),
+    (CodeMotionOptimization, True),
     (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicator, CrossJumpReverter]
+# these passes may destroy blocks by merging them into semantically equivalent blocks
+CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator]
 
 
 def get_optimization_passes(arch, platform):
