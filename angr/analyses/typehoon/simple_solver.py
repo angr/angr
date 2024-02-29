@@ -224,7 +224,8 @@ class Sketch:
     @staticmethod
     def flatten_typevar(
         derived_typevar: Union[TypeVariable, TypeConstant, DerivedTypeVariable]
-    ) -> Union[DerivedTypeVariable, TypeVariable, TypeConstant]:  # pylint:disable=too-many-boolean-expressions
+    ) -> Union[DerivedTypeVariable, TypeVariable, TypeConstant]:
+        # pylint:disable=too-many-boolean-expressions
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
             and isinstance(derived_typevar.type_var, Pointer)
@@ -437,7 +438,7 @@ class SimpleSolver:
 
         type_schemes = constraints
 
-        for idx, tv in enumerate(constrained_typevars):
+        for tv in constrained_typevars:
             # build a sub constraint set for the type variable
             constraint_subset = self._generate_constraint_subset(constraints, {tv})
 
@@ -718,8 +719,9 @@ class SimpleSolver:
     # Constraint graph
     #
 
+    @staticmethod
     def _generate_constraint_subset(
-        self, constraints: Set[TypeConstraint], typevars: Set[TypeVariable]
+        constraints: Set[TypeConstraint], typevars: Set[TypeVariable]
     ) -> Set[TypeConstraint]:
         subset = set()
         related_typevars = set(typevars)
@@ -996,7 +998,8 @@ class SimpleSolver:
             return t1
         return Top_
 
-    def abstract(self, t: Union[TypeConstant, TypeVariable]) -> Union[TypeConstant, TypeVariable]:
+    @staticmethod
+    def abstract(t: Union[TypeConstant, TypeVariable]) -> Union[TypeConstant, TypeVariable]:
         if isinstance(t, Pointer32):
             return Pointer32()
         elif isinstance(t, Pointer64):
