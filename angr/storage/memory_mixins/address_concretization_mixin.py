@@ -279,8 +279,8 @@ class AddressConcretizationMixin(MemoryMixin):
         # if self.state.solver.symbolic(addr):
         try:
             # If 'MemoryLoad' or 'Func_' in AST, it's a customized AST, don't try to concretize it
-            if addr.op == 'MemoryLoad' or addr.op.startswith('Func_'):
-                print('MemoryLoad or Func_ in AST, return a customized MemoryLoad value, addr: ', addr)
+            if addr.op == "MemoryLoad" or addr.op.startswith("Func_"):
+                print("MemoryLoad or Func_ in AST, return a customized MemoryLoad value, addr: ", addr)
                 raise SimUnsatError
             # Add atleast to handle the case when ast is in solver.constraints
             self.state.solver.eval_atleast(addr, 2)
@@ -293,16 +293,16 @@ class AddressConcretizationMixin(MemoryMixin):
                     return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
                 else:
                     raise
-        except SimValueError or SimUnsatError as e:
+        except SimValueError or SimUnsatError:
             # Try to get it from state.sypy_path.memory_writes
-            if hasattr(self.state, 'sypy_path'):
-                key= (addr.cache_key, size)
+            if hasattr(self.state, "sypy_path"):
+                key = (addr.cache_key, size)
                 if key in self.state.sypy_path.memory_writes:
                     return self.state.sypy_path.memory_writes[key]
                 else:
                     # Create a new MemoryLoad value
                     args = [addr]
-                    MemoryLoad_decl = claripy.ast.func.MemoryLoad(op='MemoryLoad', args=args, _ret_size=size*8)
+                    MemoryLoad_decl = claripy.ast.func.MemoryLoad(op="MemoryLoad", args=args, _ret_size=size * 8)
                     new_value = MemoryLoad_decl.op(*args)
                     return new_value
 

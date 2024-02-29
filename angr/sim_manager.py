@@ -516,13 +516,13 @@ class SimulationManager:
 
             try:
                 # 1. Check if current state ip is a 'breaking address'
-                if hasattr(state, 'sypy_path') and state.addr in state.sypy_path.breaking_addr_to_loop_addr.keys():
+                if hasattr(state, "sypy_path") and state.addr in state.sypy_path.breaking_addr_to_loop_addr.keys():
                     loop_addr = state.sypy_path.breaking_addr_to_loop_addr[state.addr]
 
                     # 2. Check if the loop is already executed
                     # By checking if the loop_addr is visited more than once in sypy_path.bb_addrs
                     if list(state.history.bbl_addrs).count(loop_addr) > 1:
-                        break_edges = state.sypy_path.loop_info[loop_addr]['break_edges']
+                        break_edges = state.sypy_path.loop_info[loop_addr]["break_edges"]
                         # Use a list to store the unsat successors that need to be moved to flat_successors
                         # because we cannot modify the unsat_successors list while iterating it
                         successors_to_move = []
@@ -537,6 +537,7 @@ class SimulationManager:
                             successors.flat_successors.append(successor_to_move)
             except Exception as e:
                 import traceback
+
                 traceback.print_exc()
                 raise e
             # End of Hongwei's code
