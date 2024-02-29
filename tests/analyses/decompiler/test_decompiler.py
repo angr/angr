@@ -3378,6 +3378,22 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler](proj.kb.functions.function(name="puts", plt=True), cfg=cfg.model)
         assert "::libc.so.0::puts" in d.codegen.text
 
+    def test_loop_header_copy_reverter(self, decompiler_options=None):
+        """
+        Tests that we can convert invariant while-loops into for-loops.
+        See LoopHeaderCopyReverter optimization to understand how conversion works.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_optimized")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        text = d.codegen.text
+
+        assert "while" not in text
+        assert text.count("for") == 1
+
 
 if __name__ == "__main__":
     unittest.main()
