@@ -334,7 +334,10 @@ class SimEngineRDVEX(
             addr = self._expr(stmt.addr)
             if addr.count() == 1:
                 addrs = next(iter(addr.values()))
-                size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
+                if isinstance(stmt.storedata, pyvex.IRExpr.Const):
+                    size = stmt.storedata.con.size // self.arch.byte_width
+                else:
+                    size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
 
                 self._store_core(addrs, size, storedata)
                 self.tmps[stmt.result] = MultiValues(claripy.BVV(1, 1))
