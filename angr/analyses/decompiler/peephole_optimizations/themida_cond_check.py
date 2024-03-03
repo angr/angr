@@ -62,7 +62,10 @@ class ThemidaCondCheck(PeepholeOptimizationStmtBase):
 
                     if new_operand_calc_flag:
                         new_cacl_cond_operands = (old_operands[0], old_operands[1], new_operand_calc_flag, old_operands[3], old_operands[4])
-                        new_calc_cond_ccall = VEXCCallExpression(calc_cond_dirty_expr.dirty_expr.idx, calc_cond_dirty_expr.dirty_expr.cee_name,new_cacl_cond_operands)
+                        new_calc_cond_ccall = VEXCCallExpression(calc_cond_dirty_expr.dirty_expr.idx,
+                                                                 calc_cond_dirty_expr.dirty_expr.cee_name,
+                                                                 new_cacl_cond_operands,
+                                                                 bits=calc_cond_dirty_expr.bits)
                         new_dirty_ccall_calc_cond = DirtyExpression(calc_cond_dirty_expr.idx, new_calc_cond_ccall, calc_cond_dirty_expr.bits)
                         new_cond = Convert(cond.idx, cond.from_bits, cond.to_bits, cond.is_signed, new_dirty_ccall_calc_cond)
                         return ConditionalJump(stmt.idx, new_cond, stmt.true_target, stmt.false_target, **stmt.tags)
