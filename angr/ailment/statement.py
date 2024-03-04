@@ -319,8 +319,6 @@ class ConditionalJump(Statement):
             and self.condition.likes(other.condition)
             and is_none_or_likeable(self.true_target, other.true_target)
             and is_none_or_likeable(self.false_target, other.false_target)
-            and self.true_target == other.true_target
-            and self.false_target == other.false_target
         )
 
     __hash__ = TaggedObject.__hash__
