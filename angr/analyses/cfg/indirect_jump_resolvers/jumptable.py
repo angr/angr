@@ -1174,7 +1174,7 @@ class JumpTableResolver(IndirectJumpResolver):
         transformations: Dict[Tuple[int, int], AddressTransformation] = OrderedDict()
 
         initial_block_addr = stmt_loc[0]
-        all_load_stmts = sorted(self._all_load_stmts_in_slice(b, stmt_loc[0]))
+        all_load_stmts = sorted(self._all_qualified_load_stmts_in_slice(b, stmt_loc[0]))
 
         while True:
             preds = list(b.slice.predecessors(stmt_loc))
@@ -1305,11 +1305,8 @@ class JumpTableResolver(IndirectJumpResolver):
                             transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
                                 AddressTransferringTypes.Add, [stmt.data.args[0].con.value, AddressSingleton]
                             )
-                            stmts_adding_base_addr.append(
-                                JumpTargetBaseAddr(
-                                    stmt_loc, stmt, stmt.data.args[1].tmp, base_addr=stmt.data.args[0].con.value
-                                )
-                            )
+                            # we no longer update stmts_adding_base_addr in this case because it's replaced by
+                            # transformations
                             stmts_to_remove.append(stmt_loc)
                         elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and isinstance(
                             stmt.data.args[1], pyvex.IRExpr.Const
@@ -1317,20 +1314,22 @@ class JumpTableResolver(IndirectJumpResolver):
                             transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
                                 AddressTransferringTypes.Add, [AddressSingleton, stmt.data.args[1].con.value]
                             )
-                            stmts_adding_base_addr.append(
-                                JumpTargetBaseAddr(
-                                    stmt_loc, stmt, stmt.data.args[0].tmp, base_addr=stmt.data.args[1].con.value
-                                )
-                            )
+                            # we no longer update stmts_adding_base_addr in this case because it's replaced by
+                            # transformations
                             stmts_to_remove.append(stmt_loc)
                         elif isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and isinstance(
                             stmt.data.args[1], pyvex.IRExpr.RdTmp
                         ):
-                            # one of the tmps must be holding a concrete value at this point
-                            transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransferringTypes.Add,
-                                [Tmp(stmt.data.args[0].tmp), Tmp(stmt.data.args[1].tmp)],
-                            )
+                            # one of the tmps must be holding a concrete value at this point. we will know this when
+                            # we perform constant propagation before running JumpTableResolver. this can act as an
+                            # indicator that we need to run constant propagation for this function.
+                            # for now, we don't support it :)
+                            # FIXME: Run constant propagation for the function when necessary. we can also remove
+                            #  stmts_adding_base_addr and the surrounding logic then.
+                            # transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
+                            #     AddressTransferringTypes.Add,
+                            #     [Tmp(stmt.data.args[0].tmp), Tmp(stmt.data.args[1].tmp)],
+                            # )
                             stmts_adding_base_addr.append(
                                 JumpTargetBaseAddr(stmt_loc, stmt, stmt.data.args[0].tmp, tmp_1=stmt.data.args[1].tmp)
                             )
@@ -1434,7 +1433,9 @@ class JumpTableResolver(IndirectJumpResolver):
                         block.tyenv.sizeof(stmt.tmp) // self.project.arch.byte_width,
                     )
                     stmts_to_remove.append(stmt_loc)
-                    is_first_load_stmt = stmt_loc == (initial_block_addr, all_load_stmts[0])
+                    is_first_load_stmt = (
+                        True if not all_load_stmts else (stmt_loc == (initial_block_addr, all_load_stmts[0]))
+                    )
                     transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
                         AddressTransferringTypes.Load, [AddressSingleton, load_size], first_load=is_first_load_stmt
                     )
@@ -1824,6 +1825,7 @@ class JumpTableResolver(IndirectJumpResolver):
             return None
 
         # Adjust entries inside the jump table
+        mask = (2**self.project.arch.bits) - 1
         transformation_list = list(reversed(list(v for v in transformations.values() if not v.first_load)))
         if transformation_list:
 
@@ -1846,7 +1848,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 return a >> num_bits
 
             def handle_add(con, a):
-                return a + con
+                return (a + con) & mask
 
             def handle_load(size, a):
                 return cfg._fast_memory_load_pointer(a, size=size)
@@ -1855,14 +1857,14 @@ class JumpTableResolver(IndirectJumpResolver):
             for tran in transformation_list:
                 tran_op, args = tran.op, tran.operands
                 if tran_op is AddressTransferringTypes.SignedExtension:
-                    if args == (32, 64, AddressSingleton):
+                    if args == [32, 64, AddressSingleton]:
                         lam = handle_signed_ext
                     else:
                         raise NotImplementedError("Unsupported signed extension operation.")
                 elif tran_op is AddressTransferringTypes.UnsignedExtension:
                     lam = handle_unsigned_ext
                 elif tran_op is AddressTransferringTypes.Truncation:
-                    if args == (64, 32, AddressSingleton):
+                    if args == [64, 32, AddressSingleton]:
                         lam = handle_trunc_64_32
                     else:
                         raise NotImplementedError("Unsupported truncation operation.")
@@ -1877,9 +1879,15 @@ class JumpTableResolver(IndirectJumpResolver):
                         handle_rshift, next(iter(arg for arg in args if arg is not AddressSingleton))
                     )
                 elif tran_op is AddressTransferringTypes.Add:
-                    lam = functools.partial(handle_add, next(iter(arg for arg in args if arg is not AddressSingleton)))
+                    add_arg = next(iter(arg for arg in args if arg is not AddressSingleton))
+                    if not isinstance(add_arg, int):
+                        # unsupported cases (Tmp, for example). abort
+                        return None
+                    lam = functools.partial(handle_add, add_arg)
                 elif tran_op is AddressTransferringTypes.Load:
                     lam = functools.partial(handle_load, args[1])
+                elif tran_op is AddressTransferringTypes.Assignment:
+                    continue
                 else:
                     raise NotImplementedError("Unsupported transformation operation.")
                 invert_conversion_ops.append(lam)
@@ -1890,14 +1898,13 @@ class JumpTableResolver(IndirectJumpResolver):
                     target_ = lam(target_)
                     if target_ is None:
                         # transformation failed. abort
-                        break
+                        return None
                 all_targets.append(target_)
             if None in all_targets:
                 return None
         if len(stmts_adding_base_addr) == 1:
             stmt_adding_base_addr = stmts_adding_base_addr[0]
             base_addr = stmt_adding_base_addr.base_addr
-            mask = (2**self.project.arch.bits) - 1
             all_targets = [(target + base_addr) & mask for target in all_targets]
 
         # special case for ARM: if the source block is in THUMB mode, all jump targets should be in THUMB mode, too
@@ -2269,21 +2276,72 @@ class JumpTableResolver(IndirectJumpResolver):
             return False
         return True
 
-    def _all_load_stmts_in_slice(self, b: Blade, addr: int) -> List[int]:
+    def _is_address_mapped(self, addr: int) -> bool:
+        return (
+            self.project.loader.find_segment_containing(addr) is not None
+            or self.project.loader.find_section_containing(addr) is not None
+        )
+
+    def _all_qualified_load_stmts_in_slice(self, b: Blade, addr: int) -> List[int]:
+        """
+        Recognize all qualified load statements in a slice. A qualified load statements refers to those that are
+        loading jump targets (or jump offsets) from a jump table, or loading jump table offsets from a jump-table
+        offset table.
+
+        :param b:       The Blade object.
+        :param addr:    Address of the last block.
+        :return:        A list of qualified load statement IDs.
+        """
+
         stmt_ids = []
         for block_addr, stmt_id in b.slice.nodes:
-            if block_addr == addr:
+            if block_addr == addr and stmt_id != DEFAULT_STATEMENT:
                 stmt_ids.append(stmt_id)
 
         if not stmt_ids:
             return []
+        stmt_ids = sorted(stmt_ids)
+        qualified_load_stmt_ids = []
         load_stmt_ids = []
         block = self.project.factory.block(addr, cross_insn_opt=True, backup_state=self.base_state).vex
+        tmp_values = {}
+        mask = (2**self.project.arch.bits) - 1
         for stmt_id in stmt_ids:
             stmt = block.statements[stmt_id]
-            if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
-                load_stmt_ids.append(stmt_id)
-        return load_stmt_ids
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                if isinstance(stmt.data, pyvex.IRExpr.Const):
+                    tmp_values[stmt.tmp] = stmt.data.con.value
+                elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith("Iop_Add"):
+                    op0 = None
+                    if isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp):
+                        op0 = tmp_values.get(stmt.data.args[0].tmp, None)
+                    elif isinstance(stmt.data.args[0], pyvex.IRExpr.Const):
+                        op0 = stmt.data.args[0].con.value
+                    op1 = None
+                    if isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
+                        op1 = tmp_values.get(stmt.data.args[1].tmp, None)
+                    elif isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+                        op1 = stmt.data.args[1].con.value
+                    if isinstance(op1, int) and not isinstance(op0, int):
+                        op0, op1 = op1, op0
+                    if isinstance(op0, int):
+                        if op1 is None:
+                            tmp_values[stmt.tmp] = ("+", op0, op1)
+                        elif isinstance(op1, int):
+                            tmp_values[stmt.tmp] = (op0 + op1) & mask
+                        elif isinstance(op1, tuple) and op1[0] == "+":
+                            tmp_values[stmt.tmp] = ("+", (op0 + op1[1]) & mask, op1[2])
+                elif isinstance(stmt.data, pyvex.IRExpr.Load) and isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp):
+                    # is this load statement loading from a static address + an offset?
+                    v = tmp_values.get(stmt.data.addr.tmp, None)
+                    if isinstance(v, tuple) and v[0] == "+" and v[2] is None and self._is_address_mapped(v[1]):
+                        qualified_load_stmt_ids.append(stmt_id)
+                    load_stmt_ids.append(stmt_id)
+        if qualified_load_stmt_ids and len(qualified_load_stmt_ids) <= 2:
+            return qualified_load_stmt_ids
+        if load_stmt_ids:
+            return [load_stmt_ids[-1]]
+        return []
 
 
 from angr.analyses.propagator import PropagatorAnalysis
