@@ -98,6 +98,9 @@ AddressSingleton = AddressOperand()
 
 
 class Tmp:
+    """
+    For modeling Tmp variables.
+    """
     def __init__(self, tmp_idx):
         self.tmp_idx = tmp_idx
 
@@ -1229,7 +1232,9 @@ class JumpTableResolver(IndirectJumpResolver):
                         # t24 = 64to32(t21)
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            transformations[(stmt_loc[0], stmt.tmp)] = (AddressTransformationTypes.Truncation, 64, 32)
+                            transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
+                                AddressTransformationTypes.Truncation, [64, 32, AddressSingleton]
+                            )
                         continue
                     elif stmt.data.op == "Iop_32Uto64":
                         # data transferring with conversion
