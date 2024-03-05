@@ -539,8 +539,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         indent_str = self.indent_str(indent)
         if self.codegen.show_local_types:
             local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
+            name_to_structtypes = {}
             for ty in local_types:
                 if isinstance(ty, SimStruct):
+                    name_to_structtypes[ty.name] = ty
                     for field in ty.fields.values():
                         if isinstance(field, SimTypePointer):
                             if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
@@ -548,6 +550,12 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                             else:
                                 field = field.pts_to
                         if isinstance(field, SimStruct) and field not in local_types:
+                            if field.name and not field.fields and field.name in name_to_structtypes:
+                                # we use SimStruct types with empty fields to refer to already defined struct types
+                                # for example, see how struct _IO_marker is defined in sim_type.py
+                                continue
+                            if field.name:
+                                name_to_structtypes[field.name] = field
                             local_types.append(field)
 
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
