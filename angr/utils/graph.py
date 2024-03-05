@@ -654,7 +654,7 @@ class GraphUtils:
 
     @staticmethod
     def quasi_topological_sort_nodes(
-        graph: networkx.DiGraph, nodes: Optional[Union[List,Set]] = None, loop_heads: Optional[List] = None
+        graph: networkx.DiGraph, nodes: Optional[Union[List, Set]] = None, loop_heads: Optional[List] = None
     ) -> List:
         """
         Sort a given set of nodes from a graph based on the following rules:

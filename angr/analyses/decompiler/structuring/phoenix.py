@@ -177,9 +177,9 @@ class PhoenixStructurer(StructurerBase):
                             )
                         has_cycle = self._has_cycle()
                         continue
-                    else:
-                        l.info("... cyclic refinement failed")
-                        pre_refinement_region = None
+
+                    l.info("... cyclic refinement failed")
+                    pre_refinement_region = None
                 has_cycle = self._has_cycle()
 
             l.info("... graph has %d nodes left. Progressed: %s.", len(self._region.graph.nodes), progressed)
