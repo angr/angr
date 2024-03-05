@@ -101,6 +101,7 @@ class Tmp:
     """
     For modeling Tmp variables.
     """
+
     def __init__(self, tmp_idx):
         self.tmp_idx = tmp_idx
 
