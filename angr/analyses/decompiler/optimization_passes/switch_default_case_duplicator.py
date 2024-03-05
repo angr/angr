@@ -2,8 +2,7 @@
 from itertools import count
 import logging
 
-import ailment
-import cle
+import networkx
 
 from angr.knowledge_plugins.cfg import IndirectJumpType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -20,14 +19,17 @@ def s2u(s, bits):
 
 class SwitchDefaultCaseDuplicator(OptimizationPass):
     """
-    For all switch-case constructs (identified by jump tables), duplicate the default case node for all incoming edges
-    if there are more than one edge.
+    For each switch-case construct (identified by jump tables), duplicate the default-case node when we detect
+    situations where the default-case node is seemingly reused by edges outside the switch-case construct. This code
+    reuse is usually caused by compiler code deduplication.
+
+    Ideally this pass should be implemented as an ISC optimization reversion.
     """
 
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION
-    NAME = "Duplicate default case node when necessary"
+    NAME = "Duplicate default-case nodes to undo default-case node reuse caused by compiler code deduplication"
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
@@ -84,9 +86,19 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                 default_case_block = self._get_block(default_addr)
                 default_case_succ_block = list(self._graph.successors(default_case_block))[0]
 
+                jump_nodes = self._get_blocks(jump_node_addr)
+                jump_node_descedents = set()
+                for jump_node in jump_nodes:
+                    jump_node_descedents |= networkx.descendants(self._graph, jump_node)
+
                 # duplicate default_case_node for each unexpected predecessor
                 for unexpected_pred_addr in unexpected_pred_addrs:
                     for unexpected_pred in self._get_blocks(unexpected_pred_addr):
+                        # is this predecessor reachable from the jump node? if so, we believe this is a legitimate edge
+                        # and do not duplicate it.
+                        if unexpected_pred in jump_node_descedents:
+                            continue
+
                         default_case_block_copy = default_case_block.copy()
                         default_case_block_copy.idx = next(self.node_idx)
                         if out_graph is None:
