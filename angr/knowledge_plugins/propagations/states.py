@@ -899,7 +899,8 @@ class PropagatorAILState(PropagatorState):
                             def_ = next(iter(defs))
                     if def_ is not None:
                         self._expr_used_locs[def_].append(codeloc)
-                        prop_count = len(self._expr_used_locs[def_])
+                        # we must consider known future uses of this definition as well
+                        prop_count = max(len(self._expr_used_locs[def_]), len(self.rda.all_uses.get_uses(def_)))
                     else:
                         # multiple definitions or no definitions - do not propagate
                         return False
