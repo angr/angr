@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict, List, Set
+from typing import Tuple, Optional, Dict, List, Set, Union
 from collections import defaultdict
 import logging
 
@@ -654,7 +654,7 @@ class GraphUtils:
 
     @staticmethod
     def quasi_topological_sort_nodes(
-        graph: networkx.DiGraph, nodes: Optional[List] = None, loop_heads: Optional[List] = None
+        graph: networkx.DiGraph, nodes: Optional[Union[List,Set]] = None, loop_heads: Optional[List] = None
     ) -> List:
         """
         Sort a given set of nodes from a graph based on the following rules:
@@ -679,7 +679,7 @@ class GraphUtils:
 
         # fast path for single node list
         if nodes and len(nodes) == 1:
-            return nodes[::]
+            return [next(iter(nodes))]
 
         # make a copy to the graph since we are gonna modify it
         graph_copy = networkx.DiGraph()
