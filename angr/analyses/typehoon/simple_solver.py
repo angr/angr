@@ -438,13 +438,27 @@ class SimpleSolver:
 
         type_schemes = constraints
 
-        for tv in constrained_typevars:
+        constraintset2tvs = defaultdict(set)
+        for idx, tv in enumerate(constrained_typevars):
+            _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
             # build a sub constraint set for the type variable
-            constraint_subset = self._generate_constraint_subset(constraints, {tv})
+            constraint_subset = frozenset(self._generate_constraint_subset(constraints, {tv}))
+            constraintset2tvs[constraint_subset].add(tv)
 
-            primitive_constraints = self._generate_primitive_constraints(constraint_subset, {tv})
-            for primitive_constraint in primitive_constraints:
-                sketches[tv].add_constraint(primitive_constraint)
+        for idx, (constraint_subset, tvs) in enumerate(constraintset2tvs.items()):
+            _l.debug(
+                "Solving %d constraints for type variables %r (%d/%d)",
+                len(constraint_subset),
+                tvs,
+                idx + 1,
+                len(constraintset2tvs),
+            )
+            base_constraint_graph = self._generate_constraint_graph(constraint_subset, tvs | PRIMITIVE_TYPES)
+            for idx_0, tv in enumerate(tvs):
+                _l.debug("Solving for type variable %r (%d/%d)", tv, idx_0 + 1, len(tvs))
+                primitive_constraints = self._generate_primitive_constraints({tv}, base_constraint_graph)
+                for primitive_constraint in primitive_constraints:
+                    sketches[tv].add_constraint(primitive_constraint)
 
         return equivalence_classes, sketches, type_schemes
 
@@ -532,10 +546,11 @@ class SimpleSolver:
         return equivalence_classes, out_graph
 
     def _generate_primitive_constraints(
-        self, constraints: Set[TypeConstraint], non_primitive_endpoints: Set[Union[TypeVariable, DerivedTypeVariable]]
+        self,
+        non_primitive_endpoints: Set[Union[TypeVariable, DerivedTypeVariable]],
+        constraint_graph,
     ) -> Set[TypeConstraint]:
         # FIXME: Extract interesting variables
-        constraint_graph = self._generate_constraint_graph(constraints, non_primitive_endpoints | PRIMITIVE_TYPES)
         constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
         constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
         return constraints_0 | constraints_1

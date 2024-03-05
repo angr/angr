@@ -208,7 +208,7 @@ class Struct(TypeConstant):
 
     def _hash_fields(self, visited: Set[int]):
         keys = sorted(self.fields.keys())
-        tpl = tuple((k, self.fields[k]._hash(visited)) for k in keys)
+        tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
 
     @memoize
