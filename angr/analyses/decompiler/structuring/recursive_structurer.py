@@ -29,6 +29,7 @@ class RecursiveStructurer(Analysis):
         func: Optional["Function"] = None,
         structurer_cls: Optional[Type] = None,
         improve_structurer=True,
+        only_top_region=False,
         **kwargs,
     ):
         self._region = region
@@ -37,15 +38,13 @@ class RecursiveStructurer(Analysis):
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.improve_structurer = improve_structurer
         self.structurer_options = kwargs
+        self._only_top_region = only_top_region
 
         self.result = None
 
         self._analyze()
 
-    def _analyze(self):
-        region = self._region.recursive_copy()
-        self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
-
+    def _recursively_structure(self, region):
         # visit the region in post-order DFS
         parent_map = {}
         stack = [region]
@@ -89,8 +88,7 @@ class RecursiveStructurer(Analysis):
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
-                    self.result = st.result
-                    break
+                    return st.result
 
                 if st.result is None:
                     self._replace_region_with_region(parent_region, current_region, st._region)
@@ -98,6 +96,22 @@ class RecursiveStructurer(Analysis):
                     self._replace_region_with_node(
                         parent_region, current_region, st._region, st.result, st.virtualized_edges
                     )
+
+    def _analyze(self):
+        region = self._region.recursive_copy()
+        self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
+        if self._only_top_region:
+            st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
+                region.copy(),
+                condition_processor=self.cond_proc,
+                case_entry_to_switch_head=self._case_entry_to_switch_head,
+                func=self.function,
+                improve_structurer=self.improve_structurer,
+                **self.structurer_options,
+            )
+            self.result = st.result
+        else:
+            self.result = self._recursively_structure(region)
 
         if self.structurer_cls is DreamStructurer:
             # rewrite conditions in the result to remove all jump table entry conditions

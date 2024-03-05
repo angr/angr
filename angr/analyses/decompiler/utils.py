@@ -734,6 +734,21 @@ def find_block_by_addr(graph: networkx.DiGraph, addr: int):
     raise KeyError("The block is not in the graph!")
 
 
+def find_start_node(graph: networkx.DiGraph, func_addr=None) -> ailment.Block:
+    try:
+        return next(n for n in graph.nodes() if graph.in_degree(n) == 0)
+    except StopIteration:
+        pass
+
+    if func_addr is not None:
+        try:
+            return next(n for n in graph.nodes() if n.addr == func_addr)
+        except StopIteration:
+            pass
+
+    raise RuntimeError("Cannot find the start node from the graph!")
+
+
 # delayed import
 from .structuring.structurer_nodes import (
     MultiNode,

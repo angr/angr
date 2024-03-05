@@ -8,6 +8,7 @@ from cle import SymbolType
 import ailment
 
 from angr.analyses.cfg import CFGFast
+from .graph_region import GraphRegion
 from ...knowledge_plugins.functions.function import Function
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
@@ -21,7 +22,7 @@ from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
-from .utils import remove_labels
+from .utils import remove_labels, find_start_node
 from .sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
@@ -63,6 +64,7 @@ class Decompiler(Analysis):
         decompile=True,
         regen_clinic=True,
         update_memory_data: bool = True,
+        recursively_structure: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -85,6 +87,8 @@ class Decompiler(Analysis):
         self._binop_operators = binop_operators
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
+        # TODO: make this a real option, hardcoding it for now
+        self._recursively_structure = False  # recursively_structure
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: Optional["CStructuredCodeGenerator"] = None
@@ -197,18 +201,29 @@ class Decompiler(Analysis):
         )
 
         # recover regions, delay updating when we have optimizations that may update regions themselves
-        delay_graph_updates = any(
-            pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
-        )
-        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
+        if self._recursively_structure:
+            delay_graph_updates = any(
+                pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
+            )
+            ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
 
-        # run optimizations that may require re-RegionIdentification
-        clinic.graph, ri = self._run_region_simplification_passes(
-            clinic.graph,
-            ri,
-            clinic.reaching_definitions,
-            ite_exprs=ite_exprs,
-        )
+            # run optimizations that may require re-RegionIdentification
+            clinic.graph, ri = self._run_region_simplification_passes(
+                clinic.graph,
+                ri,
+                clinic.reaching_definitions,
+                ite_exprs=ite_exprs,
+            )
+            top_region = ri.region
+        else:
+            top_region = GraphRegion(
+                find_start_node(clinic.graph, func_addr=self.func.addr),
+                clinic.graph,
+                None,
+                None,
+                networkx.is_directed_acyclic_graph(clinic.graph),
+                None,
+            )
 
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = remove_labels(clinic.copy_graph())
@@ -216,9 +231,10 @@ class Decompiler(Analysis):
 
         # structure it
         rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            ri.region,
+            top_region,
             cond_proc=cond_proc,
             func=self.func,
+            only_top_region=not self._recursively_structure,
             **self._recursive_structurer_params,
         )
         self._update_progress(80.0, text="Simplifying regions")
