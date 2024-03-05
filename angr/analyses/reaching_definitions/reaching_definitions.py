@@ -539,6 +539,13 @@ class ReachingDefinitionsAnalysis(
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
 
+        if self._track_tmps:
+            # merge tmp uses to all_uses
+            for tmp_idx, locs in state.tmp_uses.items():
+                tmp_def = next(iter(state.tmps[tmp_idx]))
+                for loc in locs:
+                    self.all_uses.add_use(tmp_def, loc)
+
         # drop definitions and uses because we will not need them anymore
         state.downsize()
 
