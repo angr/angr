@@ -677,6 +677,10 @@ class GraphUtils:
                 return list(graph.nodes)
             return [n for n in graph.nodes() if n in nodes]
 
+        # fast path for single node list
+        if nodes and len(nodes) == 1:
+            return nodes[::]
+
         # make a copy to the graph since we are gonna modify it
         graph_copy = networkx.DiGraph()
 

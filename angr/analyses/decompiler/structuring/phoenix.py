@@ -144,6 +144,7 @@ class PhoenixStructurer(StructurerBase):
         # of the refined graph. in that case, we restore the original region and return.
         pre_refinement_region = None
 
+        l.info("Structuring %r", self._region)
         while len(self._region.graph.nodes) > 1:
             progressed = self._analyze_acyclic()
             if progressed and self._region.head not in self._region.graph:
@@ -153,8 +154,10 @@ class PhoenixStructurer(StructurerBase):
                 )
 
             if has_cycle:
-                progressed |= self._analyze_cyclic()
-                if progressed:
+                loop_structured = self._analyze_cyclic()
+                progressed |= loop_structured
+                if loop_structured:
+                    l.info("... one or more loops are structured")
                     pre_refinement_region = None
                     if self._region.head not in self._region.graph:
                         # update the loop head
@@ -162,9 +165,11 @@ class PhoenixStructurer(StructurerBase):
                             iter(node for node in self._region.graph.nodes if node.addr == self._region.head.addr)
                         )
                 elif pre_refinement_region is None:
+                    l.info("... storing pre-refinement region and cyclic refining the region")
                     pre_refinement_region = self._region.copy()
                     refined = self._refine_cyclic()
                     if refined:
+                        l.info("... region is cyclic refined. waiting for a loop to be structured")
                         if self._region.head not in self._region.graph:
                             # update the loop head
                             self._region.head = next(
@@ -172,16 +177,20 @@ class PhoenixStructurer(StructurerBase):
                             )
                         has_cycle = self._has_cycle()
                         continue
+                    else:
+                        l.info("... cyclic refinement failed")
+                        pre_refinement_region = None
                 has_cycle = self._has_cycle()
 
+            l.info("... graph has %d nodes left. Progressed: %s.", len(self._region.graph.nodes), progressed)
             if not progressed:
                 if self._region.cyclic_ancestor and not self._region.cyclic:
                     # we prefer directly returning this subgraph in case it can be further restructured within a loop
                     # region
-                    l.debug("No progress is made on this acyclic graph with a cyclic ancestor. Give up.")
+                    l.info("No progress is made on this acyclic graph with a cyclic ancestor. Give up.")
                     break
 
-                l.debug("No progress is made. Enter last resort refinement.")
+                l.info("No progress is made. Enter last resort refinement.")
                 removed_edge = self._last_resort_refinement(
                     self._region.head,
                     self._region.graph,
@@ -198,18 +207,24 @@ class PhoenixStructurer(StructurerBase):
 
         if len(self._region.graph.nodes) == 1:
             # successfully structured
+            l.info("+++ Successfully structured %r", self._region)
             self.result = next(iter(self._region.graph.nodes))
         else:
             if pre_refinement_region is not None:
+                l.info("+++ Structuring %r failed: Restoring the pre-refinement region.", self._region)
                 # we could not make a loop after the last cycle refinement. restore the graph
                 self._region = pre_refinement_region
+            else:
+                l.info("+++ Structuring %r failed.", self._region)
 
             self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
 
     def _analyze_cyclic(self) -> bool:
         any_matches = False
-        acyclic_graph = to_acyclic_graph(self._region.graph, loop_heads=[self._region.head])
-        for node in list(reversed(GraphUtils.quasi_topological_sort_nodes(acyclic_graph))):
+
+        loop_heads = {t for _, t in dfs_back_edges(self._region.graph, self._region.head)}
+        sorted_loop_heads = GraphUtils.quasi_topological_sort_nodes(self._region.graph, nodes=list(loop_heads))
+        for node in list(reversed(sorted_loop_heads)):
             if node not in self._region.graph:
                 continue
             matched = self._match_cyclic_schemas(
@@ -1142,9 +1157,9 @@ class PhoenixStructurer(StructurerBase):
         self.whitelist_edges.add((node_a.addr, node_b_addr))
         self.switch_case_known_heads.add(node)
 
-        # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
+        # sanity check: case nodes are successors to node_a. all case nodes must have at most one common successor
         node_pred = None
-        if graph.in_degree[node] == 1:
+        if node is not self._region.head and graph.in_degree[node] == 1:
             node_pred = list(graph.predecessors(node))[0]
 
         case_nodes = list(graph.successors(node_a))
