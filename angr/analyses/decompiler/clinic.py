@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, NamedTuple, TYPE_CHECKING
 
 import networkx
+import capstone
 
 import ailment
 
@@ -262,6 +263,7 @@ class Clinic(Analysis):
         ail_graph = self._simplify_blocks(
             ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
         )
+        self._rewrite_alloca(ail_graph)
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
@@ -606,6 +608,9 @@ class Clinic(Analysis):
         regs = {self.project.arch.sp_offset}
         if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
             regs.add(self.project.arch.bp_offset)
+
+        regs |= self._find_regs_compared_against_sp(self._func_graph)
+
         spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=self._sp_tracker_track_memory)
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
@@ -1876,6 +1881,100 @@ class Clinic(Analysis):
 
         AILGraphWalker(graph, handle_node, replace_nodes=True).walk()
         return graph
+
+    def _find_regs_compared_against_sp(self, func_graph):
+        # TODO: Implement this function for architectures beyond amd64
+        extra_regs = set()
+        if self.project.arch.name == "AMD64":
+            for node in func_graph.nodes:
+                block = self.project.factory.block(node.addr, size=node.size).capstone
+                for insn in block.insns:
+                    if insn.mnemonic == "cmp":
+                        capstone_reg_offset = None
+                        if (
+                            insn.operands[0].type == capstone.x86.X86_OP_REG
+                            and insn.operands[0].reg == capstone.x86.X86_REG_RSP
+                            and insn.operands[1].type == capstone.x86.X86_OP_REG
+                        ):
+                            capstone_reg_offset = insn.operands[1].reg
+                        elif (
+                            insn.operands[1].type == capstone.x86.X86_OP_REG
+                            and insn.operands[1].reg == capstone.x86.X86_REG_RSP
+                            and insn.operands[0].type == capstone.x86.X86_OP_REG
+                        ):
+                            capstone_reg_offset = insn.operands[0].reg
+
+                        if capstone_reg_offset is not None:
+                            reg_name = insn.reg_name(capstone_reg_offset)
+                            extra_regs.add(self.project.arch.registers[reg_name][0])
+
+        return extra_regs
+
+    def _rewrite_alloca(self, ail_graph):
+        # pylint:disable=too-many-boolean-expressions
+        alloca_node = None
+        sp_equal_to = None
+
+        for node in ail_graph:
+            if ail_graph.in_degree[node] == 2 and ail_graph.out_degree[node] == 2:
+                succs = ail_graph.successors(node)
+                if node in succs:
+                    # self loop!
+                    if len(node.statements) >= 6:
+                        stmt0 = node.statements[1]  # skip the LABEL statement
+                        stmt1 = node.statements[2]
+                        last_stmt = node.statements[-1]
+                        if (
+                            isinstance(stmt0, ailment.Stmt.Assignment)
+                            and isinstance(stmt0.dst, ailment.Expr.Register)
+                            and isinstance(stmt0.src, ailment.Expr.StackBaseOffset)
+                            and stmt0.src.offset == -0x1000
+                        ):
+                            if (
+                                isinstance(stmt1, ailment.Stmt.Store)
+                                and isinstance(stmt1.addr, ailment.Expr.StackBaseOffset)
+                                and stmt1.addr.offset == -0x1000
+                                and isinstance(stmt1.data, ailment.Expr.Load)
+                                and isinstance(stmt1.data.addr, ailment.Expr.StackBaseOffset)
+                                and stmt1.data.addr.offset == -0x1000
+                            ):
+                                if (
+                                    isinstance(last_stmt, ailment.Stmt.ConditionalJump)
+                                    and isinstance(last_stmt.condition, ailment.Expr.BinaryOp)
+                                    and last_stmt.condition.op == "CmpEQ"
+                                    and isinstance(last_stmt.condition.operands[0], ailment.Expr.StackBaseOffset)
+                                    and last_stmt.condition.operands[0].offset == -0x1000
+                                    and isinstance(last_stmt.condition.operands[1], ailment.Expr.Register)
+                                    and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                                    and last_stmt.false_target.value == node.addr
+                                ):
+                                    # found it!
+                                    alloca_node = node
+                                    sp_equal_to = ailment.Expr.BinaryOp(
+                                        None,
+                                        "Sub",
+                                        [
+                                            ailment.Expr.Register(
+                                                None, None, self.project.arch.sp_offset, self.project.arch.bits
+                                            ),
+                                            last_stmt.condition.operands[1],
+                                        ],
+                                        False,
+                                    )
+                                    break
+
+        if alloca_node is not None:
+            stmt0 = alloca_node.statements[1]
+            statements = [ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)]
+            new_node = ailment.Block(alloca_node.addr, alloca_node.original_size, statements=statements)
+            # replace the node
+            preds = [pred for pred in ail_graph.predecessors(alloca_node) if pred is not alloca_node]
+            succs = [succ for succ in ail_graph.successors(alloca_node) if succ is not alloca_node]
+            ail_graph.remove_node(alloca_node)
+            for pred in preds:
+                ail_graph.add_edge(pred, new_node)
+            for succ in succs:
+                ail_graph.add_edge(new_node, succ)
 
 
 register_analysis(Clinic, "Clinic")

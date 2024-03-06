@@ -3,6 +3,7 @@
 from typing import Set, List, Optional, TYPE_CHECKING
 import re
 import logging
+from collections import defaultdict
 
 import pyvex
 
@@ -146,6 +147,21 @@ class OffsetVal:
 
     def __repr__(self):
         return f"reg({self.reg}){(self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0:+}"
+
+
+class Eq:
+    """
+    Represent an equivalence condition.
+    """
+
+    __slots__ = ("val0", "val1")
+
+    def __init__(self, val0, val1):
+        self.val0 = val0
+        self.val1 = val1
+
+    def __hash__(self):
+        return hash((type(self), self.val0, self.val1))
 
 
 class FrozenStackPointerTrackerState:
@@ -316,6 +332,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self.reg_offsets = reg_offsets
         self.states = {}
         self._blocks = {}
+        self._reg_value_at_block_start = defaultdict(dict)
 
         _l.debug("Running on function %r", self._func)
         self._analyze()
@@ -483,6 +500,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         except SimTranslationError:
             pass
 
+        if node.addr in self._reg_value_at_block_start:
+            for reg, val in self._reg_value_at_block_start[node.addr].items():
+                state.put(reg, val)
+
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
@@ -548,7 +569,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         and is_alignment_mask(arg1_expr.val)
                     ):
                         return arg0_expr
-                    raise CouldNotResolveException()
+                elif expr.op.startswith("Iop_CmpEQ"):
+                    arg0_expr = _resolve_expr(arg0)
+                    arg1_expr = _resolve_expr(arg1)
+                    if isinstance(arg0_expr, (Register, OffsetVal)) and isinstance(arg1_expr, (Register, OffsetVal)):
+                        return Eq(arg0_expr, arg1_expr)
+                raise CouldNotResolveException()
             elif type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
                 return tmps[expr.tmp]
             elif type(expr) is pyvex.IRExpr.Const:
@@ -563,13 +589,15 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     to_bits = int(m.group(3))
                     # to_unsigned = m.group(4) == "U"
                     v = resolve_expr(expr.args[0])
-                    if not isinstance(v, Constant):
-                        return TOP
-                    if from_bits > to_bits:
-                        # truncation
-                        mask = (1 << to_bits) - 1
-                        return Constant(v.val & mask)
-                    return v
+                    if isinstance(v, Constant):
+                        if from_bits > to_bits:
+                            # truncation
+                            mask = (1 << to_bits) - 1
+                            return Constant(v.val & mask)
+                        return v
+                    elif isinstance(v, Eq):
+                        return v
+                    return TOP
             elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
                 return state.load(_resolve_expr(expr.addr))
             raise CouldNotResolveException()
@@ -606,6 +634,22 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 and vex_block.instruction_addresses.index(curr_stmt_start_addr) == vex_block.instructions - 1
             ):
                 exit_observed = True
+                if (
+                    type(stmt.guard) is pyvex.IRExpr.RdTmp
+                    and stmt.guard.tmp in tmps
+                    and isinstance(stmt.dst, pyvex.IRConst.IRConst)
+                ):
+                    guard = tmps[stmt.guard.tmp]
+                    if isinstance(guard, Eq):
+                        for reg, val in state.regs.items():
+                            if reg in {self.project.arch.sp_offset, self.project.arch.bp_offset}:
+                                cond = None
+                                if val == guard.val0:
+                                    cond = guard.val1
+                                elif val == guard.val1:
+                                    cond = guard.val0
+                                if cond is not None:
+                                    self._reg_value_at_block_start[stmt.dst.value][reg] = cond
             else:
                 try:
                     resolve_stmt(stmt)
