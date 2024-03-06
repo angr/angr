@@ -609,7 +609,7 @@ class Clinic(Analysis):
         if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
             regs.add(self.project.arch.bp_offset)
 
-        regs |= self._find_regs_compared_against_sp(self.function, self._func_graph)
+        regs |= self._find_regs_compared_against_sp(self._func_graph)
 
         spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=self._sp_tracker_track_memory)
         if spt.inconsistent_for(self.project.arch.sp_offset):
@@ -1882,7 +1882,7 @@ class Clinic(Analysis):
         AILGraphWalker(graph, handle_node, replace_nodes=True).walk()
         return graph
 
-    def _find_regs_compared_against_sp(self, func, func_graph):
+    def _find_regs_compared_against_sp(self, func_graph):
         # TODO: Implement this function for architectures beyond amd64
         extra_regs = set()
         if self.project.arch.name == "AMD64":
@@ -1911,6 +1911,7 @@ class Clinic(Analysis):
         return extra_regs
 
     def _rewrite_alloca(self, ail_graph):
+        # pylint:disable=too-many-boolean-expressions
         alloca_node = None
         sp_equal_to = None
 
