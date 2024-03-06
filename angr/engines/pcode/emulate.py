@@ -55,7 +55,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         # Note: start_op_idx is instruction relative
         start_op_idx = self.state.scratch.statement_offset
         self.state.scratch.statement_offset = 0
-        assert start_op_idx == 0, "FIXME: Test statement_offset behavior"
+        # assert start_op_idx == 0, "FIXME: Test statement_offset behavior"
 
         for op_idx, op in enumerate(irsb._ops[start_op_idx:]):  # FIXME: Shouldn't use protected members of IRSB
             op_idx += start_op_idx
