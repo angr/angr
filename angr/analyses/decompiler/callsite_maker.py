@@ -49,6 +49,11 @@ class CallSiteMaker(Analysis):
             self.result_block = self.block
             return
 
+        if isinstance(last_stmt.target, str):
+            # custom function calls
+            self.result_block = self.block
+            return
+
         cc = None
         prototype = None
         func = None

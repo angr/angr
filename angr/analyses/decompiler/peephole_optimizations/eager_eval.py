@@ -1,6 +1,6 @@
 from math import gcd
 
-from ailment.expression import BinaryOp, UnaryOp, Const, Convert
+from ailment.expression import BinaryOp, UnaryOp, Const, Convert, StackBaseOffset
 
 from .base import PeepholeOptimizationExprBase
 
@@ -108,6 +108,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     )
             if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
                 return UnaryOp(expr.idx, "Neg", expr.operands[1], **expr.tags)
+
+            if isinstance(expr.operands[0], StackBaseOffset) and isinstance(expr.operands[1], StackBaseOffset):
+                return Const(expr.idx, None, expr.operands[0].offset - expr.operands[1].offset, expr.bits, **expr.tags)
 
         elif expr.op == "And":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):

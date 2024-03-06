@@ -178,24 +178,36 @@ class StackCanarySimplifier(OptimizationPass):
         # Done!
 
     def _find_canary_init_stmt(self):
-        first_block = self._get_block(self._func.addr)
-        if first_block is None:
-            return None
+        block_addr = self._func.addr
+        traversed = set()
 
-        for idx, stmt in enumerate(first_block.statements):
-            if (
-                isinstance(stmt, ailment.Stmt.Store)
-                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data, ailment.Expr.Load)
-                and self._is_add(stmt.data.addr)
-            ):
-                # Check addr: must be fs+0x28
-                op0, op1 = stmt.data.addr.operands
-                if isinstance(op1, ailment.Expr.Register):
-                    op0, op1 = op1, op0
-                if isinstance(op0, ailment.Expr.Register) and isinstance(op1, ailment.Expr.Const):
-                    if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
-                        return first_block, idx
+        while True:
+            traversed.add(block_addr)
+            first_block = self._get_block(block_addr)
+            if first_block is None:
+                break
+
+            for idx, stmt in enumerate(first_block.statements):
+                if (
+                    isinstance(stmt, ailment.Stmt.Store)
+                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                    and isinstance(stmt.data, ailment.Expr.Load)
+                    and self._is_add(stmt.data.addr)
+                ):
+                    # Check addr: must be fs+0x28
+                    op0, op1 = stmt.data.addr.operands
+                    if isinstance(op1, ailment.Expr.Register):
+                        op0, op1 = op1, op0
+                    if isinstance(op0, ailment.Expr.Register) and isinstance(op1, ailment.Expr.Const):
+                        if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
+                            return first_block, idx
+
+            succs = list(self._graph.successors(first_block))
+            if len(succs) == 1:
+                block_addr = succs[0].addr
+                if block_addr not in traversed:
+                    continue
+            break
 
         return None
 
