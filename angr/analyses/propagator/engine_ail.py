@@ -1148,6 +1148,9 @@ class SimEnginePropagatorAIL(
             )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
+    _ail_handle_AddV = _ail_handle_Add
+    _ail_handle_MulV = _ail_handle_Mul
+
     def _ail_handle_Mull(self, expr):
         o0_value = self._expr(expr.operands[0])
         o1_value = self._expr(expr.operands[1])

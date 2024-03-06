@@ -728,6 +728,9 @@ class SimEngineRDAIL(
         r = MultiValues(self.state.top(bits))
         return r
 
+    _ail_handle_AddV = _ail_handle_Add
+    _ail_handle_MulV = _ail_handle_Mul
+
     def _ail_handle_Mull(self, expr):
         arg0, arg1 = expr.operands
 
