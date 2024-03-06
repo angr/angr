@@ -18,7 +18,7 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if jumpkind != "Ijk_Call":
+        if not (jumpkind == "Ijk_Call" or (jumpkind == "Ijk_Boring" and addr == func_addr)):
             return False
         return True
 
