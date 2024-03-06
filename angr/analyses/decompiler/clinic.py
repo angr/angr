@@ -257,16 +257,13 @@ class Clinic(Analysis):
         block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = {}
 
         # Simplify blocks
-        self._update_progress(35.0, text="Simplifying blocks 0")
-        ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=False, cache=block_simplification_cache)
-        self._rewrite_alloca(ail_graph)
-
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
-        self._update_progress(38.0, text="Simplifying blocks 1")
+        self._update_progress(35.0, text="Simplifying blocks 1")
         ail_graph = self._simplify_blocks(
             ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
         )
+        self._rewrite_alloca(ail_graph)
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
