@@ -9,8 +9,8 @@ from .base import PeepholeOptimizationExprBase
 class Bswap(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    NAME = "Simplifying bswap_16()"
-    expr_classes = (BinaryOp,)  # all expressions are allowed
+    NAME = "Simplifying bswap_16() and bswap_32()"
+    expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp, **kwargs):
         # bswap_16
@@ -47,6 +47,49 @@ class Bswap(PeepholeOptimizationExprBase):
                         return Call(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
 
                     return None
+
+        # bswap_32
+        #   (Conv(64->32, rax<8>) << 0x18<8>) |
+        #   (((Conv(64->32, rax<8>) << 0x8<8>) & 0xff0000<32>) |
+        #   (((Conv(64->32, rax<8>) >> 0x8<8>) & 0xff00<32>) |
+        #   ((Conv(64->32, rax<8>) >> 0x18<8>) & 0xff<32>))))
+        if expr.op == "Or":
+            # fully flatten the expression
+            or_pieces = []
+            queue = [expr]
+            while queue:
+                operand = queue.pop(0)
+                if isinstance(operand, BinaryOp) and operand.op == "Or":
+                    queue.append(operand.operands[0])
+                    queue.append(operand.operands[1])
+                else:
+                    or_pieces.append(operand)
+            if len(or_pieces) == 4:
+                # parse pieces
+                shifts = set()
+                cores = set()
+                for piece in or_pieces:
+                    if isinstance(piece, BinaryOp):
+                        if piece.op == "Shl" and isinstance(piece.operands[1], Const):
+                            cores.add(piece.operands[0])
+                            shifts.add(("<<", piece.operands[1].value, 0xFFFFFFFF))
+                        elif piece.op == "And" and isinstance(piece.operands[1], Const):
+                            and_amount = piece.operands[1].value
+                            and_core = piece.operands[0]
+                            if and_core.op == "Shl" and isinstance(and_core.operands[1], Const):
+                                cores.add(and_core.operands[0])
+                                shifts.add(("<<", and_core.operands[1].value, and_amount))
+                            elif and_core.op == "Shr" and isinstance(and_core.operands[1], Const):
+                                cores.add(and_core.operands[0])
+                                shifts.add((">>", and_core.operands[1].value, and_amount))
+                if len(cores) == 1 and shifts == {
+                    ("<<", 0x18, 0xFFFFFFFF),
+                    ("<<", 8, 0xFF0000),
+                    (">>", 0x18, 0xFF),
+                    (">>", 8, 0xFF00),
+                }:
+                    core_expr = next(iter(cores))
+                    return Call(expr.idx, "__buildin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
 
         return None
 
