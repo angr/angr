@@ -59,6 +59,22 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.signed,
                         **expr.tags,
                     )
+            if (
+                isinstance(expr.operands[0], BinaryOp)
+                and expr.operands[0].op == "Mul"
+                and isinstance(expr.operands[0].operands[1], Const)
+                and expr.operands[0].operands[0].likes(expr.operands[1])
+            ):
+                # A * x + x => (A + 1) * x
+                coeff_expr = expr.operands[0].operands[1]
+                new_coeff = coeff_expr.value + 1
+                return BinaryOp(
+                    expr.idx,
+                    "Mul",
+                    [Const(coeff_expr.idx, None, new_coeff, coeff_expr.bits), expr.operands[1]],
+                    expr.signed,
+                    **expr.tags,
+                )
         elif expr.op == "Sub":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
                 mask = (1 << expr.bits) - 1
