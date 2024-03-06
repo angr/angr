@@ -271,6 +271,12 @@ class SimSuccessors:
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
             self.unconstrained_successors.append(state)
+        elif o.CALLLESS in state.options and state.history.jumpkind == "Ijk_Call" and state.solver.symbolic(target):
+            # If CALLESS is set, even a symbolic call target is allowed, because we don't want to resolve the target
+            # anyway
+            # The actual state will be fixed up later during `VEXMixin.process_successors`
+            self.successors.append(state)
+            self.flat_successors.append(state)
         elif not state.solver.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
             # a successor with a concrete IP, and it's not a syscall
             self.successors.append(state)
