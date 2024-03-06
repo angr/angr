@@ -1774,9 +1774,6 @@ class SimCCARMHF(SimCCARM):
     RETURN_VAL = SimRegArg("r0", 4)  # TODO Return val can also include reg r1
     ARCH = archinfo.ArchARMHF
 
-    def next_arg(self, session, arg_type):
-        return SimCC.next_arg(self, session, arg_type)
-
 
 class SimCCARMLinuxSyscall(SimCCSyscall):
     # TODO: Make sure all the information is correct
