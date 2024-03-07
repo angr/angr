@@ -15,6 +15,7 @@ class DecompilationCache:
     __slots__ = (
         "addr",
         "type_constraints",
+        "func_typevar",
         "var_to_typevar",
         "codegen",
         "clinic",
@@ -25,6 +26,7 @@ class DecompilationCache:
     def __init__(self, addr):
         self.addr = addr
         self.type_constraints: Optional[Set] = None
+        self.func_typevar = None
         self.var_to_typevar: Optional[Dict] = None
         self.codegen: Optional[BaseStructuredCodeGenerator] = None
         self.clinic: Optional[Clinic] = None

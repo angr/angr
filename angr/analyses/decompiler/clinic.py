@@ -1206,6 +1206,7 @@ class Clinic(Analysis):
 
         if self._cache is not None:
             self._cache.type_constraints = vr.type_constraints
+            self._cache.func_typevar = vr.func_typevar
             self._cache.var_to_typevar = vr.var_to_typevars
 
         return tmp_kb
