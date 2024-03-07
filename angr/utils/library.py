@@ -205,7 +205,7 @@ def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
     if not qualified:
         # remove leading namespaces
         chunks = name.split("::")
-        name = "::".join(chunks[-2:])
+        name = "::".join(chunks[2:])
 
     # remove arguments
     if "(" in name:
