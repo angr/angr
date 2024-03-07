@@ -748,19 +748,29 @@ class CFGBase(Analysis):
         for b in binaries:
             if isinstance(b, ELF):
                 # If we have sections, we get result from sections
+                sections = []
                 if not force_segment and b.sections:
                     # Get all executable sections
                     for section in b.sections:
                         if section.is_executable:
                             tpl = (section.min_addr, section.max_addr + 1)
-                            memory_regions.append(tpl)
+                            sections.append(tpl)
+                    memory_regions += sections
 
-                else:
-                    # Get all executable segments
-                    for segment in b.segments:
-                        if segment.is_executable:
-                            tpl = (segment.min_addr, segment.max_addr + 1)
-                            memory_regions.append(tpl)
+                segments = []
+                # Get all executable segments
+                for segment in b.segments:
+                    if segment.is_executable:
+                        tpl = (segment.min_addr, segment.max_addr + 1)
+                        segments.append(tpl)
+                if sections and segments:
+                    # are there executable segments with no sections inside?
+                    for segment in segments:
+                        for section in sections:
+                            if segment[0] <= section[0] < segment[1]:
+                                break
+                        else:
+                            memory_regions.append(segment)
 
             elif isinstance(b, (Coff, PE)):
                 for section in b.sections:
