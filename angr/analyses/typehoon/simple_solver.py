@@ -1079,6 +1079,8 @@ class SimpleSolver:
                 last_labels.append(labels[-1])
 
         # now, what is this variable?
+        result = None
+
         if last_labels and all(isinstance(label, (FuncIn, FuncOut)) for label in last_labels):
             # create a dummy result and dump it to the cache
             func_type = Function([], [])
@@ -1117,22 +1119,8 @@ class SimpleSolver:
             for node in nodes:
                 solution[node.typevar] = result
 
-        elif not path_and_successors:
-            # this is a primitive variable
-            lower_bound = Bottom_
-            upper_bound = Top_
-
-            for node in nodes:
-                lower_bound = self.join(lower_bound, node.lower_bound)
-                upper_bound = self.meet(upper_bound, node.upper_bound)
-                # TODO: Support variables that are accessed via differently sized pointers
-
-            result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
-            for node in nodes:
-                solution[node.typevar] = result
-                self._solution_cache[node.typevar] = result
-
-        else:
+        elif path_and_successors:
+            # maybe this is a pointer to a struct?
             if len(nodes) == 1:
                 the_node = next(iter(nodes))
                 if (
@@ -1203,6 +1191,21 @@ class SimpleSolver:
                 struct_type.fields = fields
                 for node in nodes:
                     solution[node.typevar] = result
+
+        if not path_and_successors or result in {Top_, None}:
+            # this is probably a primitive variable
+            lower_bound = Bottom_
+            upper_bound = Top_
+
+            for node in nodes:
+                lower_bound = self.join(lower_bound, node.lower_bound)
+                upper_bound = self.meet(upper_bound, node.upper_bound)
+                # TODO: Support variables that are accessed via differently sized pointers
+
+            result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
+            for node in nodes:
+                solution[node.typevar] = result
+                self._solution_cache[node.typevar] = result
 
         # import pprint
 
