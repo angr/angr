@@ -3,7 +3,6 @@ from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, 
 from collections import defaultdict
 import logging
 import struct
-from functools import reduce
 
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
