@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 from collections import defaultdict
 
 import claripy
+import itanium_demangler
 
 from ..analyses import AnalysesHub
 from ..analyses.reaching_definitions.function_handler import FunctionHandler
@@ -63,6 +64,11 @@ class NewFunctionHandler(FunctionHandler):
         data: "FunctionCallData",
     ):
         function_address = data.address
+        func = self.project.kb.functions[function_address]
+        try:
+            demangled_name = str(itanium_demangler.parse(func.name))
+        except NotImplementedError:
+            demangled_name = func.name
         if function_address == self.new_func_addr:
             word_size = self.project.arch.bits // self.project.arch.byte_width
             # check if this is a call to new()
@@ -104,7 +110,7 @@ class NewFunctionHandler(FunctionHandler):
             data.depends(memory_location, value=MultiValues(offset_to_values=offset_to_values))
             self.max_addr += size
 
-        elif "ctor" in self.project.kb.functions[function_address].demangled_name:
+        elif "ctor" in demangled_name:
             # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
             # also if the func is a constructor(not stripped binaries)
             for addr, possible_object in self.possible_objects_dict.items():

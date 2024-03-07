@@ -2,6 +2,8 @@ from ..sim_type import SimCppClass, SimTypeCppFunction
 from ..analyses import AnalysesHub
 from . import Analysis, CFGFast, VtableFinder
 
+import itanium_demangler
+
 
 class ClassIdentifier(Analysis):
     """
@@ -25,6 +27,10 @@ class ClassIdentifier(Analysis):
     def _analyze(self):
         # Assigning function to classes
         for func in self.project.kb.functions.values():
+            try:
+                demangled_name = itanium_demangler.parse(func.name)
+            except NotImplementedError:
+                demangled_name = func.name
             if func.is_plt:
                 continue
             col_ind = func.demangled_name.rfind("::")
@@ -34,7 +40,7 @@ class ClassIdentifier(Analysis):
             if col_ind != -1:
                 if class_name not in self.classes:
                     ctor = False
-                    if func.demangled_name.find("{ctor}"):
+                    if demangled_name.find("{ctor}"):
                         ctor = True
                     function_members = {func.addr: SimTypeCppFunction([], None, label=func.demangled_name, ctor=ctor)}
                     new_class = SimCppClass(name=class_name, function_members=function_members)
@@ -42,7 +48,7 @@ class ClassIdentifier(Analysis):
 
                 else:
                     ctor = False
-                    if func.demangled_name.find("{ctor}"):
+                    if demangled_name.find("{ctor}"):
                         ctor = True
                     cur_class = self.classes[class_name]
                     cur_class.function_members[func.addr] = SimTypeCppFunction(
@@ -55,7 +61,11 @@ class ClassIdentifier(Analysis):
                 vtable_calling_func = self.project.kb.functions.floor_func(ref.ins_addr)
                 tmp_col_ind = vtable_calling_func.demangled_name.rfind("::")
                 possible_constructor_class_name = vtable_calling_func.demangled_name[:tmp_col_ind]
-                if "ctor" in vtable_calling_func.demangled_name and possible_constructor_class_name in self.classes:
+                try:
+                    demangled_name = str(itanium_demangler.parse(vtable_calling_func.name))
+                except NotImplementedError:
+                    demangled_name = vtable_calling_func.name
+                if "ctor" in demangled_name and possible_constructor_class_name in self.classes:
                     self.classes[possible_constructor_class_name].vtable_ptrs.append(vtable.vaddr)
 
 
