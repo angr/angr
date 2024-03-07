@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Union, Optional, Iterable, Set
 from typing import Type
 
-from itanium_demangler import parse
+import cxxfilt
 
 from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
@@ -1573,13 +1573,12 @@ class Function(Serializable):
 
     @property
     def demangled_name(self):
-        if self.name[0:2] == "_Z":
+        if self.name.startswith("_Z"):
             try:
-                ast = parse(self.name)
-            except (NotImplementedError, KeyError):  # itanium demangler is not the most robust package in the world
-                return self.name
-            if ast:
-                return ast.__str__()
+                d_name = cxxfilt.demangle(self.name)
+            except cxxfilt.InvalidName:
+                d_name = self.name
+            return d_name
         return self.name
 
     def get_unambiguous_name(self, display_name: Optional[str] = None) -> str:
