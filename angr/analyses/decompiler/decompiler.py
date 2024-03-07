@@ -456,10 +456,10 @@ class Decompiler(Analysis):
             # update the function prototype if needed
             if self.func.prototype is not None and self.func.prototype.args:
                 var_manager = var_kb.variables[self.func.addr]
-                for i in range(len(codegen.cfunc.arg_list)):
+                for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):
                         break
-                    var = codegen.cfunc.arg_list[i].variable
+                    var = arg.variable
                     new_type = var_manager.get_variable_type(var)
                     if new_type is not None:
                         self.func.prototype.args[i] = new_type
