@@ -2608,6 +2608,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if isinstance(var, CVariable):
                 var.variable_type = self._get_variable_type(var.variable, is_global=True)
 
+        for cvar in self.cfunc.arg_list:
+            vartype = self._get_variable_type(
+                cvar.variable,
+                is_global=isinstance(cvar.variable, SimMemoryVariable)
+                and not isinstance(cvar.variable, SimStackVariable),
+            )
+            if vartype is not None:
+                cvar.variable_type = vartype.with_arch(self.project.arch)
+
     #
     # Util methods
     #
