@@ -81,13 +81,13 @@ class ArmElfFastResolver(IndirectJumpResolver):
         endness = self.project.arch.default_endness
 
         count = 0
-        for stmt in block.statements:
+        for next_stmt in block.statements:
             if (
-                isinstance(stmt, pyvex.IRStmt.WrTmp)
-                and isinstance(stmt.data, pyvex.IRExpr.Binop)
-                and "Add" in stmt.data.op
+                isinstance(next_stmt, pyvex.IRStmt.WrTmp)
+                and isinstance(next_stmt.data, pyvex.IRExpr.Binop)
+                and "Add" in next_stmt.data.op
             ):
-                load_addr += stmt.constants[0].value
+                load_addr += next_stmt.constants[0].value
                 count += 1
 
         if count != 2:
@@ -95,7 +95,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
 
         next_target = next(iter(blade.slice.successors(source)))
 
-        if not (next_target[0] == block.addr):
+        if not next_target[0] == block.addr:
             return False, []
 
         # load the address to jump to
