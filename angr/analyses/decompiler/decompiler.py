@@ -10,7 +10,7 @@ import ailment
 from angr.analyses.cfg import CFGFast
 from ...knowledge_plugins.functions.function import Function
 from ...knowledge_base import KnowledgeBase
-from ...sim_variable import SimMemoryVariable
+from ...sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
 from .structuring import RecursiveStructurer, PhoenixStructurer
@@ -403,7 +403,7 @@ class Decompiler(Analysis):
                     SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
                 )
 
-    def reflow_variable_types(self, type_constraints: Set, var_to_typevar: Dict, codegen):
+    def reflow_variable_types(self, type_constraints: Set, func_typevar, var_to_typevar: Dict, codegen):
         """
         Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
 
@@ -439,13 +439,30 @@ class Decompiler(Analysis):
         try:
             tp = self.project.analyses.Typehoon(
                 type_constraints,
+                func_typevar,
                 kb=var_kb,
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
             )
-            tp.update_variable_types(self.func.addr, var_to_typevar)
-            tp.update_variable_types("global", var_to_typevar)
+            tp.update_variable_types(
+                self.func.addr,
+                {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
+            )
+            tp.update_variable_types(
+                "global",
+                {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
+            )
+            # update the function prototype if needed
+            if self.func.prototype is not None and self.func.prototype.args:
+                var_manager = var_kb.variables[self.func.addr]
+                for i in range(len(codegen.cfunc.arg_list)):
+                    if i >= len(self.func.prototype.args):
+                        break
+                    var = codegen.cfunc.arg_list[i].variable
+                    new_type = var_manager.get_variable_type(var)
+                    if new_type is not None:
+                        self.func.prototype.args[i] = new_type
         except Exception:  # pylint:disable=broad-except
             l.warning(
                 "Typehoon analysis failed. Variables will not have types. Please report to GitHub.", exc_info=True
