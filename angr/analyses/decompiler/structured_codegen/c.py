@@ -3,7 +3,6 @@ from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, 
 from collections import defaultdict
 import logging
 import struct
-from functools import reduce
 
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
@@ -2842,30 +2841,40 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if len(o_terms) == 0:
                 # probably a plain integer, return as is
                 return expr
-            result = reduce(
-                lambda a1, a2: CBinaryOp("Add", a1, a2, codegen=self),
-                (
-                    (
-                        CBinaryOp(
-                            "Mul",
-                            CConstant(c, t.type, codegen=self),
-                            (
-                                t
-                                if not isinstance(t.type, SimTypePointer)
-                                else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
-                            ),
-                            codegen=self,
-                        )
-                        if c != 1
-                        else (
+            result = None
+            pointer_length_int_type = (
+                SimTypeLongLong(signed=False) if self.project.arch.bits == 64 else SimTypeInt(signed=False)
+            )
+            for c, t in o_terms:
+                op = "Add"
+                if c == -1 and result is not None:
+                    op = "Sub"
+                    piece = (
+                        t
+                        if not isinstance(t.type, SimTypePointer)
+                        else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
+                    )
+                elif c == 1:
+                    piece = (
+                        t
+                        if not isinstance(t.type, SimTypePointer)
+                        else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
+                    )
+                else:
+                    piece = CBinaryOp(
+                        "Mul",
+                        CConstant(c, t.type, codegen=self),
+                        (
                             t
                             if not isinstance(t.type, SimTypePointer)
-                            else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
-                        )
+                            else CTypeCast(t.type, pointer_length_int_type, t, codegen=self)
+                        ),
+                        codegen=self,
                     )
-                    for c, t in o_terms
-                ),
-            )
+                if result is None:
+                    result = piece
+                else:
+                    result = CBinaryOp(op, result, piece, codegen=self)
             if o_constant != 0:
                 result = CBinaryOp("Add", CConstant(o_constant, SimTypeInt(), codegen=self), result, codegen=self)
 
@@ -2887,6 +2896,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if isinstance(unpack_typeref(t.type), SimTypePointer):
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
+                    return bail_out()
+                if c == -1:
+                    # legit case: you can deduct a pointer from another pointer and get an integer as result in C
                     return bail_out()
                 if c != 1:
                     l.warning("Multiplying a pointer by a constant??")
