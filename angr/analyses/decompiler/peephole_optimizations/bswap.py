@@ -76,10 +76,18 @@ class Bswap(PeepholeOptimizationExprBase):
                         elif piece.op == "And" and isinstance(piece.operands[1], Const):
                             and_amount = piece.operands[1].value
                             and_core = piece.operands[0]
-                            if and_core.op == "Shl" and isinstance(and_core.operands[1], Const):
+                            if (
+                                isinstance(and_core, BinaryOp)
+                                and and_core.op == "Shl"
+                                and isinstance(and_core.operands[1], Const)
+                            ):
                                 cores.add(and_core.operands[0])
                                 shifts.add(("<<", and_core.operands[1].value, and_amount))
-                            elif and_core.op == "Shr" and isinstance(and_core.operands[1], Const):
+                            elif (
+                                isinstance(and_core, BinaryOp)
+                                and and_core.op == "Shr"
+                                and isinstance(and_core.operands[1], Const)
+                            ):
                                 cores.add(and_core.operands[0])
                                 shifts.add((">>", and_core.operands[1].value, and_amount))
                 if len(cores) == 1 and shifts == {
