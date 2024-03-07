@@ -3,7 +3,7 @@ from typing import Tuple, List, Optional, Dict
 import logging
 
 from ailment import Block
-from ailment.statement import Jump, ConditionalJump, Statement
+from ailment.statement import Jump, ConditionalJump, Statement, DirtyStatement
 import networkx as nx
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -133,8 +133,13 @@ class CodeMotionOptimization(OptimizationPass):
         """
         # TODO: how can you handle an odd-numbered switch case? or many blocks with the same child?
         for b0, b1 in itertools.combinations(graph.nodes, 2):
-            # ignore exact copies
-            if b0 is b1 or not b0.statements or not b1.statements or is_similar(b0, b1):
+            if (
+                b0 is b1
+                or not b0.statements
+                or not b1.statements
+                or is_similar(b0, b1)
+                or any(isinstance(stmt, DirtyStatement) for stmt in b0.statements + b1.statements)
+            ):
                 continue
 
             # TODO: add support for moving code to a shared parent block, which requires that we figure out how to
