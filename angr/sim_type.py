@@ -60,6 +60,8 @@ class SimType:
             attr_self = getattr(self, attr)
             attr_other = getattr(other, attr)
             if isinstance(attr_self, SimType):
+                if attr_other is attr_self:
+                    return True
                 if avoid is not None and attr_self in avoid["self"] and attr_other in avoid["other"]:
                     continue
                 if not attr_self.__eq__(attr_other, avoid=avoid):
