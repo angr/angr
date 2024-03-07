@@ -2848,14 +2848,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             for c, t in o_terms:
                 op = "Add"
-                if c == -1:
+                if c == -1 and result is not None:
                     op = "Sub"
                     piece = (
                         t
                         if not isinstance(t.type, SimTypePointer)
                         else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
                     )
-                elif c == 1 and result is not None:
+                elif c == 1:
                     piece = (
                         t
                         if not isinstance(t.type, SimTypePointer)
