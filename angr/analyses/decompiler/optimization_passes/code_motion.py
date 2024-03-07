@@ -137,8 +137,8 @@ class CodeMotionOptimization(OptimizationPass):
                 b0 is b1
                 or not b0.statements
                 or not b1.statements
-                or is_similar(b0, b1)
                 or any(isinstance(stmt, DirtyStatement) for stmt in b0.statements + b1.statements)
+                or is_similar(b0, b1)
             ):
                 continue
 
