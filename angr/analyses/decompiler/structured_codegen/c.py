@@ -2195,10 +2195,10 @@ class CConstant(CExpression):
 
         str_value = None
         if self.fmt_char:
-            try:
-                str_value = f"'{chr(value)}'"
-            except ValueError:
-                str_value = None
+            if value < 0:
+                value += 2**self._type.size
+            value &= 0xFF
+            return repr(chr(value)) if value < 0x80 else f"'\\x{value:x}'"
 
         if str_value is None:
             if self.fmt_hex:
