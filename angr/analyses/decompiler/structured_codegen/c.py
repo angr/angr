@@ -586,7 +586,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield " ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
-            normalized_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=False)
+            normalized_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=True)
         else:
             normalized_name = self.name
         yield normalized_name, self
