@@ -312,7 +312,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     """
 
     def __init__(
-        self, func: Optional[Function], reg_offsets: Set[int], block: Optional["Block"] = None, track_memory=True
+        self,
+        func: Optional[Function],
+        reg_offsets: Set[int],
+        block: Optional["Block"] = None,
+        track_memory=True,
+        cross_insn_opt=True,
     ):
         if func is not None:
             if not func.normalized:
@@ -333,6 +338,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self.states = {}
         self._blocks = {}
         self._reg_value_at_block_start = defaultdict(dict)
+        self.cross_insn_opt = cross_insn_opt
 
         _l.debug("Running on function %r", self._func)
         self._analyze()
@@ -485,7 +491,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._set_state(addr, new_val, "pre")
 
     def _run_on_node(self, node: BlockNode, state):
-        block = self.project.factory.block(node.addr, size=node.size)
+        block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self.cross_insn_opt)
         self._blocks[node.addr] = block
 
         state = state.unfreeze()
