@@ -2183,29 +2183,24 @@ class CConstant(CExpression):
 
         if self.fmt_float:
             if 0 < value <= 0xFFFF_FFFF:
-                str_value = str(struct.unpack("f", struct.pack("I", value))[0])
-                return str_value
+                return str(struct.unpack("f", struct.pack("I", value))[0])
+
+        if self.fmt_char:
+            if value < 0:
+                value += 2**self._type.size
+            value &= 0xFF
+            return repr(chr(value)) if value < 0x80 else f"'\\x{value:x}'"
 
         if self.fmt_neg:
             if value > 0:
-                value = value - 2**self._type.size
+                value -= 2**self._type.size
             elif value < 0:
-                value = value + 2**self._type.size
+                value += 2**self._type.size
 
-        str_value = None
-        if self.fmt_char:
-            try:
-                str_value = f"'{chr(value)}'"
-            except ValueError:
-                str_value = None
+        if self.fmt_hex:
+            return hex(value)
 
-        if str_value is None:
-            if self.fmt_hex:
-                str_value = hex(value)
-            else:
-                str_value = str(value)
-
-        return str_value
+        return str(value)
 
 
 class CRegister(CExpression):
