@@ -23,6 +23,7 @@ from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
+from ...knowledge_plugins.key_definitions.atoms import Register as RegisterAtom
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from .. import Analysis, AnalysesHub
@@ -856,6 +857,25 @@ class AILSimplifier(Analysis):
             all_uses_replaced = True
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
+
+                use_expr_defns = []
+                for d in rd.all_uses.get_uses_by_location(u):
+                    if (
+                        isinstance(d.atom, RegisterAtom)
+                        and isinstance(def_.atom, RegisterAtom)
+                        and d.atom.reg_offset == def_.atom.reg_offset
+                    ):
+                        use_expr_defns.append(d)
+                    elif d.atom == def_.atom:
+                        use_expr_defns.append(d)
+                # you can never replace a use with dependencies from outside the checked defn
+                if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
+                    if not use_expr_defns:
+                        _l.warning("There was no use_expr_defns for %s, this is likely a bug", u)
+                    # TODO: can you have multiple definitions which can all be eliminated?
+                    all_uses_replaced = False
+                    continue
+
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
