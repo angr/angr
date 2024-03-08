@@ -1,6 +1,6 @@
 from typing import Tuple, Optional
 
-from ailment.expression import BinaryOp, Const, Expression, Convert
+from ailment.expression import BinaryOp, Const, Expression, Convert, Register
 from ailment.statement import Call
 
 from .base import PeepholeOptimizationExprBase
@@ -76,6 +76,8 @@ class Bswap(PeepholeOptimizationExprBase):
                         elif piece.op == "And" and isinstance(piece.operands[1], Const):
                             and_amount = piece.operands[1].value
                             and_core = piece.operands[0]
+                            if isinstance(and_core, Register):
+                                return None
                             if and_core.op == "Shl" and isinstance(and_core.operands[1], Const):
                                 cores.add(and_core.operands[0])
                                 shifts.add(("<<", and_core.operands[1].value, and_amount))
