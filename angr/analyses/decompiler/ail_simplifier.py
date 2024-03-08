@@ -858,18 +858,23 @@ class AILSimplifier(Analysis):
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
 
-                # TODO: do these check for uses of MemoryLocation
-                if isinstance(used_expr, Register):
-                    use_expr_defns = [
-                        d
-                        for d in rd.all_uses.get_uses_by_location(u)
-                        if isinstance(d, RegisterAtom) and d.reg_offset == used_expr.reg_offset
-                    ]
-                    # you can never replace a use with dependencies from outside the checked defn
-                    if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
-                        # TODO: can you have multiple definitions which can all be eliminated?
-                        all_uses_replaced = False
-                        continue
+                use_expr_defns = []
+                for d in rd.all_uses.get_uses_by_location(u):
+                    if (
+                        isinstance(d.atom, RegisterAtom)
+                        and isinstance(def_.atom, Register)
+                        and d.atom.reg_offset == def_.atom.reg_offset
+                    ):
+                        use_expr_defns.append(d)
+                    elif d.atom == def_.atom:
+                        use_expr_defns.append(d)
+                # you can never replace a use with dependencies from outside the checked defn
+                if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
+                    if not use_expr_defns:
+                        _l.warning("There was no use_expr_defns for %s, this is likely a bug", u)
+                    # TODO: can you have multiple definitions which can all be eliminated?
+                    all_uses_replaced = False
+                    continue
 
                 if u == eq.codeloc:
                     # skip the very initial assignment location
