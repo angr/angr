@@ -1,8 +1,8 @@
+import itanium_demangler
+
 from ..sim_type import SimCppClass, SimTypeCppFunction
 from ..analyses import AnalysesHub
 from . import Analysis, CFGFast, VtableFinder
-
-import itanium_demangler
 
 
 class ClassIdentifier(Analysis):
@@ -28,7 +28,7 @@ class ClassIdentifier(Analysis):
         # Assigning function to classes
         for func in self.project.kb.functions.values():
             try:
-                demangled_name = itanium_demangler.parse(func.name)
+                demangled_name = str(itanium_demangler.parse(func.name))
             except NotImplementedError:
                 demangled_name = func.name
             if func.is_plt:
