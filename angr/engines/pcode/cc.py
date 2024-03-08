@@ -43,7 +43,7 @@ class SimCCSPARC(SimCC):
     Default CC for SPARC
     """
 
-    ARG_REGS = ["o0", "o1"]
+    ARG_REGS = ["o0", "o1", "o2", "o3", "o4", "o5"]
     RETURN_VAL = SimRegArg("o0", 8)
     RETURN_ADDR = SimRegArg("o7", 8)
 
