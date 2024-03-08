@@ -3492,11 +3492,7 @@ class TestDecompiler(unittest.TestCase):
         assert m0 is not None or m1 is not None
 
     @structuring_algo("phoenix")
-    def test_ret_dupe(self, decompiler_options=None):
-        """
-        Tests that assignments to RAX still exist in the decompilation after one of the assignments
-        gets propagated to be RSI, which can results in the removal of the RAX assignment with bad propagation.
-        """
+    def test_less_ret_dupe_gs_data_processor(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "gs_data_processor")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
