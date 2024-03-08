@@ -3404,6 +3404,25 @@ class TestDecompiler(unittest.TestCase):
         assert text.count("v3 = 3") == 1
         assert "else" not in text
 
+    @for_all_structuring_algos
+    def test_propagation_gs_data_processor(self, decompiler_options=None):
+        """
+        Tests that assignments to RAX still exist in the decompilation after one of the assignments
+        gets propagated to be RSI, which can results in the removal of the RAX assignment.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "gs_data_processor")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["science_process"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        text = d.codegen.text
+        text = text.replace("4294967295", "-1")
+
+        assert "-1" in text
+        assert "16" in text
+
 
 if __name__ == "__main__":
     unittest.main()

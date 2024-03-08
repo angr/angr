@@ -856,6 +856,13 @@ class AILSimplifier(Analysis):
             all_uses_replaced = True
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
+
+                # you can never replace a use with dependencies from outside the checked defn
+                use_expr_defns = rd.all_uses.get_uses_by_location(u)
+                if len(use_expr_defns) > 1 or list(use_expr_defns)[0] != def_:
+                    # TODO: can you have multiple definitions which can all be eliminated?
+                    all_uses_replaced = False
+                    continue
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
