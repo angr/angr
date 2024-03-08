@@ -859,7 +859,7 @@ class AILSimplifier(Analysis):
 
                 # you can never replace a use with dependencies from outside the checked defn
                 use_expr_defns = rd.all_uses.get_uses_by_location(u)
-                if len(use_expr_defns) > 1 or list(use_expr_defns)[0] != def_:
+                if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
                     # TODO: can you have multiple definitions which can all be eliminated?
                     all_uses_replaced = False
                     continue
