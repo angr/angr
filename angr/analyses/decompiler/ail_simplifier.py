@@ -862,7 +862,7 @@ class AILSimplifier(Analysis):
                 for d in rd.all_uses.get_uses_by_location(u):
                     if (
                         isinstance(d.atom, RegisterAtom)
-                        and isinstance(def_.atom, Register)
+                        and isinstance(def_.atom, RegisterAtom)
                         and d.atom.reg_offset == def_.atom.reg_offset
                     ):
                         use_expr_defns.append(d)
