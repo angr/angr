@@ -256,6 +256,7 @@ class StructuringOptimizationPass(OptimizationPass):
         recover_structure_fails=True,
         max_opt_iters=1,
         simplify_ail=True,
+        require_gotos=True,
         **kwargs,
     ):
         super().__init__(func, **kwargs)
@@ -264,6 +265,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._recover_structure_fails = recover_structure_fails
         self._max_opt_iters = max_opt_iters
         self._simplify_ail = simplify_ail
+        self._require_gotos = require_gotos
 
         self._goto_manager: Optional[GotoManager] = None
         self._prev_graph: Optional[networkx.DiGraph] = None
@@ -279,6 +281,9 @@ class StructuringOptimizationPass(OptimizationPass):
             return
 
         initial_gotos = self._goto_manager.gotos.copy()
+        if self._require_gotos and not initial_gotos:
+            return
+
         # replace the normal check in OptimizationPass.analyze()
         ret, cache = self._check()
         if not ret:
@@ -317,6 +322,9 @@ class StructuringOptimizationPass(OptimizationPass):
 
     def _fixed_point_analyze(self, cache=None):
         for _ in range(self._max_opt_iters):
+            if self._require_gotos and not self._goto_manager.gotos:
+                break
+
             # backup the graph before the optimization
             if self._recover_structure_fails and self.out_graph is not None:
                 self._prev_graph = networkx.DiGraph(self.out_graph)

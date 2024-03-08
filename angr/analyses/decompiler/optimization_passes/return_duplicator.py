@@ -56,7 +56,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
         # internal parameters that should be used by Clinic
         node_idx_start: int = 0,
         # settings
-        max_opt_iters: int = 10,
+        max_opt_iters: int = 4,
         max_calls_in_regions: int = 2,
         prevent_new_gotos: bool = True,
         minimize_copies_for_regions: bool = True,
