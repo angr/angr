@@ -43,7 +43,6 @@ libc.set_non_returning(
     "__longjmp_chk",
     "__siglongjmp_chk",
 )
-libc.add_alias("exit", "_exit", "_Exit")
 
 
 #
@@ -6849,6 +6848,9 @@ libc.add_alias("getc", "_IO_getc")
 libc.add_alias("putc", "_IO_putc")
 libc.add_alias("gets", "_IO_gets")
 libc.add_alias("puts", "_IO_puts")
+libc.add_alias("exit", "_exit", "_Exit")
+libc.add_alias("sprintf", "siprintf")
+libc.add_alias("snprintf", "sniprintf")
 
 
 #
