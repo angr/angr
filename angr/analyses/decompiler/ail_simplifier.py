@@ -23,7 +23,6 @@ from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
-from ...knowledge_plugins.key_definitions.atoms import Atom
 from ...knowledge_plugins.key_definitions.atoms import Register as RegisterAtom
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -859,27 +858,19 @@ class AILSimplifier(Analysis):
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
 
-                # you can never replace a use with dependencies from outside the checked defn
-                used_atom = Atom.from_ail_expr(used_expr, self.project.arch)
-                use_expr_defns = []
-                # collect all definitions of the used atom
-                for d in rd.all_uses.get_uses_by_location(u):
-                    if (
-                        isinstance(d.atom, RegisterAtom)
-                        and isinstance(used_atom, RegisterAtom)
-                        and d.atom.reg_offset == used_atom.reg_offset
-                    ):
-                        use_expr_defns.append(d)
-                    elif d.atom == used_atom:
-                        use_expr_defns.append(d)
-                if not use_expr_defns:
-                    _l.debug("An expression which should have definitions had none. This is likley a bug!")
-                    all_uses_replaced = False
-                    continue
-                if len(use_expr_defns) > 1 or list(use_expr_defns)[0] != def_:
-                    # TODO: can you have multiple definitions which can all be eliminated?
-                    all_uses_replaced = False
-                    continue
+                # TODO: do these check for uses of MemoryLocation
+                if isinstance(used_expr, Register):
+                    use_expr_defns = [
+                        d
+                        for d in rd.all_uses.get_uses_by_location(u)
+                        if isinstance(d, RegisterAtom) and d.reg_offset == used_expr.reg_offset
+                    ]
+                    # you can never replace a use with dependencies from outside the checked defn
+                    if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
+                        # TODO: can you have multiple definitions which can all be eliminated?
+                        all_uses_replaced = False
+                        continue
+
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
