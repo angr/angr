@@ -317,7 +317,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         reg_offsets: Set[int],
         block: Optional["Block"] = None,
         track_memory=True,
-        cross_insn_opt=False,
+        cross_insn_opt=True,
     ):
         if func is not None:
             if not func.normalized:

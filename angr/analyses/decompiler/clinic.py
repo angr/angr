@@ -611,7 +611,9 @@ class Clinic(Analysis):
 
         regs |= self._find_regs_compared_against_sp(self._func_graph)
 
-        spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=self._sp_tracker_track_memory)
+        spt = self.project.analyses.StackPointerTracker(
+            self.function, regs, track_memory=self._sp_tracker_track_memory, cross_insn_opt=False
+        )
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
