@@ -3206,13 +3206,13 @@ class TestDecompiler(unittest.TestCase):
 
         # XXX: this a hack that should be fixed in some other place
         text = d.codegen.text.replace("4294967295", "-1")
+        text = text.replace("4294967294", "-2")
         text = text.replace("\n", " ")
 
         first_if_location = text.find("if (")
         # the very first if-stmt in this function should be a single scope with a return.
-        # there should be no else scope as well.
-        # TODO: fix the dead-variable elimination pass so that it does remove the extra assign here
-        correct_ifs = list(re.finditer(r"if \(.*?\) {5}\{.*? return -1; {5}}", text))
+        # there should be no else scope as well and everything should be a const return
+        correct_ifs = list(re.finditer(r"if \(.*?\) {5}\{ {9}return -1; {5}}", text))
         assert len(correct_ifs) >= 1
 
         first_correct_if = correct_ifs[0]

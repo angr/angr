@@ -335,6 +335,7 @@ class StructuringOptimizationPass(OptimizationPass):
         simp = self.project.analyses.AILSimplifier(
             self._func,
             func_graph=graph,
+            use_callee_saved_regs_at_return=False,
             gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
         )
         return simp.func_graph if simp.simplified else graph
