@@ -234,10 +234,10 @@ class AILSimplifier(Analysis):
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
             if isinstance(def_.atom, atoms.Register):
                 # only do this for general purpose register
-                skip_def = True
+                skip_def = False
                 for reg in self.project.arch.register_list:
-                    if reg.vex_offset == def_.atom.reg_offset and reg.general_purpose:
-                        skip_def = False
+                    if reg.vex_offset == def_.atom.reg_offset and not reg.general_purpose:
+                        skip_def = True
                         break
 
                 if skip_def:
