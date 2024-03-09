@@ -6,7 +6,7 @@ import inspect
 from collections import defaultdict
 from typing import Optional, Dict, Type, List, TYPE_CHECKING
 
-import itanium_demangler
+import cxxfilt
 
 import archinfo
 
@@ -345,13 +345,12 @@ class SimCppLibrary(SimLibrary):
 
     @staticmethod
     def _try_demangle(name):
-        if name[0:2] == "_Z":
+        if name.startswith("_Z"):
             try:
-                ast = itanium_demangler.parse(name)
-            except NotImplementedError:
-                return name
-            if ast:
-                return str(ast)
+                demangled_name = cxxfilt.demangle(name)
+            except cxxfilt.InvalidName:
+                demangled_name = name
+            return demangled_name
         return name
 
     @staticmethod
