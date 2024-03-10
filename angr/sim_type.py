@@ -1299,9 +1299,9 @@ class SimStruct(NamedTypeMixin, SimType):
 
             # Apply a workaround to avoid recursive SimStruct comparison
             # Recursive comparison example:
-            # typedef struct struct_0 {
+            # struct struct_0 {
             #     struct struct_0 *field_0;
-            # } struct_0;
+            # };
             def get_data_type(ptr_type):
                 cur_type = ptr_type
                 while isinstance(cur_type, SimTypePointer):
