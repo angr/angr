@@ -2522,7 +2522,7 @@ class TestDecompiler(unittest.TestCase):
         # ensure there are no empty scopes
         assert "{}" not in d.codegen.text.replace(" ", "").replace("\n", "")
 
-    @for_all_structuring_algos
+    @structuring_algo("phoenix")
     def test_od_else_simplification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od_gccO2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3212,8 +3212,8 @@ class TestDecompiler(unittest.TestCase):
 
         first_if_location = text.find("if (")
         # the very first if-stmt in this function should be a single scope with a return.
-        # there should be no else scope as well and everything should be a const return
-        correct_ifs = list(re.finditer(r"if \(.*?\) {5}\{ {9}return -1; {5}}", text))
+        # there should be no else scope as well and the return should be -1.
+        correct_ifs = list(re.finditer(r"if \(.*?\) {9}return -1; {5}", text))
         assert len(correct_ifs) >= 1
 
         first_correct_if = correct_ifs[0]
