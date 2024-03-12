@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 
 
 # order matters!
+<<<<<<< HEAD
 ALL_OPTIMIZATION_PASSES = [
     RegisterSaveAreaSimplifier,
     StackCanarySimplifier,
