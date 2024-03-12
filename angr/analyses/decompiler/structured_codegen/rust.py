@@ -2069,6 +2069,9 @@ class RustConstant(RustExpression):
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return
+                elif isinstance(v, str):
+                    yield RustConstant.str_to_rust_str(v), self
+                    return
                 elif isinstance(v, Function):
                     yield get_rust_function_name(v.demangled_name), self
                     return
@@ -3341,7 +3344,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Str(self, expr: Str, **kwargs):
         type_ = RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
-        reference_values = {type_: expr.data}
+        reference_values = {type_: expr.decoded_str}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):

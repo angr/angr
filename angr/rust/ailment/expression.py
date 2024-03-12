@@ -5,10 +5,10 @@ from ...knowledge_plugins.cfg import MemoryData
 
 
 class Str(ailment.Const):
-    def __init__(self, idx, variable, value, bits, data: MemoryData, **kwargs):
+    def __init__(self, idx, variable, value, bits, decoded_str, **kwargs):
         super().__init__(idx, variable, value, bits, **kwargs)
 
-        self.data = data
+        self.decoded_str = decoded_str
 
     @property
     def size(self):
@@ -16,16 +16,16 @@ class Str(ailment.Const):
 
     @property
     def length(self):
-        return self.data.size
+        return len(self.decoded_str)
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        return f'"{self.data.content.decode()}"'
+        return f'"{self.decoded_str}"'
 
     def copy(self) -> "Str":
-        return Str(self.idx, self.variable, self.value, self.bits, self.data, **self.tags)
+        return Str(self.idx, self.variable, self.value, self.bits, self.decoded_str, **self.tags)
 
 
 class VecInitialization(ailment.statement.Statement):
