@@ -2,17 +2,16 @@
 from functools import wraps
 from typing import Optional, List
 
+from ... import knowledge_plugins
+from ...knowledge_plugins.plugin import KnowledgeBasePlugin
+from ...sim_variable import SimStackVariable
+from ..variables.variable_manager import VariableManagerInternal
+
 binsync_available = None
 binsync = None
 Client = None
 StackVariable = None
 StackOffsetType = None
-
-
-from ... import knowledge_plugins
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
-from ...sim_variable import SimStackVariable
-from ..variables.variable_manager import VariableManagerInternal
 
 
 def import_binsync():

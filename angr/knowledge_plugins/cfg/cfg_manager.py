@@ -8,6 +8,9 @@ from .cfg_model import CFGModel
 
 
 class CFGManager(KnowledgeBasePlugin):
+    """
+    This is the CFG manager, it manages CFGs
+    """
     def __init__(self, kb):
         super().__init__(kb=kb)
 
