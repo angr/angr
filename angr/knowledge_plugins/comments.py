@@ -2,9 +2,9 @@ from .plugin import KnowledgeBasePlugin
 
 
 class Comments(KnowledgeBasePlugin, dict):
-    def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+    """
+    Tracks comments via a Dict of Address -> Text
+    """
 
     def copy(self):
         o = Comments(self._kb)

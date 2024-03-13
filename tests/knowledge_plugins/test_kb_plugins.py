@@ -75,8 +75,7 @@ class TestKbPlugins(unittest.TestCase):
 
         # Check that explicitly creating and registering new kind of plugin also works
         class TestPlugin(angr.knowledge_plugins.KnowledgeBasePlugin):
-            def __init__(self, kb=None):
-                self._kb = kb
+            pass
 
         # Assert that unknown plugins return None when using "get_knowledge"
         assert p.kb.get_knowledge(TestPlugin) is None

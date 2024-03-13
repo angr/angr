@@ -33,11 +33,10 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self.kb = kb
+        super().__init__(kb=kb)
 
     def copy(self):
-        o = TypesStore(self.kb)
+        o = TypesStore(self._kb)
         o.update(super().items())
         return o
 
@@ -51,7 +50,7 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
         if type(value) is not TypeRef:
             raise TypeError("Can only store TypeRefs in TypesStore")
 
-        super().__setitem__(item, value.with_arch(self.kb._project.arch))
+        super().__setitem__(item, value.with_arch(self._kb._project.arch))
 
     def __iter__(self):
         yield from super().__iter__()
