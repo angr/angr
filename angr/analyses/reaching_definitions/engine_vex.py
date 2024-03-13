@@ -460,9 +460,6 @@ class SimEngineRDVEX(
                         else:
                             v = self.state.annotate_with_def(claripy.BVV(val, size * self.arch.byte_width), missing_def)
                         vs = MultiValues(v)
-                        if not section or section.is_writable:
-                            self.state.memory.store(addr_v, vs, size=size, endness=endness)
-                            self.state.all_definitions.add(missing_def)
                         defs = {missing_def}
                     except KeyError:
                         continue
