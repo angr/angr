@@ -4496,10 +4496,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         self._seg_list.occupy(real_addr, irsb_size, "code")
                         self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
-                    return None, None, None, None
+                    if irsb_size == 0:
+                        return None, None, None, None
 
-                else:
-                    self._seg_list.occupy(real_addr, irsb_size, "code")
+                self._seg_list.occupy(real_addr, irsb_size, "code")
+                if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
             # Occupy the block in segment list
