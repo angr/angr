@@ -2076,8 +2076,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Mark the address as traced
             self._traced_addresses.add(real_addr)
 
-        # irsb cannot be None here
-        # assert irsb is not None
+        # irsb cannot be None here, but we add a check for resilience
+        if irsb is None:
+            return []
 
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
@@ -4496,10 +4497,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         self._seg_list.occupy(real_addr, irsb_size, "code")
                         self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
-                    return None, None, None, None
+                    if irsb_size == 0:
+                        return None, None, None, None
 
-                else:
-                    self._seg_list.occupy(real_addr, irsb_size, "code")
+                self._seg_list.occupy(real_addr, irsb_size, "code")
+                if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
             # Occupy the block in segment list
@@ -4801,23 +4803,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
             try:
-                existing_node = self._nodes[assumption_addr]
-                self._model.remove_node(assumption_addr, existing_node)
+                existing_node_arm = self._nodes[assumption_addr]
+                self._model.remove_node(assumption_addr, existing_node_arm)
             except KeyError:
-                existing_node = None
-            if existing_node is None:
+                existing_node_arm = None
+            existing_node_thumb = None
+            if existing_node_arm is None:
                 try:
-                    existing_node = self._nodes[assumption_addr + 1]
-                    self._model.remove_node(assumption_addr + 1, existing_node)
+                    existing_node_thumb = self._nodes[assumption_addr + 1]
+                    self._model.remove_node(assumption_addr + 1, existing_node_thumb)
                 except KeyError:
-                    existing_node = None
+                    existing_node_thumb = None
 
-            if existing_node is not None:
+            for existing_node in [existing_node_arm, existing_node_thumb]:
+                if existing_node is None:
+                    continue
                 # remove the node from the graph
                 if existing_node in self.graph:
                     self.graph.remove_node(existing_node)
                 # remove the function (if exists)
-                if existing_node.addr in self.functions:
+                if self.functions.contains_addr(existing_node.addr):
                     del self.functions[existing_node.addr]
 
                 # update indirect_jumps_to_resolve
@@ -4827,7 +4832,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                 self._remove_jobs_by_source_node_addr(existing_node.addr)
 
-                # remove traced addresses
+            if assumption_addr not in self._nodes and assumption_addr + 1 not in self._nodes:
+                # remove the address (the real address) from the traced addresses set. only remove this address if both
+                # the ARM node and the THUMB node no longer exist.
                 self._traced_addresses.discard(assumption.addr)
 
     def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> Optional[int]:

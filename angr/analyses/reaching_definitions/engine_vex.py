@@ -36,6 +36,8 @@ class SimEngineRDVEX(
     Implements the VEX execution engine for reaching definition analysis.
     """
 
+    state: ReachingDefinitionsState
+
     def __init__(self, project, functions=None, function_handler=None):
         super().__init__()
         self.project = project
@@ -94,6 +96,23 @@ class SimEngineRDVEX(
         )
         self.state.move_codelocs(new_codeloc)
         self.state.analysis.model.at_new_stmt(new_codeloc)
+
+    def _is_top(self, expr):
+        """
+        MultiValues are not really "top" in the stricter sense. They are just a collection of values,
+        some of which might be top
+        """
+        return False
+
+    def _top(self, size) -> MultiValues:
+        """
+        Because _is_top is always False, this method is only very rarely called.
+        Currently, it is only expected to be called from the _handle_Cmp*_v methods that aren't
+        implemented in the SimEngineLightVexMixin, which then falls back to returning top
+        :param size:
+        :return:
+        """
+        return MultiValues(self.state.top(size))
 
     #
     # VEX statement handlers

@@ -8,10 +8,13 @@ from .cfg_model import CFGModel
 
 
 class CFGManager(KnowledgeBasePlugin):
-    def __init__(self, kb):
-        super().__init__()
+    """
+    This is the CFG manager, it manages CFGs
+    """
 
-        self._kb = kb
+    def __init__(self, kb):
+        super().__init__(kb=kb)
+
         self.cfgs = {}
 
     def __repr__(self):

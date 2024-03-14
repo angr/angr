@@ -10,7 +10,7 @@ class PropagationManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        self._kb = kb
+        super().__init__(kb=kb)
         self._propagations: Dict[Tuple, PropagationModel] = {}
 
     def exists(self, prop_key: Tuple) -> bool:

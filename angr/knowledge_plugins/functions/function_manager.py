@@ -80,8 +80,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
         self._function_map: Dict[int, Function] = FunctionDict(self, key_types=self.function_address_types)

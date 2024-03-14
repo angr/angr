@@ -27,10 +27,9 @@ class PatchManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
+        super().__init__(kb=kb)
 
         self._patches: Dict[int, Patch] = SortedDict()
-        self._kb = kb
         self._patched_entry_state = None
 
     def add_patch(self, addr, new_bytes, comment: Optional[str] = None):

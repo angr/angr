@@ -29,7 +29,6 @@ from ..types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
-    from ...knowledge_base import KnowledgeBase
     from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
@@ -1012,8 +1011,7 @@ class VariableManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self._kb: "KnowledgeBase" = kb
+        super().__init__(kb=kb)
         self.global_manager = VariableManagerInternal(self)
         self.function_managers: Dict[int, VariableManagerInternal] = {}
 

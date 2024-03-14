@@ -831,6 +831,11 @@ class JumpTableResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
+        if not cfg.kb.functions.contains_addr(func_addr):
+            # fix for angr issue #3768
+            # the function must exist in the KB
+            return False, None
+
         func: "Function" = cfg.kb.functions[func_addr]
         self._max_targets = cfg._indirect_jump_target_limit
 
