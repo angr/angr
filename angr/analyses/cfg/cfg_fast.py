@@ -2034,7 +2034,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # function_addr and current_function_addr can be different. e.g. when tracing an optimized tail-call that jumps
         # into another function that has been identified before.
 
-        if cfg_node is None or irsb is None:
+        if cfg_node is None:
             # exceptions occurred, or we cannot get a CFGNode for other reasons
             return []
 
@@ -2076,8 +2076,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Mark the address as traced
             self._traced_addresses.add(real_addr)
 
-        # irsb cannot be None here
-        # assert irsb is not None
+        # irsb cannot be None here, but we add a check for resilience
+        if irsb is None:
+            return []
 
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
