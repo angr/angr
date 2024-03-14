@@ -2076,8 +2076,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Mark the address as traced
             self._traced_addresses.add(real_addr)
 
-        # irsb cannot be None here
-        # assert irsb is not None
+        # irsb cannot be None here, but we add a check for resilience
+        if irsb is None:
+            return []
 
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
