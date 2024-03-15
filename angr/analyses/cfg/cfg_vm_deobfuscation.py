@@ -1528,9 +1528,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
             for succ in sim_successors.all_successors:
-                succ.globals['call_stack_context_sensitivity_on'] = True
+                # temporary hack to get the nodes to merge
+                succ.globals['call_stack_context_sensitivity_on'] = False
                 succ.globals['start_deobfuscation'] = False
                 succ.globals['cur_vm_vpc'] = None
+
+            self._context_sensitivity_level = 0
+
+            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal', None)
+            block_id = job.block_id
 
             job.state.globals['start_deobfuscation'] = False
             job.state.globals['cur_vm_vpc'] = None
