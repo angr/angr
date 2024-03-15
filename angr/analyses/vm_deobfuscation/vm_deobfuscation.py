@@ -401,6 +401,7 @@ class VMDeobfuscation(Analysis):
         self.deobfuscation_end_addr = deobfuscation_end_addr
         self.vpc_loc = vpc_loc
         self.vpc_mem_loc = vpc_mem_loc
+        self.draw_graph_flag = False
         calls_as_rets = {}
 
         DUMP = "dump"
@@ -744,6 +745,8 @@ class VMDeobfuscation(Analysis):
         with open(pickled_file_name, 'rb') as calls_as_rets_pickle:
             calls_as_rets = pickle.load(calls_as_rets_pickle)
 
+        self.draw_graph_flag = True
+
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
@@ -766,12 +769,18 @@ class VMDeobfuscation(Analysis):
     def log_timing_results(self):
         global total_time
         global time_distribution
+        import time
 
-        with open('./logs/total_time', 'w') as f:
+        timestr = time.strftime("%Y%m%d_%H%M%S")
+        log_file_name = './logs/total_time_' + timestr + ".log"
+
+        with open(log_file_name, 'w') as f:
             for key, value in total_time.items():
                 f.write(str(key)+": " + str(value) + "\n")
 
-        with open('./logs/time_distribution', 'w') as f:
+        timestr = time.strftime("%Y%m%d_%H%M%S")
+        log_file_name = './logs/time_distribution_' + timestr + ".log"
+        with open(log_file_name, 'w') as f:
             for key, value in time_distribution.items():
                 f.write(str(key)+": " + str(value) + "\n")
 
@@ -4141,7 +4150,10 @@ class VMDeobfuscation(Analysis):
         return new_cfg, changed
 
     ### Draw the graph with vex statements
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=False):
+        if not self.draw_graph_flag:
+            print("skip graph drawing")
+            return
         node_limit = 10000
         no_nodes = 0
         print("saving graph "+str(filename))
