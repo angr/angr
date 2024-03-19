@@ -3446,6 +3446,7 @@ class TestDecompiler(unittest.TestCase):
 
         # we should have skipped generating code
         assert d.codegen is None
+        assert d.seq_node is None
 
         # in this function, binop, we should have triggered the ReturnDuplicator, which will duplicate
         # a few nodes found at the end of this graph

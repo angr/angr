@@ -4,7 +4,6 @@ from collections import defaultdict
 from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
 
 import networkx
-import networkx as nx
 from cle import SymbolType
 import ailment
 
@@ -93,9 +92,9 @@ class Decompiler(Analysis):
         self.codegen: Optional["CStructuredCodeGenerator"] = None
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
-        self.seq_node = None
-        self.unoptimized_ail_graph: Optional[nx.DiGraph] = None
-        self.ail_graph: Optional[nx.DiGraph] = None
+        self.seq_node: Optional["SequenceNode"] = None
+        self.unoptimized_ail_graph: Optional[networkx.DiGraph] = None
+        self.ail_graph: Optional[networkx.DiGraph] = None
 
         if decompile:
             self._decompile()
@@ -216,35 +215,39 @@ class Decompiler(Analysis):
 
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = remove_labels(clinic.copy_graph())
-        self._update_progress(75.0, text="Structuring code")
-
-        # structure it
-        rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            ri.region,
-            cond_proc=cond_proc,
-            func=self.func,
-            **self._recursive_structurer_params,
-        )
-        self._update_progress(80.0, text="Simplifying regions")
-
-        # simplify it
-        s = self.project.analyses.RegionSimplifier(
-            self.func,
-            rs.result,
-            kb=self.kb,
-            variable_kb=clinic.variable_kb,
-            **self.options_to_params(self.options_by_class["region_simplifier"]),
-        )
-        seq_node = s.result
-        seq_node = self._run_post_structuring_simplification_passes(
-            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
-        )
-        # update memory data
-        if self._cfg is not None and self._update_memory_data:
-            self.find_data_references_and_update_memory_data(seq_node)
 
         codegen = None
+        seq_node = None
+        # in the event that the decompiler is used without code generation as the target, we should avoid all
+        # heavy analysis that is used only for the purpose of code generation
         if self._generate_code:
+            self._update_progress(75.0, text="Structuring code")
+
+            # structure it
+            rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
+                ri.region,
+                cond_proc=cond_proc,
+                func=self.func,
+                **self._recursive_structurer_params,
+            )
+            self._update_progress(80.0, text="Simplifying regions")
+
+            # simplify it
+            s = self.project.analyses.RegionSimplifier(
+                self.func,
+                rs.result,
+                kb=self.kb,
+                variable_kb=clinic.variable_kb,
+                **self.options_to_params(self.options_by_class["region_simplifier"]),
+            )
+            seq_node = s.result
+            seq_node = self._run_post_structuring_simplification_passes(
+                seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
+            )
+            # update memory data
+            if self._cfg is not None and self._update_memory_data:
+                self.find_data_references_and_update_memory_data(seq_node)
+
             self._update_progress(85.0, text="Generating code")
             codegen = self.project.analyses.StructuredCodeGenerator(
                 self.func,
@@ -261,8 +264,8 @@ class Decompiler(Analysis):
                 externs=clinic.externs,
                 **self.options_to_params(self.options_by_class["codegen"]),
             )
-        self._update_progress(90.0, text="Finishing up")
 
+        self._update_progress(90.0, text="Finishing up")
         self.seq_node = seq_node
         self.codegen = codegen
         # save a copy of the AIL graph that is optimized but not modified by region identification
