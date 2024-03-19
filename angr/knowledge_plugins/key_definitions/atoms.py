@@ -71,7 +71,7 @@ class Atom:
         Instanciate an `Atom` from a given argument.
 
         :param argument: The argument to create a new atom from.
-        :param registers: A mapping representing the registers of a given architecture.
+        :param arch: The argument representing archinfo architecture for argument.
         :param full_reg: Whether to return an atom indicating the entire register if the argument only specifies a
                         slice of the register.
         :param sp:      The current stack offset. Optional. Only used when argument is a SimStackArg.
@@ -84,7 +84,7 @@ class Atom:
         elif isinstance(argument, SimStackArg):
             if sp is None:
                 raise ValueError("You must provide a stack pointer to translate a SimStackArg")
-            return MemoryLocation(SpOffset(arch.bits, argument.stack_offset + sp), argument.size)
+            return MemoryLocation(SpOffset(arch.bits, argument.stack_offset + sp), argument.size, endness=arch.memory_endness)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
