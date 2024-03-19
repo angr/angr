@@ -7,8 +7,7 @@ class Obfuscations(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb)
 
         self.analyzed: bool = False
         self.type1_deobfuscated_strings = {}
