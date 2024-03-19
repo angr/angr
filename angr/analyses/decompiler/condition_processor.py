@@ -482,6 +482,8 @@ class ConditionProcessor:
                     continue
             raise EmptyBlockNotice()
         if type(block) is LoopNode:
+            if block.sequence_node is None:
+                raise EmptyBlockNotice()
             return cls.get_last_statements(block.sequence_node)
         if type(block) is ConditionalBreakNode:
             return [block]
