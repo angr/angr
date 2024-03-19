@@ -9,6 +9,7 @@ import unittest
 from functools import wraps
 
 from typing import List, Tuple
+import ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -3434,6 +3435,32 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen is not None
         assert "while (true)" in d.codegen.text
+
+    def test_ail_graph_access(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["binop"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options, generate_code=False)
+
+        # we should have skipped generating code
+        assert d.codegen is None
+
+        # in this function, binop, we should have triggered the ReturnDuplicator, which will duplicate
+        # a few nodes found at the end of this graph
+        assert len(d.unoptimized_ail_graph.nodes) < len(d.ail_graph.nodes)
+        unopt_rets = sum(
+            [
+                1
+                for n in d.unoptimized_ail_graph.nodes
+                if n.statements and isinstance(n.statements[-1], ailment.statement.Return)
+            ]
+        )
+        opt_rets = sum(
+            [1 for n in d.ail_graph.nodes if n.statements and isinstance(n.statements[-1], ailment.statement.Return)]
+        )
+        assert unopt_rets < opt_rets
 
 
 if __name__ == "__main__":
