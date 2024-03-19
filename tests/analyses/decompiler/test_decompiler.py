@@ -3423,6 +3423,18 @@ class TestDecompiler(unittest.TestCase):
         assert "-1" in text
         assert "16" in text
 
+    @structuring_algo("phoenix")
+    def test_infinite_loop_arm(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "aarch64", "decompiler", "test_inf_loop_arm")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        assert d.codegen is not None
+        assert "while (true)" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
