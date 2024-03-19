@@ -3452,14 +3452,12 @@ class TestDecompiler(unittest.TestCase):
         # a few nodes found at the end of this graph
         assert len(d.unoptimized_ail_graph.nodes) < len(d.ail_graph.nodes)
         unopt_rets = sum(
-            [
-                1
-                for n in d.unoptimized_ail_graph.nodes
-                if n.statements and isinstance(n.statements[-1], ailment.statement.Return)
-            ]
+            1
+            for n in d.unoptimized_ail_graph.nodes
+            if n.statements and isinstance(n.statements[-1], ailment.statement.Return)
         )
         opt_rets = sum(
-            [1 for n in d.ail_graph.nodes if n.statements and isinstance(n.statements[-1], ailment.statement.Return)]
+            1 for n in d.ail_graph.nodes if n.statements and isinstance(n.statements[-1], ailment.statement.Return)
         )
         assert unopt_rets < opt_rets
 
