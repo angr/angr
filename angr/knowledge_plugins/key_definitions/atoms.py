@@ -84,7 +84,9 @@ class Atom:
         elif isinstance(argument, SimStackArg):
             if sp is None:
                 raise ValueError("You must provide a stack pointer to translate a SimStackArg")
-            return MemoryLocation(SpOffset(arch.bits, argument.stack_offset + sp), argument.size, endness=arch.memory_endness)
+            return MemoryLocation(
+                SpOffset(arch.bits, argument.stack_offset + sp), argument.size, endness=arch.memory_endness
+            )
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
