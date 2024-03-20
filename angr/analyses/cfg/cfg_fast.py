@@ -1948,7 +1948,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         entries: List[CFGJob] = []
 
         if (
-            self.functions.contains_addr(cfg_job.src_node.addr)
+            cfg_job.src_node is not None
+            and self.functions.contains_addr(cfg_job.src_node.addr)
             and self.functions[cfg_job.src_node.addr].is_default_name
             and cfg_job.src_node.addr not in self.kb.labels
             and cfg_job.jumpkind == "Ijk_Boring"
@@ -3561,14 +3562,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     # Graph utils
     #
 
-    def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_ins_addr, src_stmt_idx):
+    def _graph_add_edge(
+        self, cfg_node: CFGNode, src_node: Optional[CFGNode], src_jumpkind: str, src_ins_addr: int, src_stmt_idx: int
+    ):
         """
         Add edge between nodes, or add node if entry point
 
-        :param CFGNode cfg_node: node which is jumped to
-        :param CFGNode src_node: node which is jumped from none if entry point
-        :param str src_jumpkind: what type of jump the edge takes
-        :param int or str src_stmt_idx: source statements ID
+        :param cfg_node: node which is jumped to
+        :param src_node: node which is jumped from none if entry point
+        :param src_jumpkind: what type of jump the edge takes
+        :param src_stmt_idx: source statements ID
         :return: None
         """
 
