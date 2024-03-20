@@ -270,10 +270,8 @@ class SimEngineVRBase(SimEngineLight):
             return
 
         if not existing_vars:
-            l.warning(
-                "_reference() is called on expressions without variables associated. Did you call "
-                "_ensure_variable_existence() first?"
-            )
+            # no associated variables. it's usually because _ensure_variable_existence() is not called, or the address
+            # is a TOP. we ignore this case.
             return
         else:
             variable, _ = existing_vars[0]
@@ -392,6 +390,15 @@ class SimEngineVRBase(SimEngineLight):
                     stored = True
 
         if not stored:
+            # remove existing variables linked to this statement
+            existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(
+                self.block.addr, self.stmt_idx, "memory"
+            )
+            codeloc = self._codeloc()
+            if existing_vars:
+                for existing_var, _ in list(existing_vars):
+                    self.variable_manager[self.func_addr].remove_variable_by_atom(codeloc, existing_var, stmt)
+
             # storing to a location specified by a pointer whose value cannot be determined at this point
             self._store_to_variable(richr_addr, size, stmt=stmt)
 
@@ -602,6 +609,7 @@ class SimEngineVRBase(SimEngineLight):
             self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
         )
         typevar = None
+        v = None
 
         if self.state.is_stack_address(addr):
             stack_offset = self.state.get_stack_offset(addr)
@@ -742,6 +750,16 @@ class SimEngineVRBase(SimEngineLight):
             base_addr, offset, elem_size = self._parse_offseted_addr(addr)
             v = self._load_from_global(base_addr.concrete_value, size, expr=expr, offset=offset, elem_size=elem_size)
             typevar = v.typevar
+
+        if v is None and expr is not None:
+            # failed to map the address to a known variable
+            # remove existing variables linked to this variable
+            existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(
+                self.block.addr, self.stmt_idx, expr
+            )
+            if existing_vars:
+                for existing_var, _ in list(existing_vars):
+                    self.variable_manager[self.func_addr].remove_variable_by_atom(codeloc, existing_var, expr)
 
         # Loading data from a pointer
         if richr_addr.type_constraints:

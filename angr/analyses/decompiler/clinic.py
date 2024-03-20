@@ -297,7 +297,7 @@ class Clinic(Analysis):
         _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Run simplification passes
-        self._update_progress(65.0, text="Running simplifications 2")
+        self._update_progress(53.0, text="Running simplifications 2")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES)
 
         # Simplify the entire function for the second time

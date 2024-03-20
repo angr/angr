@@ -441,6 +441,29 @@ class VariableManagerInternal(Serializable):
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash].add(var_and_offset)
 
+    def remove_variable_by_atom(self, location: "CodeLocation", variable: SimVariable, atom):
+        key = (
+            (location.block_addr, location.stmt_idx)
+            if location.block_idx is None
+            else (location.block_addr, location.block_idx, location.stmt_idx)
+        )
+        if key in self._stmt_to_variable:
+            for var_and_offset in list(self._stmt_to_variable[key]):
+                if var_and_offset[0] == variable:
+                    self._stmt_to_variable[key].remove(var_and_offset)
+            if not self._stmt_to_variable[key]:
+                del self._stmt_to_variable[key]
+
+        atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
+        if key in self._atom_to_variable and atom_hash is not None and atom_hash in self._atom_to_variable[key]:
+            for var_and_offset in list(self._atom_to_variable[key][atom_hash]):
+                if var_and_offset[0] == variable:
+                    self._atom_to_variable[key][atom_hash].discard(var_and_offset)
+            if not self._atom_to_variable[key][atom_hash]:
+                del self._atom_to_variable[key][atom_hash]
+            if not self._atom_to_variable[key]:
+                del self._atom_to_variable[key]
+
     def make_phi_node(self, block_addr, *variables):
         """
         Create a phi variable for variables at block `block_addr`.

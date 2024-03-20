@@ -3436,6 +3436,7 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen is not None
         assert "while (true)" in d.codegen.text
 
+    @structuring_algo("phoenix")
     def test_ail_graph_access(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3460,6 +3461,35 @@ class TestDecompiler(unittest.TestCase):
             1 for n in d.ail_graph.nodes if n.statements and isinstance(n.statements[-1], ailment.statement.Return)
         )
         assert unopt_rets < opt_rets
+
+    @structuring_algo("phoenix")
+    def test_decompiling_cancel_sys_incorrect_memory_write_removal(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "cancel.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions[0x140005234]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # there are two acceptable scenarios (because type inference is non-deterministic. we should fix it in the
+        # future)
+        # case 1: v7 is an unsigned int
+        # *((unsigned short *)((char *)&v7 + 2 * v32)) = *((short *)((char *)&v7 + 2 * v32)) ^ (unsigned short)(145 + (unsigned int)v32);
+        # case 2: v7 is an unsigned short
+        # (&v7)[v32] = (&v7)[v32] ^ (unsigned short)(145 + (unsigned int)v32);
+
+        m0 = re.search(
+            r"\*\(\(unsigned short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) = "
+            r"\*\(\(short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) \^ "
+            r"\(unsigned short\)\(145 \+ \(unsigned int\)v\d+\);",
+            text,
+        )
+        m1 = re.search(
+            r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ \(unsigned int\)v32\);", text
+        )
+        assert m0 is not None or m1 is not None
 
 
 if __name__ == "__main__":
