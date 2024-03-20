@@ -69,6 +69,12 @@ class ConstantResolver(IndirectJumpResolver):
         :param jumpkind:    VEX jumpkind (Ijk_Boring or Ijk_Call)
         :return:            Bool tuple with replacement address
         """
+        if not cfg.functions.contains_addr(func_addr):
+            #  the function does not exist
+            return False, []
+
+        func = cfg.functions.get_by_addr(func_addr)
+
         vex_block = block.vex
         if isinstance(vex_block.next, pyvex.expr.RdTmp):
             # what does the jump rely on? slice it back and see
@@ -105,7 +111,6 @@ class ConstantResolver(IndirectJumpResolver):
                             return False, []
                 break
 
-            func = cfg.functions[func_addr]
             _l.debug("ConstantResolver: Propagating for %r at %#x.", func, addr)
             prop = self.project.analyses.Propagator(
                 func=func,
