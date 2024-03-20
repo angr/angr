@@ -233,6 +233,16 @@ class AILSimplifier(Analysis):
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
             if isinstance(def_.atom, atoms.Register):
+                # only do this for general purpose register
+                skip_def = False
+                for reg in self.project.arch.register_list:
+                    if not reg.artificial and reg.vex_offset == def_.atom.reg_offset and not reg.general_purpose:
+                        skip_def = True
+                        break
+
+                if skip_def:
+                    continue
+
                 needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
                 if needs_narrowing:
                     # replace the definition

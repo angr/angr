@@ -2098,6 +2098,14 @@ class CConstant(CExpression):
         self._fmt_setter["float"] = v
 
     @property
+    def fmt_double(self):
+        return self.fmt.get("double", False)
+
+    @fmt_double.setter
+    def fmt_double(self, v: bool):
+        self._fmt_setter["double"] = v
+
+    @property
     def type(self):
         return self._type
 
@@ -2190,6 +2198,11 @@ class CConstant(CExpression):
                 value += 2**self._type.size
             value &= 0xFF
             return repr(chr(value)) if value < 0x80 else f"'\\x{value:x}'"
+
+        if self.fmt_double:
+            if 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
+                str_value = str(struct.unpack("d", struct.pack("Q", value))[0])
+                return str_value
 
         if self.fmt_neg:
             if value > 0:
