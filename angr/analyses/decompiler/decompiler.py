@@ -63,6 +63,7 @@ class Decompiler(Analysis):
         decompile=True,
         regen_clinic=True,
         update_memory_data: bool = True,
+        generate_code: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -85,13 +86,15 @@ class Decompiler(Analysis):
         self._binop_operators = binop_operators
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
+        self._generate_code = generate_code
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: Optional["CStructuredCodeGenerator"] = None
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
-        self.seq_node = None
-        self.unmodified_clinic_graph = None
+        self.seq_node: Optional["SequenceNode"] = None
+        self.unoptimized_ail_graph: Optional[networkx.DiGraph] = None
+        self.ail_graph: Optional[networkx.DiGraph] = None
 
         if decompile:
             self._decompile()
@@ -185,9 +188,9 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
-        # expose a copy of the graph before structuring optimizations happen
+        # expose a copy of the graph before any optimizations that may change the graph occur;
         # use this graph if you need a reference of exact mapping of instructions to AIL statements
-        self.unmodified_clinic_graph = clinic.copy_graph()
+        self.unoptimized_ail_graph = clinic.copy_graph()
         cond_proc = ConditionProcessor(self.project.arch)
 
         clinic.graph = self._run_graph_simplification_passes(
@@ -212,54 +215,61 @@ class Decompiler(Analysis):
 
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = remove_labels(clinic.copy_graph())
-        self._update_progress(75.0, text="Structuring code")
 
-        # structure it
-        rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            ri.region,
-            cond_proc=cond_proc,
-            func=self.func,
-            **self._recursive_structurer_params,
-        )
-        self._update_progress(80.0, text="Simplifying regions")
+        codegen = None
+        seq_node = None
+        # in the event that the decompiler is used without code generation as the target, we should avoid all
+        # heavy analysis that is used only for the purpose of code generation
+        if self._generate_code:
+            self._update_progress(75.0, text="Structuring code")
 
-        # simplify it
-        s = self.project.analyses.RegionSimplifier(
-            self.func,
-            rs.result,
-            kb=self.kb,
-            variable_kb=clinic.variable_kb,
-            **self.options_to_params(self.options_by_class["region_simplifier"]),
-        )
-        seq_node = s.result
-        seq_node = self._run_post_structuring_simplification_passes(
-            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
-        )
-        self._update_progress(85.0, text="Generating code")
+            # structure it
+            rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
+                ri.region,
+                cond_proc=cond_proc,
+                func=self.func,
+                **self._recursive_structurer_params,
+            )
+            self._update_progress(80.0, text="Simplifying regions")
 
-        # update memory data
-        if self._cfg is not None and self._update_memory_data:
-            self.find_data_references_and_update_memory_data(seq_node)
+            # simplify it
+            s = self.project.analyses.RegionSimplifier(
+                self.func,
+                rs.result,
+                kb=self.kb,
+                variable_kb=clinic.variable_kb,
+                **self.options_to_params(self.options_by_class["region_simplifier"]),
+            )
+            seq_node = s.result
+            seq_node = self._run_post_structuring_simplification_passes(
+                seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
+            )
+            # update memory data
+            if self._cfg is not None and self._update_memory_data:
+                self.find_data_references_and_update_memory_data(seq_node)
 
-        codegen = self.project.analyses.StructuredCodeGenerator(
-            self.func,
-            seq_node,
-            cfg=self._cfg,
-            ail_graph=clinic.graph,
-            flavor=self._flavor,
-            func_args=clinic.arg_list,
-            kb=self.kb,
-            variable_kb=clinic.variable_kb,
-            expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
-            stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
-            const_formats=old_codegen.const_formats if old_codegen is not None else None,
-            externs=clinic.externs,
-            **self.options_to_params(self.options_by_class["codegen"]),
-        )
+            self._update_progress(85.0, text="Generating code")
+            codegen = self.project.analyses.StructuredCodeGenerator(
+                self.func,
+                seq_node,
+                cfg=self._cfg,
+                ail_graph=clinic.graph,
+                flavor=self._flavor,
+                func_args=clinic.arg_list,
+                kb=self.kb,
+                variable_kb=clinic.variable_kb,
+                expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
+                stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+                const_formats=old_codegen.const_formats if old_codegen is not None else None,
+                externs=clinic.externs,
+                **self.options_to_params(self.options_by_class["codegen"]),
+            )
+
         self._update_progress(90.0, text="Finishing up")
-
         self.seq_node = seq_node
         self.codegen = codegen
+        # save a copy of the AIL graph that is optimized but not modified by region identification
+        self.ail_graph = clinic.cc_graph
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
