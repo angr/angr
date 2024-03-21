@@ -93,6 +93,15 @@ class BaseOptimizationPass:
         """
         raise NotImplementedError()
 
+    def _simplify_graph(self, graph):
+        simp = self.project.analyses.AILSimplifier(
+            self._func,
+            func_graph=graph,
+            use_callee_saved_regs_at_return=False,
+            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+        )
+        return simp.func_graph if simp.simplified else graph
+
 
 class OptimizationPass(BaseOptimizationPass):
     """
@@ -309,7 +318,7 @@ class StructuringOptimizationPass(OptimizationPass):
         # simplify the AIL graph
         if self._simplify_ail:
             # this should not (TM) change the structure of the graph but is needed for later optimizations
-            self.out_graph = self._simplify_ail_graph(self.out_graph)
+            self.out_graph = self._simplify_graph(self.out_graph)
 
         if self._prevent_new_gotos:
             prev_gotos = len(initial_gotos)
@@ -338,15 +347,6 @@ class StructuringOptimizationPass(OptimizationPass):
             if not self._graph_is_structurable(self.out_graph):
                 self.out_graph = self._prev_graph if self._recover_structure_fails else None
                 break
-
-    def _simplify_ail_graph(self, graph):
-        simp = self.project.analyses.AILSimplifier(
-            self._func,
-            func_graph=graph,
-            use_callee_saved_regs_at_return=False,
-            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
-        )
-        return simp.func_graph if simp.simplified else graph
 
     def _graph_is_structurable(self, graph, readd_labels=False) -> bool:
         """
