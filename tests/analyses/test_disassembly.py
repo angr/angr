@@ -34,7 +34,7 @@ class TestDisassembly(TestCase):
             f"Cannot disassemble block with architecture {arch} for block type <class 'angr.codenode.BlockNode'>"
         )
         try:
-            disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
+            _ = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
             raise Exception("We expected disassembly to fail because it didn't have capstone support")
         except TypeError as error:
             # Assert failures aren't very helpful showing the difference.
