@@ -1,0 +1,6 @@
+b'normal\n'
+b'normal\n'
+b'\n0123456789'
+b'\nabc\x02 \x00\x01\x01\nabcd\x00\x08\x08\n'
+b'normal\n'
+b'\n0123456789'

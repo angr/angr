@@ -6,8 +6,37 @@ import angr
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
 
+from archinfo import ArchAArch64
 
 class TestDisassembly(TestCase):
+    def test_capstone_unsupported(self):
+        class ArchAArch64NoCapstone(ArchAArch64):
+            name = "AARCH64_NOCAPSTONE"
+            @property
+            def capstone_support(self):
+                return False
+        arch = ArchAArch64NoCapstone()
+        proj = angr.load_shellcode(
+            b"\x00\xe4\x00\x6f"
+            b"\x43\x3c\x0b\x0e"
+            b"\x54\x9a\xb7\x72"
+            b"\xfc\x6f\xba\xa9"
+            b"\x88\x03\x98\x1a"
+            b"\x00\x60\x01\x4e",
+            arch,
+            0,
+        )
+        block = proj.factory.block(0)
+        expected_message = f"Cannot disassemble block with architecture {arch} for block type <class 'angr.codenode.BlockNode'>"
+        print(expected_message)
+        try:
+            disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
+            raise Exception("We expected disassembly to fail because it didn't have capstone support")
+        except TypeError as error:
+            # Assert failures aren't very helpful showing the difference.
+            if error.args[0] != expected_message:
+                raise Exception(f"\nExpected: {expected_message}\nActual:   {error.args[0]}")
+
     def test_arm64_dissect_instructions(self):
         proj = angr.load_shellcode(
             b"\x00\xe4\x00\x6f"
