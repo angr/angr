@@ -1141,7 +1141,9 @@ class Disassembly(Analysis):
                 self.raw_result_map["instructions"][stmt.addr] = stmt
                 self.block_to_insn_addrs[block.addr].append(stmt.addr)
         else:
-            raise TypeError(f"Cannot disassemble block with architecture {self.project.arch} for block type {type(block)}")
+            raise TypeError(
+                f"Cannot disassemble block with architecture {self.project.arch} for block type {type(block)}"
+            )
 
         if self._include_ir:
             b = self.project.factory.block(block.addr, size=block.size)

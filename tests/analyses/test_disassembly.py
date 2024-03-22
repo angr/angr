@@ -8,13 +8,16 @@ from angr.analyses.disassembly import MemoryOperand, Instruction
 
 from archinfo import ArchAArch64
 
+
 class TestDisassembly(TestCase):
     def test_capstone_unsupported(self):
         class ArchAArch64NoCapstone(ArchAArch64):
             name = "AARCH64_NOCAPSTONE"
+
             @property
             def capstone_support(self):
                 return False
+
         arch = ArchAArch64NoCapstone()
         proj = angr.load_shellcode(
             b"\x00\xe4\x00\x6f"
@@ -27,7 +30,9 @@ class TestDisassembly(TestCase):
             0,
         )
         block = proj.factory.block(0)
-        expected_message = f"Cannot disassemble block with architecture {arch} for block type <class 'angr.codenode.BlockNode'>"
+        expected_message = (
+            f"Cannot disassemble block with architecture {arch} for block type <class 'angr.codenode.BlockNode'>"
+        )
         print(expected_message)
         try:
             disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
