@@ -33,7 +33,6 @@ class TestDisassembly(TestCase):
         expected_message = (
             f"Cannot disassemble block with architecture {arch} for block type <class 'angr.codenode.BlockNode'>"
         )
-        print(expected_message)
         try:
             disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
             raise Exception("We expected disassembly to fail because it didn't have capstone support")
