@@ -3233,6 +3233,8 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
 
         assert "{\n}" not in text
+        # TODO: although there is no gotos, there are way too many returns. This code should be fixed to be a single
+        #  if-stmt with many && leading to a single return
         assert "goto" not in text
 
     def test_tail_tail_bytes_ret_dup(self, decompiler_options=None):
