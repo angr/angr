@@ -40,7 +40,7 @@ class TestDisassembly(TestCase):
         )
         try:
             _ = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
-            raise TestError("We expected disassembly to fail " "because it didn't have capstone support")
+            raise TestError("We expected disassembly to fail because it didn't have capstone support")
         except TypeError as error:
             # Assert failures aren't very helpful showing the difference.
             if error.args[0] != expected_message:
