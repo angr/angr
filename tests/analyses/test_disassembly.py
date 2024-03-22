@@ -15,6 +15,7 @@ class TestDisassembly(TestCase):
         # for the linter.
         class TestError(Exception):
             pass
+
         class ArchAArch64NoCapstone(ArchAArch64):
             name = "AARCH64_NOCAPSTONE"
 
