@@ -5,7 +5,7 @@ from .sequence_walker import SequenceWalker
 
 class SequenceToBlocks(SequenceWalker):
     """
-    Helper class to count AIL calls and call expressions in a structuring node.
+    A helper class to convert a sequence node into a list of blocks.
     """
 
     def __init__(self):

@@ -22,7 +22,7 @@ _l = logging.getLogger(name=__name__)
 class ReturnDuplicatorBase:
     """
     The base class for implementing Return Duplication as described in the SAILR paper.
-    This class MUST be inherited by a class that also inherits from StructuringOptimizationPass or OptimizationPass.
+    This base class describes the general algorithm for duplicating return regions in a graph.
     """
 
     # pylint:disable=unused-argument

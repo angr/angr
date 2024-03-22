@@ -15,7 +15,7 @@ _l = logging.getLogger(name=__name__)
 class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
     """
     An optimization pass that reverts a subset of Irreducible Statement Condensing (ISC) optimizations, as described
-    in the USENIX 2024 paper SAILR.
+    in the USENIX 2024 paper SAILR. This is the heavy/goto version of the ReturnDuplicator optimization pass.
 
     Some compilers, including GCC, Clang, and MSVC, apply various optimizations to reduce the number of statements in
     code. These optimizations will take equivalent statements, or a subset of them, and replace them with a single

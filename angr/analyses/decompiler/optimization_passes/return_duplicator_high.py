@@ -10,14 +10,15 @@ _l = logging.getLogger(name=__name__)
 
 class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
     """
-    Does a more conservative version of the ReturnDuplicatorLow optimization pass.
+    This is a light-level goto-less version of the ReturnDuplicator optimization pass. It will only
+    duplicate return-only blocks.
     """
 
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Duplicate return-only blocks (high)"
-    DESCRIPTION = __doc__  # pylint:disable=unsubscriptable-object
+    DESCRIPTION = __doc__
 
     def __init__(
         self,
