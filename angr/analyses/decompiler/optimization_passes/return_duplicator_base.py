@@ -25,6 +25,7 @@ class ReturnDuplicatorBase:
     This class MUST be inherited by a class that also inherits from StructuringOptimizationPass or OptimizationPass.
     """
 
+    # pylint:disable=unused-argument
     def __init__(
         self,
         func,
