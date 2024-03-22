@@ -11,6 +11,10 @@ from angr.analyses.disassembly import MemoryOperand, Instruction
 
 class TestDisassembly(TestCase):
     def test_capstone_unsupported(self):
+        # TestError because Exception is too broad
+        # for the linter.
+        class TestError(Exception):
+            pass
         class ArchAArch64NoCapstone(ArchAArch64):
             name = "AARCH64_NOCAPSTONE"
 
@@ -35,11 +39,11 @@ class TestDisassembly(TestCase):
         )
         try:
             _ = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
-            raise Exception("We expected disassembly to fail because it didn't have capstone support")
+            raise TestError("We expected disassembly to fail because it didn't have capstone support")
         except TypeError as error:
             # Assert failures aren't very helpful showing the difference.
             if error.args[0] != expected_message:
-                raise Exception(f"\nExpected: {expected_message}\nActual:   {error.args[0]}")
+                raise TestError(f"\nExpected: {expected_message}\nActual:   {error.args[0]}")
 
     def test_arm64_dissect_instructions(self):
         proj = angr.load_shellcode(
