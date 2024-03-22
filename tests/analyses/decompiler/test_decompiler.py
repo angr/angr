@@ -22,7 +22,7 @@ from angr.analyses import (
     Decompiler,
 )
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
-from angr.analyses.decompiler.optimization_passes import DUPLICATING_OPTS
+from angr.analyses.decompiler.optimization_passes import DUPLICATING_OPTS, LoweredSwitchSimplifier
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
@@ -263,15 +263,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable duplicating code
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = cfg.functions["main"]
         dec = p.analyses[Decompiler].prep()(
@@ -298,15 +293,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable duplicating code
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = cfg.functions["main"]
         dec = p.analyses[Decompiler].prep()(
@@ -338,15 +328,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable duplicating code
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = cfg.functions[0x4048C0]
         dec = p.analyses[Decompiler].prep()(
@@ -365,15 +350,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable duplicating code
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = cfg.functions[0x404DC0]
         dec = p.analyses[Decompiler].prep()(
@@ -405,9 +385,8 @@ class TestDecompiler(unittest.TestCase):
         # disable any optimization which may duplicate code to remove gotos since we need them for the switch
         # structure to be recovered
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
 
         f = cfg.functions[0x401E60]
         dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(
@@ -425,15 +404,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable duplicating code
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = cfg.functions[0x404410]
 
@@ -550,12 +524,8 @@ class TestDecompiler(unittest.TestCase):
         # doit
         f = cfg.functions["doit"]
         optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            p.arch, p.simos.name
+            p.arch, p.simos.name, enable_opts=DUPLICATING_OPTS
         )
-        if angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow not in optimization_passes:
-            optimization_passes += [
-                angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow,
-            ]
         dec = p.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=optimization_passes
         )
@@ -564,7 +534,7 @@ class TestDecompiler(unittest.TestCase):
 
         code = dec.codegen.text
         # with ReturnDuplicatorLow applied, there should be no goto!
-        assert "goto" not in code.lower(), "Found goto statements. ReturnDuplicatorLow might have failed."
+        assert "goto" not in code.lower(), "Found goto statements. ReturnDuplicator might have failed."
         # with global variables discovered, there should not be any loads of constant addresses.
         assert "fflush(stdout);" in code.lower()
 
@@ -837,9 +807,8 @@ class TestDecompiler(unittest.TestCase):
 
         # enable Lowered Switch Simplifier
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
-        all_optimization_passes.append(angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier)
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -858,16 +827,10 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x401A70]
 
-        # disable eager returns simplifier
+        # enable Lowered Switch Simplifier, disable duplication
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
-        all_optimization_passes.append(angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier)
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -891,9 +854,8 @@ class TestDecompiler(unittest.TestCase):
 
         # enable Lowered Switch Simplifier
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
-        )[::]
-        all_optimization_passes.append(angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier)
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+        )
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -1294,15 +1256,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses.CFGFast(normalize=True)
 
-        # disable return duplicator
+        # disable code duplication
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = p.kb.functions["func_1"]
         d = p.analyses[Decompiler].prep()(
@@ -1877,16 +1834,10 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable code duplication
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64",
-            "linux",
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         f = proj.kb.functions["argmatch_to_argument"]
 
@@ -1951,15 +1902,10 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["write_protected_non_symlink"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        # disable eager returns simplifier
+        # disable code duplication
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -2307,7 +2253,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", enable_opts=[angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
 
         f = proj.kb.functions["print_filename"]
@@ -2330,9 +2276,8 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
-        all_optimization_passes += [angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
 
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep()(
@@ -2351,9 +2296,8 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
-        all_optimization_passes += [angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
 
         f = proj.kb.functions["filename_unescape"]
         d = proj.analyses[Decompiler].prep()(
@@ -2381,9 +2325,8 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
-        all_optimization_passes += [angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
 
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep()(
@@ -2403,16 +2346,10 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        # enable Lowered Switch Simplifier, disable duplication
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
         )
-        # turn off eager returns simplifier
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
-        all_optimization_passes += [angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
 
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep()(
@@ -2487,13 +2424,8 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
@@ -2513,13 +2445,8 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        all_optimization_passes = [
-            p
-            for p in all_optimization_passes
-            if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicatorLow
-        ]
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["touch"]

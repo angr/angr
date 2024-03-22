@@ -52,7 +52,7 @@ _all_optimization_passes = [
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
-DUPLICATING_OPTS = [ReturnDuplicatorLow, CrossJumpReverter]
+DUPLICATING_OPTS = [ReturnDuplicatorLow, ReturnDuplicatorHigh, CrossJumpReverter]
 # these passes may destroy blocks by merging them into semantically equivalent blocks
 CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator]
 
@@ -76,7 +76,9 @@ def get_optimization_passes(arch, platform):
     return passes
 
 
-def get_default_optimization_passes(arch: Union[Arch, str], platform: Optional[str], enable_opts=None):
+def get_default_optimization_passes(
+    arch: Union[Arch, str], platform: Optional[str], enable_opts=None, disable_opts=None
+):
     if isinstance(arch, Arch):
         arch = arch.name
 
@@ -87,8 +89,9 @@ def get_default_optimization_passes(arch: Union[Arch, str], platform: Optional[s
 
     passes = []
     enable_opts = enable_opts or []
+    disable_opts = disable_opts or []
     for pass_, default in _all_optimization_passes:
-        if not default and pass_ not in enable_opts:
+        if (not default and pass_ not in enable_opts) or pass_ in disable_opts:
             continue
         if (pass_.ARCHES is None or arch in pass_.ARCHES) and (
             pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS
