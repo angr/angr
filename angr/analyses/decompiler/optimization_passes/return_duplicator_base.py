@@ -13,7 +13,7 @@ from ailment.expression import Const
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from ..graph_region import GraphRegion
 from ..utils import remove_labels, to_ail_supergraph, calls_in_graph
-from ..structuring.structurer_nodes import MultiNode
+from ..structuring.structurer_nodes import MultiNode, ConditionNode
 from ..region_identifier import RegionIdentifier
 
 _l = logging.getLogger(name=__name__)
@@ -408,14 +408,20 @@ class ReturnDuplicatorBase:
 
     @staticmethod
     def _find_block_sets_in_all_regions(top_region: GraphRegion):
+        def _unpack_block_type_to_addrs(node):
+            if isinstance(node, Block):
+                return {node.addr}
+            elif isinstance(node, MultiNode):
+                return {n.addr for n in node.nodes}
+            elif isinstance(node, ConditionNode):
+                return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
+            return set()
+
         def _unpack_region_to_block_addrs(region: GraphRegion):
             region_addrs = set()
             for node in region.graph.nodes:
-                if isinstance(node, Block):
-                    region_addrs.add(node.addr)
-                elif isinstance(node, MultiNode):
-                    for _node in node.nodes:
-                        region_addrs.add(_node.addr)
+                if isinstance(node, (Block, MultiNode, ConditionNode)):
+                    region_addrs |= _unpack_block_type_to_addrs(node)
                 elif isinstance(node, GraphRegion):
                     region_addrs |= _unpack_region_to_block_addrs(node)
 
@@ -429,6 +435,9 @@ class ReturnDuplicatorBase:
                 elif isinstance(node, MultiNode):
                     for _node in node.nodes:
                         addrs_by_region[region].add(_node.addr)
+                elif isinstance(node, ConditionNode):
+                    addrs_by_region[region] |= _unpack_block_type_to_addrs(node.true_node)
+                    addrs_by_region[region] |= _unpack_block_type_to_addrs(node.false_node)
                 else:
                     addrs_by_region[region] |= _unpack_region_to_block_addrs(node)
                     _unpack_every_region(node, addrs_by_region)

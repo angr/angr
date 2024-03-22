@@ -15,7 +15,7 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
+    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Duplicate return-only blocks (high)"
     DESCRIPTION = __doc__  # pylint:disable=unsubscriptable-object
 
@@ -38,6 +38,9 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
             **kwargs,
         )
         OptimizationPass.__init__(self, func, **kwargs)
+        # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
+        self._ri = self._recover_regions(self._graph)
+
         self.analyze()
 
     def _check(self):

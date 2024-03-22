@@ -6,6 +6,7 @@ import networkx  # pylint:disable=unused-import
 import ailment
 
 from angr.analyses.decompiler import RegionIdentifier
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
 from angr.analyses.decompiler.utils import add_labels
@@ -101,6 +102,17 @@ class BaseOptimizationPass:
             gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
         )
         return simp.func_graph if simp.simplified else graph
+
+    def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
+        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+            self._func,
+            graph=graph,
+            cond_proc=condition_processor or ConditionProcessor(self.project.arch),
+            update_graph=update_graph,
+            # TODO: find a way to pass Phoenix/DREAM options here (see decompiler.py for correct use)
+            force_loop_single_exit=True,
+            complete_successors=False,
+        )
 
 
 class OptimizationPass(BaseOptimizationPass):
