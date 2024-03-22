@@ -8,6 +8,7 @@ import angr
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
 
+
 class TestDisassembly(TestCase):
     def test_capstone_unsupported(self):
         class ArchAArch64NoCapstone(ArchAArch64):
