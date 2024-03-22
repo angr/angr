@@ -44,7 +44,7 @@ class TestDisassembly(TestCase):
         except TypeError as error:
             # Assert failures aren't very helpful showing the difference.
             if error.args[0] != expected_message:
-                raise TestError(f"\nExpected: {expected_message}\nActual:   {error.args[0]}")
+                raise TestError(f"\nExpected: {expected_message}\nActual:   {error.args[0]}") from error
 
     def test_arm64_dissect_instructions(self):
         proj = angr.load_shellcode(
