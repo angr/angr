@@ -36,13 +36,11 @@ class TestDisassembly(TestCase):
         )
         block = proj.factory.block(0)
         expected_message = (
-            f"Cannot disassemble block with architecture {arch}"
-             "for block type <class 'angr.codenode.BlockNode'>"
+            f"Cannot disassemble block with architecture {arch}" "for block type <class 'angr.codenode.BlockNode'>"
         )
         try:
             _ = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
-            raise TestError("We expected disassembly to fail "
-                            "because it didn't have capstone support")
+            raise TestError("We expected disassembly to fail " "because it didn't have capstone support")
         except TypeError as error:
             # Assert failures aren't very helpful showing the difference.
             if error.args[0] != expected_message:
