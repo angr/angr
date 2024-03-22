@@ -2,12 +2,11 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from unittest import TestCase, main
 
+from archinfo import ArchAArch64
+
 import angr
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
-
-from archinfo import ArchAArch64
-
 
 class TestDisassembly(TestCase):
     def test_capstone_unsupported(self):
