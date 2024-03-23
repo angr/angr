@@ -36,7 +36,7 @@ class TestDisassembly(TestCase):
         )
         block = proj.factory.block(0)
         expected_message = (
-            f"Cannot disassemble block with architecture {arch}" "for block type <class 'angr.codenode.BlockNode'>"
+            f"Cannot disassemble block with architecture {arch} for block type <class 'angr.codenode.BlockNode'>"
         )
         try:
             _ = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
