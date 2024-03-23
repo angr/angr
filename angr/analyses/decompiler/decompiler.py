@@ -36,6 +36,9 @@ from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from ..typehoon.typehoon import Typehoon
 from ...rust.typehoon.typehoon import RustTypehoon
+from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, MULTI_STMT_OPTS
+from .peephole_optimizations.inlined_strcpy import InlinedStrcpy
+from .peephole_optimizations.inlined_strcpy_consolidation import InlinedStrcpyConsolidation
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
@@ -314,6 +317,10 @@ class Decompiler(Analysis):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
         if self._regen_clinic or old_clinic is None or self.func.prototype is None:
+            if self._target_lang == TargetLanguage.RUST:
+                self._peephole_optimizations = STMT_OPTS + EXPR_OPTS + MULTI_STMT_OPTS
+                self._peephole_optimizations.remove(InlinedStrcpy)
+                self._peephole_optimizations.remove(InlinedStrcpyConsolidation)
             clinic = self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,

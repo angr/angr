@@ -2049,14 +2049,17 @@ class RustConstant(RustExpression):
         return self._type
 
     @staticmethod
-    def str_to_rust_str(_str, prefix: str = ""):
+    def str_to_rust_str(_str, heap_str=False, prefix: str = ""):
         repr_str = repr(_str)
         base_str = repr_str[1:-1]
         if repr_str[0] == "'":
             # check if there's double quotes in the body
             if '"' in base_str:
                 base_str = base_str.replace('"', '\\"')
-        return f'{prefix}"{base_str}"'
+        suffix = ""
+        if heap_str:
+            suffix = ".to_string()"
+        return f'{prefix}"{base_str}"{suffix}'
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
@@ -2069,8 +2072,8 @@ class RustConstant(RustExpression):
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return
-                elif isinstance(v, str):
-                    yield RustConstant.str_to_rust_str(v), self
+                elif isinstance(v, Str):
+                    yield RustConstant.str_to_rust_str(v.decoded_str, heap_str=v.heap_str), self
                     return
                 elif isinstance(v, Function):
                     yield get_rust_function_name(v.demangled_name), self
@@ -3344,7 +3347,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Str(self, expr: Str, **kwargs):
         type_ = RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
-        reference_values = {type_: expr.decoded_str}
+        reference_values = {type_: expr}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):
