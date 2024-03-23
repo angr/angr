@@ -46,8 +46,9 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
 
 
 class RustSimTypeStr(RustSimType, SimType):
-    def __init__(self, label=None):
+    def __init__(self, label=None, is_heap_str=False):
         super().__init__(label)
+        self.is_heap_str = is_heap_str
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None or len(name) == 0:
@@ -59,6 +60,8 @@ class RustSimTypeStr(RustSimType, SimType):
         return 0
 
     def __repr__(self):
+        if self.is_heap_str:
+            return "String"
         return "str"
 
 

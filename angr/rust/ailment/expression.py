@@ -5,10 +5,11 @@ from ...knowledge_plugins.cfg import MemoryData
 
 
 class Str(ailment.Const):
-    def __init__(self, idx, variable, value, bits, decoded_str, **kwargs):
+    def __init__(self, idx, variable, value, bits, decoded_str, heap_str=False, **kwargs):
         super().__init__(idx, variable, value, bits, **kwargs)
 
         self.decoded_str = decoded_str
+        self.heap_str = heap_str
 
     @property
     def size(self):
@@ -22,6 +23,8 @@ class Str(ailment.Const):
         return str(self)
 
     def __str__(self):
+        if self.heap_str:
+            return f'"{self.decoded_str}".to_string()'
         return f'"{self.decoded_str}"'
 
     def copy(self) -> "Str":
