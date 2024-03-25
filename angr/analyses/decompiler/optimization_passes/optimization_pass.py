@@ -367,7 +367,7 @@ class StructuringOptimizationPass(OptimizationPass):
             func=self._func,
             structurer_cls=PhoenixStructurer,
         )
-        if not rs or not rs.result or not rs.result.nodes:
+        if not rs or not rs.result or not rs.result.nodes or rs.result_incomplete:
             return False
 
         rs = self.project.analyses.RegionSimplifier(self._func, rs.result, kb=self.kb, variable_kb=self._variable_kb)
