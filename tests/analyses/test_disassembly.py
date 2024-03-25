@@ -7,6 +7,7 @@ from archinfo import ArchAArch64
 import angr
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
+from angr.error import AngrTypeError
 
 
 class TestDisassembly(TestCase):
@@ -41,7 +42,7 @@ class TestDisassembly(TestCase):
         try:
             _ = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
             raise TestError("We expected disassembly to fail because it didn't have capstone support")
-        except TypeError as error:
+        except AngrTypeError as error:
             # Assert failures aren't very helpful showing the difference.
             if error.args[0] != expected_message:
                 raise TestError(f"\nExpected: {expected_message}\nActual:   {error.args[0]}") from error

@@ -7,6 +7,7 @@ import archinfo
 from angr.knowledge_plugins import Function
 
 from . import Analysis
+from .errors import AngrTypeError
 
 from ..utils.library import get_cpp_function_name
 from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
@@ -1141,7 +1142,7 @@ class Disassembly(Analysis):
                 self.raw_result_map["instructions"][stmt.addr] = stmt
                 self.block_to_insn_addrs[block.addr].append(stmt.addr)
         else:
-            raise TypeError(
+            raise AngrTypeError(
                 f"Cannot disassemble block with architecture {self.project.arch} for block type {type(block)}"
             )
 
