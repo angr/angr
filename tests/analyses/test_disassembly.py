@@ -7,7 +7,7 @@ from archinfo import ArchAArch64
 import angr
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
-from angr.error import AngrTypeError
+from angr.errors import AngrTypeError
 
 
 class TestDisassembly(TestCase):
