@@ -7,8 +7,8 @@ import archinfo
 from angr.knowledge_plugins import Function
 
 from . import Analysis
-from .errors import AngrTypeError
 
+from ..errors import AngrTypeError
 from ..utils.library import get_cpp_function_name
 from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
