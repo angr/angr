@@ -3426,6 +3426,20 @@ class TestDecompiler(unittest.TestCase):
         text = text.replace("4294967295", "-1")
         assert text.count("return -1;") <= 2
 
+    @structuring_algo("phoenix")
+    def test_phoenix_last_resort_refinement_on_region_with_multiple_successors(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "1179ea5ceedaa1ae4014666f42a20e976701d61fe52f1e126fc78066fddab4b7.exe"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x140005980]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # should not crash!
+        assert text.count("407710288") == 1 or text.count("0x184d2a50") == 1
+
 
 if __name__ == "__main__":
     unittest.main()

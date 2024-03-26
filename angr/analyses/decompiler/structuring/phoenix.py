@@ -2124,7 +2124,7 @@ class PhoenixStructurer(StructurerBase):
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not graph.has_edge(src, dst):
+            if src not in graph:
                 continue
             if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
