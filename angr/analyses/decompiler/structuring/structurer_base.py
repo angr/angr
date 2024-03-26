@@ -145,6 +145,9 @@ class StructurerBase(Analysis):
                 if isinstance(stmt, ailment.Stmt.Jump):
                     targets = extract_jump_targets(stmt)
                     for t in targets:
+                        if t in cases or default is not None and t == default.addr:
+                            # the node after switch cannot be one of the nodes in the switch-case construct
+                            continue
                         goto_addrs[t] += 1
 
         if switch_end_addr is None:

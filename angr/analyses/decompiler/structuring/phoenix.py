@@ -873,7 +873,6 @@ class PhoenixStructurer(StructurerBase):
     def _refine_cyclic_is_while_loop(
         self, graph, fullgraph, loop_head, head_succs
     ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
-
         if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
             # make sure the head_pred is not already structured
             _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
@@ -1081,6 +1080,7 @@ class PhoenixStructurer(StructurerBase):
             node,
             self.cond_proc.claripy_ast_from_ail_condition(last_stmt.switch_variable),
             cases,
+            node_default_addr,
             node_default,
             last_stmt.ins_addr,
             to_remove,
@@ -1191,7 +1191,16 @@ class PhoenixStructurer(StructurerBase):
 
         to_remove.add(node_a)  # add node_a
         self._make_switch_cases_core(
-            node, cmp_expr, cases, node_default, last_stmt.ins_addr, to_remove, graph, full_graph, node_a=node_a
+            node,
+            cmp_expr,
+            cases,
+            node_b_addr,
+            node_default,
+            last_stmt.ins_addr,
+            to_remove,
+            graph,
+            full_graph,
+            node_a=node_a,
         )
 
         self._switch_handle_gotos(cases, node_default, switch_end_addr)
@@ -1243,7 +1252,9 @@ class PhoenixStructurer(StructurerBase):
             # there must be a default case
             return False
 
-        self._make_switch_cases_core(node, cmp_expr, cases, node_default, node.addr, to_remove, graph, full_graph)
+        self._make_switch_cases_core(
+            node, cmp_expr, cases, default_addr, node_default, node.addr, to_remove, graph, full_graph
+        )
 
         return True
 
@@ -1260,7 +1271,11 @@ class PhoenixStructurer(StructurerBase):
 
         successors = list(graph.successors(node))
 
-        if successors and all(graph.in_degree[succ] == 1 for succ in successors):
+        if (
+            successors
+            and {succ.addr for succ in successors} == set(jump_tables[node.addr].jumptable_entries)
+            and all(graph.in_degree[succ] == 1 for succ in successors)
+        ):
             out_nodes = set()
             for succ in successors:
                 out_nodes |= set(full_graph.successors(succ))
@@ -1397,6 +1412,7 @@ class PhoenixStructurer(StructurerBase):
         head,
         cmp_expr,
         cases: ODict,
+        node_default_addr: int,
         node_default,
         addr,
         to_remove: Set,
@@ -1435,6 +1451,12 @@ class PhoenixStructurer(StructurerBase):
             # the head no longer goes to the default case
             graph.remove_edge(head, node_default)
             full_graph.remove_edge(head, node_default)
+        else:
+            # the default node is not in the current graph, but it might be in the full graph
+            node_default_in_full_graph = next(iter(nn for nn in full_graph if nn.addr == node_default_addr), None)
+            if node_default_in_full_graph is not None and full_graph.has_edge(head, node_default_in_full_graph):
+                # the head no longer jumps to the default node - the switch jumps to it
+                full_graph.remove_edge(head, node_default_in_full_graph)
 
         for nn in to_remove:
             graph.remove_node(nn)
