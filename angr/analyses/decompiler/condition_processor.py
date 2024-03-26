@@ -77,6 +77,12 @@ def _dummy_bvs(condition, condition_mapping, name_suffix=""):
     return var
 
 
+def _dummy_bools(condition, condition_mapping, name_suffix=""):
+    var = claripy.BoolS(f"ailexpr_{repr(condition)}{name_suffix}", explicit_name=True)
+    condition_mapping[var.args[0]] = condition
+    return var
+
+
 _ail2claripy_op_mapping = {
     "LogicalAnd": lambda expr, conv, _: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
     "LogicalOr": lambda expr, conv, _: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
@@ -117,7 +123,7 @@ _ail2claripy_op_mapping = {
     "Carry": lambda expr, _, m: _dummy_bvs(expr, m),
     "SCarry": lambda expr, _, m: _dummy_bvs(expr, m),
     "SBorrow": lambda expr, _, m: _dummy_bvs(expr, m),
-    "ExpCmpNE": lambda expr, _, m: _dummy_bvs(expr, m),
+    "ExpCmpNE": lambda expr, _, m: _dummy_bools(expr, m),
 }
 
 #
