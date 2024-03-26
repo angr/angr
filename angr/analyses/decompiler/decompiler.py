@@ -190,7 +190,9 @@ class Decompiler(Analysis):
 
         # expose a copy of the graph before any optimizations that may change the graph occur;
         # use this graph if you need a reference of exact mapping of instructions to AIL statements
-        self.unoptimized_ail_graph = clinic.copy_graph()
+        self.unoptimized_ail_graph = (
+            clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
+        )
         cond_proc = ConditionProcessor(self.project.arch)
 
         clinic.graph = self._run_graph_simplification_passes(

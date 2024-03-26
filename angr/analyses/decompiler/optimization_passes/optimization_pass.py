@@ -6,6 +6,7 @@ import networkx  # pylint:disable=unused-import
 import ailment
 
 from angr.analyses.decompiler import RegionIdentifier
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
 from angr.analyses.decompiler.utils import add_labels
@@ -92,6 +93,26 @@ class BaseOptimizationPass:
         :returns: None
         """
         raise NotImplementedError()
+
+    def _simplify_graph(self, graph):
+        simp = self.project.analyses.AILSimplifier(
+            self._func,
+            func_graph=graph,
+            use_callee_saved_regs_at_return=False,
+            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+        )
+        return simp.func_graph if simp.simplified else graph
+
+    def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
+        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+            self._func,
+            graph=graph,
+            cond_proc=condition_processor or ConditionProcessor(self.project.arch),
+            update_graph=update_graph,
+            # TODO: find a way to pass Phoenix/DREAM options here (see decompiler.py for correct use)
+            force_loop_single_exit=True,
+            complete_successors=False,
+        )
 
 
 class OptimizationPass(BaseOptimizationPass):
@@ -256,6 +277,7 @@ class StructuringOptimizationPass(OptimizationPass):
         recover_structure_fails=True,
         max_opt_iters=1,
         simplify_ail=True,
+        require_gotos=True,
         **kwargs,
     ):
         super().__init__(func, **kwargs)
@@ -264,6 +286,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._recover_structure_fails = recover_structure_fails
         self._max_opt_iters = max_opt_iters
         self._simplify_ail = simplify_ail
+        self._require_gotos = require_gotos
 
         self._goto_manager: Optional[GotoManager] = None
         self._prev_graph: Optional[networkx.DiGraph] = None
@@ -279,6 +302,9 @@ class StructuringOptimizationPass(OptimizationPass):
             return
 
         initial_gotos = self._goto_manager.gotos.copy()
+        if self._require_gotos and not initial_gotos:
+            return
+
         # replace the normal check in OptimizationPass.analyze()
         ret, cache = self._check()
         if not ret:
@@ -304,7 +330,7 @@ class StructuringOptimizationPass(OptimizationPass):
         # simplify the AIL graph
         if self._simplify_ail:
             # this should not (TM) change the structure of the graph but is needed for later optimizations
-            self.out_graph = self._simplify_ail_graph(self.out_graph)
+            self.out_graph = self._simplify_graph(self.out_graph)
 
         if self._prevent_new_gotos:
             prev_gotos = len(initial_gotos)
@@ -317,6 +343,9 @@ class StructuringOptimizationPass(OptimizationPass):
 
     def _fixed_point_analyze(self, cache=None):
         for _ in range(self._max_opt_iters):
+            if self._require_gotos and not self._goto_manager.gotos:
+                break
+
             # backup the graph before the optimization
             if self._recover_structure_fails and self.out_graph is not None:
                 self._prev_graph = networkx.DiGraph(self.out_graph)
@@ -330,15 +359,6 @@ class StructuringOptimizationPass(OptimizationPass):
             if not self._graph_is_structurable(self.out_graph):
                 self.out_graph = self._prev_graph if self._recover_structure_fails else None
                 break
-
-    def _simplify_ail_graph(self, graph):
-        simp = self.project.analyses.AILSimplifier(
-            self._func,
-            func_graph=graph,
-            use_callee_saved_regs_at_return=False,
-            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
-        )
-        return simp.func_graph if simp.simplified else graph
 
     def _graph_is_structurable(self, graph, readd_labels=False) -> bool:
         """

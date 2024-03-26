@@ -9,6 +9,7 @@ import ailment
 
 import angr
 from .call_counter import AILBlockCallCounter
+from .seq_to_blocks import SequenceToBlocks
 
 _l = logging.getLogger(__name__)
 
@@ -732,6 +733,37 @@ def find_block_by_addr(graph: networkx.DiGraph, addr: int):
             return block
 
     raise KeyError("The block is not in the graph!")
+
+
+def sequence_to_blocks(seq: "BaseNode") -> List[ailment.Block]:
+    """
+    Converts a sequence node (BaseNode) to a list of ailment blocks contained in it and all its children.
+    """
+    walker = SequenceToBlocks()
+    walker.walk(seq)
+    return walker.blocks
+
+
+def sequence_to_statements(
+    seq: "BaseNode", exclude=(ailment.statement.Jump, ailment.statement.Jump)
+) -> List[ailment.statement.Statement]:
+    """
+    Converts a sequence node (BaseNode) to a list of ailment Statements contained in it and all its children.
+    May exclude certain types of statements.
+    """
+    statements = []
+    blocks = sequence_to_blocks(seq)
+    block: ailment.Block
+    for block in blocks:
+        if not block.statements:
+            continue
+
+        for stmt in block.statements:
+            if isinstance(stmt, exclude):
+                continue
+            statements.append(stmt)
+
+    return statements
 
 
 # delayed import
