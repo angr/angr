@@ -596,7 +596,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(~operand_v)
+            r = MultiValues(~operand_v)  # pylint:disable=invalid-unary-operand-type
         else:
             r = MultiValues(self.state.top(bits))
 
@@ -612,7 +612,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(-operand_v)
+            r = MultiValues(-operand_v)  # pylint:disable=invalid-unary-operand-type
         else:
             r = MultiValues(self.state.top(bits))
 
@@ -626,7 +626,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(offset_to_values={0: {~operand_v}})
+            r = MultiValues(offset_to_values={0: {~operand_v}})  # pylint:disable=invalid-unary-operand-type
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
@@ -761,27 +761,6 @@ class SimEngineRDAIL(
 
         if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
             r = MultiValues(offset_to_values={0: {expr0_v * expr1_v}})
-        else:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
-
-        return r
-
-    def _ail_handle_Div(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
-        expr0: MultiValues = self._expr(expr.operands[0])
-        expr1: MultiValues = self._expr(expr.operands[1])
-        bits = expr.bits
-
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if (
-            expr0_v is not None
-            and expr1_v is not None
-            and expr0_v.concrete
-            and expr1_v.concrete
-            and expr1_v.concrete_value != 0
-        ):
-            r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 

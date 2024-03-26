@@ -718,6 +718,13 @@ class RegionIdentifier(Analysis):
                                                 region.graph_with_successors.add_edge(nn, succ)
                                                 region.successors.add(succ)
 
+                                # add edges between successors
+                                for succ_0 in region.successors:
+                                    for succ_1 in region.successors:
+                                        if succ_0 is not succ_1:
+                                            if secondary_graph.has_edge(succ_0, succ_1):
+                                                region.graph_with_successors.add_edge(succ_0, succ_1)
+
                             # l.debug("Walked back %d levels in postdom tree.", levels)
                             l.debug("Node %r, frontier %r.", node, frontier)
                             # l.debug("Identified an acyclic region %s.", self._dbg_block_list(region.graph.nodes()))
@@ -928,6 +935,12 @@ class RegionIdentifier(Analysis):
         else:
             region.successors = []
         region.successors += list(abnormal_exit_nodes)
+
+        for succ_0 in region.successors:
+            for succ_1 in region.successors:
+                if succ_0 is not succ_1:
+                    if graph.has_edge(succ_0, succ_1):
+                        region.graph_with_successors.add_edge(succ_0, succ_1)
 
         for node in loop_nodes:
             graph.remove_node(node)
