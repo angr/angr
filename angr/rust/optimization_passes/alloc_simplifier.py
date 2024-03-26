@@ -2,8 +2,6 @@ from typing import Optional, Tuple, List
 
 import ailment
 import archinfo
-
-from ..sim_type import RustSimTypeStr
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...utils.library import get_rust_function_name
@@ -13,7 +11,8 @@ from ..ailment.expression import VecInitialization, Str
 class AllocSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    # STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Rust Memory Allocation Simplifier"
 
     RUST_ALLOC_FUNCTIONS = ["__rust_alloc"]
@@ -207,6 +206,7 @@ class AllocSimplifier(OptimizationPass):
                     if isinstance(data, ailment.expression.Const) and data.value == len(init_bytes):
                         data = data.value
                     else:
+                        tmp_new_init_statements.append(stmt)
                         continue
                     if isinstance(addr, ailment.expression.StackBaseOffset):
                         if addr.base == str_expr_base:
@@ -230,18 +230,27 @@ class AllocSimplifier(OptimizationPass):
                         elif str_capacity is None and offset == str_expr_offset + self.project.arch.bytes * 2:
                             str_capacity = data
                             discard = True
-                if not discard:
-                    tmp_new_init_statements.append(stmt)
+            if not discard:
+                tmp_new_init_statements.append(stmt)
         if not str_length or not str_capacity:
             return None, new_init_statements
         try:
             decoded_str = init_bytes.decode("utf-8")
             data = str_expr
-            self._variable_kb.variables.get_function_manager(self._func.addr).set_variable_type(
-                data.variable, RustSimTypeStr(is_heap_str=True), mark_manual=True
+            # func_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
+            # func_manager.set_variable_type(data.variable, RustSimTypeStr(is_heap_str=True), mark_manual=True)
+            expr = Str(data.idx, data.variable, 0, self.project.arch.bits * 3, decoded_str, heap_str=True)
+            return (
+                ailment.Stmt.Store(
+                    data.idx,
+                    data,
+                    expr,
+                    self.project.arch.bytes * 3,
+                    self.project.arch.memory_endness,
+                    ins_addr=alloc_call.ins_addr,
+                ),
+                tmp_new_init_statements,
             )
-            expr = Str(data.idx, data.variable, 0, data.bits, decoded_str, heap_str=True)
-            return ailment.Stmt.Assignment(data.idx, data, expr, ins_addr=alloc_call.ins_addr), tmp_new_init_statements
         except UnicodeDecodeError:
             return None, new_init_statements
 
