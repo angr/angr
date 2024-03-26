@@ -656,7 +656,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
 
     # collect all functions when None are provided
     if functions is None:
-        functions = cfg.functions.values()
+        functions = list(sorted(cfg.kb.functions))
 
     # normalize the functions that could be ints as names
     normalized_functions = []
@@ -684,7 +684,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     ]
     for func in functions:
         f = cfg.functions[func]
-        if f is None or f.is_plt:
+        if f is None or f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure:
             continue
 
         exception_string = ""
