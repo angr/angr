@@ -662,7 +662,10 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     normalized_functions = []
     for func in functions:
         try:
-            normalized_name = int(func, 0)
+            if isinstance(func, str):
+                normalized_name = int(func, 0)
+            else:
+                normalized_name = func
         except ValueError:
             normalized_name = func
         normalized_functions.append(normalized_name)
