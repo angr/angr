@@ -596,7 +596,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(~operand_v)
+            r = MultiValues(~operand_v)  # pylint:disable=invalid-unary-operand-type
         else:
             r = MultiValues(self.state.top(bits))
 
@@ -612,7 +612,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(-operand_v)
+            r = MultiValues(-operand_v)  # pylint:disable=invalid-unary-operand-type
         else:
             r = MultiValues(self.state.top(bits))
 
@@ -626,7 +626,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(offset_to_values={0: {~operand_v}})
+            r = MultiValues(offset_to_values={0: {~operand_v}})  # pylint:disable=invalid-unary-operand-type
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
