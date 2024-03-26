@@ -117,6 +117,7 @@ _ail2claripy_op_mapping = {
     "Carry": lambda expr, _, m: _dummy_bvs(expr, m),
     "SCarry": lambda expr, _, m: _dummy_bvs(expr, m),
     "SBorrow": lambda expr, _, m: _dummy_bvs(expr, m),
+    "ExpCmpNE": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #

@@ -1143,6 +1143,19 @@ class SimEngineRDAIL(
         top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
 
+    def _ail_handle_ExpCmpNE(self, expr) -> MultiValues:
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+
+        top = self.state.top(expr.bits)
+        return MultiValues(offset_to_values={0: {top}})
+
+    def _ail_handle_Clz(self, expr) -> MultiValues:
+        self._expr(expr.operand)
+
+        top = self.state.top(expr.bits)
+        return MultiValues(offset_to_values={0: {top}})
+
     def _ail_handle_Const(self, expr) -> MultiValues:
         self.state.mark_const(expr.value, expr.size)
         if isinstance(expr.value, float):

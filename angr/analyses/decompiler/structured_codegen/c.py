@@ -1646,6 +1646,7 @@ class CUnaryOp(CExpression):
             "BitwiseNeg": self._c_repr_chunks_bitwiseneg,
             "Reference": self._c_repr_chunks_reference,
             "Dereference": self._c_repr_chunks_dereference,
+            "Clz": self._c_repr_chunks_clz,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -1686,6 +1687,13 @@ class CUnaryOp(CExpression):
     def _c_repr_chunks_dereference(self):
         paren = CClosingObject("(")
         yield "*", self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+    def _c_repr_chunks_clz(self):
+        paren = CClosingObject("(")
+        yield "Clz", self
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren
