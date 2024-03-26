@@ -468,10 +468,12 @@ class BinaryOp(Op):
     OPSTR_MAP = {
         "Add": "+",
         "AddF": "+",
+        "AddV": "+",
         "Sub": "-",
         "SubF": "-",
         "Mul": "*",
         "MulF": "*",
+        "MulV": "*",
         "Div": "/",
         "DivF": "/",
         "DivMod": "/m",
