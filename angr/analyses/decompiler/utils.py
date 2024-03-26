@@ -659,7 +659,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
         functions = list(sorted(cfg.kb.functions))
 
     # normalize the functions that could be ints as names
-    normalized_functions = []
+    normalized_functions: List[Union[int, str]] = []
     for func in functions:
         try:
             if isinstance(func, str):
@@ -704,14 +704,14 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
         # do sanity checks on decompilation, skip checks if we already errored
         if not exception_string:
             if dec is None or not dec.codegen or not dec.codegen.text:
-                exception_string = "Decompilation had no code output (failed in Dec)"
+                exception_string = "Decompilation had no code output (failed in decompilation)"
             elif "{\n}" in dec.codegen.text:
                 exception_string = "Decompilation outputted an empty function (failed in structuring)"
             elif structurer in ["dream", "combing"] and "goto" in dec.codegen.text:
                 exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
 
         if exception_string:
-            _l.critical("Failed to decompile %s because %s", str(func), exception_string)
+            _l.critical("Failed to decompile %s because %s", repr(f), exception_string)
             decompilation += f"// [error: {func} | {exception_string}]\n"
         else:
             decompilation += dec.codegen.text + "\n"
