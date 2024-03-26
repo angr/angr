@@ -3440,6 +3440,16 @@ class TestDecompiler(unittest.TestCase):
         # should not crash!
         assert text.count("407710288") == 1 or text.count("0x184d2a50") == 1
 
+    def test_hostname_bad_mem_read(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "hostname")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        assert d.codegen is not None
+
 
 if __name__ == "__main__":
     unittest.main()
