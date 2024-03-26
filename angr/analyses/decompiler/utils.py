@@ -656,13 +656,16 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
 
     # collect all functions when None are provided
     if functions is None:
-        functions = cfg.functions.values()
+        functions = list(sorted(cfg.kb.functions))
 
     # normalize the functions that could be ints as names
-    normalized_functions = []
+    normalized_functions: List[Union[int, str]] = []
     for func in functions:
         try:
-            normalized_name = int(func, 0)
+            if isinstance(func, str):
+                normalized_name = int(func, 0)
+            else:
+                normalized_name = func
         except ValueError:
             normalized_name = func
         normalized_functions.append(normalized_name)
@@ -684,7 +687,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     ]
     for func in functions:
         f = cfg.functions[func]
-        if f is None or f.is_plt:
+        if f is None or f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure:
             continue
 
         exception_string = ""
@@ -701,14 +704,14 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
         # do sanity checks on decompilation, skip checks if we already errored
         if not exception_string:
             if dec is None or not dec.codegen or not dec.codegen.text:
-                exception_string = "Decompilation had no code output (failed in Dec)"
+                exception_string = "Decompilation had no code output (failed in decompilation)"
             elif "{\n}" in dec.codegen.text:
                 exception_string = "Decompilation outputted an empty function (failed in structuring)"
             elif structurer in ["dream", "combing"] and "goto" in dec.codegen.text:
                 exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
 
         if exception_string:
-            _l.critical("Failed to decompile %s because %s", str(func), exception_string)
+            _l.critical("Failed to decompile %s because %s", repr(f), exception_string)
             decompilation += f"// [error: {func} | {exception_string}]\n"
         else:
             decompilation += dec.codegen.text + "\n"
