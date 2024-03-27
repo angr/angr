@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from typing import Set, Dict, List, Tuple, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
@@ -504,7 +505,9 @@ class AILSimplifier(Analysis):
 
         first_op = walker.operations[0]
         if isinstance(first_op, Convert):
-            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
+            if first_op.to_bits >= self.project.arch.byte_width:
+                # we need at least one byte!
+                return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
             if len(walker.operations) >= 2:
@@ -526,6 +529,7 @@ class AILSimplifier(Analysis):
                 and first_op.op not in {"Shr", "Sar"}
                 and isinstance(second_op, Convert)
                 and second_op.from_bits == expr.bits
+                and second_op.to_bits >= self.project.arch.byte_width  # we need at least one byte!
             ):
                 return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
                     "binop-convert",
