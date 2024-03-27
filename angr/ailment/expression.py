@@ -463,6 +463,8 @@ class BinaryOp(Op):
         "variable_offset",
         "floating_point",
         "rounding_mode",
+        "from_bits",  # for divmod
+        "to_bits",  # for divmod
     )
 
     OPSTR_MAP = {
@@ -529,6 +531,8 @@ class BinaryOp(Op):
         bits=None,
         floating_point=False,
         rounding_mode=None,
+        from_bits=None,
+        to_bits=None,
         **kwargs,
     ):
         depth = (
@@ -576,6 +580,9 @@ class BinaryOp(Op):
         self.variable_offset = variable_offset
         self.floating_point = floating_point
         self.rounding_mode = rounding_mode
+
+        self.from_bits = from_bits
+        self.to_bits = to_bits
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits
@@ -662,6 +669,8 @@ class BinaryOp(Op):
                 bits=self.bits,
                 floating_point=self.floating_point,
                 rounding_mode=self.rounding_mode,
+                from_bits=self.from_bits,
+                to_bits=self.to_bits,
                 **self.tags,
             )
         else:

@@ -295,6 +295,11 @@ class VEXExprConverter(Converter):
 
         bits = op._output_size_bits
 
+        extra_kwargs = {}
+        if op_name == "DivMod":
+            extra_kwargs["from_bits"] = op._from_size if op._from_size is not None else operands[1].bits
+            extra_kwargs["to_bits"] = op._to_size if op._to_size is not None else operands[1].bits
+
         return BinaryOp(
             manager.next_atom(),
             op_name,
@@ -304,6 +309,7 @@ class VEXExprConverter(Converter):
             vex_block_addr=manager.block_addr,
             vex_stmt_idx=manager.vex_stmt_idx,
             bits=bits,
+            **extra_kwargs,
         )
 
     @staticmethod
