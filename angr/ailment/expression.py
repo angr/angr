@@ -701,6 +701,8 @@ class BinaryOp(Op):
             bits=self.bits,
             floating_point=self.floating_point,
             rounding_mode=self.rounding_mode,
+            from_bits=self.from_bits,
+            to_bits=self.to_bits,
             **self.tags,
         )
 
