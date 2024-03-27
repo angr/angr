@@ -1078,7 +1078,14 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         return ailment.Expr.BinaryOp(
-            expr.idx, "DivMod", [expr_0, expr_1], expr.signed, bits=expr_0.bits * 2, **expr.tags
+            expr.idx,
+            "DivMod",
+            [expr_0, expr_1],
+            expr.signed,
+            bits=expr.bits,
+            from_bits=expr.from_bits,
+            to_bits=expr.to_bits,
+            **expr.tags,
         )
 
     def _ail_handle_Mod(self, expr):

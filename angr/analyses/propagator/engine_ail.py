@@ -1221,6 +1221,8 @@ class SimEnginePropagatorAIL(
                 bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
+                from_bits=expr.from_bits,
+                to_bits=expr.to_bits,
                 **expr.tags,
             )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
