@@ -469,20 +469,20 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
-        from_size = r1.bits
-        to_size = r0.bits
+        from_size = expr.from_bits
+        to_size = expr.to_bits
 
         if expr.signed:
-            quotient = r0.data.SDiv(claripy.SignExt(to_size - from_size, r1.data))
-            remainder = r0.data.SMod(claripy.SignExt(to_size - from_size, r1.data))
+            quotient = r0.data.SDiv(claripy.SignExt(from_size - to_size, r1.data))
+            remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
             quotient_size = to_size
             remainder_size = to_size
             r = claripy.Concat(
                 claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
             )
         else:
-            quotient = r0.data // claripy.ZeroExt(to_size - from_size, r1.data)
-            remainder = r0.data % claripy.ZeroExt(to_size - from_size, r1.data)
+            quotient = r0.data // claripy.ZeroExt(from_size - to_size, r1.data)
+            remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
             quotient_size = to_size
             remainder_size = to_size
             r = claripy.Concat(
