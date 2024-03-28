@@ -47,7 +47,7 @@ _all_optimization_passes = [
     (ReturnDuplicatorHigh, True),
     (DeadblockRemover, True),
     (SwitchDefaultCaseDuplicator, True),
-    (LoweredSwitchSimplifier, False),
+    (LoweredSwitchSimplifier, True),
     (ReturnDuplicatorLow, True),
     (ReturnDeduplicator, True),
     (CodeMotionOptimization, True),

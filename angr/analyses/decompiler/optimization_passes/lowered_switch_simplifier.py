@@ -138,7 +138,9 @@ class LoweredSwitchSimplifier(OptimizationPass):
     ARCHES = [
         "AMD64",
     ]
-    PLATFORMS = ["linux", "windows"]
+    # XXX: this optimization only occurs when compiled by Clang and GCC, as such, we do a hack of not running
+    #   this on Windows to avoid cases where MSVC is used to compile the binary
+    PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
