@@ -175,6 +175,7 @@ class VariableRecoveryStateBase:
             self.stack_region: MultiValuedMemory = MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 phi_maker=self._make_phi_variable,
                 skip_missing_values_during_merging=True,
                 page_kwargs={"mo_cmp": self._mo_cmp},
@@ -188,6 +189,7 @@ class VariableRecoveryStateBase:
             self.register_region: MultiValuedMemory = MultiValuedMemory(
                 memory_id="reg",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 phi_maker=self._make_phi_variable,
                 skip_missing_values_during_merging=True,
                 page_kwargs={"mo_cmp": self._mo_cmp},
@@ -201,6 +203,7 @@ class VariableRecoveryStateBase:
             self.global_region: MultiValuedMemory = MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 phi_maker=self._make_phi_variable,
                 skip_missing_values_during_merging=True,
                 page_kwargs={"mo_cmp": self._mo_cmp},

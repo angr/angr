@@ -53,7 +53,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         block=None,
         func_graph=None,
         base_state=None,
-        max_iterations=3,
+        max_iterations=30,
         load_callback=None,
         stack_pointer_tracker=None,
         only_consts=False,
@@ -79,7 +79,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise ValueError("Unsupported analysis target.")
 
-        start = time.perf_counter_ns() / 1000000
+        if profiling:
+            start = time.perf_counter_ns() / 1000000
+        else:
+            start = 0
 
         self._base_state = base_state
         self._function = func
@@ -320,7 +323,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # TODO: Clear registers according to calling conventions
 
         if self.model.node_iterations[block_key] < self._max_iterations:
-            return True, state
+            return None, state
         else:
             return False, state
 

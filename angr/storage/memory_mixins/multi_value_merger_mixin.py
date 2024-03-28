@@ -1,13 +1,17 @@
+# pylint:disable=missing-class-docstring
 from typing import Iterable, Tuple, Any, Callable, Optional
 
 from . import MemoryMixin
 
 
 class MultiValueMergerMixin(MemoryMixin):
-    def __init__(self, *args, element_limit=5, annotation_limit=256, top_func=None, phi_maker=None, **kwargs):
+    def __init__(
+        self, *args, element_limit=5, annotation_limit=256, top_func=None, is_top_func=None, phi_maker=None, **kwargs
+    ):
         self._element_limit = element_limit
         self._annotation_limit = annotation_limit
         self._top_func: Callable = top_func
+        self._is_top_func: Callable = is_top_func
         self._phi_maker: Optional[Callable] = phi_maker
 
         super().__init__(*args, **kwargs)
@@ -20,7 +24,7 @@ class MultiValueMergerMixin(MemoryMixin):
                 return {phi_var}
 
         # try to merge it in the traditional way
-        if len(values_set) > self._element_limit:
+        if len(values_set) > self._element_limit or any(self._is_top_func(v) for v in values_set):
             # strip annotations from each value and see how many raw values there are in total
             # We have to use cache_key to determine uniqueness here, because if __hash__ collides,
             # python implicitly calls __eq__ to determine if the two objects are actually the same
@@ -41,6 +45,7 @@ class MultiValueMergerMixin(MemoryMixin):
                         annotations.append(anno)
                         annotations_set.add(anno)
             if annotations:
+                annotations = sorted(annotations, key=str)
                 ret_val = ret_val.annotate(*annotations[: self._annotation_limit])
             merged_val = {ret_val}
         else:
@@ -52,5 +57,6 @@ class MultiValueMergerMixin(MemoryMixin):
         copied._element_limit = self._element_limit
         copied._annotation_limit = self._annotation_limit
         copied._top_func = self._top_func
+        copied._is_top_func = self._is_top_func
         copied._phi_maker = self._phi_maker
         return copied

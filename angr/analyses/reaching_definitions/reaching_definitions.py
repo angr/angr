@@ -55,7 +55,7 @@ class ReachingDefinitionsAnalysis(
         self,
         subject: Union[Subject, ailment.Block, Block, Function, str] = None,
         func_graph=None,
-        max_iterations=3,
+        max_iterations=30,
         track_tmps=False,
         track_consts=True,
         observation_points: "Iterable[ObservationPoint]" = None,
@@ -550,7 +550,7 @@ class ReachingDefinitionsAnalysis(
         state.downsize()
 
         if self._node_iterations[block_key] < self._max_iterations:
-            return True, state
+            return None, state
         else:
             return False, state
 

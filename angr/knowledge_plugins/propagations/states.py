@@ -221,9 +221,10 @@ class PropagatorState:
                         merge_occurred = True
                     else:
                         if PropagatorState.is_top(repl) or PropagatorState.is_top(replacements_0[loc][var]):
-                            t = PropagatorState.top(_get_repl_size(repl))
-                            replacements_0[loc][var] = t
-                            merge_occurred = True
+                            if not PropagatorState.is_top(replacements_0[loc][var]):
+                                t = PropagatorState.top(_get_repl_size(repl))
+                                replacements_0[loc][var] = t
+                                merge_occurred = True
                         elif (
                             isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
                         ) and replacements_0[loc][var] is not repl:
@@ -316,6 +317,12 @@ class RegisterAnnotation(claripy.Annotation):
     def relocatable(self) -> bool:
         return True
 
+    def __hash__(self):
+        return hash((RegisterAnnotation, self.offset, self.size))
+
+    def __eq__(self, other):
+        return type(other) is RegisterAnnotation and self.offset == other.offset and self.size == other.size
+
 
 class RegisterComparisonAnnotation(claripy.Annotation):
     """
@@ -335,6 +342,18 @@ class RegisterComparisonAnnotation(claripy.Annotation):
     @property
     def relocatable(self) -> bool:
         return True
+
+    def __hash__(self):
+        return hash((RegisterComparisonAnnotation, self.offset, self.size, self.cmp_op, self.value))
+
+    def __eq__(self, other):
+        return (
+            type(other) is RegisterAnnotation
+            and self.offset == other.offset
+            and self.size == other.size
+            and self.cmp_op == other.cmp_op
+            and self.value == other.value
+        )
 
 
 class PropagatorVEXState(PropagatorState):

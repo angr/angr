@@ -1218,6 +1218,13 @@ class AILSimplifier(Analysis):
                         continue
 
             uses = rd.all_uses.get_uses(def_)
+            if (
+                isinstance(def_.atom, atoms.Register)
+                and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+            ):
+                if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
+                    # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                    uses = set()
 
             if not uses:
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
