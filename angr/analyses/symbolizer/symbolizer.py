@@ -37,6 +37,9 @@ import time
 debug=False
 l = logging.getLogger(name=__name__)
 
+def cur_time():
+    return time.perf_counter_ns() / 1000000
+
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -84,7 +87,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 if isinstance(self.state.scratch.irsb.statements[self.stmt_idx], pyvex.stmt.Exit) and \
                         not len(list(simp_result.variables)) == 1:
                     try:
+                        start = cur_time()
                         eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                        millisec = cur_time() - start
+                        self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
+                                                                    len(self.state.partial_symbolic_constraint_solver.constraints)))
                         if eval_result in [0,1]:
                             simp_result = claripy.BVV(eval_result, simp_result.size())
                     except SimValueError:
@@ -93,7 +100,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
             if not skip:
                 try:
+                    start = cur_time()
                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                    millisec = cur_time() - start
+                    self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
+                                                                len(self.state.partial_symbolic_constraint_solver.constraints)))
                     simp_result = claripy.BVV(eval_result, simp_result.size())
                 except SimValueError:
                     pass
