@@ -2156,15 +2156,15 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
+            "AMD64", "linux", disable_opts=[CrossJumpReverter, ReturnDuplicatorLow]
         )
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
 
-        # there should be three goto statements when return duplicator is disabled
-        assert d.codegen.text.count("goto ") == 3
+        # there should be two goto statements when only high return duplication is available
+        assert d.codegen.text.count("goto ") == 2
 
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):

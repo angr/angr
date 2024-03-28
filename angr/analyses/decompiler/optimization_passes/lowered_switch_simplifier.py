@@ -149,10 +149,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
     )
     STRUCTURING = ["phoenix"]
 
-    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, **kwargs):
-        super().__init__(
-            func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx, graph=graph, **kwargs
-        )
+    def __init__(self, func, min_case_size=3, **kwargs):
+        super().__init__(func, **kwargs)
+        # controls the minimum number of cases that must exist in the final switch to be converted
+        # this mimics the compilers checks for switch-conversions
+        self._min_case_size = min_case_size
         self.analyze()
 
     def _check(self):
@@ -171,7 +172,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         for _, caselists in variablehash_to_cases.items():
             for cases, redundant_nodes in caselists:
-                original_nodes = [case.original_node for case in cases if case.value != "default"]
+                real_cases = [case for case in cases if case.value != "default"]
+                if len(real_cases) < self._min_case_size:
+                    continue
+
+                original_nodes = [case.original_node for case in real_cases]
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
