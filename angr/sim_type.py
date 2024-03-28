@@ -60,8 +60,6 @@ class SimType:
             attr_self = getattr(self, attr)
             attr_other = getattr(other, attr)
             if isinstance(attr_self, SimType):
-                if attr_other is attr_self:
-                    return True
                 if avoid is not None and attr_self in avoid["self"] and attr_other in avoid["other"]:
                     continue
                 if not attr_self.__eq__(attr_other, avoid=avoid):
@@ -1298,6 +1296,26 @@ class SimStruct(NamedTypeMixin, SimType):
             field_other = other.fields[key]
             if field_self in avoid["self"] and field_other in avoid["other"]:
                 continue
+
+            # Apply a workaround to avoid recursive SimStruct comparison
+            # Recursive comparison example:
+            # struct struct_0 {
+            #     struct struct_0 *field_0;
+            # };
+            def get_data_type(ptr_type):
+                cur_type = ptr_type
+                while isinstance(cur_type, SimTypePointer):
+                    cur_type = cur_type.pts_to
+                return cur_type
+
+            data_type_self = get_data_type(field_self)
+            data_type_other = get_data_type(field_other)
+            if isinstance(data_type_self, SimStruct) and isinstance(data_type_other, SimStruct):
+                if field_self.c_repr() != field_other.c_repr():
+                    return False
+                else:
+                    continue
+
             if not field_self.__eq__(field_other, avoid=avoid):
                 return False
         return True
