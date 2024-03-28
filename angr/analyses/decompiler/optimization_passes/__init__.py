@@ -43,7 +43,7 @@ _all_optimization_passes = [
     (ExprOpSwapper, True),
     (ReturnDuplicatorHigh, True),
     (SwitchDefaultCaseDuplicator, True),
-    (LoweredSwitchSimplifier, False),
+    (LoweredSwitchSimplifier, True),
     (ReturnDuplicatorLow, True),
     (ReturnDeduplicator, True),
     (CodeMotionOptimization, True),
