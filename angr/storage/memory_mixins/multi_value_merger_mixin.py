@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from typing import Iterable, Tuple, Any, Callable, Optional
 
 from . import MemoryMixin
@@ -44,7 +45,7 @@ class MultiValueMergerMixin(MemoryMixin):
                         annotations.append(anno)
                         annotations_set.add(anno)
             if annotations:
-                annotations = sorted(annotations, key=lambda x: str(x))
+                annotations = sorted(annotations, key=str)
                 ret_val = ret_val.annotate(*annotations[: self._annotation_limit])
             merged_val = {ret_val}
         else:
