@@ -44,7 +44,7 @@ class MultiValueMergerMixin(MemoryMixin):
                         annotations.append(anno)
                         annotations_set.add(anno)
             if annotations:
-                annotations = sorted(annotations, key=lambda x: hash(x))
+                annotations = sorted(annotations, key=lambda x: str(x))
                 ret_val = ret_val.annotate(*annotations[: self._annotation_limit])
             merged_val = {ret_val}
         else:

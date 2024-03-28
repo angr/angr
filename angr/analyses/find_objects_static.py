@@ -104,16 +104,19 @@ class NewFunctionHandler(FunctionHandler):
             data.depends(memory_location, value=MultiValues(offset_to_values=offset_to_values))
             self.max_addr += size
 
-        elif "ctor" in self.project.kb.functions[function_address].demangled_name:
-            # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
-            # also if the func is a constructor(not stripped binaries)
-            for addr, possible_object in self.possible_objects_dict.items():
-                v1 = state.registers.load(72, state.arch.bits // state.arch.byte_width).one_value()
-                obj_addr = v1.concrete_value if v1 is not None and v1.concrete else None
-                if obj_addr is not None and addr == obj_addr:
-                    col_ind = self.project.kb.functions[function_address].demangled_name.rfind("::")
-                    class_name = self.project.kb.functions[function_address].demangled_name[:col_ind]
-                    possible_object.class_name = class_name
+        else:
+            if self.project.kb.functions.contains_addr(function_address):
+                func = self.project.kb.functions.get_by_addr(function_address)
+                if func is not None and "ctor" in func.demangled_name:
+                    # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
+                    # also if the func is a constructor(not stripped binaries)
+                    for addr, possible_object in self.possible_objects_dict.items():
+                        v1 = state.registers.load(72, state.arch.bits // state.arch.byte_width).one_value()
+                        obj_addr = v1.concrete_value if v1 is not None and v1.concrete else None
+                        if obj_addr is not None and addr == obj_addr:
+                            col_ind = self.project.kb.functions[function_address].demangled_name.rfind("::")
+                            class_name = self.project.kb.functions[function_address].demangled_name[:col_ind]
+                            possible_object.class_name = class_name
 
 
 class StaticObjectFinder(Analysis):
