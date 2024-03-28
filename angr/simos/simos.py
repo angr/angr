@@ -277,7 +277,9 @@ class SimOS:
 
         if state.arch.name == "PPC64" and toc is not None:
             state.regs.r2 = toc
-
+        elif state.arch.name in ("MIPS32", "MIPS64"):
+            state.regs.t9 = addr
+            
         return state
 
     def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
