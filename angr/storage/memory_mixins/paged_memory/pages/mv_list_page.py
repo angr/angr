@@ -1,6 +1,6 @@
 # pylint:disable=abstract-method,arguments-differ
 import logging
-from typing import Optional, List, Set, Tuple, Union, Callable
+from typing import Optional, List, Set, Tuple, Union, Callable, Any, FrozenSet
 
 from angr.utils.dynamic_dictlist import DynamicDictList
 from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
@@ -166,40 +166,53 @@ class MVListPage(
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects = []
+            memory_object_sets: Set[Tuple[FrozenSet[SimMemoryObject], Any]] = set()
             unconstrained_in = []
 
-            # first get a list of all memory objects at that location, and
-            # all memories that don't have those bytes
+            # first get a list of all memory objects at that location, and all memories that don't have those bytes
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
                     l.info("... present in %s", fv)
+                    memory_objects = set()
                     for mo in sm.content_gen(b):
                         if mo.includes(page_addr + b):
-                            memory_objects.append((mo, fv))
+                            memory_objects.add(mo)
+                    memory_object_sets.add((frozenset(memory_objects), fv))
                 else:
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            if not memory_objects:
+            if not memory_object_sets:
                 continue
 
-            mos = {mo for mo, _ in memory_objects}
-            mo_bases = {mo.base for mo, _ in memory_objects}
-            mo_lengths = {mo.length for mo, _ in memory_objects}
-            endnesses = {mo.endness for mo in mos}
+            mo_sets = {mo_set for mo_set, _ in memory_object_sets}
+            mo_bases = set()
+            mo_lengths = set()
+            endnesses = set()
+            for mo_set in mo_sets:
+                for mo in mo_set:
+                    mo_bases.add(mo.base)
+                    mo_lengths.add(mo.length)
+                    endnesses.add(mo.endness)
 
-            if not unconstrained_in and not (mos - merged_objects):  # pylint:disable=superfluous-parens
+            if not unconstrained_in and not (mo_sets - merged_objects):  # pylint:disable=superfluous-parens
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
             if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in and len(endnesses) == 1:
+                if len(memory_object_sets) == 1:
+                    # nothing to merge!
+                    continue
+
                 the_endness = next(iter(endnesses))
-                to_merge = [(mo.object, fv) for mo, fv in memory_objects]
+                to_merge = []
+                for mo_set, fv in memory_object_sets:
+                    for mo in mo_set:
+                        to_merge.append((mo.object, fv))
 
                 # Update `merged_to`
                 mo_base = list(mo_bases)[0]
-                mo_length = memory_objects[0][0].length
+                mo_length = next(iter(mo_lengths))
                 size = min(mo_length - (page_addr + b - mo_base), len(self.content) - b)
                 merged_to = b + size
 
@@ -226,11 +239,12 @@ class MVListPage(
                 merged_offsets.add(b)
 
             else:
-                # get the size that we can merge easily. This is the minimum of
-                # the size of all memory objects and unallocated spaces.
-                min_size = min(
-                    [mo.length - (b + page_addr - mo.base) for mo, _ in memory_objects] + [len(self.content) - b]
-                )
+                # get the size that we can merge easily. This is the minimum of the size of all memory objects and
+                # unallocated spaces.
+                min_size = len(self.content) - b
+                for mo_set in mo_sets:
+                    for mo in mo_set:
+                        min_size = min(min_size, mo.length - (b + page_addr - mo.base))
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):
@@ -241,9 +255,11 @@ class MVListPage(
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = (
-                    [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
-                )
+                extracted = []
+                if min_size != 0:
+                    for mo_set, fv in memory_object_sets:
+                        for mo in mo_set:
+                            extracted.append((mo.bytes_at(page_addr + b, min_size), fv))
                 if not memory.skip_missing_values_during_merging:
                     created = [
                         (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory), fv)

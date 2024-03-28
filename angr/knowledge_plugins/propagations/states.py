@@ -221,9 +221,10 @@ class PropagatorState:
                         merge_occurred = True
                     else:
                         if PropagatorState.is_top(repl) or PropagatorState.is_top(replacements_0[loc][var]):
-                            t = PropagatorState.top(_get_repl_size(repl))
-                            replacements_0[loc][var] = t
-                            merge_occurred = True
+                            if not PropagatorState.is_top(replacements_0[loc][var]):
+                                t = PropagatorState.top(_get_repl_size(repl))
+                                replacements_0[loc][var] = t
+                                merge_occurred = True
                         elif (
                             isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
                         ) and replacements_0[loc][var] is not repl:
