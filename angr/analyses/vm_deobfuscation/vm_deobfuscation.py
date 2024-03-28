@@ -495,6 +495,14 @@ class VMDeobfuscation(Analysis):
                                                                   prev_symbolic_expr_locations_blockwise=all_symbolic_expr_locations_blockwise,
                                                                   prev_unroll_vm_addrs=prev_unroll_vm_addrs)
 
+            import pickle
+            pickled_file_name = os.path.dirname(self.project.filename) + "/symbolizer_z3_time_prof_iter_" + str(symb_iter)
+            with open(pickled_file_name, 'wb') as f:
+                pickle.dump(self.project.symbolizer_solve_times, f)
+
+            self.project.symbolizer_solve_times = []
+
+
             self.merge_symbolic_expr_locations_blockwise(all_symbolic_expr_locations_blockwise, symbolic_expr_locations_blockwise)
 
             self.project.kb.cfgs.cfgs = {}
@@ -765,6 +773,17 @@ class VMDeobfuscation(Analysis):
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    def inst_count(self, cfg):
+        count=0
+        for node in cfg.nodes():
+            if not node.is_simprocedure:
+                for stmt in node.irsb.statements:
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        count+=1
+
+        with open('inst_count.txt', 'w') as f:
+            f.write(count)
 
     def log_timing_results(self):
         global total_time
