@@ -317,6 +317,12 @@ class RegisterAnnotation(claripy.Annotation):
     def relocatable(self) -> bool:
         return True
 
+    def __hash__(self):
+        return hash((RegisterAnnotation, self.offset, self.size))
+
+    def __eq__(self, other):
+        return type(other) is RegisterAnnotation and self.offset == other.offset and self.size == other.size
+
 
 class RegisterComparisonAnnotation(claripy.Annotation):
     """
@@ -336,6 +342,18 @@ class RegisterComparisonAnnotation(claripy.Annotation):
     @property
     def relocatable(self) -> bool:
         return True
+
+    def __hash__(self):
+        return hash((RegisterComparisonAnnotation, self.offset, self.size, self.cmp_op, self.value))
+
+    def __eq__(self, other):
+        return (
+            type(other) is RegisterAnnotation
+            and self.offset == other.offset
+            and self.size == other.size
+            and self.cmp_op == other.cmp_op
+            and self.value == other.value
+        )
 
 
 class PropagatorVEXState(PropagatorState):

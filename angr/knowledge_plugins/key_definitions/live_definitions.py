@@ -139,6 +139,7 @@ class LiveDefinitions:
             MultiValuedMemory(
                 memory_id="reg",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 endness=self.arch.register_endness,
@@ -150,6 +151,7 @@ class LiveDefinitions:
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
@@ -160,6 +162,7 @@ class LiveDefinitions:
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
@@ -170,6 +173,7 @@ class LiveDefinitions:
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
@@ -846,14 +850,16 @@ class LiveDefinitions:
     @overload
     def get_concrete_value(
         self, spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]], cast_to: Type[int] = ...
-    ) -> Optional[int]: ...
+    ) -> Optional[int]:
+        ...
 
     @overload
     def get_concrete_value(
         self,
         spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]],
         cast_to: Type[bytes] = ...,
-    ) -> Optional[bytes]: ...
+    ) -> Optional[bytes]:
+        ...
 
     def get_concrete_value(
         self,
@@ -947,7 +953,8 @@ class LiveDefinitions:
         pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
         size: Union[int, DerefSize],
         endness: archinfo.Endness = ...,
-    ) -> Set[MemoryLocation]: ...
+    ) -> Set[MemoryLocation]:
+        ...
 
     @overload
     def deref(
@@ -955,7 +962,8 @@ class LiveDefinitions:
         pointer: Union[int, claripy.ast.BV, HeapAddress, SpOffset],
         size: Union[int, DerefSize],
         endness: archinfo.Endness = ...,
-    ) -> Optional[MemoryLocation]: ...
+    ) -> Optional[MemoryLocation]:
+        ...
 
     def deref(self, pointer, size, endness=archinfo.Endness.BE):
         if isinstance(pointer, (Atom, Definition)):
