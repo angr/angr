@@ -45,6 +45,7 @@ class NewFunctionHandler(FunctionHandler):
     """
 
     def __init__(self, max_addr=None, new_func_addr=None, project=None):
+        super().__init__()
         self.max_addr = max_addr
 
         # this is a map between an object addr outside the mapped binary and PossibleObject instance
@@ -108,7 +109,8 @@ class NewFunctionHandler(FunctionHandler):
             if self.project.kb.functions.contains_addr(function_address):
                 func = self.project.kb.functions.get_by_addr(function_address)
                 if func is not None and "ctor" in func.demangled_name:
-                    # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
+                    # check if rdi has a possible this pointer/ object address, if so then we can assign this object
+                    # this class
                     # also if the func is a constructor(not stripped binaries)
                     for addr, possible_object in self.possible_objects_dict.items():
                         v1 = state.registers.load(72, state.arch.bits // state.arch.byte_width).one_value()
