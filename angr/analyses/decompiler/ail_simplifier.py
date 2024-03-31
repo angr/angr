@@ -725,13 +725,13 @@ class AILSimplifier(Analysis):
                             ):
                                 continue
 
-                            # Make sure the register is never updated across this function
-                            if any(
-                                (def_ != the_def and def_.atom == the_def.atom)
-                                for def_ in rd.all_definitions
-                                if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
-                            ):
-                                continue
+                        # Make sure the register is never updated across this function
+                        if any(
+                            (def_ != the_def and def_.atom == the_def.atom)
+                            for def_ in rd.all_definitions
+                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
+                        ):
+                            continue
 
                         # find all its uses
                         all_arg_copy_var_uses: Set[Tuple[CodeLocation, Any]] = set(

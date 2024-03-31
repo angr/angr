@@ -3440,6 +3440,7 @@ class TestDecompiler(unittest.TestCase):
         # should not crash!
         assert text.count("407710288") == 1 or text.count("0x184d2a50") == 1
 
+    @structuring_algo("phoenix")
     def test_hostname_bad_mem_read(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "hostname")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3449,6 +3450,18 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
 
         assert d.codegen is not None
+
+    @structuring_algo("phoenix")
+    def test_incorrect_function_argument_unification(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "liblzma.so.5.6.1")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        f = proj.kb.functions[0x40D450]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # should not simplify away the bitwise-or operation
+        assert text.count(" |= ") == 1
 
 
 if __name__ == "__main__":
