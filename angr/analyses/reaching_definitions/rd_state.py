@@ -72,6 +72,7 @@ class ReachingDefinitionsState:
         "_track_consts",
         "_sp_adjusted",
         "exit_observed",
+        "_element_limit",
     )
 
     def __init__(
@@ -90,6 +91,7 @@ class ReachingDefinitionsState:
         sp_adjusted: bool = False,
         all_definitions: Optional[Set[Definition]] = None,
         initializer: Optional["RDAStateInitializer"] = None,
+        element_limit: int = 5,
     ):
         # handy short-hands
         self.codeloc = codeloc
@@ -100,6 +102,7 @@ class ReachingDefinitionsState:
         self.analysis = analysis
         self._canonical_size: int = canonical_size
         self._sp_adjusted: bool = sp_adjusted
+        self._element_limit: int = element_limit
 
         self.all_definitions: Set[Definition] = set() if all_definitions is None else all_definitions
 
@@ -122,7 +125,10 @@ class ReachingDefinitionsState:
         if live_definitions is None:
             # the first time this state is created. initialize it
             self.live_definitions = LiveDefinitions(
-                self.arch, track_tmps=self._track_tmps, canonical_size=canonical_size
+                self.arch,
+                track_tmps=self._track_tmps,
+                canonical_size=canonical_size,
+                element_limit=element_limit,
             )
             if self.analysis is not None:
                 self.live_definitions.project = self.analysis.project
@@ -310,6 +316,7 @@ class ReachingDefinitionsState:
             environment=self._environment,
             sp_adjusted=self._sp_adjusted,
             all_definitions=self.all_definitions.copy(),
+            element_limit=self._element_limit,
         )
 
         return rd
@@ -322,6 +329,12 @@ class ReachingDefinitionsState:
         state._environment, merged_1 = state.environment.merge(*[other.environment for other in others])
 
         return state, merged_0 or merged_1
+
+    def compare(self, other: "ReachingDefinitionsState") -> bool:
+        r0 = self.live_definitions.compare(other.live_definitions)
+        r1 = self.environment.compare(other.environment)
+
+        return r0 and r1
 
     def move_codelocs(self, new_codeloc: CodeLocation) -> None:
         if self.codeloc != new_codeloc:

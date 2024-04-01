@@ -129,6 +129,7 @@ class LiveDefinitions:
         memory_uses=None,
         tmp_uses=None,
         other_uses=None,
+        element_limit=5,
     ):
         self.project: Optional["Project"] = None
         self.arch = arch
@@ -143,6 +144,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 endness=self.arch.register_endness,
+                element_limit=element_limit,
             )
             if registers is None
             else registers
@@ -154,6 +156,7 @@ class LiveDefinitions:
                 is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
+                element_limit=element_limit,
             )
             if stack is None
             else stack
@@ -165,6 +168,7 @@ class LiveDefinitions:
                 is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
+                element_limit=element_limit,
             )
             if memory is None
             else memory
@@ -176,6 +180,7 @@ class LiveDefinitions:
                 is_top_func=self.is_top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
+                element_limit=element_limit,
             )
             if heap is None
             else heap
@@ -467,6 +472,33 @@ class LiveDefinitions:
             merge_occurred |= state.other_uses.merge(other.other_uses)
 
         return state, merge_occurred
+
+    def compare(self, other: "LiveDefinitions") -> bool:
+        r0 = self.registers.compare(other.registers)
+        if r0 is False:
+            return False
+        r1 = self.heap.compare(other.heap)
+        if r1 is False:
+            return False
+        r2 = self.memory.compare(other.memory)
+        if r2 is False:
+            return False
+        r3 = self.stack.compare(other.stack)
+        if r3 is False:
+            return False
+
+        r4 = True
+        for k in other.others:
+            if k in self.others:
+                thing = self.others[k].merge(other.others[k])
+                if thing != self.others[k]:
+                    r4 = False
+                    break
+            else:
+                r4 = False
+                break
+
+        return r0 and r1 and r2 and r3 and r4
 
     def kill_definitions(self, atom: Atom) -> None:
         """

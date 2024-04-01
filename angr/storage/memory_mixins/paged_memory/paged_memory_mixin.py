@@ -294,6 +294,24 @@ class PagedMemoryMixin(MemoryMixin):
 
         return bool(merged_bytes)
 
+    def compare(self, other: "PagedMemoryMixin") -> bool:
+        changed_pages_and_offsets: Dict[int, Optional[Set[int]]] = dict(self.changed_pages(other))
+
+        for page_no in sorted(changed_pages_and_offsets):
+            page = self._get_page(page_no, False)
+            page_addr = page_no * self.page_size
+            if page_no in other._pages:
+                r = page.compare(
+                    other._pages[page_no],
+                    page_addr=page_addr,
+                    memory=self,
+                    changed_offsets=changed_pages_and_offsets[page_no],
+                )
+                if r is False:
+                    return False
+
+        return True
+
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is not int:
             raise TypeError("addr must be an int in paged memory")

@@ -209,6 +209,20 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
 
         raise NotImplementedError("_merge_states() is not implemented.")
 
+    def _compare_states(self, node: NodeType, old_state: AnalysisState, new_state: AnalysisState) -> bool:
+        """
+        Determine if the analysis has reached fixed point at `node`.
+
+        You can override this method to implement a faster _compare_states() method.
+
+        :param node:        The node that has been analyzed.
+        :param old_state:   The original output state out of node.
+        :param new_state:   The new output state out of node.
+        :return:            True if the analysis has reached fixed at node. False otherwise.
+        """
+        _, has_no_changes = self._merge_states(node, old_state, new_state)
+        return has_no_changes
+
     def _widen_states(self, *states: AnalysisState) -> AnalysisState:
         raise NotImplementedError("_widen_states() is not implemented.")
 
@@ -288,7 +302,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
                     reached_fixedpoint = False
                 else:
                     # is the output state the same as the old one?
-                    _, reached_fixedpoint = self._merge_states(n, self._output_state[self._node_key(n)], output_state)
+                    reached_fixedpoint = self._compare_states(n, self._output_state[self._node_key(n)], output_state)
                 self._output_state[self._node_key(n)] = output_state
 
                 if not reached_fixedpoint:
