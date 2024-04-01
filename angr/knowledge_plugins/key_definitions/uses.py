@@ -21,10 +21,14 @@ class Uses:
         uses_by_location: Optional[DefaultChainMapCOW] = None,
     ):
         self._uses_by_definition: DefaultChainMapCOW["Definition", Set[Tuple[CodeLocation, Optional[Any]]]] = (
-            DefaultChainMapCOW(set, collapse_threshold=25) if uses_by_definition is None else uses_by_definition
+            DefaultChainMapCOW(default_factory=set, collapse_threshold=25)
+            if uses_by_definition is None
+            else uses_by_definition
         )
         self._uses_by_location: DefaultChainMapCOW[CodeLocation, Set[Tuple["Definition", Optional[Any]]]] = (
-            DefaultChainMapCOW(set, collapse_threshold=25) if uses_by_location is None else uses_by_location
+            DefaultChainMapCOW(default_factory=set, collapse_threshold=25)
+            if uses_by_location is None
+            else uses_by_location
         )
 
     def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Optional[Any] = None):
@@ -35,7 +39,9 @@ class Uses:
         :param codeloc:     The code location where the use occurs.
         :param expr:        The expression that uses the specified definition at this location.
         """
+        self._uses_by_definition = self._uses_by_definition.clean()
         self._uses_by_definition[definition].add((codeloc, expr))
+        self._uses_by_location = self._uses_by_location.clean()
         self._uses_by_location[codeloc].add((definition, expr))
 
     def get_uses(self, definition: "Definition") -> Set[CodeLocation]:
@@ -65,6 +71,7 @@ class Uses:
         """
         if definition in self._uses_by_definition:
             if codeloc in self._uses_by_definition[definition]:
+                self._uses_by_definition = self._uses_by_definition.clean()
                 if expr is None:
                     for codeloc_, expr_ in list(self._uses_by_definition[definition]):
                         if codeloc_ == codeloc:
@@ -73,6 +80,7 @@ class Uses:
                     self._uses_by_definition[definition].remove((codeloc, expr))
 
         if codeloc in self._uses_by_location:
+            self._uses_by_location = self._uses_by_location.clean()
             for item in list(self._uses_by_location[codeloc]):
                 if item[0] == definition:
                     self._uses_by_location[codeloc].remove(item)
@@ -85,9 +93,11 @@ class Uses:
         :return:            None
         """
         if definition in self._uses_by_definition:
+            self._uses_by_definition = self._uses_by_definition.clean()
             codeloc_and_ids = self._uses_by_definition[definition]
             del self._uses_by_definition[definition]
 
+            self._uses_by_location = self._uses_by_location.clean()
             for codeloc, _ in codeloc_and_ids:
                 for item in list(self._uses_by_location[codeloc]):
                     if item[0] == definition:
@@ -149,18 +159,22 @@ class Uses:
 
         for k, v in other._uses_by_definition.items():
             if k not in self._uses_by_definition:
+                self._uses_by_definition = self._uses_by_definition.clean()
                 self._uses_by_definition[k] = v
                 merge_occurred = True
             elif not v.issubset(self._uses_by_definition[k]):
                 merge_occurred = True
-                self._uses_by_definition[k] |= v
+                self._uses_by_definition = self._uses_by_definition.clean()
+                self._uses_by_definition[k] = self._uses_by_definition[k] | v
 
         for k, v in other._uses_by_location.items():
             if k not in self._uses_by_location:
+                self._uses_by_location = self._uses_by_location.clean()
                 self._uses_by_location[k] = v
                 merge_occurred = True
             elif not v.issubset(self._uses_by_location[k]):
                 merge_occurred = True
-                self._uses_by_location[k] |= v
+                self._uses_by_location = self._uses_by_location.clean()
+                self._uses_by_location[k] = self._uses_by_location[k] | v
 
         return merge_occurred
