@@ -1,4 +1,4 @@
-# pylint:disable=abstract-method,arguments-differ
+# pylint:disable=abstract-method,arguments-differ,assignment-from-no-return
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable, Any, FrozenSet
 
@@ -277,7 +277,9 @@ class MVListPage(
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def compare(self, other: "MVListPage", page_addr: int = None, memory=None, changed_offsets=None) -> bool:
+    def compare(
+        self, other: "MVListPage", page_addr: int = None, memory=None, changed_offsets=None
+    ) -> bool:  # pylint: disable=unused-argument
         compared_to = None
         for b in sorted(changed_offsets):
             if compared_to is not None and not b >= compared_to:
