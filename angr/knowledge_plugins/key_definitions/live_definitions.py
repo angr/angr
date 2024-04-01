@@ -49,11 +49,12 @@ class DefinitionAnnotation(Annotation):
     An annotation that attaches a `Definition` to an AST.
     """
 
-    __slots__ = ("definition",)
+    __slots__ = ("definition", "_hash")
 
     def __init__(self, definition):
         super().__init__()
         self.definition = definition
+        self._hash = hash((DefinitionAnnotation, self.definition))
 
     @property
     def relocatable(self):
@@ -64,15 +65,11 @@ class DefinitionAnnotation(Annotation):
         return False
 
     def __hash__(self):
-        return hash((self.definition, self.relocatable, self.eliminatable))
+        return self._hash
 
     def __eq__(self, other: "object"):
-        if isinstance(other, DefinitionAnnotation):
-            return (
-                self.definition == other.definition
-                and self.relocatable == other.relocatable
-                and self.eliminatable == other.eliminatable
-            )
+        if type(other) is DefinitionAnnotation:
+            return self.definition == other.definition
         else:
             return False
 
