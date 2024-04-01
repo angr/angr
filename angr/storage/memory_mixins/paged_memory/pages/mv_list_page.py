@@ -170,6 +170,7 @@ class MVListPage(
             unconstrained_in = []
 
             # first get a list of all memory objects at that location, and all memories that don't have those bytes
+            self_has_memory_object_set = False
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
                     l.info("... present in %s", fv)
@@ -178,11 +179,15 @@ class MVListPage(
                         if mo.includes(page_addr + b):
                             memory_objects.add(mo)
                     memory_object_sets.add((frozenset(memory_objects), fv))
+                    if sm is self:
+                        self_has_memory_object_set = True
                 else:
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
             if not memory_object_sets:
+                continue
+            if self_has_memory_object_set and len(memory_object_sets) == 1:
                 continue
 
             mo_sets = {mo_set for mo_set, _ in memory_object_sets}
@@ -225,16 +230,8 @@ class MVListPage(
                 # TODO: Implement in-place replacement instead of calling store()
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
-                first_value = True
-                for v in merged_val:
-                    self.store(
-                        b,
-                        {SimMemoryObject(v, mo_base, endness=the_endness)},
-                        size=size,
-                        cooperate=True,
-                        weak=not first_value,
-                    )
-                    first_value = False
+                new_mos = {SimMemoryObject(v, mo_base, endness=the_endness) for v in merged_val}
+                self.store(b, new_mos, size=size, cooperate=True, weak=False)
 
                 merged_offsets.add(b)
 
@@ -273,21 +270,43 @@ class MVListPage(
                 if merged_val is None:
                     continue
 
-                first_value = True
-                for v in merged_val:
-                    self.store(
-                        b,
-                        {SimMemoryObject(v, page_addr + b, endness="Iend_BE")},
-                        size=min_size,
-                        endness="Iend_BE",
-                        cooperate=True,
-                        weak=not first_value,
-                    )  # do not convert endianness again
-                    first_value = False
+                new_mos = {SimMemoryObject(v, page_addr + b, endness="Iend_BE") for v in merged_val}
+                self.store(b, new_mos, size=min_size, cooperate=True, weak=False)
                 merged_offsets.add(b)
 
         self.stored_offset |= merged_offsets
         return merged_offsets
+
+    def compare(self, other: "MVListPage", page_addr: int = None, memory=None, changed_offsets=None) -> bool:
+        compared_to = None
+        for b in sorted(changed_offsets):
+            if compared_to is not None and not b >= compared_to:
+                continue
+
+            unconstrained_in = []
+            self_has_memory_object_set = False
+            memory_object_sets: Set[FrozenSet[SimMemoryObject]] = set()
+            for sm in [self, other]:
+                if sm._contains(b, page_addr):
+                    memory_objects = set()
+                    for mo in sm.content_gen(b):
+                        if mo.includes(page_addr + b):
+                            memory_objects.add(mo)
+                    memory_object_sets.add(frozenset(memory_objects))
+                    if sm is self:
+                        self_has_memory_object_set = True
+                else:
+                    unconstrained_in.append(sm)
+
+            if not memory_object_sets:
+                continue
+            if self_has_memory_object_set and len(memory_object_sets) == 1:
+                continue
+
+            # TODO: compare_values even more?
+            return False
+
+        return True
 
     def changed_bytes(self, other: "MVListPage", page_addr: int = None):
         candidates: Set[int] = super().changed_bytes(other)

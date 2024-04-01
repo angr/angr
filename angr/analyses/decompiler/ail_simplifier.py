@@ -184,6 +184,7 @@ class AILSimplifier(Analysis):
             observe_all=False,
             use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
             track_tmps=True,
+            element_limit=1,
         ).model
         self._reaching_definitions = rd
         return rd

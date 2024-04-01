@@ -14,6 +14,8 @@ class Environment:
     **Note**: The <Environment> object does not store the values associated with variables themselves.
     """
 
+    __slots__ = ("_environment",)
+
     def __init__(self, environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = None):
         self._environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = environment or {}
 
@@ -81,3 +83,12 @@ class Environment:
 
         merge_occurred = new_env != self._environment
         return Environment(environment=new_env), merge_occurred
+
+    def compare(self, other: "Environment") -> bool:
+        for k in set(self._environment.keys()).union(set(other._environment.keys())):
+            if k not in self._environment:
+                return False
+            if k in self._environment and k in other._environment:
+                if not self._environment[k].issuperset(other._environment[k]):
+                    return False
+        return True

@@ -74,6 +74,7 @@ class ReachingDefinitionsAnalysis(
         interfunction_level: int = 0,
         track_liveness: bool = True,
         func_addr: Optional[int] = None,
+        element_limit: int = 5,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -131,6 +132,7 @@ class ReachingDefinitionsAnalysis(
         self._canonical_size = canonical_size
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
+        self._element_limit = element_limit
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
@@ -469,12 +471,27 @@ class ReachingDefinitionsAnalysis(
                 analysis=self,
                 canonical_size=self._canonical_size,
                 initializer=self._state_initializer,
+                element_limit=self._element_limit,
             )
 
     # pylint: disable=no-self-use,arguments-differ
     def _merge_states(self, _node, *states: ReachingDefinitionsState):
+        assert len(states) >= 2
         merged_state, merge_occurred = states[0].merge(*states[1:])
         return merged_state, not merge_occurred
+
+    def _compare_states(self, node, old_state: ReachingDefinitionsState, new_state: ReachingDefinitionsState) -> bool:
+        """
+        Return True if new_state >= old_state in the lattice.
+
+        :param node:
+        :param old_state:
+        :param new_state:
+        :return:
+        """
+
+        reached_fixedpoint = new_state.compare(old_state)
+        return reached_fixedpoint
 
     def _run_on_node(self, node, state: ReachingDefinitionsState):
         """
