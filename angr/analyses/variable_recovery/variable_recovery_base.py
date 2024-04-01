@@ -218,7 +218,7 @@ class VariableRecoveryStateBase:
         self.type_constraints = defaultdict(set) if type_constraints is None else type_constraints
         self.func_typevar = func_typevar
         self.delayed_type_constraints = (
-            DefaultChainMapCOW(set, collapse_threshold=25)
+            DefaultChainMapCOW(default_factory=set, collapse_threshold=25)
             if delayed_type_constraints is None
             else delayed_type_constraints
         )

@@ -35,7 +35,7 @@ class DefaultChainMapCOW(ChainMapCOW):
     Implements a copy-on-write version of ChainMap with default values that supports auto-collapsing.
     """
 
-    def __init__(self, default_factory, *args, collapse_threshold=None):
+    def __init__(self, *args, default_factory=None, collapse_threshold=None):
         super().__init__(*args, collapse_threshold=collapse_threshold)
         self.default_factory = default_factory
 
@@ -53,7 +53,9 @@ class DefaultChainMapCOW(ChainMapCOW):
                 collapsed = {}
                 for m in reversed(self.maps):
                     collapsed.update(m)
-                return DefaultChainMapCOW(collapsed, collapse_threshold=self.collapse_threshold)
+                return DefaultChainMapCOW(
+                    collapsed, default_factory=self.default_factory, collapse_threshold=self.collapse_threshold
+                )
             r = self.new_child()
             r.default_factory = self.default_factory
             r.collapse_threshold = self.collapse_threshold
