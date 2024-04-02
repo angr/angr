@@ -147,7 +147,7 @@ class VariableManagerInternal(Serializable):
             "_variables_without_writes",
             "ret_val_size",
         ]
-        d = dict((k, getattr(self, k)) for k in attributes)
+        d = {k: getattr(self, k) for k in attributes}
         d["manager"] = None
         d["types"].kb = None
         return d
