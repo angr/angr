@@ -10,6 +10,7 @@ import networkx
 import claripy
 
 from angr.utils.graph import GraphUtils
+from angr.simos import SimWindows
 from ..utils.mp import mp_context, Initializer
 from ..knowledge_plugins.cfg import CFGModel
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
@@ -216,6 +217,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self._update_progress(0, text="Spawning workers...")
             cc_callback = self._cc_callback
             self._cc_callback = None
+
+            if self.project.simos is not None and isinstance(self.project.simos, SimWindows):
+                # delayed import
+                from angr.procedures.definitions import (
+                    load_win32api_definitions,
+                )  # pylint:disable=wrong-import-position
+
+                Initializer.get().register(load_win32api_definitions)
 
             # spawn workers to perform the analysis
             with self._func_queue_lock:

@@ -43,7 +43,7 @@ class Initializer:
     def initialize(self) -> None:
         """
         Initialize a multiprocessing.Process
-        Set the current global initalizer to the same state as this initalizer, then calls each initalizer
+        Set the current global initializer to the same state as this initializer, then calls each initializer
         """
         self._single = self
         for i in self.initializers:
