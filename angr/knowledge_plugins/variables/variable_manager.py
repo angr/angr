@@ -122,7 +122,32 @@ class VariableManagerInternal(Serializable):
         self.__dict__.update(state)
 
     def __getstate__(self):
-        d = dict(self.__dict__)
+        attributes = [
+            "func_addr",
+            "_variables",
+            "_global_region",
+            "_stack_region",
+            "_register_region",
+            "_live_variables",
+            "_variable_accesses",
+            "_insn_to_variable",
+            "_stmt_to_variable",
+            "_variable_to_stmt",
+            "_atom_to_variable",
+            "_ident_to_variable",
+            "_variable_counters",
+            "_unified_variables",
+            "_variables_to_unified_variables",
+            "_phi_variables",
+            "_variables_to_phivars",
+            "_phi_variables_by_block",
+            "types",
+            "variable_to_types",
+            "variables_with_manual_types",
+            "_variables_without_writes",
+            "ret_val_size",
+        ]
+        d = {k: getattr(self, k) for k in attributes}
         d["manager"] = None
         d["types"].kb = None
         return d
@@ -759,10 +784,11 @@ class VariableManagerInternal(Serializable):
             if variable in self._phi_variables:
                 # a phi variable is definitely not an input variable
                 continue
-            accesses = self._variable_accesses[variable]
-            if has_read_access(accesses):
-                if not exclude_specials or not variable.category:
-                    input_variables.append(variable)
+            if variable in self._variable_accesses:
+                accesses = self._variable_accesses[variable]
+                if has_read_access(accesses):
+                    if not exclude_specials or not variable.category:
+                        input_variables.append(variable)
 
         return input_variables
 
