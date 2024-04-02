@@ -11,7 +11,6 @@ from ..ailment.expression import VecInitialization, Str
 class AllocSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    # STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Rust Memory Allocation Simplifier"
 
@@ -26,7 +25,7 @@ class AllocSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        return True, None
+        return self.project.is_rust_binary, None
 
     def _split_const(self, const: ailment.expression.Const, to_bytes):
         if const.size == to_bytes:
