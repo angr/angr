@@ -1,3 +1,4 @@
+# pylint:disable=import-outside-toplevel
 from typing import Tuple, Optional, Callable, Iterable, Dict, Set, TYPE_CHECKING
 import queue
 import threading
@@ -10,6 +11,7 @@ import networkx
 import claripy
 
 from angr.utils.graph import GraphUtils
+from angr.simos import SimWindows
 from ..utils.mp import mp_context, Initializer
 from ..knowledge_plugins.cfg import CFGModel
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
@@ -207,15 +209,19 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         dependents[callee].add(func_addr)
 
             # enqueue all leaf functions
-            for func_addr in list(
-                k for k in depends_on if not depends_on[k]
-            ):  # pylint:disable=consider-using-dict-items
+            for func_addr in [k for k in depends_on if not depends_on[k]]:  # pylint:disable=consider-using-dict-items
                 self._func_queue.put((func_addr, None))
                 del depends_on[func_addr]
 
             self._update_progress(0, text="Spawning workers...")
             cc_callback = self._cc_callback
             self._cc_callback = None
+
+            if self.project.simos is not None and isinstance(self.project.simos, SimWindows):
+                # delayed import
+                from angr.procedures.definitions import load_win32api_definitions
+
+                Initializer.get().register(load_win32api_definitions)
 
             # spawn workers to perform the analysis
             with self._func_queue_lock:
