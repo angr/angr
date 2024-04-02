@@ -88,11 +88,13 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._results = []
         if workers > 0:
             self._remaining_funcs = _mp_context.Value("i", 0)
-            self._func_queue = _mp_context.Queue()
             self._results = _mp_context.Queue()
+            self._results_lock = _mp_context.Lock()
+            self._func_queue = _mp_context.Queue()
             self._func_queue_lock = _mp_context.Lock()
         else:
             self._remaining_funcs = None  # not needed
+            self._results_lock = None  # not needed
             self._func_queue = None  # not needed
             self._func_queue_lock = threading.Lock()
 
@@ -218,8 +220,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
             # spawn workers to perform the analysis
             with self._func_queue_lock:
                 procs = [
-                    _mp_context.Process(target=self._worker_routine, args=(Initializer.get(),), daemon=True)
-                    for _ in range(self._workers)
+                    _mp_context.Process(target=self._worker_routine, args=(worker_id, Initializer.get()), daemon=True)
+                    for worker_id in range(self._workers)
                 ]
                 for proc_idx, proc in enumerate(procs):
                     self._update_progress(0, text=f"Spawning worker {proc_idx}...")
@@ -231,7 +233,13 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self._update_progress(0)
             idx = 0
             while idx < total_funcs:
-                func_addr, cc, proto, proto_libname, varman = self._results.get(True)
+                try:
+                    with self._results_lock:
+                        func_addr, cc, proto, proto_libname, varman = self._results.get(True, timeout=0.01)
+                except queue.Empty:
+                    time.sleep(0.1)
+                    continue
+
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
                     func.calling_convention = cc
@@ -260,13 +268,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         depends_on[dependent].discard(func_addr)
                         if not depends_on[dependent]:
                             callee_prototypes = self._get_callees_cc_prototypes(dependent)
-                            self._func_queue.put((dependent, callee_prototypes))
+                            with self._func_queue_lock:
+                                self._func_queue.put((dependent, callee_prototypes))
                             del depends_on[dependent]
 
             for proc in procs:
                 proc.join()
 
-    def _worker_routine(self, initializer: Initializer):
+    def _worker_routine(self, worker_id: int, initializer: Initializer):
         initializer.initialize()
         idx = 0
         while self._remaining_funcs.value > 0:
@@ -293,9 +302,10 @@ class CompleteCallingConventionsAnalysis(Analysis):
             try:
                 cc, proto, proto_libname, varman = self._analyze_core(func_addr)
             except Exception:  # pylint:disable=broad-except
-                _l.error("Exception occurred during _analyze_core().", exc_info=True)
+                _l.error("Worker %d: Exception occurred during _analyze_core().", worker_id, exc_info=True)
                 cc, proto, proto_libname, varman = None, None, None, None
-            self._results.put((func_addr, cc, proto, proto_libname, varman))
+            with self._results_lock:
+                self._results.put((func_addr, cc, proto, proto_libname, varman))
 
     def _analyze_core(
         self, func_addr: int

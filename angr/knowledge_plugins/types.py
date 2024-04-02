@@ -56,6 +56,12 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
         yield from super().__iter__()
         yield from iter(ALL_TYPES)
 
+    def __getstate__(self):
+        return dict(super().__iter__())  # do not pickle self.kb
+
+    def __setstate__(self, state):
+        self.update(state)
+
     def iter_own(self):
         """
         Iterate over all the names which are stored in this object - i.e. ``values()`` without ``ALL_TYPES``
