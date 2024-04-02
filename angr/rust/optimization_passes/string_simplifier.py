@@ -19,7 +19,7 @@ class StringSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        return True, None
+        return self.project.is_rust_binary, None
 
     def try_simplify_string(self, stmt):
         if isinstance(stmt, ailment.statement.Store) and isinstance(stmt.data, ailment.Const):
@@ -30,9 +30,9 @@ class StringSimplifier(OptimizationPass):
                 str_addr = memory.unpack(stmt.data.value, self.project.arch.struct_fmt())[0]
                 section = self.project.loader.find_section_containing(str_addr)
                 if section and section.is_readable and not section.is_writable:
-                    str_len = memory.unpack(
-                        stmt.data.value + self.project.arch.bytes, self.project.arch.struct_fmt()
-                    )[0]
+                    str_len = memory.unpack(stmt.data.value + self.project.arch.bytes, self.project.arch.struct_fmt())[
+                        0
+                    ]
                     try:
                         decoded_str = memory.load(str_addr, str_len).decode("utf-8")
                     except UnicodeDecodeError:

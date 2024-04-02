@@ -133,8 +133,10 @@ class Project:
         concrete_target=None,
         eager_ifunc_resolution=None,
         cache_limits: dict[str, int | None] | None = None,
+        is_rust_binary=False,
         **kwargs,
     ):
+        self.is_rust_binary = is_rust_binary
         # Step 1: Load the binary
 
         if load_options is None:

@@ -57,7 +57,7 @@ class RustSimTypeStr(RustSimType, SimType):
 
     @property
     def size(self):
-        return 0
+        return 192
 
     def __repr__(self):
         if self.is_heap_str:
