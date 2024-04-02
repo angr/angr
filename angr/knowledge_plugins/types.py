@@ -57,10 +57,10 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
         yield from iter(ALL_TYPES)
 
     def __getstate__(self):
-        return dict(super().__iter__())  # do not pickle self.kb
+        return self.data  # do not pickle self.kb
 
     def __setstate__(self, state):
-        self.update(state)
+        self.data = state
 
     def iter_own(self):
         """
