@@ -13,6 +13,8 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
     block = project.factory.block(func.addr)
     if block.instructions != 2:
         return False
+    if not block.capstone.insns or len(block.capstone.insns) != 2:
+        return False
     ins0 = block.capstone.insns[0]
     if (
         ins0.mnemonic == "cmp"
@@ -57,6 +59,8 @@ def is_function_security_init_cookie(func: "Function", project, security_cookie_
         block = project.factory.block(node_addr, size=node_size)
         if not block.instructions:
             continue
+        if not block.capstone.insns:
+            continue
         last_insn = block.capstone.insns[-1]
         if (
             last_insn.mnemonic == "mov"
@@ -77,6 +81,8 @@ def is_function_security_init_cookie_win8(func: "Function", project, security_co
         return False
     block = project.factory.block(func.addr)
     if block.instructions != 3:
+        return False
+    if not block.capstone.insns or len(block.capstone.insns) != 3:
         return False
     ins0 = block.capstone.insns[0]
     if (
