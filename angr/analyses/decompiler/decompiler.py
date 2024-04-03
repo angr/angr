@@ -36,9 +36,8 @@ from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from ..typehoon.typehoon import Typehoon
 from ...rust.typehoon.typehoon import RustTypehoon
-from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, MULTI_STMT_OPTS
-from .peephole_optimizations.inlined_strcpy import InlinedStrcpy
-from .peephole_optimizations.inlined_strcpy_consolidation import InlinedStrcpyConsolidation
+from .optimization_passes.return_duplicator_high import ReturnDuplicatorHigh
+from .optimization_passes.return_duplicator_low import ReturnDuplicatorLow
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
