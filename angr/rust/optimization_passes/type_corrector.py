@@ -2,7 +2,7 @@ import ailment
 
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ..sim_type import RustSimTypeString, RustSimTypePointer
+from ..sim_type import RustSimTypeString, RustSimTypePointer, RustSimTypeStr
 from ..ailment.expression import String
 
 
@@ -35,3 +35,5 @@ class TypeCorrector(OptimizationPass):
                     if isinstance(data, String):
                         if data.is_heap_str:
                             self._set_variable_type(stmt, RustSimTypeString())
+                        else:
+                            self._set_variable_type(stmt, RustSimTypePointer(RustSimTypeStr()))
