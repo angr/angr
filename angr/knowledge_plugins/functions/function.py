@@ -1535,6 +1535,10 @@ class Function(Serializable):
 
         for library in libraries:
             for name in name_variants:
+                if isinstance(library, SimSyscallLibrary):
+                    # FIXME: we don't support getting declaration from a syscall library yet. we don't have the concept
+                    # of abi at this point.
+                    continue
                 if not library.has_prototype(name):
                     continue
 
