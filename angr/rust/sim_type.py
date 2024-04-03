@@ -45,26 +45,6 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return name
 
 
-class RustSimTypeStr(RustSimType, SimType):
-    def __init__(self, label=None, is_heap_str=False):
-        super().__init__(label)
-        self.is_heap_str = is_heap_str
-
-    def repr(self, name=None, full=0, memo=None, indent=0):
-        if name is None or len(name) == 0:
-            return self.__repr__()
-        return f"{name}: {self.__repr__()}"
-
-    @property
-    def size(self):
-        return 192
-
-    def __repr__(self):
-        if self.is_heap_str:
-            return "String"
-        return "str"
-
-
 class RustSimTypeFunction(RustSimType, SimTypeFunction):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
@@ -208,7 +188,7 @@ class RustSimStruct(RustSimType, SimStruct):
     _fields = ("name", "fields")
 
     def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
-        super().__init__(fields, name, pack, align)
+        SimStruct.__init__(self, fields, name, pack, align)
 
     def _with_arch(self, arch):
         if arch.name in self._arch_memo:
@@ -269,3 +249,52 @@ class RustSimTypeTempRef(RustSimType, SimTypeTempRef):
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         return "<RustSimTypeTempRef>"
+
+
+class RustSimTypeStr(RustSimType, SimType):
+    def __init__(self, label=None):
+        super().__init__(label)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None or len(name) == 0:
+            return self.__repr__()
+        return f"{name}: {self.__repr__()}"
+
+    @property
+    def size(self):
+        return self._arch.bits * 2
+
+    def __repr__(self):
+        return "str"
+
+
+class RustSimTypeString(RustSimStruct, SimType):
+    def __init__(self, label=None, arch=None):
+        RustSimStruct.__init__(
+            self,
+            {
+                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(arch),
+                "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+            },
+            name="String",
+        )
+        SimType.__init__(self, label)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimTypeString(label=self.label, arch=arch)
+        out._arch = arch
+        self._arch_memo[arch.name] = out
+
+        return out
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None or len(name) == 0:
+            return self.__repr__()
+        return f"{name}: {self.__repr__()}"
+
+    def __repr__(self):
+        return "String"
