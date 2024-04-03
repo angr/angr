@@ -30,6 +30,7 @@ from ....rust.sim_type import (
     RustSimTypeFunction,
     RustSimTypePointer,
     RustSimTypeStr,
+    RustSimTypeString,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -54,7 +55,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import Str, VecInitialization
+from ....rust.ailment.expression import String, VecInitialization
 
 if TYPE_CHECKING:
     import archinfo
@@ -185,39 +186,29 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
     """
-    if isinstance(ty, SimStruct):
-        if full:
-            # struct def preamble
-            yield indent_str, None
-            yield "struct ", None
-            yield ty.name, ty
-            yield " {\n", None
+    if isinstance(ty, SimStruct) and full:
+        # struct def preamble
+        yield indent_str, None
+        yield "struct ", None
+        yield ty.name, ty
+        yield " {\n", None
 
-            # each of the fields
-            # fields should be indented
-            new_indent_str = (
-                " " * 4
-            ) + indent_str  # TODO: hardcoded as 4 character space indents, which is same as SimStruct.c_repr
-            for k, v in ty.fields.items():
-                yield new_indent_str, None
-                yield from type_to_rust_repr_chunks(
-                    v, name=k, name_type=RustStructFieldNameDef(k), full=False, indent_str=""
-                )
-                yield ";\n", None
+        # each of the fields
+        # fields should be indented
+        new_indent_str = (
+            " " * 4
+        ) + indent_str  # TODO: hardcoded as 4 character space indents, which is same as SimStruct.c_repr
+        for k, v in ty.fields.items():
+            yield new_indent_str, None
+            yield from type_to_rust_repr_chunks(
+                v, name=k, name_type=RustStructFieldNameDef(k), full=False, indent_str=""
+            )
+            yield ",\n", None
 
-            # struct def postamble
-            yield "} ", None
-            yield ty.name, ty
-            yield "\n\n", None
-
-        else:
-            assert name
-            assert name_type
-            yield indent_str, None
-            yield ty.name, ty
-            yield " ", None
-            if name:
-                yield name, name_type
+        # struct def postamble
+        yield "} ", None
+        # yield ty.name, ty
+        yield "\n\n", None
     elif isinstance(ty, RustSimType):
         assert name
         assert name_type
@@ -487,6 +478,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
             vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
 
             for i, var_type in enumerate(vartypes):
+                var_type = unpack_typeref(var_type)
                 if i == 0:
                     yield "let ", None
                     yield from type_to_rust_repr_chunks(var_type, name=name, name_type=cvariable)
@@ -2071,8 +2063,8 @@ class RustConstant(RustExpression):
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return
-                elif isinstance(v, Str):
-                    yield RustConstant.str_to_rust_str(v.decoded_str, is_heap_str=v.heap_str), self
+                elif isinstance(v, String):
+                    yield RustConstant.str_to_rust_str(v.decoded_str, is_heap_str=v.is_heap_str), self
                     return
                 elif isinstance(v, Function):
                     yield get_rust_function_name(v.demangled_name), self
@@ -2347,7 +2339,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
-            Str: self._handle_Expr_Str,
+            String: self._handle_Expr_String,
         }
 
         self._func = func
@@ -2774,24 +2766,49 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         o_constant, o_terms = extract_terms(expr)
 
         def bail_out():
-            result = reduce(
-                lambda a1, a2: RustBinaryOp("Add", a1, a2, codegen=self),
-                (
-                    RustBinaryOp(
-                        "Mul",
-                        RustConstant(c, t.type, codegen=self),
+            if len(o_terms) == 0:
+                # probably a plain integer, return as is
+                return expr
+            result = None
+            pointer_length_int_type = (
+                RustSimTypeInt(size=64, signed=False)
+                if self.project.arch.bits == 64
+                else RustSimTypeInt(size=32, signed=False)
+            )
+            for c, t in o_terms:
+                op = "Add"
+                if c == -1 and result is not None:
+                    op = "Sub"
+                    piece = (
                         t
                         if not isinstance(t.type, RustSimTypePointer)
-                        else RustTypeCast(t.type, RustSimTypePointer(SimTypeChar()), t, codegen=self),
+                        else RustTypeCast(
+                            t.type, RustSimTypePointer(RustSimTypeInt(size=8, signed=False)), t, codegen=self
+                        )
+                    )
+                elif c == 1:
+                    piece = (
+                        t
+                        if not isinstance(t.type, RustSimTypePointer)
+                        else RustTypeCast(
+                            t.type, RustSimTypePointer(RustSimTypeInt(size=8, signed=False)), t, codegen=self
+                        )
+                    )
+                else:
+                    piece = RustBinaryOp(
+                        "Mul",
+                        RustConstant(c, t.type, codegen=self),
+                        (
+                            t
+                            if not isinstance(t.type, RustSimTypePointer)
+                            else RustTypeCast(t.type, pointer_length_int_type, t, codegen=self)
+                        ),
                         codegen=self,
                     )
-                    if c != 1
-                    else t
-                    if not isinstance(t.type, RustSimTypePointer)
-                    else RustTypeCast(t.type, RustSimTypePointer(SimTypeChar()), t, codegen=self)
-                    for c, t in o_terms
-                ),
-            )
+                if result is None:
+                    result = piece
+                else:
+                    result = RustBinaryOp(op, result, piece, codegen=self)
             if o_constant != 0:
                 result = RustBinaryOp(
                     "Add", RustConstant(o_constant, RustSimTypeInt(), codegen=self), result, codegen=self
@@ -3344,9 +3361,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_Str(self, expr: Str, **kwargs):
-        if expr.heap_str:
-            type_ = RustSimTypeStr(is_heap_str=True).with_arch(self.project.arch)
+    def _handle_Expr_String(self, expr: String, **kwargs):
+        if expr.is_heap_str:
+            type_ = RustSimTypeString().with_arch(self.project.arch)
         else:
             type_ = RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
         reference_values = {type_: expr}

@@ -3,7 +3,7 @@ import ailment
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..sim_type import RustSimTypeStr, RustSimTypePointer
-from ..ailment.expression import Str
+from ..ailment.expression import String
 
 
 class StringSimplifier(OptimizationPass):
@@ -37,7 +37,7 @@ class StringSimplifier(OptimizationPass):
                         decoded_str = memory.load(str_addr, str_len).decode("utf-8")
                     except UnicodeDecodeError:
                         return False
-                    new_expr = Str(data.idx, data.variable, data.value, data.bits, decoded_str)
+                    new_expr = String(data.idx, data.variable, data.value, data.bits, decoded_str)
                     stmt.data = new_expr
                     # Set variable type to &str
                     self._variable_kb.variables.get_function_manager(self._func.addr).set_variable_type(

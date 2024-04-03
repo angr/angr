@@ -5,7 +5,7 @@ import archinfo
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...utils.library import get_rust_function_name
-from ..ailment.expression import VecInitialization, Str
+from ..ailment.expression import VecInitialization, String
 
 
 class AllocSimplifier(OptimizationPass):
@@ -238,7 +238,7 @@ class AllocSimplifier(OptimizationPass):
             data = str_expr
             # func_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
             # func_manager.set_variable_type(data.variable, RustSimTypeStr(is_heap_str=True), mark_manual=True)
-            expr = Str(data.idx, data.variable, 0, self.project.arch.bits * 3, decoded_str, heap_str=True)
+            expr = String(data.idx, data.variable, 0, self.project.arch.bits * 3, decoded_str, is_heap_str=True)
             return (
                 ailment.Stmt.Store(
                     data.idx,
