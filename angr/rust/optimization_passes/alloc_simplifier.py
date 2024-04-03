@@ -21,7 +21,6 @@ class AllocSimplifier(OptimizationPass):
         super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
-        # self.engine = DivSimplifierAILEngine()
         self.analyze()
 
     def _check(self):
@@ -236,8 +235,6 @@ class AllocSimplifier(OptimizationPass):
         try:
             decoded_str = init_bytes.decode("utf-8")
             data = str_expr
-            # func_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
-            # func_manager.set_variable_type(data.variable, RustSimTypeStr(is_heap_str=True), mark_manual=True)
             expr = String(data.idx, data.variable, 0, self.project.arch.bits * 3, decoded_str, is_heap_str=True)
             return (
                 ailment.Stmt.Store(

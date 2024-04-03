@@ -3,5 +3,8 @@ from .vec_simplifier import VecSimplifier
 from .string_simplifier import StringSimplifier
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
+from .dealloc_simplifier import DeallocSimplifier
 
-_all_optimization_passes.extend([(StringSimplifier, True), (AllocSimplifier, True), (TypeCorrector, True)])
+_all_optimization_passes.extend(
+    [(StringSimplifier, True), (AllocSimplifier, True), (DeallocSimplifier, True), (TypeCorrector, True)]
+)
