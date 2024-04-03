@@ -195,9 +195,6 @@ class Decompiler(Analysis):
         if self.project.is_rust_binary:
             self._codegen_cls = RustStructuredCodeGenerator
             self._typehoon_cls = RustTypehoon
-            self._peephole_optimizations = STMT_OPTS + EXPR_OPTS + MULTI_STMT_OPTS
-            self._peephole_optimizations.remove(InlinedStrcpy)
-            self._peephole_optimizations.remove(InlinedStrcpyConsolidation)
 
         if decompile:
             with self._resilience():

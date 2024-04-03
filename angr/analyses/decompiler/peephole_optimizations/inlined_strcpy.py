@@ -38,6 +38,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             and stmt.dst.was_stack
             and isinstance(stmt.src, Const)
             and isinstance(stmt.src.value, int)
+            and not self.project.is_rust_binary
         ):
             inlined_strcpy_candidate = True
             src = stmt.src
