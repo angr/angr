@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
@@ -2524,9 +2524,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
             omit_header=self.omit_func_header,
         )
-        self.cfunc = FieldReferenceCleanup.handle(self.cfunc)
-        self.cfunc = PointerArithmeticFixer.handle(self.cfunc)
-        self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
+        self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
+        self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
+        self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -3554,120 +3554,100 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
 
 class CStructuredCodeWalker:
-    @classmethod
-    def handle(cls, obj):
-        handler = getattr(cls, "handle_" + type(obj).__name__, cls.handle_default)
+    def handle(self, obj):
+        handler = getattr(self, "handle_" + type(obj).__name__, self.handle_default)
         return handler(obj)
 
-    @classmethod
-    def handle_default(cls, obj):
+    def handle_default(self, obj):
         return obj
 
-    @classmethod
-    def handle_CFunction(cls, obj):
-        obj.statements = cls.handle(obj.statements)
+    def handle_CFunction(self, obj):
+        obj.statements = self.handle(obj.statements)
         return obj
 
-    @classmethod
-    def handle_CStatements(cls, obj):
-        obj.statements = [cls.handle(stmt) for stmt in obj.statements]
+    def handle_CStatements(self, obj):
+        obj.statements = [self.handle(stmt) for stmt in obj.statements]
         return obj
 
-    @classmethod
-    def handle_CWhileLoop(cls, obj):
-        obj.condition = cls.handle(obj.condition)
-        obj.body = cls.handle(obj.body)
+    def handle_CWhileLoop(self, obj):
+        obj.condition = self.handle(obj.condition)
+        obj.body = self.handle(obj.body)
         return obj
 
-    @classmethod
-    def handle_CDoWhileLoop(cls, obj):
-        obj.condition = cls.handle(obj.condition)
-        obj.body = cls.handle(obj.body)
+    def handle_CDoWhileLoop(self, obj):
+        obj.condition = self.handle(obj.condition)
+        obj.body = self.handle(obj.body)
         return obj
 
-    @classmethod
-    def handle_CForLoop(cls, obj):
-        obj.initializer = cls.handle(obj.initializer)
-        obj.condition = cls.handle(obj.condition)
-        obj.iterator = cls.handle(obj.iterator)
-        obj.body = cls.handle(obj.body)
+    def handle_CForLoop(self, obj):
+        obj.initializer = self.handle(obj.initializer)
+        obj.condition = self.handle(obj.condition)
+        obj.iterator = self.handle(obj.iterator)
+        obj.body = self.handle(obj.body)
         return obj
 
-    @classmethod
-    def handle_CIfElse(cls, obj):
+    def handle_CIfElse(self, obj):
         obj.condition_and_nodes = [
-            (cls.handle(condition), cls.handle(node)) for condition, node in obj.condition_and_nodes
+            (self.handle(condition), self.handle(node)) for condition, node in obj.condition_and_nodes
         ]
-        obj.else_node = cls.handle(obj.else_node)
+        obj.else_node = self.handle(obj.else_node)
         return obj
 
-    @classmethod
-    def handle_CIfBreak(cls, obj):
-        obj.condition = cls.handle(obj.condition)
+    def handle_CIfBreak(self, obj):
+        obj.condition = self.handle(obj.condition)
         return obj
 
-    @classmethod
-    def handle_CSwitchCase(cls, obj):
-        obj.switch = cls.handle(obj.switch)
-        obj.cases = [(case, cls.handle(body)) for case, body in obj.cases]
-        obj.default = cls.handle(obj.default)
+    def handle_CSwitchCase(self, obj):
+        obj.switch = self.handle(obj.switch)
+        obj.cases = [(case, self.handle(body)) for case, body in obj.cases]
+        obj.default = self.handle(obj.default)
         return obj
 
-    @classmethod
-    def handle_CAssignment(cls, obj):
-        obj.lhs = cls.handle(obj.lhs)
-        obj.rhs = cls.handle(obj.rhs)
+    def handle_CAssignment(self, obj):
+        obj.lhs = self.handle(obj.lhs)
+        obj.rhs = self.handle(obj.rhs)
         return obj
 
-    @classmethod
-    def handle_CFunctionCall(cls, obj):
-        obj.callee_target = cls.handle(obj.callee_target)
-        obj.args = [cls.handle(arg) for arg in obj.args]
-        obj.ret_expr = cls.handle(obj.ret_expr)
+    def handle_CFunctionCall(self, obj):
+        obj.callee_target = self.handle(obj.callee_target)
+        obj.args = [self.handle(arg) for arg in obj.args]
+        obj.ret_expr = self.handle(obj.ret_expr)
         return obj
 
-    @classmethod
-    def handle_CReturn(cls, obj):
-        obj.retval = cls.handle(obj.retval)
+    def handle_CReturn(self, obj):
+        obj.retval = self.handle(obj.retval)
         return obj
 
-    @classmethod
-    def handle_CGoto(cls, obj):
-        obj.target = cls.handle(obj.target)
+    def handle_CGoto(self, obj):
+        obj.target = self.handle(obj.target)
         return obj
 
-    @classmethod
-    def handle_CIndexedVariable(cls, obj):
-        obj.variable = cls.handle(obj.variable)
-        obj.index = cls.handle(obj.index)
+    def handle_CIndexedVariable(self, obj):
+        obj.variable = self.handle(obj.variable)
+        obj.index = self.handle(obj.index)
         return obj
 
-    @classmethod
-    def handle_CVariableField(cls, obj):
-        obj.variable = cls.handle(obj.variable)
+    def handle_CVariableField(self, obj):
+        obj.variable = self.handle(obj.variable)
         return obj
 
-    @classmethod
-    def handle_CUnaryOp(cls, obj):
-        obj.operand = cls.handle(obj.operand)
+    def handle_CUnaryOp(self, obj):
+        obj.operand = self.handle(obj.operand)
         return obj
 
-    @classmethod
-    def handle_CBinaryOp(cls, obj):
-        obj.lhs = cls.handle(obj.lhs)
-        obj.rhs = cls.handle(obj.rhs)
+    def handle_CBinaryOp(self, obj):
+        obj.lhs = self.handle(obj.lhs)
+        obj.rhs = self.handle(obj.rhs)
         return obj
 
-    @classmethod
-    def handle_CTypeCast(cls, obj):
-        obj.expr = cls.handle(obj.expr)
+    def handle_CTypeCast(self, obj):
+        obj.expr = self.handle(obj.expr)
         return obj
 
-    @classmethod
-    def handle_CITE(cls, obj):
-        obj.cond = cls.handle(obj.cond)
-        obj.iftrue = cls.handle(obj.iftrue)
-        obj.iffalse = cls.handle(obj.iffalse)
+    def handle_CITE(self, obj):
+        obj.cond = self.handle(obj.cond)
+        obj.iftrue = self.handle(obj.iftrue)
+        obj.iffalse = self.handle(obj.iffalse)
         return obj
 
 
@@ -3702,34 +3682,30 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
             return cls.collapse(dst_ty, result)
         return result
 
-    @classmethod
-    def handle_CAssignment(cls, obj):
-        obj.rhs = cls.collapse(obj.lhs.type, obj.rhs)
+    def handle_CAssignment(self, obj):
+        obj.rhs = self.collapse(obj.lhs.type, obj.rhs)
         return super().handle_CAssignment(obj)
 
-    @classmethod
-    def handle_CFunctionCall(cls, obj: CFunctionCall):
+    def handle_CFunctionCall(self, obj: CFunctionCall):
         for i, (c_arg, arg_ty) in enumerate(zip(obj.args, obj.prototype.args)):
-            obj.args[i] = cls.collapse(arg_ty, c_arg)
+            obj.args[i] = self.collapse(arg_ty, c_arg)
         return super().handle_CFunctionCall(obj)
 
-    @classmethod
-    def handle_CReturn(cls, obj: CReturn):
-        obj.retval = cls.collapse(obj.codegen._func.prototype.returnty, obj.retval)
+    def handle_CReturn(self, obj: CReturn):
+        obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
         return super().handle_CReturn(obj)
 
-    @classmethod
-    def handle_CBinaryOp(cls, obj: CBinaryOp):
+    def handle_CBinaryOp(self, obj: CBinaryOp):
         obj = super().handle_CBinaryOp(obj)
         while True:
-            new_lhs = cls.collapse(obj.common_type, obj.lhs)
+            new_lhs = self.collapse(obj.common_type, obj.lhs)
             if (
                 new_lhs is not obj.lhs
                 and CBinaryOp.compute_common_type(obj.op, new_lhs.type, obj.rhs.type) == obj.common_type
             ):
                 obj.lhs = new_lhs
             else:
-                new_rhs = cls.collapse(obj.common_type, obj.rhs)
+                new_rhs = self.collapse(obj.common_type, obj.rhs)
                 if (
                     new_rhs is not obj.rhs
                     and CBinaryOp.compute_common_type(obj.op, obj.lhs.type, new_rhs.type) == obj.common_type
@@ -3739,11 +3715,10 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                     break
         return obj
 
-    @classmethod
-    def handle_CTypeCast(cls, obj: CTypeCast):
+    def handle_CTypeCast(self, obj: CTypeCast):
         # note that the expression that this method returns may no longer be a CTypeCast
         obj = super().handle_CTypeCast(obj)
-        inner = cls.collapse(obj.dst_type, obj.expr)
+        inner = self.collapse(obj.dst_type, obj.expr)
         if inner is not obj.expr:
             obj.src_type = inner.type
             obj.expr = inner
@@ -3753,12 +3728,11 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
 
 class FieldReferenceCleanup(CStructuredCodeWalker):
-    @classmethod
-    def handle_CTypeCast(cls, obj):
+    def handle_CTypeCast(self, obj):
         if isinstance(obj.dst_type, SimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
             obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
             if not isinstance(obj, CTypeCast):
-                return cls.handle(obj)
+                return self.handle(obj)
         return super().handle_CTypeCast(obj)
 
 
@@ -3776,8 +3750,7 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
     a_ptr = a_ptr + 1.
     """
 
-    @classmethod
-    def handle_CBinaryOp(cls, obj):
+    def handle_CBinaryOp(self, obj):
         obj: CBinaryOp = super().handle_CBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")
