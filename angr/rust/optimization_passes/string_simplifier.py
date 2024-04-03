@@ -9,8 +9,8 @@ from ..ailment.expression import String
 class StringSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
-    NAME = "Simplify Rust str"
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Identify and simplify Rust string literals"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -39,10 +39,6 @@ class StringSimplifier(OptimizationPass):
                         return False
                     new_expr = String(data.idx, data.variable, data.value, data.bits, decoded_str)
                     stmt.data = new_expr
-                    # Set variable type to &str
-                    self._variable_kb.variables.get_function_manager(self._func.addr).set_variable_type(
-                        stmt.variable, RustSimTypePointer(RustSimTypeStr()), mark_manual=True
-                    )
                     return True
         return False
 

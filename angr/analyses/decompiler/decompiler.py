@@ -38,6 +38,7 @@ from ..typehoon.typehoon import Typehoon
 from ...rust.typehoon.typehoon import RustTypehoon
 from .optimization_passes.return_duplicator_high import ReturnDuplicatorHigh
 from .optimization_passes.return_duplicator_low import ReturnDuplicatorLow
+from .optimization_passes.flip_boolean_cmp import FlipBooleanCmp
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
