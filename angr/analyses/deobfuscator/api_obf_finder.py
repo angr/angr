@@ -1,6 +1,8 @@
+from __future__ import annotations
 from typing import List, Tuple, Any, Dict
 from enum import IntEnum
 import string
+import logging
 
 import networkx
 
@@ -13,6 +15,16 @@ from angr.knowledge_plugins.key_definitions.constants import ObservationPointTyp
 from angr.sim_type import SimTypePointer, SimTypeChar
 from angr.analyses import Analysis, AnalysesHub
 from angr.procedures.definitions import SimSyscallLibrary
+from angr.sim_variable import SimMemoryVariable
+from angr.analyses.decompiler.structured_codegen.c import (
+    CStructuredCodeWalker,
+    CFunctionCall,
+    CConstant,
+    CAssignment,
+    CVariable,
+)
+
+_l = logging.getLogger(name=__name__)
 
 
 class APIObfuscationType(IntEnum):
@@ -25,6 +37,50 @@ class APIDeobFuncDescriptor:
         self.func_addr = func_addr
         self.libname_argidx = libname_argidx
         self.funcname_argidx = funcname_argidx
+
+
+class Type1AssignmentFinder(CStructuredCodeWalker):
+    def __init__(self, func_addr: int, desc: APIDeobFuncDescriptor):
+        self.func_addr = func_addr
+        self.desc = desc
+        self.assignments: Dict[int, Tuple[str, str]] = {}
+
+    def handle_CAssignment(self, obj: CAssignment):
+        if (
+            isinstance(obj.lhs, CVariable)
+            and isinstance(obj.lhs.variable, SimMemoryVariable)
+            and isinstance(obj.lhs.variable.addr, int)
+            and isinstance(obj.rhs, CFunctionCall)
+            and isinstance(obj.rhs.callee_target, CConstant)
+            and obj.rhs.callee_target.value == self.func_addr
+        ):
+            # found it!
+            func_args = obj.rhs.args
+            if self.desc.funcname_argidx < len(func_args) and self.desc.libname_argidx < len(func_args):
+                funcname_arg = func_args[self.desc.funcname_argidx]
+                libname_arg = func_args[self.desc.libname_argidx]
+                if isinstance(funcname_arg, CConstant) and isinstance(libname_arg, CConstant):
+                    # load two strings
+                    funcname, libname = None, None
+                    if funcname_arg.type in funcname_arg.reference_values and isinstance(
+                        funcname_arg.reference_values[funcname_arg.type].content, bytes
+                    ):
+                        funcname = funcname_arg.reference_values[funcname_arg.type].content.decode("utf-8")
+                    if libname_arg.type in libname_arg.reference_values and isinstance(
+                        libname_arg.reference_values[libname_arg.type].content, bytes
+                    ):
+                        libname = libname_arg.reference_values[libname_arg.type].content.decode("utf-8")
+
+                    if funcname and libname:
+                        if obj.lhs.variable.addr in self.assignments:
+                            if self.assignments[obj.lhs.variable.addr] != (libname, funcname):
+                                _l.warning(
+                                    "Observed more than one assignment for variable at %#x.", obj.lhs.variable.addr
+                                )
+                        else:
+                            self.assignments[obj.lhs.variable.addr] = libname, funcname
+
+        return super().handle_CAssignment(obj)
 
 
 class APIObfuscationFinder(Analysis):
@@ -75,7 +131,7 @@ class APIObfuscationFinder(Analysis):
                     func = self.kb.functions.get_by_addr(succ_addr)
                     likely, info = self._is_likely_type1_func(func, cfg)
                     if likely:
-                        candidates.append((func, info))
+                        candidates.append((func.addr, info))
 
         descs = []
         for func_addr, info in candidates:
@@ -112,11 +168,8 @@ class APIObfuscationFinder(Analysis):
         libname_arg_idx = None
         funcname_arg_idx = None
         # who's calling it?
-        caller_addrs = sorted({pred.addr for pred in cfg.get_predecessors(cfg.get_any_node(func.addr))})
+        caller_addrs = sorted({caller_addr for caller_addr in self.kb.functions.callgraph.predecessors(func.addr)})
         for caller_addr in caller_addrs:
-            if not self.kb.functions.contains_addr(caller_addr):
-                continue
-
             # what arguments are used to call this function with?
             callsite_nodes = [
                 pred
@@ -192,8 +245,36 @@ class APIObfuscationFinder(Analysis):
             return True, {"libname_arg_idx": libname_arg_idx, "funcname_arg_idx": funcname_arg_idx}
         return False, None
 
-    def _analyze_type1(self, func_addr, desc: APIDeobFuncDescriptor) -> Dict:
-        raise NotImplementedError()
+    def _analyze_type1(self, func_addr, desc: APIDeobFuncDescriptor) -> Dict[int, Tuple[str, str]]:
+        cfg = self.kb.cfgs.get_most_accurate()
+
+        assignments: Dict[int, Tuple[str, str]] = {}
+
+        # get all call sites
+        caller_addrs = sorted({caller_addr for caller_addr in self.kb.functions.callgraph.predecessors(func_addr)})
+        for caller_addr in caller_addrs:
+            # decompile the function and get all assignments of the return value of the func at func_addr
+            try:
+                dec = self.project.analyses.Decompiler(self.kb.functions.get_by_addr(caller_addr), cfg=cfg)
+            except Exception:
+                continue
+            if dec.codegen is None:
+                continue
+
+            finder = Type1AssignmentFinder(func_addr, desc)
+            finder.handle(dec.codegen.cfunc)
+
+            duplicate_addrs = set(assignments.keys()).intersection(set(finder.assignments.keys()))
+            if duplicate_addrs:
+                # duplicate entries
+                _l.warning(
+                    "Observed duplicate assignments at the following addresses: %s.",
+                    str(map(hex, sorted(duplicate_addrs))),
+                )
+
+            assignments.update(finder.assignments)
+
+        return assignments
 
     @staticmethod
     def _build_caller_subtree(callgraph: networkx.DiGraph, func_addr: int, max_level: int) -> networkx.DiGraph:
