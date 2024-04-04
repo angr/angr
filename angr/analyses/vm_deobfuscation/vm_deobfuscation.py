@@ -124,13 +124,11 @@ class InputConcretizeEngine(UberEngine):
         ## But this slows down analyses so instead we just do replacement for all temps and registers in _perform_vex_expr_Load
         #new_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
         new_result = result[0]
-        if self.project.prev_symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
-            for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
-                for to_repl_expr in expr_list:
-                    if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
-                        sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(codeloc.block_addr)), result[0].size())
-                        self.state.globals['expr_loc_map'][sym_result.args[0]] = (codeloc, expr)
-                        new_result = sym_result
+        code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
+        if self.project.prev_symbolic_expr_locations and not self.state.solver.symbolic(result[0]) and (code_loc, expr) in self.project.prev_symbolic_expr_locations:
+            sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(code_loc.block_addr)), result[0].size())
+            self.state.globals['expr_loc_map'][sym_result.args[0]] = (code_loc, expr)
+            new_result = sym_result
 
         return [new_result, result[1]]
 
@@ -473,8 +471,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         new_cfg=cfg
-
-        all_symbolic_expr_locations_blockwise = {}
+        all_symbolic_expr_locations = {}
         import pickle
 
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
@@ -483,16 +480,19 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"after_all_split.svg"))
 
-            pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_"+str(symb_iter) + "_all_symbolic_expr_locations_blockwise"
+            pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_"+str(symb_iter) + "_all_symbolic_expr_location"
             with open(pickled_file_name, 'wb') as f:
-                pickle.dump(all_symbolic_expr_locations_blockwise, f)
+                pickle.dump(all_symbolic_expr_locations, f)
 
             # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
             # symbolizer here tells us which values to symbolize during next cfg exploration stage, it does not discover new nodes
-            _, symbolic_expr_locations_blockwise= self.symbolizer(new_cfg, proj,
+            #we need to pass previous symb exprs because, once a conditonal jmp is symbolized, we may not necessariy explore the branchs in the correct order
+            # in symbolizer. which could lead to a incomplete graph. e.g exploring the False branch first, will cause us to miss the loop branch which symbolzies the
+            # correct variable. this is specifically in themida which has two conditionals jmp for every conditional jump
+            _, symbolic_expr_locations= self.symbolizer(new_cfg, proj,
                                                                   start_addr, None,
                                                                   start_state=None,
-                                                                  prev_symbolic_expr_locations_blockwise=all_symbolic_expr_locations_blockwise,
+                                                                  prev_symbolic_expr_locations=all_symbolic_expr_locations,
                                                                   prev_unroll_vm_addrs=prev_unroll_vm_addrs)
 
             import pickle
@@ -503,7 +503,7 @@ class VMDeobfuscation(Analysis):
             self.project.symbolizer_solve_times = []
 
 
-            self.merge_symbolic_expr_locations_blockwise(all_symbolic_expr_locations_blockwise, symbolic_expr_locations_blockwise)
+            self.merge_symbolic_expr_locations(all_symbolic_expr_locations, symbolic_expr_locations)
 
             self.project.kb.cfgs.cfgs = {}
             # clearing the saved states to save space
@@ -516,7 +516,9 @@ class VMDeobfuscation(Analysis):
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
             #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)
             #and also changing the way merging of values happens
-            new_cfg, _ = self.symbolify_exprs(proj, all_symbolic_expr_locations_blockwise,
+            #INFO: The reason we need to pass all previous symb locs is that cfgemulated does not merge values as it does not
+            # explore a node(merge point node) twice, so it cannot symbolize values itself.
+            new_cfg, _ = self.symbolify_exprs(proj, all_symbolic_expr_locations,
                                                                   start_addr=start_addr, start_state=start_state_copy,
                                                                   cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
                                                                   remove_insts=remove_insts)
@@ -537,15 +539,16 @@ class VMDeobfuscation(Analysis):
 
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
 
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/3_symbolizer_cfg_pickle"
-        # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
-
         to_split_nodes = self.split_redundant_branch_themida(new_cfg)
         new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
 
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, None)
 
+        self.draw_graph_flag = True
+
         self.draw_graph(new_cfg, os.path.join(folder_name, "after_all_symb_and_split.svg"))
+
+        self.draw_graph_flag = False
 
         import pickle
         pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
@@ -556,7 +559,7 @@ class VMDeobfuscation(Analysis):
         import gc
         gc.collect()
         ## This is constant propgation along with finding non-constants
-        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
+        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
@@ -804,22 +807,27 @@ class VMDeobfuscation(Analysis):
                 f.write(str(key)+": " + str(value) + "\n")
 
 
-    def merge_symbolic_expr_locations_blockwise(self, all_symbolic_expr_locations_blockwise, cur_symbolic_expr_locations_blockwise):
-        for block_id, codeloc_dict in cur_symbolic_expr_locations_blockwise.items():
-            if block_id not in all_symbolic_expr_locations_blockwise:
-                all_symbolic_expr_locations_blockwise[block_id] = codeloc_dict
+    def merge_symbolic_expr_locations(self, all_symbolic_expr_locations, cur_symbolic_expr_locations):
 
-            else:
-                for codeloc, expr_list in codeloc_dict.items():
-                    if codeloc not in all_symbolic_expr_locations_blockwise[block_id]:
-                        all_symbolic_expr_locations_blockwise[block_id] = codeloc_dict
-                    elif set(expr_list) != set(all_symbolic_expr_locations_blockwise[block_id][codeloc]):
-                        all_expr_set = set()
-                        for expr in expr_list:
-                            all_expr_set.add(expr)
-                        for expr in all_symbolic_expr_locations_blockwise[block_id][codeloc]:
-                            all_expr_set.add(expr)
-                        all_symbolic_expr_locations_blockwise[codeloc] = list(all_expr_set)
+        for codeloc, expr in cur_symbolic_expr_locations.keys():
+            if (codeloc, expr) not in all_symbolic_expr_locations:
+                all_symbolic_expr_locations[(codeloc, expr)] = cur_symbolic_expr_locations[(codeloc, expr)]
+
+        # for block_id, codeloc_dict in cur_symbolic_expr_locations_blockwise.items():
+        #     if block_id not in all_symbolic_expr_locations_blockwise:
+        #         all_symbolic_expr_locations_blockwise[block_id] = codeloc_dict
+        #
+        #     else:
+        #         for codeloc, expr_list in codeloc_dict.items():
+        #             if codeloc not in all_symbolic_expr_locations_blockwise[block_id]:
+        #                 all_symbolic_expr_locations_blockwise[block_id] = codeloc_dict
+        #             elif set(expr_list) != set(all_symbolic_expr_locations_blockwise[block_id][codeloc]):
+        #                 all_expr_set = set()
+        #                 for expr in expr_list:
+        #                     all_expr_set.add(expr)
+        #                 for expr in all_symbolic_expr_locations_blockwise[block_id][codeloc]:
+        #                     all_expr_set.add(expr)
+        #                 all_symbolic_expr_locations_blockwise[codeloc] = list(all_expr_set)
 
     def remove_redundant_ip_assignement(self, cfg):
         #
@@ -1540,9 +1548,9 @@ class VMDeobfuscation(Analysis):
 
     @logtime
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
-                             prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
+                             prev_symbolic_expr_locations=None, vm_vpc=None,
                              return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
-        self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
+        self.project.prev_symbolic_expr_locations = prev_symbolic_expr_locations
         print("Doing constant propagation or symbolizing")
         # old_graph = cfg.graph
         # new_model = self.new_model_graph(old_graph, proj, "temporary1")
@@ -1673,13 +1681,13 @@ class VMDeobfuscation(Analysis):
         # prop.symbolic_expr_locations_blockwise = tmp_syb_blockwise
 
         print("Done")
-        return new_model, prop.symbolic_expr_locations_blockwise
+        return new_model, prop.symbolic_expr_locations
 
     @logtime
-    def symbolify_exprs(self, proj, symbolic_expr_locations_blockwise, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
+    def symbolify_exprs(self, proj, symbolic_expr_locations, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
         start_state.globals['to_use_symbolic_exprs'] = []
         start_state.globals['expr_loc_map'] = {}
-        self.project.prev_symbolic_expr_locations_blockwise = symbolic_expr_locations_blockwise
+        self.project.prev_symbolic_expr_locations = symbolic_expr_locations
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                                data_sensitive=True,
                                                starts=(start_addr,),
@@ -1697,7 +1705,7 @@ class VMDeobfuscation(Analysis):
                                                deobfuscation_end_addr = self.deobfuscation_end_addr,
                                                # enable_advanced_backward_slicing=True
                                                )
-        self.project.prev_symbolic_expr_locations_blockwise = None
+        self.project.prev_symbolic_expr_locations = None
 
         return cfg, cfg.to_use_symbolic_exprs
 
@@ -4169,7 +4177,7 @@ class VMDeobfuscation(Analysis):
         return new_cfg, changed
 
     ### Draw the graph with vex statements
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=False):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True):
         if not self.draw_graph_flag:
             print("skip graph drawing")
             return
