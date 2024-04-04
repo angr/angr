@@ -61,6 +61,10 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         cur_abstract_state = self.state.globals['abstract_state']()
 
+        if expr in cur_abstract_state._replacements[code_loc] and (cur_abstract_state._replacements[code_loc][expr] == "TOP"):
+            #if the location is already symbolic then return without trying to simplify
+            return result
+
 
         # if self.state.solver.symbolic(result[0]):
         #     self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
@@ -87,11 +91,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 if isinstance(self.state.scratch.irsb.statements[self.stmt_idx], pyvex.stmt.Exit) and \
                         not len(list(simp_result.variables)) == 1:
                     try:
-                        start = cur_time()
+                        # start = cur_time()
                         eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
-                        millisec = cur_time() - start
-                        self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
-                                                                    len(self.state.partial_symbolic_constraint_solver.constraints)))
+                        # millisec = cur_time() - start
+                        # self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
+                        #                                             len(self.state.partial_symbolic_constraint_solver.constraints)))
                         if eval_result in [0,1]:
                             simp_result = claripy.BVV(eval_result, simp_result.size())
                     except SimValueError:
@@ -100,11 +104,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
             if not skip:
                 try:
-                    start = cur_time()
+                    # start = cur_time()
                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
-                    millisec = cur_time() - start
-                    self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
-                                                                len(self.state.partial_symbolic_constraint_solver.constraints)))
+                    # millisec = cur_time() - start
+                    # self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
+                                                                # len(self.state.partial_symbolic_constraint_solver.constraints)))
                     simp_result = claripy.BVV(eval_result, simp_result.size())
                 except SimValueError:
                     pass
@@ -118,20 +122,29 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         #         break
 
         #symbolize the previously(previous analysis) found non constants and return that
+        if not self.state.solver.symbolic(simp_result) and self.project.prev_symbolic_expr_locations and \
+                (code_loc, expr) in self.project.prev_symbolic_expr_locations:
+            sym_result = PropagatorState.top(simp_result.size())
+            cur_abstract_state._replacements[code_loc][expr] = "TOP"
+            return [sym_result, result[1]]
+
+        #symbolize the previously(previous analysis) found non constants and return that
         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
-        if not self.state.solver.symbolic(simp_result) and self.project.prev_symbolic_expr_locations_blockwise and \
-                self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
-            for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
-                for to_repl_expr in expr_list:
-                    if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
-                        #sym_result = self.state.solver.BVS("symbolified_expr", simp_result.size())
-                        sym_result = PropagatorState.top(simp_result.size())
-                        return [sym_result, result[1]]
+        # if not self.state.solver.symbolic(simp_result) and self.project.prev_symbolic_expr_locations_blockwise and \
+        #         self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
+        #     for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
+        #         for to_repl_expr in expr_list:
+        #             if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
+        #                 #sym_result = self.state.solver.BVS("symbolified_expr", simp_result.size())
+        #                 sym_result = PropagatorState.top(simp_result.size())
+        #                 cur_abstract_state._replacements[code_loc][expr] = "TOP"
+        #                 return [sym_result, result[1]]
 
         ## Do we still need this stack touched thingy?? Not very accurate, we should actually be tracking local variables on the stack, since junk values can always be pushed and popped from the stack
         # if not stack_touched:
 
         # this is for the new constant propagation that doesn't merge states........... check if its a non constant
+        # is this still needed? i think now we merge the states, and use TOP for merged values
         if not self.state.solver.symbolic(simp_result) and \
                 expr in cur_abstract_state._replacements[code_loc] and \
                 not (cur_abstract_state._replacements[code_loc][expr] == "TOP") and \
@@ -175,9 +188,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
             except SimValueError:
                 pass
-            except claripy.ClaripyError:
-                import ipdb;ipdb.set_trace()
-                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
+            except claripy.ClaripyError as e:
+                pass
         result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
 
 
@@ -201,22 +213,27 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         save = False
         var_ast_list = []
+        conc_addrs = None
+        try:
+            conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
+        except:
+            pass
 
-        conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
-        ast_addrs = []
-        for con_addr in conc_addrs:
-            ast_addrs.append(claripy.BVV(con_addr, addr[0].size()))
+        if conc_addrs:
+            ast_addrs = []
+            for con_addr in conc_addrs:
+                ast_addrs.append(claripy.BVV(con_addr, addr[0].size()))
 
-        conc_addrs = ast_addrs
+            conc_addrs = ast_addrs
 
-        if len(conc_addrs) < 5:
-            if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
-                if not self.state.solver.symbolic(simplified_addr):
-                    return result
-                save = True
+            if len(conc_addrs) < 5:
+                if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
+                    if not self.state.solver.symbolic(simplified_addr):
+                        return result
+                    save = True
 
-        if len(var_ast_list) > 1:
-            print("More than one variables? which one to save.... maybe both")
+            if len(var_ast_list) > 1:
+                print("More than one variables? which one to save.... maybe both")
 
 
         if save:
@@ -646,7 +663,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self._node_iterations = defaultdict(int)
         self._states = { }
         self.replacements = {}
-        self.symbolic_expr_locations_blockwise = {}
+        self.symbolic_expr_locations = {}
         self._engine_ail = None
         self._prev_input_states = { }
         self._engine= PropagatorEmulatedEngine(project=self.project)
@@ -659,22 +676,30 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 cur_abstract_state = self._states[node.block_id]
                 self.replacements[node.block_id] = cur_abstract_state._replacements
 
+        # #Get all the symbolic locations
+        # self.symbolic_expr_locations_blockwise = defaultdict(dict)
+        # for block_id, repls in self.replacements.items():
+        #     for codeloc, exprs_repls in repls.items():
+        #         for expr, repl in exprs_repls.items():
+        #             if self.is_top_str(repl):
+        #                 if codeloc in self.symbolic_expr_locations_blockwise[block_id]:
+        #                     self.symbolic_expr_locations_blockwise[block_id][codeloc].append(expr)
+        #                 else:
+        #                     self.symbolic_expr_locations_blockwise[block_id][codeloc] = [expr]
+
         #Get all the symbolic locations
-        self.symbolic_expr_locations_blockwise = defaultdict(dict)
         for block_id, repls in self.replacements.items():
             for codeloc, exprs_repls in repls.items():
                 for expr, repl in exprs_repls.items():
                     if self.is_top_str(repl):
-                        if codeloc in self.symbolic_expr_locations_blockwise[block_id]:
-                            self.symbolic_expr_locations_blockwise[block_id][codeloc].append(expr)
-                        else:
-                            self.symbolic_expr_locations_blockwise[block_id][codeloc] = [expr]
+                        self.symbolic_expr_locations[(codeloc, expr)] = "TOP"
+
 
 
         for key,value in self._states.items():
             self._states[key] = None
 
-        l.debug(len(self.symbolic_expr_locations_blockwise))
+        l.debug(len(self.symbolic_expr_locations))
         l.debug(len(self.replacements))
 
         # for block_key, iter in self._node_iterations.items():
@@ -1200,7 +1225,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             #     all_successors[succ.regs.ip].append(succ)
 
         l.debug("replacemtns: "+str(len(self.replacements)))
-        l.debug("symb locs: "+str(len(self.symbolic_expr_locations_blockwise)))
+        l.debug("symb locs: "+str(len(self.symbolic_expr_locations)))
 
         #trying to merge same addr successors, this is part of the late mergning strategy
         merged_state_collection = []
