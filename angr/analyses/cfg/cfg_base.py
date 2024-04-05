@@ -784,7 +784,7 @@ class CFGBase(Analysis):
                     if (
                         section.is_executable
                         and not section.is_writable
-                        and not section.name in {".data", ".rdata", ".rodata"}
+                        and section.name not in {".data", ".rdata", ".rodata"}
                     ):
                         tpl = (section.min_addr, section.max_addr + 1)
                         memory_regions.append(tpl)
