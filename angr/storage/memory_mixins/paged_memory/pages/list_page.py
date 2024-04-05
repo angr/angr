@@ -2,6 +2,8 @@
 import logging
 from typing import Optional, List, Set, Tuple
 
+import claripy
+
 from angr.utils.dynamic_dictlist import DynamicDictList
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
@@ -263,15 +265,23 @@ class ListPage(MemoryObjectMixin, PageBase):
                 differences.add(c)
             else:
                 if self.content[c] is None:
+                    if self.sinkhole is None:
+                        v = claripy.BVV(0, 8)
+                    else:
+                        v = (self.sinkhole.bytes_at(page_addr + c, 1),)
                     self.content[c] = SimMemoryObject(
-                        self.sinkhole.bytes_at(page_addr + c, 1),
+                        v,
                         page_addr + c,
                         byte_width=byte_width,
                         endness="Iend_BE",
                     )
                 if other.content[c] is None:
+                    if other.sinkhole is None:
+                        v = claripy.BVV(0, 8)
+                    else:
+                        v = (other.sinkhole.bytes_at(page_addr + c, 1),)
                     other.content[c] = SimMemoryObject(
-                        other.sinkhole.bytes_at(page_addr + c, 1),
+                        v,
                         page_addr + c,
                         byte_width=byte_width,
                         endness="Iend_BE",
