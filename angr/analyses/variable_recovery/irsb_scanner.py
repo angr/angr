@@ -33,6 +33,12 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         self.reg_read_stmt_id: Dict[int, int] = {}
         self.reg_read_stmts_to_ignore: Set[int] = set()
 
+    def _top(self, size: int):
+        return None
+
+    def _is_top(self, expr) -> bool:
+        return True
+
     def _process_Stmt(self, whitelist=None):
         self.tmps_with_64bit_regs = set()
         self.tmps_assignment_stmtidx = {}

@@ -239,9 +239,54 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         return None
 
     def _handle_Triop(self, expr: pyvex.IRExpr.Triop):  # pylint: disable=useless-return
-        if self.l is not None:
+        handler = None
+        if expr.op.startswith("Iop_AddF"):
+            handler = "_handle_AddF"
+        elif expr.op.startswith("Iop_SubF"):
+            handler = "_handle_AddF"
+        elif expr.op.startswith("Iop_MulF"):
+            handler = "_handle_MulF"
+        elif expr.op.startswith("Iop_DivF"):
+            handler = "_handle_DivF"
+        elif expr.op.startswith("Iop_SinF"):
+            handler = "_handle_SinF"
+        elif expr.op.startswith("Iop_ScaleF"):
+            handler = "_handle_ScaleF"
+
+        if handler is not None and hasattr(self, handler):
+            return getattr(self, handler)(expr)
+
+        if once(expr.op) and self.l is not None:
             self.l.error("Unsupported Triop %s.", expr.op)
+
         return None
+
+    def _handle_AddF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_SubF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_MulF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_DivF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_NegF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_AbsF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_SinF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_CosF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_ScaleF(self, expr):
+        return self._top(expr.result_size(self.tyenv))
 
     def _handle_RdTmp(self, expr):
         tmp = expr.tmp
@@ -294,6 +339,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = "_handle_Clz"
         elif expr.op.startswith("Iop_Ctz"):
             handler = "_handle_Ctz"
+        elif expr.op.startswith("Iop_NegF"):
+            handler = "_handle_NegF"
+        elif expr.op.startswith("Iop_AbsF"):
+            handler = "_handle_AbsF"
 
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
@@ -361,6 +410,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = "_handle_16HLto32"
         elif expr.op.startswith("Iop_ExpCmpNE64"):
             handler = "_handle_ExpCmpNE64"
+        elif expr.op.startswith("Iop_SinF"):
+            handler = "_handle_SinF"
+        elif expr.op.startswith("Iop_CosF"):
+            handler = "_handle_CosF"
 
         vector_size, vector_count = None, None
         if handler is not None:
@@ -538,6 +591,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             return self._top(expr_0.size())
 
         return expr_0 * expr_1
+
+    def _handle_Mull(self, expr):
+        self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
 
     def _handle_DivMod(self, expr):
         args, r = self._binop_get_args(expr)
