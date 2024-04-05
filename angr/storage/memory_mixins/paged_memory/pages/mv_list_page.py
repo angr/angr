@@ -239,9 +239,10 @@ class MVListPage(
                 # get the size that we can merge easily. This is the minimum of the size of all memory objects and
                 # unallocated spaces.
                 min_size = len(self.content) - b
+                mask = (1 << memory.state.arch.bits) - 1
                 for mo_set in mo_sets:
                     for mo in mo_set:
-                        min_size = min(min_size, mo.length - (b + page_addr - mo.base))
+                        min_size = min(min_size, mo.length - ((b + page_addr - mo.base) & mask))
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):

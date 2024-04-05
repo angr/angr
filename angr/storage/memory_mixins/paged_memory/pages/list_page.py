@@ -194,9 +194,14 @@ class ListPage(MemoryObjectMixin, PageBase):
                 merged_offsets.add(b)
 
             else:
-                # get the size that we can merge easily. This is the minimum of
-                # the size of all memory objects and unallocated spaces.
-                min_size = min([mo.length - (b + page_addr - mo.base) for mo, _ in memory_objects])
+                # get the size that we can merge easily. This is the minimum of the size of all memory objects and
+                # unallocated spaces.
+                min_size = None
+                mask = (1 << memory.state.arch.bits) - 1
+                for mo, _ in memory_objects:
+                    mo_size = mo.length - ((b + page_addr - mo.base) & mask)
+                    if min_size is None or mo_size < min_size:
+                        min_size = mo_size
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):
