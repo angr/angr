@@ -61,6 +61,9 @@ class SimEngineVRVEX(
             return
         self._assign_to_register(offset, r, size)
 
+    def _handle_PutI(self, stmt):
+        pass
+
     def _handle_Store(self, stmt):
         addr_r = self._expr(stmt.addr)
         size = stmt.data.result_size(self.tyenv) // 8
@@ -158,6 +161,9 @@ class SimEngineVRVEX(
             force_variable_size=force_variable_size,
             create_variable=self.stmt_idx not in self.reg_read_stmts_to_ignore,
         )
+
+    def _handle_GetI(self, expr: pyvex.IRExpr.GetI):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
 
     def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
         addr = self._expr(expr.addr)

@@ -176,6 +176,9 @@ class SimEngineRDVEX(
             return
         self.state.kill_and_add_definition(reg, data)
 
+    def _handle_PutI(self, stmt):
+        pass
+
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
@@ -403,6 +406,9 @@ class SimEngineRDVEX(
         self.state.add_register_use_by_defs(current_defs)
 
         return values
+
+    def _handle_GetI(self, expr: pyvex.IRExpr.GetI) -> MultiValues:
+        return MultiValues(self.state.top(expr.result_size(self.tyenv)))
 
     # e.g. t27 = LDle:I64(t9), t9 might include multiple values
     # caution: Is also called from StoreG
