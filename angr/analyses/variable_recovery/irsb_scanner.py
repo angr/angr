@@ -61,6 +61,9 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
                 self.reg_read_stmts_to_ignore.add(self.reg_read_stmt_id[old_reg_offset])
             self.reg_with_reg_as_value[stmt.offset] = self.tmp_with_reg_as_value[stmt.data.tmp]
 
+    def _handle_PutI(self, stmt):
+        pass
+
     def _handle_Load(self, expr):
         pass
 
@@ -90,6 +93,9 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         self.reg_read_stmt_id[expr.offset] = self.stmt_idx
         if expr.offset in self.reg_with_reg_as_value:
             del self.reg_with_reg_as_value[expr.offset]
+
+    def _handle_GetI(self, expr):
+        pass
 
     def _handle_RdTmp(self, expr):
         if expr.tmp in self.tmps_converted_to_32bit:
