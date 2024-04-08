@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple
 
 from .plugin import KnowledgeBasePlugin
 
@@ -11,14 +11,15 @@ class Obfuscations(KnowledgeBasePlugin):
     def __init__(self, kb):
         super().__init__(kb)
 
-        self.analyzed: bool = False
+        self.obfuscated_strings_analyzed: bool = False
         self.type1_deobfuscated_strings = {}
         self.type1_string_loader_candidates = set()
         self.type2_deobfuscated_strings = {}
         self.type2_string_loader_candidates = set()
         self.type3_deobfuscated_strings = {}  # from the address of the call instruction to the actual string (in bytes)
 
-        self.type1_deobfuscated_apis: Dict[int, str] = {}
+        self.obfuscated_apis_analyzed: bool = False
+        self.type1_deobfuscated_apis: Dict[int, Tuple[str, str]] = {}
 
     def copy(self):
         o = Obfuscations(self._kb)
