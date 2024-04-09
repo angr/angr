@@ -1,22 +1,17 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
-from typing import List, Tuple, Dict, Any, Union, Optional, DefaultDict
+from typing import Any, DefaultDict
 from collections import defaultdict
 
-import ailment
 from archinfo import Endness
 from ailment.expression import Const, Register, Load, StackBaseOffset, Convert, BinaryOp
 from ailment.statement import Store, ConditionalJump, Jump
 import claripy
 
-from ..structuring.structurer_nodes import ConditionNode
-from ..utils import structured_node_is_simple_return, sequence_to_statements
-from ..sequence_walker import SequenceWalker
-from .optimization_pass import OptimizationPass, SequenceOptimizationPass, OptimizationPassStage
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.engines.light import SimEngineLightAILMixin
 from angr.storage.memory_mixins import (
     SimpleInterfaceMixin,
-    InspectMixinHigh,
     ExplicitFillerMixin,
     DefaultFillerMixin,
     PagedMemoryMixin,
@@ -67,11 +62,11 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     A simple AIL execution engine
     """
 
-    def __init__(self, arch, nodes: Dict[int, Any], start: int, end: int, step_limit: int):
+    def __init__(self, arch, nodes: dict[int, Any], start: int, end: int, step_limit: int):
         super().__init__()
 
         self.arch = arch
-        self.nodes: Dict[int, Any] = nodes
+        self.nodes: dict[int, Any] = nodes
         self.start: int = start
         self.end: int = end
         self.step_limit: int = step_limit
@@ -80,7 +75,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         self.MASK = 0xFFFF_FFFF if arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
         state = InlinedStringTransformationState(arch)
-        self.stack_accesses: DefaultDict[int, List[Tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
+        self.stack_accesses: DefaultDict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
         self.finished: bool = False
 
         i = 0
@@ -100,7 +95,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 break
             i += 1
 
-    def _process_address(self, addr: Union[Const, StackBaseOffset]) -> Optional[Tuple[int, str]]:
+    def _process_address(self, addr: Const | StackBaseOffset) -> tuple[int, str] | None:
         if isinstance(addr, Const):
             return addr.value, "mem"
         if isinstance(addr, StackBaseOffset):
