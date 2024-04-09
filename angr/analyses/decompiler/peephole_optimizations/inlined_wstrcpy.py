@@ -14,25 +14,25 @@ ASCII_PRINTABLES = set(string.printable)
 ASCII_DIGITS = set(string.digits)
 
 
-class InlinedStrcpy(PeepholeOptimizationStmtBase):
+class InlinedWstrcpy(PeepholeOptimizationStmtBase):
     """
-    Simplifies inlined string copying logic into calls to strcpy.
+    Simplifies inlined wide string copying logic into calls to wstrcpy.
     """
 
     __slots__ = ()
 
-    NAME = "Simplifying inlined strcpy"
+    NAME = "Simplifying inlined wstrcpy"
     stmt_classes = (Store,)
 
     def optimize(self, stmt: Store, block=None, stmt_idx: int = None, **kwargs):
         if isinstance(stmt.data, Const):
-            r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.data.size, stmt.endness)
+            r, s = self.is_integer_likely_a_wide_string(stmt.data.value, stmt.data.size, stmt.endness)
             if r:
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                 return Call(
                     stmt.idx,
-                    "strncpy",
+                    "wstrncpy",
                     args=[
                         stmt.addr,
                         Const(None, None, str_id, stmt.addr.bits, custom_string=True),
@@ -63,7 +63,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                             stride = []
 
                     integer, size = self.stride_to_int(stride)
-                    r, s = self.is_integer_likely_a_string(integer, size, Endness.BE)
+                    r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE)
                     if r:
                         # we remove all involved statements whose statement IDs are greater than the current one
                         for _, stmt_idx_, _ in reversed(stride):
@@ -75,7 +75,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                         return Call(
                             stmt.idx,
-                            "strncpy",
+                            "wstrncpy",
                             args=[
                                 stmt.addr,
                                 Const(None, None, str_id, stmt.addr.bits, custom_string=True),
@@ -112,7 +112,15 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         return r
 
     @staticmethod
-    def is_integer_likely_a_string(
+    def even_offsets_are_zero(lst: List[str]) -> bool:
+        return all(ch == "\x00" for i, ch in enumerate(lst) if i % 2 == 0)
+
+    @staticmethod
+    def odd_offsets_are_zero(lst: List[str]) -> bool:
+        return all(ch == "\x00" for i, ch in enumerate(lst) if i % 2 == 1)
+
+    @staticmethod
+    def is_integer_likely_a_wide_string(
         v: int, size: int, endness: Endness, min_length: int = 4
     ) -> Tuple[bool, Optional[str]]:
         # we need at least four bytes of printable characters
@@ -121,22 +129,16 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         if endness == Endness.LE:
             while v != 0:
                 byt = v & 0xFF
-                if chr(byt) not in ASCII_PRINTABLES:
+                if byt != 0 and chr(byt) not in ASCII_PRINTABLES:
                     return False, None
                 chars.append(chr(byt))
                 v >>= 8
 
         elif endness == Endness.BE:
-            first_non_zero = False
             for _ in range(size):
                 byt = v & 0xFF
                 v >>= 8
-                if byt == 0:
-                    if first_non_zero:
-                        return False, None
-                    continue
-                first_non_zero = True  # this is the first non-zero byte
-                if chr(byt) not in ASCII_PRINTABLES:
+                if byt != 0 and chr(byt) not in ASCII_PRINTABLES:
                     return False, None
                 chars.append(chr(byt))
             chars = chars[::-1]
@@ -144,7 +146,16 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             # unsupported endness
             return False, None
 
-        if len(chars) >= min_length:
+        if InlinedWstrcpy.even_offsets_are_zero(chars):
+            chars = [ch for i, ch in enumerate(chars) if i % 2 == 1]
+        elif InlinedWstrcpy.odd_offsets_are_zero(chars):
+            chars = [ch for i, ch in enumerate(chars) if i % 2 == 0]
+        else:
+            return False, None
+
+        if chars and chars[-1] == "\x00":
+            chars = chars[:-1]
+        if len(chars) >= min_length and all(ch in ASCII_PRINTABLES for ch in chars):
             if len(chars) <= 4 and all(ch in ASCII_DIGITS for ch in chars):
                 return False, None
             return True, "".join(chars)

@@ -1031,6 +1031,36 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     # Binary operation handlers
     #
 
+    def _ail_handle_CmpEQ(self, expr):
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 == expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, "CmpEQ", [expr_0, expr_1], expr.signed, **expr.tags)
+
+    def _ail_handle_CmpNE(self, expr):
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 != expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, "CmpEQ", [expr_0, expr_1], expr.signed, **expr.tags)
+
     def _ail_handle_CmpLT(self, expr):
         arg0, arg1 = expr.operands
 

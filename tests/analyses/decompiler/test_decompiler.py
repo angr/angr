@@ -3463,6 +3463,20 @@ class TestDecompiler(unittest.TestCase):
         # should not simplify away the bitwise-or operation
         assert text.count(" |= ") == 1
 
+    @structuring_algo("phoenix")
+    def test_simplifying_string_transformation_loops(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "cancel.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x140005234]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert d.codegen is not None
+        assert "IoDriverObjectType" in d.codegen.text
+        assert "wstrncpy(" in d.codegen.text
+        assert "ObMakeTemporaryObject" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

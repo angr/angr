@@ -569,7 +569,10 @@ def peephole_optimize_stmts(block, stmt_opts):
     statements = []
 
     # run statement optimizers
-    for stmt_idx, stmt in enumerate(block.statements):
+    # note that an optimizer may optionally edit or remove statements whose statement IDs are greater than stmt_idx
+    stmt_idx = 0
+    while stmt_idx < len(block.statements):
+        stmt = block.statements[stmt_idx]
         old_stmt = stmt
         redo = True
         while redo:
@@ -587,6 +590,7 @@ def peephole_optimize_stmts(block, stmt_opts):
             any_update = True
         else:
             statements.append(old_stmt)
+        stmt_idx += 1
 
     return statements, any_update
 
