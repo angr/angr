@@ -30,8 +30,6 @@ class FasterMemory(
     A fast memory model used in InlinedStringTransformationState.
     """
 
-    pass
-
 
 class InlinedStringTransformationState:
     """
@@ -370,7 +368,10 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
                                     # found one!
                                     candidate_stack_addrs.append(stack_addr)
 
-                if candidate_stack_addrs[-1] == candidate_stack_addrs[0] + len(candidate_stack_addrs) - 1:
+                if (
+                    len(candidate_stack_addrs) >= 2
+                    and candidate_stack_addrs[-1] == candidate_stack_addrs[0] + len(candidate_stack_addrs) - 1
+                ):
                     filtered_stack_accesses = [engine.stack_accesses[a] for a in candidate_stack_addrs]
                     stack_offset = candidate_stack_addrs[0] - engine.STACK_BASE
                     info = InlineStringTransformationDescriptor(pred, loop_node, filtered_stack_accesses, stack_offset)

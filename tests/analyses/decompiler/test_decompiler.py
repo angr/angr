@@ -22,7 +22,11 @@ from angr.analyses import (
     Decompiler,
 )
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
-from angr.analyses.decompiler.optimization_passes import DUPLICATING_OPTS, LoweredSwitchSimplifier
+from angr.analyses.decompiler.optimization_passes import (
+    DUPLICATING_OPTS,
+    LoweredSwitchSimplifier,
+    InlinedStringTransformationSimplifier,
+)
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
@@ -3391,7 +3395,15 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions[0x140005234]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        # disable string obfuscation removal
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux", disable_opts={InlinedStringTransformationSimplifier}
+        )
+
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
 
         self._print_decompilation_result(d)
         text = d.codegen.text
