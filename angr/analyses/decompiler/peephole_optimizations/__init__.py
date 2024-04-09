@@ -42,6 +42,7 @@ from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalC
 from .rol_ror import RolRorRewriter
 from .inlined_strcpy import InlinedStrcpy
 from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
+from .inlined_wstrcpy import InlinedWstrcpy
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
