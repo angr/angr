@@ -995,35 +995,47 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         return expr
 
     def _ail_handle_UnaryOp(self, expr):
-        handler_name = "_ail_handle_%s" % expr.op
+        handler_name = f"_handle_{expr.op}"
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            if self.l is not None:
-                self.l.warning("Unsupported UnaryOp %s.", expr.op)
-            return None
+            handler_name = "_ail_handle_%s" % expr.op
+            try:
+                handler = getattr(self, handler_name)
+            except AttributeError:
+                if self.l is not None:
+                    self.l.warning("Unsupported UnaryOp %s.", expr.op)
+                return None
 
         return handler(expr)
 
     def _ail_handle_BinaryOp(self, expr):
-        handler_name = "_ail_handle_%s" % expr.op
+        handler_name = f"_handle_{expr.op}"
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            if self.l is not None:
-                self.l.warning("Unsupported BinaryOp %s.", expr.op)
-            return None
+            handler_name = "_ail_handle_%s" % expr.op
+            try:
+                handler = getattr(self, handler_name)
+            except AttributeError:
+                if self.l is not None:
+                    self.l.warning("Unsupported BinaryOp %s.", expr.op)
+                return None
 
         return handler(expr)
 
     def _ail_handle_TernaryOp(self, expr):
-        handler_name = "_ail_handle_%s" % expr.op
+        handler_name = f"_handle_{expr.op}"
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            if self.l is not None:
-                self.l.warning("Unsupported Ternary %s.", expr.op)
-            return None
+            handler_name = "_ail_handle_%s" % expr.op
+            try:
+                handler = getattr(self, handler_name)
+            except AttributeError:
+                if self.l is not None:
+                    self.l.warning("Unsupported Ternary %s.", expr.op)
+                return None
 
         return handler(expr)
 
@@ -1042,9 +1054,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         try:
-            return expr_0 == expr_1
+            if isinstance(expr_0, ailment.Expr.Const) and isinstance(expr_1, ailment.Expr.Const):
+                if expr_0.value == expr_1.value:
+                    return ailment.Expr.Const(None, None, 1, 1)
+                return ailment.Expr.Const(None, None, 0, 1)
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "CmpEQ", [expr_0, expr_1], expr.signed, **expr.tags)
+            pass
+        return ailment.Expr.BinaryOp(expr.idx, "CmpEQ", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_CmpNE(self, expr):
         arg0, arg1 = expr.operands
@@ -1057,9 +1073,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         try:
-            return expr_0 != expr_1
+            if isinstance(expr_0, ailment.Expr.Const) and isinstance(expr_1, ailment.Expr.Const):
+                if expr_0.value != expr_1.value:
+                    return ailment.Expr.Const(None, None, 1, 1)
+                return ailment.Expr.Const(None, None, 0, 1)
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "CmpEQ", [expr_0, expr_1], expr.signed, **expr.tags)
+            pass
+        return ailment.Expr.BinaryOp(expr.idx, "CmpNE", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_CmpLT(self, expr):
         arg0, arg1 = expr.operands
@@ -1072,9 +1092,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         try:
-            return expr_0 <= expr_1
+            if isinstance(expr_0, ailment.Expr.Const) and isinstance(expr_1, ailment.Expr.Const):
+                if expr_0.value < expr_1.value:
+                    return ailment.Expr.Const(None, None, 1, 1)
+                return ailment.Expr.Const(None, None, 0, 1)
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "CmpLT", [expr_0, expr_1], expr.signed, **expr.tags)
+            pass
+        return ailment.Expr.BinaryOp(expr.idx, "CmpLT", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Add(self, expr):
         arg0, arg1 = expr.operands

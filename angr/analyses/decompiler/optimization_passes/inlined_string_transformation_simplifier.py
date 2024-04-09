@@ -1,43 +1,48 @@
-# pylint:disable=arguments-renamed,too-many-boolean-expressions
+# pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use
 from __future__ import annotations
 from typing import List, Tuple, Dict, Any, Union, Optional, DefaultDict
 from collections import defaultdict
 
-import ailment
 from archinfo import Endness
 from ailment.expression import Const, Register, Load, StackBaseOffset, Convert, BinaryOp
 from ailment.statement import Store, ConditionalJump, Jump
 import claripy
 
-from ..structuring.structurer_nodes import ConditionNode
-from ..utils import structured_node_is_simple_return, sequence_to_statements
-from ..sequence_walker import SequenceWalker
-from .optimization_pass import OptimizationPass, SequenceOptimizationPass, OptimizationPassStage
 from angr.engines.light import SimEngineLightAILMixin
 from angr.storage.memory_mixins import (
     SimpleInterfaceMixin,
     InspectMixinHigh,
-    ExplicitFillerMixin,
     DefaultFillerMixin,
     PagedMemoryMixin,
     UltraPagesMixin,
 )
 from angr.code_location import CodeLocation
+from angr.errors import SimMemoryMissingError
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 class FasterMemory(
     SimpleInterfaceMixin,
-    ExplicitFillerMixin,
     DefaultFillerMixin,
     UltraPagesMixin,
     PagedMemoryMixin,
 ):
+    """
+    A fast memory model used in InlinedStringTransformationState.
+    """
+
     pass
 
 
 class InlinedStringTransformationState:
-    def __init__(self, arch):
-        self.arch = arch
+    """
+    The abstract state used in InlinedStringTransformationAILEngine.
+    """
+
+    def __init__(self, project):
+        self.arch = project.arch
+        self.project = project
+
         self.registers = FasterMemory(memory_id="reg")
         self.memory = FasterMemory(memory_id="mem")
 
@@ -52,14 +57,22 @@ class InlinedStringTransformationState:
             reg.reg_offset, value, size=value.size() // self.arch.byte_width, endness=str(self.arch.register_endness)
         )
 
-    def reg_load(self, reg: Register) -> None:
-        return self.registers.load(reg.reg_offset, size=reg.size, endness=self.arch.register_endness)
+    def reg_load(self, reg: Register) -> Optional[claripy.Bits]:
+        try:
+            return self.registers.load(
+                reg.reg_offset, size=reg.size, endness=self.arch.register_endness, fill_missing=False
+            )
+        except SimMemoryMissingError:
+            return None
 
     def mem_store(self, addr: int, value: claripy.Bits, endness: str) -> None:
         self.memory.store(addr, value, size=value.size() // self.arch.byte_width, endness=endness)
 
-    def mem_load(self, addr: int, size: int, endness) -> claripy.Bits:
-        return self.memory.load(addr, size=size, endness=str(endness))
+    def mem_load(self, addr: int, size: int, endness) -> Optional[claripy.Bits]:
+        try:
+            return self.memory.load(addr, size=size, endness=str(endness), fill_missing=False)
+        except SimMemoryMissingError:
+            return None
 
 
 class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
@@ -67,19 +80,19 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     A simple AIL execution engine
     """
 
-    def __init__(self, arch, nodes: Dict[int, Any], start: int, end: int, step_limit: int):
+    def __init__(self, project, nodes: Dict[int, Any], start: int, end: int, step_limit: int):
         super().__init__()
 
-        self.arch = arch
+        self.arch = project.arch
         self.nodes: Dict[int, Any] = nodes
         self.start: int = start
         self.end: int = end
         self.step_limit: int = step_limit
 
-        self.STACK_BASE = 0x7FFF_FFF0 if arch.bits == 32 else 0x7FFF_FFFF_F000
-        self.MASK = 0xFFFF_FFFF if arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
+        self.STACK_BASE = 0x7FFF_FFF0 if self.arch.bits == 32 else 0x7FFF_FFFF_F000
+        self.MASK = 0xFFFF_FFFF if self.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
-        state = InlinedStringTransformationState(arch)
+        state = InlinedStringTransformationState(project)
         self.stack_accesses: DefaultDict[int, List[Tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
         self.finished: bool = False
 
@@ -117,7 +130,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     def _handle_Assignment(self, stmt):
         if isinstance(stmt.dst, Register):
             val = self._expr(stmt.src)
-            if val is not None:
+            if isinstance(val, claripy.Bits):
                 self.state.reg_store(stmt.dst, val)
 
     def _handle_Store(self, stmt):
@@ -146,9 +159,9 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         if isinstance(stmt.true_target, Const) and isinstance(stmt.false_target, Const):
             cond = self._expr(stmt.condition)
             if cond is not None:
-                if claripy.is_true(cond):
+                if isinstance(cond, claripy.Bits) and cond.concrete_value == 1:
                     self.pc = stmt.true_target.value
-                elif claripy.is_false(cond):
+                elif isinstance(cond, claripy.Bits) and cond.concrete_value == 0:
                     self.pc = stmt.false_target.value
 
     def _handle_Const(self, expr):
@@ -167,6 +180,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                         byte_off = expr.size - i - 1
                     self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
             return v
+        return None
 
     def _handle_Register(self, expr: Register):
         return self.state.reg_load(expr)
@@ -184,8 +198,48 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 return v
         return None
 
+    def _handle_CmpEQ(self, expr):
+        op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+            return claripy.BVV(1, 1) if op0.concrete_value == op1.concrete_value else claripy.BVV(0, 1)
+        return None
+
+    def _handle_CmpNE(self, expr):
+        op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+            return claripy.BVV(1, 1) if op0.concrete_value != op1.concrete_value else claripy.BVV(0, 1)
+        return None
+
+    def _handle_CmpLT(self, expr):
+        op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+            return claripy.BVV(1, 1) if op0.concrete_value < op1.concrete_value else claripy.BVV(0, 1)
+        return None
+
+    def _handle_CmpLE(self, expr):
+        op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+            return claripy.BVV(1, 1) if op0.concrete_value <= op1.concrete_value else claripy.BVV(0, 1)
+        return None
+
+    def _handle_CmpGT(self, expr):
+        op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+            return claripy.BVV(1, 1) if op0.concrete_value > op1.concrete_value else claripy.BVV(0, 1)
+        return None
+
+    def _handle_CmpGE(self, expr):
+        op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+            return claripy.BVV(1, 1) if op0.concrete_value >= op1.concrete_value else claripy.BVV(0, 1)
+        return None
+
 
 class InlineStringTransformationDescriptor:
+    """
+    Describes an instance of inline string transformation.
+    """
+
     def __init__(self, store_block, loop_body, stack_accesses, beginning_stack_offset):
         self.store_block = store_block
         self.loop_body = loop_body
@@ -298,7 +352,7 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             pred = next(iter(nn for nn in self._graph.predecessors(loop_node) if nn is not loop_node))
             succ = next(iter(nn for nn in self._graph.successors(loop_node) if nn is not loop_node))
             engine = InlinedStringTransformationAILEngine(
-                self.project.arch, {pred.addr: pred, loop_node.addr: loop_node}, pred.addr, succ.addr, 1024
+                self.project, {pred.addr: pred, loop_node.addr: loop_node}, pred.addr, succ.addr, 1024
             )
             if engine.finished:
                 # find the longest slide where the stack accesses are like the following:
