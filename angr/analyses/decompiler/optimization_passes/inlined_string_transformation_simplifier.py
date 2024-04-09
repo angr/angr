@@ -1,6 +1,6 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use
 from __future__ import annotations
-from typing import Any, DefaultDict, Optional
+from typing import Any, DefaultDict
 from collections import defaultdict
 
 from archinfo import Endness
@@ -56,7 +56,7 @@ class InlinedStringTransformationState:
             reg.reg_offset, value, size=value.size() // self.arch.byte_width, endness=str(self.arch.register_endness)
         )
 
-    def reg_load(self, reg: Register) -> Optional[claripy.Bits]:
+    def reg_load(self, reg: Register) -> claripy.Bits | None:
         try:
             return self.registers.load(
                 reg.reg_offset, size=reg.size, endness=self.arch.register_endness, fill_missing=False
@@ -67,7 +67,7 @@ class InlinedStringTransformationState:
     def mem_store(self, addr: int, value: claripy.Bits, endness: str) -> None:
         self.memory.store(addr, value, size=value.size() // self.arch.byte_width, endness=endness)
 
-    def mem_load(self, addr: int, size: int, endness) -> Optional[claripy.Bits]:
+    def mem_load(self, addr: int, size: int, endness) -> claripy.Bits | None:
         try:
             return self.memory.load(addr, size=size, endness=str(endness), fill_missing=False)
         except SimMemoryMissingError:
