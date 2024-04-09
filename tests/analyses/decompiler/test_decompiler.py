@@ -3421,7 +3421,7 @@ class TestDecompiler(unittest.TestCase):
             text,
         )
         m1 = re.search(
-            r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ \(unsigned int\)v32\);", text
+            r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ \(unsigned int\)v\d+\);", text
         )
         assert m0 is not None or m1 is not None
 
