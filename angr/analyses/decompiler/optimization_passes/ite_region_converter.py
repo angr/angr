@@ -2,7 +2,7 @@
 import logging
 
 from ailment.statement import ConditionalJump, Assignment, Jump
-from ailment.expression import ITE
+from ailment.expression import ITE, Const
 
 from ....utils.graph import subgraph_between_nodes
 from ..utils import remove_labels, to_ail_supergraph
@@ -146,10 +146,11 @@ class ITERegionConverter(OptimizationPass):
         #
 
         new_region_head = region_head.copy()
+        conditional_jump: ConditionalJump = region_head.statements[-1]
         addr_obj = true_stmt.src if "ins_addr" in true_stmt.src.tags else true_stmt
         ternary_expr = ITE(
             None,
-            region_head.statements[-1].condition,
+            conditional_jump.condition,
             true_stmt.src,
             false_stmt.src,
             ins_addr=addr_obj.ins_addr,
@@ -159,6 +160,13 @@ class ITERegionConverter(OptimizationPass):
         new_assignment = true_stmt.copy()
         new_assignment.src = ternary_expr
         new_region_head.statements[-1] = new_assignment
+
+        # add a goto statement to the region tail so it can be transformed into a break or other types of control-flow
+        # transitioning statement in the future
+        goto_stmt = Jump(
+            None, Const(None, None, region_tail.addr, self.project.arch.bits), region_tail.idx, **conditional_jump.tags
+        )
+        new_region_head.statements.append(goto_stmt)
 
         #
         # destroy all the old region blocks
