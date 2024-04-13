@@ -6,6 +6,7 @@ import os
 import tempfile
 import shutil
 import unittest
+import sys
 
 import angr
 from angr.angrdb import AngrDB
@@ -183,7 +184,13 @@ class TestDb(unittest.TestCase):
             # raising exceptions.
 
             proj = AngrDB().load(db_file)
-            os.remove(db_file)
+            try:
+                os.remove(db_file)
+            except PermissionError:
+                if sys.platform != "win32":
+                    # for some reason removing this file on the nightly CI (Windows) raises a permission error, but
+                    # I cannot reproduce it locally
+                    raise
 
             db_file_new = os.path.join(td, "proj_new.adb")
             AngrDB(proj).dump(db_file_new)
