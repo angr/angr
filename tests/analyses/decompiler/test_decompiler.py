@@ -3511,6 +3511,20 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("break;") == 2
 
+    @structuring_algo("phoenix")
+    def test_ternary_expression_over_propagation(self, decompiler_options=None):
+        # https://github.com/angr/angr/issues/4573
+        bin_path = os.path.join(test_location, "x86_64", "ite_region_converter_missing_breaks")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["authenticate"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # the ITE expression should not be propagated into the dst of an assignment
+        # the original assignment (rax = memcmp(xxx)? 0, 1) should be removed as well
+        assert d.codegen.text.count('"Welcome to the admin console, trusted user!"') == 1
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,6 +4,7 @@ from typing import Optional, Any, Dict, Set, Tuple, Iterable, Union, DefaultDict
 
 import ailment
 from ailment import Expression, Block, AILBlockWalker
+from ailment.expression import ITE
 from ailment.statement import Statement, Assignment, Call
 
 from ..sequence_walker import SequenceWalker
@@ -385,11 +386,11 @@ class ExpressionReplacer(AILBlockWalker):
         return None
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Optional[Block]):
-        # override the base handler and make sure we do not replace .dst with a Call expression
+        # override the base handler and make sure we do not replace .dst with a Call expression or an ITE expression
         changed = False
 
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-        if dst is not None and dst is not stmt.dst and not isinstance(dst, Call):
+        if dst is not None and dst is not stmt.dst and not isinstance(dst, (Call, ITE)):
             changed = True
         else:
             dst = stmt.dst
@@ -446,7 +447,8 @@ class ExpressionFolder(SequenceWalker):
         for stmt in node.statements:
             if isinstance(stmt, ailment.Stmt.Assignment):
                 if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                    if stmt.dst.variable in self._assignments:
+                    unified_var = self._u(stmt.dst.variable)
+                    if unified_var in self._assignments:
                         # remove this statement
                         continue
             if (
