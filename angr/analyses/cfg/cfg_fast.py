@@ -3287,7 +3287,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         removed_nodes = set()
 
-        a = None  # it always hold the very recent non-removed node
+        a = None  # it always holds the very recent non-removed node
         is_arm = is_arm_arch(self.project.arch)
 
         for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
@@ -3341,7 +3341,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 # but somehow we thought b is the beginning
                 if a.addr + a.size == b.addr + b.size:
                     in_edges = len([_ for _, _, data in self.graph.in_edges([b], data=True)])
-                    if in_edges == 0:
+                    if in_edges == 0 and b in self.graph:
                         # we use node a to replace node b
                         # link all successors of b to a
                         for _, dst, data in self.graph.out_edges([b], data=True):
@@ -3360,7 +3360,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                 # next case - if b is directly from function prologue detection, or a basic block that is a successor of
                 # a wrongly identified basic block, we might be totally misdecoding b
-                if b.instruction_addrs[0] not in a.instruction_addrs:
+                if b.instruction_addrs[0] not in a.instruction_addrs and b in self.graph:
                     # use a, truncate b
 
                     new_b_addr = a.addr + a.size  # b starts right after a terminates
