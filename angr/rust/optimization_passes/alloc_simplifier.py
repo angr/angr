@@ -4,7 +4,7 @@ import ailment
 import archinfo
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...utils.library import get_rust_function_name
-from ..ailment.expression import VecInitialization, String
+from ..ailment.expression import Vec, String
 
 
 class AllocSimplifierState:
@@ -169,7 +169,10 @@ class AllocSimplifier(OptimizationPass):
                 else:
                     addr = stmt.addr
                     data = stmt.data
-                    if isinstance(data, ailment.expression.Const) and data.value == len(self.state.init_bytes):
+                    # Infer alloc_align if it's not available
+                    if isinstance(data, ailment.expression.Const) and data.value * self.state.alloc_align == len(
+                        self.state.init_bytes
+                    ):
                         data = data.value
                         base, offset = None, None
                         if isinstance(addr, ailment.expression.StackBaseOffset):
@@ -209,9 +212,27 @@ class AllocSimplifier(OptimizationPass):
                 )
                 self.state.new_init_statements = tmp_new_init_statements
                 self._do_simplify(new_stmt)
+                return
             except UnicodeDecodeError:
                 pass
         # It's not a string, try vector
+        endian = "big" if (self.project.arch.memory_endness == archinfo.Endness.BE) else "little"
+        elements = [
+            int.from_bytes(self.state.init_bytes[i : i + self.state.alloc_align], endian)
+            for i in range(0, len(self.state.init_bytes), self.state.alloc_align)
+        ]
+        addr = vec_var
+        data = Vec(addr.idx, addr.variable, 0, self.project.arch.bits * 3, elements)
+        new_stmt = ailment.Stmt.Store(
+            addr.idx,
+            addr,
+            data,
+            self.project.arch.bytes * 3,
+            self.project.arch.memory_endness,
+            ins_addr=self.state.alloc_call.ins_addr,
+        )
+        self.state.new_init_statements = tmp_new_init_statements
+        self._do_simplify(new_stmt)
 
     def _try_simplify(self):
         funcs = [self._try_simplify_vec]

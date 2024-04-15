@@ -298,3 +298,35 @@ class RustSimTypeString(RustSimStruct, SimType):
 
     def __repr__(self):
         return "String"
+
+
+class RustSimTypeVec(RustSimStruct, SimType):
+    def __init__(self, label=None, arch=None):
+        RustSimStruct.__init__(
+            self,
+            {
+                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(arch),
+                "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+            },
+            name="Vec",
+        )
+        SimType.__init__(self, label)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimTypeVec(label=self.label, arch=arch)
+        out._arch = arch
+        self._arch_memo[arch.name] = out
+
+        return out
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None or len(name) == 0:
+            return self.__repr__()
+        return f"{name}: {self.__repr__()}"
+
+    def __repr__(self):
+        return "Vec"
