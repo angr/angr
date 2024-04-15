@@ -31,6 +31,7 @@ from ....rust.sim_type import (
     RustSimTypePointer,
     RustSimTypeStr,
     RustSimTypeString,
+    RustSimTypeVec,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -55,7 +56,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, VecInitialization
+from ....rust.ailment.expression import String, Vec
 
 if TYPE_CHECKING:
     import archinfo
@@ -2066,6 +2067,9 @@ class RustConstant(RustExpression):
                 elif isinstance(v, String):
                     yield RustConstant.str_to_rust_str(v.decoded_str, is_heap_str=v.is_heap_str), self
                     return
+                elif isinstance(v, Vec):
+                    yield str(v), self
+                    return
                 elif isinstance(v, Function):
                     yield get_rust_function_name(v.demangled_name), self
                     return
@@ -2325,7 +2329,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
-            VecInitialization: self._handle_Stmt_VecInitialization,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -2340,6 +2343,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             String: self._handle_Expr_String,
+            Vec: self._handle_Expr_Vec,
         }
 
         self._func = func
@@ -3230,9 +3234,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
 
-    def _handle_Stmt_VecInitialization(self, stmt: VecInitialization, **kwargs):
-        return RustVecInitialization(self._handle(stmt.dst), stmt.init_values, tags=stmt.tags, codegen=self)
-
     #
     # AIL expression handlers
     #
@@ -3366,6 +3367,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             type_ = RustSimTypeString().with_arch(self.project.arch)
         else:
             type_ = RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
+        reference_values = {type_: expr}
+        return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Vec(self, expr: Vec, **kwargs):
+        type_ = RustSimTypeVec().with_arch(self.project.arch)
         reference_values = {type_: expr}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
