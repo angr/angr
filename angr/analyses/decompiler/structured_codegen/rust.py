@@ -2294,7 +2294,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         flavor=None,
         stmt_comments=None,
         expr_comments=None,
-        show_externs=True,
+        show_externs=False,
         externs=None,
         const_formats=None,
         show_demangled_name=True,
