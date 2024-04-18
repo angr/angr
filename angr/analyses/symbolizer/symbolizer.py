@@ -214,10 +214,12 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         save = False
         var_ast_list = []
         conc_addrs = None
-        try:
-            conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
-        except:
-            pass
+
+        if self.state.solver.symbolic(simplified_addr):
+            try:
+                conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
+            except:
+                pass
 
         if conc_addrs:
             ast_addrs = []
