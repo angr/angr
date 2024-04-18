@@ -69,7 +69,7 @@ class Constant:
 
     def __sub__(self, other):
         if type(self) is type(other):
-            return Constant(self.val + other.val)
+            return Constant(self.val - other.val)
         else:
             raise CouldNotResolveException
 
