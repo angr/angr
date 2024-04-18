@@ -586,7 +586,7 @@ class Function(Serializable):
             return False
 
     def __str__(self):
-        s = f"Function {self.name} [{self.addr}]\n"
+        s = f"Function {self.name} [{self.addr:#x}]\n"
         s += "  Syscall: %s\n" % self.is_syscall
         s += "  SP difference: %d\n" % self.sp_delta
         s += "  Has return: %s\n" % self.has_return
