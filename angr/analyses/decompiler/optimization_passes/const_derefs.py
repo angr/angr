@@ -136,7 +136,8 @@ class BlockWalker(AILBlockWalker):
         if isinstance(expr.addr, Const):
             # *(const_addr)
             # does it belong to a read-only section/segment?
-            if self._addr_belongs_to_got(expr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.value):
+            is_got = self._addr_belongs_to_got(expr.addr.value)
+            if is_got or self._addr_belongs_to_ro_region(expr.addr.value):
                 try:
                     w = self._project.loader.memory.unpack_word(
                         expr.addr.value,
@@ -147,8 +148,9 @@ class BlockWalker(AILBlockWalker):
                     # we don't have enough bytes to read out
                     w = None
                 if w is not None:
-                    # nice! replace it with the actual value
-                    return Const(None, None, w, expr.bits, **expr.tags)
+                    if not (is_got and w == 0):
+                        # nice! replace it with the actual value
+                        return Const(None, None, w, expr.bits, **expr.tags)
         elif isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
             if isinstance(expr.addr.addr, Const):
                 # *(*(const_addr))
