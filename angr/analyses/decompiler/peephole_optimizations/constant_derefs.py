@@ -24,6 +24,8 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                     val = self.project.loader.memory.unpack_word(expr.addr.value, size=expr.size)
                 except KeyError:
                     return None
+                if "got" in sec.name and val == 0:
+                    return None
 
                 return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
 

@@ -112,13 +112,19 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         for f in cfg.functions.values():
-            if f.is_simprocedure:
+            if f.is_simprocedure or f.is_plt or f.is_syscall or f.is_alignment:
                 l.debug("Skipping SimProcedure %s.", repr(f))
                 continue
-            p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
-            # FIXME: This test does not pass
-            # assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
-            # self._print_decompilation_result(dec)
+            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+            if dec.codegen is not None and f.name not in {
+                "deregister_tm_clones",
+                "register_tm_clones",
+                "frame_dummy",
+                "__libc_csu_init",
+            }:
+                self._print_decompilation_result(dec)
+                assert "(true)" not in dec.codegen.text and "(false)" not in dec.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_babypwn_i386(self, decompiler_options=None):
