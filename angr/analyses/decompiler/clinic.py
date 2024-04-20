@@ -28,6 +28,7 @@ from ...sim_type import (
     SimTypeFloat,
     SimTypePointer,
 )
+from ..stack_pointer_tracker import Register, OffsetVal
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
@@ -41,6 +42,7 @@ from .optimization_passes import (
     get_default_optimization_passes,
     OptimizationPassStage,
     RegisterSaveAreaSimplifier,
+    StackCanarySimplifier,
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
@@ -103,6 +105,10 @@ class Clinic(Analysis):
         rewrite_ites_to_diamonds=True,
         cache: Optional["DecompilationCache"] = None,
         mode: ClinicMode = ClinicMode.DECOMPILE,
+        sp_shift: int = 0,
+        inline_functions: Optional[Set[Function]] = frozenset(),
+        inlined_counts: Optional[Dict[int, int]] = None,
+        inlining_parents: Optional[Set[int]] = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -134,6 +140,13 @@ class Clinic(Analysis):
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
+
+        # inlining help
+        self._sp_shift = sp_shift
+        self._max_stack_depth = 0
+        self._inline_functions = inline_functions
+        self._inlined_counts = {} if inlined_counts is None else inlined_counts
+        self._inlining_parents = inlining_parents or ()
 
         self._register_save_areas_removed: bool = False
 
@@ -195,6 +208,11 @@ class Clinic(Analysis):
         if not (ail_graph := self._decompilation_graph_recovery()):
             return
         ail_graph = self._decompilation_fixups(ail_graph)
+
+        if self._inline_functions:
+            self._max_stack_depth += self.calculate_stack_depth()
+            ail_graph = self._inline_child_functions(ail_graph)
+
         ail_graph = self._decompilation_simplifications(ail_graph)
         self.graph = ail_graph
 
@@ -254,6 +272,109 @@ class Clinic(Analysis):
             self._recover_calling_conventions(func_graph=ail_graph)
 
         return ail_graph
+
+    def _inline_child_functions(self, ail_graph):
+        for blk in ail_graph.nodes():
+            for idx, stmt in enumerate(blk.statements):
+                if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+                    callee = self.function._function_manager.function(stmt.target.value)
+                    if (
+                        callee.addr == self.function.addr
+                        or callee.addr in self._inlining_parents
+                        or callee not in self._inline_functions
+                        or callee.is_plt
+                        or callee.is_simprocedure
+                    ):
+                        continue
+
+                    ail_graph = self._inline_call(ail_graph, blk, idx, callee)
+        return ail_graph
+
+    def _inline_call(self, ail_graph, caller_block, call_idx, callee):
+        callee_clinic = self.project.analyses.Clinic(
+            callee,
+            mode=ClinicMode.DECOMPILE,
+            inline_functions=self._inline_functions,
+            inlining_parents=self._inlining_parents + (self.function.addr,),
+            inlined_counts=self._inlined_counts,
+            optimization_passes=[StackCanarySimplifier],
+            sp_shift=self._max_stack_depth,
+        )
+        self._max_stack_depth = callee_clinic._max_stack_depth
+        callee_graph = callee_clinic.copy_graph()
+
+        # uniquely mark all the blocks in case of duplicates (e.g., foo(); foo();)
+        self._inlined_counts.setdefault(callee.addr, 0)
+        for blk in callee_graph.nodes():
+            blk.idx = self._inlined_counts[callee.addr]
+        self._inlined_counts[callee.addr] += 1
+
+        # figure out where the callee should start at and return to
+        callee_start = next(n for n in callee_graph if n.addr == callee.addr)
+        caller_successors = list(ail_graph.out_edges(caller_block, data=True))
+        assert len(caller_successors) == 1
+        caller_successor = caller_successors[0][1]
+        ail_graph.remove_edge(caller_block, caller_successor)
+
+        # update all callee return nodes with caller successor
+        ail_graph = networkx.union(ail_graph, callee_graph)
+        for blk in callee_graph.nodes():
+            for idx, stmt in enumerate(list(blk.statements)):
+                if isinstance(stmt, ailment.Stmt.Return):
+                    blk.statements[idx] = ailment.Stmt.Jump(
+                        None,
+                        ailment.Expr.Const(None, None, caller_successor.addr, self.project.arch.bits),
+                        caller_successor.idx,
+                        **blk.statements[idx].tags,
+                    )
+                    blk.statements.pop(idx)
+
+                    ail_graph.add_edge(blk, caller_successor)
+
+        # update the call edge
+        caller_block.statements[call_idx] = ailment.Stmt.Jump(
+            None,
+            ailment.Expr.Const(None, None, callee.addr, self.project.arch.bits),
+            callee_start.idx,
+            **caller_block.statements[call_idx].tags,
+        )
+        if (
+            isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
+            and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
+        ):
+            # don't push the return address
+            caller_block.statements.pop(call_idx - 5)  # t6 = rsp<8>
+            caller_block.statements.pop(call_idx - 5)  # t5 = (t6 - 0x8<64>)
+            caller_block.statements.pop(call_idx - 5)  # rsp<8> = t5
+            caller_block.statements.pop(
+                call_idx - 5
+            )  # STORE(addr=t5, data=0x40121b<64>, size=8, endness=Iend_LE, guard=None)
+            caller_block.statements.pop(call_idx - 5)  # t7 = (t5 - 0x80<64>) <- wtf is this??
+        elif (
+            isinstance(caller_block.statements[call_idx - 1], ailment.Stmt.Store)
+            and caller_block.statements[call_idx - 1].addr.base == "stack_base"
+            and caller_block.statements[call_idx - 1].data.value == caller_successor.addr
+        ):
+            caller_block.statements.pop(call_idx - 1)  # s_10 =L 0x401225<64><8>
+        ail_graph.add_edge(caller_block, callee_start)
+
+        return ail_graph
+
+    def calculate_stack_depth(self):
+        # we need to reserve space for our own stack
+        spt = self._track_stack_pointers()
+        stack_offsets = spt.offsets_for(self.project.arch.sp_offset)
+        if max(stack_offsets) > 2 ** (self.project.arch.bits - 1):
+            # why is this unsigned...
+            depth = min(s for s in stack_offsets if s > 2 ** (self.project.arch.bits - 1)) - 2**self.project.arch.bits
+        else:
+            depth = min(stack_offsets)
+
+        if spt.inconsistent_for(self.project.arch.sp_offset):
+            l.warning("Inconsistency found during stack pointer tracking. Stack depth may be incorrect.")
+            depth -= 0x1000
+
+        return depth
 
     def _decompilation_simplifications(self, ail_graph):
         # Make returns
@@ -650,14 +771,27 @@ class Clinic(Analysis):
         """
 
         regs = {self.project.arch.sp_offset}
+        initial_reg_values = {
+            self.project.arch.sp_offset: OffsetVal(
+                Register(self.project.arch.sp_offset, self.project.arch.bits), self._sp_shift
+            )
+        }
         if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
             regs.add(self.project.arch.bp_offset)
+            initial_reg_values[self.project.arch.bp_offset] = OffsetVal(
+                Register(self.project.arch.bp_offset, self.project.arch.bits), self._sp_shift
+            )
 
         regs |= self._find_regs_compared_against_sp(self._func_graph)
 
         spt = self.project.analyses.StackPointerTracker(
-            self.function, regs, track_memory=self._sp_tracker_track_memory, cross_insn_opt=False
+            self.function,
+            regs,
+            track_memory=self._sp_tracker_track_memory,
+            cross_insn_opt=False,
+            initial_reg_values=initial_reg_values,
         )
+
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
@@ -1089,7 +1223,9 @@ class Clinic(Analysis):
                     return simp.result_block
             return None
 
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
+        # rewriting call-sites at this point, pre-inlining, causes issues with incorrect call signatures
+        if not self._inlining_parents:
+            AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
         return ail_graph, TempClass.stack_arg_offsets
 
@@ -1098,6 +1234,10 @@ class Clinic(Analysis):
         """
         Work on each return statement and fill in its return expressions.
         """
+        if self._inlining_parents:
+            # for inlining, we want to keep the return statement separate from the return value, so that
+            # the former can be removed while preserving the latter
+            return ail_graph
 
         if self.function.calling_convention is None:
             # unknown calling convention. cannot do much about return expressions.
