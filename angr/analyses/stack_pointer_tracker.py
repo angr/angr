@@ -443,6 +443,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 return True
         return False
 
+    def offsets_for(self, reg):
+        return [
+            o for block in self._func.blocks if (o := self.offset_after_block(block.addr, reg)) not in (TOP, BOTTOM)
+        ]
+
     #
     # Overridable methods
     #
