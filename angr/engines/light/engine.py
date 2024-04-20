@@ -1324,9 +1324,12 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         try:
-            return expr_0 >> expr_1
+            if isinstance(expr_1, claripy.ast.BV) and expr_1.concrete:
+                return expr_0 >> expr_1.concrete_value
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "Shr", [expr_0, expr_1], expr.signed, **expr.tags)
+            pass
+
+        return ailment.Expr.BinaryOp(expr.idx, "Shr", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shl(self, expr):
         arg0, arg1 = expr.operands
@@ -1339,9 +1342,12 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         try:
-            return expr_0 << expr_1
+            if isinstance(expr_1, claripy.ast.BV) and expr_1.concrete:
+                return expr_0 << expr_1.concrete_value
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "Shl", [expr_0, expr_1], expr.signed, **expr.tags)
+            pass
+
+        return ailment.Expr.BinaryOp(expr.idx, "Shl", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Sal(self, expr):
         return self._ail_handle_Shl(expr)
