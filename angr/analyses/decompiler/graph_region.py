@@ -267,7 +267,7 @@ class GraphRegion:
                 for succ in replace_with.successors:
                     if succ not in self.successors:
                         for succ_ in self.successors:
-                            if isinstance(succ_, GraphRegion) and succ_.head == succ:
+                            if isinstance(succ_, GraphRegion) and succ_.addr == succ.addr:
                                 successor_map[succ] = succ_
         if successor_map:
             replace_with_graph_with_successors = networkx.DiGraph()
@@ -363,6 +363,16 @@ class GraphRegion:
                 dst_head = dst_in_subgraph
                 while isinstance(dst_head, GraphRegion) and dst_head not in sub_graph:
                     dst_head = dst_head.head
+
+                if dst_head not in sub_graph:
+                    # unexpected: structuring failed and resulted in a bad sub_graph
+                    l.warning(
+                        "Node %r for node %r is not found in the sub graph at address %#x. Nodes may go missing.",
+                        dst_head,
+                        dst_in_subgraph,
+                        sub_graph_head.addr,
+                    )
+                    continue
 
                 for src in sub_graph.predecessors(dst_head):
                     graph.add_edge(src, dst)
