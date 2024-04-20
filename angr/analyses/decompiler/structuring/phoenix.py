@@ -1131,9 +1131,14 @@ class PhoenixStructurer(StructurerBase):
             return False
         cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
 
-        node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
+        node_a = next(iter(nn for nn in graph.nodes if nn.addr == target), None)
+        if node_a is None:
+            return False
+
         # the default case
-        node_b_addr = next(iter(t for t in successor_addrs if t != target))
+        node_b_addr = next(iter(t for t in successor_addrs if t != target), None)
+        if node_b_addr is None:
+            return False
 
         # populate whitelist_edges
         for case_node_addr in jump_table.jumptable_entries:
