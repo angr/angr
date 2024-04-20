@@ -318,6 +318,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         block: Optional["Block"] = None,
         track_memory=True,
         cross_insn_opt=True,
+        initial_reg_values=None,
     ):
         if func is not None:
             if not func.normalized:
@@ -339,6 +340,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._blocks = {}
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
+
+        if initial_reg_values:
+            self._reg_value_at_block_start[func.addr if func is not None else block.addr] = initial_reg_values
 
         _l.debug("Running on function %r", self._func)
         self._analyze()
