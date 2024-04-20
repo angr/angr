@@ -192,6 +192,13 @@ class Clinic(Analysis):
     #
 
     def _analyze_for_decompiling(self):
+        if not (ail_graph := self._decompilation_graph_recovery()):
+            return
+        ail_graph = self._decompilation_fixups(ail_graph)
+        ail_graph = self._decompilation_simplifications(ail_graph)
+        self.graph = ail_graph
+
+    def _decompilation_graph_recovery(self):
         is_pcode_arch = ":" in self.project.arch.name
 
         # Set up the function graph according to configurations
@@ -204,7 +211,7 @@ class Clinic(Analysis):
 
         # if the graph is empty, don't continue
         if not self._func_graph:
-            return
+            return None
 
         # Make sure calling conventions of all functions that the current function calls have been recovered
         if not is_pcode_arch:
@@ -219,7 +226,11 @@ class Clinic(Analysis):
         self._update_progress(20.0, text="Converting VEX to AIL")
         self._convert_all()
 
-        ail_graph = self._make_ailgraph()
+        return self._make_ailgraph()
+
+    def _decompilation_fixups(self, ail_graph):
+        is_pcode_arch = ":" in self.project.arch.name
+
         if self._rewrite_ites_to_diamonds:
             self._rewrite_ite_expressions(ail_graph)
         self._remove_redundant_jump_blocks(ail_graph)
@@ -242,6 +253,9 @@ class Clinic(Analysis):
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
             self._recover_calling_conventions(func_graph=ail_graph)
 
+        return ail_graph
+
+    def _decompilation_simplifications(self, ail_graph):
         # Make returns
         self._update_progress(30.0, text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
@@ -375,11 +389,11 @@ class Clinic(Analysis):
         # remove empty nodes from the graph
         ail_graph = self.remove_empty_nodes(ail_graph)
 
-        self.graph = ail_graph
         self.arg_list = arg_list
         self.variable_kb = variable_kb
-        self.cc_graph = self.copy_graph()
+        self.cc_graph = self.copy_graph(ail_graph)
         self.externs = self._collect_externs(ail_graph, variable_kb)
+        return ail_graph
 
     def _analyze_for_data_refs(self):
         # Set up the function graph according to configurations
@@ -493,8 +507,8 @@ class Clinic(Analysis):
             graph_copy.add_edge(new_src, new_dst, **data)
         return graph_copy
 
-    def copy_graph(self) -> networkx.DiGraph:
-        return self._copy_graph(self.graph)
+    def copy_graph(self, graph=None) -> networkx.DiGraph:
+        return self._copy_graph(graph or self.graph)
 
     @timethis
     def _set_function_graph(self):
