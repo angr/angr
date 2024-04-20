@@ -231,6 +231,9 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
             return claripy.BVV(1, 1) if op0.concrete_value >= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    def _handle_Call(self, stmt):
+        pass
+
 
 class InlineStringTransformationDescriptor:
     """
