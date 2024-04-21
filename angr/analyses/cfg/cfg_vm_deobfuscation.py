@@ -422,6 +422,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         graph_visitor = None
         self._graph = None
         self._model = None
+        self.saved_call_stack = None
 
         self.vm_pc_skip_list = set()
 
@@ -1518,6 +1519,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         #     import ipdb;ipdb.set_trace(())
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
+        if self.saved_call_stack is None:
+            #save the call stack suffix at the start of the function
+            self.saved_call_stack = job.call_stack_copy()
 
         if self.deobfuscation_start_addr and addr == self.deobfuscation_start_addr:
             for succ in sim_successors.all_successors:
@@ -1528,12 +1532,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
             for succ in sim_successors.all_successors:
-                # temporary hack to get the nodes to merge
-                succ.globals['call_stack_context_sensitivity_on'] = False
+                # temporary hack to get the nodes to merge at the end of the function
+                succ.globals['call_stack_context_sensitivity_on'] = True
                 succ.globals['start_deobfuscation'] = False
                 succ.globals['cur_vm_vpc'] = None
 
-            self._context_sensitivity_level = 0
+            self._context_sensitivity_level = 3
+            job._call_stack = self.saved_call_stack
 
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal', None)
             block_id = job.block_id
