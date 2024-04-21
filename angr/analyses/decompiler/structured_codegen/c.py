@@ -1408,6 +1408,26 @@ class CUnsupportedStatement(CStatement):
         yield "\n", None
 
 
+class CDirtyStatement(CExpression):
+
+    __slots__ = ("dirty",)
+
+    def __init__(self, dirty, **kwargs):
+        super().__init__(**kwargs)
+        self.dirty = dirty
+
+    @property
+    def type(self):
+        return SimTypeInt().with_arch(self.codegen.project.arch)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+
+        yield indent_str, None
+        yield str(self.dirty), None
+        yield "\n", None
+
+
 class CLabel(CStatement):
     """
     Represents a label in C code.
@@ -2414,6 +2434,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
+            Stmt.DirtyStatement: self._handle_Stmt_Dirty,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -3310,6 +3331,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         clabel = CLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
+
+    def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
+        return CDirtyStatement(stmt, codegen=self)
 
     #
     # AIL expression handlers
