@@ -537,7 +537,9 @@ class VMDeobfuscation(Analysis):
             pickled_file_name = os.path.dirname(self.project.filename) +"/"+str(symb_iter)+ "_symbolizer_cfg_pickle"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
+            self.draw_graph_flag=True
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
+            self.draw_graph_flag=False
 
         to_split_nodes = self.split_redundant_branch_themida(new_cfg)
         new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
@@ -568,6 +570,7 @@ class VMDeobfuscation(Analysis):
 
         pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+        self.inst_count(new_cfg)
 
 
         import gc
@@ -786,7 +789,7 @@ class VMDeobfuscation(Analysis):
                         count+=1
 
         with open('inst_count.txt', 'w') as f:
-            f.write(count)
+            f.write(str(count))
 
     def log_timing_results(self):
         global total_time
@@ -1264,7 +1267,14 @@ class VMDeobfuscation(Analysis):
         with open("last_decomp_result.c", "w") as f:
             f.write(dec.codegen.text)
 
+        import ipdb;ipdb.set_trace()
+
         pretty_dump_ail_cfg(dec.clinic.cc_graph, self.project)
+
+        import pickle
+        pickled_file_name = os.path.dirname(self.project.filename) + "/raw_ail_pickle.pickle"
+        with open(pickled_file_name, 'wb') as f:
+            pickle.dump(dec.clinic.cc_graph, f)
 
     @logtime
     def CAS_to_mov_simplification(self, cfg, proj):
@@ -2733,6 +2743,7 @@ class VMDeobfuscation(Analysis):
                         vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
                     except:
                         vs = None
+                ##THIS IS AN UNSAFE SIMPLIFICATION, ASSUMES ALL CONSTANT ADDRESSES HAVE BEEN PROPAGATED CORRECTLY AND COMPLETELY
                 elif isinstance(d.atom, atoms.MemoryLocation) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
@@ -3260,6 +3271,19 @@ class VMDeobfuscation(Analysis):
                                 elif pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
                                     new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[0].tmp))
                                     changed_stmt_idx.append(stmt_idx)
+                            elif isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
+                                    isinstance(pred_stmt_1.data.args[1], pyvex.expr.Const):
+                                #onc is constant and other is tmp
+                                if pred_stmt_2.tmp == pred_stmt_1.data.args[0].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[1]).con)
+                                    changed_stmt_idx.append(stmt_idx)
+                            elif isinstance(pred_stmt_1.data.args[0], pyvex.expr.Const) and \
+                                 isinstance(pred_stmt_1.data.args[1], pyvex.expr.RdTmp):
+                                #onc is constant and other is tmp
+                                if pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[0]).con)
+                                    changed_stmt_idx.append(stmt_idx)
+
                         elif isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_2.data, pyvex.expr.Binop) and \
                             pred_stmt_2.data.op.startswith(stmt.data.op):
                             #make sure its a XOR
@@ -3271,6 +3295,20 @@ class VMDeobfuscation(Analysis):
                                     changed_stmt_idx.append(stmt_idx)
                                 elif pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
                                     new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[0].tmp))
+                                    changed_stmt_idx.append(stmt_idx)
+
+                            elif isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const):
+                                #onc is constant and other is tmp
+                                if pred_stmt_1.tmp == pred_stmt_2.data.args[0].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[1]).con)
+                                    changed_stmt_idx.append(stmt_idx)
+
+                            elif isinstance(pred_stmt_2.data.args[0], pyvex.expr.Const) and \
+                                 isinstance(pred_stmt_2.data.args[1], pyvex.expr.RdTmp):
+                                #onc is constant and other is tmp
+                                if pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[0]).con)
                                     changed_stmt_idx.append(stmt_idx)
 
                 new_stmts.append(new_stmt)
