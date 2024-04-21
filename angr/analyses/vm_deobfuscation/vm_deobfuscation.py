@@ -386,7 +386,7 @@ class VMDeobfuscation(Analysis):
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
-                 max_symbolizer_iterations=None):
+                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -400,6 +400,7 @@ class VMDeobfuscation(Analysis):
         self.vpc_loc = vpc_loc
         self.vpc_mem_loc = vpc_mem_loc
         self.draw_graph_flag = False
+        self.allow_global_mem_simplifications = allow_global_mem_simplifications
         calls_as_rets = {}
 
         DUMP = "dump"
@@ -2744,7 +2745,7 @@ class VMDeobfuscation(Analysis):
                     except:
                         vs = None
                 ##THIS IS AN UNSAFE SIMPLIFICATION, ASSUMES ALL CONSTANT ADDRESSES HAVE BEEN PROPAGATED CORRECTLY AND COMPLETELY
-                elif isinstance(d.atom, atoms.MemoryLocation) and \
+                elif self.allow_global_mem_simplifications and isinstance(d.atom, atoms.MemoryLocation) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
                     #Only for store at const address in the binary, cannot check d.atom.addr since it's values are not correct for whole cfg rda
