@@ -19,5 +19,16 @@ class RemoveIdFlag(PeepholeOptimizationExprBase):
             if expr.op == "Or" and isinstance(expr.operands[1], BinaryOp) and expr.operands[1].op == "And":
                 if isinstance(expr.operands[1].operands[1], Const) and expr.operands[1].operands[1].value in [0x200000, 0x400, 0x40000]:
                     return expr.operands[0]
+        #
+        # elif (
+        #         isinstance(expr.operands[0], DirtyExpression)
+        #         and expr.operands[0].dirty_expr.cee_name in ["x86g_calculate_eflags_all"]
+        # ):
+        #     if expr.op == "Or" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 514:
+        #         return expr.operands[0]
+        #     #make sure the left arg is calculate_eflags_all
+        #     if expr.op == "Or" and isinstance(expr.operands[1], BinaryOp) and expr.operands[1].op == "And":
+        #         if isinstance(expr.operands[1].operands[1], Const) and expr.operands[1].operands[1].value in [0x200000, 0x400, 0x40000]:
+        #             return expr.operands[0]
 
         return None
