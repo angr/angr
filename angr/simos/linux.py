@@ -100,12 +100,16 @@ class SimLinux(SimUserland):
                         _rtld_global_ro.rebased_addr + 0x0D0, 2
                     )  # cpu features: kind = amd
 
-            tls_obj = self.project.loader.tls.new_thread()
-            if isinstance(self.project.arch, ArchAMD64):
-                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5F43414E41525900)  # _CANARY\x00
-                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
-            elif isinstance(self.project.arch, ArchX86):
-                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
+            try:
+                tls_obj = self.project.loader.tls.new_thread()
+            except NotImplementedError:
+                pass
+            else:
+                if isinstance(self.project.arch, ArchAMD64):
+                    self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5F43414E41525900)  # _CANARY\x00
+                    self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+                elif isinstance(self.project.arch, ArchX86):
+                    self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
 
         if isinstance(self.project.arch, ArchARM):
             # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
@@ -208,19 +212,20 @@ class SimLinux(SimUserland):
         if not self._is_core and hasattr(state.memory, "allocate_stack_pages"):
             state.memory.allocate_stack_pages(state.solver.eval(state.regs.sp) - 1, 0x20 * 0x1000)
 
-        tls_obj = self.project.loader.tls.threads[thread_idx if thread_idx is not None else 0]
-        if isinstance(state.arch, ArchAMD64):
-            state.regs.fs = tls_obj.user_thread_pointer
-        elif isinstance(state.arch, ArchX86):
-            state.regs.gs = tls_obj.user_thread_pointer >> 16
-        elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
-            state.regs.ulr = tls_obj.user_thread_pointer
-        elif isinstance(state.arch, ArchPPC32):
-            state.regs.r2 = tls_obj.user_thread_pointer
-        elif isinstance(state.arch, ArchPPC64):
-            state.regs.r13 = tls_obj.user_thread_pointer
-        elif isinstance(state.arch, ArchAArch64):
-            state.regs.tpidr_el0 = tls_obj.user_thread_pointer
+        if self.project.loader.tls.threads:
+            tls_obj = self.project.loader.tls.threads[thread_idx if thread_idx is not None else 0]
+            if isinstance(state.arch, ArchAMD64):
+                state.regs.fs = tls_obj.user_thread_pointer
+            elif isinstance(state.arch, ArchX86):
+                state.regs.gs = tls_obj.user_thread_pointer >> 16
+            elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
+                state.regs.ulr = tls_obj.user_thread_pointer
+            elif isinstance(state.arch, ArchPPC32):
+                state.regs.r2 = tls_obj.user_thread_pointer
+            elif isinstance(state.arch, ArchPPC64):
+                state.regs.r13 = tls_obj.user_thread_pointer
+            elif isinstance(state.arch, ArchAArch64):
+                state.regs.tpidr_el0 = tls_obj.user_thread_pointer
 
         if fs is None:
             fs = {}
@@ -397,7 +402,7 @@ class SimLinux(SimUserland):
                         state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
                 elif val == "entry":
                     state.registers.store(reg, state.registers.load("pc"))
-                elif val == "thread_pointer":
+                elif val == "thread_pointer" and self.project.loader.tls.threads:
                     state.registers.store(reg, self.project.loader.tls.threads[0].user_thread_pointer)
                 else:
                     _l.warning('Unknown entry point register value indicator "%s"', val)
