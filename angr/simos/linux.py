@@ -106,7 +106,9 @@ class SimLinux(SimUserland):
                 pass
             else:
                 if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5F43414E41525900)  # _CANARY\x00
+                    self.project.loader.memory.pack_word(
+                        tls_obj.thread_pointer + 0x28, 0x5F43414E41525900
+                    )  # _CANARY\x00
                     self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
                 elif isinstance(self.project.arch, ArchX86):
                     self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
