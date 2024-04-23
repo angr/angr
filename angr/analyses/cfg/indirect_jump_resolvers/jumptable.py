@@ -954,7 +954,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # for a typical vtable call (or jump if at the end of a function), the block as two predecessors that form a
         # diamond shape
         curr_node = func.get_node(addr)
-        if curr_node is None:
+        if curr_node is None or curr_node not in func.graph:
             l.debug("Could not find the node %#x in the function transition graph", addr)
             return False, None
         preds = list(func.graph.predecessors(curr_node))
