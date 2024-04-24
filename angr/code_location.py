@@ -15,6 +15,7 @@ class CodeLocation:
         "context",
         "info",
         "block_idx",
+        "block_id",
         "_hash",
     )
 
@@ -26,6 +27,7 @@ class CodeLocation:
         ins_addr: Optional[int] = None,
         context: Any = None,
         block_idx: int = None,
+        block_id=None,
         **kwargs,
     ):
         """
@@ -48,6 +50,7 @@ class CodeLocation:
         self.context: Optional[Tuple[int]] = context
         self.block_idx = block_idx
         self._hash = None
+        self.block_id = block_id
 
         self.info: Optional[Dict] = None
 
