@@ -20,6 +20,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypeReference,
     SimTypeBottom,
+    SimTypeTop,
     SimTypeString,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
@@ -65,6 +66,7 @@ class TestTypes(unittest.TestCase):
             "std::char_traits<char>, std::allocator<char>> const&, std::_Ios_Openmode)"
         )
         name, proto, _ = convert_cppproto_to_py(proto_0, with_param_names=False)
+        assert proto is not None
         assert proto.ctor is True
         assert name == "std::basic_ifstream::__ctor__"
         assert len(proto.args) == 3
@@ -76,6 +78,7 @@ class TestTypes(unittest.TestCase):
 
         proto_1 = "void std::basic_string<CharT,Traits,Allocator>::push_back(CharT ch)"
         name, proto, _ = convert_cppproto_to_py(proto_1, with_param_names=True)
+        assert proto is not None
         assert name == "std::basic_string::push_back"
         assert isinstance(proto.returnty, SimTypeBottom)
         assert isinstance(proto.args[0], SimTypePointer)  # this
@@ -83,6 +86,7 @@ class TestTypes(unittest.TestCase):
 
         proto_2 = "void std::basic_string<CharT,Traits,Allocator>::swap(basic_string& other)"
         name, proto, _ = convert_cppproto_to_py(proto_2, with_param_names=True)
+        assert proto is not None
         assert name == "std::basic_string::swap"
         assert isinstance(proto.returnty, SimTypeBottom)
         assert isinstance(proto.args[0], SimTypePointer)  # this
@@ -91,16 +95,19 @@ class TestTypes(unittest.TestCase):
 
         proto_3 = "std::ios_base::{base dtor}()"
         name, proto, _ = convert_cppproto_to_py(proto_3, with_param_names=True)
+        assert proto is not None
         assert name == "std::ios_base::__base_dtor__"
         assert proto.dtor is True
         assert isinstance(proto.returnty, SimTypeBottom)
 
         proto_4 = "std::ios_base::{base dtor}()"
         name, proto, _ = convert_cppproto_to_py(proto_4, with_param_names=True)
+        assert proto is not None
         assert name == "std::ios_base::__base_dtor__"
 
         proto_5 = "void foo(int & bar);"
         name, proto, _ = convert_cppproto_to_py(proto_5, with_param_names=True)
+        assert proto is not None
         assert name == "foo"
         # note that there is no "this" pointer
         assert isinstance(proto.args[0], SimTypeReference)
@@ -112,6 +119,8 @@ class TestTypes(unittest.TestCase):
         angr.types.register_types(angr.types.parse_type("struct bhdr { int b ;}"))
         angr.types.register_types(angr.types.parse_type("struct chdr { int c ;}"))
         dhdr = angr.types.parse_type("struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}")
+        assert isinstance(dhdr, SimStruct)
+        assert isinstance(dhdr.fields["a"], SimStruct)
         assert dhdr.fields["a"].fields
 
     def test_parse_type(self):
@@ -165,12 +174,16 @@ class TestTypes(unittest.TestCase):
 
     def test_self_referential_struct_or_union(self):
         struct_llist = angr.types.parse_type("struct llist { int data; struct llist *next; }")
+        assert isinstance(struct_llist, SimStruct)
+        assert isinstance(struct_llist.fields["next"], SimTypePointer)
         next_struct_llist = struct_llist.fields["next"].pts_to
         assert len(next_struct_llist.fields) == 2
         assert isinstance(next_struct_llist.fields["data"], SimTypeInt)
         assert isinstance(next_struct_llist.fields["next"], SimTypePointer)
 
         union_heap = angr.types.parse_type("union heap { int data; union heap *forward; }")
+        assert isinstance(union_heap, SimUnion)
+        assert isinstance(union_heap.members["forward"], SimTypePointer)
         forward_union_heap = union_heap.members["forward"].pts_to
         assert len(forward_union_heap.members) == 2
         assert isinstance(forward_union_heap.members["data"], SimTypeInt)
@@ -181,6 +194,8 @@ class TestTypes(unittest.TestCase):
         angr.types.register_types(angr.types.parse_type("struct b"))
         a = angr.types.parse_type("struct a { struct b *b_ptr; }")
         b = angr.types.parse_type("struct b { struct a *a_ptr; }")
+        assert isinstance(a, SimStruct)
+        assert isinstance(b, SimStruct)
 
         assert len(a.fields) == 1
         assert isinstance(a.fields["b_ptr"], SimTypePointer)
@@ -196,6 +211,8 @@ class TestTypes(unittest.TestCase):
         angr.types.register_types(angr.types.parse_type("union b"))
         a = angr.types.parse_type("union a { union b *b_ptr; }")
         b = angr.types.parse_type("union b { union a *a_ptr; }")
+        assert isinstance(a, SimUnion)
+        assert isinstance(b, SimUnion)
 
         assert len(a.members) == 1
         assert isinstance(a.members["b_ptr"], SimTypePointer)
@@ -208,16 +225,16 @@ class TestTypes(unittest.TestCase):
         assert b.members["a_ptr"].pts_to.name == "a"
 
     def test_top_type(self):
-        angr.types.register_types({"undefined": angr.types.SimTypeTop()})
+        angr.types.register_types({"undefined": SimTypeTop()})
         fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("undefined f(undefined param_1, int param_2);")
         sig = fdef["f"]
-        assert sig.args == [angr.types.SimTypeTop(), angr.types.SimTypeInt()]
+        assert sig.args == (SimTypeTop(), SimTypeInt())
 
     def test_arg_names(self):
-        angr.types.register_types({"undefined": angr.types.SimTypeTop()})
+        angr.types.register_types({"undefined": SimTypeTop()})
         fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param_1, int param_2);")
         sig = fdef["f"]
-        assert sig.arg_names == ["param_1", "param_2"]
+        assert sig.arg_names == ("param_1", "param_2")
 
         # Check that arg_names survive a with_arch call
         nsig = sig.with_arch(archinfo.ArchAMD64())
@@ -229,7 +246,7 @@ class TestTypes(unittest.TestCase):
         # the list can only be partially not None, but has to match the positions
         fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param1, int);")
         sig = fdef["f"]
-        assert sig.arg_names == ["param1", None]
+        assert sig.arg_names == ("param1", None)
 
         fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("int f();")
         sig = fdef["f"]
@@ -247,6 +264,8 @@ class TestTypes(unittest.TestCase):
 
     def test_forward_declaration_typedef_struct(self):
         _, extra_types = angr.types.parse_file("typedef struct _A A; struct _A {int a;int b;};")
+        assert isinstance(extra_types["A"], SimStruct)
+        assert isinstance(extra_types["struct _A"], SimStruct)
 
         assert extra_types["A"].fields is not None
         assert isinstance(extra_types["A"].fields["a"], SimTypeInt)
@@ -258,6 +277,8 @@ class TestTypes(unittest.TestCase):
 
     def test_forward_declaration_typedef_union(self):
         _, extra_types = angr.types.parse_file("typedef union _A A; union _A {int a;int b;};")
+        assert isinstance(extra_types["A"], SimUnion)
+        assert isinstance(extra_types["union _A"], SimUnion)
 
         assert extra_types["A"].members is not None
         assert isinstance(extra_types["A"].members["a"], SimTypeInt)
@@ -279,6 +300,7 @@ class TestTypes(unittest.TestCase):
             char*       name;
         }"""
         ty = angr.types.parse_type(code)
+        assert isinstance(ty, SimStruct)
         ty = ty.with_arch(archinfo.ArchAArch64())
         assert [(t.size, t.offset) for t in list(ty.fields.values())[1:-1]] == [
             (36, 0),
