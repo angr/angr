@@ -1236,7 +1236,7 @@ class SimTypeFloat(SimTypeReg):
     def __init__(self, size=32):
         super().__init__(size)
 
-    sort = claripy.fp.FSORT_FLOAT
+    sort = claripy.FSORT_FLOAT
     signed = True
 
     def extract(self, state, addr, concrete=False):
@@ -1290,7 +1290,9 @@ class SimTypeDouble(SimTypeFloat):
 class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields")
 
-    def __init__(self, fields: Union[Dict[str, SimType], OrderedDict[str, SimType]], name=None, pack=False, align=None):
+    def __init__(
+        self, fields: Union[Dict[str, SimType], "OrderedDict[str, SimType]"], name=None, pack=False, align=None
+    ):
         super().__init__(None, name="<anon>" if name is None else name)
 
         self._pack = pack
