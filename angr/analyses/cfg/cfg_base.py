@@ -2454,6 +2454,8 @@ class CFGBase(Analysis):
                     src_function.addr,
                     src_node,
                     dst_node,
+                    ins_addr=ins_addr,
+                    stmt_idx=stmt_idx,
                     to_function_addr=dst_function_addr,
                     is_exception=jumpkind == "Ijk_Exception",
                 )
