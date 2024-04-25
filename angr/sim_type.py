@@ -112,13 +112,11 @@ class SimType:
         raise KeyError(f"{k} is not a valid refinement")
 
     @property
-    def size(self) -> int:
+    def size(self) -> int | None:
         """
-        The size of the type in bits.
+        The size of the type in bits, or None if no size is computable.
         """
-        if self._size is not None:
-            return self._size
-        raise NotImplementedError
+        return self._size
 
     @property
     def alignment(self):
@@ -127,6 +125,8 @@ class SimType:
         """
         if self._arch is None:
             raise ValueError("Can't tell my alignment without an arch!")
+        if self.size is None:
+            raise AngrTypeError("Cannot compute the alignment of a type with no size")
         return self.size // self._arch.byte_width
 
     def with_arch(self, arch: Arch | None):
@@ -351,7 +351,7 @@ class SimTypeNum(SimType):
 
     _fields = SimType._fields + ("signed", "size")
 
-    def __init__(self, size, signed=True, label=None):
+    def __init__(self, size: int, signed=True, label=None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
@@ -360,6 +360,11 @@ class SimTypeNum(SimType):
         super().__init__(label)
         self._size = size
         self.signed = signed
+
+    @property
+    def size(self) -> int:
+        assert self._size is not None
+        return self._size
 
     def __repr__(self):
         return "{}int{}_t".format("" if self.signed else "u", self.size)
@@ -385,7 +390,7 @@ class SimTypeNum(SimType):
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
-        elif isinstance(value, int):
+        elif isinstance(value, int) and self.size is not None:
             value = claripy.BVV(value, self.size)
         elif isinstance(value, bytes):
             store_endness = "Iend_BE"
@@ -648,6 +653,10 @@ class SimTypeFd(SimTypeReg):
         # TODO: That's so closed-minded!
         super().__init__(32, label=label)
 
+    @property
+    def size(self):
+        return 32
+
     def __repr__(self):
         return "fd_t"
 
@@ -840,6 +849,8 @@ class SimTypeArray(SimType):
     def size(self):
         if self.length is None:
             return 0
+        if self.elem_type.size is None:
+            return None
         return self.elem_type.size * self.length
 
     @property
@@ -871,12 +882,16 @@ class SimTypeArray(SimType):
     def extract(self, state, addr, concrete=False):
         if self.length is None:
             return []
+        if self.elem_type.size is None:
+            return None
         return [
             self.elem_type.extract(state, addr + i * (self.elem_type.size // state.arch.byte_width), concrete)
             for i in range(self.length)
         ]
 
     def store(self, state, addr, value: list[StoreType]):
+        if self.elem_type.size is None:
+            raise AngrTypeError("Cannot call store on an array of unsized types")
         for i, val in enumerate(value):
             self.elem_type.store(state, addr + i * (self.elem_type.size // state.arch.byte_width), val)
 
@@ -1240,6 +1255,10 @@ class SimTypeFloat(SimTypeReg):
     sort = claripy.FSORT_FLOAT
     signed = True
 
+    @property
+    def size(self) -> int:
+        return 32
+
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super().extract(state, addr, False), self.sort)
         if concrete:
@@ -1273,6 +1292,10 @@ class SimTypeDouble(SimTypeFloat):
         super().__init__(64)
 
     sort = claripy.FSORT_DOUBLE
+
+    @property
+    def size(self) -> int:
+        return 64
 
     def __repr__(self):
         return "double"
@@ -1312,7 +1335,7 @@ class SimStruct(NamedTypeMixin, SimType):
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.items():
-            if isinstance(ty, SimTypeBottom):
+            if ty.size is None:
                 l.warning(
                     "Found a bottom field in struct %s. Ignore and increment the offset using the default "
                     "element size.",
@@ -1396,6 +1419,8 @@ class SimStruct(NamedTypeMixin, SimType):
         last_type = self.fields[last_name]
         if isinstance(last_type, SimTypeNumOffset):
             return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
+        elif last_type.size is None:
+            raise AngrTypeError("Cannot compute the size of a struct with elements with no size")
         else:
             return last_off * self._arch.byte_width + last_type.size
 

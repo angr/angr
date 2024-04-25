@@ -2769,9 +2769,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
             if base_type == data_type or (
-                not isinstance(base_type, SimTypeBottom)
-                and not isinstance(data_type, SimTypeBottom)
-                and base_type.size < data_type.size
+                base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
                 # case 1: we're done because we found it
                 # case 2: we're done because we can never find it and we might as well stop early
@@ -2784,7 +2782,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return _force_type_cast(base_type, data_type, expr)
                 return CUnaryOp("Dereference", expr, codegen=self)
 
-        if isinstance(base_type, SimTypeBottom):
+        if base_type.size is None:
             stride = 1
         else:
             stride = base_type.size // self.project.arch.byte_width or 1
@@ -2968,7 +2966,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             kernel_type = unpack_typeref(unpack_pointer(kernel.type))
             assert kernel_type
 
-            if isinstance(kernel_type, SimTypeBottom):
+            if kernel_type.size is None:
                 return bail_out()
             kernel_stride = kernel_type.size // self.project.arch.byte_width
 
@@ -3699,6 +3697,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                 and isinstance(intermediate_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
                 and isinstance(start_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
             ):
+                assert dst_ty.size and start_ty.size and intermediate_ty.size
                 if dst_ty.size <= start_ty.size and dst_ty.size <= intermediate_ty.size:
                     # this is a down- or neutral-cast with an intermediate step that doesn't matter
                     result = child.expr
