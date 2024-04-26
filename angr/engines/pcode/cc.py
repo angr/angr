@@ -96,6 +96,8 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
         # we have a bunch of manually specified mappings
         manual_cc_mapping = {
             "68000:BE:32:default": SimCCM68k,
+            "RISCV:LE:32:RV32G": SimCCRISCV,
+            "RISCV:LE:32:RV32GC": SimCCRISCV,
             "RISCV:LE:64:RV64G": SimCCRISCV,
             "RISCV:LE:64:RV64GC": SimCCRISCV,
             "sparc:BE:32:default": SimCCSPARC,
