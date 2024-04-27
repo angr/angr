@@ -43,6 +43,7 @@ from .optimization_passes import (
     OptimizationPassStage,
     RegisterSaveAreaSimplifier,
     StackCanarySimplifier,
+    SpilledRegisterFinder,
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
@@ -297,7 +298,7 @@ class Clinic(Analysis):
             inline_functions=self._inline_functions,
             inlining_parents=self._inlining_parents + (self.function.addr,),
             inlined_counts=self._inlined_counts,
-            optimization_passes=[StackCanarySimplifier],
+            optimization_passes=[StackCanarySimplifier, SpilledRegisterFinder],
             sp_shift=self._max_stack_depth,
         )
         self._max_stack_depth = callee_clinic._max_stack_depth
@@ -317,6 +318,7 @@ class Clinic(Analysis):
         ail_graph.remove_edge(caller_block, caller_successor)
 
         # update all callee return nodes with caller successor
+        # and rewrite pseudoreg-tagged spills to actually use pseudoregs
         ail_graph = networkx.union(ail_graph, callee_graph)
         for blk in callee_graph.nodes():
             for idx, stmt in enumerate(list(blk.statements)):
@@ -328,8 +330,22 @@ class Clinic(Analysis):
                         **blk.statements[idx].tags,
                     )
                     blk.statements.pop(idx)
-
                     ail_graph.add_edge(blk, caller_successor)
+                    break
+                if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Store):
+                    new_stmt = ailment.Stmt.Assignment(
+                        stmt.idx, ailment.Expr.Register(None, None, stmt.pseudoreg, stmt.size * 8), stmt.data
+                    )
+                    new_stmt.tags.update(stmt.tags)
+                    new_stmt.tags.pop("pseudoreg")
+                    blk.statements[idx] = new_stmt
+                if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Assignment):
+                    new_stmt = ailment.Stmt.Assignment(
+                        stmt.idx, stmt.dst, ailment.Expr.Register(None, None, stmt.pseudoreg, stmt.src.size * 8)
+                    )
+                    new_stmt.tags.update(stmt.tags)
+                    new_stmt.tags.pop("pseudoreg")
+                    blk.statements[idx] = new_stmt
 
         # update the call edge
         caller_block.statements[call_idx] = ailment.Stmt.Jump(

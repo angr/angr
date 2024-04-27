@@ -50,14 +50,18 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         return bool(info), {"info": info}
 
+    @staticmethod
+    def _modify_statement(
+        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int = None
+    ):  # pylint:disable=unused-argument
+        if old_block not in updated_blocks_:
+            block = old_block.copy()
+            updated_blocks_[old_block] = block
+        else:
+            block = updated_blocks_[old_block]
+        block.statements[stmt_idx_] = None
+
     def _analyze(self, cache=None):
-        def _remove_statement(old_block, stmt_idx_: int, updated_blocks_):
-            if old_block not in updated_blocks_:
-                block = old_block.copy()
-                updated_blocks[old_block] = block
-            else:
-                block = updated_blocks[old_block]
-            block.statements[stmt_idx_] = None
 
         if cache is None:
             return
@@ -67,12 +71,12 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         for data in info.values():
             # remove storing statements
-            for _, codeloc in data["stored"]:
+            for stack_offset, codeloc in data["stored"]:
                 old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
-                _remove_statement(old_block, codeloc.stmt_idx, updated_blocks)
-            for _, codeloc in data["restored"]:
+                self._modify_statement(old_block, codeloc.stmt_idx, updated_blocks, stack_offset=stack_offset)
+            for stack_offset, codeloc in data["restored"]:
                 old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
-                _remove_statement(old_block, codeloc.stmt_idx, updated_blocks)
+                self._modify_statement(old_block, codeloc.stmt_idx, updated_blocks, stack_offset=stack_offset)
 
         for old_block, new_block in updated_blocks.items():
             # remove all statements that are None
