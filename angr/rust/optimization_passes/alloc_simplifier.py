@@ -5,6 +5,8 @@ import archinfo
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...utils.library import get_rust_function_name
 from ..ailment.expression import Vec, String
+from ..ailment.statement import RustCall
+from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString
 
 
 class AllocSimplifierState:
@@ -201,13 +203,17 @@ class AllocSimplifier(OptimizationPass):
             try:
                 decoded_str = self.state.init_bytes.decode("utf-8")
                 addr = vec_var
-                data = String(addr.idx, addr.variable, 0, self.project.arch.bits * 3, decoded_str, is_heap_str=True)
-                new_stmt = ailment.Stmt.Store(
-                    addr.idx,
-                    addr,
-                    data,
-                    self.project.arch.bytes * 3,
-                    self.project.arch.memory_endness,
+                if isinstance(addr, ailment.expression.StackBaseOffset):
+                    addr = ailment.expression.StackBaseOffset(
+                        addr.idx, self.project.arch.bits * 3, addr.offset, **addr.tags
+                    )
+                data = String(addr.idx, addr.variable, 0, self.project.arch.bits, decoded_str)
+                new_stmt = RustCall(
+                    idx=addr.idx,
+                    target="String::from",
+                    prototype=RustSimTypeFunction(args=[RustSimTypeStr()], returnty=RustSimTypeString()),
+                    args=[data],
+                    ret_expr=addr,
                     ins_addr=self.state.alloc_call.ins_addr,
                 )
                 self.state.new_init_statements = tmp_new_init_statements
