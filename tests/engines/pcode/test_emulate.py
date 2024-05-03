@@ -568,6 +568,14 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0x12345678, 32), claripy.BVV(13, 32))
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0xFFFFFFFF, 32), claripy.BVV(32, 32))
 
+    def test_lzcount(self):
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0xFFFF, 16), claripy.BVV(0, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x7FFF, 16), claripy.BVV(1, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x3F0F, 16), claripy.BVV(2, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0080, 16), claripy.BVV(8, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0001, 16), claripy.BVV(15, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0000, 16), claripy.BVV(16, 16))
+
     # TODO: Add tests for the following ops:
     # * = FIXME
     # ! = Not Implemented
