@@ -258,11 +258,11 @@ class FormatString:
                         self.parser.state.solver.BVV(b"\n"),
                         max_str_len,
                         max_symbolic_bytes=max_sym_bytes,
-                        default=self.parser.state.solver.BVV(max_str_len, 64),
+                        default=self.parser.state.solver.BVV(position + max_str_len, 64),
                     )
 
                     # concretize the length
-                    length = self.parser.state.solver.max_int(result)
+                    length = self.parser.state.solver.max_int(result - position)
                     src_str = region.load(position, length)
 
                     # TODO all of these should be delimiters we search for above
