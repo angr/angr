@@ -254,8 +254,11 @@ class FormatString:
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
                     result, _, _ = region.find(
-                        position, self.parser.state.solver.BVV(b"\n"), max_str_len, max_symbolic_bytes=max_sym_bytes,
-                        default=self.parser.state.solver.BVV(max_str_len, 64)
+                        position,
+                        self.parser.state.solver.BVV(b"\n"),
+                        max_str_len,
+                        max_symbolic_bytes=max_sym_bytes,
+                        default=self.parser.state.solver.BVV(max_str_len, 64),
                     )
 
                     # concretize the length
