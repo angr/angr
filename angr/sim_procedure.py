@@ -520,6 +520,8 @@ class SimProcedure:
 
         self._exit_action(call_state, addr)
         self.successors.add_successor(call_state, addr, call_state.solver.true, jumpkind)
+        if jumpkind != 'Ijk_Call':
+            call_state.callstack.call(self.state.addr, addr, retn_target=ret_addr, stack_pointer=call_state.regs.sp.concrete_value)
 
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
