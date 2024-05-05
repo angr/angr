@@ -491,7 +491,7 @@ class Project:
         """
         if hook is None:
             # if we haven't been passed a thing to hook with, assume we're being used as a decorator
-            return self._hook_decorator(addr, length=length, kwargs=kwargs)
+            return self._hook_decorator(addr, length=length, kwargs=kwargs, replace=replace)
 
         if kwargs is None:
             kwargs = {}
@@ -726,7 +726,7 @@ class Project:
     # Private methods related to hooking
     #
 
-    def _hook_decorator(self, addr, length=0, kwargs=None):
+    def _hook_decorator(self, addr, length=0, kwargs=None, replace=False):
         """
         Return a function decorator that allows easy hooking. Please refer to hook() for its usage.
 
@@ -734,7 +734,7 @@ class Project:
         """
 
         def hook_decorator(func):
-            self.hook(addr, func, length=length, kwargs=kwargs)
+            self.hook(addr, func, length=length, kwargs=kwargs, replace=replace)
             return func
 
         return hook_decorator
