@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional, List, Set, Tuple
+from typing import Any
 from collections import defaultdict
 
 import networkx
@@ -37,10 +37,10 @@ class GraphRegion:
         self,
         head,
         graph,
-        successors: Optional[Set],
-        graph_with_successors: Optional[networkx.DiGraph],
+        successors: set | None,
+        graph_with_successors: networkx.DiGraph | None,
         cyclic,
-        full_graph: Optional[networkx.DiGraph],
+        full_graph: networkx.DiGraph | None,
         cyclic_ancestor: bool = False,
     ):
         self.head = head
@@ -61,7 +61,7 @@ class GraphRegion:
         self._replaced_regions = {}
 
     def __repr__(self):
-        addrs: List[int] = []
+        addrs: list[int] = []
         s = ""
         if self.graph is None:
             # only head is available
@@ -197,7 +197,7 @@ class GraphRegion:
         sub_region: "GraphRegion",
         updated_sub_region: "GraphRegion",
         replace_with,
-        virtualized_edges: Set[Tuple[Any, Any]],
+        virtualized_edges: set[tuple[Any, Any]],
     ):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
@@ -299,7 +299,7 @@ class GraphRegion:
             )
 
     @staticmethod
-    def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with, removed_edges: Set):
+    def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with, removed_edges: set):
         in_edges = [(src, dst) for src, dst in graph.in_edges(node) if (src, dst) not in removed_edges]
         out_edges = [(src, dst) for src, dst in graph.out_edges(node) if (src, dst) not in removed_edges]
 
@@ -323,8 +323,8 @@ class GraphRegion:
     def _replace_node_in_graph_with_subgraph(
         self,
         graph: networkx.DiGraph,
-        known_successors: Optional[List],
-        reference_full_graph: Optional[networkx.DiGraph],
+        known_successors: list | None,
+        reference_full_graph: networkx.DiGraph | None,
         node,
         sub_graph: networkx.DiGraph,
         sub_graph_head,

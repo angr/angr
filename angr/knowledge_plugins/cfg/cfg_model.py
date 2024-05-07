@@ -1,7 +1,8 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List, Dict, Tuple, DefaultDict, Callable, TYPE_CHECKING, Set
+from typing import Optional, DefaultDict, TYPE_CHECKING
+from collections.abc import Callable
 from collections import defaultdict
 import bisect
 import string
@@ -65,20 +66,20 @@ class CFGModel(Serializable):
         self.graph = networkx.DiGraph()
 
         # Jump tables
-        self.jump_tables: Dict[int, IndirectJump] = {}
+        self.jump_tables: dict[int, IndirectJump] = {}
 
         # Memory references
         # A mapping between address and the actual data in memory
-        self.memory_data: Dict[int, MemoryData] = {}
+        self.memory_data: dict[int, MemoryData] = {}
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self.insn_addr_to_memory_data: Dict[int, MemoryData] = {}
+        self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
-        self._nodes_by_addr: DefaultDict[int, List[CFGNode]] = defaultdict(list)
+        self._nodes_by_addr: DefaultDict[int, list[CFGNode]] = defaultdict(list)
         # CFGNodes dict indexed by block ID. Don't serialize
-        self._nodes: Dict[int, CFGNode] = {}
+        self._nodes: dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
-        self._node_addrs: List[int] = []
+        self._node_addrs: list[int] = []
 
         self.normalized = False
 
@@ -273,8 +274,8 @@ class CFGModel(Serializable):
         return None
 
     def get_any_node(
-        self, addr: int, is_syscall: Optional[bool] = None, anyaddr: bool = False, force_fastpath: bool = False
-    ) -> Optional[CFGNode]:
+        self, addr: int, is_syscall: bool | None = None, anyaddr: bool = False, force_fastpath: bool = False
+    ) -> CFGNode | None:
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
@@ -333,7 +334,7 @@ class CFGModel(Serializable):
 
         return None
 
-    def get_all_nodes(self, addr: int, is_syscall: bool = None, anyaddr: bool = False) -> List[CFGNode]:
+    def get_all_nodes(self, addr: int, is_syscall: bool = None, anyaddr: bool = False) -> list[CFGNode]:
         """
         Get all CFGNodes whose address is the specified one.
 
@@ -352,7 +353,7 @@ class CFGModel(Serializable):
 
         return results
 
-    def get_all_nodes_intersecting_region(self, addr: int, size: int = 1) -> Set[CFGNode]:
+    def get_all_nodes_intersecting_region(self, addr: int, size: int = 1) -> set[CFGNode]:
         """
         Get all CFGNodes that intersect the given region.
 
@@ -373,8 +374,8 @@ class CFGModel(Serializable):
         return self.graph.nodes()
 
     def get_predecessors(
-        self, cfgnode: CFGNode, excluding_fakeret: bool = True, jumpkind: Optional[str] = None
-    ) -> List[CFGNode]:
+        self, cfgnode: CFGNode, excluding_fakeret: bool = True, jumpkind: str | None = None
+    ) -> list[CFGNode]:
         """
         Get predecessors of a node in the control flow graph.
 
@@ -409,8 +410,8 @@ class CFGModel(Serializable):
         return predecessors
 
     def get_successors(
-        self, node: CFGNode, excluding_fakeret: bool = True, jumpkind: Optional[str] = None
-    ) -> List[CFGNode]:
+        self, node: CFGNode, excluding_fakeret: bool = True, jumpkind: str | None = None
+    ) -> list[CFGNode]:
         """
         Get successors of a node in the control flow graph.
 
@@ -467,7 +468,7 @@ class CFGModel(Serializable):
 
     def get_predecessors_and_jumpkinds(
         self, node: CFGNode, excluding_fakeret: bool = True
-    ) -> List[Tuple[CFGNode, str]]:
+    ) -> list[tuple[CFGNode, str]]:
         """
         Get a list of tuples where the first element is the predecessor of the CFG node and the second element is the
         jumpkind of the predecessor.
@@ -540,9 +541,7 @@ class CFGModel(Serializable):
     # Memory data
     #
 
-    def add_memory_data(
-        self, data_addr: int, data_type: Optional[MemoryDataSort], data_size: Optional[int] = None
-    ) -> bool:
+    def add_memory_data(self, data_addr: int, data_type: MemoryDataSort | None, data_size: int | None = None) -> bool:
         """
         Add a MemoryData entry to self.memory_data.
 
@@ -563,11 +562,11 @@ class CFGModel(Serializable):
 
     def tidy_data_references(
         self,
-        memory_data_addrs: Optional[List[int]] = None,
-        exec_mem_regions: Optional[List[Tuple[int, int]]] = None,
+        memory_data_addrs: list[int] | None = None,
+        exec_mem_regions: list[tuple[int, int]] | None = None,
         xrefs: Optional["XRefManager"] = None,
         seg_list: Optional["SegmentList"] = None,
-        data_type_guessing_handlers: Optional[List[Callable]] = None,
+        data_type_guessing_handlers: list[Callable] | None = None,
     ) -> bool:
         """
         Go through all data references (or the ones as specified by memory_data_addrs) and determine their sizes and
@@ -748,8 +747,8 @@ class CFGModel(Serializable):
         content_holder=None,
         xrefs: Optional["XRefManager"] = None,
         seg_list: Optional["SegmentList"] = None,
-        data_type_guessing_handlers: Optional[List[Callable]] = None,
-        extra_memory_regions: Optional[List[Tuple[int, int]]] = None,
+        data_type_guessing_handlers: list[Callable] | None = None,
+        extra_memory_regions: list[tuple[int, int]] | None = None,
     ):
         """
         Make a guess to the data type.
@@ -887,7 +886,7 @@ class CFGModel(Serializable):
         data_addr: int,
         pointer_size: int,
         max_size: int,
-        extra_memory_regions: Optional[List[Tuple[int, int]]] = None,
+        extra_memory_regions: list[tuple[int, int]] | None = None,
     ):
         pointers_count = 0
 
@@ -948,7 +947,7 @@ class CFGModel(Serializable):
     #
 
     @staticmethod
-    def _addr_in_exec_memory_regions(addr: int, exec_mem_regions: List[Tuple[int, int]]) -> bool:
+    def _addr_in_exec_memory_regions(addr: int, exec_mem_regions: list[tuple[int, int]]) -> bool:
         for start, end in exec_mem_regions:
             if start <= addr < end:
                 return True
@@ -968,7 +967,7 @@ class CFGModel(Serializable):
         addr: int,
         size: int = 1,
         kb: Optional["KnowledgeBase"] = None,
-    ) -> Set["Function"]:
+    ) -> set["Function"]:
         """
         Find all functions with nodes intersecting [addr, addr + size).
 

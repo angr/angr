@@ -11,5 +11,5 @@ STRUCTURER_CLASSES = {
 }
 
 
-def structurer_class_from_name(name: str) -> Optional[Type]:
+def structurer_class_from_name(name: str) -> type | None:
     return STRUCTURER_CLASSES.get(name.lower(), None)

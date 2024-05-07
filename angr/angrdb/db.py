@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import time
 from contextlib import contextmanager
 
@@ -90,7 +90,7 @@ class AngrDB:
             return None
         return db_info.value
 
-    def update_dbinfo(self, session, extra_info: Optional[Dict[str, str]] = None):
+    def update_dbinfo(self, session, extra_info: dict[str, str] | None = None):
         """
         Update the information in database.
 
@@ -105,7 +105,7 @@ class AngrDB:
             for key, value in extra_info.items():
                 self.save_info(session, str(key), str(value))
 
-    def get_dbinfo(self, session, extra_info: Optional[Dict[str, str]] = None):
+    def get_dbinfo(self, session, extra_info: dict[str, str] | None = None):
         """
         Get database information.
 
@@ -145,7 +145,7 @@ class AngrDB:
 
         return version == self.VERSION
 
-    def dump(self, db_path, kbs: Optional[List["KnowledgeBase"]] = None, extra_info: Optional[Dict[str, Any]] = None):
+    def dump(self, db_path, kbs: list["KnowledgeBase"] | None = None, extra_info: dict[str, Any] | None = None):
         db_str = "sqlite:///%s" % db_path
 
         with self.open_db(db_str) as Session:
@@ -166,9 +166,9 @@ class AngrDB:
     def load(
         self,
         db_path: str,
-        kb_names: Optional[List[str]] = None,
-        other_kbs: Optional[Dict[str, "KnowledgeBase"]] = None,
-        extra_info: Optional[Dict[str, Any]] = None,
+        kb_names: list[str] | None = None,
+        other_kbs: dict[str, "KnowledgeBase"] | None = None,
+        extra_info: dict[str, Any] | None = None,
     ):
         db_str = "sqlite:///%s" % db_path
 

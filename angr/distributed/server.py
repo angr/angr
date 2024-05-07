@@ -1,5 +1,3 @@
-from typing import Dict, Tuple
-
 import logging
 import time
 import os
@@ -63,7 +61,7 @@ class Server:
         self._recursion_limit = recursion_limit
 
         self._worker_exit_args_lock = None
-        self._worker_exit_args: Dict[int, Tuple] = None
+        self._worker_exit_args: dict[int, tuple] = None
 
         # the following will not be pickled
         self._worker_exit_callback = worker_exit_callback

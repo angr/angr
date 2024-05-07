@@ -1,4 +1,3 @@
-from typing import Optional
 import logging
 
 import claripy
@@ -14,7 +13,7 @@ l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
 
 
-def value(ty, val, size: Optional[int] = None):
+def value(ty, val, size: int | None = None):
     if ty == "Ity_F32":
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
     elif ty == "Ity_F64":

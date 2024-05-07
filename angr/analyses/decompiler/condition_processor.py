@@ -1,5 +1,6 @@
 from collections import defaultdict, OrderedDict
-from typing import Generator, Dict, Any, Optional, Set, List
+from typing import Any
+from collections.abc import Generator
 import operator
 import logging
 
@@ -138,8 +139,8 @@ class ConditionProcessor:
 
     def __init__(self, arch, condition_mapping=None):
         self.arch = arch
-        self._condition_mapping: Dict[str, Any] = {} if condition_mapping is None else condition_mapping
-        self.jump_table_conds: Dict[int, Set] = defaultdict(set)
+        self._condition_mapping: dict[str, Any] = {} if condition_mapping is None else condition_mapping
+        self.jump_table_conds: dict[int, set] = defaultdict(set)
         self.edge_conditions = {}
         self.reaching_conditions = {}
         self.guarding_conditions = {}
@@ -167,7 +168,7 @@ class ConditionProcessor:
             predicate = claripy.true
         return predicate
 
-    def recover_edge_conditions(self, region, graph=None) -> Dict:
+    def recover_edge_conditions(self, region, graph=None) -> dict:
         edge_conditions = {}
         # traverse the graph to recover the condition for each edge
         graph = graph or region.graph
@@ -181,7 +182,7 @@ class ConditionProcessor:
         self.edge_conditions = edge_conditions
 
     def recover_reaching_conditions(
-        self, region, graph=None, with_successors=False, case_entry_to_switch_head: Optional[Dict[int, int]] = None
+        self, region, graph=None, with_successors=False, case_entry_to_switch_head: dict[int, int] | None = None
     ):
         def _strictly_postdominates(inv_idoms, node_a, node_b):
             """
@@ -457,7 +458,7 @@ class ConditionProcessor:
         raise NotImplementedError()
 
     @classmethod
-    def get_last_statements(cls, block) -> List[Optional[ailment.Stmt.Statement]]:
+    def get_last_statements(cls, block) -> list[ailment.Stmt.Statement | None]:
         if type(block) is SequenceNode:
             for last_node in reversed(block.nodes):
                 try:
@@ -837,7 +838,7 @@ class ConditionProcessor:
         return symbol
 
     @staticmethod
-    def sympy_expr_to_claripy_ast(expr, memo: Dict):
+    def sympy_expr_to_claripy_ast(expr, memo: dict):
         if expr.is_Symbol:
             return memo[expr]
         if isinstance(expr, sympy.Or):
@@ -1134,7 +1135,7 @@ class ConditionProcessor:
 
     @staticmethod
     def _remove_crossing_edges_between_cases(
-        graph: networkx.DiGraph, case_entry_to_switch_head: Dict[int, int]
+        graph: networkx.DiGraph, case_entry_to_switch_head: dict[int, int]
     ) -> networkx.DiGraph:
         starting_nodes = {node for node in graph if node.addr in case_entry_to_switch_head}
         if not starting_nodes:

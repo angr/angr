@@ -1,5 +1,4 @@
 # pylint:disable=consider-using-with
-from typing import List, Dict
 import json
 import subprocess
 import argparse
@@ -16,7 +15,7 @@ UNIQUE_STRING_COUNT = 20
 MAX_UNIQUE_STRING_LEN = 70
 
 
-def get_basic_info(ar_path: str) -> Dict[str, str]:
+def get_basic_info(ar_path: str) -> dict[str, str]:
     """
     Get basic information of the archive file.
     """
@@ -41,7 +40,7 @@ def get_basic_info(ar_path: str) -> Dict[str, str]:
     }
 
 
-def get_unique_strings(ar_path: str) -> List[str]:
+def get_unique_strings(ar_path: str) -> list[str]:
     """
     For Linux libraries, this method requires ar (from binutils), nm (from binutils), and strings.
     """

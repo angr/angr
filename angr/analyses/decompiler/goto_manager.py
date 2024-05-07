@@ -1,5 +1,3 @@
-from typing import Set
-
 import ailment
 
 
@@ -40,7 +38,7 @@ class GotoManager:
 
     def __init__(self, func, gotos=None):
         self.func = func
-        self.gotos: Set[Goto] = gotos or set()
+        self.gotos: set[Goto] = gotos or set()
 
         self._gotos_by_addr = None
 
@@ -50,7 +48,7 @@ class GotoManager:
     def __repr__(self):
         return self.__str__()
 
-    def gotos_in_block(self, block: ailment.Block) -> Set[Goto]:
+    def gotos_in_block(self, block: ailment.Block) -> set[Goto]:
         gotos_found = set()
         for goto in self.gotos:
             if goto.src_addr == block.addr:

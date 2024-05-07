@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict, List, Optional
+from typing import Any
 from itertools import count
 import copy
 import logging
@@ -32,7 +32,7 @@ class ReturnDuplicatorBase:
         node_idx_start: int = 0,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
-        ri: Optional[RegionIdentifier] = None,
+        ri: RegionIdentifier | None = None,
         **kwargs,
     ):
         self.node_idx = count(start=node_idx_start)
@@ -41,7 +41,7 @@ class ReturnDuplicatorBase:
 
         # this should also be set by the optimization passes initer
         self._func = func
-        self._ri: Optional[RegionIdentifier] = ri
+        self._ri: RegionIdentifier | None = ri
 
     #
     # must implement these methods
@@ -88,7 +88,7 @@ class ReturnDuplicatorBase:
 
         return graph_changed
 
-    def _find_endnode_regions(self, graph) -> Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]]:
+    def _find_endnode_regions(self, graph) -> dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]]:
         """
         Find all the regions that contain a node with no successors. These are the "end nodes" of the graph.
         """
@@ -97,7 +97,7 @@ class ReturnDuplicatorBase:
         # to_update is keyed by the region head.
         # this is because different end nodes may lead to the same region head: consider the case of the typical "fork"
         # region where stack canary is checked in x86-64 binaries.
-        end_node_regions: Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]] = {}
+        end_node_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]] = {}
 
         for end_node in endnodes:
             in_edges = list(graph.in_edges(end_node))
@@ -175,7 +175,7 @@ class ReturnDuplicatorBase:
             graph.remove_edge(pred_node, region_head)
 
     def _copy_connected_edge_components(
-        self, endnode_regions: Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
+        self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
         updated_regions = endnode_regions.copy()
         all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
@@ -312,7 +312,7 @@ class ReturnDuplicatorBase:
         return valid_assignment
 
     @staticmethod
-    def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:
+    def _single_entry_region(graph, end_node) -> tuple[networkx.DiGraph, Any]:
         """
         Back track on the graph from `end_node` and find the longest chain of nodes where each node has only one
         predecessor and one successor (the second-to-last node may have two successors to account for the typical

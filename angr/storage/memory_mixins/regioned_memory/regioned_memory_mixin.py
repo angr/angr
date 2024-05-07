@@ -1,6 +1,7 @@
 import logging
 from itertools import count
-from typing import Dict, Optional, Generator, Union, TYPE_CHECKING, Tuple, Iterable
+from typing import Optional, TYPE_CHECKING
+from collections.abc import Generator, Iterable
 
 import claripy
 from claripy.ast import Bool, Bits, BV
@@ -45,12 +46,12 @@ class RegionedMemoryMixin(MemoryMixin):
         self,
         write_targets_limit: int = 2048,
         read_targets_limit: int = 4096,
-        stack_region_map: Optional[RegionMap] = None,
-        generic_region_map: Optional[RegionMap] = None,
+        stack_region_map: RegionMap | None = None,
+        generic_region_map: RegionMap | None = None,
         stack_size: int = 65536,
         cle_memory_backer: Optional = None,
-        dict_memory_backer: Optional[Dict] = None,
-        regioned_memory_cls: Optional[type] = None,
+        dict_memory_backer: dict | None = None,
+        regioned_memory_cls: type | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -62,15 +63,13 @@ class RegionedMemoryMixin(MemoryMixin):
             regioned_memory_cls = RegionedMemory
 
         self._regioned_memory_cls = regioned_memory_cls
-        self._regions: Dict[str, regioned_memory_cls] = {}
+        self._regions: dict[str, regioned_memory_cls] = {}
 
         self._cle_memory_backer = cle_memory_backer
         self._dict_memory_backer = dict_memory_backer
         self._stack_size: int = stack_size
-        self._stack_region_map: Optional[RegionMap] = (
-            stack_region_map if stack_region_map is not None else RegionMap(True)
-        )
-        self._generic_region_map: Optional[RegionMap] = (
+        self._stack_region_map: RegionMap | None = stack_region_map if stack_region_map is not None else RegionMap(True)
+        self._generic_region_map: RegionMap | None = (
             generic_region_map if generic_region_map is not None else RegionMap(False)
         )
 
@@ -96,9 +95,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return o
 
-    def load(
-        self, addr, size: Optional[Union[BV, int]] = None, endness=None, condition: Optional[Bool] = None, **kwargs
-    ):
+    def load(self, addr, size: BV | int | None = None, endness=None, condition: Bool | None = None, **kwargs):
         if isinstance(size, BV) and isinstance(size._model_vsa, ValueSet):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:
@@ -146,7 +143,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return val
 
-    def store(self, addr, data, size: Optional[int] = None, endness=None, **kwargs):
+    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):
         regioned_addrs_desc = self._normalize_address(addr)
         if (
             regioned_addrs_desc.cardinality >= self._write_targets_limit
@@ -169,7 +166,7 @@ class RegionedMemoryMixin(MemoryMixin):
                     r = True
         return r
 
-    def find(self, addr: Union[int, Bits], data, max_search, **kwargs):
+    def find(self, addr: int | Bits, data, max_search, **kwargs):
         # FIXME: Attempt find() on more than one region
 
         gen = self._normalize_address_type(addr, self.state.arch.bits)
@@ -196,7 +193,7 @@ class RegionedMemoryMixin(MemoryMixin):
     #
 
     def set_stack_address_mapping(
-        self, absolute_address: int, region_id: str, related_function_address: Optional[int] = None
+        self, absolute_address: int, region_id: str, related_function_address: int | None = None
     ):
         """
         Create a new mapping between an absolute address (which is the base address of a specific stack frame) and a
@@ -255,7 +252,7 @@ class RegionedMemoryMixin(MemoryMixin):
         related_function_addr: int,
         endness,
         cle_memory_backer: Optional = None,
-        dict_memory_backer: Optional[Dict] = None,
+        dict_memory_backer: dict | None = None,
     ):
         """
         Create a new MemoryRegion with the region key specified, and store it to self._regions.
@@ -317,7 +314,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr, **kwargs)
 
-    def _region_store(self, addr, data, key: str, endness, related_function_addr: Optional[int] = None, **kwargs):
+    def _region_store(self, addr, data, key: str, endness, related_function_addr: int | None = None, **kwargs):
         if key not in self._regions:
             self._create_region(
                 key,
@@ -351,7 +348,7 @@ class RegionedMemoryMixin(MemoryMixin):
         desc: AbstractAddressDescriptor,
         original_addr: claripy.ast.Bits,
         is_write: bool = False,
-        target_region: Optional[str] = None,
+        target_region: str | None = None,
     ) -> Generator[AddressWrapper, None, None]:
         raise NotImplementedError()
 
@@ -384,7 +381,7 @@ class RegionedMemoryMixin(MemoryMixin):
         return desc
 
     def _normalize_address_core(
-        self, region_id: str, relative_address: int, target_region: Optional[str] = None
+        self, region_id: str, relative_address: int, target_region: str | None = None
     ) -> AddressWrapper:
         """
         If this is a stack address, we convert it to a correct region and address
@@ -434,7 +431,7 @@ class RegionedMemoryMixin(MemoryMixin):
         return addr
 
     @staticmethod
-    def _normalize_address_type(addr: Union[int, Bits], bits) -> Generator[Tuple[str, StridedInterval], None, None]:
+    def _normalize_address_type(addr: int | Bits, bits) -> Generator[tuple[str, StridedInterval], None, None]:
         """
         Convert address of different types to a list of mapping between region IDs and offsets (strided intervals).
 

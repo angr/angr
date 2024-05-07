@@ -1,4 +1,3 @@
-from typing import Tuple, Optional, Dict, List, Set
 from collections import defaultdict
 import logging
 
@@ -26,7 +25,7 @@ def shallow_reverse(g) -> networkx.DiGraph:
     return new_g
 
 
-def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph, Optional[Dict]]:
+def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | None]:
     """
     Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
     computing post-dominators.
@@ -54,7 +53,7 @@ def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph, Optional[
 
 
 def to_acyclic_graph(
-    graph: networkx.DiGraph, ordered_nodes: Optional[List] = None, loop_heads: Optional[List] = None
+    graph: networkx.DiGraph, ordered_nodes: list | None = None, loop_heads: list | None = None
 ) -> networkx.DiGraph:
     """
     Convert a given DiGraph into an acyclic graph.
@@ -654,8 +653,8 @@ class GraphUtils:
 
     @staticmethod
     def quasi_topological_sort_nodes(
-        graph: networkx.DiGraph, nodes: Optional[List] = None, loop_heads: Optional[List] = None
-    ) -> List:
+        graph: networkx.DiGraph, nodes: list | None = None, loop_heads: list | None = None
+    ) -> list:
         """
         Sort a given set of nodes from a graph based on the following rules:
 
@@ -754,7 +753,7 @@ class GraphUtils:
 
     @staticmethod
     def _append_scc(
-        graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_head_candidates: Optional[List] = None
+        graph: networkx.DiGraph, ordered_nodes: list, scc: set, loop_head_candidates: list | None = None
     ) -> None:
         """
         Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological

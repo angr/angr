@@ -3,7 +3,7 @@
 from itertools import count
 import logging
 
-from typing import TYPE_CHECKING, TypeVar, Type, Optional
+from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from ..project import Project
@@ -116,7 +116,7 @@ class KnowledgeBase:
 
     K = TypeVar("K", bound=KnowledgeBasePlugin)
 
-    def get_knowledge(self, requested_plugin_cls: Type[K]) -> Optional[K]:
+    def get_knowledge(self, requested_plugin_cls: type[K]) -> K | None:
         """
         Type inference safe method to request a knowledge base plugin
         Explicitly passing the type of the requested plugin achieves two things:
@@ -135,7 +135,7 @@ class KnowledgeBase:
             None,
         )
 
-    def request_knowledge(self, requested_plugin_cls: Type[K]) -> K:
+    def request_knowledge(self, requested_plugin_cls: type[K]) -> K:
         existing = self.get_knowledge(requested_plugin_cls)
         if existing is not None:
             return existing

@@ -1,5 +1,6 @@
 # pylint:disable=import-outside-toplevel
-from typing import Tuple, Optional, Callable, Iterable, Dict, Set, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
+from collections.abc import Callable, Iterable
 import queue
 import threading
 import time
@@ -40,17 +41,17 @@ class CompleteCallingConventionsAnalysis(Analysis):
         recover_variables=False,
         low_priority=False,
         force=False,
-        cfg: Optional[CFGModel] = None,
+        cfg: CFGModel | None = None,
         analyze_callsites: bool = False,
         skip_signature_matched_functions: bool = False,
-        max_function_blocks: Optional[int] = None,
-        max_function_size: Optional[int] = None,
+        max_function_blocks: int | None = None,
+        max_function_size: int | None = None,
         workers: int = 0,
-        cc_callback: Optional[Callable] = None,
-        prioritize_func_addrs: Optional[Iterable[int]] = None,
+        cc_callback: Callable | None = None,
+        prioritize_func_addrs: Iterable[int] | None = None,
         skip_other_funcs: bool = False,
         auto_start: bool = True,
-        func_graphs: Optional[Dict[int, "networkx.DiGraph"]] = None,
+        func_graphs: dict[int, "networkx.DiGraph"] | None = None,
     ):
         """
 
@@ -84,7 +85,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._auto_start = auto_start
         self._total_funcs = None
         self._func_graphs = {} if not func_graphs else func_graphs
-        self.prototype_libnames: Set[str] = set()
+        self.prototype_libnames: set[str] = set()
 
         self._func_addrs = []  # a list that holds addresses of all functions to be analyzed
         self._results = []
@@ -160,7 +161,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._prioritize_func_addrs = None  # no longer useful
 
     def _set_function_prototype(
-        self, func: "Function", prototype: Optional["SimTypeFunction"], prototype_libname: Optional[str]
+        self, func: "Function", prototype: Optional["SimTypeFunction"], prototype_libname: str | None
     ) -> None:
         if func.prototype is None or func.is_prototype_guessed or self._force:
             func.is_prototype_guessed = True
@@ -294,7 +295,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 continue
 
             if callee_info is not None:
-                callee_info: Dict[int, Tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional[str]]]
+                callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]
                 for callee, (callee_cc, callee_proto, callee_proto_libname) in callee_info.items():
                     callee_func = self.kb.functions.get_by_addr(callee)
                     callee_func.calling_convention = callee_cc
@@ -315,7 +316,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def _analyze_core(
         self, func_addr: int
-    ) -> Tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional["str"], Optional["VariableManagerInternal"]]:
+    ) -> tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional["str"], Optional["VariableManagerInternal"]]:
         func = self.kb.functions.get_by_addr(func_addr)
         if func.ran_cca:
             return (
@@ -384,7 +385,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def _get_callees_cc_prototypes(
         self, caller_func_addr: int
-    ) -> Dict[int, Tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional[str]]]:
+    ) -> dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]:
         d = {}
         for callee in self.kb.functions.callgraph.successors(caller_func_addr):
             if callee != caller_func_addr and callee not in d:

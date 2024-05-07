@@ -1,5 +1,5 @@
 import operator
-from typing import Callable, Iterable, Tuple
+from collections.abc import Callable, Iterable
 
 import claripy
 from claripy.ast.bv import BV
@@ -14,7 +14,7 @@ except ImportError:
 # pylint:disable=abstract-method
 
 
-def make_bv_sizes_equal(bv1: BV, bv2: BV) -> Tuple[BV, BV]:
+def make_bv_sizes_equal(bv1: BV, bv2: BV) -> tuple[BV, BV]:
     """
     Makes two BVs equal in length through sign extension.
     """

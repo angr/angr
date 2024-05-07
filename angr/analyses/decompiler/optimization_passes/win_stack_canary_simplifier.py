@@ -1,5 +1,4 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Set, Dict
 from collections import defaultdict
 import logging
 
@@ -90,7 +89,7 @@ class WinStackCanarySimplifier(OptimizationPass):
         # Before node duplication, each pair of canary-check-success and canary-check-failure nodes have a common
         # predecessor.
         # map endpoint addrs to their common predecessors
-        pred_addr_to_endpoint_addrs: Dict[int, Set[int]] = defaultdict(set)
+        pred_addr_to_endpoint_addrs: dict[int, set[int]] = defaultdict(set)
         for node_addr in all_endpoint_addrs:
             preds = self._func.graph.predecessors(self._func.get_node(node_addr))
             for pred in preds:

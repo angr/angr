@@ -1,5 +1,4 @@
 # pylint:disable=unused-argument,arguments-differ
-from typing import Set, Union
 import logging
 
 import ailment
@@ -47,7 +46,7 @@ class GotoSimplifier(SequenceWalker):
         self.irreducible_gotos = set()
 
         super().__init__(handlers)
-        self._node_addrs: Set[int] = NodeAddressFinder(node).addrs
+        self._node_addrs: set[int] = NodeAddressFinder(node).addrs
 
         self.walk(node)
 
@@ -156,7 +155,7 @@ class GotoSimplifier(SequenceWalker):
                 self._handle_irreducible_goto(block, last_stmt, branch_target=False)
 
     def _handle_irreducible_goto(
-        self, block, goto_stmt: Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump], branch_target=None
+        self, block, goto_stmt: ailment.Stmt.Jump | ailment.Stmt.ConditionalJump, branch_target=None
     ):
         if not self._function:
             l.debug("Unable to store a goto at %#x because simplifier is kb or functionless", block.addr)

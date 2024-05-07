@@ -1,4 +1,3 @@
-from typing import Optional
 from functools import reduce
 
 from archinfo.arch_arm import is_arm_arch
@@ -53,7 +52,7 @@ class CFGManager(KnowledgeBasePlugin):
         cm.cfgs = dict(map(lambda x: (x[0], x[1].copy()), self.cfgs.items()))
         return cm
 
-    def get_most_accurate(self) -> Optional[CFGModel]:
+    def get_most_accurate(self) -> CFGModel | None:
         """
         :return: The most accurate CFG present in the CFGManager, or None if it does not hold any.
         """

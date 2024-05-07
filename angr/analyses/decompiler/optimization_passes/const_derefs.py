@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 from ailment import Block, AILBlockWalker
@@ -20,7 +20,7 @@ class BlockWalker(AILBlockWalker):
     def __init__(self, project: "Project"):
         super().__init__()
         self._project = project
-        self._new_block: Optional[Block] = None  # output
+        self._new_block: Block | None = None  # output
 
     def walk(self, block: Block):
         self._new_block = None
@@ -68,7 +68,7 @@ class BlockWalker(AILBlockWalker):
             return new_stmt
         return None
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block]):
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         new_target = self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
 
         new_args = None
@@ -260,6 +260,6 @@ class ConstantDereferencesSimplifier(OptimizationPass):
         walker = AILGraphWalker(self._graph, handler=self._walk_block, replace_nodes=True)
         walker.walk()
 
-    def _walk_block(self, block: Block) -> Optional[Block]:
+    def _walk_block(self, block: Block) -> Block | None:
         new_block = self._block_walker.walk(block)
         return new_block

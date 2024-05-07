@@ -1,5 +1,5 @@
 # pylint:disable=bad-builtin
-from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
 from ..analysis import Analysis, AnalysesHub
@@ -33,8 +33,8 @@ class Typehoon(Analysis):
         constraints,
         func_var,
         ground_truth=None,
-        var_mapping: Optional[Dict["SimVariable", Set["TypeVariable"]]] = None,
-        must_struct: Optional[Set["TypeVariable"]] = None,
+        var_mapping: dict["SimVariable", set["TypeVariable"]] | None = None,
+        must_struct: set["TypeVariable"] | None = None,
     ):
         """
 
@@ -46,8 +46,8 @@ class Typehoon(Analysis):
         """
 
         self.func_var: "TypeVariable" = func_var
-        self._constraints: Dict["TypeVariable", Set["TypeConstraint"]] = constraints
-        self._ground_truth: Optional[Dict["TypeVariable", "SimType"]] = ground_truth
+        self._constraints: dict["TypeVariable", set["TypeConstraint"]] = constraints
+        self._ground_truth: dict["TypeVariable", "SimType"] | None = ground_truth
         self._var_mapping = var_mapping
         self._must_struct = must_struct
 
@@ -66,7 +66,7 @@ class Typehoon(Analysis):
     # Public methods
     #
 
-    def update_variable_types(self, func_addr: Union[int, str], var_to_typevars):
+    def update_variable_types(self, func_addr: int | str, var_to_typevars):
         for var, typevars in var_to_typevars.items():
             for typevar in typevars:
                 type_ = self.simtypes_solution.get(typevar, None)
@@ -179,7 +179,7 @@ class Typehoon(Analysis):
             if specialized is not None:
                 self.solution[tv] = specialized
 
-    def _specialize_struct(self, tc, memo: Optional[Set] = None):
+    def _specialize_struct(self, tc, memo: set | None = None):
         if isinstance(tc, Pointer):
             if memo is not None and tc in memo:
                 return None
@@ -189,7 +189,7 @@ class Typehoon(Analysis):
             return tc.new(specialized)
 
         if isinstance(tc, Struct) and tc.fields:
-            offsets: List[int] = sorted(list(tc.fields.keys()))  # get a sorted list of offsets
+            offsets: list[int] = sorted(list(tc.fields.keys()))  # get a sorted list of offsets
             offset0 = offsets[0]
             field0: TypeConstant = tc.fields[offset0]
 

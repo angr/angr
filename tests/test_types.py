@@ -2,7 +2,6 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 
 import unittest
-from typing import Dict
 
 import archinfo
 
@@ -210,13 +209,13 @@ class TestTypes(unittest.TestCase):
 
     def test_top_type(self):
         angr.types.register_types({"undefined": angr.types.SimTypeTop()})
-        fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("undefined f(undefined param_1, int param_2);")
+        fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("undefined f(undefined param_1, int param_2);")
         sig = fdef["f"]
         assert sig.args == [angr.types.SimTypeTop(), angr.types.SimTypeInt()]
 
     def test_arg_names(self):
         angr.types.register_types({"undefined": angr.types.SimTypeTop()})
-        fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param_1, int param_2);")
+        fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param_1, int param_2);")
         sig = fdef["f"]
         assert sig.arg_names == ["param_1", "param_2"]
 
@@ -228,11 +227,11 @@ class TestTypes(unittest.TestCase):
 
         # If for some reason only some of the parameters are named,
         # the list can only be partially not None, but has to match the positions
-        fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param1, int);")
+        fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param1, int);")
         sig = fdef["f"]
         assert sig.arg_names == ["param1", None]
 
-        fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f();")
+        fdef: dict[str, SimTypeFunction] = angr.types.parse_defns("int f();")
         sig = fdef["f"]
         assert sig.arg_names == ()
 

@@ -1,5 +1,6 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
-from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, OrderedDict as ODict, TYPE_CHECKING
+from typing import Any, DefaultDict, Optional, TYPE_CHECKING
+from collections import OrderedDict as ODict
 from collections import defaultdict, OrderedDict
 from enum import Enum
 import logging
@@ -80,7 +81,7 @@ class PhoenixStructurer(StructurerBase):
         parent_map=None,
         condition_processor=None,
         func: Optional["Function"] = None,
-        case_entry_to_switch_head: Optional[Dict[int, int]] = None,
+        case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         improve_structurer=True,
         use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.MAX_ONE_CALL,
@@ -101,14 +102,14 @@ class PhoenixStructurer(StructurerBase):
         # structuring cycles.
         # the set is populated during the analysis. _last_resort_refinement() will ensure not to remove any edges
         # who fall into these sets.
-        self.whitelist_edges: Set[Tuple[int, int]] = set()
+        self.whitelist_edges: set[tuple[int, int]] = set()
         # also whitelist certain nodes that are definitely header for switch-case constructs. they should not be merged
         # into another node before we successfully structure the entire switch-case.
-        self.switch_case_known_heads: Set[Block] = set()
+        self.switch_case_known_heads: set[Block] = set()
 
         # whitelist certain nodes that should be treated as a tail node for do-whiles. these nodes should not be
         # absorbed into other SequenceNodes
-        self.dowhile_known_tail_nodes: Set = set()
+        self.dowhile_known_tail_nodes: set = set()
 
         self._phoenix_improved = self._improve_structurer
         self._edge_virtualization_hints = []
@@ -266,7 +267,7 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
         return matched
 
-    def _match_cyclic_while(self, node, head, graph, full_graph) -> Tuple[bool, Optional[LoopNode], Optional[BaseNode]]:
+    def _match_cyclic_while(self, node, head, graph, full_graph) -> tuple[bool, LoopNode | None, BaseNode | None]:
         succs = list(full_graph.successors(node))
         if len(succs) == 2:
             left, right = succs
@@ -406,7 +407,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_cyclic_while_with_single_successor(
         self, node, head, graph, full_graph
-    ) -> Tuple[bool, Optional[LoopNode], Optional[BaseNode]]:
+    ) -> tuple[bool, LoopNode | None, BaseNode | None]:
         if self._region.successors:
             return False, None, None
         if node is not head:
@@ -474,9 +475,7 @@ class PhoenixStructurer(StructurerBase):
 
         return True, loop_node, successor_node
 
-    def _match_cyclic_dowhile(
-        self, node, head, graph, full_graph
-    ) -> Tuple[bool, Optional[LoopNode], Optional[BaseNode]]:
+    def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> tuple[bool, LoopNode | None, BaseNode | None]:
         preds = list(full_graph.predecessors(node))
         succs = list(full_graph.successors(node))
         if ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 1:
@@ -543,7 +542,7 @@ class PhoenixStructurer(StructurerBase):
                     return True, loop_node, succ
         return False, None, None
 
-    def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> Tuple[bool, Optional[LoopNode]]:
+    def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> tuple[bool, LoopNode | None]:
         if not (node is head or graph.in_degree[node] == 2):
             return False, None
 
@@ -609,8 +608,8 @@ class PhoenixStructurer(StructurerBase):
         is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, head_succs)
         is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head, head_succs)
 
-        continue_edges: List[Tuple[BaseNode, BaseNode]] = []
-        outgoing_edges: List = []
+        continue_edges: list[tuple[BaseNode, BaseNode]] = []
+        outgoing_edges: list = []
 
         if is_while and is_dowhile:
             # gotta pick one!
@@ -872,7 +871,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _refine_cyclic_is_while_loop(
         self, graph, fullgraph, loop_head, head_succs
-    ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
+    ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
             # make sure the head_pred is not already structured
             _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
@@ -880,7 +879,7 @@ class PhoenixStructurer(StructurerBase):
             if head_block_0 is head_block_1 and head_block_0 is not None:
                 # there is an out-going edge from the loop head
                 # virtualize all other edges
-                continue_edges: List[Tuple[BaseNode, BaseNode]] = []
+                continue_edges: list[tuple[BaseNode, BaseNode]] = []
                 outgoing_edges = []
                 successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
                 for node in networkx.descendants(graph, loop_head):
@@ -897,7 +896,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _refine_cyclic_is_dowhile_loop(  # pylint:disable=unused-argument
         self, graph, fullgraph, loop_head, head_succs
-    ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
+    ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         # check if there is an out-going edge from the loop tail
         head_preds = list(fullgraph.predecessors(loop_head))
         if len(head_preds) == 1:
@@ -908,7 +907,7 @@ class PhoenixStructurer(StructurerBase):
                 _, _, src_block_0 = self._find_node_going_to_dst(head_pred, head_pred_succs[0])
                 _, _, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
                 if src_block_0 is src_block_1 and src_block_0 is not None:
-                    continue_edges: List[Tuple[BaseNode, BaseNode]] = []
+                    continue_edges: list[tuple[BaseNode, BaseNode]] = []
                     outgoing_edges = []
                     # there is an out-going edge from the loop tail
                     # virtualize all other edges
@@ -1047,7 +1046,7 @@ class PhoenixStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
-        case_entries: Dict[int, Tuple[int, Optional[int]]] = {}
+        case_entries: dict[int, tuple[int, int | None]] = {}
         for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
@@ -1264,7 +1263,7 @@ class PhoenixStructurer(StructurerBase):
         return True
 
     def _match_acyclic_incomplete_switch_cases(
-        self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: Dict
+        self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: dict
     ) -> bool:
         # sanity checks
         if node.addr not in jump_tables:
@@ -1300,14 +1299,14 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_build_cases(
         self,
-        case_and_entryaddrs: Dict[int, Union[int, Tuple[int, Optional[int]]]],
+        case_and_entryaddrs: dict[int, int | tuple[int, int | None]],
         head_node,
         node_a: BaseNode,
         node_b_addr,
         graph,
         full_graph,
-    ) -> Tuple[ODict, Any, Set[Any]]:
-        cases: ODict[Union[int, Tuple[int]], SequenceNode] = OrderedDict()
+    ) -> tuple[ODict, Any, set[Any]]:
+        cases: ODict[int | tuple[int], SequenceNode] = OrderedDict()
         to_remove = set()
 
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
@@ -1315,11 +1314,11 @@ class PhoenixStructurer(StructurerBase):
         # successor to node_a
         default_node_candidates = [nn for nn in graph.nodes if nn.addr == node_b_addr]
         if len(default_node_candidates) == 0:
-            node_default: Optional[BaseNode] = None
+            node_default: BaseNode | None = None
         elif len(default_node_candidates) == 1:
-            node_default: Optional[BaseNode] = default_node_candidates[0]
+            node_default: BaseNode | None = default_node_candidates[0]
         else:
-            node_default: Optional[BaseNode] = next(
+            node_default: BaseNode | None = next(
                 iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
             )
 
@@ -1331,8 +1330,8 @@ class PhoenixStructurer(StructurerBase):
             node_default = new_node
 
         # entry_addrs_set = set(jumptable_entries)
-        converted_nodes: Dict[Tuple[int, Optional[int]], Any] = {}
-        entry_addr_to_ids: DefaultDict[Tuple[int, Optional[int]], Set[int]] = defaultdict(set)
+        converted_nodes: dict[tuple[int, int | None], Any] = {}
+        entry_addr_to_ids: DefaultDict[tuple[int, int | None], set[int]] = defaultdict(set)
 
         # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
@@ -1420,7 +1419,7 @@ class PhoenixStructurer(StructurerBase):
         node_default_addr: int,
         node_default,
         addr,
-        to_remove: Set,
+        to_remove: set,
         graph: networkx.DiGraph,
         full_graph: networkx.DiGraph,
         node_a=None,
@@ -1952,7 +1951,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_acyclic_short_circuit_conditions_type_a(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:
+    ) -> tuple | None:
         #   if (a) goto right
         #   else if (b) goto right
         #   else goto other_succ
@@ -1990,7 +1989,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_acyclic_short_circuit_conditions_type_b(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:
+    ) -> tuple | None:
         #   if (a) goto left
         # right:
         #   else if (b) goto left
@@ -2032,7 +2031,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_acyclic_short_circuit_conditions_type_c(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:
+    ) -> tuple | None:
         #   if (a) goto successor
         #   else if (b) goto successor
         # right:
@@ -2070,7 +2069,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_acyclic_short_circuit_conditions_type_d(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:
+    ) -> tuple | None:
         #   if (a) goto else_node
         # left:
         #   else if (b) goto else_node
@@ -2107,7 +2106,7 @@ class PhoenixStructurer(StructurerBase):
                             return left, edge_cond_left, right, edge_cond_left_right, else_node
         return None
 
-    def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: Optional[networkx.DiGraph]) -> bool:
+    def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: networkx.DiGraph | None) -> bool:
         if self._phoenix_improved:
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
@@ -2228,7 +2227,7 @@ class PhoenixStructurer(StructurerBase):
         if remove_src_last_stmt:
             remove_last_statement(src)
 
-    def _should_use_multistmtexprs(self, node: Union[Block, BaseNode]) -> bool:
+    def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
         if self._use_multistmtexprs == MultiStmtExprMode.NEVER:
             return False
         if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
@@ -2244,10 +2243,10 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _find_node_going_to_dst(
         node: SequenceNode,
-        dst: Union[Block, BaseNode],
+        dst: Block | BaseNode,
         last=True,
         condjump_only=False,
-    ) -> Tuple[Optional[int], Optional[BaseNode], Optional[Block]]:
+    ) -> tuple[int | None, BaseNode | None, Block | None]:
         """
 
         :param node:
@@ -2335,7 +2334,7 @@ class PhoenixStructurer(StructurerBase):
             update_seqnode_in_place=False,
             force_forward_scan=True,
         )
-        walker.parent_and_block: List[Tuple[int, Any, Union[Block, MultiNode]]] = []
+        walker.parent_and_block: list[tuple[int, Any, Block | MultiNode]] = []
         walker.block_id = -1
         walker.walk(node)
         if not walker.parent_and_block:
@@ -2385,7 +2384,7 @@ class PhoenixStructurer(StructurerBase):
                     graph.add_edge(case_node, succs[0])
 
     @staticmethod
-    def _count_statements(node: Union[BaseNode, Block]) -> int:
+    def _count_statements(node: BaseNode | Block) -> int:
         if isinstance(node, Block):
             return sum(1 for stmt in node.statements if not isinstance(stmt, Label))
         elif isinstance(node, MultiNode):
@@ -2395,19 +2394,19 @@ class PhoenixStructurer(StructurerBase):
         return 1
 
     @staticmethod
-    def _is_single_statement_block(node: Union[BaseNode, Block]) -> bool:
+    def _is_single_statement_block(node: BaseNode | Block) -> bool:
         if isinstance(node, (Block, MultiNode, SequenceNode)):
             return PhoenixStructurer._count_statements(node) == 1
         return False
 
     @staticmethod
-    def _is_sequential_statement_block(node: Union[BaseNode, Block]) -> bool:
+    def _is_sequential_statement_block(node: BaseNode | Block) -> bool:
         """
         Examine if the node can be converted into a MultiStatementExpression object. The conversion fails if there are
         any conditional statements or goto statements before the very last statement of the node.
         """
 
-        def _is_sequential_statement_list(stmts: List[Statement]) -> bool:
+        def _is_sequential_statement_list(stmts: list[Statement]) -> bool:
             if not stmts:
                 return True
             for stmt in stmts[:-1]:
@@ -2421,7 +2420,7 @@ class PhoenixStructurer(StructurerBase):
                     return False
             return True
 
-        def _to_statement_list(node: Union[Block, MultiNode, SequenceNode]) -> List[Statement]:
+        def _to_statement_list(node: Block | MultiNode | SequenceNode) -> list[Statement]:
             if isinstance(node, Block):
                 return node.statements
             if isinstance(node, MultiNode):
@@ -2444,7 +2443,7 @@ class PhoenixStructurer(StructurerBase):
         return _is_sequential_statement_list(stmt_list)
 
     @staticmethod
-    def _build_multistatementexpr_statements(block) -> Optional[List[Statement]]:
+    def _build_multistatementexpr_statements(block) -> list[Statement] | None:
         stmts = []
         if isinstance(block, (SequenceNode, MultiNode)):
             for b in block.nodes:
@@ -2474,7 +2473,7 @@ class PhoenixStructurer(StructurerBase):
                 graph.remove_edge(src, succ)
 
     @staticmethod
-    def _remove_first_statement_if_jump(node: Union[BaseNode, Block]) -> Optional[Union[Jump, ConditionalJump]]:
+    def _remove_first_statement_if_jump(node: BaseNode | Block) -> Jump | ConditionalJump | None:
         if isinstance(node, Block):
             if node.statements:
                 idx = 0
@@ -2503,7 +2502,7 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     @staticmethod
-    def _chick_order_edges(edges: List, node_seq: Dict[Any, int]) -> List:
+    def _chick_order_edges(edges: list, node_seq: dict[Any, int]) -> list:
         graph = networkx.DiGraph()
         graph.add_edges_from(edges)
 
@@ -2520,7 +2519,7 @@ class PhoenixStructurer(StructurerBase):
         return list(sorted(edges, key=_sort_edge, reverse=True))
 
     @staticmethod
-    def _replace_node_in_edge_list(edge_list: List[Tuple], old_node, new_node) -> None:
+    def _replace_node_in_edge_list(edge_list: list[tuple], old_node, new_node) -> None:
         for idx in range(len(edge_list)):  # pylint:disable=consider-using-enumerate
             edge = edge_list[idx]
             src, dst = edge

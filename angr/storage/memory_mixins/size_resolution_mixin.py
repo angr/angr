@@ -1,4 +1,3 @@
-from typing import Optional
 import logging
 
 from . import MemoryMixin
@@ -60,7 +59,7 @@ class SizeConcretizationMixin(MemoryMixin):
     def __init__(
         self,
         concretize_symbolic_write_size: bool = False,
-        max_concretize_count: Optional[int] = 256,
+        max_concretize_count: int | None = 256,
         max_symbolic_size: int = 0x400000,
         raise_memory_limit_error: bool = False,
         size_limit: int = 257,

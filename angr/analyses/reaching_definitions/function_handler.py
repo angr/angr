@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable, cast, Literal
+from typing import TYPE_CHECKING, cast, Literal
+from collections.abc import Iterable, Callable
 from dataclasses import dataclass, field
 import logging
 from functools import wraps
@@ -51,12 +52,12 @@ class FunctionEffect:
     `FunctionCallData.depends` instead.
     """
 
-    dest: Optional[Atom]
-    sources: Set[Atom]
-    value: Optional[MultiValues] = None
-    sources_defns: Optional[Set[Definition]] = None
+    dest: Atom | None
+    sources: set[Atom]
+    value: MultiValues | None = None
+    sources_defns: set[Definition] | None = None
     apply_at_callsite: bool = False
-    tags: Optional[Set[Tag]] = None
+    tags: set[Tag] | None = None
 
 
 @dataclass
@@ -83,21 +84,21 @@ class FunctionCallData:
 
     callsite_codeloc: CodeLocation
     function_codeloc: CodeLocation
-    address_multi: Optional[MultiValues]
-    address: Optional[int] = None
-    symbol: Optional[Symbol] = None
-    function: Optional[Function] = None
-    name: Optional[str] = None
-    cc: Optional[SimCC] = None
-    prototype: Optional[SimTypeFunction] = None
-    args_atoms: Optional[List[Set[Atom]]] = None
-    args_values: Optional[List[MultiValues]] = None
-    ret_atoms: Optional[Set[Atom]] = None
+    address_multi: MultiValues | None
+    address: int | None = None
+    symbol: Symbol | None = None
+    function: Function | None = None
+    name: str | None = None
+    cc: SimCC | None = None
+    prototype: SimTypeFunction | None = None
+    args_atoms: list[set[Atom]] | None = None
+    args_values: list[MultiValues] | None = None
+    ret_atoms: set[Atom] | None = None
     redefine_locals: bool = True
-    visited_blocks: Optional[Set[int]] = None
-    effects: List[FunctionEffect] = field(default_factory=lambda: [])
-    ret_values: Optional[MultiValues] = None
-    ret_values_deps: Optional[Set[Definition]] = None
+    visited_blocks: set[int] | None = None
+    effects: list[FunctionEffect] = field(default_factory=lambda: [])
+    ret_values: MultiValues | None = None
+    ret_values_deps: set[Definition] | None = None
     caller_will_handle_single_ret: bool = False
     guessed_cc: bool = False
     guessed_prototype: bool = False
@@ -135,11 +136,11 @@ class FunctionCallData:
 
     def depends(
         self,
-        dest: Union[Atom, Iterable[Atom], None],
-        *sources: Union[Atom, Iterable[Atom]],
-        value: Union[MultiValues, claripy.ast.BV, bytes, int, None] = None,
+        dest: Atom | Iterable[Atom] | None,
+        *sources: Atom | Iterable[Atom],
+        value: MultiValues | claripy.ast.BV | bytes | int | None = None,
         apply_at_callsite: bool = False,
-        tags: Optional[Set[Tag]] = None,
+        tags: set[Tag] | None = None,
     ):
         """
         Mark a single effect of the current function, including the atom being modified, the input atoms on which that
@@ -186,7 +187,7 @@ class FunctionCallData:
 
     def reset_prototype(
         self, prototype: SimTypeFunction, state: "ReachingDefinitionsState", soft_reset: bool = False
-    ) -> Set[Atom]:
+    ) -> set[Atom]:
         self.prototype = prototype.with_arch(state.arch)
         if not soft_reset:
             self.args_atoms = self.args_values = self.ret_atoms = None
@@ -222,9 +223,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     name: str
     cc: SimCC
     prototype: SimTypeFunction
-    args_atoms: List[Set[Atom]]
-    args_values: List[MultiValues]
-    ret_atoms: Set[Atom]
+    args_atoms: list[set[Atom]]
+    args_values: list[MultiValues]
+    ret_atoms: set[Atom]
 
     def __init__(self, inner: FunctionCallData):
         d = dict(inner.__dict__)
@@ -268,7 +269,7 @@ class FunctionHandler:
         return self
 
     def make_function_codeloc(
-        self, target: Union[None, int, MultiValues], callsite: CodeLocation, callsite_func_addr: Optional[int]
+        self, target: None | int | MultiValues, callsite: CodeLocation, callsite_func_addr: int | None
     ):
         """
         The RDA engine will call this function to transform a callsite CodeLocation into a callee CodeLocation.
@@ -512,7 +513,7 @@ class FunctionHandler:
         # get_exit_livedefinitions is currently only using ret_sites, but an argument could be made that it should
         # include jumpout sites as well. In the CFG generation tail call sites seem to be treated as return sites
         # and not as jumpout sites, so we are following that convention here.
-        return_observation_points: List[ObservationPoint] = [
+        return_observation_points: list[ObservationPoint] = [
             (
                 cast(Literal["node"], "node"),  # pycharm doesn't treat a literal string, as Literal[] by default...
                 block.addr,
@@ -540,7 +541,7 @@ class FunctionHandler:
         data.retaddr_popped = True
 
     @staticmethod
-    def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
+    def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> list[set[Atom]]:
         if not prototype.variadic:
             sp_value = state.get_one_value(Register(state.arch.sp_offset, state.arch.bytes), strip_annotations=True)
             sp = state.get_stack_offset(sp_value) if sp_value is not None else None
@@ -563,7 +564,7 @@ class FunctionHandler:
         return [{Register(*state.arch.registers[arg_name], arch=state.arch)} for arg_name in cc.ARG_REGS]
 
     @staticmethod
-    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> Set[Atom]:
+    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
             retval = cc.return_val(prototype.returnty)
             if retval is not None:
@@ -574,7 +575,7 @@ class FunctionHandler:
         return set()
 
     @staticmethod
-    def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> Set[Register]:
+    def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> set[Register]:
         return (
             {Register(*state.arch.registers[reg], arch=state.arch) for reg in cc.CALLER_SAVED_REGS}
             if cc.CALLER_SAVED_REGS is not None

@@ -27,7 +27,7 @@ class PcodeEmulatorMixin(SimEngineBase):
 
     _current_op: Optional["PcodeOp"]
     _current_op_idx: int
-    _current_behavior: Optional[OpBehavior]
+    _current_behavior: OpBehavior | None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

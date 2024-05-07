@@ -2,7 +2,7 @@
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
-from typing import Optional, Dict, Any, Tuple, List, Union, Type, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import logging
 
 try:
@@ -210,7 +210,7 @@ class NamedTypeMixin:
     unqualified name of the type.
     """
 
-    def __init__(self, *args, name: Optional[str] = None, **kwargs):
+    def __init__(self, *args, name: str | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._name = name
 
@@ -723,7 +723,7 @@ class SimTypeArray(SimType):
         """
         super().__init__(label=label)
         self.elem_type: SimType = elem_type
-        self.length: Optional[int] = length
+        self.length: int | None = length
 
     def __repr__(self):
         return "{}[{}]".format(self.elem_type, "" if self.length is None else self.length)
@@ -790,7 +790,7 @@ class SimTypeString(NamedTypeMixin, SimTypeArray):
 
     _fields = SimTypeArray._fields + ("length",)
 
-    def __init__(self, length=None, label=None, name: Optional[str] = None):
+    def __init__(self, length=None, label=None, name: str | None = None):
         """
         :param label:   The type label.
         :param length:  An expression of the length of the string, if known.
@@ -848,7 +848,7 @@ class SimTypeWString(NamedTypeMixin, SimTypeArray):
 
     _fields = SimTypeArray._fields + ("length",)
 
-    def __init__(self, length=None, label=None, name: Optional[str] = None):
+    def __init__(self, length=None, label=None, name: str | None = None):
         super().__init__(SimTypeNum(16, False), label=label, length=length, name=name)
 
     def __repr__(self):
@@ -909,7 +909,7 @@ class SimTypeFunction(SimType):
     _fields = ("args", "returnty")
     base = False
 
-    def __init__(self, args: List[SimType], returnty: Optional[SimType], label=None, arg_names=None, variadic=False):
+    def __init__(self, args: list[SimType], returnty: SimType | None, label=None, arg_names=None, variadic=False):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -917,8 +917,8 @@ class SimTypeFunction(SimType):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(label=label)
-        self.args: List[SimType] = args
-        self.returnty: Optional[SimType] = returnty
+        self.args: list[SimType] = args
+        self.returnty: SimType | None = returnty
         self.arg_names = arg_names if arg_names else ()
         self.variadic = variadic
 
@@ -988,7 +988,7 @@ class SimTypeCppFunction(SimTypeFunction):
     """
 
     def __init__(
-        self, args, returnty, label=None, arg_names: Tuple[str] = None, ctor: bool = False, dtor: bool = False
+        self, args, returnty, label=None, arg_names: tuple[str] = None, ctor: bool = False, dtor: bool = False
     ):
         super().__init__(args, returnty, label=label, arg_names=arg_names, variadic=False)
         self.ctor = ctor
@@ -1121,7 +1121,7 @@ class SimTypeDouble(SimTypeFloat):
 class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields")
 
-    def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
+    def __init__(self, fields: dict[str, SimType] | OrderedDict, name=None, pack=False, align=None):
         super().__init__(None, name="<anon>" if name is None else name)
 
         self._pack = pack
@@ -1135,7 +1135,7 @@ class SimStruct(NamedTypeMixin, SimType):
         return self._pack
 
     @property
-    def offsets(self) -> Dict[str, int]:
+    def offsets(self) -> dict[str, int]:
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.items():
@@ -1490,10 +1490,10 @@ class SimUnionValue:
 class SimCppClass(SimStruct):
     def __init__(
         self,
-        members: Optional[Dict[str, SimType]] = None,
-        function_members: Optional[Dict[str, SimTypeCppFunction]] = None,
+        members: dict[str, SimType] | None = None,
+        function_members: dict[str, SimTypeCppFunction] | None = None,
         vtable_ptrs=None,
-        name: Optional[str] = None,
+        name: str | None = None,
         pack: bool = False,
         align=None,
     ):
@@ -1639,7 +1639,7 @@ class SimTypeRef(SimType):
     SimTypeRef is not SimTypeReference.
     """
 
-    def __init__(self, name, original_type: Type[SimStruct]):
+    def __init__(self, name, original_type: type[SimStruct]):
         super().__init__(label=name)
         self.original_type = original_type
 
@@ -2812,7 +2812,7 @@ def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
 _include_re = re.compile(r"^\s*#include")
 
 
-def parse_file(defn, preprocess=True, predefined_types: Optional[Dict[Any, SimType]] = None, arch=None):
+def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | None = None, arch=None):
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
@@ -2862,7 +2862,7 @@ def parse_file(defn, preprocess=True, predefined_types: Optional[Dict[Any, SimTy
 _type_parser_singleton = None
 
 
-def type_parser_singleton() -> Optional[pycparser.CParser]:
+def type_parser_singleton() -> pycparser.CParser | None:
     global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None:
         if _type_parser_singleton is None:
@@ -2887,7 +2887,7 @@ def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pyli
 
 
 def parse_type_with_name(
-    defn, preprocess=True, predefined_types: Optional[Dict[Any, SimType]] = None, arch=None
+    defn, preprocess=True, predefined_types: dict[Any, SimType] | None = None, arch=None
 ):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning a tuple of the type object and any associated name
@@ -3119,7 +3119,7 @@ def _parse_const(c, arch=None, extra_types=None):
         raise ValueError(c)
 
 
-def _cpp_decl_to_type(decl: Any, extra_types: Dict[str, SimType], opaque_classes=True):
+def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes=True):
     if isinstance(decl, CppHeaderParser.CppMethod):
         the_func = decl
         func_name = the_func["name"]
@@ -3131,7 +3131,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: Dict[str, SimType], opaque_classes
             the_func["destructor"] = True
         # translate parameters
         args = []
-        arg_names: List[str] = []
+        arg_names: list[str] = []
         for param in the_func["parameters"]:
             arg_type = param["type"]
             args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
@@ -3139,7 +3139,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: Dict[str, SimType], opaque_classes
             arg_names.append(arg_name)
 
         args = tuple(args)
-        arg_names: Tuple[str] = tuple(arg_names)
+        arg_names: tuple[str] = tuple(arg_names)
         # returns
         if not the_func["returns"].strip():
             returnty = SimTypeBottom()
@@ -3252,10 +3252,10 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     if not h.functions:
         return None, None
 
-    func_decls: Dict[str, SimTypeCppFunction] = {}
+    func_decls: dict[str, SimTypeCppFunction] = {}
     for the_func in h.functions:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto: Optional[SimTypeCppFunction] = _cpp_decl_to_type(the_func, {}, opaque_classes=True)
+        proto: SimTypeCppFunction | None = _cpp_decl_to_type(the_func, {}, opaque_classes=True)
         if proto is not None and the_func["class"]:
             func_name = the_func["class"] + "::" + the_func["name"]
             proto.args = (
@@ -3270,7 +3270,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
 
 
 def dereference_simtype(
-    t: SimType, type_collections: List["SimTypeCollection"], memo: Optional[Dict[str, SimType]] = None
+    t: SimType, type_collections: list["SimTypeCollection"], memo: dict[str, SimType] | None = None
 ) -> SimType:
     if memo is None:
         memo = {}

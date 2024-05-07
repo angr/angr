@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Union, List, DefaultDict, TYPE_CHECKING
+from typing import DefaultDict, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 import logging
 
@@ -38,12 +38,12 @@ class Case:
     def __init__(
         self,
         original_node,
-        node_type: Optional[str],
+        node_type: str | None,
         variable_hash,
         expr,
-        value: Union[int, str],
+        value: int | str,
         target,
-        target_idx: Optional[int],
+        target_idx: int | None,
         next_addr,
     ):
         self.original_node = original_node
@@ -104,28 +104,28 @@ class StableVarExprHasher(AILBlockWalkerBase):
         self.walk_expression(expr)
         self.hash = hash(tuple(self._hash_lst))
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Block | None):
         if hasattr(expr, "variable") and expr.variable is not None:
             self._hash_lst.append(expr.variable)
         else:
             super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append("Load")
         super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.op)
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.op)
         super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append((expr.value, expr.bits))
 
-    def _handle_Convert(self, expr_idx: int, expr: "Convert", stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_Convert(self, expr_idx: int, expr: "Convert", stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.to_bits)
         super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -174,7 +174,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 original_nodes = original_nodes[1:]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
 
-                case_addrs: List[Tuple[Block, Union[int, str], int, Optional[int], int]] = []
+                case_addrs: list[tuple[Block, int | str, int, int | None, int]] = []
                 delayed_edges = []
                 for idx, case in enumerate(cases):
                     if idx == 0 or all(
@@ -184,7 +184,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             (case.original_node, case.value, case.target, case.target_idx, case.next_addr)
                         )
                     else:
-                        statements: List = [
+                        statements: list = [
                             stmt for stmt in case.original_node.statements if isinstance(stmt, (Label, Assignment))
                         ]
                         statements.append(
@@ -294,7 +294,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 variable_comparisons[node] = ("c",) + r
                 continue
 
-        varhash_to_caselists: DefaultDict[int, List[Tuple[List[Case], List]]] = defaultdict(list)
+        varhash_to_caselists: DefaultDict[int, list[tuple[list[Case], list]]] = defaultdict(list)
         used_nodes = set()
 
         for head in variable_comparisons:
@@ -516,7 +516,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_a(
         node,
-    ) -> Optional[Tuple[int, str, Expression, int, int, Optional[int], int, Optional[int]]]:
+    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type a is the last statement is a var == constant comparison, but
         # there is more than one non-label statement in the block
 
@@ -561,7 +561,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_b(
         node,
-    ) -> Optional[Tuple[int, str, Expression, int, int, Optional[int], int, Optional[int]]]:
+    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type b is the last statement is a var == constant comparison, and
         # there is only one non-label statement
 
@@ -606,7 +606,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_c(
         node,
-    ) -> Optional[Tuple[int, str, Expression, int, int, Optional[int], int, Optional[int]]]:
+    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type c is where the last statement is a var < or > constant comparison, and
         # there is only one non-label statement
 
@@ -744,7 +744,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         remove_last_statement(node)
 
     @staticmethod
-    def cases_issubset(cases_0: List[Case], cases_1: List[Case]) -> bool:
+    def cases_issubset(cases_0: list[Case], cases_1: list[Case]) -> bool:
         """
         Test if cases_0 is a subset of cases_1.
         """

@@ -1,6 +1,6 @@
 # pylint:disable=abstract-method,ungrouped-imports
 
-from typing import Set, List, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import re
 import logging
 from collections import defaultdict
@@ -313,8 +313,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     def __init__(
         self,
-        func: Optional[Function],
-        reg_offsets: Set[int],
+        func: Function | None,
+        reg_offsets: set[int],
         block: Optional["Block"] = None,
         track_memory=True,
         cross_insn_opt=True,
@@ -811,8 +811,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             merged_state = merged_state.merge(other)
         return merged_state, merged_state == states[0]
 
-    def _find_callees(self, node) -> List[Function]:
-        callees: List[Function] = []
+    def _find_callees(self, node) -> list[Function]:
+        callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
             if data.get("type") == "call":
                 if isinstance(dst, Function):

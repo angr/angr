@@ -1,5 +1,3 @@
-from typing import Union, Optional, List, Tuple
-
 import networkx as nx
 from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump
@@ -19,7 +17,7 @@ def has_similar_stmt(blk1: Block, blk2: Block):
 
 
 def is_similar(
-    ail_obj1: Union[Block, Statement], ail_obj2: Union[Block, Statement], graph: nx.DiGraph = None, partial: bool = True
+    ail_obj1: Block | Statement, ail_obj2: Block | Statement, graph: nx.DiGraph = None, partial: bool = True
 ):
     """
     Returns True if the two AIL objects are similar, False otherwise.
@@ -128,7 +126,7 @@ def _kmp_search_ail_obj(search_pattern, stmt_seq, graph=None, partial=True):
             yield start_pos
 
 
-def index_of_similar_stmts(search_stmts, other_stmts, graph=None, all_positions=False) -> Optional[int]:
+def index_of_similar_stmts(search_stmts, other_stmts, graph=None, all_positions=False) -> int | None:
     """
     Returns the index of the first occurrence of the search_stmts (a list of Statement) in other_stmts (a list of
     Statement). If all_positions is True, returns a list of all positions.
@@ -157,8 +155,8 @@ def in_other(stmts, other, graph=None):
 
 
 def longest_ail_subseq(
-    stmts_list: List[List[Statement]], graph=None
-) -> Tuple[Optional[List[Statement]], Optional[List[int]]]:
+    stmts_list: list[list[Statement]], graph=None
+) -> tuple[list[Statement] | None, list[int] | None]:
     """
     Given a list of List[Statement], it returns the longest List[Statement] that is a subsequence of all the lists.
     The common List[Statement] most all be in the same order and adjacent to each other. If no common subsequence is

@@ -1,4 +1,5 @@
-from typing import Dict, Optional, Set, Tuple, Iterator, Union
+from typing import Union
+from collections.abc import Iterator
 import archinfo
 
 import claripy
@@ -19,12 +20,12 @@ class MultiValues:
         "_single_value",
     )
 
-    _single_value: Optional[claripy.ast.Bits]
-    _values: Optional[Dict[int, Set[claripy.ast.Bits]]]
+    _single_value: claripy.ast.Bits | None
+    _values: dict[int, set[claripy.ast.Bits]] | None
 
     def __init__(
         self,
-        v: Union[claripy.ast.Bits, "MultiValues", None, Dict[int, Set[claripy.ast.Bits]]] = None,
+        v: Union[claripy.ast.Bits, "MultiValues", None, dict[int, set[claripy.ast.Bits]]] = None,
         offset_to_values=None,
     ):
         if v is not None and offset_to_values is not None:
@@ -126,7 +127,7 @@ class MultiValues:
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self, strip_annotations: bool = False) -> Optional[claripy.ast.Bits]:
+    def one_value(self, strip_annotations: bool = False) -> claripy.ast.Bits | None:
         if self._single_value is not None:
             return self._single_value
 
@@ -192,7 +193,7 @@ class MultiValues:
             return offset == 0
         return False if not self._values else offset in self._values
 
-    def __getitem__(self, offset: int) -> Set[claripy.ast.Bits]:
+    def __getitem__(self, offset: int) -> set[claripy.ast.Bits]:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
@@ -201,12 +202,12 @@ class MultiValues:
             raise KeyError()
         return self._values[offset]
 
-    def keys(self) -> Set[int]:
+    def keys(self) -> set[int]:
         if self._single_value is not None:
             return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Iterator[Set[claripy.ast.Bits]]:
+    def values(self) -> Iterator[set[claripy.ast.Bits]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
@@ -214,7 +215,7 @@ class MultiValues:
                 return
             yield from self._values.values()
 
-    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.Bits]]]:
+    def items(self) -> Iterator[tuple[int, set[claripy.ast.Bits]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:
@@ -265,7 +266,7 @@ class MultiValues:
     # Private methods
     #
 
-    def _adjacent_offset(self, offset: int, before: bool = True) -> Optional[int]:
+    def _adjacent_offset(self, offset: int, before: bool = True) -> int | None:
         """
         Find the offset that is right before or after the given offset.
 

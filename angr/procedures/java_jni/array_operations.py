@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from . import JNISimProcedure
 from ...engines.soot.expressions import SimSootExpr_NewArray
@@ -30,7 +29,7 @@ class GetArrayLength(JNISimProcedure):
 
 
 class NewArray(JNISimProcedure):
-    element_type: Optional[str] = None
+    element_type: str | None = None
     return_ty = "reference"
 
     def run(self, ptr_env, length_):

@@ -1,5 +1,5 @@
 # pylint:disable=too-many-boolean-expressions,global-statement
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import pyvex
@@ -203,7 +203,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
         return False, []
 
-    def _try_handle_simple_case_0(self, gp: int, blade: Blade) -> Optional[int]:
+    def _try_handle_simple_case_0(self, gp: int, blade: Blade) -> int | None:
         # we only attempt to support the following case:
         #  + A | t37 = GET:I32(gp)
         #  + B | t36 = Add32(t37,0xffff8624)
@@ -307,7 +307,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         except KeyError:
             return None
 
-    def _try_handle_simple_case_1(self, gp: int, blade: Blade) -> Optional[int]:
+    def _try_handle_simple_case_1(self, gp: int, blade: Blade) -> int | None:
         # we only attempt to support the following case:
         #  + A | t22 = GET:I32(gp)
         #  + B | t21 = Add32(t22,0xffff8020)
@@ -456,7 +456,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             return None
 
     @staticmethod
-    def _previous_node(blade: Blade, curr_node: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+    def _previous_node(blade: Blade, curr_node: tuple[int, int]) -> tuple[int, int] | None:
         if blade.slice.in_degree(curr_node) != 1:
             return None
         nn = next(iter(blade.slice.predecessors(curr_node)))
@@ -493,7 +493,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
     @staticmethod
     def _is_gp_used_on_slice(project, b: Blade) -> bool:
         gp_offset = project.arch.registers["gp"][0]
-        blocks_on_slice: Dict[int, "Block"] = {}
+        blocks_on_slice: dict[int, "Block"] = {}
         for block_addr, block_stmt_idx in b.slice.nodes():
             if block_addr not in blocks_on_slice:
                 blocks_on_slice[block_addr] = project.factory.block(block_addr, cross_insn_opt=False)

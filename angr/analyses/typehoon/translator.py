@@ -1,4 +1,3 @@
-from typing import Dict, Union
 from itertools import count
 
 from ... import sim_type
@@ -24,8 +23,8 @@ class TypeTranslator:
     def __init__(self, arch=None):
         self.arch = arch
 
-        self.translated: Dict[TypeConstant, SimType] = {}
-        self.translated_simtypes: Dict[SimType, TypeConstant] = {}
+        self.translated: dict[TypeConstant, SimType] = {}
+        self.translated_simtypes: dict[SimType, TypeConstant] = {}
         self.structs = {}
         self._struct_ctr = count()
 
@@ -209,9 +208,7 @@ class TypeTranslator:
         array_tc = typeconsts.Array(elem_type, count=st.length)
         return array_tc
 
-    def _translate_SimTypePointer(
-        self, st: sim_type.SimTypePointer
-    ) -> Union[typeconsts.Pointer32, typeconsts.Pointer64]:
+    def _translate_SimTypePointer(self, st: sim_type.SimTypePointer) -> typeconsts.Pointer32 | typeconsts.Pointer64:
         base = self._simtype2tc(st.pts_to)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base)

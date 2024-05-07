@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, Tuple
 
 from ..calling_conventions import SYSCALL_CC, SimCCSyscall
 from ..errors import AngrUnsupportedSyscallError, SimSolverError
@@ -23,7 +22,7 @@ class SimUserland(SimOS):
         self.syscall_addr_alignment = syscall_addr_alignment
         self.kernel_base = None
         self.unknown_syscall_number = None
-        self.syscall_abis: Dict[str, Tuple[int, int, int]] = {}
+        self.syscall_abis: dict[str, tuple[int, int, int]] = {}
         # syscall_abis is a dict of tuples {name: (base_number, min_number, max_number)}
         # min_number and max_number are just cached from SimSyscallLibrary.{min,max}imum_sysall_number
         # base_number is used to map the syscalls into the syscall address space - it's a "base address"

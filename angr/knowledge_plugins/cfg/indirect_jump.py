@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from ...serializable import Serializable
 
 
@@ -33,13 +31,13 @@ class IndirectJump(Serializable):
         func_addr: int,
         jumpkind: str,
         stmt_idx: int,
-        resolved_targets: Optional[List[int]] = None,
+        resolved_targets: list[int] | None = None,
         jumptable: bool = False,
-        jumptable_addr: Optional[int] = None,
-        jumptable_size: Optional[int] = None,
-        jumptable_entry_size: Optional[int] = None,
-        jumptable_entries: Optional[List[int]] = None,
-        type_: Optional[int] = IndirectJumpType.Unknown,
+        jumptable_addr: int | None = None,
+        jumptable_size: int | None = None,
+        jumptable_entry_size: int | None = None,
+        jumptable_entries: list[int] | None = None,
+        type_: int | None = IndirectJumpType.Unknown,
     ):
         self.addr = addr
         self.ins_addr = ins_addr

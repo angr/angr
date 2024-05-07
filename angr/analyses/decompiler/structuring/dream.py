@@ -1,5 +1,6 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
-from typing import Dict, Set, Optional, Any, List, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
+from collections import OrderedDict as ODict
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -68,7 +69,7 @@ class DreamStructurer(StructurerBase):
         parent_map=None,
         condition_processor=None,
         func: Optional["Function"] = None,
-        case_entry_to_switch_head: Optional[Dict[int, int]] = None,
+        case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         **kwargs,
     ):
@@ -488,7 +489,7 @@ class DreamStructurer(StructurerBase):
 
         jump_tables = self.kb.cfgs["CFGFast"].jump_tables
 
-        addr2nodes: Dict[int, Set[CodeNode]] = defaultdict(set)
+        addr2nodes: dict[int, set[CodeNode]] = defaultdict(set)
         for node in seq.nodes:
             addr2nodes[node.addr].add(node)
 
@@ -513,7 +514,7 @@ class DreamStructurer(StructurerBase):
                 break
 
     def _make_switch_cases_address_loaded_from_memory(
-        self, seq, i, node, addr2nodes: Dict[int, Set[CodeNode]], jump_tables: Dict[int, IndirectJump]
+        self, seq, i, node, addr2nodes: dict[int, set[CodeNode]], jump_tables: dict[int, IndirectJump]
     ) -> bool:
         """
         A typical jump table involves multiple nodes, which look like the following:
@@ -596,7 +597,7 @@ class DreamStructurer(StructurerBase):
         return True
 
     def _make_switch_cases_address_computed(
-        self, seq, i, node, addr2nodes: Dict[int, Set[CodeNode]], jump_tables: Dict[int, IndirectJump]
+        self, seq, i, node, addr2nodes: dict[int, set[CodeNode]], jump_tables: dict[int, IndirectJump]
     ) -> bool:
         if node.addr not in jump_tables:
             return False
@@ -696,8 +697,8 @@ class DreamStructurer(StructurerBase):
         rewriter.walk(seq)  # update SequenceNodes in-place
 
     def _switch_unpack_sequence_node(
-        self, seq: SequenceNode, node_a, node_b_addr: int, jumptable, addr2nodes: Dict[int, Set[CodeNode]]
-    ) -> Tuple[bool, Optional[CodeNode]]:
+        self, seq: SequenceNode, node_a, node_b_addr: int, jumptable, addr2nodes: dict[int, set[CodeNode]]
+    ) -> tuple[bool, CodeNode | None]:
         """
         We might have already structured the actual body of the switch-case structure into a single Sequence node (node
         A). If that is the case, we un-structure the sequence node in this method.
@@ -752,7 +753,7 @@ class DreamStructurer(StructurerBase):
         # should have been handling it when dealing with multi-exit regions. ignore it here.
         return True, node_a
 
-    def _switch_unpack_condition_node(self, cond_node: ConditionNode, jumptable) -> Optional[CodeNode]:
+    def _switch_unpack_condition_node(self, cond_node: ConditionNode, jumptable) -> CodeNode | None:
         """
         Unpack condition nodes by only removing one condition in the form of
         <Bool jump_table_402020 == 0x402ac4>.
@@ -818,8 +819,8 @@ class DreamStructurer(StructurerBase):
     def _switch_check_existence_of_jumptable_entries(
         self,
         jumptable_entries,
-        node_a_block_addrs: Set[int],
-        known_node_addrs: Set[int],
+        node_a_block_addrs: set[int],
+        known_node_addrs: set[int],
         node_a_addr: int,
         node_b_addr: int,
     ) -> bool:
@@ -862,7 +863,7 @@ class DreamStructurer(StructurerBase):
         # not sure what is going on...
         return False
 
-    def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: Dict[int, Set[CodeNode]]) -> Optional[Any]:
+    def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: dict[int, set[CodeNode]]) -> Any | None:
         """
         Find the correct node for a given jump table entry address in addr2nodes.
 
@@ -904,11 +905,11 @@ class DreamStructurer(StructurerBase):
         self,
         seq: SequenceNode,
         cmp_lb: int,
-        jumptable_entries: List[int],
+        jumptable_entries: list[int],
         head_node_idx: int,
         node_b_addr: int,
-        addr2nodes: Dict[int, Set[CodeNode]],
-    ) -> Tuple[ODict, Any, Any]:
+        addr2nodes: dict[int, set[CodeNode]],
+    ) -> tuple[ODict, Any, Any]:
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
@@ -921,14 +922,14 @@ class DreamStructurer(StructurerBase):
         :return:                    A tuple of (dict of cases, the default node if exists, nodes to remove).
         """
 
-        cases: ODict[Union[int, Tuple[int, ...]], SequenceNode] = OrderedDict()
+        cases: ODict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
         node_default = addr2nodes.get(node_b_addr, None)
         if node_default is not None:
             node_default = next(iter(node_default))
 
         entry_addrs_set = set(jumptable_entries)
-        converted_nodes: Dict[int, Any] = {}
+        converted_nodes: dict[int, Any] = {}
         entry_addr_to_ids = defaultdict(set)
 
         for j, entry_addr in enumerate(jumptable_entries):

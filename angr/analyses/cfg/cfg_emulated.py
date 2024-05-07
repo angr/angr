@@ -3,7 +3,6 @@ import logging
 import sys
 from collections import defaultdict
 from functools import reduce
-from typing import Dict, List
 
 import angr
 import claripy
@@ -768,7 +767,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
     def __setstate__(self, s):
         self.project: angr.Project = s["project"]
-        self.indirect_jumps: Dict[int, IndirectJump] = s["indirect_jumps"]
+        self.indirect_jumps: dict[int, IndirectJump] = s["indirect_jumps"]
         self._loop_back_edges = s["_loop_back_edges"]
         self._thumb_addrs = s["_thumb_addrs"]
         self._unresolvable_runs = s["_unresolvable_runs"]
@@ -1501,7 +1500,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         return successors
 
-    def _post_job_handling(self, job: CFGJob, _new_jobs, successors: List[SimState]):  # type: ignore[override]
+    def _post_job_handling(self, job: CFGJob, _new_jobs, successors: list[SimState]):  # type: ignore[override]
         """
 
         :param CFGJob job:
@@ -1564,7 +1563,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         return successors, extra_info
 
-    def _post_handle_job_debug(self, job: CFGJob, successors: List[SimState]) -> None:
+    def _post_handle_job_debug(self, job: CFGJob, successors: list[SimState]) -> None:
         """
         Post job handling: print debugging information regarding the current job.
 

@@ -1,4 +1,3 @@
-from typing import Optional
 from collections import defaultdict
 
 import claripy
@@ -40,7 +39,7 @@ class SimEngineXRefsVEX(
         )
 
     @staticmethod
-    def extract_value_if_concrete(expr) -> Optional[int]:
+    def extract_value_if_concrete(expr) -> int | None:
         """
         Extract the concrete value from expr if it is a concrete claripy AST.
 

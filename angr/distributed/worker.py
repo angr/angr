@@ -1,4 +1,3 @@
-from typing import Dict
 import time
 import multiprocessing
 import logging
@@ -42,7 +41,7 @@ class ExplorationStatusNotifier(ExplorationTechnique):
     Force the exploration to stop if the server.stop is True.
     """
 
-    def __init__(self, server_state: Dict):
+    def __init__(self, server_state: dict):
         super().__init__()
         self.server_state = server_state
 

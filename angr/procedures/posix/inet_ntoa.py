@@ -1,5 +1,4 @@
 from socket import inet_ntoa as _inet_ntoa
-from typing import List
 
 from claripy import BVS, BVV, Concat
 from claripy.ast import BV
@@ -28,7 +27,7 @@ class inet_ntoa(angr.SimProcedure):
             size=self.INET_INADDRSTRLEN,
         ).rebased_addr
 
-        rv_exprs: List[BV] = []
+        rv_exprs: list[BV] = []
         addr_s_in = addr_in["s_addr"]
 
         if addr_s_in.concrete:

@@ -1,5 +1,4 @@
 # pylint:disable=arguments-differ
-from typing import List, Tuple, Optional
 
 from ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset
 from ailment.statement import Call, Store
@@ -18,7 +17,7 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
     NAME = "Consolidate multiple inlined strcpy calls"
     stmt_classes = ((Call, Call), (Call, Store))
 
-    def optimize(self, stmts: List[Call], **kwargs):
+    def optimize(self, stmts: list[Call], **kwargs):
         last_stmt, stmt = stmts
         if InlinedStrcpyConsolidation._is_inlined_strcpy(last_stmt):
             s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
@@ -79,7 +78,7 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         return False
 
     @staticmethod
-    def _parse_addr(addr: Expression) -> Tuple[Expression, int]:
+    def _parse_addr(addr: Expression) -> tuple[Expression, int]:
         if isinstance(addr, Register):
             return addr, 0
         if isinstance(addr, StackBaseOffset):
@@ -95,7 +94,7 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         return addr, 0
 
     @staticmethod
-    def _get_delta(addr_0: Expression, addr_1: Expression) -> Optional[int]:
+    def _get_delta(addr_0: Expression, addr_1: Expression) -> int | None:
         base_0, offset_0 = InlinedStrcpyConsolidation._parse_addr(addr_0)
         base_1, offset_1 = InlinedStrcpyConsolidation._parse_addr(addr_1)
         if base_0.likes(base_1):
