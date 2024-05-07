@@ -3,14 +3,12 @@ from .string_simplifier import StringSimplifier
 from .junk_remover import JunkRemover
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
-from .dealloc_simplifier import DeallocSimplifier
 
 _all_optimization_passes.extend(
     [
         (JunkRemover, True),
         (StringSimplifier, True),
         (AllocSimplifier, True),
-        (DeallocSimplifier, True),
         (TypeCorrector, True),
     ]
 )

@@ -1,26 +1,21 @@
-from typing import Optional, Tuple, List
-
 import ailment
 import archinfo
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ...utils.library import get_rust_function_name
 from ..ailment.expression import Vec, String
 from ..ailment.statement import RustCall
 from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString
+from .utils import extract_callee, extract_rust_function_name, extract_value
 
 
 class AllocSimplifierState:
     def __init__(self):
         self.alloc_block = None
-        self.if_block = None
-        self.error_block = None
         self.init_block = None
         self.alloc_call = None
         self.alloc_size = None
         self.alloc_align = None
         self.new_alloc_statements = None
         self.new_init_statements = None
-        self.new_if_statements = None
         self.init_bytes = None
 
 
@@ -31,7 +26,6 @@ class AllocSimplifier(OptimizationPass):
     NAME = "Rust Memory Allocation Simplifier"
 
     RUST_ALLOC_FUNCTIONS = ["__rust_alloc"]
-    RUST_ERROR_HANDLING_FUNCTIONS = ["alloc::alloc::handle_alloc_error"]
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -42,70 +36,26 @@ class AllocSimplifier(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    # -- Utils -- #
-
-    def _try_extract_value(self, expr):
-        if isinstance(expr, ailment.expression.Const):
-            return expr.value
-        return None
-
-    def _get_tail_call(self, block) -> Optional[ailment.statement.Call]:
-        if len(block.statements) >= 1 and isinstance(block.statements[-1], ailment.statement.Call):
-            return block.statements[-1]
-        return None
-
-    def _try_get_specific_call(self, block: ailment.Block, func_list):
-        call = self._get_tail_call(block)
-        if call is not None and isinstance(call.target, ailment.expression.Const):
-            addr = call.target.value
-            if addr in self.project.kb.functions:
-                func = self.project.kb.functions[addr]
-                if get_rust_function_name(func.demangled_name) in func_list:
-                    return call
-        return None
-
-    # -- Utils -- #
-
-    def _try_get_alloc_call(self, block: ailment.Block):
-        self.state.alloc_call = self._try_get_specific_call(block, AllocSimplifier.RUST_ALLOC_FUNCTIONS)
-
-    def _try_get_error_handling_call(self, block: ailment.Block):
-        return self._try_get_specific_call(block, AllocSimplifier.RUST_ERROR_HANDLING_FUNCTIONS)
-
     def _try_identify_region(self, block):
         successors = set(self._graph.successors(block))
         if len(successors) == 1:
-            if_block = next(iter(successors))
-            if len(if_block.statements) >= 1 and isinstance(if_block.statements[-1], ailment.statement.ConditionalJump):
-                successors = set(self._graph.successors(if_block))
-                if len(successors) == 2:
-                    block1, block2 = successors
-                    error_block, init_block = None, None
-                    if self._try_get_error_handling_call(block1):
-                        error_block, init_block = block1, block2
-                    elif self._try_get_error_handling_call(block2):
-                        error_block, init_block = block2, block1
+            succ = next(iter(successors))
+            if succ.statements and isinstance(succ.statements[-1], ailment.statement.Jump):
+                successors = list(self._graph.successors(succ))
+                if len(successors) == 1:
+                    succ = successors[0]
                     self.state.alloc_block = block
-                    self.state.if_block = if_block
-                    self.state.error_block = error_block
-                    self.state.init_block = init_block
+                    self.state.init_block = succ
 
     def _try_simplify_alloc_block(self):
         if len(self.state.alloc_call.args) >= 1:
-            alloc_size = self._try_extract_value(self.state.alloc_call.args[0])
+            alloc_size = extract_value(self.state.alloc_call.args[0])
             alloc_align = None
             if len(self.state.alloc_call.args) >= 2:
-                alloc_align = self._try_extract_value(self.state.alloc_call.args[1])
+                alloc_align = extract_value(self.state.alloc_call.args[1])
             self.state.alloc_size = alloc_size
             self.state.alloc_align = alloc_align
             self.state.new_alloc_statements = self.state.alloc_block.statements[:-1]
-
-    def _simplify_if_block(self):
-        br: ailment.statement.ConditionalJump = self.state.if_block.statements[-1]
-        target = ailment.expression.Const(0, None, self.state.init_block.addr, self.project.arch.bits)
-        self.state.new_if_statements = self.state.if_block.statements[:-1] + [
-            ailment.statement.Jump(br.idx, target, ins_addr=br.ins_addr)
-        ]
 
     def _try_simplify_init_block(self):
         offset_to_bytes = {}
@@ -250,17 +200,16 @@ class AllocSimplifier(OptimizationPass):
 
     def _do_simplify(self, new_stmt):
         self.state.alloc_block.statements = self.state.new_alloc_statements
-        self.state.if_block.statements = self.state.new_if_statements
         self.state.init_block.statements = self.state.new_init_statements
         self.state.alloc_block.statements.append(new_stmt)
-        self._remove_block(self.state.error_block)
 
     def _analyze(self, cache=None):
         for block in list(self._graph.nodes()):
             self.state = AllocSimplifierState()
-            self._try_get_alloc_call(block)
             # Is this block trying to allocate new heap memory?
-            if self.state.alloc_call is None:
+            if extract_rust_function_name(extract_callee(block, self.kb)) in AllocSimplifier.RUST_ALLOC_FUNCTIONS:
+                self.state.alloc_call = block.statements[-1]
+            else:
                 continue
             # Can we identify the region that contains all the blocks of the initialization process?
             self._try_identify_region(block)
@@ -268,9 +217,7 @@ class AllocSimplifier(OptimizationPass):
                 block is None
                 for block in (
                     self.state.alloc_block,
-                    self.state.if_block,
                     self.state.init_block,
-                    self.state.error_block,
                 )
             ):
                 continue
@@ -282,7 +229,5 @@ class AllocSimplifier(OptimizationPass):
             self._try_simplify_init_block()
             if self.state.init_bytes is None:
                 continue
-            # Simplify if block
-            self._simplify_if_block()
             # Sanity check passed! Let's try to match a specific type
             self._try_simplify()
