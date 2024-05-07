@@ -1,16 +1,29 @@
 import ailment
-import networkx
 from ailment.statement import *
 from ailment.expression import *
 
-from angr.analyses.decompiler.ailgraph_walker import RemoveNodeNotice, AILGraphWalker
+from ...utils.library import get_rust_function_name
 
 
-def extract_callee(stmt, kb):
-    if isinstance(stmt, Call) and isinstance(stmt.target, Const):
-        callee_addr = stmt.target.value
+def extract_callee(obj, kb):
+    if isinstance(obj, ailment.Block) and obj.statements:
+        return extract_callee(obj.statements[-1], kb)
+    if isinstance(obj, Call) and isinstance(obj.target, Const):
+        callee_addr = obj.target.value
         if callee_addr in kb.functions:
             return kb.functions[callee_addr]
+    return None
+
+
+def extract_rust_function_name(func):
+    if func and func.demangled_name:
+        return get_rust_function_name(func.demangled_name)
+    return None
+
+
+def extract_value(expr):
+    if isinstance(expr, ailment.expression.Const):
+        return expr.value
     return None
 
 

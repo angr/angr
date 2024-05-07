@@ -1,5 +1,4 @@
-import ailment
-
+from ...analyses.decompiler.ailgraph_walker import RemoveNodeNotice, AILGraphWalker
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from .utils import *
 from ...utils.library import get_rust_function_name
@@ -19,7 +18,10 @@ class JunkRemover(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _try_remove_error_handling(self):
+    def _handle_handle_alloc_error(self, block):
+        pass
+
+    def _handle_dealloc(self, block):
         pass
 
     def _try_remove_boundary_check(self):
@@ -31,17 +33,125 @@ class JunkRemover(OptimizationPass):
 
     def _analyze(self, cache=None):
         def handle_node(node: ailment.Block):
-            pass
+            removed = False
+            if node.statements:
+                func = extract_callee(node.statements[-1], self.kb)
+                if func:
+                    demangled_name = get_rust_function_name(func.demangled_name)
+                    if demangled_name in JunkHandlers:
+                        removed = True
+                        handler = JunkHandlers[demangled_name]
+                        handler(self, node)
+            if removed:
+                preds = list(pred for pred in self._graph.predecessors(node) if pred is not node)
+                succs = list(succ for succ in self._graph.successors(node) if succ is not node)
+                if len(preds) == 1 and len(succs) == 0:
+                    pred = preds[0]
+                    value_updated = False
+                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                        last_stmt = pred.statements[-1]
+                        if (
+                            isinstance(last_stmt.true_target, ailment.Expr.Const)
+                            and last_stmt.true_target.value == node.addr
+                        ):
+                            value_updated = True
+                            last_stmt = ailment.Stmt.Jump(
+                                last_stmt.idx,
+                                last_stmt.true_target,
+                                last_stmt.true_target_idx,
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        elif (
+                            isinstance(last_stmt.true_target, ailment.Expr.Const)
+                            and last_stmt.false_target.value == node.addr
+                        ):
+                            value_updated = True
+                            last_stmt = ailment.Stmt.Jump(
+                                last_stmt.idx,
+                                last_stmt.false_target,
+                                last_stmt.false_target_idx,
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        pred.statements[-1] = last_stmt
+                        if value_updated:
+                            raise RemoveNodeNotice()
+                elif len(preds) == 1 and len(succs) == 1:
+                    pred = preds[0]
+                    succ = succs[0]
+                    value_updated = False
+                    # update the last statement of pred
+                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                        last_stmt = pred.statements[-1]
+                        if (
+                            isinstance(last_stmt.true_target, ailment.Expr.Const)
+                            and last_stmt.true_target.value == node.addr
+                        ):
+                            last_stmt.true_target.value = succ.addr
+                            value_updated = True
+                        if (
+                            isinstance(last_stmt.false_target, ailment.Expr.Const)
+                            and last_stmt.false_target.value == node.addr
+                        ):
+                            last_stmt.false_target.value = succ.addr
+                            value_updated = True
+                        if (
+                            isinstance(last_stmt.true_target, ailment.Expr.Const)
+                            and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                            and last_stmt.true_target.value == last_stmt.false_target.value
+                        ):
+                            last_stmt = ailment.Stmt.Jump(
+                                last_stmt.idx,
+                                last_stmt.true_target,
+                                last_stmt.true_target_idx,
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        pred.statements[-1] = last_stmt
+
+                    if value_updated:
+                        self._graph.add_edge(pred, succ)
+                        raise RemoveNodeNotice()
+                elif len(preds) >= 1 and len(succs) == 1:
+                    succ = succs[0]
+                    branch_updates = 0
+                    for pred in preds:
+                        # test how many last statements of pred can potentially be updated
+                        if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                            last_stmt = pred.statements[-1]
+                            if (
+                                isinstance(last_stmt.true_target, ailment.Expr.Const)
+                                and last_stmt.true_target.value == node.addr
+                            ):
+                                branch_updates += 1
+                            if (
+                                isinstance(last_stmt.false_target, ailment.Expr.Const)
+                                and last_stmt.false_target.value == node.addr
+                            ):
+                                branch_updates += 1
+
+                    if branch_updates == len(preds):
+                        # actually do the update
+                        for pred in preds:
+                            self._graph.add_edge(pred, succ)
+                            if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                                last_stmt = pred.statements[-1]
+                                if (
+                                    isinstance(last_stmt.true_target, ailment.Expr.Const)
+                                    and last_stmt.true_target.value == node.addr
+                                ):
+                                    last_stmt.true_target.value = succ.addr
+                                if (
+                                    isinstance(last_stmt.false_target, ailment.Expr.Const)
+                                    and last_stmt.false_target.value == node.addr
+                                ):
+                                    last_stmt.false_target.value = succ.addr
+                        raise RemoveNodeNotice()
+                elif not preds or not succs:
+                    raise RemoveNodeNotice()
 
         AILGraphWalker(self._graph, handle_node, replace_nodes=True).walk()
-        # for block in list(self._graph.nodes()):
-        #     block: ailment.Block
-        #     new_statements = block.statements
-        #     for stmt in block.statements:
-        #         target = extract_callee(stmt, self.kb)
-        #         if target and get_rust_function_name(target.demangled_name) == "core::panicking::panic_bounds_check":
-        #             new_statements = []
-        #     block.statements = new_statements
-        #     preds = list(pred for pred in self._graph.predecessors(block) if pred is not block)
-        #     if len(preds) == 1 and len(block.statements) == 0:
-        #         remove_branch(preds[0], block.addr)
+
+
+JunkHandlers = {
+    "alloc::alloc::handle_alloc_error": JunkRemover._handle_handle_alloc_error,
+    "__rust_dealloc": JunkRemover._handle_dealloc,
+}
