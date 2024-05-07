@@ -207,7 +207,9 @@ class VariableManagerInternal(Serializable):
         unified_stack_variables = []
         unified_memory_variables = []
 
+        unified_variable_idents: Set[str] = set()
         for variable in self._unified_variables:
+            unified_variable_idents.add(variable.ident)
             if isinstance(variable, SimRegisterVariable):
                 unified_register_variables.append(variable.serialize_to_cmessage())
             elif isinstance(variable, SimStackVariable):
@@ -223,6 +225,14 @@ class VariableManagerInternal(Serializable):
 
         relations = []
         for variable, unified in self._variables_to_unified_variables.items():
+            if unified.ident not in unified_variable_idents:
+                l.error(
+                    "The unified variable %s is missing from the unified variables of function %#x. Please "
+                    "report it on GitHub.",
+                    unified.ident,
+                    self.func_addr,
+                )
+                continue
             relation = variables_pb2.Var2Unified()
             relation.var_ident = variable.ident
             relation.unified_var_ident = unified.ident
@@ -311,7 +321,14 @@ class VariableManagerInternal(Serializable):
 
         for var2unified in cmsg.var2unified:
             variable = variable_by_ident[var2unified.var_ident]
-            unified = unified_variable_by_ident[var2unified.unified_var_ident]
+            unified = unified_variable_by_ident.get(var2unified.unified_var_ident, None)
+            if unified is None:
+                l.warning(
+                    "Unified variable %s is not found in unified_variable_by_ident.", var2unified.unified_var_ident
+                )
+                # as a stop gap, we make the variable unify to itself
+                model._variables_to_unified_variables[variable] = variable
+                continue
             model._variables_to_unified_variables[variable] = unified
 
         for phi2var in cmsg.phi2var:
