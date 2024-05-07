@@ -36,6 +36,7 @@ from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from ..typehoon.typehoon import Typehoon
 from ...rust.typehoon.typehoon import RustTypehoon
+from ...rust.optimization_passes import *
 from .optimization_passes.return_duplicator_high import ReturnDuplicatorHigh
 from .optimization_passes.return_duplicator_low import ReturnDuplicatorLow
 from .optimization_passes.flip_boolean_cmp import FlipBooleanCmp

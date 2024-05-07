@@ -36,6 +36,8 @@ class TypeCorrector(OptimizationPass):
                         if data.is_heap_str:
                             self._set_variable_type(stmt, RustSimTypeString())
                         else:
-                            self._set_variable_type(stmt, RustSimTypePointer(RustSimTypeStr()))
+                            self._set_variable_type(
+                                stmt, RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch))
+                            )
                     elif isinstance(data, Vec):
                         self._set_variable_type(stmt, RustSimTypeVec())

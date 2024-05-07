@@ -211,7 +211,10 @@ class AllocSimplifier(OptimizationPass):
                 new_stmt = RustCall(
                     idx=addr.idx,
                     target="String::from",
-                    prototype=RustSimTypeFunction(args=[RustSimTypeStr()], returnty=RustSimTypeString()),
+                    prototype=RustSimTypeFunction(
+                        args=[RustSimTypeStr().with_arch(self.project.arch)],
+                        returnty=RustSimTypeString().with_arch(self.project.arch),
+                    ),
                     args=[data],
                     ret_expr=addr,
                     ins_addr=self.state.alloc_call.ins_addr,
