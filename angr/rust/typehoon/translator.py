@@ -13,6 +13,8 @@ from ..sim_type import (
     RustSimTypeArray,
     RustSimStruct,
     RustSimTypeTempRef,
+    RustSimTypeString,
+    RustSimTypeStr,
 )
 
 
@@ -71,6 +73,12 @@ class RustTypeTranslator(TypeTranslator):
         else:
             name = self.struct_name()
 
+        # Check if it's pre-defined Rust structs
+        if name in PreDefinedStructs:
+            s = PreDefinedStructs[name]().with_arch(self.arch)
+            self.structs[tc] = s
+            return s
+
         s = RustSimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s
 
@@ -84,6 +92,8 @@ class RustTypeTranslator(TypeTranslator):
                 ).with_arch(self.arch)
 
             translated_type = self._tc2simtype(typ)
+
+            # TODO: Handle SimTypeBottom
             assert not isinstance(translated_type, sim_type.SimTypeBottom)
 
             s.fields["field_%x" % offset] = translated_type
@@ -126,3 +136,5 @@ TypeConstHandlers = {
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
 }
+
+PreDefinedStructs = {"String": RustSimTypeString, "str": RustSimTypeStr}

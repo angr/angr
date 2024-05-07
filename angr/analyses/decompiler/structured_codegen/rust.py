@@ -32,6 +32,7 @@ from ....rust.sim_type import (
     RustSimTypeStr,
     RustSimTypeString,
     RustSimTypeVec,
+    RustSimStruct,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -188,7 +189,7 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
     """
-    if isinstance(ty, SimStruct) and full:
+    if isinstance(ty, RustSimStruct) and full:
         # struct def preamble
         yield indent_str, None
         yield "struct ", None
@@ -226,11 +227,8 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
         yield "<missing-type> ", None
         yield name, name_type
     else:
-        yield "<error>", None
-        # import ipdb
-        #
-        # ipdb.set_trace()
-        # assert False
+        # TODO: Handle other types
+        assert False
 
 
 #
@@ -682,11 +680,10 @@ class RustLoop(RustStatement):  # pylint:disable=abstract-method
 
 class RustInfiniteLoop(RustLoop):
     """
-    Represents an infinite loop in C.
+    Represents an infinite loop in Rust.
     """
 
     __slots__ = (
-        "condition",
         "body",
         "tags",
     )
@@ -1260,7 +1257,6 @@ class RustFunctionCall(RustStatement, RustExpression):
         yield indent_str, None
 
         if not self.is_expr and self.ret_expr is not None:
-            print(f"{list(RustExpression._try_c_repr_chunks(self.ret_expr))=}")
             yield from RustExpression._try_c_repr_chunks(self.ret_expr)
             yield " = ", None
 
@@ -1928,7 +1924,7 @@ class RustTypeCast(RustExpression):
 
     def __init__(self, src_type: Optional[SimType], dst_type: RustSimType, expr: RustExpression, tags=None, **kwargs):
         super().__init__(**kwargs)
-        assert isinstance(dst_type, RustSimType)
+        # assert isinstance(dst_type, RustSimType)
         self.src_type = (src_type or expr.type).with_arch(self.codegen.project.arch)
         self.dst_type = dst_type.with_arch(self.codegen.project.arch)
         self.expr = expr

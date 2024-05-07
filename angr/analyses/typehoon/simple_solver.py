@@ -2094,7 +2094,7 @@ class SimpleSolver:
                             # missing field at this offset
                             fields[off] = Int8_  # not sure how it's accessed
 
-            if not fields:
+            if not fields or any(field is None for field in fields.values()):
                 result = Top_
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
