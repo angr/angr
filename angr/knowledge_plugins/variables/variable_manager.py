@@ -227,9 +227,10 @@ class VariableManagerInternal(Serializable):
         for variable, unified in self._variables_to_unified_variables.items():
             if unified.ident not in unified_variable_idents:
                 l.error(
-                    "The unified variable %s is missing from the unified variables of this function. Please "
+                    "The unified variable %s is missing from the unified variables of function %#x. Please "
                     "report it on GitHub.",
                     unified.ident,
+                    self.func_addr,
                 )
                 continue
             relation = variables_pb2.Var2Unified()
