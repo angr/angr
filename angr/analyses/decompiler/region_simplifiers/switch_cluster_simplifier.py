@@ -1,6 +1,6 @@
 # pylint:disable=no-self-use,arguments-renamed
 import enum
-from typing import DefaultDict, Any, List, Union, Dict, Tuple, Set, Optional
+from typing import DefaultDict, Any
 from collections import OrderedDict, defaultdict
 
 import ailment
@@ -36,7 +36,7 @@ class ConditionalRegion:
         "parent",
     )
 
-    def __init__(self, variable, op: CmpOp, value: int, node: Union[ConditionNode, ailment.Block], parent=None):
+    def __init__(self, variable, op: CmpOp, value: int, node: ConditionNode | ailment.Block, parent=None):
         self.variable = variable
         self.op = op
         self.value = value
@@ -80,8 +80,8 @@ class SwitchClusterFinder(SequenceWalker):
         }
         super().__init__(handlers)
 
-        self.var2condnodes: DefaultDict[Any, List[ConditionalRegion]] = defaultdict(list)
-        self.var2switches: DefaultDict[Any, List[SwitchCaseRegion]] = defaultdict(list)
+        self.var2condnodes: DefaultDict[Any, list[ConditionalRegion]] = defaultdict(list)
+        self.var2switches: DefaultDict[Any, list[SwitchCaseRegion]] = defaultdict(list)
 
         self.walk(node)
 
@@ -103,7 +103,7 @@ class SwitchClusterFinder(SequenceWalker):
             self.var2switches[variable].append(scr)
         return super()._handle_SwitchCase(node, parent=parent, **kwargs)
 
-    def _process_condition(self, cond: ailment.Expr.Expression, node: Union[ConditionNode, ailment.Block], parent):
+    def _process_condition(self, cond: ailment.Expr.Expression, node: ConditionNode | ailment.Block, parent):
         negated = False
         if isinstance(cond, ailment.Expr.UnaryOp) and cond.op == "Not":
             negated = True
@@ -173,7 +173,7 @@ class SwitchClusterReplacer(SequenceWalker):
         return super()._handle_Condition(node, **kwargs)
 
 
-def is_simple_jump_node(node, case_addrs, targets: Optional[Set[int]] = None) -> bool:
+def is_simple_jump_node(node, case_addrs, targets: set[int] | None = None) -> bool:
     if isinstance(node, (SequenceNode, MultiNode)):
         return all(is_simple_jump_node(nn, case_addrs) for nn in node.nodes)
     if isinstance(node, ailment.Block):
@@ -213,7 +213,7 @@ def is_simple_jump_node(node, case_addrs, targets: Optional[Set[int]] = None) ->
     return False
 
 
-def filter_cond_regions(cond_regions: List[ConditionalRegion], case_addrs: Set[int]) -> List[ConditionalRegion]:
+def filter_cond_regions(cond_regions: list[ConditionalRegion], case_addrs: set[int]) -> list[ConditionalRegion]:
     """
     Remove all conditional regions that cannot be merged into switch(es).
     """
@@ -242,8 +242,8 @@ def filter_cond_regions(cond_regions: List[ConditionalRegion], case_addrs: Set[i
 
 
 def update_switch_case_list(
-    cases: List[Tuple[Union[int, Tuple[int, ...]], SequenceNode]],
-    old_case_id: Union[int, Tuple[int, ...]],
+    cases: list[tuple[int | tuple[int, ...], SequenceNode]],
+    old_case_id: int | tuple[int, ...],
     new_case_id: int,
 ) -> None:
     """
@@ -265,7 +265,7 @@ def update_switch_case_list(
 
 
 def simplify_switch_clusters(
-    region, var2condnodes: Dict[Any, List[ConditionalRegion]], var2switches: Dict[Any, List[SwitchCaseRegion]]
+    region, var2condnodes: dict[Any, list[ConditionalRegion]], var2switches: dict[Any, list[SwitchCaseRegion]]
 ):
     """
     Identify switch clusters and simplify each of them.
@@ -284,7 +284,7 @@ def simplify_switch_clusters(
             continue
 
         # each switch region belongs to a conditional region
-        switch_region_to_parent_region: Dict[SwitchCaseRegion, Tuple[ConditionalRegion, str]] = {}
+        switch_region_to_parent_region: dict[SwitchCaseRegion, tuple[ConditionalRegion, str]] = {}
         used_condnodes_and_branch = set()
         for r in switch_regions:
             for cr in cond_regions:
@@ -337,20 +337,20 @@ def simplify_switch_clusters(
         used_condnodes = list(condnode for condnode, _ in used_condnodes_and_branch)
 
         # collect addresses for all case nodes
-        case_addr_to_case_id: Dict[int, Union[int, Tuple[int, ...], str]] = {}
+        case_addr_to_case_id: dict[int, int | tuple[int, ...] | str] = {}
         for sr in switch_regions:
             for case_id, case_node in sr.node.cases.items():
                 case_addr_to_case_id[case_node.addr] = case_id
             if sr.node.default_node is not None:
                 case_addr_to_case_id[sr.node.default_node.addr] = "default"
-        case_addrs: Set[int] = set(case_addr_to_case_id)
+        case_addrs: set[int] = set(case_addr_to_case_id)
 
         # filter cond_regions
         mergeable_cond_regions = filter_cond_regions(cond_regions, case_addrs)
 
         # list all unmatched conditional nodes
-        standalone_condnodes: List[Tuple[ConditionalRegion, str]] = []
-        standalone_condjumps: List[ConditionalRegion] = []
+        standalone_condnodes: list[tuple[ConditionalRegion, str]] = []
+        standalone_condjumps: list[ConditionalRegion] = []
         for cr in mergeable_cond_regions:
             if isinstance(cr.node, ConditionNode):
                 if cr.node.true_node is not None and (cr, "true") not in used_condnodes_and_branch:
@@ -487,7 +487,7 @@ def simplify_switch_clusters(
             continue
 
 
-def simplify_lowered_switches(region: SequenceNode, var2condnodes: Dict[Any, List[ConditionalRegion]], functions):
+def simplify_lowered_switches(region: SequenceNode, var2condnodes: dict[Any, list[ConditionalRegion]], functions):
     """
     Identify a lowered switch and simplify it into a switch-case if possible.
 
@@ -522,8 +522,8 @@ def simplify_lowered_switches_core(
         return False
 
     caseno_to_node = {}
-    default_node_candidates: List[Tuple[BaseNode, BaseNode]] = []  # parent to default node candidate
-    stack: List[(ConditionNode, int, int)] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
+    default_node_candidates: list[tuple[BaseNode, BaseNode]] = []  # parent to default node candidate
+    stack: list[(ConditionNode, int, int)] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
     while stack:
         node, min_, max_ = stack.pop(0)
         if node not in node_to_condnode:
@@ -632,7 +632,7 @@ class FindFirstNodeInSet(SequenceWalker):
     Find the first node out of a set of node appearing in a SequenceNode (and its tree).
     """
 
-    def __init__(self, node_set: Set[BaseNode]):
+    def __init__(self, node_set: set[BaseNode]):
         super().__init__(update_seqnode_in_place=False, force_forward_scan=True)
         self.node_set = node_set
         self.first_node = None

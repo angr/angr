@@ -1,5 +1,4 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Optional, Dict, Tuple
 from ailment.expression import Expression, BinaryOp, Const, Convert, ITE
 
 from .base import PeepholeOptimizationExprBase
@@ -36,7 +35,7 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
 
         return None
 
-    def _extract_bitoffset_to_expr_mapping(self, expr: BinaryOp) -> Optional[Dict[int, Expression]]:
+    def _extract_bitoffset_to_expr_mapping(self, expr: BinaryOp) -> dict[int, Expression] | None:
         d = {}
         if isinstance(expr, BinaryOp) and expr.op == "Or":
             for arg in expr.operands:
@@ -61,7 +60,7 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
         return d
 
     @staticmethod
-    def _get_setbit(expr: Expression) -> Optional[Tuple[int, Expression]]:
+    def _get_setbit(expr: Expression) -> tuple[int, Expression] | None:
         """
         Test if expr is a single-bit expression, and if it is, return the bit offset that it sets and the inner
         expression that sets the bit.

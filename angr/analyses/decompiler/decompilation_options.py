@@ -1,5 +1,5 @@
 # decompilation options
-from typing import Optional, List, Callable
+from collections.abc import Callable
 from collections import defaultdict
 
 from .structuring import structurer_class_from_name
@@ -22,8 +22,8 @@ class DecompilationOption:
         category="General",
         default_value=None,
         clears_cache=True,
-        candidate_values: Optional[List] = None,
-        convert: Optional[Callable] = None,
+        candidate_values: list | None = None,
+        convert: Callable | None = None,
     ):
         self.NAME = name
         self.DESCRIPTION = description
@@ -267,7 +267,7 @@ for o in options:
 #
 
 
-def get_structurer_option() -> Optional[DecompilationOption]:
+def get_structurer_option() -> DecompilationOption | None:
     for opt in options:
         if opt.cls == "recursive_structurer" and opt.param == "structurer_cls":
             return opt

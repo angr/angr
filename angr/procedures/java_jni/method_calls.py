@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootArgument, SootMethodDescriptor
 
@@ -38,7 +37,7 @@ class GetMethodID(JNISimProcedure):
 
 
 class CallMethodBase(JNISimProcedure):
-    return_ty: Optional[str] = None
+    return_ty: str | None = None
 
     def _invoke(self, method_id, obj=None, dynamic_dispatch=True, args_in_array=None):
         # get invoke target

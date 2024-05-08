@@ -1,6 +1,6 @@
 import collections.abc
 import claripy
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from .protos import variables_pb2 as pb2
 from .serializable import Serializable
@@ -20,15 +20,15 @@ class SimVariable(Serializable):
         "size",
     ]
 
-    def __init__(self, ident=None, name=None, region: Optional[int] = None, category=None, size: Optional[int] = None):
+    def __init__(self, ident=None, name=None, region: int | None = None, category=None, size: int | None = None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
         """
         self.ident = ident
         self.name = name
-        self.region: Optional[int] = region
-        self.category: Optional[str] = category
+        self.region: int | None = region
+        self.category: str | None = category
         self.renamed = False
         self.candidate_names = None
         self.size = size
@@ -175,7 +175,7 @@ class SimRegisterVariable(SimVariable):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
 
         self.reg: int = reg_offset
-        self._hash: Optional[int] = None
+        self._hash: int | None = None
 
     @property
     def bits(self):

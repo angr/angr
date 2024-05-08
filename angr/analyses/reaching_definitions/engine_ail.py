@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from itertools import chain
-from typing import Iterable, Optional
+from collections.abc import Iterable
 import logging
 
 import archinfo
@@ -34,7 +34,7 @@ class SimEngineRDAIL(
     def __init__(
         self,
         project,
-        function_handler: Optional[FunctionHandler] = None,
+        function_handler: FunctionHandler | None = None,
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
         bp_as_gpr: bool = False,
@@ -463,7 +463,7 @@ class SimEngineRDAIL(
             self.state.kill_and_add_definition(reg_atom, value, override_codeloc=extloc)
 
         # extract Definitions
-        defs: Optional[Iterable[Definition]] = None
+        defs: Iterable[Definition] | None = None
         for vs in value.values():
             for v in vs:
                 if defs is None:
@@ -502,7 +502,7 @@ class SimEngineRDAIL(
             self.state.add_memory_use_by_def(def_, expr=expr)
             return MultiValues(top)
 
-        result: Optional[MultiValues] = None
+        result: MultiValues | None = None
         for addr in addrs_v:
             if not isinstance(addr, claripy.ast.Base):
                 continue

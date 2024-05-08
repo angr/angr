@@ -1,5 +1,3 @@
-from typing import Dict
-
 from .plugin import KnowledgeBasePlugin
 
 
@@ -12,7 +10,7 @@ class CustomStrings(KnowledgeBasePlugin):
         super().__init__(kb=kb)
 
         self.string_id = 0
-        self.strings: Dict[int, bytes] = {}
+        self.strings: dict[int, bytes] = {}
 
     def allocate(self, s: bytes) -> int:
         # de-duplication

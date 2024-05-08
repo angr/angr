@@ -1,4 +1,4 @@
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
@@ -174,7 +174,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
         return self.add_variable(cle_var, index.start, index.stop)
 
     # Methods similar to the once in VariableManager
-    def add_variable_list(self, vlist: List[Variable], low_pc: int, high_pc: int):
+    def add_variable_list(self, vlist: list[Variable], low_pc: int, high_pc: int):
         """
         Add all variables in a list with the same visibility range
 

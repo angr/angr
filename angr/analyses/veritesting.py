@@ -1,7 +1,6 @@
 import logging
 from collections import defaultdict
 from functools import cmp_to_key
-from typing import Tuple
 
 import networkx
 
@@ -235,7 +234,7 @@ class Veritesting(Analysis):
 
         self.result, self.final_manager = self._veritesting()
 
-    def _veritesting(self) -> Tuple[bool, SimulationManager]:
+    def _veritesting(self) -> tuple[bool, SimulationManager]:
         """
         Perform static symbolic execution starting from the given point.
         :returns: tuple of the success/failure of veritesting and the subsequent SimulationManager after execution

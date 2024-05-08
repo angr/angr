@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Sequence, Mapping
 import logging
 import unittest
 import os
@@ -24,7 +25,7 @@ l = logging.getLogger("angr.tests.test_jumptables")
 
 
 def compile_c_to_angr_project(
-    c_code: str, cflags: Optional[Sequence[str]] = None, project_kwargs: Optional[Mapping[str, Any]] = None
+    c_code: str, cflags: Sequence[str] | None = None, project_kwargs: Mapping[str, Any] | None = None
 ):
     # pylint:disable=consider-using-with
     """
@@ -3063,13 +3064,13 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
     """
 
     @staticmethod
-    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: Set[str]):
+    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: set[str]):
         """
         Create set of edges {src->dsts : for d in dsts} by name
         """
         return {(proj.kb.labels.lookup(src), proj.kb.labels.lookup(dst), 0) for dst in dsts}
 
-    def _run_calltable_test(self, c_code: str, src: str, dsts: Set[str], cflags: Optional[Sequence[str]] = None):
+    def _run_calltable_test(self, c_code: str, src: str, dsts: set[str], cflags: Sequence[str] | None = None):
         """
         Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
         """

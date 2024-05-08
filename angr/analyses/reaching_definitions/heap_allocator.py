@@ -1,6 +1,5 @@
 import logging
 
-from typing import Union, List
 
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...knowledge_plugins.key_definitions.unknown_size import UnknownSize
@@ -26,10 +25,10 @@ class HeapAllocator:
         :param canonical_size: The concrete size an <UNKNOWN_SIZE> defaults to.
         """
         self._next_heap_address: HeapAddress = HeapAddress(0)
-        self._allocated_addresses: List[HeapAddress] = [self._next_heap_address]
+        self._allocated_addresses: list[HeapAddress] = [self._next_heap_address]
         self._canonical_size: int = canonical_size
 
-    def allocate(self, size: Union[int, UnknownSize]) -> HeapAddress:
+    def allocate(self, size: int | UnknownSize) -> HeapAddress:
         """
         Gives an address for a new memory chunck of <size> bytes.
 
@@ -45,7 +44,7 @@ class HeapAllocator:
 
         return address
 
-    def free(self, address: Union[Undefined, HeapAddress]):
+    def free(self, address: Undefined | HeapAddress):
         """
         Mark the chunck pointed by <address> as freed.
 

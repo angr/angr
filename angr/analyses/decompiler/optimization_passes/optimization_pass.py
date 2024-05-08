@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument
-from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from collections.abc import Generator
 from enum import Enum
 
 import networkx  # pylint:disable=unused-import
@@ -53,9 +54,7 @@ class BaseOptimizationPass:
     ARCHES = []  # strings of supported architectures
     PLATFORMS = []  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
-    STRUCTURING: Optional[str] = (
-        None  # specifies if this optimization pass is specific to a certain structuring algorithm
-    )
+    STRUCTURING: str | None = None  # specifies if this optimization pass is specific to a certain structuring algorithm
     NAME = "N/A"
     DESCRIPTION = "N/A"
 
@@ -133,23 +132,23 @@ class OptimizationPass(BaseOptimizationPass):
     ):
         super().__init__(func)
         # self._blocks is just a cache
-        self._blocks_by_addr: Dict[int, Set[ailment.Block]] = blocks_by_addr
-        self._blocks_by_addr_and_idx: Dict[Tuple[int, Optional[int]], ailment.Block] = blocks_by_addr_and_idx
-        self._graph: Optional[networkx.DiGraph] = graph
+        self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr
+        self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx
+        self._graph: networkx.DiGraph | None = graph
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
         self._new_block_addrs = set()
 
         # output
-        self.out_graph: Optional[networkx.DiGraph] = None
+        self.out_graph: networkx.DiGraph | None = None
 
     @property
-    def blocks_by_addr(self) -> Dict[int, Set[ailment.Block]]:
+    def blocks_by_addr(self) -> dict[int, set[ailment.Block]]:
         return self._blocks_by_addr
 
     @property
-    def blocks_by_addr_and_idx(self) -> Dict[Tuple[int, Optional[int]], ailment.Block]:
+    def blocks_by_addr_and_idx(self) -> dict[tuple[int, int | None], ailment.Block]:
         return self._blocks_by_addr_and_idx
 
     #
@@ -169,7 +168,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._new_block_addrs.add(new_addr)
         return new_addr
 
-    def _get_block(self, addr, idx=None) -> Optional[ailment.Block]:
+    def _get_block(self, addr, idx=None) -> ailment.Block | None:
         if not self._blocks_by_addr:
             return None
         else:
@@ -288,8 +287,8 @@ class StructuringOptimizationPass(OptimizationPass):
         self._simplify_ail = simplify_ail
         self._require_gotos = require_gotos
 
-        self._goto_manager: Optional[GotoManager] = None
-        self._prev_graph: Optional[networkx.DiGraph] = None
+        self._goto_manager: GotoManager | None = None
+        self._prev_graph: networkx.DiGraph | None = None
 
     def _analyze(self, cache=None) -> bool:
         raise NotImplementedError()

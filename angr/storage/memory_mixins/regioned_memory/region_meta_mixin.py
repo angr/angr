@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, Tuple, Any
+from typing import Any
 
 from claripy.vsa import AbstractLocation
 
@@ -21,7 +21,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
         super().__init__(**kwargs)
         self._related_function_addr = related_function_addr
         # This is a map from tuple (basicblock_key, stmt_id) to AbstractLocation objects
-        self.alocs: Dict[Tuple[Any, int], AbstractLocation] = {}
+        self.alocs: dict[tuple[Any, int], AbstractLocation] = {}
 
         self._is_stack = None
 

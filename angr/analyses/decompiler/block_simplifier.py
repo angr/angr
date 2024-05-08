@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
-from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
+from collections.abc import Iterable
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Tmp, Load, Const, Register, Convert
@@ -60,13 +61,13 @@ class BlockSimplifier(Analysis):
     def __init__(
         self,
         block: Optional["Block"],
-        func_addr: Optional[int] = None,
+        func_addr: int | None = None,
         remove_dead_memdefs=False,
         stack_pointer_tracker=None,
-        peephole_optimizations: Optional[
-            Iterable[Union[Type[PeepholeOptimizationStmtBase], Type[PeepholeOptimizationExprBase]]]
-        ] = None,
-        stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
+        peephole_optimizations: None | (
+            Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
+        ) = None,
+        stack_arg_offsets: set[tuple[int, int]] | None = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
     ):
@@ -218,9 +219,9 @@ class BlockSimplifier(Analysis):
         replacements,
         replace_assignment_dsts: bool = False,
         replace_loads: bool = False,
-        gp: Optional[int] = None,
+        gp: int | None = None,
         replace_registers: bool = True,
-    ) -> Tuple[bool, "Block"]:
+    ) -> tuple[bool, "Block"]:
         new_statements = block.statements[::]
         replaced = False
 

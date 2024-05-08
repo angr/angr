@@ -78,9 +78,7 @@ def get_optimization_passes(arch, platform):
     return passes
 
 
-def get_default_optimization_passes(
-    arch: Union[Arch, str], platform: Optional[str], enable_opts=None, disable_opts=None
-):
+def get_default_optimization_passes(arch: Arch | str, platform: str | None, enable_opts=None, disable_opts=None):
     if isinstance(arch, Arch):
         arch = arch.name
 

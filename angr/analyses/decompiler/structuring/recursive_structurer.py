@@ -1,5 +1,5 @@
 import itertools
-from typing import Optional, Type, Dict, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import logging
 
 import networkx
@@ -33,7 +33,7 @@ class RecursiveStructurer(Analysis):
         region,
         cond_proc=None,
         func: Optional["Function"] = None,
-        structurer_cls: Optional[Type] = None,
+        structurer_cls: type | None = None,
         improve_structurer=True,
         **kwargs,
     ):
@@ -51,7 +51,7 @@ class RecursiveStructurer(Analysis):
 
     def _analyze(self):
         region = self._region.recursive_copy()
-        self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
+        self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
         self.result_incomplete = False
 
         # visit the region in post-order DFS
@@ -149,7 +149,7 @@ class RecursiveStructurer(Analysis):
     def _replace_region_with_region(parent_region, sub_region, new_region):
         parent_region.replace_region_with_region(sub_region, new_region)
 
-    def _get_switch_case_entries(self) -> Dict[int, int]:
+    def _get_switch_case_entries(self) -> dict[int, int]:
         if self.function is None:
             return {}
 

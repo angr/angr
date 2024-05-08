@@ -1,5 +1,5 @@
 # pylint:disable=unsubscriptable-object
-from typing import Set, Optional, Tuple, Any, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from ...utils.cowdict import DefaultChainMapCOW
 from ...code_location import CodeLocation
@@ -17,21 +17,21 @@ class Uses:
 
     def __init__(
         self,
-        uses_by_definition: Optional[DefaultChainMapCOW] = None,
-        uses_by_location: Optional[DefaultChainMapCOW] = None,
+        uses_by_definition: DefaultChainMapCOW | None = None,
+        uses_by_location: DefaultChainMapCOW | None = None,
     ):
-        self._uses_by_definition: DefaultChainMapCOW["Definition", Set[Tuple[CodeLocation, Optional[Any]]]] = (
+        self._uses_by_definition: DefaultChainMapCOW["Definition", set[tuple[CodeLocation, Any | None]]] = (
             DefaultChainMapCOW(default_factory=set, collapse_threshold=25)
             if uses_by_definition is None
             else uses_by_definition
         )
-        self._uses_by_location: DefaultChainMapCOW[CodeLocation, Set[Tuple["Definition", Optional[Any]]]] = (
+        self._uses_by_location: DefaultChainMapCOW[CodeLocation, set[tuple["Definition", Any | None]]] = (
             DefaultChainMapCOW(default_factory=set, collapse_threshold=25)
             if uses_by_location is None
             else uses_by_location
         )
 
-    def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Optional[Any] = None):
+    def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Any | None = None):
         """
         Add a use for a given definition.
 
@@ -44,7 +44,7 @@ class Uses:
         self._uses_by_location = self._uses_by_location.clean()
         self._uses_by_location[codeloc].add((definition, expr))
 
-    def get_uses(self, definition: "Definition") -> Set[CodeLocation]:
+    def get_uses(self, definition: "Definition") -> set[CodeLocation]:
         """
         Retrieve the uses of a given definition.
 
@@ -52,7 +52,7 @@ class Uses:
         """
         return {codeloc for codeloc, _ in self._uses_by_definition.get(definition, set())}
 
-    def get_uses_with_expr(self, definition: "Definition") -> Set[Tuple[CodeLocation, Optional[Any]]]:
+    def get_uses_with_expr(self, definition: "Definition") -> set[tuple[CodeLocation, Any | None]]:
         """
         Retrieve the uses and the corresponding expressions of a given definition.
 
@@ -60,7 +60,7 @@ class Uses:
         """
         return self._uses_by_definition.get(definition, set())
 
-    def remove_use(self, definition: "Definition", codeloc: "CodeLocation", expr: Optional[Any] = None) -> None:
+    def remove_use(self, definition: "Definition", codeloc: "CodeLocation", expr: Any | None = None) -> None:
         """
         Remove one use of a given definition.
 
@@ -105,7 +105,7 @@ class Uses:
 
     def get_uses_by_location(
         self, codeloc: CodeLocation, exprs: bool = False
-    ) -> Union[Set["Definition"], Set[Tuple["Definition", Optional[Any]]]]:
+    ) -> set["Definition"] | set[tuple["Definition", Any | None]]:
         """
         Retrieve all definitions that are used at a given location.
 
@@ -118,7 +118,7 @@ class Uses:
 
     def get_uses_by_insaddr(
         self, ins_addr: int, exprs: bool = False
-    ) -> Union[Set["Definition"], Set[Tuple["Definition", Optional[Any]]]]:
+    ) -> set["Definition"] | set[tuple["Definition", Any | None]]:
         """
         Retrieve all definitions that are used at a given location specified by the instruction address.
 

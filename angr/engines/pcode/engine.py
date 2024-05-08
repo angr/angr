@@ -1,4 +1,4 @@
-from typing import Optional, Iterable
+from collections.abc import Iterable
 
 import claripy
 import logging
@@ -50,13 +50,13 @@ class HeavyPcodeMixin(
     def process_successors(
         self,
         successors: SimSuccessors,
-        irsb: Optional[IRSB] = None,
-        insn_text: Optional[str] = None,
-        insn_bytes: Optional[bytes] = None,
+        irsb: IRSB | None = None,
+        insn_text: str | None = None,
+        insn_bytes: bytes | None = None,
         thumb: bool = False,
-        size: Optional[int] = None,
-        num_inst: Optional[int] = None,
-        extra_stop_points: Optional[Iterable[int]] = None,
+        size: int | None = None,
+        num_inst: int | None = None,
+        extra_stop_points: Iterable[int] | None = None,
         **kwargs,
     ) -> None:
         # pylint:disable=arguments-differ

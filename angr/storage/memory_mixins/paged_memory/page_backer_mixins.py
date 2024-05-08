@@ -1,5 +1,6 @@
 from mmap import mmap
-from typing import Union, List, Generator, Tuple
+from typing import Union
+from collections.abc import Generator
 import logging
 
 import claripy
@@ -9,8 +10,8 @@ from .paged_memory_mixin import PagedMemoryMixin
 
 l = logging.getLogger(__name__)
 
-BackerType = Union[bytes, bytearray, List[int]]
-BackerIterType = Generator[Tuple[int, BackerType], None, None]
+BackerType = Union[bytes, bytearray, list[int]]
+BackerIterType = Generator[tuple[int, BackerType], None, None]
 
 
 # since memoryview isn't pickleable, we make do...
@@ -28,7 +29,7 @@ class NotMemoryview:
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
-    def __init__(self, cle_memory_backer: Union[None, cle.Loader, cle.Clemory] = None, **kwargs):
+    def __init__(self, cle_memory_backer: None | cle.Loader | cle.Clemory = None, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(cle_memory_backer, cle.Loader):
@@ -96,7 +97,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
         raise TypeError("Unsupported backer type %s." % type(backer))
 
-    def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> Tuple[int, int, int]:
+    def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> tuple[int, int, int]:
         # lord help me. why do I keep having to write code that looks like this
         # why have I found myself entangled in a briar patch of address spaces embedded in other address spaces
         if addr >= backer_start:
@@ -115,9 +116,9 @@ class ClemoryBackerMixin(PagedMemoryMixin):
     def _data_from_bytes_backer(
         self,
         addr: int,
-        backer: Union[bytes, bytearray],
+        backer: bytes | bytearray,
         backer_start: int,
-        backer_iter: Generator[Tuple[int, Union[bytes, bytearray]], None, None],
+        backer_iter: Generator[tuple[int, bytes | bytearray], None, None],
     ) -> claripy.ast.BV:
         if backer_start <= addr and backer_start + len(backer) >= addr + self.page_size:
             # fast case
@@ -144,7 +145,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         return data
 
     def _data_from_lists_backer(
-        self, addr: int, backer: List[int], backer_start: int, backer_iter: Generator[Tuple[int, List[int]], None, None]
+        self, addr: int, backer: list[int], backer_start: int, backer_iter: Generator[tuple[int, list[int]], None, None]
     ) -> claripy.ast.BV:
         page_data = [0] * self.page_size
         while backer_start < addr + self.page_size:

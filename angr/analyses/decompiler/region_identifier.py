@@ -1,7 +1,6 @@
 from itertools import count
 from collections import defaultdict
 import logging
-from typing import List, Optional, Union
 
 import networkx
 
@@ -59,7 +58,7 @@ class RegionIdentifier(Analysis):
 
         self.region = None
         self._start_node = None
-        self._loop_headers: Optional[List] = None
+        self._loop_headers: list | None = None
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
@@ -102,7 +101,7 @@ class RegionIdentifier(Analysis):
         # make regions into block address lists
         self.regions_by_block_addrs = self._make_regions_by_block_addrs()
 
-    def _make_regions_by_block_addrs(self) -> List[List[int]]:
+    def _make_regions_by_block_addrs(self) -> list[list[int]]:
         """
         Creates a list of addr lists representing each region without recursion. A single region is defined
         as a set of only blocks, no Graphs containing nested regions. The list contains the address of each
@@ -190,7 +189,7 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
-    def _find_loop_headers(self, graph: networkx.DiGraph) -> List:
+    def _find_loop_headers(self, graph: networkx.DiGraph) -> list:
         heads = {t for _, t in dfs_back_edges(graph, self._start_node)}
         return GraphUtils.quasi_topological_sort_nodes(graph, heads)
 
@@ -1061,7 +1060,7 @@ class RegionIdentifier(Analysis):
         assert node_mommy not in graph
         assert node_kiddie not in graph
 
-    def _ensure_jump_at_loop_exit_ends(self, node: Union[Block, MultiNode]) -> None:
+    def _ensure_jump_at_loop_exit_ends(self, node: Block | MultiNode) -> None:
         if isinstance(node, Block):
             if not node.statements:
                 node.statements.append(

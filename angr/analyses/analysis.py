@@ -4,7 +4,8 @@ import sys
 import contextlib
 from collections import defaultdict
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Type, Generic, Callable, Optional
+from typing import TYPE_CHECKING, TypeVar, Type, Generic, Optional
+from collections.abc import Callable
 
 import logging
 import time
@@ -113,7 +114,7 @@ class AnalysesHub(PluginVendor[A]):
     def reload_analyses(self):  # pylint: disable=no-self-use
         return
 
-    def _init_plugin(self, plugin_cls: Type[A]) -> "AnalysisFactory[A]":
+    def _init_plugin(self, plugin_cls: type[A]) -> "AnalysisFactory[A]":
         return AnalysisFactory(self.project, plugin_cls)
 
     def __getstate__(self):
@@ -124,7 +125,7 @@ class AnalysesHub(PluginVendor[A]):
         s, self.project = sd
         super().__setstate__(s)
 
-    def __getitem__(self, plugin_cls: Type[A]) -> "AnalysisFactory[A]":
+    def __getitem__(self, plugin_cls: type[A]) -> "AnalysisFactory[A]":
         return AnalysisFactory(self.project, plugin_cls)
 
 
@@ -169,7 +170,7 @@ class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
 
 
 class AnalysisFactory(Generic[A]):
-    def __init__(self, project: "Project", analysis_cls: Type[A]):
+    def __init__(self, project: "Project", analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
         self.__doc__ = ""
@@ -181,9 +182,9 @@ class AnalysisFactory(Generic[A]):
         self,
         fail_fast=False,
         kb: Optional["KnowledgeBase"] = None,
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Callable | None = None,
         show_progressbar: bool = False,
-    ) -> Type[A]:
+    ) -> type[A]:
         @functools.wraps(self._analysis_cls.__init__)
         def wrapper(*args, **kwargs):
             oself = object.__new__(self._analysis_cls)

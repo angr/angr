@@ -1,5 +1,3 @@
-from typing import Dict, Tuple, Union, Set
-
 import claripy
 
 from .undefined import Undefined, UNDEFINED
@@ -16,10 +14,10 @@ class Environment:
 
     __slots__ = ("_environment",)
 
-    def __init__(self, environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = None):
-        self._environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = environment or {}
+    def __init__(self, environment: dict[str | Undefined, set[claripy.ast.Base]] = None):
+        self._environment: dict[str | Undefined, set[claripy.ast.Base]] = environment or {}
 
-    def get(self, names: Set[str]) -> Tuple[Set[claripy.ast.Base], bool]:
+    def get(self, names: set[str]) -> tuple[set[claripy.ast.Base], bool]:
         """
         :param names: Potential values for the name of the environment variable to get the pointers of.
         :return:
@@ -40,7 +38,7 @@ class Environment:
 
         return pointers, has_unknown
 
-    def set(self, name: Union[str, Undefined], pointers: Set[claripy.ast.Base]):
+    def set(self, name: str | Undefined, pointers: set[claripy.ast.Base]):
         """
         :param name: Name of the environment variable to which we will associate the pointers.
         :param pointers: New addresses where the new values of the environment variable are located.
@@ -59,7 +57,7 @@ class Environment:
         assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
         return self._environment == other._environment
 
-    def merge(self, *others: "Environment") -> Tuple["Environment", bool]:
+    def merge(self, *others: "Environment") -> tuple["Environment", bool]:
         new_env = self._environment
 
         for other in others:

@@ -1,4 +1,4 @@
-from typing import Set, List, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import networkx
 
@@ -29,7 +29,7 @@ class DFAConstraintSolver:
     """
 
     @staticmethod
-    def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: Set, ends: Set) -> EpsilonNFA:
+    def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: set, ends: set) -> EpsilonNFA:
         enfa = EpsilonNFA()
 
         # print("Converting graph to eNFA")
@@ -62,7 +62,7 @@ class DFAConstraintSolver:
             raise EmptyEpsilonNFAError()
         return enfa
 
-    def generate_constraints_between(self, graph: networkx.DiGraph, starts: Set, ends: Set) -> Set:
+    def generate_constraints_between(self, graph: networkx.DiGraph, starts: set, ends: set) -> set:
         epsilon_nfa = self.graph_to_epsilon_nfa(graph, starts, ends)
         min_dfa: "DeterministicFiniteAutomaton" = epsilon_nfa.minimize()
         dfa_graph: networkx.MultiDiGraph = min_dfa.to_networkx()
@@ -86,7 +86,7 @@ class DFAConstraintSolver:
         return constraints
 
     @staticmethod
-    def _check_constraint(src, dst, string: List[Tuple[BaseLabel, str]]) -> Optional[Subtype]:
+    def _check_constraint(src, dst, string: list[tuple[BaseLabel, str]]) -> Subtype | None:
         forgets = []
         recalls = []
         for label, kind in string:

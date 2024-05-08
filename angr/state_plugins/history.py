@@ -2,7 +2,6 @@ import operator
 import logging
 import itertools
 import contextlib
-from typing import Optional
 
 import claripy
 from claripy.ast.bv import BV
@@ -40,7 +39,7 @@ class SimStateHistory(SimStatePlugin):
         self.jump_target = None if clone is None else clone.jump_target
         self.jump_source = None if clone is None else clone.jump_source
         self.jump_avoidable = None if clone is None else clone.jump_avoidable
-        self.jump_guard: Optional[BV] = None if clone is None else clone.jump_guard
+        self.jump_guard: BV | None = None if clone is None else clone.jump_guard
         self.jumpkind = None if clone is None else clone.jumpkind
 
         # the execution log for this history

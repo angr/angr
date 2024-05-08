@@ -1,7 +1,8 @@
 # pylint:disable=unused-import
 import logging
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
+from typing import Optional, Union, Any, TYPE_CHECKING
+from collections.abc import Iterable
 
 import networkx
 from cle import SymbolType
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 _PEEPHOLE_OPTIMIZATIONS_TYPE = Optional[
-    Iterable[Union[Type["PeepholeOptimizationStmtBase"], Type["PeepholeOptimizationExprBase"]]]
+    Iterable[Union[type["PeepholeOptimizationStmtBase"], type["PeepholeOptimizationExprBase"]]]
 ]
 
 
@@ -47,14 +48,14 @@ class Decompiler(Analysis):
 
     def __init__(
         self,
-        func: Union[Function, str, int],
-        cfg: Optional[Union["CFGFast", "CFGModel"]] = None,
+        func: Function | str | int,
+        cfg: Union["CFGFast", "CFGModel"] | None = None,
         options=None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
         variable_kb=None,
         peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE = None,
-        vars_must_struct: Optional[Set[str]] = None,
+        vars_must_struct: set[str] | None = None,
         flavor="pseudocode",
         expr_comments=None,
         stmt_comments=None,
@@ -90,11 +91,11 @@ class Decompiler(Analysis):
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: Optional["CStructuredCodeGenerator"] = None
-        self.cache: Optional[DecompilationCache] = None
+        self.cache: DecompilationCache | None = None
         self.options_by_class = None
         self.seq_node: Optional["SequenceNode"] = None
-        self.unoptimized_ail_graph: Optional[networkx.DiGraph] = None
-        self.ail_graph: Optional[networkx.DiGraph] = None
+        self.unoptimized_ail_graph: networkx.DiGraph | None = None
+        self.ail_graph: networkx.DiGraph | None = None
 
         if decompile:
             self._decompile()
@@ -295,8 +296,8 @@ class Decompiler(Analysis):
         :param reaching_defenitions: ReachingDefenitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
-        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
-        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
@@ -346,8 +347,8 @@ class Decompiler(Analysis):
         :param reaching_defenitions: ReachingDefenitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
-        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
-        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
@@ -415,7 +416,7 @@ class Decompiler(Analysis):
                     SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
                 )
 
-    def reflow_variable_types(self, type_constraints: Set, func_typevar, var_to_typevar: Dict, codegen):
+    def reflow_variable_types(self, type_constraints: set, func_typevar, var_to_typevar: dict, codegen):
         """
         Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
 
@@ -485,7 +486,7 @@ class Decompiler(Analysis):
         return codegen
 
     def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
-        const_values: Set[int] = set()
+        const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
             const_values.add(expr.value)
@@ -520,7 +521,7 @@ class Decompiler(Analysis):
         )
 
     @staticmethod
-    def options_to_params(options: List[Tuple[DecompilationOption, Any]]) -> Dict[str, Any]:
+    def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:
         """
         Convert decompilation options to a dict of params.
 

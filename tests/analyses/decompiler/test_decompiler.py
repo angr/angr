@@ -8,7 +8,6 @@ import re
 import unittest
 from functools import wraps
 
-from typing import List, Tuple
 import ailment
 
 import angr
@@ -47,7 +46,7 @@ WORKER = is_testing or bool(
 )  # this variable controls whether we print the decompilation code or not
 
 
-def set_decompiler_option(decompiler_options: List[Tuple], params: List[Tuple]) -> List[Tuple]:
+def set_decompiler_option(decompiler_options: list[tuple], params: list[tuple]) -> list[tuple]:
     if decompiler_options is None:
         decompiler_options = []
 

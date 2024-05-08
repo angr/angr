@@ -46,9 +46,9 @@ from .inlined_wstrcpy import InlinedWstrcpy
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
-MULTI_STMT_OPTS: List[Type[PeepholeOptimizationMultiStmtBase]] = []
-STMT_OPTS: List[Type[PeepholeOptimizationStmtBase]] = []
-EXPR_OPTS: List[Type[PeepholeOptimizationExprBase]] = []
+MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = []
+STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = []
+EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = []
 
 _g = globals().copy()
 for v in _g.values():

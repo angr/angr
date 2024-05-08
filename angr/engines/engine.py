@@ -3,7 +3,6 @@
 import abc
 import logging
 import threading
-from typing import Optional
 import angr
 
 from archinfo.arch_soot import SootAddressDescriptor
@@ -20,7 +19,7 @@ class SimEngineBase:
     def __init__(self, project=None, **kwargs):
         if kwargs:
             raise TypeError("Unused initializer args: " + ", ".join(kwargs.keys()))
-        self.project: Optional[angr.Project] = project
+        self.project: angr.Project | None = project
         self.state = None
 
     __tls = ("state",)
@@ -107,7 +106,7 @@ class SuccessorsMixin(SimEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.successors: Optional[SimSuccessors] = None
+        self.successors: SimSuccessors | None = None
 
     __tls = ("successors",)
 

@@ -20,7 +20,7 @@ class JNISimProcedure(SimProcedure):
     """
 
     # Java type of return value
-    return_ty: typing.Optional[str] = None
+    return_ty: str | None = None
 
     # jboolean constants
     JNI_TRUE = 1

@@ -1,4 +1,4 @@
-from typing import List, Tuple, Set, Dict, Union, Optional, Any
+from typing import Any
 
 import claripy
 
@@ -19,7 +19,7 @@ class CooperationBase:
         """
 
     @classmethod
-    def _decompose_objects(cls, addr, data, endness, **kwargs) -> Tuple[Any, int, int]:
+    def _decompose_objects(cls, addr, data, endness, **kwargs) -> tuple[Any, int, int]:
         """
         A bidirectional generator. No idea if this is overengineered. Usage is that you send it a size to use
         and it yields a tuple of three elements: the object to store for the next n bytes, the base address of the
@@ -58,11 +58,11 @@ class MemoryObjectMixin(CooperationBase):
     @classmethod
     def _compose_objects(
         cls,
-        objects: List[List[Tuple[int, SimMemoryObject]]],
+        objects: list[list[tuple[int, SimMemoryObject]]],
         size,
         endness=None,
         memory=None,
-        labels: Optional[List] = None,
+        labels: list | None = None,
         **kwargs,
     ):
         c_objects = []
@@ -168,16 +168,16 @@ class MemoryObjectSetMixin(CooperationBase):
 
     @classmethod
     def _compose_objects(
-        cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None, memory=None, **kwargs
+        cls, objects: list[list[tuple[int, set[SimMemoryObject]]]], size, endness=None, memory=None, **kwargs
     ):
-        c_objects: List[Tuple[int, Union[SimMemoryObject, Set[SimMemoryObject]]]] = []
+        c_objects: list[tuple[int, SimMemoryObject | set[SimMemoryObject]]] = []
         for objlist in objects:
             for element in objlist:
                 if not c_objects or element[1] is not c_objects[-1][1]:
                     c_objects.append(element)
 
         mask = (1 << memory.state.arch.bits) - 1
-        elements: List[Set[claripy.ast.Base]] = []
+        elements: list[set[claripy.ast.Base]] = []
         for i, (a, objs) in enumerate(c_objects):
             chopped_set = set()
             if type(objs) is not set:
@@ -245,7 +245,7 @@ class MemoryObjectSetMixin(CooperationBase):
             assert label is None  # TODO: Support labels
 
             size = yield
-            offset_to_mos: Dict[int, Set[SimMemoryObject]] = {}
+            offset_to_mos: dict[int, set[SimMemoryObject]] = {}
             for offset, vs in data.items():
                 offset_to_mos[offset] = set()
                 for v in vs:

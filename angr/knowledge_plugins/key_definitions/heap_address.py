@@ -1,5 +1,3 @@
-from typing import Union
-
 from .undefined import Undefined
 
 
@@ -8,7 +6,7 @@ class HeapAddress:
     The representation of an address on the heap.
     """
 
-    def __init__(self, value: Union[int, Undefined]):
+    def __init__(self, value: int | Undefined):
         self._value = value
 
     @property

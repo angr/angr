@@ -1,5 +1,5 @@
 # pylint:disable=import-outside-toplevel
-from typing import Dict, Any, Union, TYPE_CHECKING
+from typing import Any, Union, TYPE_CHECKING
 
 from .. import KnowledgeBasePlugin
 
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class StructuredCodeManager(KnowledgeBasePlugin):
     def __init__(self, kb):
         super().__init__(kb=kb)
-        self.cached: Dict[Any, "DecompilationCache"] = {}
+        self.cached: dict[Any, "DecompilationCache"] = {}
 
     def _normalize_key(self, item):
         if type(item) is not tuple:

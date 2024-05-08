@@ -1,4 +1,5 @@
-from typing import Dict, Any, Tuple, Iterable, Generator, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
+from collections.abc import Iterable, Generator
 
 import claripy
 import ailment
@@ -17,7 +18,7 @@ class Detail:
 
     __slots__ = ("size", "expr", "def_at")
 
-    def __init__(self, size: int, expr: Optional[ailment.Expression], def_at: Optional["CodeLocation"]):
+    def __init__(self, size: int, expr: ailment.Expression | None, def_at: Optional["CodeLocation"]):
         self.size = size
         self.expr = expr
         self.def_at = def_at
@@ -39,7 +40,7 @@ class PropValue:
         "offset_and_details",
     )
 
-    def __init__(self, value: claripy.ast.Bits, offset_and_details: Optional[Dict[int, Detail]] = None):
+    def __init__(self, value: claripy.ast.Bits, offset_and_details: dict[int, Detail] | None = None):
         self.value = value
         self.offset_and_details = offset_and_details
 
@@ -48,7 +49,7 @@ class PropValue:
         return not bool(self.offset_and_details)
 
     @property
-    def one_expr(self) -> Optional[ailment.Expression]:
+    def one_expr(self) -> ailment.Expression | None:
         """
         Get the expression that starts at offset 0 and covers the entire PropValue. Returns None if there are no
         expressions or multiple expressions.
@@ -109,7 +110,7 @@ class PropValue:
             value = claripy.fpToIEEEBV(value)
         return value[chop_start:chop_end]
 
-    def value_and_labels(self) -> Generator[Tuple[int, claripy.ast.Bits, int, Optional[Dict]], None, None]:
+    def value_and_labels(self) -> Generator[tuple[int, claripy.ast.Bits, int, dict | None], None, None]:
         if not self.offset_and_details:
             return
         keys = list(sorted(self.offset_and_details.keys()))
@@ -140,7 +141,7 @@ class PropValue:
 
     @staticmethod
     def from_value_and_labels(
-        value: claripy.ast.Bits, labels: Iterable[Tuple[int, int, int, Dict[str, Any]]]
+        value: claripy.ast.Bits, labels: Iterable[tuple[int, int, int, dict[str, Any]]]
     ) -> "PropValue":
         if not labels:
             return PropValue(value)
@@ -164,8 +165,8 @@ class PropValue:
 
     @staticmethod
     def extract_ail_expression(
-        start: int, bits: int, expr: Optional[ailment.Expr.Expression]
-    ) -> Optional[ailment.Expr.Expression]:
+        start: int, bits: int, expr: ailment.Expr.Expression | None
+    ) -> ailment.Expr.Expression | None:
         if expr is None:
             return None
 
@@ -182,7 +183,7 @@ class PropValue:
             return ailment.Expr.Convert(None, a.bits, bits, False, a, **expr.tags)
 
     @staticmethod
-    def extend_ail_expression(bits: int, expr: Optional[ailment.Expr.Expression]) -> Optional[ailment.Expr.Expression]:
+    def extend_ail_expression(bits: int, expr: ailment.Expr.Expression | None) -> ailment.Expr.Expression | None:
         if expr is None:
             return None
         if isinstance(expr, ailment.Expr.Const):

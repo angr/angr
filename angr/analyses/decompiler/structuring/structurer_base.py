@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument
-from typing import Optional, Dict, Set, List, Any, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
+from collections import OrderedDict as ODict
 from collections import defaultdict, OrderedDict
 import logging
 
@@ -50,7 +51,7 @@ class StructurerBase(Analysis):
         parent_map=None,
         condition_processor=None,
         func: Optional["Function"] = None,
-        case_entry_to_switch_head: Optional[Dict[int, int]] = None,
+        case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         improve_structurer=True,
         **kwargs,
@@ -251,7 +252,7 @@ class StructurerBase(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
-                    jump_stmt: Optional[Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump]] = None
+                    jump_stmt: ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None = None
                     if (
                         isinstance(this_node, ailment.Block)
                         and this_node.statements
@@ -313,7 +314,7 @@ class StructurerBase(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
-                    jump_stmt: Optional[Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump]] = None
+                    jump_stmt: ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None = None
                     if (
                         isinstance(this_node, ailment.Block)
                         and this_node.statements
@@ -387,7 +388,7 @@ class StructurerBase(Analysis):
                 return
 
             # stores all nodes that will replace the current AIL Block node
-            new_nodes: List = []
+            new_nodes: list = []
             last_nonjump_stmt_idx = 0
 
             # find all jump and indirect jump statements
@@ -466,7 +467,7 @@ class StructurerBase(Analysis):
         walker = SequenceWalker(handlers=handlers)
         walker.walk(loop_node)
 
-    def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode, loop_node: Optional[LoopNode] = None):
+    def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode, loop_node: LoopNode | None = None):
         continue_node_addr = loop_seq.addr
         # exception: do-while with a multi-statement condition
         if (
@@ -740,12 +741,12 @@ class StructurerBase(Analysis):
     #
 
     def _reorganize_switch_cases(
-        self, cases: ODict[Union[int, Tuple[int, ...]], SequenceNode]
-    ) -> ODict[Union[int, Tuple[int, ...]], SequenceNode]:
+        self, cases: ODict[int | tuple[int, ...], SequenceNode]
+    ) -> ODict[int | tuple[int, ...], SequenceNode]:
         new_cases = OrderedDict()
 
         caseid2gotoaddrs = {}
-        addr2caseids: Dict[int, List[int, Tuple[int, ...]]] = defaultdict(list)
+        addr2caseids: dict[int, list[int, tuple[int, ...]]] = defaultdict(list)
 
         # collect goto locations
         for idx, case_node in cases.items():
@@ -814,8 +815,8 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _remove_last_statement_if_jump(
-        node: Union[BaseNode, ailment.Block]
-    ) -> Optional[Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump]]:
+        node: BaseNode | ailment.Block,
+    ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None:
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
         except EmptyBlockNotice:
@@ -878,7 +879,7 @@ class StructurerBase(Analysis):
             else:
                 return SequenceNode(addr, nodes=[node_0, node_1])
 
-    def _update_new_sequences(self, removed_sequences: Set[SequenceNode], replaced_sequences: Dict[SequenceNode, Any]):
+    def _update_new_sequences(self, removed_sequences: set[SequenceNode], replaced_sequences: dict[SequenceNode, Any]):
         new_sequences = []
         for new_seq_ in self._new_sequences:
             if new_seq_ not in removed_sequences:
@@ -917,8 +918,8 @@ class StructurerBase(Analysis):
     @staticmethod
     def replace_node_in_node(
         parent_node: BaseNode,
-        old_node: Union[BaseNode, ailment.Block],
-        new_node: Union[BaseNode, ailment.Block],
+        old_node: BaseNode | ailment.Block,
+        new_node: BaseNode | ailment.Block,
     ) -> None:
         if isinstance(parent_node, SequenceNode):
             for i in range(len(parent_node.nodes)):  # pylint:disable=consider-using-enumerate
@@ -941,7 +942,7 @@ class StructurerBase(Analysis):
             raise TypeError(f"Unsupported node type {type(parent_node)}")
 
     @staticmethod
-    def is_a_jump_target(stmt: Union[ailment.Stmt.ConditionalJump, ailment.Stmt.Jump], addr: int) -> bool:
+    def is_a_jump_target(stmt: ailment.Stmt.ConditionalJump | ailment.Stmt.Jump, addr: int) -> bool:
         if isinstance(stmt, ailment.Stmt.ConditionalJump):
             if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == addr:
                 return True

@@ -1,6 +1,6 @@
 # pylint:disable=no-self-use
 from collections import defaultdict
-from typing import Optional, Set, List, Tuple, Dict, Union, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING
 import logging
 
 import networkx
@@ -87,13 +87,13 @@ class CallingConventionAnalysis(Analysis):
 
     def __init__(
         self,
-        func: Optional[Union["Function", int, str]],
+        func: Union["Function", int, str] | None,
         cfg: Optional["CFGModel"] = None,
         analyze_callsites: bool = False,
-        caller_func_addr: Optional[int] = None,
-        callsite_block_addr: Optional[int] = None,
-        callsite_insn_addr: Optional[int] = None,
-        func_graph: Optional[networkx.DiGraph] = None,
+        caller_func_addr: int | None = None,
+        callsite_block_addr: int | None = None,
+        callsite_insn_addr: int | None = None,
+        func_graph: networkx.DiGraph | None = None,
     ):
         if func is not None and not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -106,9 +106,9 @@ class CallingConventionAnalysis(Analysis):
         self.callsite_insn_addr = callsite_insn_addr
         self._func_graph = func_graph
 
-        self.cc: Optional[SimCC] = None
-        self.prototype: Optional[SimTypeFunction] = None
-        self.prototype_libname: Optional[str] = None
+        self.cc: SimCC | None = None
+        self.prototype: SimTypeFunction | None = None
+        self.prototype_libname: str | None = None
 
         if self._cfg is None and "CFGFast" in self.kb.cfgs:
             self._cfg = self.kb.cfgs["CFGFast"]
@@ -246,7 +246,7 @@ class CallingConventionAnalysis(Analysis):
         self.cc = cc
         self.prototype = prototype
 
-    def _analyze_plt(self) -> Optional[Tuple[SimCC, SimTypeFunction]]:
+    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction] | None:
         """
         Get the calling convention for a PLT stub.
 
@@ -305,7 +305,7 @@ class CallingConventionAnalysis(Analysis):
 
         return None
 
-    def _analyze_function(self) -> Optional[Tuple[SimCC, SimTypeFunction]]:
+    def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:
         """
         Go over the variable information in variable manager for this function, and return all uninitialized
         register/stack variables.
@@ -368,7 +368,7 @@ class CallingConventionAnalysis(Analysis):
         func = self.kb.functions[caller_addr]
         subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
 
-        observation_points: List = [("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)]
+        observation_points: list = [("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)]
 
         # find the return site
         caller_block = next(iter(bb for bb in subgraph if bb.addr == caller_block_addr))
@@ -389,7 +389,7 @@ class CallingConventionAnalysis(Analysis):
         self,
         max_analyzing_callsites: int = 3,
         include_callsite_preds: bool = False,
-    ) -> List[CallSiteFact]:  # pylint:disable=no-self-use
+    ) -> list[CallSiteFact]:  # pylint:disable=no-self-use
         """
         Analyze all call sites of the function and determine the possible number of arguments and if the function
         returns anything or not.
@@ -406,7 +406,7 @@ class CallingConventionAnalysis(Analysis):
         facts = []
         in_edges = self._cfg.graph.in_edges(node, data=True)
 
-        call_sites_by_function: Dict["Function", List[Tuple[int, int]]] = defaultdict(list)
+        call_sites_by_function: dict["Function", list[tuple[int, int]]] = defaultdict(list)
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
             if edge_type != "Ijk_Call":
@@ -451,7 +451,7 @@ class CallingConventionAnalysis(Analysis):
         func: "Function",
         callsite_block_addr: int,
         include_preds: bool = False,
-    ) -> Optional[networkx.DiGraph]:
+    ) -> networkx.DiGraph | None:
         func_graph = self._func_graph if self._func_graph is not None else func.graph
 
         the_block = next(iter(nn for nn in func_graph if nn.addr == callsite_block_addr), None)
@@ -512,7 +512,7 @@ class CallingConventionAnalysis(Analysis):
     def _analyze_callsite_return_value_uses(
         self, cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-        all_defs: Set["Definition"] = {
+        all_defs: set["Definition"] = {
             def_
             for def_ in rda.all_uses._uses_by_definition.keys()
             if (
@@ -556,9 +556,9 @@ class CallingConventionAnalysis(Analysis):
     ) -> None:
         # determine if potential register and stack arguments are set
         state = rda.observed_results[("insn", call_insn_addr, OP_BEFORE)]
-        defs_by_reg_offset: Dict[int, List["Definition"]] = defaultdict(list)
-        all_reg_defs: Set["Definition"] = get_all_definitions(state.registers)
-        all_stack_defs: Set["Definition"] = get_all_definitions(state.stack)
+        defs_by_reg_offset: dict[int, list["Definition"]] = defaultdict(list)
+        all_reg_defs: set["Definition"] = get_all_definitions(state.registers)
+        all_stack_defs: set["Definition"] = get_all_definitions(state.stack)
         for d in all_reg_defs:
             if (
                 isinstance(d.atom, Register)
@@ -592,7 +592,7 @@ class CallingConventionAnalysis(Analysis):
 
         default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
         arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
-        temp_args: List[Optional[SimFunctionArgument]] = []
+        temp_args: list[SimFunctionArgument | None] = []
         for _ in range(30):  # at most 30 arguments
             arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
             if isinstance(arg_loc, SimRegArg):
@@ -621,10 +621,10 @@ class CallingConventionAnalysis(Analysis):
 
     def _adjust_prototype(
         self,
-        proto: Optional[SimTypeFunction],
-        facts: List[CallSiteFact],
+        proto: SimTypeFunction | None,
+        facts: list[CallSiteFact],
         update_arguments: int = UpdateArgumentsOption.DoNotUpdate,
-    ) -> Optional[SimTypeFunction]:
+    ) -> SimTypeFunction | None:
         if proto is None:
             return None
 
@@ -647,7 +647,7 @@ class CallingConventionAnalysis(Analysis):
 
         return proto
 
-    def _args_from_vars(self, variables: List, var_manager):
+    def _args_from_vars(self, variables: list, var_manager):
         """
         Derive function arguments from input variables.
 
@@ -662,7 +662,7 @@ class CallingConventionAnalysis(Analysis):
         else:
             ret_addr_offset = self.project.arch.bytes
 
-        reg_vars_with_single_access: List[SimRegisterVariable] = []
+        reg_vars_with_single_access: list[SimRegisterVariable] = []
 
         def_cc = default_cc(
             self.project.arch.name,
@@ -702,7 +702,7 @@ class CallingConventionAnalysis(Analysis):
         # we should remove all registers that are strictly callee-saved and are not used anywhere in this function
         end_blocks = [(endpoint.addr, endpoint.size) for endpoint in self._function.endpoints_with_type["return"]]
 
-        restored_reg_vars: Set[SimRegArg] = set()
+        restored_reg_vars: set[SimRegArg] = set()
 
         # is there any instruction that restores this register in any end blocks?
         if reg_vars_with_single_access:
@@ -713,7 +713,7 @@ class CallingConventionAnalysis(Analysis):
                     restored_reg_vars.add(SimRegArg(reg_name, var_.size))
 
             else:
-                reg_offsets: Set[int] = {r.reg for r in reg_vars_with_single_access}
+                reg_offsets: set[int] = {r.reg for r in reg_vars_with_single_access}
                 for var_ in var_manager.get_variables(sort="reg"):
                     if var_.reg in (reg_offsets - {self.project.arch.ret_offset}):
                         # check if there is only a write to it
@@ -731,7 +731,7 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
-    def _is_sane_register_variable(self, variable: SimRegisterVariable, def_cc: Optional[SimCC] = None) -> bool:
+    def _is_sane_register_variable(self, variable: SimRegisterVariable, def_cc: SimCC | None = None) -> bool:
         """
         Filters all registers that are surly not members of function arguments.
         This can be seen as a workaround, since VariableRecoveryFast sometimes gives input variables of cc_ndep (which
@@ -780,9 +780,7 @@ class CallingConventionAnalysis(Analysis):
             l.critical("Unsupported architecture %s.", arch.name)
             return True
 
-    def _reorder_args(
-        self, args: List[Union[SimRegArg, SimStackArg]], cc: SimCC
-    ) -> List[Union[SimRegArg, SimStackArg]]:
+    def _reorder_args(self, args: list[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
         Reorder arguments according to the calling convention identified.
 
@@ -839,7 +837,7 @@ class CallingConventionAnalysis(Analysis):
 
         return reg_args + int_args + fp_args + stack_args
 
-    def _guess_arg_type(self, arg: SimFunctionArgument, cc: Optional[SimCC] = None) -> SimType:
+    def _guess_arg_type(self, arg: SimFunctionArgument, cc: SimCC | None = None) -> SimType:
         if cc is not None:
             if cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
                 if arg.size == 4:
@@ -859,7 +857,7 @@ class CallingConventionAnalysis(Analysis):
             # Unsupported for now
             return SimTypeBottom()
 
-    def _guess_retval_type(self, cc: SimCC, ret_val_size: Optional[int]) -> SimType:
+    def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
         if cc.FP_RETURN_VAL:
             # examine the last block of the function and see which registers are assigned to
             if self._function.ret_sites:
@@ -888,7 +886,7 @@ class CallingConventionAnalysis(Analysis):
         return SimTypeInt() if cc.arch.bits == 32 else SimTypeLongLong()
 
     @staticmethod
-    def _likely_saving_temp_reg(ail_block: ailment.Block, d: "Definition", all_reg_defs: Set["Definition"]) -> bool:
+    def _likely_saving_temp_reg(ail_block: ailment.Block, d: "Definition", all_reg_defs: set["Definition"]) -> bool:
         if d.codeloc.block_addr == ail_block.addr and d.codeloc.stmt_idx < len(ail_block.statements):
             stmt = ail_block.statements[d.codeloc.stmt_idx]
             if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Register):
@@ -904,7 +902,7 @@ class CallingConventionAnalysis(Analysis):
                         return True
         return False
 
-    def is_va_start_amd64(self, func: Function) -> Tuple[bool, Optional[int]]:
+    def is_va_start_amd64(self, func: Function) -> tuple[bool, int | None]:
         # TODO: Use a better pattern matching approach
         if len(func.block_addrs_set) < 3:
             return False, None

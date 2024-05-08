@@ -1,5 +1,3 @@
-from typing import List
-
 import claripy
 
 from . import MemoryMixin
@@ -227,7 +225,7 @@ class AddressConcretizationMixin(MemoryMixin):
     #
 
     @staticmethod
-    def _interleave_ints(addrs: List[int]) -> List[int]:
+    def _interleave_ints(addrs: list[int]) -> list[int]:
         """
         Take a list of integers and return a new list of integers where front and back integers interleave.
         """

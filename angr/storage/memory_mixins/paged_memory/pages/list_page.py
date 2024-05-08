@@ -1,6 +1,5 @@
 # pylint:disable=abstract-method,arguments-differ
 import logging
-from typing import Optional, List, Set, Tuple
 
 import claripy
 
@@ -21,16 +20,16 @@ class ListPage(MemoryObjectMixin, PageBase):
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: Optional[DynamicDictList[Optional[SimMemoryObject]]] = (
+        self.content: DynamicDictList[SimMemoryObject | None] | None = (
             DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
         )
         self.stored_offset = set()
         if self.content is None:
             if memory is not None:
-                self.content: DynamicDictList[Optional[SimMemoryObject]] = DynamicDictList(max_size=memory.page_size)
+                self.content: DynamicDictList[SimMemoryObject | None] = DynamicDictList(max_size=memory.page_size)
         self._mo_cmp = mo_cmp
 
-        self.sinkhole: Optional[SimMemoryObject] = sinkhole
+        self.sinkhole: SimMemoryObject | None = sinkhole
 
     def copy(self, memo):
         o = super().copy(memo)
@@ -114,19 +113,19 @@ class ListPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: List["ListPage"],
+        others: list["ListPage"],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,
         memory=None,
-        changed_offsets: Optional[Set[int]] = None,
+        changed_offsets: set[int] | None = None,
     ):
         if changed_offsets is None:
             changed_offsets = set()
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: List["ListPage"] = [self] + others
+        all_pages: list["ListPage"] = [self] + others
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -244,7 +243,7 @@ class ListPage(MemoryObjectMixin, PageBase):
     def changed_bytes(self, other: "ListPage", page_addr: int = None):
         candidates = super().changed_bytes(other)
         if candidates is None:
-            candidates: Set[int] = set()
+            candidates: set[int] = set()
             if self.sinkhole is None:
                 candidates |= self.stored_offset
             else:
@@ -260,7 +259,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                         candidates.add(i)
 
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
-        differences: Set[int] = set()
+        differences: set[int] = set()
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
@@ -331,14 +330,14 @@ class ListPage(MemoryObjectMixin, PageBase):
         return new_mo
 
     @staticmethod
-    def _resolve_range(mo: SimMemoryObject, page_addr: int, page_size) -> Tuple[int, int]:
+    def _resolve_range(mo: SimMemoryObject, page_addr: int, page_size) -> tuple[int, int]:
         start = max(mo.base, page_addr)
         end = min(mo.last_addr + 1, page_addr + page_size)
         if end <= start:
             l.warning("Nothing left of the memory object to store in SimPage.")
         return start, end
 
-    def _get_object(self, start: int, page_addr: int) -> Optional[SimMemoryObject]:
+    def _get_object(self, start: int, page_addr: int) -> SimMemoryObject | None:
         mo = self.content[start]
         if mo is None:
             return None

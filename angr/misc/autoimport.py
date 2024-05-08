@@ -3,7 +3,7 @@ import importlib
 import importlib.machinery
 import importlib.util
 import logging
-from typing import Optional, Callable
+from collections.abc import Callable
 
 
 l = logging.getLogger(name=__name__)
@@ -36,7 +36,7 @@ def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=()
             yield lib_module_name, package
 
 
-def auto_import_modules(base_module, base_path, ignore_files=(), filter_func: Optional[Callable] = None):
+def auto_import_modules(base_module, base_path, ignore_files=(), filter_func: Callable | None = None):
     for proc_file_name in os.listdir(base_path):
         if not proc_file_name.endswith(".py"):
             continue
@@ -65,7 +65,7 @@ def filter_module(mod, type_req=None, subclass_req=None):
         yield name, val
 
 
-def auto_import_source_files(base_path, ignore_files=(), filter_func: Optional[Callable] = None):
+def auto_import_source_files(base_path, ignore_files=(), filter_func: Callable | None = None):
     for proc_file_name in os.listdir(base_path):
         if not proc_file_name.endswith(".py"):
             continue

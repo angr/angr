@@ -6,7 +6,7 @@ import pickle
 import string
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, cast
+from typing import Any, cast
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
@@ -19,7 +19,7 @@ from .errors import AngrNoPluginError
 l = logging.getLogger(name=__name__)
 
 
-def load_shellcode(shellcode: Union[bytes, str], arch, start_offset=0, load_address=0, thumb=False, **kwargs):
+def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
     """
     Load a new project based on a snippet of assembly or bytecode.
 
@@ -107,10 +107,10 @@ class Project:
         arch=None,
         simos=None,
         engine=None,
-        load_options: Optional[Dict[str, Any]] = None,
+        load_options: dict[str, Any] | None = None,
         translation_cache=True,
         selfmodifying_code: bool = False,
-        support_selfmodifying_code: Optional[bool] = None,  # deprecated. use selfmodifying_code instead
+        support_selfmodifying_code: bool | None = None,  # deprecated. use selfmodifying_code instead
         store_function=None,
         load_function=None,
         analyses_preset=None,
@@ -461,7 +461,7 @@ class Project:
     #
 
     # pylint: disable=inconsistent-return-statements
-    def hook(self, addr, hook=None, length=0, kwargs=None, replace: Optional[bool] = False):
+    def hook(self, addr, hook=None, length=0, kwargs=None, replace: bool | None = False):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
@@ -534,7 +534,7 @@ class Project:
         """
         return addr in self._sim_procedures
 
-    def hooked_by(self, addr) -> Optional[SimProcedure]:
+    def hooked_by(self, addr) -> SimProcedure | None:
         """
         Returns the current hook for `addr`.
 
@@ -561,7 +561,7 @@ class Project:
 
         del self._sim_procedures[addr]
 
-    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace: Optional[bool] = None):
+    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace: bool | None = None):
         """
         Resolve a dependency in a binary. Looks up the address of the given symbol, and then hooks that
         address. If the symbol was not available in the loaded libraries, this address may be provided
@@ -612,7 +612,7 @@ class Project:
         self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
-    def symbol_hooked_by(self, symbol_name) -> Optional[SimProcedure]:
+    def symbol_hooked_by(self, symbol_name) -> SimProcedure | None:
         """
         Return the SimProcedure, if it exists, for the given symbol name.
 

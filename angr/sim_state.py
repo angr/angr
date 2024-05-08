@@ -5,7 +5,7 @@ import weakref
 
 import logging
 
-from typing import Type, TypeVar, TYPE_CHECKING
+from typing import TypeVar, TYPE_CHECKING
 
 from archinfo import Arch
 
@@ -429,7 +429,7 @@ class SimState(PluginHub):
         self._set_plugin_state(plugin, inhibit_init=inhibit_init)
         return super().register_plugin(name, plugin)
 
-    def _init_plugin(self, plugin_cls: Type[SimStatePlugin]) -> SimStatePlugin:
+    def _init_plugin(self, plugin_cls: type[SimStatePlugin]) -> SimStatePlugin:
         plugin = plugin_cls()
         self._set_plugin_state(plugin)
         return plugin

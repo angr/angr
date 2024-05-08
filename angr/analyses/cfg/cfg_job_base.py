@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 
@@ -131,7 +131,7 @@ class CFGJobBase:
         src_block_id=None,
         src_exit_stmt_idx=None,
         src_ins_addr=None,
-        jumpkind: Optional[str] = None,
+        jumpkind: str | None = None,
         call_stack=None,
         is_narrowing=False,
         skip=False,

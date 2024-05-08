@@ -2,7 +2,6 @@ import logging
 import unittest
 import operator
 from dataclasses import dataclass
-from typing import Optional, List
 
 import claripy
 
@@ -49,12 +48,12 @@ class MockVarnode:
     size: int
 
     register_name: str = "<mock>"
-    space_encoded_in_offset: Optional[MockAddrSpace] = None
+    space_encoded_in_offset: MockAddrSpace | None = None
 
     def getRegisterName(self) -> str:
         return self.register_name
 
-    def getSpaceFromConst(self) -> Optional[MockAddrSpace]:
+    def getSpaceFromConst(self) -> MockAddrSpace | None:
         return self.space_encoded_in_offset
 
 
@@ -65,8 +64,8 @@ class MockPcodeOp:
     """
 
     opcode: "OpCode"
-    output: Optional[MockVarnode]
-    inputs: List[MockVarnode]
+    output: MockVarnode | None
+    inputs: list[MockVarnode]
 
 
 BEHAVIORS = BehaviorFactory()
@@ -78,7 +77,7 @@ class MockIRSB:
     Mock IRSB
     """
 
-    _ops: List[MockPcodeOp]
+    _ops: list[MockPcodeOp]
     addr: int = 0
     behaviors: BehaviorFactory = BEHAVIORS
 

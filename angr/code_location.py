@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Tuple, Any
+from typing import Any
 
 
 class CodeLocation:
@@ -21,9 +21,9 @@ class CodeLocation:
     def __init__(
         self,
         block_addr: int,
-        stmt_idx: Optional[int],
+        stmt_idx: int | None,
         sim_procedure=None,
-        ins_addr: Optional[int] = None,
+        ins_addr: int | None = None,
         context: Any = None,
         block_idx: int = None,
         **kwargs,
@@ -42,14 +42,14 @@ class CodeLocation:
         """
 
         self.block_addr: int = block_addr
-        self.stmt_idx: Optional[int] = stmt_idx
+        self.stmt_idx: int | None = stmt_idx
         self.sim_procedure = sim_procedure
-        self.ins_addr: Optional[int] = ins_addr
-        self.context: Optional[Tuple[int]] = context
+        self.ins_addr: int | None = ins_addr
+        self.context: tuple[int] | None = context
         self.block_idx = block_idx
         self._hash = None
 
-        self.info: Optional[Dict] = None
+        self.info: dict | None = None
 
         if kwargs:
             self._store_kwargs(**kwargs)
@@ -152,7 +152,7 @@ class ExternalCodeLocation(CodeLocation):
 
     __slots__ = ("call_string",)
 
-    def __init__(self, call_string: Optional[Tuple[int, ...]] = None):
+    def __init__(self, call_string: tuple[int, ...] | None = None):
         super().__init__(0, None)
         self.call_string = call_string if call_string is not None else ()
 

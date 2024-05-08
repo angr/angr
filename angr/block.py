@@ -1,6 +1,5 @@
 # pylint:disable=wrong-import-position,arguments-differ
 import logging
-from typing import List, Optional, Tuple
 
 import pyvex
 from pyvex import IRSB
@@ -189,7 +188,7 @@ class Block(Serializable):
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
-        self._initial_regs: Optional[List[Tuple[int, int, int]]] = initial_regs if collect_data_refs else None
+        self._initial_regs: list[tuple[int, int, int]] | None = initial_regs if collect_data_refs else None
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -232,7 +231,7 @@ class Block(Serializable):
         self._load_from_ro_regions = load_from_ro_regions
 
         self._instructions = num_inst
-        self._instruction_addrs: List[int] = []
+        self._instruction_addrs: list[int] = []
 
         self._parse_vex_info(self._vex)
 

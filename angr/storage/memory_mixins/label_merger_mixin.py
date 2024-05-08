@@ -1,4 +1,4 @@
-from typing import Iterable, Dict, Optional
+from collections.abc import Iterable
 
 from . import MemoryMixin
 
@@ -11,7 +11,7 @@ class LabelMergerMixin(MemoryMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _merge_labels(self, labels: Iterable[Dict], **kwargs) -> Optional[Dict]:
+    def _merge_labels(self, labels: Iterable[dict], **kwargs) -> dict | None:
         new_label = {}
         all_keys = set()
         for label in labels:

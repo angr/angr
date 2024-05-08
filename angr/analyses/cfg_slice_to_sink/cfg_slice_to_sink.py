@@ -1,4 +1,4 @@
-from typing import Optional, Set, Any, List
+from typing import Any
 from functools import reduce
 
 from .transitions import merge_transitions
@@ -56,7 +56,7 @@ class CFGSliceToSink:
         return set(reduce(lambda acc, destinations: acc + destinations, self._transitions.values(), []))
 
     @property
-    def nodes(self) -> List[int]:
+    def nodes(self) -> list[int]:
         """
         :return: The complete list of addresses present in the slice.
         """
@@ -91,7 +91,7 @@ class CFGSliceToSink:
         """
         return not bool(self._transitions)
 
-    def path_between(self, source: int, destination: int, visited: Optional[Set[Any]] = None) -> bool:
+    def path_between(self, source: int, destination: int, visited: set[Any] | None = None) -> bool:
         """
         Check the existence of a path in the slice between two given node adresses.
 

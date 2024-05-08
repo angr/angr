@@ -1,6 +1,6 @@
 # pylint:disable=import-outside-toplevel
 from functools import wraps
-from typing import Optional, List
+from typing import Optional
 
 from ... import knowledge_plugins
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -172,7 +172,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     # pylint:disable=unused-argument,no-self-use
-    def push_comments(self, comments: List["binsync.data.Comment"], user=None, state=None):
+    def push_comments(self, comments: list["binsync.data.Comment"], user=None, state=None):
         """
         Push a bunch of comments upwards.
 
@@ -189,7 +189,7 @@ class SyncController(KnowledgeBasePlugin):
     @make_state
     # pylint:disable=unused-argument,no-self-use
     def push_stack_variables(
-        self, stack_variables: List[SimStackVariable], var_manager: VariableManagerInternal, user=None, state=None
+        self, stack_variables: list[SimStackVariable], var_manager: VariableManagerInternal, user=None, state=None
     ):
         """
 

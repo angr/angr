@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, overload, Type
+from typing import overload
 import logging
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
@@ -25,7 +25,7 @@ class AngrObjectFactory:
     This factory provides access to important analysis elements.
     """
 
-    def __init__(self, project, default_engine: Optional[Type[SimEngine]] = None):
+    def __init__(self, project, default_engine: type[SimEngine] | None = None):
         if default_engine is None:
             if isinstance(project.arch, archinfo.ArchPcode) and UberEnginePcode is not None:
                 l.warning("Creating project with the experimental 'UberEnginePcode' engine")
@@ -171,9 +171,7 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(
-        self, thing: Optional[Union[List[SimState], SimState]] = None, **kwargs
-    ) -> "SimulationManager":
+    def simulation_manager(self, thing: list[SimState] | SimState | None = None, **kwargs) -> "SimulationManager":
         """
         Constructs a new simulation manager.
 

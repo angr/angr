@@ -1,6 +1,6 @@
 import traceback
 import logging
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union
 
 from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
@@ -95,7 +95,7 @@ class CFGNode(Serializable):
         self.function_address = function_address
         self.block_id: Union["angr.analyses.cfg.cfg_job_base.BlockID", int] = block_id
         self.thumb = thumb
-        self.byte_string: Optional[bytes] = byte_string
+        self.byte_string: bytes | None = byte_string
 
         self._name = None
         if name is not None:

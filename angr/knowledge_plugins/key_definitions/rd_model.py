@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Set, Union, Optional, TYPE_CHECKING, overload
+from typing import Union, TYPE_CHECKING, overload
 
 from .atoms import Atom, Register, MemoryLocation, SpOffset
 from .uses import Uses
@@ -17,12 +17,12 @@ class ReachingDefinitionsModel:
     Models the definitions, uses, and memory of a ReachingDefinitionState object
     """
 
-    def __init__(self, func_addr: Optional[int] = None, track_liveness: bool = True):
+    def __init__(self, func_addr: int | None = None, track_liveness: bool = True):
         self.func_addr = func_addr  # do not use. only for pretty-printing
-        self.observed_results: Dict[
-            Tuple[str, Union[int, Tuple[int, int], Tuple[int, int, int]], ObservationPointType], LiveDefinitions
+        self.observed_results: dict[
+            tuple[str, int | tuple[int, int] | tuple[int, int, int], ObservationPointType], LiveDefinitions
         ] = {}
-        self.all_definitions: Set["Definition"] = set()
+        self.all_definitions: set["Definition"] = set()
         self.all_uses = Uses()
         self.liveness = Liveness() if track_liveness else None
 
@@ -44,7 +44,7 @@ class ReachingDefinitionsModel:
         if self.liveness is not None:
             self.liveness.at_new_stmt(codeloc)
 
-    def at_new_block(self, code_loc: "CodeLocation", pred_codelocs: List["CodeLocation"]) -> None:
+    def at_new_block(self, code_loc: "CodeLocation", pred_codelocs: list["CodeLocation"]) -> None:
         if self.liveness is not None:
             self.liveness.at_new_block(code_loc, pred_codelocs)
 
@@ -52,10 +52,10 @@ class ReachingDefinitionsModel:
         if self.liveness is not None:
             self.liveness.make_liveness_snapshot()
 
-    def find_defs_at(self, code_loc: "CodeLocation", op: int = OP_BEFORE) -> Set["Definition"]:
+    def find_defs_at(self, code_loc: "CodeLocation", op: int = OP_BEFORE) -> set["Definition"]:
         return self.liveness.find_defs_at(code_loc, op=op)
 
-    def get_defs(self, atom: Atom, code_loc: "CodeLocation", op: int) -> Set["Definition"]:
+    def get_defs(self, atom: Atom, code_loc: "CodeLocation", op: int) -> set["Definition"]:
         all_defs = self.liveness.find_defs_at(code_loc, op=op)
         defs = None
         if isinstance(atom, Register):
@@ -117,7 +117,7 @@ class ReachingDefinitionsModel:
 
     def get_observation_by_insn(
         self, ins_addr: Union[int, "CodeLocation"], kind: ObservationPointType
-    ) -> Optional[LiveDefinitions]:
+    ) -> LiveDefinitions | None:
         if isinstance(ins_addr, int):
             return self.observed_results.get(("insn", ins_addr, kind), None)
         elif ins_addr.ins_addr is None:
@@ -125,8 +125,8 @@ class ReachingDefinitionsModel:
         return self.observed_results.get(("insn", ins_addr.ins_addr, kind))
 
     def get_observation_by_node(
-        self, node_addr: Union[int, "CodeLocation"], kind: ObservationPointType, node_idx: Optional[int] = None
-    ) -> Optional[LiveDefinitions]:
+        self, node_addr: Union[int, "CodeLocation"], kind: ObservationPointType, node_idx: int | None = None
+    ) -> LiveDefinitions | None:
         if isinstance(node_addr, int):
             key = ("node", node_addr, kind) if node_idx is None else ("node", (node_addr, node_idx), kind)
             return self.observed_results.get(key, None)
@@ -141,11 +141,11 @@ class ReachingDefinitionsModel:
     @overload
     def get_observation_by_stmt(
         self, codeloc: "CodeLocation", kind: ObservationPointType
-    ) -> Optional[LiveDefinitions]: ...
+    ) -> LiveDefinitions | None: ...
 
     @overload
     def get_observation_by_stmt(
-        self, node_addr: int, stmt_idx: int, kind: ObservationPointType, *, block_idx: Optional[int] = None
+        self, node_addr: int, stmt_idx: int, kind: ObservationPointType, *, block_idx: int | None = None
     ): ...
 
     def get_observation_by_stmt(self, arg1, arg2, arg3=None, *, block_idx=None):
@@ -166,8 +166,8 @@ class ReachingDefinitionsModel:
         self,
         node_addr: int,
         stmt_idx: int,
-        src_node_idx: Optional[int] = None,
-    ) -> Optional[LiveDefinitions]:
+        src_node_idx: int | None = None,
+    ) -> LiveDefinitions | None:
         key = (
             ("exit", (node_addr, stmt_idx), ObservationPointType.OP_AFTER)
             if src_node_idx is None
