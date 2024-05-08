@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Optional, TYPE_CHECKING
+from typing import Union, TYPE_CHECKING
 import struct
 
 try:
@@ -20,7 +20,7 @@ if claripy:
     get_bits_type_params = Union[int, claripy.ast.Bits, "Expression"]
 
 
-def get_bits(expr: get_bits_type_params) -> Optional[int]:
+def get_bits(expr: get_bits_type_params) -> int | None:
     # delayed import
     from .expression import Expression
 
@@ -37,13 +37,13 @@ def get_bits(expr: get_bits_type_params) -> Optional[int]:
 md5_unpacker = struct.Struct("4I")
 
 
-def stable_hash(t: Tuple) -> int:
+def stable_hash(t: tuple) -> int:
     cnt = _dump_tuple(t)
     hd = md5lib.md5(cnt).digest()
     return md5_unpacker.unpack(hd)[0]  # 32 bits
 
 
-def _dump_tuple(t: Tuple) -> bytes:
+def _dump_tuple(t: tuple) -> bytes:
     cnt = b""
     for item in t:
         if item is not None:

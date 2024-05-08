@@ -1,6 +1,3 @@
-from typing import Dict
-
-
 class TaggedObject:
     """
     A class that takes arbitrary tags.
@@ -55,7 +52,7 @@ class TaggedObject:
         raise NotImplementedError()
 
     @property
-    def tags(self) -> Dict:
+    def tags(self) -> dict:
         if not self._tags:
             self._tags = {}
         return self._tags

@@ -224,7 +224,7 @@ class Jump(Statement):
         "target_idx",
     )
 
-    def __init__(self, idx, target, target_idx: Optional[int] = None, **kwargs):
+    def __init__(self, idx, target, target_idx: int | None = None, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.target = target
@@ -290,8 +290,8 @@ class ConditionalJump(Statement):
         condition,
         true_target,
         false_target,
-        true_target_idx: Optional[int] = None,
-        false_target_idx: Optional[int] = None,
+        true_target_idx: int | None = None,
+        false_target_idx: int | None = None,
         **kwargs,
     ):
         super().__init__(idx, **kwargs)
@@ -669,7 +669,7 @@ class Label(Statement):
         "block_idx",
     )
 
-    def __init__(self, idx, name: str, ins_addr: int, block_idx: Optional[int] = None, **kwargs):
+    def __init__(self, idx, name: str, ins_addr: int, block_idx: int | None = None, **kwargs):
         super().__init__(idx, **kwargs)
         self.name = name
         self.ins_addr = ins_addr

@@ -1,20 +1,19 @@
 import itertools
-from typing import Optional
 
 
 class Manager:
-    def __init__(self, name: Optional[str] = None, arch=None):
+    def __init__(self, name: str | None = None, arch=None):
         self.name = name
         self.arch = arch
 
         self.atom_ctr = itertools.count()
 
-        self._ins_addr: Optional[int] = None
+        self._ins_addr: int | None = None
 
         ###
         # vex specific
         ###
-        self.vex_stmt_idx: Optional[int] = None
+        self.vex_stmt_idx: int | None = None
         self.tyenv = None
         self.block_addr = None
 
@@ -25,7 +24,7 @@ class Manager:
         self.atom_ctr = itertools.count()
 
     @property
-    def ins_addr(self) -> Optional[int]:
+    def ins_addr(self) -> int | None:
         return self._ins_addr
 
     @ins_addr.setter

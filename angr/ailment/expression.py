@@ -1,5 +1,5 @@
 # pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 try:
     import claripy
@@ -1109,7 +1109,7 @@ class MultiStatementExpression(Expression):
         "expr",
     )
 
-    def __init__(self, idx: Optional[int], stmts: List["Statement"], expr: Expression, **kwargs):
+    def __init__(self, idx: int | None, stmts: list["Statement"], expr: Expression, **kwargs):
         super().__init__(idx, expr.depth + 1, **kwargs)
         self.stmts = stmts
         self.expr = expr

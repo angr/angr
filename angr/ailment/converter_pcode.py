@@ -1,4 +1,3 @@
-from typing import Dict, Tuple, Optional
 import logging
 
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -109,7 +108,7 @@ class PCodeIRSBConverter(Converter):
         self._statement_idx = 0
 
         # Remap all uniques s.t. they are write-once with values starting from 0
-        self._unique_tracker: Dict[int, Tuple[int, int]] = {}
+        self._unique_tracker: dict[int, tuple[int, int]] = {}
         self._unique_counter = 0
 
         self._special_op_handlers = {
@@ -245,7 +244,7 @@ class PCodeIRSBConverter(Converter):
             log.warning("Could not map register '%s' from archinfo. Mapping to %x", reg_name, reg_offset)
         return reg_offset
 
-    def _remap_temp(self, offset: int, size: int, is_write: bool) -> Optional[int]:
+    def _remap_temp(self, offset: int, size: int, is_write: bool) -> int | None:
         """
         Remap any unique space addresses such that they are written only once
 
