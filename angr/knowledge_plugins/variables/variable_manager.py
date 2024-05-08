@@ -207,7 +207,7 @@ class VariableManagerInternal(Serializable):
         unified_stack_variables = []
         unified_memory_variables = []
 
-        unified_variable_idents: Set[str] = set()
+        unified_variable_idents: set[str] = set()
         for variable in self._unified_variables:
             unified_variable_idents.add(variable.ident)
             if isinstance(variable, SimRegisterVariable):
