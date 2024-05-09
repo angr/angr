@@ -270,7 +270,9 @@ class SimEngineRDAIL(
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
             redefine_locals=stmt.args is None and not is_expr,
             caller_will_handle_single_ret=caller_will_handle_single_ret,
-            ret_atoms={Atom.from_ail_expr(ret_expr, self.arch)} if ret_expr is not None else None,
+            ret_atoms={Atom.from_ail_expr(ret_expr, self.arch)}  # TODO: Support stack atoms in the future
+            if isinstance(ret_expr, ailment.Expr.Register)
+            else None,
         )
 
         self._function_handler.handle_function(self.state, data)
