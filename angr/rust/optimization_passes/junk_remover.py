@@ -24,11 +24,7 @@ class JunkRemover(OptimizationPass):
     def _handle_dealloc(self, block):
         pass
 
-    def _try_remove_boundary_check(self):
-        """
-        Remove boundary check,
-        Boundary check could also be a hint of type inference
-        """
+    def _handle_unwrap_failed(self, block):
         pass
 
     def _analyze(self, cache=None):
@@ -154,4 +150,5 @@ class JunkRemover(OptimizationPass):
 JunkHandlers = {
     "alloc::alloc::handle_alloc_error": JunkRemover._handle_handle_alloc_error,
     "__rust_dealloc": JunkRemover._handle_dealloc,
+    "core::result::unwrap_failed": JunkRemover._handle_unwrap_failed,
 }
