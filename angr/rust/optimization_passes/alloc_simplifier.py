@@ -1,9 +1,10 @@
 import ailment
 import archinfo
+
+from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..ailment.expression import Vec, String
 from ..ailment.statement import RustCall
-from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString
 from .utils import extract_callee, extract_rust_function_name, extract_value
 
 
@@ -31,6 +32,7 @@ class AllocSimplifier(OptimizationPass):
         super().__init__(func, **kwargs)
 
         self.state = AllocSimplifierState()
+        self.librust = SIM_LIBRARIES["librust"]
         self.analyze()
 
     def _check(self):
@@ -161,13 +163,10 @@ class AllocSimplifier(OptimizationPass):
                 new_stmt = RustCall(
                     idx=addr.idx,
                     target="String::from",
-                    prototype=RustSimTypeFunction(
-                        args=[RustSimTypeStr().with_arch(self.project.arch)],
-                        returnty=RustSimTypeString().with_arch(self.project.arch),
-                    ),
+                    prototype=self.librust.get_prototype("String::from").with_arch(self.project.arch),
                     args=[data],
                     ret_expr=addr,
-                    ins_addr=self.state.alloc_call.ins_addr,
+                    **self.state.alloc_call.tags,
                 )
                 self.state.new_init_statements = tmp_new_init_statements
                 self._do_simplify(new_stmt)
@@ -213,13 +212,7 @@ class AllocSimplifier(OptimizationPass):
                 continue
             # Can we identify the region that contains all the blocks of the initialization process?
             self._try_identify_region(block)
-            if any(
-                block is None
-                for block in (
-                    self.state.alloc_block,
-                    self.state.init_block,
-                )
-            ):
+            if not self.state.alloc_block or not self.state.init_block:
                 continue
             self._try_simplify_alloc_block()
             # Can we extract the number of bytes allocated from alloc_block?
