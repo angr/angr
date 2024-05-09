@@ -4,7 +4,6 @@ import archinfo
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..ailment.expression import Vec, String
-from ..ailment.statement import RustCall
 from .utils import extract_callee, extract_rust_function_name, extract_value
 
 
@@ -160,7 +159,7 @@ class AllocSimplifier(OptimizationPass):
                         addr.idx, self.project.arch.bits * 3, addr.offset, **addr.tags
                     )
                 data = String(addr.idx, addr.variable, 0, self.project.arch.bits, decoded_str)
-                new_stmt = RustCall(
+                new_stmt = ailment.Stmt.Call(
                     idx=addr.idx,
                     target="String::from",
                     prototype=self.librust.get_prototype("String::from").with_arch(self.project.arch),

@@ -1,7 +1,6 @@
 import ailment
 
 from .utils import extract_callee, extract_rust_function_name
-from ..ailment.statement import RustCall
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -29,15 +28,15 @@ class LibFunctionIdentifier(OptimizationPass):
                     demangled_name = extract_rust_function_name(extract_callee(stmt, self.kb))
                     if librust.has_prototype(demangled_name):
                         prototype = librust.get_prototype(demangled_name).with_arch(self.project.arch)
-                        new_stmt = RustCall(
+                        new_stmt = ailment.Stmt.Call(
                             stmt.idx,
                             stmt.target,
                             stmt.calling_convention,
                             prototype,
                             stmt.args,
-                            stmt.ret_expr,
+                            stmt.ret_expr if prototype.returnty else None,
                             stmt.fp_ret_expr,
-                            ins_addr=stmt.ins_addr,
+                            **stmt.tags,
                         )
                         extract_callee(stmt, self.kb).prototype = prototype
                         new_stmt.prototype = prototype

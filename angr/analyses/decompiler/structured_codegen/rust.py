@@ -58,7 +58,6 @@ from ..structuring.structurer_nodes import (
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
 from ....rust.ailment.expression import String, Vec
-from ....rust.ailment.statement import RustCall
 
 if TYPE_CHECKING:
     import archinfo
@@ -2321,7 +2320,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
-            RustCall: self._handle_Stmt_RustCall,
             Stmt.Call: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
@@ -3134,7 +3132,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return RustAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_RustCall(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
+    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
             if not isinstance(stmt.target, str):
@@ -3171,64 +3169,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ret_expr = self._handle(stmt.ret_expr)
             if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
                 ret_expr = ret_expr.operand
-
-        result = RustFunctionCall(
-            target,
-            target_func,
-            args,
-            returning=target_func.returning if target_func is not None else True,
-            ret_expr=ret_expr,
-            tags=stmt.tags,
-            is_expr=is_expr,
-            show_demangled_name=self.show_demangled_name,
-            codegen=self,
-        )
-
-        if result.is_expr and result.type.size != stmt.size * self.project.arch.byte_width:
-            result = RustTypeCast(
-                result.type,
-                self.default_simtype_from_size(stmt.size, signed=getattr(result.type, "signed", False)),
-                result,
-                codegen=self,
-            )
-
-        return result
-
-    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
-        try:
-            # Try to handle it as a normal function call
-            if not isinstance(stmt.target, str):
-                target = self._handle(stmt.target)
-            else:
-                target = stmt.target
-        except UnsupportedNodeTypeError:
-            target = stmt.target
-
-        if isinstance(target, RustConstant):
-            target_func = self.kb.functions.function(addr=target.value)
-        else:
-            target_func = None
-
-        args = []
-        if stmt.args is not None:
-            for i, arg in enumerate(stmt.args):
-                type_ = None
-                if target_func is not None:
-                    if target_func.prototype is not None and i < len(target_func.prototype.args):
-                        type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-
-                if isinstance(arg, Expr.Const) and arg.__class__ not in [String, Vec]:
-                    if type_ is None or is_machine_word_size_type(type_, self.project.arch):
-                        type_ = guess_value_type(arg.value, self.project) or type_
-
-                    new_arg = self._handle_Expr_Const(arg, type_=type_)
-                else:
-                    new_arg = self._handle(arg)
-                args.append(new_arg)
-
-        ret_expr = None
-        if not is_expr and stmt.ret_expr is not None:
-            ret_expr = self._handle(stmt.ret_expr)
 
         result = RustFunctionCall(
             target,

@@ -27,7 +27,6 @@ from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimCCUsercall
-from angr.rust.ailment.statement import RustCall
 from angr.sim_type import (
     SimType,
     SimTypeChar,
@@ -2281,11 +2280,6 @@ class Clinic(Analysis):
                         variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr
                     )
 
-            elif stmt_type is RustCall:
-                self._link_variables_on_rust_call(
-                    variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False
-                )
-
             elif stmt_type is ailment.Stmt.Return:
                 assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
@@ -2311,19 +2305,12 @@ class Clinic(Analysis):
         if call_expr.args:
             for arg in call_expr.args:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
-
-    def _link_variables_on_rust_call(self, variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False):
-        if not isinstance(stmt.target, ailment.Expr.Const):
-            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
-        if stmt.args:
-            for arg in stmt.args:
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
-        if not is_expr and stmt.ret_expr:
+        if stmt.ret_expr:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr)
             # If stmt.ret_expr is stack variable, do some special handling
             if isinstance(stmt.ret_expr, ailment.Expr.StackBaseOffset):
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
-                if len(mem_vars) == 1:
+                if len(mem_vars):
                     stmt.ret_expr.variable, stmt.ret_expr.offset = next(iter(mem_vars))
 
     def _link_variables_on_expr(

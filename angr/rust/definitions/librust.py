@@ -1,4 +1,4 @@
-from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString
+from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString, RustSimTypeInt
 from ...procedures.definitions import SimLibrary
 
 librust = SimLibrary()
@@ -10,7 +10,7 @@ prototypes = {
         returnty=RustSimTypeString(),
     ),
     "std::io::stdio::_print": RustSimTypeFunction(
-        args=[RustSimTypeStr()],
+        args=[RustSimTypeInt()],
         returnty=None,
     ),
 }
