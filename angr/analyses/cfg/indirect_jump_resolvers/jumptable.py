@@ -1,6 +1,7 @@
 # pylint:disable=wrong-import-position,wrong-import-order
 import enum
-from typing import Tuple, Optional, Dict, Sequence, Set, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from collections.abc import Sequence
 import logging
 import functools
 from collections import defaultdict, OrderedDict
@@ -75,7 +76,7 @@ class AddressTransformation:
     Describe and record an address transformation operation.
     """
 
-    def __init__(self, op: AddressTransformationTypes, operands: List, first_load: bool = False):
+    def __init__(self, op: AddressTransformationTypes, operands: list, first_load: bool = False):
         self.op = op
         self.operands = operands
         self.first_load = first_load
@@ -295,7 +296,7 @@ class JumpTableProcessor(
     not be able to recover all jump targets later in block 0x4051b0.
     """
 
-    def __init__(self, project, indirect_jump_node_pred_addrs: Set[int], bp_sp_diff=0x100):
+    def __init__(self, project, indirect_jump_node_pred_addrs: set[int], bp_sp_diff=0x100):
         super().__init__()
         self.project = project
         self._bp_sp_diff = bp_sp_diff  # bp - sp
@@ -303,7 +304,7 @@ class JumpTableProcessor(
         self._indirect_jump_node_pred_addrs = indirect_jump_node_pred_addrs
 
         self._SPOFFSET_BASE = claripy.BVS("SpOffset", self.project.arch.bits, explicit_name=True)
-        self._REGOFFSET_BASE: Dict[int, claripy.ast.BV] = {}
+        self._REGOFFSET_BASE: dict[int, claripy.ast.BV] = {}
 
     def _top(self, size: int):
         return None
@@ -320,7 +321,7 @@ class JumpTableProcessor(
         return v
 
     @staticmethod
-    def _extract_spoffset_from_expr(expr: claripy.ast.Base) -> Optional[SpOffset]:
+    def _extract_spoffset_from_expr(expr: claripy.ast.Base) -> SpOffset | None:
         if expr.op == "BVS":
             for anno in expr.annotations:
                 if isinstance(anno, RegOffsetAnnotation):
@@ -351,7 +352,7 @@ class JumpTableProcessor(
         return v
 
     @staticmethod
-    def _extract_regoffset_from_expr(expr: claripy.ast.Base) -> Optional[RegisterOffset]:
+    def _extract_regoffset_from_expr(expr: claripy.ast.Base) -> RegisterOffset | None:
         if expr.op == "BVS":
             for anno in expr.annotations:
                 if isinstance(anno, RegOffsetAnnotation):
@@ -902,10 +903,10 @@ class JumpTableResolver(IndirectJumpResolver):
         addr: int,
         func: "Function",
         b: Blade,
-        cv_manager: Optional[ConstantValueManager],
+        cv_manager: ConstantValueManager | None,
         potential_call_table: bool = False,
         func_graph_complete: bool = True,
-    ) -> Tuple[bool, Optional[Sequence[int]]]:
+    ) -> tuple[bool, Sequence[int] | None]:
         """
         Internal method for resolving jump tables.
 
@@ -1173,7 +1174,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # initialization
         load_stmt_loc, load_stmt, load_size = None, None, None
         stmts_to_remove = [stmt_loc]
-        stmts_adding_base_addr: List[JumpTargetBaseAddr] = []
+        stmts_adding_base_addr: list[JumpTargetBaseAddr] = []
         # All temporary variables that hold indirect addresses loaded out of the memory
         # Obviously, load_stmt.tmp must be here
         # if there are additional data transferring statements between the Load statement and the base-address-adding
@@ -1189,7 +1190,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # all_addr_holders will be {(0x4c64c4, 11): (AddressTransferringTypes.SignedExtension, 32, 64,),
         #           (0x4c64c4, 12); (AddressTransferringTypes.Assignment,),
         #           }
-        transformations: Dict[Tuple[int, int], AddressTransformation] = OrderedDict()
+        transformations: dict[tuple[int, int], AddressTransformation] = OrderedDict()
 
         initial_block_addr = stmt_loc[0]
         all_load_stmts = sorted(self._all_qualified_load_stmts_in_slice(b, stmt_loc[0]))
@@ -1480,7 +1481,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return load_stmt_loc, load_stmt, load_size, stmts_to_remove, stmts_adding_base_addr, transformations
 
-    def _find_load_pc_ite_statement(self, b: Blade, stmt_loc: Tuple[int, int]):
+    def _find_load_pc_ite_statement(self, b: Blade, stmt_loc: tuple[int, int]):
         """
         Find the location of the final ITE statement that loads indirect jump targets into a tmp.
 
@@ -1658,7 +1659,7 @@ class JumpTableResolver(IndirectJumpResolver):
         load_stmt,
         load_size,
         stmts_adding_base_addr,
-        transformations: Dict[Tuple[int, int], AddressTransformation],
+        transformations: dict[tuple[int, int], AddressTransformation],
         potential_call_table: bool = False,
     ):
         """
@@ -2302,7 +2303,7 @@ class JumpTableResolver(IndirectJumpResolver):
             or self.project.loader.find_section_containing(addr) is not None
         )
 
-    def _all_qualified_load_stmts_in_slice(self, b: Blade, addr: int) -> List[int]:
+    def _all_qualified_load_stmts_in_slice(self, b: Blade, addr: int) -> list[int]:
         """
         Recognize all qualified load statements in a slice. A qualified load statements refers to those that are
         loading jump targets (or jump offsets) from a jump table, or loading jump table offsets from a jump-table

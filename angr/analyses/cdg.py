@@ -1,5 +1,3 @@
-from typing import Optional
-
 import logging
 
 import networkx
@@ -28,9 +26,9 @@ class CDG(Analysis):
 
         self._ancestor = None
         self._semi = None
-        self._post_dom: Optional[networkx.DiGraph] = None
+        self._post_dom: networkx.DiGraph | None = None
 
-        self._graph: Optional[networkx.DiGraph] = None
+        self._graph: networkx.DiGraph | None = None
         self._normalized_cfg = None
 
         if not no_construct:

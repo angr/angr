@@ -1,5 +1,6 @@
 import logging
-from typing import Optional, DefaultDict, Dict, Tuple, Set, Any, Union, TYPE_CHECKING, Iterable
+from typing import Optional, DefaultDict, Any, Union, TYPE_CHECKING
+from collections.abc import Iterable
 from collections import defaultdict
 
 import ailment
@@ -28,8 +29,8 @@ from .dep_graph import DepGraph
 if TYPE_CHECKING:
     from typing import Literal
 
-    ObservationPoint = Tuple[
-        Literal["insn", "node", "stmt", "exit"], Union[int, Tuple[int, int], Tuple[int, int, int]], ObservationPointType
+    ObservationPoint = tuple[
+        Literal["insn", "node", "stmt", "exit"], Union[int, tuple[int, int], tuple[int, int, int]], ObservationPointType
     ]
 
 l = logging.getLogger(name=__name__)
@@ -53,7 +54,7 @@ class ReachingDefinitionsAnalysis(
 
     def __init__(
         self,
-        subject: Union[Subject, ailment.Block, Block, Function, str] = None,
+        subject: Subject | ailment.Block | Block | Function | str = None,
         func_graph=None,
         max_iterations=30,
         track_tmps=False,
@@ -66,14 +67,14 @@ class ReachingDefinitionsAnalysis(
         function_handler: "Optional[FunctionHandler]" = None,
         observe_all=False,
         visited_blocks=None,
-        dep_graph: Union[DepGraph, bool, None] = True,
+        dep_graph: DepGraph | bool | None = True,
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
         interfunction_level: int = 0,
         track_liveness: bool = True,
-        func_addr: Optional[int] = None,
+        func_addr: int | None = None,
         element_limit: int = 5,
     ):
         """
@@ -198,13 +199,13 @@ class ReachingDefinitionsAnalysis(
             bp_as_gpr=bp_as_gpr,
         )
 
-        self._visited_blocks: Set[Any] = visited_blocks or set()
-        self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
+        self._visited_blocks: set[Any] = visited_blocks or set()
+        self.function_calls: dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
 
     @property
-    def observed_results(self) -> Dict[Tuple[str, int, int], LiveDefinitions]:
+    def observed_results(self) -> dict[tuple[str, int, int], LiveDefinitions]:
         return self.model.observed_results
 
     @property
@@ -270,7 +271,7 @@ class ReachingDefinitionsAnalysis(
         node_addr: int,
         state: ReachingDefinitionsState,
         op_type: ObservationPointType,
-        node_idx: Optional[int] = None,
+        node_idx: int | None = None,
     ) -> None:
         """
         :param node_addr:   Address of the node.
@@ -307,8 +308,8 @@ class ReachingDefinitionsAnalysis(
     def insn_observe(
         self,
         insn_addr: int,
-        stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
-        block: Union[Block, ailment.Block],
+        stmt: ailment.Stmt.Statement | pyvex.stmt.IRStmt,
+        block: Block | ailment.Block,
         state: ReachingDefinitionsState,
         op_type: ObservationPointType,
     ) -> None:
@@ -358,8 +359,8 @@ class ReachingDefinitionsAnalysis(
     def stmt_observe(
         self,
         stmt_idx: int,
-        stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
-        block: Union[Block, ailment.Block],
+        stmt: ailment.Stmt.Statement | pyvex.stmt.IRStmt,
+        block: Block | ailment.Block,
         state: ReachingDefinitionsState,
         op_type: ObservationPointType,
     ) -> None:
@@ -405,9 +406,9 @@ class ReachingDefinitionsAnalysis(
         self,
         node_addr: int,
         exit_stmt_idx: int,
-        block: Union[Block, ailment.Block],
+        block: Block | ailment.Block,
         state: ReachingDefinitionsState,
-        node_idx: Optional[int] = None,
+        node_idx: int | None = None,
     ):
         observe = False
         key = None
@@ -577,7 +578,7 @@ class ReachingDefinitionsAnalysis(
     def _post_analysis(self):
         pass
 
-    def callsites_to(self, target: Union[int, str, Function]) -> Iterable[FunctionCallRelationships]:
+    def callsites_to(self, target: int | str | Function) -> Iterable[FunctionCallRelationships]:
         if isinstance(target, (str, int)):
             try:
                 func_addr = self.project.kb.functions[target].addr

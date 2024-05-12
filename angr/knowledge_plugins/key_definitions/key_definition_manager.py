@@ -1,4 +1,5 @@
-from typing import Dict, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
 from .. import KnowledgeBasePlugin
 from .rd_model import ReachingDefinitionsModel
@@ -39,7 +40,7 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
 
     def __init__(self, kb: "KnowledgeBase"):
         super().__init__(kb=kb)
-        self.model_by_funcaddr: Dict[int, ReachingDefinitionsModel] = {}
+        self.model_by_funcaddr: dict[int, ReachingDefinitionsModel] = {}
 
     def has_model(self, func_addr: int):
         return func_addr in self.model_by_funcaddr

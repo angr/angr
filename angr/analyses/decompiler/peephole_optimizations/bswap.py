@@ -1,5 +1,3 @@
-from typing import Tuple, Optional
-
 from ailment.expression import BinaryOp, Const, Expression, Convert
 from ailment.statement import Call
 
@@ -101,7 +99,7 @@ class Bswap(PeepholeOptimizationExprBase):
 
         return None
 
-    def _match_inner(self, or_first: BinaryOp, or_second: BinaryOp) -> Tuple[bool, Optional[Expression]]:
+    def _match_inner(self, or_first: BinaryOp, or_second: BinaryOp) -> tuple[bool, Expression | None]:
         if isinstance(or_first.operands[1], Const) and or_first.operands[1].value == 0xFF00FF00:
             if isinstance(or_second.operands[1], Const) and or_second.operands[1].value == 0x00FF00FF:
                 inner_first = or_first.operands[0]

@@ -4,7 +4,7 @@ import sys
 import logging
 import subprocess
 from functools import lru_cache
-from typing import Optional, Sequence
+from collections.abc import Sequence
 from tempfile import NamedTemporaryFile
 
 from unittest import skipIf, skipUnless, skip, SkipTest
@@ -87,7 +87,7 @@ def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
     return tracer.TracerPoV(pov_file)
 
 
-def compile_c(c_code: str, cflags: Optional[Sequence[str]], silent: bool = False) -> NamedTemporaryFile:
+def compile_c(c_code: str, cflags: Sequence[str] | None, silent: bool = False) -> NamedTemporaryFile:
     # pylint:disable=consider-using-with
     """
     Compile `c_code` and return the file containing the compiled output

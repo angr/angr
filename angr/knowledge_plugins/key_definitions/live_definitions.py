@@ -1,4 +1,5 @@
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING, overload, Type
+from typing import Optional, Union, Any, TYPE_CHECKING, overload
+from collections.abc import Iterable, Generator
 import weakref
 import logging
 from enum import Enum, auto
@@ -182,8 +183,8 @@ class LiveDefinitions:
             if heap is None
             else heap
         )
-        self.tmps: Dict[int, Set[Definition]] = {} if tmps is None else tmps
-        self.others: Dict[Atom, MultiValues] = others if others is not None else {}
+        self.tmps: dict[int, set[Definition]] = {} if tmps is None else tmps
+        self.others: dict[Atom, MultiValues] = others if others is not None else {}
 
         # set state
         self.registers.set_state(self)
@@ -195,10 +196,10 @@ class LiveDefinitions:
         self.stack_uses = Uses() if stack_uses is None else stack_uses
         self.heap_uses = Uses() if heap_uses is None else heap_uses
         self.memory_uses = Uses() if memory_uses is None else memory_uses
-        self.tmp_uses: Dict[int, Set[CodeLocation]] = defaultdict(set) if tmp_uses is None else tmp_uses
+        self.tmp_uses: dict[int, set[CodeLocation]] = defaultdict(set) if tmp_uses is None else tmp_uses
         self.other_uses = Uses() if other_uses is None else other_uses
 
-        self.uses_by_codeloc: Dict[CodeLocation, Set[Definition]] = defaultdict(set)
+        self.uses_by_codeloc: dict[CodeLocation, set[Definition]] = defaultdict(set)
 
     @property
     @deprecated("registers")
@@ -260,8 +261,8 @@ class LiveDefinitions:
 
     @staticmethod
     def _mo_cmp(
-        mo_self: Union["SimMemoryObject", Set["SimMemoryObject"]],
-        mo_other: Union["SimMemoryObject", Set["SimMemoryObject"]],
+        mo_self: Union["SimMemoryObject", set["SimMemoryObject"]],
+        mo_other: Union["SimMemoryObject", set["SimMemoryObject"]],
         addr: int,
         size: int,
     ):  # pylint:disable=unused-argument
@@ -317,7 +318,7 @@ class LiveDefinitions:
                 return True
         return False
 
-    def stack_address(self, offset: int) -> Optional[claripy.ast.bv.BV]:
+    def stack_address(self, offset: int) -> claripy.ast.bv.BV | None:
         base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
         if offset:
             return base + offset
@@ -328,7 +329,7 @@ class LiveDefinitions:
         return "stack_base" in addr.variables
 
     @staticmethod
-    def get_stack_offset(addr: claripy.ast.Base, had_stack_base=False) -> Optional[int]:
+    def get_stack_offset(addr: claripy.ast.Base, had_stack_base=False) -> int | None:
         if had_stack_base and addr.op == "BVV":
             assert isinstance(addr, claripy.ast.BV)
             return addr.concrete_value
@@ -377,7 +378,7 @@ class LiveDefinitions:
                 yield anno.definition
 
     @staticmethod
-    def extract_defs_from_annotations(annos: Iterable["Annotation"]) -> Set[Definition]:
+    def extract_defs_from_annotations(annos: Iterable["Annotation"]) -> set[Definition]:
         defs = set()
         for anno in annos:
             if isinstance(anno, DefinitionAnnotation):
@@ -410,7 +411,7 @@ class LiveDefinitions:
         assert result is not None
         return result
 
-    def get_sp_offset(self) -> Optional[int]:
+    def get_sp_offset(self) -> int | None:
         """
         Return the offset of the stack pointer.
         """
@@ -426,7 +427,7 @@ class LiveDefinitions:
         result = self.get_stack_offset(sp_v)
         return result
 
-    def get_stack_address(self, offset: claripy.ast.Base) -> Optional[int]:
+    def get_stack_address(self, offset: claripy.ast.Base) -> int | None:
         offset_int = self.get_stack_offset(offset)
         if offset_int is None:
             return None
@@ -443,7 +444,7 @@ class LiveDefinitions:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
         return (base_v + offset) & mask
 
-    def merge(self, *others: "LiveDefinitions") -> Tuple["LiveDefinitions", bool]:
+    def merge(self, *others: "LiveDefinitions") -> tuple["LiveDefinitions", bool]:
         state = self.copy()
 
         merge_occurred = state.registers.merge([other.registers for other in others], None)
@@ -545,10 +546,10 @@ class LiveDefinitions:
         code_loc: CodeLocation,
         data: MultiValues,
         dummy=False,
-        tags: Optional[Set[Tag]] = None,
+        tags: set[Tag] | None = None,
         endness=None,
         annotated=False,
-    ) -> Optional[MultiValues]:
+    ) -> MultiValues | None:
         if data is None:
             raise TypeError("kill_and_add_definition() does not take None as data.")
 
@@ -612,7 +613,7 @@ class LiveDefinitions:
 
         return d
 
-    def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if isinstance(atom, Register):
             self.add_register_use(atom.reg_offset, atom.size, code_loc, expr=expr)
         elif isinstance(atom, MemoryLocation):
@@ -654,8 +655,8 @@ class LiveDefinitions:
             self.other_uses.add_use(definition, code_loc, expr)
 
     def get_definitions(
-        self, thing: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]], MultiValues]
-    ) -> Set[Definition[Atom]]:
+        self, thing: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]] | MultiValues
+    ) -> set[Definition[Atom]]:
         if isinstance(thing, MultiValues):
             defs = set()
             for vs in thing.values():
@@ -692,13 +693,13 @@ class LiveDefinitions:
                     defs |= self.get_definitions(mv)
             return defs
 
-    def get_tmp_definitions(self, tmp_idx: int) -> Set[Definition]:
+    def get_tmp_definitions(self, tmp_idx: int) -> set[Definition]:
         if tmp_idx in self.tmps:
             return self.tmps[tmp_idx]
         else:
             return set()
 
-    def get_register_definitions(self, reg_offset: int, size: int) -> Set[Definition]:
+    def get_register_definitions(self, reg_offset: int, size: int) -> set[Definition]:
         try:
             annotations = self.registers.load_annotations(reg_offset, size)
         except SimMemoryMissingError as ex:
@@ -710,14 +711,14 @@ class LiveDefinitions:
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
-    def get_stack_values(self, stack_offset: int, size: int, endness: str) -> Optional[MultiValues]:
+    def get_stack_values(self, stack_offset: int, size: int, endness: str) -> MultiValues | None:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
         try:
             return self.stack.load(stack_addr, size=size, endness=endness)
         except SimMemoryMissingError:
             return None
 
-    def get_stack_definitions(self, stack_offset: int, size: int) -> Set[Definition]:
+    def get_stack_definitions(self, stack_offset: int, size: int) -> set[Definition]:
         try:
             stack_addr = self.stack_offset_to_stack_addr(stack_offset)
             annotations = self.stack.load_annotations(stack_addr, size)
@@ -726,7 +727,7 @@ class LiveDefinitions:
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
-    def get_heap_definitions(self, heap_addr: int, size: int) -> Set[Definition]:
+    def get_heap_definitions(self, heap_addr: int, size: int) -> set[Definition]:
         try:
             annotations = self.heap.load_annotations(heap_addr, size)
         except SimMemoryMissingError:
@@ -734,7 +735,7 @@ class LiveDefinitions:
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
-    def get_memory_definitions(self, addr: int, size: int) -> Set[Definition]:
+    def get_memory_definitions(self, addr: int, size: int) -> set[Definition]:
         try:
             annotations = self.memory.load_annotations(addr, size)
         except SimMemoryMissingError:
@@ -750,19 +751,19 @@ class LiveDefinitions:
         return result
 
     @deprecated("get_values")
-    def get_value_from_definition(self, definition: Definition) -> Optional[MultiValues]:
+    def get_value_from_definition(self, definition: Definition) -> MultiValues | None:
         return self.get_value_from_atom(definition.atom)
 
     @deprecated("get_one_value")
-    def get_one_value_from_definition(self, definition: Definition) -> Optional[claripy.ast.bv.BV]:
+    def get_one_value_from_definition(self, definition: Definition) -> claripy.ast.bv.BV | None:
         return self.get_one_value_from_atom(definition.atom)
 
     @deprecated("get_concrete_value")
-    def get_concrete_value_from_definition(self, definition: Definition) -> Optional[int]:
+    def get_concrete_value_from_definition(self, definition: Definition) -> int | None:
         return self.get_concrete_value_from_atom(definition.atom)
 
     @deprecated("get_values")
-    def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
+    def get_value_from_atom(self, atom: Atom) -> MultiValues | None:
         if isinstance(atom, Register):
             try:
                 return self.registers.load(atom.reg_offset, size=atom.size)
@@ -792,14 +793,14 @@ class LiveDefinitions:
             return None
 
     @deprecated("get_one_value")
-    def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.bv.BV]:
+    def get_one_value_from_atom(self, atom: Atom) -> claripy.ast.bv.BV | None:
         r = self.get_value_from_atom(atom)
         if r is None:
             return None
         return r.one_value()
 
     @deprecated("get_concrete_value")
-    def get_concrete_value_from_atom(self, atom: Atom) -> Optional[int]:
+    def get_concrete_value_from_atom(self, atom: Atom) -> int | None:
         r = self.get_one_value_from_atom(atom)
         if r is None:
             return None
@@ -808,8 +809,8 @@ class LiveDefinitions:
         return r.concrete_value
 
     def get_values(
-        self, spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]]
-    ) -> Optional[MultiValues]:
+        self, spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]]
+    ) -> MultiValues | None:
         if isinstance(spec, Definition):
             atom = spec.atom
         elif isinstance(spec, Atom):
@@ -868,9 +869,9 @@ class LiveDefinitions:
 
     def get_one_value(
         self,
-        spec: Union[Atom, Definition, Iterable[Atom], Iterable[Definition[Atom]]],
+        spec: Atom | Definition | Iterable[Atom] | Iterable[Definition[Atom]],
         strip_annotations: bool = False,
-    ) -> Optional[claripy.ast.bv.BV]:
+    ) -> claripy.ast.bv.BV | None:
         r = self.get_values(spec)
         if r is None:
             return None
@@ -878,21 +879,21 @@ class LiveDefinitions:
 
     @overload
     def get_concrete_value(
-        self, spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]], cast_to: Type[int] = ...
-    ) -> Optional[int]: ...
+        self, spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]], cast_to: type[int] = ...
+    ) -> int | None: ...
 
     @overload
     def get_concrete_value(
         self,
-        spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]],
-        cast_to: Type[bytes] = ...,
-    ) -> Optional[bytes]: ...
+        spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
+        cast_to: type[bytes] = ...,
+    ) -> bytes | None: ...
 
     def get_concrete_value(
         self,
-        spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]],
-        cast_to: Union[Type[int], Type[bytes]] = int,
-    ) -> Union[int, bytes, None]:
+        spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
+        cast_to: type[int] | type[bytes] = int,
+    ) -> int | bytes | None:
         r = self.get_one_value(spec, strip_annotations=True)
         if r is None:
             return None
@@ -903,7 +904,7 @@ class LiveDefinitions:
             return result.to_bytes(len(r) // 8, "big")
         return result
 
-    def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Any | None = None) -> None:
         # get all current definitions
         try:
             mvs: MultiValues = self.registers.load(reg_offset, size=size)
@@ -915,22 +916,22 @@ class LiveDefinitions:
                 for def_ in self.extract_defs(v):
                     self.add_register_use_by_def(def_, code_loc, expr=expr)
 
-    def add_register_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_register_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Any | None = None) -> None:
         self.register_uses.add_use(def_, code_loc, expr=expr)
         self.uses_by_codeloc[code_loc].add(def_)
 
-    def add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if not isinstance(atom.addr, SpOffset):
             raise TypeError("Atom %r is not a stack location atom." % atom)
 
         for current_def in self.get_definitions(atom):
             self.add_stack_use_by_def(current_def, code_loc, expr=expr)
 
-    def add_stack_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_stack_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Any | None = None) -> None:
         self.stack_uses.add_use(def_, code_loc, expr=expr)
         self.uses_by_codeloc[code_loc].add(def_)
 
-    def add_heap_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_heap_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if not isinstance(atom.addr, HeapAddress):
             raise TypeError("Atom %r is not a heap location atom." % atom)
 
@@ -939,18 +940,18 @@ class LiveDefinitions:
         for current_def in current_defs:
             self.add_heap_use_by_def(current_def, code_loc, expr=expr)
 
-    def add_heap_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_heap_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Any | None = None) -> None:
         self.heap_uses.add_use(def_, code_loc, expr=expr)
         self.uses_by_codeloc[code_loc].add(def_)
 
-    def add_memory_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_memory_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         # get all current definitions
-        current_defs: Set[Definition] = self.get_definitions(atom)
+        current_defs: set[Definition] = self.get_definitions(atom)
 
         for current_def in current_defs:
             self.add_memory_use_by_def(current_def, code_loc, expr=expr)
 
-    def add_memory_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_memory_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Any | None = None) -> None:
         self.memory_uses.add_use(def_, code_loc, expr=expr)
         self.uses_by_codeloc[code_loc].add(def_)
 
@@ -977,18 +978,18 @@ class LiveDefinitions:
     @overload
     def deref(
         self,
-        pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
-        size: Union[int, DerefSize],
+        pointer: MultiValues | Atom | Definition | Iterable[Atom] | Iterable[Definition],
+        size: int | DerefSize,
         endness: archinfo.Endness = ...,
-    ) -> Set[MemoryLocation]: ...
+    ) -> set[MemoryLocation]: ...
 
     @overload
     def deref(
         self,
-        pointer: Union[int, claripy.ast.BV, HeapAddress, SpOffset],
-        size: Union[int, DerefSize],
+        pointer: int | claripy.ast.BV | HeapAddress | SpOffset,
+        size: int | DerefSize,
         endness: archinfo.Endness = ...,
-    ) -> Optional[MemoryLocation]: ...
+    ) -> MemoryLocation | None: ...
 
     def deref(self, pointer, size, endness=archinfo.Endness.BE):
         if isinstance(pointer, (Atom, Definition)):
@@ -1054,7 +1055,7 @@ class LiveDefinitions:
         return "heap_base" in addr.variables
 
     @staticmethod
-    def get_heap_offset(addr: claripy.ast.Base) -> Optional[int]:
+    def get_heap_offset(addr: claripy.ast.Base) -> int | None:
         if "heap_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
@@ -1062,7 +1063,7 @@ class LiveDefinitions:
                 return addr.args[1].concrete_value
         return None
 
-    def heap_address(self, offset: Union[int, HeapAddress]) -> claripy.ast.BV:
+    def heap_address(self, offset: int | HeapAddress) -> claripy.ast.BV:
         if isinstance(offset, HeapAddress):
             if not isinstance(offset.value, int):
                 raise TypeError("TODO: what's this? contact @rhelmot")

@@ -1,5 +1,4 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Union
 
 from ailment.expression import Convert, BinaryOp, Const
 
@@ -16,7 +15,7 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
     NAME = "Conv(64->32, (N * a) >> M) => a / N1"
     expr_classes = (Convert, BinaryOp)
 
-    def optimize(self, expr: Union[Convert, BinaryOp], **kwargs):
+    def optimize(self, expr: Convert | BinaryOp, **kwargs):
         r = None
 
         if isinstance(expr, Convert):

@@ -1,4 +1,4 @@
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import json
 import pickle
 
@@ -64,7 +64,7 @@ class StructuredCodeManagerSerializer:
             session.add(db_code)
 
     @staticmethod
-    def dict_strkey_to_intkey(d: Dict[str, Any]) -> Dict[int, Any]:
+    def dict_strkey_to_intkey(d: dict[str, Any]) -> dict[int, Any]:
         new_d = {}
 
         for key, value in d.items():

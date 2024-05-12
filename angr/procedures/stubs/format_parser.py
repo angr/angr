@@ -1,4 +1,4 @@
-from typing import List, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
 import math
@@ -432,7 +432,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self) -> Dict[bytes, "SimType"]:
+    def _all_spec(self) -> dict[bytes, "SimType"]:
         """
         All specifiers and their lengths.
         """
@@ -504,7 +504,7 @@ class FormatParser(SimProcedure):
 
         return None
 
-    def extract_components(self, fmt: List) -> List:
+    def extract_components(self, fmt: list) -> list:
         """
         Extract the actual formats from the format string `fmt`.
 

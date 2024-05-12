@@ -1,4 +1,4 @@
-from typing import Set, Optional, Literal, Type, TypeVar, Union, Generic
+from typing import Optional, Literal, TypeVar, Generic
 from dataclasses import dataclass
 import logging
 
@@ -25,18 +25,18 @@ class DefinitionMatchPredicate:
     internal class; don't worry about this.
     """
 
-    kind: Union[AtomKind, Type[Atom], None] = None
-    bbl_addr: Optional[int] = None
-    ins_addr: Optional[int] = None
-    variable: Optional[SimVariable] = None
-    variable_manager: Union[VariableManagerInternal, None, Literal[False]] = None
-    stack_offset: Optional[int] = None
-    reg_name: Optional[Union[str, int]] = None
-    heap_offset: Optional[int] = None
-    global_addr: Optional[int] = None
-    tmp_idx: Optional[int] = None
-    const_val: Optional[int] = None
-    extern: Optional[bool] = None
+    kind: AtomKind | type[Atom] | None = None
+    bbl_addr: int | None = None
+    ins_addr: int | None = None
+    variable: SimVariable | None = None
+    variable_manager: VariableManagerInternal | None | Literal[False] = None
+    stack_offset: int | None = None
+    reg_name: str | int | None = None
+    heap_offset: int | None = None
+    global_addr: int | None = None
+    tmp_idx: int | None = None
+    const_val: int | None = None
+    extern: bool | None = None
 
     @staticmethod
     def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
@@ -159,7 +159,7 @@ class Definition(Generic[A]):
         "_hash",
     )
 
-    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Optional[Set[Tag]] = None):
+    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: set[Tag] | None = None):
         self.atom: A = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy

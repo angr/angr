@@ -1,5 +1,5 @@
 import platform
-from typing import Optional, Union, Dict, List, Generic, TypeVar
+from typing import Union, Generic, TypeVar
 
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
@@ -26,11 +26,11 @@ class DynamicDictList(Generic[VT]):
 
     def __init__(
         self,
-        max_size: Optional[int] = None,
-        content: Optional[Union["DynamicDictList", Dict[int, VT], List[VT]]] = None,
+        max_size: int | None = None,
+        content: Union["DynamicDictList", dict[int, VT], list[VT]] | None = None,
     ):
-        self.list_content: Optional[List[VT]] = None
-        self.dict_content: Optional[Dict[int, VT]] = None
+        self.list_content: list[VT] | None = None
+        self.dict_content: dict[int, VT] | None = None
         self.max_size = max_size
 
         if content:

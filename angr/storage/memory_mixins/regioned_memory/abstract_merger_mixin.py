@@ -1,5 +1,6 @@
 import logging
-from typing import Iterable, Tuple, Any
+from typing import Any
+from collections.abc import Iterable
 
 from .. import MemoryMixin
 
@@ -7,7 +8,7 @@ l = logging.getLogger(name=__name__)
 
 
 class AbstractMergerMixin(MemoryMixin):
-    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs):
+    def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs):
         # if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
         #     should_reverse = True
         # elif self.state.arch.memory_endness == 'Iend_LE':

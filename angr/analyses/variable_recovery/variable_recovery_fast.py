@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
-from typing import Optional, List, Tuple, Union, DefaultDict, Set, Dict, TYPE_CHECKING
+from typing import DefaultDict, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -103,8 +103,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         return state
 
     def merge(
-        self, others: Tuple["VariableRecoveryFastState"], successor=None
-    ) -> Tuple["VariableRecoveryFastState", bool]:
+        self, others: tuple["VariableRecoveryFastState"], successor=None
+    ) -> tuple["VariableRecoveryFastState", bool]:
         """
         Merge two abstract states.
 
@@ -233,12 +233,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
     def __init__(
         self,
-        func: Union[Function, str, int],
-        func_graph: Optional[networkx.DiGraph] = None,
+        func: Function | str | int,
+        func_graph: networkx.DiGraph | None = None,
         max_iterations: int = 2,
         low_priority=False,
         track_sp=True,
-        func_args: Optional[List[SimVariable]] = None,
+        func_args: list[SimVariable] | None = None,
         store_live_variables=False,
         unify_variables=True,
     ):
@@ -276,9 +276,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._node_iterations = defaultdict(int)
 
         self._node_to_cc = {}
-        self.var_to_typevars: DefaultDict[SimVariable, Set[TypeVariable]] = defaultdict(set)
+        self.var_to_typevars: DefaultDict[SimVariable, set[TypeVariable]] = defaultdict(set)
         self.typevars = None
-        self.type_constraints: Optional[Dict["TypeVariable", Set["TypeConstraint"]]] = None
+        self.type_constraints: dict["TypeVariable", set["TypeConstraint"]] | None = None
         self.func_typevar = TypeVariable(name=func.name)
         self.delayed_type_constraints = None
         self.ret_val_size = None

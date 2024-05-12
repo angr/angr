@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Dict, List, Union
 import logging
 
 import networkx
@@ -30,7 +29,7 @@ class AnnotatedCFG:
         self._cfg = None
         self._target = None
 
-        self._run_statement_whitelist: Dict[int, Union[List[int], bool]] = defaultdict(list)
+        self._run_statement_whitelist: dict[int, list[int] | bool] = defaultdict(list)
         self._exit_taken = defaultdict(list)
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}

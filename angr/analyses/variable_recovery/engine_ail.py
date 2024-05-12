@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ,invalid-unary-operand-type
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import ailment
@@ -81,7 +81,7 @@ class SimEngineVRAIL(
     def _ail_handle_ConditionalJump(self, stmt):
         self._expr(stmt.condition)
 
-    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False) -> Optional[RichR]:
+    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False) -> RichR | None:
         target = stmt.target
         args = []
         if stmt.args:
@@ -98,7 +98,7 @@ class SimEngineVRAIL(
         create_variable = True
         if not is_expr:
             # this is a call statement. we need to update the return value register later
-            ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
+            ret_expr: ailment.Expr.Register | None = stmt.ret_expr
             if ret_expr is not None:
                 ret_reg_offset = ret_expr.reg_offset
                 ret_expr_bits = ret_expr.bits
@@ -130,8 +130,8 @@ class SimEngineVRAIL(
             self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
 
         # discover the prototype
-        prototype: Optional[SimTypeFunction] = None
-        prototype_libname: Optional[str] = None
+        prototype: SimTypeFunction | None = None
+        prototype_libname: str | None = None
         if stmt.prototype is not None:
             prototype = stmt.prototype
         if isinstance(stmt.target, ailment.Expr.Const):

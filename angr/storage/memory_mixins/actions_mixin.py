@@ -1,5 +1,3 @@
-from typing import Optional
-
 from ...state_plugins.sim_action import SimActionData, SimActionObject
 from ... import sim_options as o
 from . import MemoryMixin
@@ -62,7 +60,7 @@ class ActionsMixinLow(MemoryMixin):
             action.actual_addrs.append(addr)
         return super().load(addr, action=action, **kwargs)
 
-    def store(self, addr, data, action: Optional[SimActionData] = None, **kwargs):
+    def store(self, addr, data, action: SimActionData | None = None, **kwargs):
         if action is not None:
             if action.actual_addrs is None:
                 action.actual_addrs = []

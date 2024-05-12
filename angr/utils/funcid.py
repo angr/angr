@@ -1,5 +1,4 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Optional
 
 import capstone
 
@@ -32,7 +31,7 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
     return False
 
 
-def is_function_security_init_cookie(func: "Function", project, security_cookie_addr: Optional[int]) -> bool:
+def is_function_security_init_cookie(func: "Function", project, security_cookie_addr: int | None) -> bool:
     if func.is_plt or func.is_syscall or func.is_simprocedure:
         return False
     # the function should have only one return point

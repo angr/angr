@@ -1,5 +1,5 @@
 # pylint:disable=line-too-long,multiple-statements
-from typing import Dict, Tuple, List, Optional, Union, TYPE_CHECKING, Any, Set
+from typing import Optional, TYPE_CHECKING, Any
 import logging
 from collections import defaultdict
 
@@ -48,7 +48,7 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
 
-    tag: Optional[str] = None
+    tag: str | None = None
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(
@@ -128,7 +128,7 @@ class CFGBase(Analysis):
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
-        self._updated_nonreturning_functions: Optional[Set[int]] = None
+        self._updated_nonreturning_functions: set[int] | None = None
 
         self._normalize = normalize
 
@@ -137,7 +137,7 @@ class CFGBase(Analysis):
 
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
-        self.indirect_jumps: Dict[int, IndirectJump] = {}
+        self.indirect_jumps: dict[int, IndirectJump] = {}
         self._indirect_jumps_to_resolve = set()
 
         # Indirect jump resolvers
@@ -245,7 +245,7 @@ class CFGBase(Analysis):
             )
 
         self._regions_size = sum((end - start) for start, end in regions)
-        self._regions: Dict[int, int] = SortedDict(regions)
+        self._regions: dict[int, int] = SortedDict(regions)
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
         for start, end in self._regions.items():
@@ -610,7 +610,7 @@ class CFGBase(Analysis):
 
     # Methods for determining scanning scope
 
-    def _inside_regions(self, address: Optional[int]) -> bool:
+    def _inside_regions(self, address: int | None) -> bool:
         """
         Check if the address is inside any existing region.
 
@@ -625,7 +625,7 @@ class CFGBase(Analysis):
         else:
             return address < self._regions[start_addr]
 
-    def _get_min_addr(self) -> Optional[int]:
+    def _get_min_addr(self) -> int | None:
         """
         Get the minimum address out of all regions. We assume self._regions is sorted.
 
@@ -639,7 +639,7 @@ class CFGBase(Analysis):
 
         return next(self._regions.irange())
 
-    def _next_address_in_regions(self, address: Optional[int]) -> Optional[int]:
+    def _next_address_in_regions(self, address: int | None) -> int | None:
         """
         Return the next immediate address that is inside any of the regions.
 
@@ -2049,7 +2049,7 @@ class CFGBase(Analysis):
 
     def _process_jump_table_targeted_functions(
         self, functions, predetermined_function_addrs, blockaddr_to_function
-    ) -> Set[int]:
+    ) -> set[int]:
         """
         Sometimes compilers will optimize "cold" code regions, make them separate functions, mark them as cold, which
         conflicts with how angr handles jumps to these functions (because they weren't functions to start with). Here
@@ -2073,7 +2073,7 @@ class CFGBase(Analysis):
         source function where the corresponding jump table belongs.
         """
 
-        jumptable_entries: Set[int] = set()
+        jumptable_entries: set[int] = set()
         for jt in self.model.jump_tables.values():
             assert jt.jumptable_entries is not None
             jumptable_entries |= set(jt.jumptable_entries)
@@ -2162,7 +2162,7 @@ class CFGBase(Analysis):
         src_addr,
         dst_addr,
         src_function,
-        all_edges: List[Tuple[CFGNode, CFGNode, Any]],
+        all_edges: list[tuple[CFGNode, CFGNode, Any]],
         known_functions,
         blockaddr_to_function,
     ):
@@ -2793,8 +2793,8 @@ class CFGBase(Analysis):
         cfg_node: CFGNode,
         irsb: pyvex.IRSB,
         func_addr: int,
-        stmt_idx: Union[int, str] = DEFAULT_STATEMENT,
-    ) -> Tuple[bool, Set[int], Optional[IndirectJump]]:
+        stmt_idx: int | str = DEFAULT_STATEMENT,
+    ) -> tuple[bool, set[int], IndirectJump | None]:
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
         indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
@@ -2877,7 +2877,7 @@ class CFGBase(Analysis):
 
         return all_targets
 
-    def _process_one_indirect_jump(self, jump: IndirectJump, func_graph_complete: bool = True) -> Set:
+    def _process_one_indirect_jump(self, jump: IndirectJump, func_graph_complete: bool = True) -> set:
         """
         Resolve a given indirect jump.
 

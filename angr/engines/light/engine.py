@@ -1,5 +1,5 @@
 # pylint:disable=no-self-use,isinstance-second-argument-not-valid-type,unused-argument
-from typing import Tuple, Optional, Union, Any
+from typing import Any
 import struct
 import re
 import logging
@@ -23,7 +23,7 @@ class SimEngineLightMixin:
     """
 
     def __init__(self, *args, logger=None, **kwargs):
-        self.arch: Optional[archinfo.Arch] = None
+        self.arch: archinfo.Arch | None = None
         self.l = logger
         super().__init__(*args, **kwargs)
 
@@ -53,7 +53,7 @@ class SimEngineLightMixin:
         return base
 
     @staticmethod
-    def extract_offset_to_sp(spoffset_expr: claripy.ast.Base) -> Optional[int]:
+    def extract_offset_to_sp(spoffset_expr: claripy.ast.Base) -> int | None:
         """
         Extract the offset to the original stack pointer.
 
@@ -485,7 +485,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     # Binary operation handlers
     #
 
-    def _binop_get_args(self, expr) -> Union[Optional[Tuple[Any, Any]], Optional[Any]]:
+    def _binop_get_args(self, expr) -> tuple[Any, Any] | None | Any | None:
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:

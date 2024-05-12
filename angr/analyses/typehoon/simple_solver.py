@@ -1,5 +1,5 @@
 # pylint:disable=missing-class-docstring
-from typing import Union, Type, Set, Dict, Optional, Tuple, List, DefaultDict
+from typing import DefaultDict
 import enum
 from collections import defaultdict
 import logging
@@ -125,8 +125,8 @@ class SketchNode(SketchNodeBase):
 
     __slots__ = ("typevar", "upper_bound", "lower_bound")
 
-    def __init__(self, typevar: Union[TypeVariable, DerivedTypeVariable]):
-        self.typevar: Union[TypeVariable, DerivedTypeVariable] = typevar
+    def __init__(self, typevar: TypeVariable | DerivedTypeVariable):
+        self.typevar: TypeVariable | DerivedTypeVariable = typevar
         self.upper_bound = TopType()
         self.lower_bound = BottomType()
 
@@ -172,17 +172,17 @@ class Sketch:
     def __init__(self, solver: "SimpleSolver", root: TypeVariable):
         self.root: SketchNode = SketchNode(root)
         self.graph = networkx.DiGraph()
-        self.node_mapping: Dict[Union[TypeVariable, DerivedTypeVariable], SketchNodeBase] = {}
+        self.node_mapping: dict[TypeVariable | DerivedTypeVariable, SketchNodeBase] = {}
         self.solver = solver
 
         # add the root node
         self.graph.add_node(self.root)
         self.node_mapping[root] = self.root
 
-    def lookup(self, typevar: Union[TypeVariable, DerivedTypeVariable]) -> Optional[SketchNodeBase]:
+    def lookup(self, typevar: TypeVariable | DerivedTypeVariable) -> SketchNodeBase | None:
         if typevar in self.node_mapping:
             return self.node_mapping[typevar]
-        node: Optional[SketchNodeBase] = None
+        node: SketchNodeBase | None = None
         if isinstance(typevar, DerivedTypeVariable):
             node = self.node_mapping[SimpleSolver._to_typevar_or_typeconst(typevar.type_var)]
             for label in typevar.labels:
@@ -210,21 +210,21 @@ class Sketch:
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             supertype, PRIMITIVE_TYPES
         ):
-            super_node: Optional[SketchNode] = self.lookup(supertype)
+            super_node: SketchNode | None = self.lookup(supertype)
             if super_node is not None:
                 super_node.lower_bound = self.solver.join(super_node.lower_bound, subtype)
         elif SimpleSolver._typevar_inside_set(supertype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             subtype, PRIMITIVE_TYPES
         ):
-            sub_node: Optional[SketchNode] = self.lookup(subtype)
+            sub_node: SketchNode | None = self.lookup(subtype)
             # assert sub_node is not None
             if sub_node is not None:
                 sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)
 
     @staticmethod
     def flatten_typevar(
-        derived_typevar: Union[TypeVariable, TypeConstant, DerivedTypeVariable]
-    ) -> Union[DerivedTypeVariable, TypeVariable, TypeConstant]:
+        derived_typevar: TypeVariable | TypeConstant | DerivedTypeVariable,
+    ) -> DerivedTypeVariable | TypeVariable | TypeConstant:
         # pylint:disable=too-many-boolean-expressions
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
@@ -261,7 +261,7 @@ class ConstraintGraphNode:
 
     def __init__(
         self,
-        typevar: Union[TypeVariable, DerivedTypeVariable],
+        typevar: TypeVariable | DerivedTypeVariable,
         variance: Variance,
         tag: ConstraintGraphTag,
         forgotten: FORGOTTEN,
@@ -298,7 +298,7 @@ class ConstraintGraphNode:
     def __hash__(self):
         return hash((ConstraintGraphNode, self.typevar, self.variance, self.tag, self.forgotten))
 
-    def forget_last_label(self) -> Optional[Tuple["ConstraintGraphNode", BaseLabel]]:
+    def forget_last_label(self) -> tuple["ConstraintGraphNode", BaseLabel] | None:
         if isinstance(self.typevar, DerivedTypeVariable) and self.typevar.labels:
             last_label = self.typevar.labels[-1]
             if len(self.typevar.labels) == 1:
@@ -382,8 +382,8 @@ class SimpleSolver:
             raise ValueError("Pointer size %d is not supported. Expect 32 or 64." % bits)
 
         self.bits = bits
-        self._constraints: Dict[TypeVariable, Set[TypeConstraint]] = constraints
-        self._typevars: Set[TypeVariable] = typevars
+        self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
+        self._typevars: set[TypeVariable] = typevars
         self._base_lattice = BASE_LATTICES[bits]
         self._base_lattice_inverted = networkx.DiGraph()
         for src, dst in self._base_lattice.edges:
@@ -463,15 +463,15 @@ class SimpleSolver:
         return equivalence_classes, sketches, type_schemes
 
     def infer_shapes(
-        self, typevars: Set[TypeVariable], constraints: Set[TypeConstraint]
-    ) -> Tuple[Dict, Dict[TypeVariable, Sketch]]:
+        self, typevars: set[TypeVariable], constraints: set[TypeConstraint]
+    ) -> tuple[dict, dict[TypeVariable, Sketch]]:
         """
         Computing sketches from constraint sets. Implements Algorithm E.1 in the retypd paper.
         """
 
         equivalence_classes, quotient_graph = self.compute_quotient_graph(constraints)
 
-        sketches: Dict[TypeVariable, Sketch] = {}
+        sketches: dict[TypeVariable, Sketch] = {}
         for tv in typevars:
             sketches[tv] = Sketch(self, tv)
 
@@ -485,7 +485,7 @@ class SimpleSolver:
             self._get_all_paths(quotient_graph, sketch, graph_node, visited)
         return equivalence_classes, sketches
 
-    def compute_quotient_graph(self, constraints: Set[TypeConstraint]):
+    def compute_quotient_graph(self, constraints: set[TypeConstraint]):
         """
         Compute the quotient graph (the constraint graph modulo ~ in Algorithm E.1 in the retypd paper) with respect to
         a given set of type constraints.
@@ -547,21 +547,21 @@ class SimpleSolver:
 
     def _generate_primitive_constraints(
         self,
-        non_primitive_endpoints: Set[Union[TypeVariable, DerivedTypeVariable]],
+        non_primitive_endpoints: set[TypeVariable | DerivedTypeVariable],
         constraint_graph,
-    ) -> Set[TypeConstraint]:
+    ) -> set[TypeConstraint]:
         # FIXME: Extract interesting variables
         constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
         constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
         return constraints_0 | constraints_1
 
     @staticmethod
-    def _typevars_from_constraints(constraints: Set[TypeConstraint]) -> Set[Union[TypeVariable, DerivedTypeVariable]]:
+    def _typevars_from_constraints(constraints: set[TypeConstraint]) -> set[TypeVariable | DerivedTypeVariable]:
         """
         Collect derived type variables from a set of constraints.
         """
 
-        typevars: Set[Union[TypeVariable, DerivedTypeVariable]] = set()
+        typevars: set[TypeVariable | DerivedTypeVariable] = set()
         for constraint in constraints:
             if isinstance(constraint, Subtype):
                 typevars.add(constraint.sub_type)
@@ -574,7 +574,7 @@ class SimpleSolver:
         graph: networkx.DiGraph,
         sketch: Sketch,
         node: DerivedTypeVariable,
-        visited: Dict[Union[TypeVariable, DerivedTypeVariable], SketchNode],
+        visited: dict[TypeVariable | DerivedTypeVariable, SketchNode],
     ):
         if node not in graph:
             return
@@ -608,7 +608,7 @@ class SimpleSolver:
 
     @staticmethod
     def _unify(
-        equivalence_classes: Dict, cls0: DerivedTypeVariable, cls1: DerivedTypeVariable, graph: networkx.DiGraph
+        equivalence_classes: dict, cls0: DerivedTypeVariable, cls1: DerivedTypeVariable, graph: networkx.DiGraph
     ) -> None:
         # first convert cls0 and cls1 to their equivalence classes
         cls0 = equivalence_classes[cls0]
@@ -736,8 +736,8 @@ class SimpleSolver:
 
     @staticmethod
     def _generate_constraint_subset(
-        constraints: Set[TypeConstraint], typevars: Set[TypeVariable]
-    ) -> Set[TypeConstraint]:
+        constraints: set[TypeConstraint], typevars: set[TypeVariable]
+    ) -> set[TypeConstraint]:
         subset = set()
         related_typevars = set(typevars)
         while True:
@@ -770,7 +770,7 @@ class SimpleSolver:
         return subset
 
     def _generate_constraint_graph(
-        self, constraints: Set[TypeConstraint], interesting_variables: Set[DerivedTypeVariable]
+        self, constraints: set[TypeConstraint], interesting_variables: set[DerivedTypeVariable]
     ) -> networkx.DiGraph:
         """
         A constraint graph is the same as the finite state transducer that is presented in Appendix D in the retypd
@@ -811,9 +811,9 @@ class SimpleSolver:
     def _constraint_graph_add_edges(
         self,
         graph: networkx.DiGraph,
-        subtype: Union[TypeVariable, DerivedTypeVariable],
-        supertype: Union[TypeVariable, DerivedTypeVariable],
-        interesting_variables: Set[DerivedTypeVariable],
+        subtype: TypeVariable | DerivedTypeVariable,
+        supertype: TypeVariable | DerivedTypeVariable,
+        interesting_variables: set[DerivedTypeVariable],
     ):
         # left and right tags
         if self._typevar_inside_set(self._to_typevar_or_typeconst(subtype), interesting_variables):
@@ -844,7 +844,7 @@ class SimpleSolver:
         """
         The saturation algorithm D.2 as described in Appendix of the retypd paper.
         """
-        R: DefaultDict[ConstraintGraphNode, Set[Tuple[BaseLabel, ConstraintGraphNode]]] = defaultdict(set)
+        R: DefaultDict[ConstraintGraphNode, set[tuple[BaseLabel, ConstraintGraphNode]]] = defaultdict(set)
 
         # initialize the reaching-push sets R(x)
         for x, y, data in graph.edges(data=True):
@@ -913,9 +913,7 @@ class SimpleSolver:
             graph.add_edge(forget_src, forget_dst, **data)
 
     @staticmethod
-    def _to_typevar_or_typeconst(
-        obj: Union[TypeVariable, DerivedTypeVariable, TypeConstant]
-    ) -> Union[TypeVariable, TypeConstant]:
+    def _to_typevar_or_typeconst(obj: TypeVariable | DerivedTypeVariable | TypeConstant) -> TypeVariable | TypeConstant:
         if isinstance(obj, DerivedTypeVariable):
             return SimpleSolver._to_typevar_or_typeconst(obj.type_var)
         elif isinstance(obj, TypeVariable):
@@ -929,7 +927,7 @@ class SimpleSolver:
     #
 
     @staticmethod
-    def _typevar_inside_set(typevar, typevar_set: Set[Union[TypeConstant, TypeVariable, DerivedTypeVariable]]) -> bool:
+    def _typevar_inside_set(typevar, typevar_set: set[TypeConstant | TypeVariable | DerivedTypeVariable]) -> bool:
         if typevar in typevar_set:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
@@ -948,9 +946,9 @@ class SimpleSolver:
     def _solve_constraints_between(
         self,
         graph: networkx.DiGraph,
-        starts: Set[Union[TypeConstant, TypeVariable, DerivedTypeVariable]],
-        ends: Set[Union[TypeConstant, TypeVariable, DerivedTypeVariable]],
-    ) -> Set[TypeConstraint]:
+        starts: set[TypeConstant | TypeVariable | DerivedTypeVariable],
+        ends: set[TypeConstant | TypeVariable | DerivedTypeVariable],
+    ) -> set[TypeConstraint]:
         start_nodes = set()
         end_nodes = set()
         for node in graph.nodes:
@@ -979,7 +977,7 @@ class SimpleSolver:
     # Type lattice
     #
 
-    def join(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> TypeConstant:
+    def join(self, t1: TypeConstant | TypeVariable, t2: TypeConstant | TypeVariable) -> TypeConstant:
         abstract_t1 = self.abstract(t1)
         abstract_t2 = self.abstract(t2)
         if abstract_t1 in self._base_lattice and abstract_t2 in self._base_lattice:
@@ -996,7 +994,7 @@ class SimpleSolver:
             return t1
         return Bottom_
 
-    def meet(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> TypeConstant:
+    def meet(self, t1: TypeConstant | TypeVariable, t2: TypeConstant | TypeVariable) -> TypeConstant:
         abstract_t1 = self.abstract(t1)
         abstract_t2 = self.abstract(t2)
         if abstract_t1 in self._base_lattice_inverted and abstract_t2 in self._base_lattice_inverted:
@@ -1014,7 +1012,7 @@ class SimpleSolver:
         return Top_
 
     @staticmethod
-    def abstract(t: Union[TypeConstant, TypeVariable]) -> Union[TypeConstant, TypeVariable]:
+    def abstract(t: TypeConstant | TypeVariable) -> TypeConstant | TypeVariable:
         if isinstance(t, Pointer32):
             return Pointer32()
         elif isinstance(t, Pointer64):
@@ -1023,10 +1021,10 @@ class SimpleSolver:
 
     def determine(
         self,
-        equivalent_classes: Dict[TypeVariable, TypeVariable],
+        equivalent_classes: dict[TypeVariable, TypeVariable],
         sketches,
-        solution: Dict,
-        nodes: Optional[Set[SketchNode]] = None,
+        solution: dict,
+        nodes: set[SketchNode] | None = None,
     ) -> None:
         """
         Determine C-like types from sketches.
@@ -1045,9 +1043,7 @@ class SimpleSolver:
             if v not in solution and e in solution:
                 solution[v] = solution[e]
 
-    def _determine(
-        self, equivalent_classes, the_typevar, sketch, solution: Dict, nodes: Optional[Set[SketchNode]] = None
-    ):
+    def _determine(self, equivalent_classes, the_typevar, sketch, solution: dict, nodes: set[SketchNode] | None = None):
         """
         Return the solution from sketches
         """
@@ -1214,13 +1210,13 @@ class SimpleSolver:
         return result
 
     @staticmethod
-    def _collect_sketch_paths(node: SketchNodeBase, sketch: Sketch) -> List[Tuple[List[BaseLabel], SketchNodeBase]]:
+    def _collect_sketch_paths(node: SketchNodeBase, sketch: Sketch) -> list[tuple[list[BaseLabel], SketchNodeBase]]:
         """
         Collect all paths that go from `typevar` to its leaves.
         """
         paths = []
-        visited: Set[SketchNodeBase] = set()
-        queue: List[Tuple[List[BaseLabel], SketchNodeBase]] = [([], node)]
+        visited: set[SketchNodeBase] = set()
+        queue: list[tuple[list[BaseLabel], SketchNodeBase]] = [([], node)]
 
         while queue:
             curr_labels, curr_node = queue.pop(0)
@@ -1232,7 +1228,7 @@ class SimpleSolver:
             for _, succ, data in out_edges:
                 if isinstance(succ, RecursiveRefNode):
                     ref = succ
-                    succ: Optional[SketchNode] = sketch.lookup(succ.target)
+                    succ: SketchNode | None = sketch.lookup(succ.target)
                     if succ is None:
                         # failed to resolve...
                         _l.warning(
@@ -1254,7 +1250,7 @@ class SimpleSolver:
 
         return paths
 
-    def _pointer_class(self) -> Union[Type[Pointer32], Type[Pointer64]]:
+    def _pointer_class(self) -> type[Pointer32] | type[Pointer64]:
         if self.bits == 32:
             return Pointer32
         elif self.bits == 64:

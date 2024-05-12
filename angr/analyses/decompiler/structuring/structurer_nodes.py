@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring
-from typing import List, Tuple, Any, Optional, Union, OrderedDict as ODict
+from typing import Any
+from collections import OrderedDict as ODict
 
 import claripy
 import ailment
@@ -95,7 +96,7 @@ class BaseNode:
 
         return True
 
-    addr: Optional[int]
+    addr: int | None
 
     def dbg_repr(self, indent=0):
         return " " * indent + f"## dbg_repr not implemented for {type(self).__name__}"
@@ -107,7 +108,7 @@ class SequenceNode(BaseNode):
         "nodes",
     )
 
-    def __init__(self, addr: Optional[int], nodes=None):
+    def __init__(self, addr: int | None, nodes=None):
         self.addr = addr
         self.nodes = nodes if nodes is not None else []
 
@@ -237,7 +238,7 @@ class CascadingConditionNode(BaseNode):
         "else_node",
     )
 
-    def __init__(self, addr, condition_and_nodes: List[Tuple[Any, BaseNode]], else_node: BaseNode = None):
+    def __init__(self, addr, condition_and_nodes: list[tuple[Any, BaseNode]], else_node: BaseNode = None):
         self.addr = addr
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
@@ -357,9 +358,9 @@ class SwitchCaseNode(BaseNode):
         "addr",
     )
 
-    def __init__(self, switch_expr, cases: ODict[Union[int, Tuple[int, ...]], SequenceNode], default_node, addr=None):
+    def __init__(self, switch_expr, cases: ODict[int | tuple[int, ...], SequenceNode], default_node, addr=None):
         self.switch_expr = switch_expr
-        self.cases: ODict[Union[int, Tuple[int, ...]], SequenceNode] = cases
+        self.cases: ODict[int | tuple[int, ...], SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
 
@@ -372,10 +373,10 @@ class IncompleteSwitchCaseNode(BaseNode):
 
     __slots__ = ("addr", "head", "cases")
 
-    def __init__(self, addr, head, cases: List):
+    def __init__(self, addr, head, cases: list):
         self.addr = addr
         self.head = head
-        self.cases: List = cases
+        self.cases: list = cases
 
 
 #
@@ -395,7 +396,7 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
         self.switch_variable = switch_variable
         # original cmp node, case value | "default", address of the case node, idx of the case node,
         # address of the next cmp node
-        self.case_addrs: List[Tuple[ailment.Block, Union[int, str], int, Optional[int], int]] = case_addrs
+        self.case_addrs: list[tuple[ailment.Block, int | str, int, int | None, int]] = case_addrs
         # a string representation of the addresses of all cases, used for hashing
         self._case_addrs_str = str(sorted([c[0].addr for c in self.case_addrs if c[0] is not None]))
 

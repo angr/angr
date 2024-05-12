@@ -1,5 +1,6 @@
 import cffi
-from typing import Tuple, Type, Dict, Optional, Iterable, Set, Any
+from typing import Any
+from collections.abc import Iterable
 import logging
 from collections import defaultdict
 
@@ -22,7 +23,7 @@ class PagedMemoryMixin(MemoryMixin):
     """
 
     SUPPORTS_CONCRETE_LOAD = True
-    PAGE_TYPE: Type[PageType] = None  # must be provided in subclass
+    PAGE_TYPE: type[PageType] = None  # must be provided in subclass
 
     def __init__(self, page_size=0x1000, default_permissions=3, permissions_map=None, page_kwargs=None, **kwargs):
         super().__init__(**kwargs)
@@ -31,7 +32,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         self._permissions_map = permissions_map if permissions_map is not None else {}
         self._default_permissions = default_permissions
-        self._pages: Dict[int, Optional[PageType]] = {}
+        self._pages: dict[int, PageType | None] = {}
 
     @MemoryMixin.memo
     def copy(self, memo):
@@ -105,7 +106,7 @@ class PagedMemoryMixin(MemoryMixin):
             memory=self, memory_id="%s_%d" % (self.id, pageno), permissions=permissions, **self._extra_page_kwargs
         )
 
-    def _divide_addr(self, addr: int) -> Tuple[int, int]:
+    def _divide_addr(self, addr: int) -> tuple[int, int]:
         return divmod(addr, self.page_size)
 
     def load(self, addr: int, size: int = None, endness=None, **kwargs):
@@ -252,7 +253,7 @@ class PagedMemoryMixin(MemoryMixin):
             pageoff = 0
 
     def merge(self, others: Iterable["PagedMemoryMixin"], merge_conditions, common_ancestor=None) -> bool:
-        changed_pages_and_offsets: Dict[int, Optional[Set[int]]] = {}
+        changed_pages_and_offsets: dict[int, set[int] | None] = {}
         for o in others:
             for changed_page, changed_offsets in self.changed_pages(o).items():
                 if changed_offsets is None:
@@ -295,7 +296,7 @@ class PagedMemoryMixin(MemoryMixin):
         return bool(merged_bytes)
 
     def compare(self, other: "PagedMemoryMixin") -> bool:
-        changed_pages_and_offsets: Dict[int, Optional[Set[int]]] = dict(self.changed_pages(other))
+        changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
 
         for page_no in sorted(changed_pages_and_offsets):
             page = self._get_page(page_no, False)
@@ -555,7 +556,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         return data
 
-    def changed_bytes(self, other) -> Set[int]:
+    def changed_bytes(self, other) -> set[int]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
@@ -583,12 +584,12 @@ class PagedMemoryMixin(MemoryMixin):
 
         return changes
 
-    def changed_pages(self, other) -> Dict[int, Optional[Set[int]]]:
+    def changed_pages(self, other) -> dict[int, set[int] | None]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
         difference = my_pages.symmetric_difference(other_pages)
-        changes: Dict[int, Optional[Set[int]]] = {d: None for d in difference}
+        changes: dict[int, set[int] | None] = {d: None for d in difference}
 
         for pageno in intersection:
             my_page = self._pages[pageno]
@@ -608,7 +609,7 @@ class PagedMemoryMixin(MemoryMixin):
         return changes
 
     def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
-        page_offsets: Dict[Set[int]] = defaultdict(set)
+        page_offsets: dict[set[int]] = defaultdict(set)
         for addr in addrs:
             page_no, page_offset = self._divide_addr(addr)
             page_offsets[page_no].add(page_offset)
@@ -657,7 +658,7 @@ class PagedMemoryMixin(MemoryMixin):
 class LabeledPagesMixin(PagedMemoryMixin):
     def load_with_labels(
         self, addr: int, size: int = None, endness=None, **kwargs
-    ) -> Tuple[claripy.ast.Base, Tuple[Tuple[int, int, int, Any]]]:
+    ) -> tuple[claripy.ast.Base, tuple[tuple[int, int, int, Any]]]:
         if endness is None:
             endness = self.endness
 

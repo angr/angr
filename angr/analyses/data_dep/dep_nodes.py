@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from claripy.ast.bv import BV
@@ -27,10 +27,10 @@ class BaseDepNode:
         self.ins_addr = sim_act.ins_addr
         self.stmt_idx = sim_act.stmt_idx
         self.action_id: int = sim_act.id
-        self.value: Optional[int] = None
+        self.value: int | None = None
         self._value_ast: Optional["BV"] = None
 
-    def value_tuple(self) -> Tuple["BV", int]:
+    def value_tuple(self) -> tuple["BV", int]:
         """
         :return: A tuple containing the node's value as a BV and as an evaluated integer
         """

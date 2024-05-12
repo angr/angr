@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Set, DefaultDict, Any, Optional
+from typing import DefaultDict, Any
 from collections import defaultdict
 
 import claripy
@@ -29,14 +29,14 @@ class PropagationModel(Serializable):
 
     def __init__(
         self,
-        prop_key: Tuple,
-        node_iterations: Optional[DefaultDict[Any, int]] = None,
-        states: Optional[Dict] = None,
-        block_initial_reg_values: Optional[Dict] = None,
-        replacements: Optional[DefaultDict[Any, Dict]] = None,
-        equivalence: Optional[Set] = None,
-        function: Optional[Function] = None,
-        input_states: Optional[Dict] = None,
+        prop_key: tuple,
+        node_iterations: DefaultDict[Any, int] | None = None,
+        states: dict | None = None,
+        block_initial_reg_values: dict | None = None,
+        replacements: DefaultDict[Any, dict] | None = None,
+        equivalence: set | None = None,
+        function: Function | None = None,
+        input_states: dict | None = None,
     ):
         self.key = prop_key
         self.node_iterations = node_iterations if node_iterations is not None else defaultdict(int)

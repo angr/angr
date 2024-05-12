@@ -1,7 +1,8 @@
 # pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
 import pathlib
 import copy
-from typing import Optional, Tuple, Any, Union, List, Iterable
+from typing import Any, Union
+from collections.abc import Iterable
 import logging
 
 import networkx
@@ -119,7 +120,7 @@ def extract_jump_targets(stmt):
     return targets
 
 
-def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Optional[Tuple[Any, int, int]]:
+def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> tuple[Any, int, int] | None:
     """
     Check the last statement of the switch-case header node, and extract lower+upper bounds for the comparison.
 
@@ -161,7 +162,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int, Tuple[int]]], label=None):
+def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] | None, label=None):
     if insert_location not in {"before", "after"}:
         raise ValueError('"insert_location" must be either "before" or "after"')
 
@@ -336,7 +337,7 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> Optional[ailment.Stmt.Statement]:
+def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
             stmt = first_nonlabel_statement(n)
@@ -350,14 +351,14 @@ def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> Option
     return None
 
 
-def last_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
+def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | None:
     for stmt in reversed(block.statements):
         if not isinstance(stmt, ailment.Stmt.Label):
             return stmt
     return None
 
 
-def first_nonlabel_node(seq: "SequenceNode") -> Optional[Union["BaseNode", ailment.Block]]:
+def first_nonlabel_node(seq: "SequenceNode") -> Union["BaseNode", ailment.Block] | None:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
             inner_node = node.node
@@ -421,7 +422,7 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     Returns true on any block ending in linear statements and a return.
     """
 
-    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
+    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> list[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 
@@ -477,8 +478,8 @@ def peephole_optimize_exprs(block, expr_opts):
         v = False
 
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: Optional[ailment.Stmt.Statement], block
-    ) -> Optional[ailment.Expr.Expression]:
+        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    ) -> ailment.Expr.Expression | None:
         old_expr = expr
 
         redo = True
@@ -510,8 +511,8 @@ def peephole_optimize_exprs(block, expr_opts):
 
 def peephole_optimize_expr(expr, expr_opts):
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: Optional[ailment.Stmt.Statement], block
-    ) -> Optional[ailment.Expr.Expression]:
+        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    ) -> ailment.Expr.Expression | None:
         old_expr = expr
 
         redo = True
@@ -595,7 +596,7 @@ def peephole_optimize_stmts(block, stmt_opts):
     return statements, any_update
 
 
-def match_stmt_classes(all_stmts: List, idx: int, stmt_class_seq: Iterable[type]) -> bool:
+def match_stmt_classes(all_stmts: list, idx: int, stmt_class_seq: Iterable[type]) -> bool:
     for i, cls in enumerate(stmt_class_seq):
         if idx + i >= len(all_stmts):
             return False
@@ -639,7 +640,7 @@ def peephole_optimize_multistmts(block, stmt_opts):
     return statements, any_update
 
 
-def decompile_functions(path, functions=None, structurer=None, catch_errors=False) -> Optional[str]:
+def decompile_functions(path, functions=None, structurer=None, catch_errors=False) -> str | None:
     """
     Decompile a binary into a set of functions.
 
@@ -663,7 +664,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
         functions = list(sorted(cfg.kb.functions))
 
     # normalize the functions that could be ints as names
-    normalized_functions: List[Union[int, str]] = []
+    normalized_functions: list[int | str] = []
     for func in functions:
         try:
             if isinstance(func, str):
@@ -742,7 +743,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr: int):
     raise KeyError("The block is not in the graph!")
 
 
-def sequence_to_blocks(seq: "BaseNode") -> List[ailment.Block]:
+def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
     """
     Converts a sequence node (BaseNode) to a list of ailment blocks contained in it and all its children.
     """
@@ -753,7 +754,7 @@ def sequence_to_blocks(seq: "BaseNode") -> List[ailment.Block]:
 
 def sequence_to_statements(
     seq: "BaseNode", exclude=(ailment.statement.Jump, ailment.statement.Jump)
-) -> List[ailment.statement.Statement]:
+) -> list[ailment.statement.Statement]:
     """
     Converts a sequence node (BaseNode) to a list of ailment Statements contained in it and all its children.
     May exclude certain types of statements.

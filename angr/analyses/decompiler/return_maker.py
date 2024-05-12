@@ -1,4 +1,3 @@
-from typing import Optional
 import logging
 
 import ailment
@@ -28,7 +27,7 @@ class ReturnMaker(AILGraphWalker):
         return self.ail_manager.next_atom()
 
     def _handle_Return(
-        self, stmt_idx: int, stmt: ailment.Stmt.Return, block: Optional[ailment.Block]
+        self, stmt_idx: int, stmt: ailment.Stmt.Return, block: ailment.Block | None
     ):  # pylint:disable=unused-argument
         if (
             block is not None

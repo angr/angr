@@ -1,6 +1,7 @@
 # pylint:disable=arguments-differ
 import logging
-from typing import List, Set, Optional, Tuple, Union, Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 from sortedcontainers import SortedDict
 
@@ -116,7 +117,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def store(
         self,
         addr,
-        data: Union[int, SimMemoryObject],
+        data: int | SimMemoryObject,
         size: int = None,
         endness=None,
         memory=None,
@@ -197,12 +198,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: List["UltraPage"],
+        others: list["UltraPage"],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,  # pylint: disable=arguments-differ
         memory=None,
-        changed_offsets: Optional[Set[int]] = None,
+        changed_offsets: set[int] | None = None,
     ):
         all_pages = [self] + others
         merged_to = None
@@ -220,10 +221,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects: List[Tuple[SimMemoryObject, Any]] = []
-            concretes: List[Tuple[int, Any]] = []
-            unconstrained_in: List[Tuple["UltraPage", Any]] = []
-            our_mo: Optional[SimMemoryObject] = None
+            memory_objects: list[tuple[SimMemoryObject, Any]] = []
+            concretes: list[tuple[int, Any]] = []
+            unconstrained_in: list[tuple["UltraPage", Any]] = []
+            our_mo: SimMemoryObject | None = None
 
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
@@ -335,12 +336,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
         else:
             return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
 
-    def changed_bytes(self, other, page_addr=None) -> Set[int]:
+    def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
         if changed_candidates is None:
             changed_candidates = range(len(self.symbolic_bitmap))
 
-        changes: Set[int] = set()
+        changes: set[int] = set()
 
         for addr in changed_candidates:
             if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
@@ -395,7 +396,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # symbolic data or does not exist
             return self._get_object(start, page_addr) is not None
 
-    def _get_object(self, start: int, page_addr: int, memory=None) -> Optional[SimMemoryObject]:
+    def _get_object(self, start: int, page_addr: int, memory=None) -> SimMemoryObject | None:
         try:
             place = next(self.symbolic_data.irange(maximum=start, reverse=True))
         except StopIteration:

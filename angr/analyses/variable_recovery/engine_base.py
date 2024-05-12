@@ -1,4 +1,4 @@
-from typing import Optional, Set, List, Tuple, Union, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import logging
 
 import claripy
@@ -38,7 +38,7 @@ class RichR:
         self,
         data: claripy.ast.Base,
         variable=None,
-        typevar: Optional[typevars.TypeVariable] = None,
+        typevar: typevars.TypeVariable | None = None,
         type_constraints=None,
     ):
         self.data: claripy.ast.Base = data
@@ -110,7 +110,7 @@ class SimEngineVRBase(SimEngineLight):
         return False
 
     @staticmethod
-    def _parse_offseted_addr(addr: claripy.ast.BV) -> Optional[Tuple[claripy.ast.BV, claripy.ast.BV, claripy.ast.BV]]:
+    def _parse_offseted_addr(addr: claripy.ast.BV) -> tuple[claripy.ast.BV, claripy.ast.BV, claripy.ast.BV] | None:
         if addr.op == "__add__":
             if len(addr.args) == 2:
                 concrete_base, byte_offset = None, None
@@ -142,7 +142,7 @@ class SimEngineVRBase(SimEngineLight):
 
     def _ensure_variable_existence(
         self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None
-    ) -> Optional[List[Tuple[SimVariable, int]]]:
+    ) -> list[tuple[SimVariable, int]] | None:
         data: claripy.ast.Base = richr_addr.data
 
         if data is None:
@@ -151,15 +151,15 @@ class SimEngineVRBase(SimEngineLight):
         if self.state.is_stack_address(data):
             # this is a stack address
             # extract stack offset
-            stack_offset: Optional[int] = self.state.get_stack_offset(data)
+            stack_offset: int | None = self.state.get_stack_offset(data)
 
             variable_manager = self.variable_manager[self.func_addr]
-            var_candidates: List[Tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
+            var_candidates: list[tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory"
             )
 
             # find the correct variable
-            existing_vars: List[Tuple[SimVariable, int]] = []
+            existing_vars: list[tuple[SimVariable, int]] = []
             for candidate, offset in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
                     existing_vars.append((candidate, offset))
@@ -173,7 +173,7 @@ class SimEngineVRBase(SimEngineLight):
                 if variable is None:
                     # TODO: how to determine the size for a lea?
                     try:
-                        vs: Optional[MultiValues] = self.state.stack_region.load(stack_addr, size=1)
+                        vs: MultiValues | None = self.state.stack_region.load(stack_addr, size=1)
                     except SimMemoryMissingError:
                         vs = None
 
@@ -248,15 +248,15 @@ class SimEngineVRBase(SimEngineLight):
         if self.state.is_stack_address(data):
             # this is a stack address
             # extract stack offset
-            stack_offset: Optional[int] = self.state.get_stack_offset(data)
+            stack_offset: int | None = self.state.get_stack_offset(data)
 
             variable_manager = self.variable_manager[self.func_addr]
-            var_candidates: List[Tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
+            var_candidates: list[tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory"
             )
 
             # find the correct variable
-            existing_vars: List[Tuple[SimVariable, int]] = []
+            existing_vars: list[tuple[SimVariable, int]] = []
             for candidate, offset in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
                     existing_vars.append((candidate, offset))
@@ -313,7 +313,7 @@ class SimEngineVRBase(SimEngineLight):
         # handle register writes
 
         # first check if there is an existing variable for the atom at this location already
-        existing_vars: Set[Tuple[SimVariable, int]] = self.variable_manager[self.func_addr].find_variables_by_atom(
+        existing_vars: set[tuple[SimVariable, int]] = self.variable_manager[self.func_addr].find_variables_by_atom(
             self.block.addr, self.stmt_idx, dst
         )
         if not existing_vars:
@@ -473,8 +473,8 @@ class SimEngineVRBase(SimEngineLight):
         data: RichR,
         size: int,
         stmt=None,
-        offset: Optional[claripy.ast.BV] = None,
-        elem_size: Optional[claripy.ast.BV] = None,
+        offset: claripy.ast.BV | None = None,
+        elem_size: claripy.ast.BV | None = None,
     ):
         variable_manager = self.variable_manager["global"]
         if stmt is None:
@@ -636,7 +636,7 @@ class SimEngineVRBase(SimEngineLight):
                     dynamic_offset = None
 
                 try:
-                    values: Optional[MultiValues] = self.state.stack_region.load(
+                    values: MultiValues | None = self.state.stack_region.load(
                         self.state.stack_addr_from_offset(concrete_offset),
                         size=size,
                         endness=self.state.arch.memory_endness,
@@ -645,7 +645,7 @@ class SimEngineVRBase(SimEngineLight):
                 except SimMemoryMissingError:
                     values = None
 
-                all_vars: Set[Tuple[int, SimVariable]] = set()
+                all_vars: set[tuple[int, SimVariable]] = set()
                 if values:
                     for vs in values.values():
                         for v in vs:
@@ -788,8 +788,8 @@ class SimEngineVRBase(SimEngineLight):
         addr: int,
         size,
         expr=None,
-        offset: Optional[claripy.ast.BV] = None,
-        elem_size: Optional[claripy.ast.BV] = None,
+        offset: claripy.ast.BV | None = None,
+        elem_size: claripy.ast.BV | None = None,
     ) -> RichR:
         variable_manager = self.variable_manager["global"]
         if expr is None:
@@ -862,7 +862,7 @@ class SimEngineVRBase(SimEngineLight):
         codeloc = self._codeloc()
 
         try:
-            values: Optional[MultiValues] = self.state.register_region.load(offset, size=size)
+            values: MultiValues | None = self.state.register_region.load(offset, size=size)
         except SimMemoryMissingError:
             values = None
 
@@ -935,7 +935,7 @@ class SimEngineVRBase(SimEngineLight):
         return RichR(r_value, variable=var, typevar=typevar)
 
     def _create_access_typevar(
-        self, typevar: Union[TypeVariable, DerivedTypeVariable], is_store: bool, size: int, offset: int
+        self, typevar: TypeVariable | DerivedTypeVariable, is_store: bool, size: int, offset: int
     ) -> DerivedTypeVariable:
         if isinstance(typevar, DerivedTypeVariable):
             if isinstance(typevar.labels[-1], AddN):

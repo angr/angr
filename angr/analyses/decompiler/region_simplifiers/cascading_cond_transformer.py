@@ -1,5 +1,4 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional
 
 import ailment
 import claripy
@@ -19,7 +18,7 @@ class CascadingConditionTransformer(SequenceWalker):
             ConditionNode: self._handle_Condition,
         }
         super().__init__(handlers)
-        self.cascading_if_node: Optional[CascadingConditionNode] = None
+        self.cascading_if_node: CascadingConditionNode | None = None
 
         self.walk(node)
 

@@ -1,5 +1,4 @@
 # pylint:disable=arguments-differ
-from typing import Tuple, Optional, Dict, List
 import string
 
 from archinfo import Endness
@@ -43,9 +42,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
             # scan forward in the current block to find all consecutive constant stores
             if block is not None and stmt_idx is not None:
-                all_constant_stores: Dict[int, Tuple[int, Optional[Const]]] = self.collect_constant_stores(
-                    block, stmt_idx
-                )
+                all_constant_stores: dict[int, tuple[int, Const | None]] = self.collect_constant_stores(block, stmt_idx)
                 if all_constant_stores:
                     offsets = sorted(all_constant_stores.keys())
                     next_offset = min(offsets)
@@ -87,7 +84,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         return None
 
     @staticmethod
-    def stride_to_int(stride: List[Tuple[int, int, Const]]) -> Tuple[int, int]:
+    def stride_to_int(stride: list[tuple[int, int, Const]]) -> tuple[int, int]:
         stride = sorted(stride, key=lambda x: x[0])
         n = 0
         size = 0
@@ -98,7 +95,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         return n, size
 
     @staticmethod
-    def collect_constant_stores(block, starting_stmt_idx: int) -> Dict[int, Tuple[int, Optional[Const]]]:
+    def collect_constant_stores(block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
         r = {}
         for idx, stmt in enumerate(block.statements):
             if idx < starting_stmt_idx:
@@ -112,9 +109,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         return r
 
     @staticmethod
-    def is_integer_likely_a_string(
-        v: int, size: int, endness: Endness, min_length: int = 4
-    ) -> Tuple[bool, Optional[str]]:
+    def is_integer_likely_a_string(v: int, size: int, endness: Endness, min_length: int = 4) -> tuple[bool, str | None]:
         # we need at least four bytes of printable characters
 
         chars = []

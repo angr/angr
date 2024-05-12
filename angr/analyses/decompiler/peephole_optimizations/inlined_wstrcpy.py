@@ -1,5 +1,4 @@
 # pylint:disable=arguments-differ
-from typing import Tuple, Optional, Dict, List
 import string
 
 from archinfo import Endness
@@ -43,9 +42,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
 
             # scan forward in the current block to find all consecutive constant stores
             if block is not None and stmt_idx is not None:
-                all_constant_stores: Dict[int, Tuple[int, Optional[Const]]] = self.collect_constant_stores(
-                    block, stmt_idx
-                )
+                all_constant_stores: dict[int, tuple[int, Const | None]] = self.collect_constant_stores(block, stmt_idx)
                 if all_constant_stores:
                     offsets = sorted(all_constant_stores.keys())
                     next_offset = min(offsets)
@@ -87,7 +84,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
         return None
 
     @staticmethod
-    def stride_to_int(stride: List[Tuple[int, int, Const]]) -> Tuple[int, int]:
+    def stride_to_int(stride: list[tuple[int, int, Const]]) -> tuple[int, int]:
         stride = sorted(stride, key=lambda x: x[0])
         n = 0
         size = 0
@@ -98,7 +95,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
         return n, size
 
     @staticmethod
-    def collect_constant_stores(block, starting_stmt_idx: int) -> Dict[int, Tuple[int, Optional[Const]]]:
+    def collect_constant_stores(block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
         r = {}
         for idx, stmt in enumerate(block.statements):
             if idx < starting_stmt_idx:
@@ -112,17 +109,17 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
         return r
 
     @staticmethod
-    def even_offsets_are_zero(lst: List[str]) -> bool:
+    def even_offsets_are_zero(lst: list[str]) -> bool:
         return all(ch == "\x00" for i, ch in enumerate(lst) if i % 2 == 0)
 
     @staticmethod
-    def odd_offsets_are_zero(lst: List[str]) -> bool:
+    def odd_offsets_are_zero(lst: list[str]) -> bool:
         return all(ch == "\x00" for i, ch in enumerate(lst) if i % 2 == 1)
 
     @staticmethod
     def is_integer_likely_a_wide_string(
         v: int, size: int, endness: Endness, min_length: int = 4
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         # we need at least four bytes of printable characters
 
         chars = []

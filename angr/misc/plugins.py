@@ -1,4 +1,4 @@
-from typing import Type, Dict, Optional, List, TypeVar, Generic
+from typing import TypeVar, Generic
 
 from angr.errors import AngrNoPluginError
 
@@ -26,15 +26,15 @@ class PluginHub(Generic[P]):
 
     def __init__(self):
         super().__init__()
-        self._active_plugins: Dict[str, P] = {}
-        self._active_preset: Optional[PluginPreset] = None
-        self._provided_by_preset: List[int] = []
+        self._active_plugins: dict[str, P] = {}
+        self._active_preset: PluginPreset | None = None
+        self._provided_by_preset: list[int] = []
 
     #
     #   Class methods for registration
     #
 
-    _presets: Dict[str, Type[P]]
+    _presets: dict[str, type[P]]
 
     @classmethod
     def register_default(cls, name, plugin_cls, preset="default"):
@@ -157,7 +157,7 @@ class PluginHub(Generic[P]):
             return self._active_plugins[name]
 
         elif self._active_preset is not None:
-            plugin_cls: Type[P] = self._active_preset.request_plugin(name)
+            plugin_cls: type[P] = self._active_preset.request_plugin(name)
             plugin = self._init_plugin(plugin_cls)
 
             # Remember that this plugin was provided by preset.
@@ -169,7 +169,7 @@ class PluginHub(Generic[P]):
         else:
             raise AngrNoPluginError("No such plugin: %s" % name)
 
-    def _init_plugin(self, plugin_cls: Type[P]) -> P:  # pylint: disable=no-self-use
+    def _init_plugin(self, plugin_cls: type[P]) -> P:  # pylint: disable=no-self-use
         """
         Perform any initialization actions on plugin before it is added to the list of active plugins.
 
@@ -217,7 +217,7 @@ class PluginPreset:
     """
 
     def __init__(self):
-        self._default_plugins: Dict[str, Type[P]] = {}
+        self._default_plugins: dict[str, type[P]] = {}
 
     def activate(self, hub):  # pylint:disable=no-self-use,unused-argument
         """
@@ -243,7 +243,7 @@ class PluginPreset:
         """
         return self._default_plugins.keys()
 
-    def request_plugin(self, name: str) -> Type[P]:
+    def request_plugin(self, name: str) -> type[P]:
         """
         Return the plugin class which is registered under the name ``name``, or raise NoPlugin if
         the name isn't available.

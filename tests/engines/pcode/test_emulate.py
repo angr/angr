@@ -2,7 +2,6 @@ import logging
 import unittest
 import operator
 from dataclasses import dataclass
-from typing import Optional, List
 
 import claripy
 
@@ -49,12 +48,12 @@ class MockVarnode:
     size: int
 
     register_name: str = "<mock>"
-    space_encoded_in_offset: Optional[MockAddrSpace] = None
+    space_encoded_in_offset: MockAddrSpace | None = None
 
     def getRegisterName(self) -> str:
         return self.register_name
 
-    def getSpaceFromConst(self) -> Optional[MockAddrSpace]:
+    def getSpaceFromConst(self) -> MockAddrSpace | None:
         return self.space_encoded_in_offset
 
 
@@ -65,8 +64,8 @@ class MockPcodeOp:
     """
 
     opcode: "OpCode"
-    output: Optional[MockVarnode]
-    inputs: List[MockVarnode]
+    output: MockVarnode | None
+    inputs: list[MockVarnode]
 
 
 BEHAVIORS = BehaviorFactory()
@@ -78,7 +77,7 @@ class MockIRSB:
     Mock IRSB
     """
 
-    _ops: List[MockPcodeOp]
+    _ops: list[MockPcodeOp]
     addr: int = 0
     behaviors: BehaviorFactory = BEHAVIORS
 
@@ -568,6 +567,14 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0, 32), claripy.BVV(0, 32))
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0x12345678, 32), claripy.BVV(13, 32))
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0xFFFFFFFF, 32), claripy.BVV(32, 32))
+
+    def test_lzcount(self):
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0xFFFF, 16), claripy.BVV(0, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x7FFF, 16), claripy.BVV(1, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x3F0F, 16), claripy.BVV(2, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0080, 16), claripy.BVV(8, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0001, 16), claripy.BVV(15, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0000, 16), claripy.BVV(16, 16))
 
     # TODO: Add tests for the following ops:
     # * = FIXME

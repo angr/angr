@@ -1,6 +1,3 @@
-from typing import List, Optional
-
-
 class CallSite:
     """
     Describes a call site on a CFG.
@@ -12,7 +9,7 @@ class CallSite:
         "callee_func_addr",
     )
 
-    def __init__(self, caller_func_addr: int, block_addr: Optional[int], callee_func_addr: int):
+    def __init__(self, caller_func_addr: int, block_addr: int | None, callee_func_addr: int):
         self.caller_func_addr = caller_func_addr
         self.callee_func_addr = callee_func_addr
         self.block_addr = block_addr
@@ -45,7 +42,7 @@ class CallTrace:
 
     def __init__(self, target: int):
         self.target = target
-        self.callsites: List[CallSite] = []
+        self.callsites: list[CallSite] = []
 
     def __repr__(self):
         return "<Trace with %d callsites>" % len(self.callsites)
@@ -55,7 +52,7 @@ class CallTrace:
             return self.target
         return self.callsites[-1].caller_func_addr
 
-    def step_back(self, caller_func_addr: int, block_addr: Optional[int], callee_func_addr) -> "CallTrace":
+    def step_back(self, caller_func_addr: int, block_addr: int | None, callee_func_addr) -> "CallTrace":
         # create a new CallSite object
         site = CallSite(caller_func_addr, block_addr, callee_func_addr)
         t = self.copy()

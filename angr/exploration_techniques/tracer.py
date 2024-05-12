@@ -1,4 +1,4 @@
-from typing import List, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 import cle
 
@@ -179,13 +179,13 @@ class Tracer(ExplorationTechnique):
         self._follow_unsat = follow_unsat
         self._fast_forward_to_entry = fast_forward_to_entry
 
-        self._aslr_slides: Dict[cle.Backend, int] = {}
+        self._aslr_slides: dict[cle.Backend, int] = {}
         self._current_slide = None
 
         self._fd_bytes = None
 
         # keep track of the last basic block we hit
-        self.predecessors: List["SimState"] = [None] * keep_predecessors
+        self.predecessors: list["SimState"] = [None] * keep_predecessors
         self.last_state = None
 
         # whether we should follow the trace
@@ -284,7 +284,7 @@ class Tracer(ExplorationTechnique):
             # this is an awful fucking heuristic but it's as good as we've got
             return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
 
-    def set_fd_data(self, fd_data: Dict[int, bytes]):
+    def set_fd_data(self, fd_data: dict[int, bytes]):
         """
         Set concrete bytes of various fds read by the program
         """

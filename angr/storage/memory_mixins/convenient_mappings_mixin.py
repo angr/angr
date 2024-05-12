@@ -1,5 +1,4 @@
 # pylint:disable=arguments-differ,assignment-from-no-return,isinstance-second-argument-not-valid-type
-from typing import Optional, Set
 import logging
 
 import claripy
@@ -20,7 +19,7 @@ class ConvenientMappingsMixin(MemoryMixin):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self._symbolic_addrs: Set = set()
+        self._symbolic_addrs: set = set()
         self._name_mapping = ChainMapCOW()
         self._hash_mapping = ChainMapCOW()
         self._updated_mappings = set()
@@ -116,7 +115,7 @@ class ConvenientMappingsMixin(MemoryMixin):
             d[m] = set()
         self._updated_mappings.add((m, id(d)))
 
-    def _update_mappings(self, actual_addr: int, old_obj: Optional[claripy.ast.BV], new_obj: claripy.ast.BV):
+    def _update_mappings(self, actual_addr: int, old_obj: claripy.ast.BV | None, new_obj: claripy.ast.BV):
         if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
             if self.state.solver.symbolic(new_obj):
                 self._symbolic_addrs.add(actual_addr)
@@ -243,7 +242,7 @@ class ConvenientMappingsMixin(MemoryMixin):
 
         # Computer an intersection between sets of memory addresses for each unique variable name. The eventual address
         # set contains all addresses whose memory objects we should update.
-        addrs: Optional[Set] = None
+        addrs: set | None = None
         for v in old.variables:
             v: str
             if addrs is None:

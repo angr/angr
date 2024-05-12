@@ -1,6 +1,5 @@
 # pylint:disable=unnecessary-pass
 import logging
-from typing import Tuple, List
 
 from ailment import Block
 from ailment.statement import ConditionalJump, Return
@@ -171,7 +170,7 @@ class ReturnDeduplicator(OptimizationPass):
 
         return self._get_original_regions(if_ret_candidates)
 
-    def _get_original_regions(self, if_ret_candidates: List[Tuple[Block, Block, Block]]):
+    def _get_original_regions(self, if_ret_candidates: list[tuple[Block, Block, Block]]):
         """
         Input: [(if_stmt_block, super_true_child, super_false_child), ...]
         Output: [(if_stmt_block, true_child, false_child, super_true_child, super_false_child), ...]

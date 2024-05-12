@@ -2,7 +2,7 @@ import inspect
 import copy
 import itertools
 import logging
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
 import claripy
 from cle import SymbolType
@@ -165,7 +165,7 @@ class SimProcedure:
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
-        self.arg_session: Union[None, ArgSession, int] = None
+        self.arg_session: None | ArgSession | int = None
 
     def __repr__(self):
         return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
@@ -321,7 +321,7 @@ class SimProcedure:
     IS_FUNCTION = True
     ARGS_MISMATCH = False
     ALT_NAMES = None  # alternative names
-    local_vars: Tuple[str, ...] = ()
+    local_vars: tuple[str, ...] = ()
 
     def run(self, *args, **kwargs):  # pylint: disable=unused-argument
         """

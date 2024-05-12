@@ -2,7 +2,7 @@ import sys
 import itertools
 import types
 from collections import defaultdict
-from typing import List, Tuple, DefaultDict
+from typing import DefaultDict
 import logging
 
 import claripy
@@ -65,7 +65,7 @@ class SimulationManager:
     ALL = "_ALL"
     DROP = "_DROP"
 
-    _integral_stashes: Tuple[str] = ("active", "stashed", "pruned", "unsat", "errored", "deadended", "unconstrained")
+    _integral_stashes: tuple[str] = ("active", "stashed", "pruned", "unsat", "errored", "deadended", "unconstrained")
 
     def __init__(
         self,
@@ -91,7 +91,7 @@ class SimulationManager:
 
         if stashes is None:
             stashes = self._create_integral_stashes()
-        self._stashes: DefaultDict[str, List["SimState"]] = stashes
+        self._stashes: DefaultDict[str, list["SimState"]] = stashes
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {
@@ -164,13 +164,13 @@ class SimulationManager:
         except AttributeError:
             return SimulationManager._fetch_states(self, stash=item)
 
-    active: List[SimState]
-    stashed: List[SimState]
-    pruned: List[SimState]
-    unsat: List[SimState]
-    deadended: List[SimState]
-    unconstrained: List[SimState]
-    found: List[SimState]
+    active: list[SimState]
+    stashed: list[SimState]
+    pruned: list[SimState]
+    unsat: list[SimState]
+    deadended: list[SimState]
+    unconstrained: list[SimState]
+    found: list[SimState]
     one_active: SimState
     one_stashed: SimState
     one_pruned: SimState
@@ -193,7 +193,7 @@ class SimulationManager:
         return self._errored
 
     @property
-    def stashes(self) -> DefaultDict[str, List["SimState"]]:
+    def stashes(self) -> DefaultDict[str, list["SimState"]]:
         return self._stashes
 
     def mulpyplex(self, *stashes):
@@ -894,7 +894,7 @@ class SimulationManager:
     #   ...
     #
 
-    def _create_integral_stashes(self) -> DefaultDict[str, List["SimState"]]:
+    def _create_integral_stashes(self) -> DefaultDict[str, list["SimState"]]:
         stashes = defaultdict(list)
         stashes.update({name: [] for name in self._integral_stashes})
         return stashes

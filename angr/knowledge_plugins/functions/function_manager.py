@@ -1,5 +1,5 @@
 # pylint:disable=raise-missing-from
-from typing import Dict, Generator, Optional, Set
+from collections.abc import Generator
 import logging
 import collections.abc
 import re
@@ -83,8 +83,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map: Dict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
-        self.function_addrs_set: Set = set()
+        self._function_map: dict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
+        self.function_addrs_set: set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
 
@@ -411,7 +411,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         except KeyError:
             return None
 
-    def query(self, query: str) -> Optional[Function]:
+    def query(self, query: str) -> Function | None:
         """
         Query for a function using selectors to disambiguate. Supported variations:
 
@@ -442,7 +442,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
         return None
 
-    def function(self, addr=None, name=None, create=False, syscall=False, plt=None) -> Optional[Function]:
+    def function(self, addr=None, name=None, create=False, syscall=False, plt=None) -> Function | None:
         """
         Get a function object from the function manager.
 

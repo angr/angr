@@ -1,5 +1,6 @@
 # pylint:disable=abstract-method,wrong-import-position,unused-argument,missing-class-docstring,arguments-differ
-from typing import Iterable, Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Any, Optional
+from collections.abc import Iterable
 
 import claripy
 
@@ -118,7 +119,7 @@ class MemoryMixin(SimStatePlugin):
         The ``inspect``, ``events``, and ``key`` parameters are for ``state.solver.Unconstrained``, if it is used.
         """
 
-    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs) -> Optional[Any]:
+    def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs) -> Any | None:
         """
         Override this method to provide value merging support.
 
@@ -128,7 +129,7 @@ class MemoryMixin(SimStatePlugin):
         """
         raise NotImplementedError()
 
-    def _merge_labels(self, labels: Iterable[Dict], **kwargs) -> Optional[Dict]:
+    def _merge_labels(self, labels: Iterable[dict], **kwargs) -> dict | None:
         """
         Override this method to provide label merging support.
 

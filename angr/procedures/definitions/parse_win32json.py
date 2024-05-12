@@ -22,7 +22,7 @@ altnames = set()
 
 typelib = SimTypeCollection()
 typelib.names = ["win32"]
-known_struct_names: Set[str] = set()
+known_struct_names: set[str] = set()
 
 
 def is_anonymous_struct(s_name: str) -> bool:

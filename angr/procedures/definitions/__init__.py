@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-SIM_LIBRARIES: Dict[str, "SimLibrary"] = {}
-SIM_TYPE_COLLECTIONS: Dict[str, "SimTypeCollection"] = {}
+SIM_LIBRARIES: dict[str, "SimLibrary"] = {}
+SIM_TYPE_COLLECTIONS: dict[str, "SimTypeCollection"] = {}
 
 
 class SimTypeCollection:
@@ -35,8 +35,8 @@ class SimTypeCollection:
     """
 
     def __init__(self):
-        self.names: Optional[List[str]] = None
-        self.types: Dict[str, "SimType"] = {}
+        self.names: list[str] | None = None
+        self.types: dict[str, "SimType"] = {}
 
     def set_names(self, *names):
         self.names = names
@@ -98,10 +98,10 @@ class SimLibrary:
     """
 
     def __init__(self):
-        self.type_collection_names: List[str] = []
+        self.type_collection_names: list[str] = []
         self.procedures = {}
         self.non_returning = set()
-        self.prototypes: Dict[str, SimTypeFunction] = {}
+        self.prototypes: dict[str, SimTypeFunction] = {}
         self.default_ccs = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
@@ -292,7 +292,7 @@ class SimLibrary:
         self._apply_metadata(proc, arch)
         return proc
 
-    def get_prototype(self, name: str, arch=None) -> Optional[SimTypeFunction]:
+    def get_prototype(self, name: str, arch=None) -> SimTypeFunction | None:
         """
         Get a prototype of the given function name, optionally specialize the prototype to a given architecture.
 
@@ -355,7 +355,7 @@ class SimCppLibrary(SimLibrary):
         return name
 
     @staticmethod
-    def _proto_from_demangled_name(name: str) -> Optional[SimTypeFunction]:
+    def _proto_from_demangled_name(name: str) -> SimTypeFunction | None:
         """
         Attempt to extract arguments and calling convention information for a C++ function whose name was mangled
         according to the Itanium C++ ABI symbol mangling language.
@@ -411,7 +411,7 @@ class SimCppLibrary(SimLibrary):
                     stub.num_args = len(stub.prototype.args)
         return stub
 
-    def get_prototype(self, name: str, arch=None) -> Optional[SimTypeFunction]:
+    def get_prototype(self, name: str, arch=None) -> SimTypeFunction | None:
         """
         Get a prototype of the given function name, optionally specialize the prototype to a given architecture. The
         function name will be demangled first.
@@ -468,10 +468,10 @@ class SimSyscallLibrary(SimLibrary):
 
     def __init__(self):
         super().__init__()
-        self.syscall_number_mapping: Dict[str, Dict[int, str]] = defaultdict(dict)  # keyed by abi
-        self.syscall_name_mapping: Dict[str, Dict[str, int]] = defaultdict(dict)  # keyed by abi
-        self.default_cc_mapping: Dict[str, Type["SimCCSyscall"]] = {}  # keyed by abi
-        self.syscall_prototypes: Dict[str, Dict[str, SimTypeFunction]] = defaultdict(dict)  # keyed by abi
+        self.syscall_number_mapping: dict[str, dict[int, str]] = defaultdict(dict)  # keyed by abi
+        self.syscall_name_mapping: dict[str, dict[str, int]] = defaultdict(dict)  # keyed by abi
+        self.default_cc_mapping: dict[str, type["SimCCSyscall"]] = {}  # keyed by abi
+        self.syscall_prototypes: dict[str, dict[str, SimTypeFunction]] = defaultdict(dict)  # keyed by abi
         self.fallback_proc = stub_syscall
 
     def copy(self):
@@ -551,7 +551,7 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.syscall_prototypes[abi][name] = proto
 
-    def set_prototypes(self, abi: str, protos: Dict[str, SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
+    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
         """
         Set the prototypes of many syscalls.
 
@@ -621,7 +621,7 @@ class SimSyscallLibrary(SimLibrary):
         l.debug("unsupported syscall: %s", number)
         return proc
 
-    def get_prototype(self, abi: str, name: str, arch=None) -> Optional[SimTypeFunction]:
+    def get_prototype(self, abi: str, name: str, arch=None) -> SimTypeFunction | None:
         """
         Get a prototype of the given syscall name and its ABI, optionally specialize the prototype to a given
         architecture.
@@ -686,7 +686,7 @@ class SimSyscallLibrary(SimLibrary):
 # - We will load all APIs when load_all_definitions() is called.
 
 _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
-_EXTERNAL_DEFINITIONS_DIRS: Optional[List[str]] = None
+_EXTERNAL_DEFINITIONS_DIRS: list[str] | None = None
 
 
 def load_type_collections(skip=None) -> None:
