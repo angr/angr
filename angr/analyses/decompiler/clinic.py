@@ -1,9 +1,9 @@
 import copy
-from collections import defaultdict, namedtuple, Iterable
+from collections import defaultdict, namedtuple
 import logging
 import enum
 from dataclasses import dataclass
-from typing import Optional, Any, NamedTuple, TYPE_CHECKING
+from typing import Optional, Any, Iterable, NamedTuple, TYPE_CHECKING
 
 import networkx
 import capstone
