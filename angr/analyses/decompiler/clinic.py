@@ -989,6 +989,30 @@ class Clinic(Analysis):
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStructArg):
+                        if self.project.arch.name in {"ARMEL"}:
+                            for sim_arg in arg.get_footprint():
+                                if isinstance(sim_arg, SimRegArg):
+                                    argvar = SimRegisterVariable(
+                                        self.project.arch.registers[sim_arg.reg_name][0],
+                                        sim_arg.size,
+                                        ident="arg_%d" % idx,
+                                        name=arg_names[idx],
+                                        region=self.function.addr,
+                                    )
+                                elif isinstance(sim_arg, SimStackArg):
+                                    argvar = SimStackVariable(
+                                        sim_arg.stack_offset,
+                                        sim_arg.size,
+                                        base="bp",
+                                        ident="arg_%d" % idx,
+                                        name=arg_names[idx],
+                                        region=self.function.addr,
+                                    )
+                                else:
+                                    raise TypeError("Unsupported function argument type %s." % type(arg))
+                                arg_vars.append(argvar)
+                            continue
+
                         argvar = SimVariable(
                             ident="arg_%d" % idx,
                             name=arg_names[idx],
