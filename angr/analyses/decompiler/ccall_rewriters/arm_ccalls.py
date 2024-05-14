@@ -64,18 +64,14 @@ class ARMCCallRewriter(CCallRewriterBase):
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 <= dep_2,
                         #   and then negate the result if inv == 1
-                        r = Expr.BinaryOp(
-                            ccall.idx, "CmpLE", (dep_1, dep_2), False, **ccall.tags
-                        )
+                        r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
                 elif cond_v in {ARMCondNE}:
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 != dep_2,
                         #   and then negate the result if inv == 1
-                        r = Expr.BinaryOp(
-                            ccall.idx, "CmpNE", (dep_1, dep_2), False, **ccall.tags
-                        )
+                        r = Expr.BinaryOp(ccall.idx, "CmpNE", (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
         return None
