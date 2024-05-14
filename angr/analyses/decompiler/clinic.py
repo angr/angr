@@ -405,6 +405,20 @@ class Clinic(Analysis):
         self._update_progress(20.0, text="Converting VEX to AIL")
         self._convert_all()
 
+        # there must be at least one Load or one Store
+        found_load_or_store = False
+        for ail_block in self._blocks_by_addr_and_size.values():
+            for stmt in ail_block.statements:
+                if isinstance(stmt, ailment.Stmt.Store):
+                    found_load_or_store = True
+                    break
+                elif isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Load):
+                    found_load_or_store = True
+                    break
+        if not found_load_or_store:
+            self.data_refs = {}
+            return
+
         ail_graph = self._make_ailgraph()
         self._remove_redundant_jump_blocks(ail_graph)
 
@@ -439,6 +453,8 @@ class Clinic(Analysis):
             unify_variables=False,
             narrow_expressions=False,
             fold_callexprs_into_conditions=False,
+            rewrite_ccalls=False,
+            max_iterations=1,
         )
 
         # clear _blocks_by_addr_and_size so no one can use it again
@@ -861,6 +877,7 @@ class Clinic(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        rewrite_ccalls=True,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -876,6 +893,7 @@ class Clinic(Analysis):
                 narrow_expressions=narrow_expressions and idx == 0,
                 only_consts=only_consts,
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
+                rewrite_ccalls=rewrite_ccalls,
             )
             if not simplified:
                 break
@@ -890,6 +908,7 @@ class Clinic(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        rewrite_ccalls=True,
     ):
         """
         Simplify the entire function once.
@@ -909,6 +928,7 @@ class Clinic(Analysis):
             only_consts=only_consts,
             fold_callexprs_into_conditions=fold_callexprs_into_conditions,
             use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+            rewrite_ccalls=rewrite_ccalls,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions

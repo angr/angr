@@ -527,19 +527,19 @@ class SimEnginePropagatorAIL(
                             bp_as_gpr=self.bp_as_gpr,
                         )
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
-                # if the expression has been replaced before, we should remove previous replacements
-                reg_defs = self._reaching_definitions.get_defs(
-                    Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
-                )
-                if len(reg_defs) == 1:
-                    reg_def = next(iter(reg_defs))
-                else:
-                    reg_def = None
-                updated_codelocs = self.state.revert_past_replacements(
-                    all_subexprs[0], to_replace=expr, to_replace_def=reg_def
-                )
-                # scan through the code locations and recursively remove assignment replacements
                 if self._reaching_definitions is not None:
+                    # if the expression has been replaced before, we should remove previous replacements
+                    reg_defs = self._reaching_definitions.get_defs(
+                        Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
+                    )
+                    if len(reg_defs) == 1:
+                        reg_def = next(iter(reg_defs))
+                    else:
+                        reg_def = None
+                    updated_codelocs = self.state.revert_past_replacements(
+                        all_subexprs[0], to_replace=expr, to_replace_def=reg_def
+                    )
+                    # scan through the code locations and recursively remove assignment replacements
                     while updated_codelocs:
                         new_updated_codelocs = set()
                         for u_codeloc in updated_codelocs:
