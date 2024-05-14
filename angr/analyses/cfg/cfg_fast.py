@@ -1412,7 +1412,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             func = self.kb.functions.get_by_addr(func_addr)
             if func.is_plt or func.is_simprocedure or func.is_syscall:
                 return
-            if not (1 <= len(func.block_addrs_set) < 15):
+            if not (9 <= len(func.block_addrs_set) < 12):
                 return
 
             from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=wrong-import-position

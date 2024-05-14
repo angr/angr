@@ -82,6 +82,7 @@ class AILSimplifier(Analysis):
         only_consts=False,
         fold_callexprs_into_conditions=False,
         use_callee_saved_regs_at_return=True,
+        rewrite_ccalls=True,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -97,6 +98,7 @@ class AILSimplifier(Analysis):
         self._only_consts = only_consts
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._should_rewrite_ccalls = rewrite_ccalls
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -127,13 +129,14 @@ class AILSimplifier(Analysis):
         if self._only_consts:
             return
 
-        _l.debug("Rewriting ccalls")
-        ccalls_rewritten = self._rewrite_ccalls()
-        self.simplified |= ccalls_rewritten
-        if ccalls_rewritten:
-            _l.debug("... ccalls rewritten")
-            self._rebuild_func_graph()
-            self._clear_cache()
+        if self._should_rewrite_ccalls:
+            _l.debug("Rewriting ccalls")
+            ccalls_rewritten = self._rewrite_ccalls()
+            self.simplified |= ccalls_rewritten
+            if ccalls_rewritten:
+                _l.debug("... ccalls rewritten")
+                self._rebuild_func_graph()
+                self._clear_cache()
 
         if self._unify_vars:
             _l.debug("Removing dead assignments")

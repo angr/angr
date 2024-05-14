@@ -723,6 +723,14 @@ class PropagatorAILState(PropagatorState):
             # pcode PowerPC
             state._artificial_reg_offsets = {project.arch.registers["tea"][0]}
 
+            # clear xer_so
+            reg_expr = ailment.Expr.Register(None, None, *project.arch.registers["xer_so"])
+            reg_value = ailment.Expr.Const(None, None, 0, 8)
+            state.store_register(
+                reg_expr,
+                PropValue(claripy.BVV(0, 8), offset_and_details={0: Detail(1, reg_value, initial_codeloc)}),
+            )
+
         if project is not None and project.simos is not None and project.simos.function_initial_registers:
             if func_addr is not None:
                 for reg_name, reg_value in project.simos.function_initial_registers.items():
