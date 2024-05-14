@@ -73,6 +73,7 @@ class PropagatorState:
         "_gp",
         "_max_prop_expr_occurrence",
         "model",
+        "_artificial_reg_offsets",
         "__weakref__",
     )
 
@@ -91,6 +92,7 @@ class PropagatorState:
         gp: int | None = None,
         max_prop_expr_occurrence: int = 1,
         model=None,
+        artificial_reg_offsets=None,
     ):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
@@ -102,6 +104,7 @@ class PropagatorState:
         self._equivalence: set[Equivalence] = equivalence if equivalence is not None else set()
         self._store_tops = store_tops
         self._max_prop_expr_occurrence = max_prop_expr_occurrence
+        self._artificial_reg_offsets = artificial_reg_offsets if artificial_reg_offsets is not None else set()
 
         # architecture-specific information
         self._gp: int | None = gp  # Value of gp for MIPS32 and 64 binaries
@@ -384,6 +387,7 @@ class PropagatorVEXState(PropagatorState):
         gp=None,
         max_prop_expr_occurrence: int = 1,
         model=None,
+        artificial_reg_offsets=None,
     ):
         super().__init__(
             arch,
@@ -396,6 +400,7 @@ class PropagatorVEXState(PropagatorState):
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
             model=model,
+            artificial_reg_offsets=artificial_reg_offsets,
         )
         self.do_binops = do_binops
         self._registers = (
@@ -487,6 +492,7 @@ class PropagatorVEXState(PropagatorState):
             gp=self._gp,
             max_prop_expr_occurrence=self._max_prop_expr_occurrence,
             model=self.model,
+            artificial_reg_offsets=self._artificial_reg_offsets,
         )
 
         return cp
@@ -600,6 +606,7 @@ class PropagatorAILState(PropagatorState):
         max_prop_expr_occurrence: int = 1,
         sp_adjusted: bool = False,
         model=None,
+        artificial_reg_offsets=None,
     ):
         super().__init__(
             arch,
@@ -612,6 +619,7 @@ class PropagatorAILState(PropagatorState):
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
             model=model,
+            artificial_reg_offsets=artificial_reg_offsets,
         )
 
         self._stack_variables = (
@@ -711,6 +719,10 @@ class PropagatorAILState(PropagatorState):
                 PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, initial_codeloc)}),
             )
 
+        elif project.arch.name.startswith("PowerPC:"):
+            # pcode PowerPC
+            state._artificial_reg_offsets = {project.arch.registers["tea"][0]}
+
         if project is not None and project.simos is not None and project.simos.function_initial_registers:
             if func_addr is not None:
                 for reg_name, reg_value in project.simos.function_initial_registers.items():
@@ -744,6 +756,7 @@ class PropagatorAILState(PropagatorState):
             max_prop_expr_occurrence=self._max_prop_expr_occurrence,
             sp_adjusted=self._sp_adjusted,
             model=self.model,
+            artificial_reg_offsets=self._artificial_reg_offsets,
         )
 
         return rd
@@ -847,6 +860,13 @@ class PropagatorAILState(PropagatorState):
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value
 
+    def should_replace_reg(self, old_reg_offset: int, bp_as_gpr: bool) -> bool:
+        if old_reg_offset == self.arch.sp_offset or (not bp_as_gpr and old_reg_offset == self.arch.bp_offset):
+            return True
+        if old_reg_offset in self._artificial_reg_offsets:
+            return True
+        return False
+
     def add_replacement(
         self,
         codeloc: CodeLocation,
@@ -889,7 +909,7 @@ class PropagatorAILState(PropagatorState):
             if (
                 isinstance(old, ailment.Expr.Tmp)
                 or isinstance(old, ailment.Expr.Register)
-                and (old.reg_offset == self.arch.sp_offset or (not bp_as_gpr and old.reg_offset == self.arch.bp_offset))
+                and self.should_replace_reg(old.reg_offset, bp_as_gpr)
             ):
                 self._replacements[codeloc][old] = (
                     new if stmt_to_remove is None else {"expr": new, "stmt_to_remove": stmt_to_remove}

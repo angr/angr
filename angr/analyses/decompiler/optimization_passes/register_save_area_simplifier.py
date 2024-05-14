@@ -158,7 +158,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             lr_reg_offset = self.project.arch.registers["lr"][0]
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
             lr_reg_offset = self.project.arch.registers["ra"][0]
-        elif self.project.arch.name in {"PPC32", "PPC64"}:
+        elif self.project.arch.name in {"PPC32", "PPC64"} or self.project.arch.name.startswith("PowerPC:"):
             lr_reg_offset = self.project.arch.registers["lr"][0]
         else:
             lr_reg_offset = None
