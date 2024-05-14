@@ -3,7 +3,9 @@ from collections import defaultdict, namedtuple
 import logging
 import enum
 from dataclasses import dataclass
-from typing import Optional, Any, Iterable, NamedTuple, TYPE_CHECKING
+from typing import Optional, Any, NamedTuple, TYPE_CHECKING
+
+from collections.abc import Iterable
 
 import networkx
 import capstone
