@@ -1,10 +1,9 @@
 import copy
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Iterable
 import logging
 import enum
 from dataclasses import dataclass
 from typing import Optional, Any, NamedTuple, TYPE_CHECKING
-from collections.abc import Iterable
 
 import networkx
 import capstone
@@ -412,7 +411,7 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Store):
                     found_load_or_store = True
                     break
-                elif isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Load):
+                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Load):
                     found_load_or_store = True
                     break
         if not found_load_or_store:
