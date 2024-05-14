@@ -1,6 +1,7 @@
 from ailment import Expr
 
 from angr.engines.vex.claripy.ccall import (
+    ARMCondNE,
     ARMCondHS,
     ARMCondLO,
     ARMCondMI,
@@ -9,6 +10,7 @@ from angr.engines.vex.claripy.ccall import (
     ARMG_CC_OP_SUB,
     ARMG_CC_OP_SBB,
     # TODO:
+    ARMCondLE,
 )
 from .rewriter_base import CCallRewriterBase
 
@@ -56,6 +58,23 @@ class ARMCCallRewriter(CCallRewriterBase):
                         #   and then negate the result if inv == 1
                         r = Expr.BinaryOp(
                             ccall.idx, "CmpLT" if inv == 0 else "CmpGE", (dep_1, dep_2), False, **ccall.tags
+                        )
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                elif cond_v in {ARMCondLE}:
+                    if op_v == ARMG_CC_OP_SUB:
+                        # dep_1 <= dep_2,
+                        #   and then negate the result if inv == 1
+                        r = Expr.BinaryOp(
+                            ccall.idx, "CmpLE", (dep_1, dep_2), False, **ccall.tags
+                        )
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+
+                elif cond_v in {ARMCondNE}:
+                    if op_v == ARMG_CC_OP_SUB:
+                        # dep_1 != dep_2,
+                        #   and then negate the result if inv == 1
+                        r = Expr.BinaryOp(
+                            ccall.idx, "CmpNE", (dep_1, dep_2), False, **ccall.tags
                         )
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
