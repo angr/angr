@@ -1021,10 +1021,10 @@ class Clinic(Analysis):
                             region=self.function.addr,
                             size=arg.size,
                         )
-                        arg_count += 1
                     else:
                         raise TypeError("Unsupported function argument type %s." % type(arg))
                     arg_vars.append(argvar)
+                    arg_count += 1
             return arg_vars
         return []
 
