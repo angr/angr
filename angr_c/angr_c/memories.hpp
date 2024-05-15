@@ -1,14 +1,14 @@
 #ifndef _MEMORIES_HPP_
 #define _MEMORIES_HPP_
 
-#include <pybind11/pybind11.h>
+#include <nanobind/nanobind.h>
 
-namespace py = pybind11;
+namespace nb = nanobind;
 
 
 namespace angr_c
 {
-	void register_memory_class(py::module_& m);
+	void register_memory_class(nb::module_& m);
 }
 
 #endif

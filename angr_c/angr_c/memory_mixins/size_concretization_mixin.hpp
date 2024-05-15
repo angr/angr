@@ -9,41 +9,41 @@ Assumes that the data is a BV.
 #ifndef _SIZE_CONCRETIZATION_MIXIN_HPP_
 #define _SIZE_CONCRETIZATION_MIXIN_HPP_
 
-#include <pybind11/pybind11.h>
+#include <nanobind/nanobind.h>
 #include <stdint.h>
 
-namespace py = pybind11;
+namespace nb = nanobind;
 
 namespace angr_c
 {
 	template <class T>
 	class SizeConcretizationMixin : public T {
 	public:
-		SizeConcretizationMixin(const py::kwargs kwargs);
-		SizeConcretizationMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs);
+		SizeConcretizationMixin(const nb::kwargs kwargs);
+		SizeConcretizationMixin(uint32_t bits, uint32_t byte_width, Endness endness, nb::kwargs kwargs);
 
-		void store(py::object addr, py::object data, py::object size, py::kwargs kwargs);
-		py::object load(py::object addr, py::object size, py::kwargs kwargs);
+		void store(nb::object addr, nb::object data, nb::object size, nb::kwargs kwargs);
+		nb::object load(nb::object addr, nb::object size, nb::kwargs kwargs);
 	};
 
 	template <class T>
-	SizeConcretizationMixin<T>::SizeConcretizationMixin(const py::kwargs kwargs)
+	SizeConcretizationMixin<T>::SizeConcretizationMixin(const nb::kwargs kwargs)
 		: T(kwargs)
 	{
 
 	}
 
 	template <class T>
-	SizeConcretizationMixin<T>::SizeConcretizationMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs)
+	SizeConcretizationMixin<T>::SizeConcretizationMixin(uint32_t bits, uint32_t byte_width, Endness endness, nb::kwargs kwargs)
 		: T(bits, byte_width, endness, kwargs)
 	{
 
 	}
 
 	template <class T>
-	void SizeConcretizationMixin<T>::store(py::object addr, py::object data, py::object size, py::kwargs kwargs)
+	void SizeConcretizationMixin<T>::store(nb::object addr, nb::object data, nb::object size, nb::kwargs kwargs)
 	{
-		if (py::hasattr(size, "op") && size.attr("op").cast<std::string>() == "BVV") {
+		if (nb::hasattr(size, "op") && nb::cast<std::string>(size.attr("op")) == "BVV") {
 			T::store(addr, data, size, kwargs);
 			return;
 		}
@@ -52,14 +52,14 @@ namespace angr_c
 	}
 
 	template <class T>
-	py::object SizeConcretizationMixin<T>::load(py::object addr, py::object size, py::kwargs kwargs)
+	nb::object SizeConcretizationMixin<T>::load(nb::object addr, nb::object size, nb::kwargs kwargs)
 	{
-		if (py::hasattr(size, "op") && size.attr("op").cast<std::string>() == "BVV") {
+		if (nb::hasattr(size, "op") && nb::cast<std::string>(size.attr("op")) == "BVV") {
 			return T::load(addr, size, kwargs);
 		}
 
 		// TODO: Concretization
-		return py::none();
+		return nb::none();
 	}
 }
 

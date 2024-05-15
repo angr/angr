@@ -32,21 +32,21 @@ namespace angr_c
 		;
 	}
 
-	void register_memory_class(py::module_& m)
+	void register_memory_class(nb::module_& m)
 	{
 		m.def("profile_static_function", &profile_static_function);
-		py::class_<DefaultMemory>(m, "DefaultMemory")
-			.def(py::init<
-				const py::kwargs&>())
-			.def(py::init<
+		nb::class_<DefaultMemory>(m, "DefaultMemory")
+			.def(nb::init<
+				const nb::kwargs&>())
+			.def(nb::init<
 				uint32_t,  // bits
 				uint32_t,  // byte_width
 				Endness,
-				py::kwargs
+				nb::kwargs
 				>())
 			.def("store", &DefaultMemory::store, "TODO")
 			.def("load", &DefaultMemory::load, "TODO");
-		py::enum_<Endness>(m, "Endness")
+		nb::enum_<Endness>(m, "Endness")
 			.value("Unspecified", Endness::Unspecified)
 			.value("BE", Endness::BE)
 			.value("LE", Endness::LE)

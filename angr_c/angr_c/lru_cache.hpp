@@ -1,3 +1,6 @@
+#include <list>
+#include <unordered_map>
+
 namespace angr_c
 {
 	// adopted from https://github.com/lamerman/cpp-lru-cache

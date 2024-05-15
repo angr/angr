@@ -4,10 +4,10 @@
 #include <vector>
 #include <set>
 #include <tuple>
-#include <pybind11/pybind11.h>
+#include <nanobind/nanobind.h>
 #include "page.hpp"
 
-namespace py = pybind11;
+namespace nb = nanobind;
 
 
 namespace angr_c
@@ -18,10 +18,10 @@ namespace angr_c
 		ListPage(uint32_t page_size);
 		void store(uint64_t addr, std::shared_ptr<VALUE_T>, uint32_t size, Endness endness, uint64_t page_addr, bool cooperate);
 		std::vector<std::tuple<uint64_t, std::shared_ptr<VALUE_T>>> load_raw(uint64_t addr, uint32_t size, Endness endness, uint64_t page_addr);
-		py::object load(uint64_t addr, uint32_t size, Endness endness, uint64_t page_addr);
+		nb::object load(uint64_t addr, uint32_t size, Endness endness, uint64_t page_addr);
 		void _fill(std::vector<std::tuple<uint64_t, std::shared_ptr<VALUE_T>>> &result, uint64_t subaddr, uint64_t page_addr, Endness endness);
 
-		py::object static compose_objects(std::vector<std::tuple<uint64_t, std::shared_ptr<VALUE_T>>> &result, uint32_t size, Endness endness);
+		nb::object static compose_objects(std::vector<std::tuple<uint64_t, std::shared_ptr<VALUE_T>>> &result, uint32_t size, Endness endness);
 
 	private:
 		std::vector<std::shared_ptr<VALUE_T>> m_content;
@@ -88,7 +88,7 @@ namespace angr_c
 	}
 
 	template <class COOPERATION_T, class VALUE_T, class DECOMPOSER_T>
-	py::object ListPage<COOPERATION_T, VALUE_T, DECOMPOSER_T>::load(uint64_t addr, uint32_t size, Endness endness, uint64_t page_addr)
+	nb::object ListPage<COOPERATION_T, VALUE_T, DECOMPOSER_T>::load(uint64_t addr, uint32_t size, Endness endness, uint64_t page_addr)
 	{
 		auto result = load_raw(addr, size, endness, page_addr);
 		return COOPERATION_T::force_load_cooperation(result, size, page_addr, endness);
@@ -106,7 +106,7 @@ namespace angr_c
 		uint64_t global_start_addr = std::get<0>(result[result.size() - 1]);
 		uint64_t size = global_end_addr - global_start_addr;
 		// TODO: Get the default AST
-		py::object new_ast = py::none();
+		nb::object new_ast = nb::none();
 		auto new_item = std::unique_ptr<SimMemoryObject>(new SimMemoryObject(new_ast, global_start_addr, endness, 8, size));
 		uint64_t subaddr_start = global_start_addr - page_addr;
 		for (uint64_t subaddr = subaddr_start; subaddr < addr; ++subaddr) {
@@ -116,7 +116,7 @@ namespace angr_c
 	}
 
 	template <class COOPERATION_T, class VALUE_T, class DECOMPOSER_T>
-	py::object ListPage<COOPERATION_T, VALUE_T, DECOMPOSER_T>::compose_objects(std::vector<std::tuple<uint64_t, std::shared_ptr<VALUE_T>>> &result, uint32_t size, Endness endness)
+	nb::object ListPage<COOPERATION_T, VALUE_T, DECOMPOSER_T>::compose_objects(std::vector<std::tuple<uint64_t, std::shared_ptr<VALUE_T>>> &result, uint32_t size, Endness endness)
 	{
 		return COOPERATION_T::compose_objects(result, size, endness);
 	}

@@ -1,22 +1,22 @@
 #include <stdint.h>
-#include <pybind11/pybind11.h>
+#include <nanobind/nanobind.h>
 #include <libvex.h>
 #include <vector>
 
 #include "block.hpp"
 
-namespace py = pybind11;
-using namespace py::literals;
+namespace nb = nanobind;
+using namespace nb::literals;
 
 
 namespace angr_c
 {
-	py::object DEFAULT_VEX_ENGINE;
+	nb::object DEFAULT_VEX_ENGINE;
 
 	Block::Block(
 		uint64_t addr,
-		py::object project,
-		py::object arch,
+		nb::object project,
+		nb::object arch,
 		uint32_t size,
 		uint8_t optLevel,
 		int32_t numInst,
@@ -25,7 +25,7 @@ namespace angr_c
 		bool collectDataRefs,
 		bool crossInsnOpt,
 		bool loadFromRoRegions,
-		py::object initialRegs
+		nb::object initialRegs
 	)
 	{
 
@@ -33,9 +33,9 @@ namespace angr_c
 
 	Block::Block(
 		uint64_t addr,
-		py::object project,
-		py::object arch,
-		py::bytes byteString,
+		nb::object project,
+		nb::object arch,
+		nb::bytes byteString,
 		uint8_t optLevel,
 		int32_t numInst,
 		uint32_t traceflags,
@@ -43,7 +43,7 @@ namespace angr_c
 		bool collectDataRefs,
 		bool crossInsnOpt,
 		bool loadFromRoRegions,
-		py::object initialRegs
+		nb::object initialRegs
 	) :
 		m_Addr(addr),
 		m_Project(project),
@@ -54,7 +54,7 @@ namespace angr_c
 		m_CrossInsnOpt(crossInsnOpt),
 		m_LoadFromRoRegions(loadFromRoRegions),
 		m_InitialRegs(initialRegs),
-		m_Capstone(py::none())
+		m_Capstone(nb::none())
 	{
 		if (byteString.is_none()) {
 			throw std::invalid_argument("\"byteString\" must be provided. Otherwise, please call block_from_state() instead.");
@@ -77,13 +77,13 @@ namespace angr_c
 			throw std::invalid_argument("\"byte_string\" has to be specified if \"project\" is not provided.");
 		}
 
-		m_Size = py::cast<uint32_t>(byteString.attr("__len__")());
+		m_Size = nb::cast<uint32_t>(byteString.attr("__len__")());
 
 		if (m_Vex.has_value()) {
 			ParseVexInfo(*m_Vex);
 		}
 
-		auto tmpStr = std::string(byteString);
+		auto tmpStr = std::string(static_cast<const char*>(byteString.data()), byteString.size());
 		m_Size = static_cast<int32_t>(tmpStr.size());
 		m_Bytes = new uint8_t(m_Size);
 		memcpy(m_Bytes, tmpStr.c_str(), m_Size);
@@ -92,16 +92,17 @@ namespace angr_c
 
 	Block::Block(
 		uint64_t addr,
-		py::object project,
-		py::object arch,
-		py::object vex,
+		nb::object project,
+		nb::object arch,
+		nb::object vex,
 		uint8_t optLevel,
 		int32_t numInst,
+		uint32_t traceflags,
 		bool strictBlockEnd,
 		bool collectDataRefs,
 		bool crossInsnOpt,
 		bool loadFromRoRegions,
-		py::object initialRegs
+		nb::object initialRegs
 	) :
 		m_Addr(addr),
 		m_Project(project),
@@ -109,21 +110,22 @@ namespace angr_c
 		m_Vex(vex),
 		m_OptLevel(optLevel),
 		m_Instructions(numInst),
+		m_Traceflags(traceflags),
 		m_StrictBlockEnd(strictBlockEnd),
 		m_CollectDataRefs(collectDataRefs),
 		m_CrossInsnOpt(crossInsnOpt),
 		m_LoadFromRoRegions(loadFromRoRegions),
 		m_InitialRegs(initialRegs),
-		m_Capstone(py::none())
+		m_Capstone(nb::none())
 	{
 		m_Bytes = nullptr;
 		m_OwnBytes = false;
-		m_Size = py::cast<uint32_t>(vex.attr("size"));
+		m_Size = nb::cast<uint32_t>(vex.attr("size"));
 	}
 
 	Block::Block(
 		uint64_t addr,
-		const py::kwargs& kwargs
+		const nb::kwargs& kwargs
 	) :
 		m_Addr(addr),
 		m_Vex(std::nullopt),
@@ -132,11 +134,11 @@ namespace angr_c
 	{
 		// Dispatch to various initializers based on which keyword arguments are available
 		if (kwargs) {
-			std::optional<py::object> project(std::nullopt);
-			std::optional<py::object> arch(std::nullopt);
+			std::optional<nb::object> project(std::nullopt);
+			std::optional<nb::object> arch(std::nullopt);
 			bool thumb = false;
 			int optLevel = 0;
-			py::object vex;
+			nb::object vex;
 			size_t size;
 			int numInst = -1;
 			int traceflags = 0;
@@ -144,17 +146,17 @@ namespace angr_c
 			bool collectDataRefs = false;
 			bool crossInsnOpt = true;
 			bool loadFromRoRegions = false;
-			std::optional<py::bytes> byteString(std::nullopt);
+			std::optional<nb::bytes> byteString(std::nullopt);
 
 			if (kwargs.contains("project")) {
-				py::object arg = kwargs["project"];
+				nb::object arg = kwargs["project"];
 				if (!arg.is_none()) {
 					project = arg;
 				}
 			}
 
 			if (kwargs.contains("arch")) {
-				py::object arg = kwargs["arch"];
+				nb::object arg = kwargs["arch"];
 				if (!arg.is_none()) {
 					arch = arg;
 				}
@@ -166,25 +168,25 @@ namespace angr_c
 			}
 
 			if (!project.has_value() && !arch.has_value()) {
-				throw py::value_error("Either \"project\" or \"arch\" has to be specified");
+				throw nb::value_error("Either \"project\" or \"arch\" has to be specified");
 			}
 
 			// TODO: Set thumb if ARM
 			if (kwargs.contains("thumb")) {
-				thumb = kwargs["thumb"].cast<bool>();
+				thumb = nb::cast<bool>(kwargs["thumb"]);
 			}
 
 			if (kwargs.contains("opt_level")) {
-				py::object arg = kwargs["opt_level"];
+				nb::object arg = kwargs["opt_level"];
 				if (!arg.is_none()) {
-					optLevel = arg.cast<int>();
+					optLevel = nb::cast<int>(arg);
 				}
 			}
 
 			if (kwargs.contains("byte_string")) {
-				py::object arg = kwargs["byte_string"];
+				nb::object arg = kwargs["byte_string"];
 				if (!arg.is_none()) {
-					byteString = arg.cast<py::bytes>();
+					byteString = nb::cast<nb::bytes>(arg);
 				}
 			}
 
@@ -192,71 +194,71 @@ namespace angr_c
 				vex = kwargs["vex"];
 			}
 			else {
-				vex = py::none();
+				vex = nb::none();
 			}
 
 			if (kwargs.contains("traceflags")) {
-				py::object arg = kwargs["traceflags"];
+				nb::object arg = kwargs["traceflags"];
 				if (!arg.is_none()) {
-					traceflags = arg.cast<int>();
+					traceflags = nb::cast<int>(arg);
 				}
 			}
 
 			if (kwargs.contains("collect_data_refs")) {
-				py::object arg = kwargs["collect_data_refs"];
+				nb::object arg = kwargs["collect_data_refs"];
 				if (!arg.is_none()) {
-					collectDataRefs = arg.cast<bool>();
+					collectDataRefs = nb::cast<bool>(arg);
 				}
 			}
 
 			if (kwargs.contains("strict_block_end")) {
-				py::object arg = kwargs["strict_block_end"];
+				nb::object arg = kwargs["strict_block_end"];
 				if (!arg.is_none()) {
-					strictBlockEnd = arg.cast<bool>();
+					strictBlockEnd = nb::cast<bool>(arg);
 				}
 			}
 
 			if (kwargs.contains("cross_insn_opt")) {
-				py::object arg = kwargs["cross_insn_opt"];
+				nb::object arg = kwargs["cross_insn_opt"];
 				if (!arg.is_none()) {
-					crossInsnOpt = arg.cast<bool>();
+					crossInsnOpt = nb::cast<bool>(arg);
 				}
 			}
 
 			if (kwargs.contains("load_from_ro_regions")) {
-				py::object arg = kwargs["load_from_ro_regions"];
+				nb::object arg = kwargs["load_from_ro_regions"];
 				if (!arg.is_none()) {
-					loadFromRoRegions = arg.cast<bool>();
+					loadFromRoRegions = nb::cast<bool>(arg);
 				}
 			}
 
 			if (kwargs.contains("num_inst")) {
-				py::object arg = kwargs["num_inst"];
+				nb::object arg = kwargs["num_inst"];
 				if (!arg.is_none()) {
-					numInst = arg.cast<int>();
+					numInst = nb::cast<int>(arg);
 				}
 			}
 
 			size = 0xffffffffffffffff;
 			if (kwargs.contains("size")) {
-				py::object arg = kwargs["size"];
+				nb::object arg = kwargs["size"];
 				if (!arg.is_none()) {
-					size = arg.cast<size_t>();
+					size = nb::cast<size_t>(arg);
 				}
 			}
 
 			if (size == 0xffffffffffffffff) {
 				if (byteString.has_value()) {
-					py::buffer_info info(py::buffer(*byteString).request());
-					size = info.size;
+					nb::bytes info(*byteString);
+					size = info.size();
 				}
 				else if (!vex.is_none()) {
-					size = vex.attr("size").cast<size_t>();
+					size = nb::cast<size_t>(vex.attr("size"));
 					m_Vex = vex;
 				}
 				else {
 					// lift the block!
-					py::object vexEngine;
+					nb::object vexEngine;
 					if (!project.has_value()) {
 						vexEngine = DEFAULT_VEX_ENGINE;
 					}
@@ -264,34 +266,33 @@ namespace angr_c
 						vexEngine = (*project).attr("factory").attr("default_engine");
 					}
 
-					py::object clemory;
+					nb::object clemory;
 					if (!project.has_value()) {
 						clemory = (*project).attr("loader").attr("memory");
 					}
 					else {
-						clemory = py::none();
+						clemory = nb::none();
 					}
 
-					py::dict kwargs = py::dict(
-						"clemory"_a = clemory,
-						"addr"_a = addr,
-						// TODO: Handle THUMB
-						"size"_a = size,
-						"opt_level"_a = optLevel,
-						"arch"_a = *arch,
-						"traceflags"_a = traceflags,
-						"collect_data_refs"_a = collectDataRefs,
-						"strict_block_end"_a = strictBlockEnd,
-						"cross_insn_opt"_a = crossInsnOpt,
-						"load_from_ro_regions"_a = loadFromRoRegions
-					);
+					nb::dict kwargs;
+					kwargs["clemory"] = clemory;
+					kwargs["addr"] = addr;
+					// TODO: Handle THUMB
+					kwargs["size"] = size;
+					kwargs["opt_level"] = optLevel;
+					kwargs["arch"] = *arch;
+					kwargs["traceflags"] = traceflags;
+					kwargs["collect_data_refs"] = collectDataRefs;
+					kwargs["strict_block_end"] = strictBlockEnd;
+					kwargs["cross_insn_opt"] = crossInsnOpt;
+					kwargs["load_from_ro_regions"] = loadFromRoRegions;
 
 					if (numInst != -1) {
 						kwargs["num_inst"] = numInst;
 					}
 
 					vex = vexEngine.attr("lift_vex")(**kwargs);
-					size = vex.attr("size").cast<size_t>();
+					size = nb::cast<size_t>(vex.attr("size"));
 
 					m_Vex = vex;
 				}
@@ -319,7 +320,7 @@ namespace angr_c
 			}
 		}
 		else {
-			throw py::value_error("\"kwargs\" cannot be empty or unspecified");
+			throw nb::value_error("\"kwargs\" cannot be empty or unspecified");
 		}
 	}
 
@@ -347,21 +348,20 @@ namespace angr_c
 		m_OwnBytes = ownBytes;
 	}
 
-	void Block::ParseVexInfo(py::object vex)
+	void Block::ParseVexInfo(nb::object vex)
 	{
 		if (!vex.is_none()) {
-			m_Instructions = py::cast<int32_t>(vex.attr("instructions"));
+			m_Instructions = nb::cast<int32_t>(vex.attr("instructions"));
 			// TODO:
-			// m_InstructionAddrs = py::cast<std::vector<uint64_t>>(vex.attr("instruction_addresses"));
-			m_Size = py::cast<uint32_t>(vex.attr("size"));
+			// m_InstructionAddrs = nb::cast<std::vector<uint64_t>>(vex.attr("instruction_addresses"));
+			m_Size = nb::cast<uint32_t>(vex.attr("size"));
 		}
 	}
 
-	py::object Block::GetVex()
+	nb::object Block::GetVex()
 	{
-		if (!m_Vex.has_value())
-		{
-			py::object vexEngine;
+		if (!m_Vex.has_value()) {
+			nb::object vexEngine;
 			if (m_Project.is_none()) {
 				vexEngine = DEFAULT_VEX_ENGINE;
 			}
@@ -369,17 +369,17 @@ namespace angr_c
 				vexEngine = m_Project.attr("factory").attr("default_engine");
 			}
 
-			py::object clemory;
+			nb::object clemory;
 			if (!m_Project.is_none()) {
 				clemory = m_Project.attr("loader").attr("memory");
 			}
 			else {
-				clemory = py::none();
+				clemory = nb::none();
 			}
 
 			m_Vex = vexEngine.attr("lift_vex")(
 				"clemory"_a = clemory,
-				"insn_bytes"_a = py::bytes((char*)m_Bytes, m_Size),
+				"insn_bytes"_a = nb::bytes((char*)m_Bytes, m_Size),
 				"addr"_a = m_Addr,
 				// TODO: Handle THUMB
 				"size"_a = m_Size,
@@ -402,10 +402,10 @@ namespace angr_c
 
 	Block BlockFromState(
 		uint64_t addr,
-		py::object project,
-		py::object arch,
-		py::object backupState,
-		py::object extraStopPoints,
+		nb::object project,
+		nb::object arch,
+		nb::object backupState,
+		nb::object extraStopPoints,
 		uint8_t optLevel = 1,
 		int32_t numInst = -1,
 		uint32_t traceflags = 0,
@@ -413,12 +413,12 @@ namespace angr_c
 		bool collectDataRefs = false,
 		bool crossInsnOpt = true,
 		bool loadFromRoRegions = false,
-		py::object initialRegs = py::none()
+		nb::object initialRegs = nb::none()
 	)
 	{
 		// TODO: set initial regs
 
-		py::object vexEngine;
+		nb::object vexEngine;
 		if (project.is_none()) {
 			vexEngine = DEFAULT_VEX_ENGINE;
 		}
@@ -426,10 +426,10 @@ namespace angr_c
 			vexEngine = project.attr("factory").attr("default_engine");
 		}
 
-		py::object vex = vexEngine.attr("lift_vex")(
-			"clemory"_a=project.is_none()? py::none(): project.attr("loader").attr("memory"),
+		nb::object vex = vexEngine.attr("lift_vex")(
+			"clemory"_a=project.is_none()? nb::none(): project.attr("loader").attr("memory"),
 			"state"_a=backupState,
-			"insn_bytes"_a=py::none(),
+			"insn_bytes"_a=nb::none(),
 			"addr"_a=addr,
 			// TODO: THUMB support
 			// "thumb"_a=thumb,
@@ -463,22 +463,22 @@ namespace angr_c
 
 	void initialize_block()
 	{
-		py::object VEXLifter = py::module_::import("angr").attr("engines").attr("vex").attr("VEXLifter");
-		DEFAULT_VEX_ENGINE = VEXLifter(py::none());
+		nb::object VEXLifter = nb::module_::import_("angr").attr("engines").attr("vex").attr("VEXLifter");
+		DEFAULT_VEX_ENGINE = VEXLifter(nb::none());
 	}
 
-	void Perf(const py::kwargs& args)
+	void Perf(const nb::kwargs& args)
 	{
 		;
 	}
 
-	void register_block_class(py::module_ &m)
+	void register_block_class(nb::module_ &m)
 	{
-		py::class_<Block>(m, "Block")
-			.def(py::init<
+		nb::class_<Block>(m, "Block")
+			.def(nb::init<
 				uint64_t,
-				py::object,
-				py::object,
+				nb::object,
+				nb::object,
 				uint32_t,  // size
 				uint8_t,
 				int32_t,
@@ -487,12 +487,12 @@ namespace angr_c
 				bool,
 				bool,
 				bool,
-				py::object>())
-			.def(py::init<
+				nb::object>())
+			.def(nb::init<
 				uint64_t,
-				py::object,
-				py::object,
-				py::bytes, // byteString
+				nb::object,
+				nb::object,
+				nb::bytes, // byteString
 				uint8_t,
 				int32_t,
 				uint32_t,
@@ -500,40 +500,41 @@ namespace angr_c
 				bool,
 				bool,
 				bool,
-				py::object>())
-			.def(py::init<
+				nb::object>())
+			.def(nb::init<
 				uint64_t,
-				py::object,
-				py::object,
-				py::object, // vex
+				nb::object,
+				nb::object,
+				nb::object, // vex
 				uint8_t,
 				int32_t,
+				uint32_t,
 				bool,
 				bool,
 				bool,
 				bool,
-				py::object>())
-			.def(py::init<
+				nb::object>())
+			.def(nb::init<
 				uint64_t,
-				const py::kwargs&>())
-			.def_property("addr", &Block::GetAddr, &Block::SetAddr)
-			.def_property("size", &Block::GetSize, &Block::SetSize)
-			.def_property("_bytes", &Block::GetBytes, &Block::SetBytes)
-			.def_property("_vex", &Block::GetVexBlock, &Block::SetVexBlock, py::return_value_policy::reference)
-			.def_property("_disassembly", &Block::GetDisassembly, &Block::SetDisassembly)
-			.def_property("_capstone", &Block::GetCapstone, &Block::SetCapstone)
-			.def_property("arch", &Block::GetArch, &Block::SetArch)
-			.def_property("_instructions", &Block::GetInstructions, &Block::SetInstructions)
-			.def_property("_instruction_addrs", &Block::GetInstructionAddrs, &Block::SetInstructionAddrs)
-			.def_property("_opt_level", &Block::GetOptLevel, &Block::SetOptLevel)
-			.def_property("_collect_data_refs", &Block::GetCollectDataRefs, &Block::SetCollectDataRefs)
-			.def_property("_strict_block_end", &Block::GetStrictBlockEnd, &Block::SetStrictBlockEnd)
-			.def_property("_cross_insn_opt", &Block::GetCrossInsnOpt, &Block::SetCrossInsnOpt)
-			.def_property("_load_from_ro_regions", &Block::GetLoadFromRoRegions, &Block::SetLoadFromRoRegions)
-			.def_property("_initial_regs", &Block::GetInitialRegs, &Block::SetInitialRegs)
-			.def_property("_project", &Block::GetProject, &Block::SetProject)
+				const nb::kwargs&>())
+			.def_prop_rw("addr", &Block::GetAddr, &Block::SetAddr)
+			.def_prop_rw("size", &Block::GetSize, &Block::SetSize)
+			.def_prop_rw("_bytes", &Block::GetBytes, &Block::SetBytes)
+			.def_prop_rw("_vex", &Block::GetVexBlock, &Block::SetVexBlock, nb::rv_policy::reference)
+			.def_prop_rw("_disassembly", &Block::GetDisassembly, &Block::SetDisassembly)
+			.def_prop_rw("_capstone", &Block::GetCapstone, &Block::SetCapstone)
+			.def_prop_rw("arch", &Block::GetArch, &Block::SetArch)
+			.def_prop_rw("_instructions", &Block::GetInstructions, &Block::SetInstructions)
+			.def_prop_rw("_instruction_addrs", &Block::GetInstructionAddrs, &Block::SetInstructionAddrs)
+			.def_prop_rw("_opt_level", &Block::GetOptLevel, &Block::SetOptLevel)
+			.def_prop_rw("_collect_data_refs", &Block::GetCollectDataRefs, &Block::SetCollectDataRefs)
+			.def_prop_rw("_strict_block_end", &Block::GetStrictBlockEnd, &Block::SetStrictBlockEnd)
+			.def_prop_rw("_cross_insn_opt", &Block::GetCrossInsnOpt, &Block::SetCrossInsnOpt)
+			.def_prop_rw("_load_from_ro_regions", &Block::GetLoadFromRoRegions, &Block::SetLoadFromRoRegions)
+			.def_prop_rw("_initial_regs", &Block::GetInitialRegs, &Block::SetInitialRegs)
+			.def_prop_rw("_project", &Block::GetProject, &Block::SetProject)
 			.def("_parse_vex_info", &Block::ParseVexInfo, "Parse information out of a VEX IRSB.")
-			.def_property_readonly("vex", &Block::GetVex, py::return_value_policy::reference);
+			.def_prop_ro("vex", &Block::GetVex, nb::rv_policy::reference);
 		m.def("block_from_state",
 			&BlockFromState,
 			"Create a block from a given SimState instance."

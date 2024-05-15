@@ -1,4 +1,4 @@
-﻿cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required (VERSION 3.15...3.27)
 
 add_library (angr_c SHARED
 	"memory_mixins/data_normalization_mixin.hpp"
@@ -32,22 +32,6 @@ if (DEFINED CMAKE_LIBRARY_NAME)
 	set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX "")
 endif()
 
-# Here is the trick
-## update the environment with VIRTUAL_ENV variable (mimic the activate script)
-# set (ENV{VIRTUAL_ENV} "C:/Users/Fish/venvs/angr")
-## change the context of the search
-set (Python3_FIND_VIRTUALENV FIRST)
-## unset Python3_EXECUTABLE because it is also an input variable (see documentation, Artifacts Specification section)
-unset (Python3_EXECUTABLE)
-unset (Python_EXECUTABLE)
-## Launch a new search
-find_package (Python COMPONENTS Interpreter Development)
-find_package (Python3 COMPONENTS Interpreter Development)
-
-include_directories(${Python3_INCLUDE_DIRS})
-link_directories(${Python3_LIBRARY_DIRS})
-target_link_libraries(angr_c ${Python3_LIBRARIES})
-
 include_directories ("F:/angr/vex/pub/")
 set(INCLUDE_DIRS "F:/angr/vex/pub/")
 link_directories ("F:/angr/vex/")
@@ -55,17 +39,15 @@ include_directories ("F:/angr/vex/pub")
 target_link_libraries(angr_c "F:/angr/vex/libvex.lib")
 target_include_directories(angr_c PRIVATE "F:/angr/vex/pub")
 
-add_compile_definitions (PYBIND11_PYTHON_VERSION=3.10)
-
 # TODO: Get rid of the following lines
-#message(STATUS "${Python_FOUND}")
-#message(STATUS "${Python_LIBRARY_DIRS}")
-#message(STATUS "${Python_LIBRARIES}")
-#message(STATUS "${Python_INCLUDE_DIRS}")
+message(STATUS "${Python_FOUND}")
+message(STATUS "${Python_LIBRARY_DIRS}")
+message(STATUS "${Python_LIBRARIES}")
+message(STATUS "${Python_INCLUDE_DIRS}")
 
 # For IntelliSense
-include_directories ("D:/My Program Files/Python310/include/")
-include_directories (${angr_c_SOURCE_DIR}/extern/pybind11/include)
+include_directories ("D:/My Program Files/Python311/include/")
+include_directories (${angr_c_SOURCE_DIR}/extern/nanobind/include)
 include_directories ("F:/angr/vex/pub/")
 
 

@@ -1,7 +1,7 @@
 #ifndef _PAGED_MEMORY_MIXIN_HPP_
 #define _PAGED_MEMORY_MIXIN_HPP_
 
-#include <pybind11/pybind11.h>
+#include <nanobind/nanobind.h>
 #include <map>
 #include <iostream>
 #include <algorithm>
@@ -11,8 +11,8 @@
 #include "memory_mixin_base.hpp"
 #include "pages/decomposer.hpp"
 
-namespace py = pybind11;
-using namespace py::literals;
+namespace nb = nanobind;
+using namespace nb::literals;
 
 
 namespace angr_c
@@ -20,11 +20,11 @@ namespace angr_c
 	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	class PagedMemoryMixin : public T {
 	public:
-		PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs);
-		PagedMemoryMixin(const py::kwargs kwargs);
+		PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, nb::kwargs kwargs);
+		PagedMemoryMixin(const nb::kwargs kwargs);
 
-		void store(uint64_t addr, py::object data, uint32_t size, py::kwargs kwargs);
-		py::object load(uint64_t addr, uint32_t size, py::kwargs kwargs);
+		void store(uint64_t addr, nb::object data, uint32_t size, nb::kwargs kwargs);
+		nb::object load(uint64_t addr, uint32_t size, nb::kwargs kwargs);
 		~PagedMemoryMixin();
 
 	private:
@@ -37,18 +37,18 @@ namespace angr_c
 	};
 
 	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
-	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, nb::kwargs kwargs)
 		: T(bits, byte_width, endness)
 	{
 		uint32_t page_size = 4096;
 		if (kwargs.contains("page_size")) {
-			page_size = kwargs["page_size"].cast<uint32_t>();
+			page_size = nb::cast<uint32_t>(kwargs["page_size"]);
 		}
 		m_page_size = page_size;
 	}
 
 	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
-	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::PagedMemoryMixin(const py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::PagedMemoryMixin(const nb::kwargs kwargs)
 		: T(kwargs)
 	{
 
@@ -56,13 +56,13 @@ namespace angr_c
 
 	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	void
-	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::store(uint64_t addr, py::object data, uint32_t size, py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::store(uint64_t addr, nb::object data, uint32_t size, nb::kwargs kwargs)
 	{
 		Endness endness = this->endness;
 		if (kwargs.contains("endness")) {
-			py::object arg = kwargs["endness"];
+			nb::object arg = kwargs["endness"];
 			if (!arg.is_none()) {
-				std::string arg_str = arg.cast<std::string>();
+				std::string arg_str = nb::cast<std::string>(arg);
 				if (arg_str == "Iend_LE") {
 					endness = Endness::LE;
 				}
@@ -94,14 +94,14 @@ namespace angr_c
 	}
 
 	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
-	py::object
-	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::load(uint64_t addr, uint32_t size, py::kwargs kwargs)
+	nb::object
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::load(uint64_t addr, uint32_t size, nb::kwargs kwargs)
 	{
 		Endness endness = this->endness;
 		if (kwargs.contains("endness")) {
-			py::object arg = kwargs["endness"];
+			nb::object arg = kwargs["endness"];
 			if (!arg.is_none()) {
-				std::string arg_str = arg.cast<std::string>();
+				std::string arg_str = nb::cast<std::string>(arg);
 				if (arg_str == "Iend_LE") {
 					endness = Endness::LE;
 				}
