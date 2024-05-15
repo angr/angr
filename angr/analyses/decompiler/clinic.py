@@ -972,7 +972,6 @@ class Clinic(Analysis):
                 arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]
                 arg_count = 0
                 for idx, arg in enumerate(args):
-                    arg_count += 1
                     if isinstance(arg, SimRegArg):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
@@ -1014,7 +1013,6 @@ class Clinic(Analysis):
                                     raise TypeError("Unsupported function argument type %s." % type(arg))
                                 arg_count += 1
                                 arg_vars.append(argvar)
-                            arg_count -= 1
                             continue
 
                         argvar = SimVariable(
@@ -1023,6 +1021,7 @@ class Clinic(Analysis):
                             region=self.function.addr,
                             size=arg.size,
                         )
+                        arg_count += 1
                     else:
                         raise TypeError("Unsupported function argument type %s." % type(arg))
                     arg_vars.append(argvar)
