@@ -868,10 +868,12 @@ class PropagatorAILState(PropagatorState):
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value
 
-    def should_replace_reg(self, old_reg_offset: int, bp_as_gpr: bool) -> bool:
+    def should_replace_reg(self, old_reg_offset: int, bp_as_gpr: bool, new_value) -> bool:
         if old_reg_offset == self.arch.sp_offset or (not bp_as_gpr and old_reg_offset == self.arch.bp_offset):
             return True
         if old_reg_offset in self._artificial_reg_offsets:
+            return True
+        if isinstance(new_value, ailment.Expr.StackBaseOffset):
             return True
         return False
 
@@ -917,7 +919,7 @@ class PropagatorAILState(PropagatorState):
             if (
                 isinstance(old, ailment.Expr.Tmp)
                 or isinstance(old, ailment.Expr.Register)
-                and self.should_replace_reg(old.reg_offset, bp_as_gpr)
+                and self.should_replace_reg(old.reg_offset, bp_as_gpr, new)
             ):
                 self._replacements[codeloc][old] = (
                     new if stmt_to_remove is None else {"expr": new, "stmt_to_remove": stmt_to_remove}
