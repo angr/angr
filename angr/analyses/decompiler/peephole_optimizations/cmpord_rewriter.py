@@ -39,7 +39,7 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
         if not isinstance(cmp_lhs, BinaryOp) or cmp_lhs.op != "And":
             return None
 
-        if not isinstance(cmp_lhs.operands[1], Const) or not cmp_lhs.operands[1].value in {2, 4, 8}:
+        if not isinstance(cmp_lhs.operands[1], Const) or cmp_lhs.operands[1].value not in {2, 4, 8}:
             return None
         if xor_value is not None and cmp_lhs.operands[1].value != xor_value:
             return None
