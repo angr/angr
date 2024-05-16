@@ -1113,6 +1113,7 @@ class SimEngineRDAIL(
     _ail_handle_CmpGEs = _ail_handle_Cmp
     _ail_handle_CmpGT = _ail_handle_Cmp
     _ail_handle_CmpGTs = _ail_handle_Cmp
+    _ail_handle_CmpORD = _ail_handle_Cmp
 
     def _ail_handle_TernaryOp(self, expr) -> MultiValues:
         _ = self._expr(expr.operands[0])
