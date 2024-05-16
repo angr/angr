@@ -625,6 +625,8 @@ class Project:
             l.warning("Could not find symbol %s", symbol_name)
             return None
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        if not self.is_hooked(hook_addr):
+            return None
         return self.hooked_by(hook_addr)
 
     def is_symbol_hooked(self, symbol_name):
