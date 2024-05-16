@@ -845,6 +845,7 @@ class SimEnginePropagatorAIL(
     _ail_handle_CmpGTs = _ail_handle_Cmp
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
+    _ail_handle_CmpORD = _ail_handle_Cmp
 
     def _ail_handle_Add(self, expr: Expr.BinaryOp) -> PropValue:
         o0_value = self._expr(expr.operands[0])

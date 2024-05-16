@@ -125,6 +125,7 @@ _ail2claripy_op_mapping = {
     "SCarry": lambda expr, _, m: _dummy_bvs(expr, m),
     "SBorrow": lambda expr, _, m: _dummy_bvs(expr, m),
     "ExpCmpNE": lambda expr, _, m: _dummy_bools(expr, m),
+    "CmpORD": lambda expr, _, m: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
 }
 
 #
