@@ -931,14 +931,18 @@ class SimTypeFunction(SimType):
             argstrs.append("...")
         return "({}) -> {}".format(", ".join(argstrs), self.returnty)
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
         formatted_args = [
             a.c_repr(n, full - 1, memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
         ]
         if self.variadic:
             formatted_args.append("...")
-        proto = f"({name or ''})({', '.join(formatted_args)})"
+        if name_parens:
+            name_str = f"({name or ''})"
+        else:
+            name_str = name or ""
+        proto = f"{name_str}({', '.join(formatted_args)})"
         return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
     @property
