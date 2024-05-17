@@ -73,6 +73,9 @@ INDENT_DELTA = 4
 def unpack_typeref(ty):
     if isinstance(ty, TypeRef):
         return ty.type
+    if isinstance(ty, RustSimTypePointer):
+        ty = ty.copy()
+        ty.pts_to = unpack_typeref(ty.pts_to)
     return ty
 
 

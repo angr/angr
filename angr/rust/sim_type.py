@@ -154,7 +154,7 @@ class RustSimTypePointer(RustSimType, SimTypePointer):
         return out
 
     def copy(self):
-        return RustSimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+        return RustSimTypePointer(self.pts_to, label=self.label, offset=self.offset).with_arch(self._arch)
 
 
 class RustSimTypeArray(RustSimType, SimTypeArray):

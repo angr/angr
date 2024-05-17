@@ -1,4 +1,4 @@
-from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString, RustSimTypeInt
+from ..sim_type import RustSimTypeFunction, RustSimTypeStr, RustSimTypeString, RustSimTypeInt, RustSimTypePointer
 from ...procedures.definitions import SimLibrary
 
 librust = SimLibrary()
@@ -6,7 +6,7 @@ librust.set_library_names("librust")
 
 prototypes = {
     "String::from": RustSimTypeFunction(
-        args=[RustSimTypeStr()],
+        args=[RustSimTypePointer(RustSimTypeStr())],
         returnty=RustSimTypeString(),
     ),
     "std::io::stdio::_print": RustSimTypeFunction(
