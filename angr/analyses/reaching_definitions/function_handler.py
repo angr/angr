@@ -8,7 +8,7 @@ from cle.backends import ELF
 import claripy
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, dereference_simtype
 from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, SpOffset
 from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.calling_conventions import SimCC
@@ -18,6 +18,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 
 if TYPE_CHECKING:
@@ -357,6 +358,19 @@ class FunctionHandler:
         if data.prototype is None:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
+
+        if data.prototype is not None and data.function is not None:
+            # make sure the function prototype is resolved.
+            # TODO: Cache resolved function prototypes globally
+            prototype_libname = data.function.prototype_libname
+            type_collections = []
+            if prototype_libname is not None:
+                prototype_lib = SIM_LIBRARIES[prototype_libname]
+                if prototype_lib.type_collection_names:
+                    for typelib_name in prototype_lib.type_collection_names:
+                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+            if type_collections:
+                data.prototype = dereference_simtype(data.prototype, type_collections).with_arch(state.arch)
 
         args_atoms_from_values = data.reset_prototype(data.prototype, state, soft_reset=True)
 
