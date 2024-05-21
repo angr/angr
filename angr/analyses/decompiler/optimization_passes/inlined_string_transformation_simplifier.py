@@ -234,6 +234,9 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     def _handle_Call(self, stmt):
         pass
 
+    def _ail_handle_CallExpr(self, expr):
+        pass
+
 
 class InlineStringTransformationDescriptor:
     """
