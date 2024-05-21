@@ -7,10 +7,11 @@ from ailment import Stmt, Expr
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.errors import SimMemoryMissingError
-from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
+from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, dereference_simtype
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
+from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -88,6 +89,20 @@ class CallSiteMaker(Analysis):
         if (cc is None or prototype is None) and has_callsite_prototype:
             cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
             prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
+
+        # ensure the prototype has been resolved
+        if prototype is not None and func is not None:
+            # make sure the function prototype is resolved.
+            # TODO: Cache resolved function prototypes globally
+            prototype_libname = func.prototype_libname
+            type_collections = []
+            if prototype_libname is not None:
+                prototype_lib = SIM_LIBRARIES[prototype_libname]
+                if prototype_lib.type_collection_names:
+                    for typelib_name in prototype_lib.type_collection_names:
+                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+            if type_collections:
+                prototype = dereference_simtype(prototype, type_collections).with_arch(self.project.arch)
 
         args = []
         arg_defs = []
