@@ -660,6 +660,18 @@ class Clinic(Analysis):
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
+                # remove constant pc assignments
+                ail_block.statements = [
+                    stmt
+                    for stmt in ail_block.statements
+                    if not (
+                        isinstance(stmt, ailment.Stmt.Assignment)
+                        and isinstance(stmt.dst, ailment.Expr.Register)
+                        and stmt.dst.reg_offset == self.project.arch.ip_offset
+                        and isinstance(stmt.src, ailment.Expr.Const)
+                    )
+                ]
+
                 self._blocks_by_addr_and_size[(block_node.addr, block_node.size)] = ail_block
 
     def _convert(self, block_node):
