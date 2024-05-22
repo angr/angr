@@ -1,11 +1,16 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
+
+import networkx
+
 import claripy
 
 from ailment.statement import Jump
 from ailment.expression import Const
+from angr.utils.graph import to_acyclic_graph
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-from ..condition_processor import ConditionProcessor
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -27,7 +32,11 @@ class DeadblockRemover(OptimizationPass):
 
     def _check(self):
         cond_proc = ConditionProcessor(self.project.arch)
-        cond_proc.recover_reaching_conditions(region=None, graph=self._graph)
+        if networkx.is_directed_acyclic_graph(self._graph):
+            acyclic_graph = self._graph
+        else:
+            acyclic_graph = to_acyclic_graph(self._graph)
+        cond_proc.recover_reaching_conditions(region=None, graph=acyclic_graph)
 
         if not any(claripy.is_false(c) for c in cond_proc.reaching_conditions.values()):
             return False, None
