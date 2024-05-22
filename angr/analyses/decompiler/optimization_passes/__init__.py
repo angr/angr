@@ -25,6 +25,7 @@ from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .cross_jump_reverter import CrossJumpReverter
 from .code_motion import CodeMotionOptimization
 from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
+from .deadblock_remover import DeadblockRemover
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 
 # order matters!
@@ -43,6 +44,7 @@ _all_optimization_passes = [
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
     (ReturnDuplicatorHigh, True),
+    (DeadblockRemover, True),
     (SwitchDefaultCaseDuplicator, True),
     (LoweredSwitchSimplifier, False),
     (ReturnDuplicatorLow, True),
