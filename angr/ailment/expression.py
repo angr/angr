@@ -105,7 +105,12 @@ class Const(Atom):
             return f"{self.value}<{self.bits}>"
 
     def likes(self, other):
-        return type(self) is type(other) and self.value == other.value and self.bits == other.bits
+        # nan is nan, but nan != nan
+        return (
+            type(self) is type(other)
+            and (self.value is other.value or self.value == other.value)
+            and self.bits == other.bits
+        )
 
     __hash__ = TaggedObject.__hash__
 
