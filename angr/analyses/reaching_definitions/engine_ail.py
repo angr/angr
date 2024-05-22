@@ -546,7 +546,12 @@ class SimEngineRDAIL(
         bits = expr.to_bits
         size = bits // self.arch.byte_width
 
-        if to_conv.count() == 1 and 0 in to_conv:
+        if (
+            to_conv.count() == 1
+            and 0 in to_conv
+            and expr.from_type == ailment.Expr.Convert.TYPE_INT
+            and expr.to_type == ailment.Expr.Convert.TYPE_INT
+        ):
             values = to_conv[0]
         else:
             top = self.state.top(expr.to_bits)

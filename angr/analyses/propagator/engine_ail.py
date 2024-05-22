@@ -633,6 +633,11 @@ class SimEnginePropagatorAIL(
     def _ail_handle_Convert(self, expr: Expr.Convert) -> PropValue:
         o_value = self._expr(expr.operand)
 
+        if not (expr.from_type == Expr.Convert.TYPE_INT and expr.to_type == Expr.Convert.TYPE_INT):
+            # we do not support floating-point conversions
+            new_value = self.state.top(expr.to_bits)
+            return PropValue.from_value_and_details(new_value, expr.size, expr, self._codeloc())
+
         if o_value is None or self.state.is_top(o_value.value):
             new_value = self.state.top(expr.to_bits)
         else:
