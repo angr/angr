@@ -209,9 +209,21 @@ class SimplifierAILEngine(
                 return operand_expr.operand
             else:
                 return Expr.Convert(
-                    expr.idx, operand_expr.from_bits, expr.to_bits, expr.is_signed, operand_expr.operand, **expr.tags
+                    expr.idx,
+                    operand_expr.from_bits,
+                    expr.to_bits,
+                    expr.is_signed,
+                    operand_expr.operand,
+                    from_type=operand_expr.from_type,
+                    to_type=expr.to_type,
+                    rounding_mode=expr.rounding_mode,
+                    **expr.tags,
                 )
-        elif type(operand_expr) is Expr.Const:
+        elif (
+            type(operand_expr) is Expr.Const
+            and expr.from_type == Expr.Convert.TYPE_INT
+            and expr.to_type == Expr.Convert.TYPE_INT
+        ):
             # do the conversion right away
             value = operand_expr.value
             mask = (2**expr.to_bits) - 1
@@ -277,5 +289,15 @@ class SimplifierAILEngine(
                         **operand_expr.tags,
                     )
 
-        converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, operand_expr, **expr.tags)
+        converted = Expr.Convert(
+            expr.idx,
+            expr.from_bits,
+            expr.to_bits,
+            expr.is_signed,
+            operand_expr,
+            from_type=expr.from_type,
+            to_type=expr.to_type,
+            rounding_mode=expr.rounding_mode,
+            **expr.tags,
+        )
         return converted
