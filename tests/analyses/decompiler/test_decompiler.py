@@ -1453,7 +1453,7 @@ class TestDecompiler(unittest.TestCase):
         # getopt_long() == -1 case should be entirely left outside the loop. by ensuring the call to error(0x1) is
         # within the last few lines of decompilation output, we ensure the -1 case is indeed outside the loop.
         last_six_lines = "\n".join(line.strip(" ") for line in d.codegen.text.split("\n")[-7:])
-        assert 'error(1, *(__errno_location()), "%s");' in last_six_lines
+        assert 'error(1, *(__errno_location()), "%s");' in last_six_lines, d.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_fmt0_main(self, decompiler_options=None):
