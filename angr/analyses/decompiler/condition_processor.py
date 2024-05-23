@@ -185,6 +185,11 @@ class ConditionProcessor:
     def recover_reaching_conditions(
         self, region, graph=None, with_successors=False, case_entry_to_switch_head: dict[int, int] | None = None
     ):
+        """
+        Recover the reaching conditions for each block in an acyclic graph. Note that we assume the graph that's passed
+        in is acyclic.
+        """
+
         def _strictly_postdominates(inv_idoms, node_a, node_b):
             """
             Does node A strictly post-dominate node B on the graph?
