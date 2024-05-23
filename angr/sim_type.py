@@ -1,4 +1,6 @@
 # pylint:disable=abstract-method,line-too-long,missing-class-docstring
+from __future__ import annotations
+
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
@@ -50,6 +52,14 @@ class SimType:
         """
         self.label = label
 
+    @staticmethod
+    def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
+        if self_type is other:
+            return True
+        if avoid is not None and self_type in avoid["self"] and other in avoid["other"]:
+            return True
+        return self_type.__eq__(other, avoid=avoid)  # pylint:disable=unnecessary-dunder-call
+
     def __eq__(self, other, avoid=None):
         if type(self) != type(other):
             return False
@@ -60,12 +70,18 @@ class SimType:
             attr_self = getattr(self, attr)
             attr_other = getattr(other, attr)
             if isinstance(attr_self, SimType):
-                if attr_other is attr_self:
-                    return True
-                if avoid is not None and attr_self in avoid["self"] and attr_other in avoid["other"]:
-                    continue
-                if not attr_self.__eq__(attr_other, avoid=avoid):
+                if not SimType._simtype_eq(attr_self, attr_other, avoid):
                     return False
+            elif isinstance(attr_self, (list, tuple)) and isinstance(attr_other, (list, tuple)):
+                if len(attr_self) != len(attr_other):
+                    return False
+                for a, b in zip(attr_self, attr_other):
+                    if isinstance(a, SimType) and isinstance(b, SimType):
+                        if SimType._simtype_eq(a, b, avoid) is False:
+                            return False
+                    else:
+                        if a != b:
+                            return False
             else:
                 if attr_self != attr_other:
                     return False
@@ -125,7 +141,7 @@ class SimType:
     def _init_str(self):
         return f"NotImplemented({self.__class__.__name__})"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(self, name=None, full=0, memo=None, indent=0):  # pylint:disable=unused-argument
         if name is None:
             return repr(self)
         else:
@@ -238,9 +254,6 @@ class SimTypeBottom(SimType):
     """
 
     _base_name = "bot"
-
-    def __init__(self, label=None):
-        super().__init__(label)
 
     def __repr__(self):
         return self.label or "BOT"
@@ -413,8 +426,8 @@ class SimTypeInt(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         try:
             return self._arch.sizeof[self._base_name]
-        except KeyError:
-            raise ValueError(f"Arch {self._arch.name} doesn't have its {self._base_name} type defined!")
+        except KeyError as ex:
+            raise ValueError(f"Arch {self._arch.name} doesn't have its {self._base_name} type defined!") from ex
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -800,7 +813,7 @@ class SimTypeString(NamedTypeMixin, SimTypeArray):
     def __repr__(self):
         return "string_t"
 
-    def extract(self, state: "SimState", addr, concrete=False):
+    def extract(self, state: SimState, addr, concrete=False):
         if self.length is None:
             out = None
             last_byte = state.memory.load(addr, size=1)
@@ -1277,7 +1290,7 @@ class SimStruct(NamedTypeMixin, SimType):
     def copy(self):
         return SimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
 
-    def __eq__(self, other, avoid=None):
+    def __eq__(self, other, avoid: dict[str, set[SimType]] | None = None):
         if not isinstance(other, SimStruct):
             return False
         if not (
@@ -1302,6 +1315,8 @@ class SimStruct(NamedTypeMixin, SimType):
             field_other = other.fields[key]
             if field_self in avoid["self"] and field_other in avoid["other"]:
                 continue
+            avoid["self"].add(field_self)
+            avoid["other"].add(field_other)
             if not field_self.__eq__(field_other, avoid=avoid):
                 return False
         return True
@@ -1356,8 +1371,7 @@ class SimStructValue:
                         return f[k]
                     except KeyError:
                         continue
-            else:
-                return self._values[k]
+            return self._values[k]
 
         return self._values[k]
 
@@ -1610,10 +1624,7 @@ class SimTypeNumOffset(SimTypeNum):
         super().__init__(size, signed, label)
         self.offset = offset
 
-    def __repr__(self):
-        return super().__repr__()
-
-    def extract(self, state: "SimState", addr, concrete=False):
+    def extract(self, state: SimState, addr, concrete=False):
         if state.arch.memory_endness != Endness.LE:
             raise NotImplementedError("This has only been implemented and tested with Little Endian arches so far")
         minimum_load_size = self.offset + self.size  # because we start from a byte aligned offset _before_ the value
@@ -3274,7 +3285,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
 
 
 def dereference_simtype(
-    t: SimType, type_collections: list["SimTypeCollection"], memo: dict[str, SimType] | None = None
+    t: SimType, type_collections: list[SimTypeCollection], memo: dict[str, SimType] | None = None
 ) -> SimType:
     if memo is None:
         memo = {}
