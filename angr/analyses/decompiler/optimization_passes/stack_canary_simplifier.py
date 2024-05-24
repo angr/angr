@@ -182,7 +182,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         while True:
             traversed.add(block_addr)
-            first_block = self._get_block(block_addr)
+            first_block = next(self._get_blocks(block_addr))
             if first_block is None:
                 break
 

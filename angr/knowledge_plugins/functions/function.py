@@ -586,7 +586,7 @@ class Function(Serializable):
             return False
 
     def __str__(self):
-        s = f"Function {self.name} [{self.addr}]\n"
+        s = f"Function {self.name} [{self.addr:#x}]\n"
         s += "  Syscall: %s\n" % self.is_syscall
         s += "  SP difference: %d\n" % self.sp_delta
         s += "  Has return: %s\n" % self.has_return
@@ -1641,7 +1641,7 @@ class Function(Serializable):
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
 
-    def functions_called(self) -> set["Function"]:
+    def functions_reachable(self) -> set["Function"]:
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """

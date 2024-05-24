@@ -63,6 +63,7 @@ class Decompiler(Analysis):
         binop_operators=None,
         decompile=True,
         regen_clinic=True,
+        inline_functions=frozenset(),
         update_memory_data: bool = True,
         generate_code: bool = True,
     ):
@@ -88,6 +89,7 @@ class Decompiler(Analysis):
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
+        self._inline_functions = inline_functions
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: Optional["CStructuredCodeGenerator"] = None
@@ -172,6 +174,7 @@ class Decompiler(Analysis):
                 must_struct=self._vars_must_struct,
                 cache=cache,
                 progress_callback=progress_callback,
+                inline_functions=self._inline_functions,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:

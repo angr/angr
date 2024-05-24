@@ -1,6 +1,7 @@
 from typing import Optional, TYPE_CHECKING
 import logging
 
+import ailment
 import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -252,7 +253,10 @@ class SimEngineVRBase(SimEngineLight):
 
             variable_manager = self.variable_manager[self.func_addr]
             var_candidates: list[tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
-                self.block.addr, self.stmt_idx, "memory"
+                self.block.addr,
+                self.stmt_idx,
+                "memory",
+                block_idx=self.block.idx if isinstance(self.block, ailment.Block) else None,
             )
 
             # find the correct variable
