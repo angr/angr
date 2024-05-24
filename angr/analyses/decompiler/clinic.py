@@ -99,7 +99,7 @@ class Clinic(Analysis):
         optimization_passes=None,
         cfg=None,
         peephole_optimizations: None | (
-            Iterable[type["PeepholeOptimizationStmtBase"] | type["PeepholeOptimizationExprBase"]]
+            Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
         variable_kb=None,
