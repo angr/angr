@@ -1,9 +1,10 @@
+from __future__ import annotations
 import copy
 from collections import defaultdict, namedtuple
 import logging
 import enum
 from dataclasses import dataclass
-from typing import Optional, Any, NamedTuple, TYPE_CHECKING
+from typing import Any, NamedTuple, TYPE_CHECKING
 
 from collections.abc import Iterable
 
@@ -104,12 +105,12 @@ class Clinic(Analysis):
         variable_kb=None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
-        cache: Optional["DecompilationCache"] = None,
+        cache: DecompilationCache | None = None,
         mode: ClinicMode = ClinicMode.DECOMPILE,
         sp_shift: int = 0,
-        inline_functions: Set[Function] | None = frozenset(),
-        inlined_counts: Dict[int, int] | None = None,
-        inlining_parents: Set[int] | None = None,
+        inline_functions: set[Function] | None = frozenset(),
+        inlined_counts: dict[int, int] | None = None,
+        inlining_parents: set[int] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -133,7 +134,7 @@ class Clinic(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
-        self._cfg: Optional["CFGModel"] = cfg
+        self._cfg: CFGModel | None = cfg
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
