@@ -107,9 +107,9 @@ class Clinic(Analysis):
         cache: Optional["DecompilationCache"] = None,
         mode: ClinicMode = ClinicMode.DECOMPILE,
         sp_shift: int = 0,
-        inline_functions: Optional[Set[Function]] = frozenset(),
-        inlined_counts: Optional[Dict[int, int]] = None,
-        inlining_parents: Optional[Set[int]] = None,
+        inline_functions: Set[Function] | None = frozenset(),
+        inlined_counts: Dict[int, int] | None = None,
+        inlining_parents: Set[int] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
