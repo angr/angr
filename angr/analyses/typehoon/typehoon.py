@@ -188,7 +188,7 @@ class Typehoon(Analysis):
                 return None
             return tc.new(specialized)
 
-        if isinstance(tc, Struct) and tc.fields:
+        if isinstance(tc, Struct) and tc.fields and min(tc.fields) >= 0:
             offsets: list[int] = sorted(list(tc.fields.keys()))  # get a sorted list of offsets
             offset0 = offsets[0]
             field0: TypeConstant = tc.fields[offset0]
