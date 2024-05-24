@@ -331,6 +331,7 @@ class FunctionHandler:
             data.cc = data.function.calling_convention
         if data.prototype is None and data.function is not None:
             data.prototype = data.function.prototype
+        hook_libname = None
         if data.address is not None and (data.cc is None or data.prototype is None):
             hook = (
                 None
@@ -350,6 +351,7 @@ class FunctionHandler:
             if data.prototype is None and hook is not None:
                 data.prototype = hook.prototype.with_arch(state.arch)
                 data.guessed_prototype = hook.guessed_prototype
+                hook_libname = hook.library_name
 
         # fallback to the default calling convention and prototype
         if data.cc is None:
@@ -362,7 +364,7 @@ class FunctionHandler:
         if data.prototype is not None and data.function is not None:
             # make sure the function prototype is resolved.
             # TODO: Cache resolved function prototypes globally
-            prototype_libname = data.function.prototype_libname
+            prototype_libname = data.function.prototype_libname or hook_libname
             type_collections = []
             if prototype_libname is not None:
                 prototype_lib = SIM_LIBRARIES[prototype_libname]
