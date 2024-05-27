@@ -298,7 +298,7 @@ class RustSimTypeString(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             {
-                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(arch),
+                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
                 "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
                 "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
             },
@@ -333,7 +333,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             {
-                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(arch),
+                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
                 "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
                 "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
             },
