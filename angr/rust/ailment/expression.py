@@ -44,3 +44,24 @@ class Vec(ailment.Const):
 
     def __str__(self):
         return f"vec!{self.elements}"
+
+
+class Array(ailment.Expression):
+    def __init__(self, idx, elements, ele_ty, ele_num, **kwargs):
+        super().__init__(idx, 1, **kwargs)
+        self.elements = elements
+        self.ele_ty = ele_ty
+        self.ele_num = ele_num
+
+    @property
+    def size(self):
+        return 1
+
+    def length(self):
+        return len(self.elements)
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return str(self.elements)
