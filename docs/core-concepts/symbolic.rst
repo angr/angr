@@ -18,7 +18,7 @@ Consider the following simple program in Python:
            return "Lesser or Equal"
 
 In normal execution, if `x` is set to 5, the program will follow the path where `x <= 10` and return "Lesser or Equal". In symbolic execution, `x` is treated as a symbolic variable, `X`. The execution engine explores both paths:
-   
+
    - Path 1: `X > 10` leading to the result "Greater"
    - Path 2: `X <= 10` leading to the result "Lesser or Equal"
 
