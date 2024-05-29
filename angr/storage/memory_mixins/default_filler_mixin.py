@@ -120,7 +120,7 @@ class SpecialFillerMixin(MemoryMixin):
             and self.state._special_memory_filler is not None
             and type(addr) is int
         ):
-            return self.state._special_memory_filler(name, size * self.state.arch.byte_width, self.state)
+            return self.state._special_memory_filler(name, addr, size * self.state.arch.byte_width, self.state)
         return super()._default_value(addr, size, name=name, **kwargs)
 
     def copy(self, memo):
