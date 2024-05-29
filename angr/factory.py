@@ -6,9 +6,12 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
-from .errors import AngrAssemblyError
+from .errors import AngrAssemblyError, AngrError
 from .engines import UberEngine, ProcedureEngine, SimEngineConcrete, SimEngine
 from .sim_type import SimTypeFunction, SimTypeInt
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock
+from .sim_manager import SimulationManager
 
 try:
     from .engines import UberEnginePcode
@@ -287,6 +290,7 @@ class AngrObjectFactory:
         cross_insn_opt=True,
         load_from_ro_regions=False,
         initial_regs=None,
+        skip_stmts=False,
     ) -> "Block": ...
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
@@ -309,6 +313,7 @@ class AngrObjectFactory:
         strict_block_end=None,
         collect_data_refs=False,
         cross_insn_opt=True,
+        skip_stmts=False,
     ) -> "SootBlock": ...
 
     def block(
@@ -331,6 +336,7 @@ class AngrObjectFactory:
         cross_insn_opt=True,
         load_from_ro_regions=False,
         initial_regs=None,
+        skip_stmts=False,
     ):
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
@@ -349,13 +355,11 @@ class AngrObjectFactory:
                     "Assembling failed. Please make sure keystone is installed, and the assembly string is correct."
                 )
 
-        if max_size is not None:
-            l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
-            size = max_size
         return Block(
             addr,
             project=self.project,
             size=size,
+            max_size=max_size,
             byte_string=byte_string,
             vex=vex,
             extra_stop_points=extra_stop_points,
@@ -369,6 +373,7 @@ class AngrObjectFactory:
             cross_insn_opt=cross_insn_opt,
             load_from_ro_regions=load_from_ro_regions,
             initial_regs=initial_regs,
+            skip_stmts=skip_stmts,
         )
 
     def fresh_block(self, addr, size, backup_state=None):
@@ -378,9 +383,3 @@ class AngrObjectFactory:
     cc.SimStackArg = SimStackArg
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-
-from .errors import AngrError
-from .sim_manager import SimulationManager
-from .codenode import HookNode, SyscallNode
-from .block import Block, SootBlock
