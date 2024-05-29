@@ -2049,6 +2049,7 @@ class SimCCPowerPC(SimCC):
     STACKARG_SP_BUFF = 8
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r3", 4)
+    OVERFLOW_RETURN_VAL = SimRegArg("r4",4)
     ARCH = archinfo.ArchPPC32
 
 
