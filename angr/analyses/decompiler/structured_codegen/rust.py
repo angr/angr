@@ -28,7 +28,7 @@ from ....rust.sim_type import (
     RustSimType,
     RustSimTypeInt,
     RustSimTypeFunction,
-    RustSimTypePointer,
+    RustSimTypeReference,
     RustSimTypeStr,
     RustSimTypeString,
     RustSimTypeVec,
@@ -73,14 +73,14 @@ INDENT_DELTA = 4
 def unpack_typeref(ty):
     if isinstance(ty, TypeRef):
         return ty.type
-    if isinstance(ty, RustSimTypePointer):
+    if isinstance(ty, RustSimTypeReference):
         ty = ty.copy()
         ty.pts_to = unpack_typeref(ty.pts_to)
     return ty
 
 
 def unpack_pointer(ty) -> Optional[SimType]:
-    if isinstance(ty, RustSimTypePointer):
+    if isinstance(ty, RustSimTypeReference):
         return ty.pts_to
     return None
 
@@ -98,7 +98,7 @@ def squash_array_reference(ty):
     if pointed_to:
         array_of = unpack_array(pointed_to)
         if array_of:
-            return RustSimTypePointer(array_of)
+            return RustSimTypeReference(array_of)
     return ty
 
 
@@ -107,8 +107,8 @@ def qualifies_for_simple_cast(ty1, ty2):
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
     return (
         ty1.size == ty2.size
-        and isinstance(ty1, (RustSimTypeInt, RustSimTypePointer))
-        and isinstance(ty2, (RustSimTypeInt, RustSimTypePointer))
+        and isinstance(ty1, (RustSimTypeInt, RustSimTypeReference))
+        and isinstance(ty2, (RustSimTypeInt, RustSimTypeReference))
     )
 
 
@@ -176,14 +176,14 @@ def is_machine_word_size_type(type_: SimType, arch: "archinfo.Arch") -> bool:
 def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
     if project.kb.functions.contains_addr(value):
         # might be a function pointer
-        return RustSimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+        return RustSimTypeReference(SimTypeBottom(label="void")).with_arch(project.arch)
     if value > 4096:
         sec = project.loader.find_section_containing(value)
         if sec is not None and sec.is_readable:
-            return RustSimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+            return RustSimTypeReference(SimTypeBottom(label="void")).with_arch(project.arch)
         seg = project.loader.find_segment_containing(value)
         if seg is not None and seg.is_readable:
-            return RustSimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+            return RustSimTypeReference(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
 
 
@@ -229,7 +229,11 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
         yield "<missing-type> ", None
         yield name, name_type
     else:
+        return type_to_rust_repr_chunks(RustSimTypeInt(ty.size))
         # TODO: Handle other types
+        import ipdb
+
+        ipdb.set_trace()
         assert False
 
 
@@ -437,7 +441,8 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                 var_type = self.variable_manager.get_variable_type(var)
 
             if var_type is None:
-                var_type = SimTypeBottom().with_arch(self.codegen.project.arch)
+                # This should be good
+                var_type = RustSimTypeInt(self.codegen.project.arch.bits)
 
             unified_to_var_and_types[key].add((cvar, var_type))
 
@@ -509,7 +514,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     for field in ty.fields.values():
-                        if isinstance(field, RustSimTypePointer):
+                        if isinstance(field, RustSimTypeReference):
                             if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
                                 field = field.pts_to.elem_type
                             else:
@@ -1500,7 +1505,7 @@ class RustIndexedVariable(RustExpression):
 
         if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
-            if isinstance(u, RustSimTypePointer):
+            if isinstance(u, RustSimTypeReference):
                 if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
                     # special case: (&array)[x]
                     u = u.pts_to.elem_type
@@ -1583,9 +1588,9 @@ class RustUnaryOp(RustExpression):
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
-                self._type = RustSimTypePointer(var_type).with_arch(self.codegen.project.arch)
+                self._type = RustSimTypeReference(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
-                if isinstance(var_type, RustSimTypePointer):
+                if isinstance(var_type, RustSimTypeReference):
                     self._type = unpack_typeref(var_type.pts_to)
                 elif isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray)):
                     self._type = unpack_typeref(var_type.elem_type)
@@ -1678,8 +1683,8 @@ class RustBinaryOp(RustExpression):
     @staticmethod
     def compute_common_type(op: str, lhs_ty: SimType, rhs_ty: SimType) -> SimType:
         # C spec https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2596.pdf 6.3.1.8 Usual arithmetic conversions
-        rhs_ptr = isinstance(rhs_ty, RustSimTypePointer)
-        lhs_ptr = isinstance(lhs_ty, RustSimTypePointer)
+        rhs_ptr = isinstance(rhs_ty, RustSimTypeReference)
+        lhs_ptr = isinstance(lhs_ty, RustSimTypeReference)
 
         if op in ("Add", "Sub"):
             if lhs_ptr and rhs_ptr:
@@ -2079,10 +2084,10 @@ class RustConstant(RustExpression):
                     yield self.fmt_int(self.reference_values[self._type]), self
                     return
                 yield hex(self.reference_values[self._type]), self
-            elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, RustSimTypeStr):
+            elif isinstance(self._type, RustSimTypeReference) and isinstance(self._type.pts_to, RustSimTypeStr):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
                 yield RustConstant.str_to_rust_str(refval.content.decode("utf-8")), self
-            elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
+            elif isinstance(self._type, RustSimTypeReference) and isinstance(self._type.pts_to, SimTypeWideChar):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
                 yield RustConstant.str_to_rust_str(refval.content.decode("utf_16_le"), prefix="L"), self
             else:
@@ -2091,11 +2096,11 @@ class RustConstant(RustExpression):
                     return
                 yield self.reference_values[self.type], self
 
-        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, RustSimTypePointer):
+        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, RustSimTypeReference):
             # print NULL instead
             yield "NULL", self
 
-        elif isinstance(self._type, RustSimTypePointer) and isinstance(self.value, int):
+        elif isinstance(self._type, RustSimTypeReference) and isinstance(self.value, int):
             # Print pointers in hex
             yield hex(self.value), self
 
@@ -2524,7 +2529,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if ty is None:
             return None
         ty = unpack_typeref(ty)
-        if isinstance(ty, RustSimTypePointer):
+        if isinstance(ty, RustSimTypeReference):
             return unpack_typeref(ty.pts_to).with_arch(self.project.arch)
         if isinstance(ty, SimTypeArray):
             return unpack_typeref(ty.elem_type).with_arch(self.project.arch)
@@ -2573,7 +2578,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if isinstance(cvar.type, (SimTypeArray, SimTypeFixedSizeArray)):
             return cvar
-        if isinstance(cvar.type, RustSimTypePointer) and isinstance(
+        if isinstance(cvar.type, RustSimTypeReference) and isinstance(
             cvar.type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)
         ):
             return cvar
@@ -2610,8 +2615,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         renegotiate_type: Callable[[SimType, SimType], SimType] = lambda old, proposed: old,
     ) -> RustExpression:
         def _force_type_cast(src_type_: SimType, dst_type_: SimType, expr_: RustExpression) -> RustUnaryOp:
-            src_type_ptr = RustSimTypePointer(src_type_).with_arch(self.project.arch)
-            dst_type_ptr = RustSimTypePointer(dst_type_).with_arch(self.project.arch)
+            src_type_ptr = RustSimTypeReference(src_type_).with_arch(self.project.arch)
+            dst_type_ptr = RustSimTypeReference(dst_type_).with_arch(self.project.arch)
             return RustUnaryOp(
                 "Dereference",
                 RustTypeCast(
@@ -2635,7 +2640,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 expr = RustBinaryOp("Add", expr, RustConstant(offset, RustSimTypeInt(), codegen=self), codegen=self)
             return RustUnaryOp(
                 "Dereference",
-                RustTypeCast(expr.type, RustSimTypePointer(data_type).with_arch(self.project.arch), expr, codegen=self),
+                RustTypeCast(
+                    expr.type, RustSimTypeReference(data_type).with_arch(self.project.arch), expr, codegen=self
+                ),
                 codegen=self,
             )
 
@@ -2726,7 +2733,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # TODO: BYTE2() and other ida-isms if we're okay with an rvalue
             if stride != 1:
                 expr = RustTypeCast(
-                    expr.type, RustSimTypePointer(SimTypeChar()).with_arch(self.project.arch), expr, codegen=self
+                    expr.type, RustSimTypeReference(SimTypeChar()).with_arch(self.project.arch), expr, codegen=self
                 )
             expr_with_offset = RustBinaryOp(
                 "Add", expr, RustConstant(remainder, RustSimTypeInt(), codegen=self), codegen=self
@@ -2735,7 +2742,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 "Dereference",
                 RustTypeCast(
                     expr_with_offset.type,
-                    RustSimTypePointer(data_type).with_arch(self.project.arch),
+                    RustSimTypeReference(data_type).with_arch(self.project.arch),
                     expr_with_offset,
                     codegen=self,
                 ),
@@ -2747,7 +2754,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # if the value is not a trivial reference we have to do a pointer cast (?)
         if lvalue or not base_expr:
             return RustUnaryOp(
-                "Dereference", RustTypeCast(expr.type, RustSimTypePointer(data_type), expr, codegen=self), codegen=self
+                "Dereference",
+                RustTypeCast(expr.type, RustSimTypeReference(data_type), expr, codegen=self),
+                codegen=self,
             )
         # otherwise, normal cast
         return RustTypeCast(base_type, data_type, base_expr, codegen=self)
@@ -2784,17 +2793,17 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     op = "Sub"
                     piece = (
                         t
-                        if not isinstance(t.type, RustSimTypePointer)
+                        if not isinstance(t.type, RustSimTypeReference)
                         else RustTypeCast(
-                            t.type, RustSimTypePointer(RustSimTypeInt(size=8, signed=False)), t, codegen=self
+                            t.type, RustSimTypeReference(RustSimTypeInt(size=8, signed=False)), t, codegen=self
                         )
                     )
                 elif c == 1:
                     piece = (
                         t
-                        if not isinstance(t.type, RustSimTypePointer)
+                        if not isinstance(t.type, RustSimTypeReference)
                         else RustTypeCast(
-                            t.type, RustSimTypePointer(RustSimTypeInt(size=8, signed=False)), t, codegen=self
+                            t.type, RustSimTypeReference(RustSimTypeInt(size=8, signed=False)), t, codegen=self
                         )
                     )
                 else:
@@ -2803,7 +2812,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         RustConstant(c, t.type, codegen=self),
                         (
                             t
-                            if not isinstance(t.type, RustSimTypePointer)
+                            if not isinstance(t.type, RustSimTypeReference)
                             else RustTypeCast(t.type, pointer_length_int_type, t, codegen=self)
                         ),
                         codegen=self,
@@ -2819,7 +2828,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             return RustUnaryOp(
                 "Dereference",
-                RustTypeCast(result.type, RustSimTypePointer(data_type), result, codegen=self),
+                RustTypeCast(result.type, RustSimTypeReference(data_type), result, codegen=self),
                 codegen=self,
             )
 
@@ -2834,7 +2843,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         kernel = None
         while i < len(terms):
             c, t = terms[i]
-            if isinstance(unpack_typeref(t.type), RustSimTypePointer):
+            if isinstance(unpack_typeref(t.type), RustSimTypeReference):
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
                     return bail_out()
@@ -3290,7 +3299,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
-            if isinstance(type_, RustSimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
+            if isinstance(type_, RustSimTypeReference) and isinstance(type_.pts_to, SimTypeChar):
                 # char*
                 # Try to get a string
                 if (
@@ -3312,7 +3321,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 if expr.value in self.project.kb.functions:
                     # It's a function pointer
                     # We don't care about the actual prototype here
-                    type_ = RustSimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+                    type_ = RustSimTypeReference(SimTypeBottom(label="void")).with_arch(self.project.arch)
                     reference_values[type_] = self.project.kb.functions[expr.value]
                     function_pointer = True
 
@@ -3325,7 +3334,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ):
                     md = self._cfg.memory_data[expr.value]
                     if md.sort == MemoryDataSort.String:
-                        type_ = RustSimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(
+                        type_ = RustSimTypeReference(SimTypeChar().with_arch(self.project.arch)).with_arch(
                             self.project.arch
                         )
                         reference_values[type_] = self._cfg.memory_data[expr.value]
@@ -3335,7 +3344,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         ):
                             inline_string = True
                     elif md.sort == MemoryDataSort.UnicodeString:
-                        type_ = RustSimTypePointer(SimTypeWideChar().with_arch(self.project.arch)).with_arch(
+                        type_ = RustSimTypeReference(SimTypeWideChar().with_arch(self.project.arch)).with_arch(
                             self.project.arch
                         )
                         reference_values[type_] = self._cfg.memory_data[expr.value]
@@ -3367,7 +3376,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.is_heap_str:
             type_ = RustSimTypeString().with_arch(self.project.arch)
         else:
-            type_ = RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
+            type_ = RustSimTypeReference(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
         reference_values = {type_: expr}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
@@ -3484,7 +3493,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return self._get_variable_reference(var_thing)
 
         # FIXME
-        stack_base = RustFakeVariable("stack_base", RustSimTypePointer(SimTypeBottom()), codegen=self)
+        stack_base = RustFakeVariable("stack_base", RustSimTypeReference(SimTypeBottom()), codegen=self)
         ptr = RustBinaryOp("Add", stack_base, RustConstant(expr.offset, RustSimTypeInt(), codegen=self), codegen=self)
         return ptr
 
@@ -3697,7 +3706,7 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
 class FieldReferenceCleanup(RustStructuredCodeWalker):
     @classmethod
     def handle_RustTypeCast(cls, obj):
-        if isinstance(obj.dst_type, RustSimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
+        if isinstance(obj.dst_type, RustSimTypeReference) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
             obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
             if not isinstance(obj, RustTypeCast):
                 return cls.handle(obj)
@@ -3723,7 +3732,7 @@ class PointerArithmeticFixer(RustStructuredCodeWalker):
         obj: RustBinaryOp = super().handle_RustBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")
-            and isinstance(obj.type, RustSimTypePointer)
+            and isinstance(obj.type, RustSimTypeReference)
             and not isinstance(obj.type.pts_to, SimTypeBottom)
         ):
             out = obj.codegen._access_reference(obj, obj.type.pts_to)

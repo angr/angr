@@ -1,14 +1,16 @@
+from typing import Union
+
 from ..sim_type import (
     RustSimType,
     RustSimTypeInt,
-    RustSimTypePointer,
+    RustSimTypeReference,
     RustSimStruct,
     RustSimTypeArray,
     RustSimTypeStr,
     RustSimTypeString,
 )
 from ...analyses.typehoon.lifter import TypeLifter
-from ...analyses.typehoon.typeconsts import BottomType, Int8, Int16, Int32, Int64
+from ...analyses.typehoon.typeconsts import BottomType, Int8, Int16, Int32, Int64, TypeConstant, Struct
 
 
 class RustTypeLifter(TypeLifter):
@@ -43,10 +45,28 @@ class RustTypeLifter(TypeLifter):
         else:
             return BottomType()
 
+    def _lift_SimStruct(self, ty: RustSimStruct) -> Union["TypeConstant", BottomType]:
+        if ty in self.memo:
+            return self.memo[ty]
+
+        obj = Struct(fields={}, name=ty.name)
+        self.memo[ty] = obj
+        converted_fields = {}
+        field_names = {}
+        ty_offsets = ty.offsets
+        for field_name, simtype in ty.fields.items():
+            if field_name not in ty_offsets:
+                return BottomType()
+            converted_fields[ty_offsets[field_name]] = self.lift(simtype)
+            field_names[ty_offsets[field_name]] = field_name
+        obj.fields = converted_fields
+        obj.field_names = field_names
+        return obj
+
 
 _mapping = {
     RustSimTypeInt: RustTypeLifter._lift_SimTypeInt,
-    RustSimTypePointer: RustTypeLifter._lift_SimTypePointer,
+    RustSimTypeReference: RustTypeLifter._lift_SimTypePointer,
     RustSimStruct: RustTypeLifter._lift_SimStruct,
     RustSimTypeArray: RustTypeLifter._lift_SimTypeArray,
     RustSimTypeStr: RustTypeLifter._lift_SimStruct,

@@ -2,7 +2,6 @@ import ailment
 
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ..sim_type import RustSimTypeStr, RustSimTypePointer
 from ..ailment.expression import String
 
 
