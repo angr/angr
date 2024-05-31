@@ -65,3 +65,14 @@ class Array(ailment.Expression):
 
     def __str__(self):
         return str(self.elements)
+
+
+class Struct(ailment.Expression):
+    def __init__(self, idx, depth, fields, **kwargs):
+        super().__init__(idx, **kwargs)
+        self.depth = depth
+        self.fields = fields
+
+    @property
+    def size(self):
+        return sum(field.size for field in self.fields)

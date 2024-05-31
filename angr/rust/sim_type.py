@@ -120,7 +120,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         )
 
 
-class RustSimTypePointer(RustSimType, SimTypePointer):
+class RustSimTypeReference(RustSimType, SimTypePointer):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
@@ -148,13 +148,23 @@ class RustSimTypePointer(RustSimType, SimTypePointer):
             return out
         return f"{name}: {out}"
 
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        # Normally the size of a reference type is arch.bits
+        # But if it's a reference to an array type, then the size will be arch.bits * 2
+        if isinstance(self.pts_to, RustSimTypeArray):
+            return self._arch.bits * 2
+        return self._arch.bits
+
     def _with_arch(self, arch):
-        out = RustSimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out = RustSimTypeReference(self.pts_to.with_arch(arch), self.label)
         out._arch = arch
         return out
 
     def copy(self):
-        return RustSimTypePointer(self.pts_to, label=self.label, offset=self.offset).with_arch(self._arch)
+        return RustSimTypeReference(self.pts_to, label=self.label, offset=self.offset).with_arch(self._arch)
 
 
 class RustSimTypeArray(RustSimType, SimTypeArray):
@@ -172,12 +182,14 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
         """
         super().__init__(elem_type, length, label)
 
+    def __repr__(self):
+        return "[{}{}]".format(self.elem_type, "" if self.length is None else f"; {self.length}")
+
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
             return repr(self)
 
-        name = "{}[{}]".format(name, self.length if self.length is not None else "")
-        return self.elem_type.c_repr(name, full, memo, indent)
+        return f"{name}: {repr(self)}"
 
     def _with_arch(self, arch):
         out = RustSimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
@@ -232,6 +244,9 @@ class RustSimStruct(RustSimType, SimStruct):
             self.name, newline, members, newline, indented, "" if name is None else " " + name
         )
 
+    def copy(self):
+        return RustSimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+
 
 class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
     """
@@ -260,7 +275,9 @@ class RustSimTypeStr(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             {
-                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(arch),
+                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(
+                    arch
+                ),
                 "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
             },
             name="str",
@@ -298,7 +315,7 @@ class RustSimTypeString(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             {
-                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
+                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
                 "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
                 "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
             },
@@ -333,7 +350,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             {
-                "ptr": RustSimTypePointer(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
+                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
                 "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
                 "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
             },

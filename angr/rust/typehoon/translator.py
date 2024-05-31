@@ -8,7 +8,7 @@ from ... import sim_type
 from ...sim_type import SimType
 from ..sim_type import (
     RustSimTypeInt,
-    RustSimTypePointer,
+    RustSimTypeReference,
     RustSimType,
     RustSimTypeArray,
     RustSimStruct,
@@ -40,7 +40,7 @@ class RustTypeTranslator(TypeTranslator):
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
             internal = self._tc2simtype(tc.basetype)
-        return RustSimTypePointer(internal).with_arch(self.arch)
+        return RustSimTypeReference(internal).with_arch(self.arch)
 
     def _translate_Pointer32(self, tc):
         return self._translate_Pointer64(tc)

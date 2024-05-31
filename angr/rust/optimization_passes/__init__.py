@@ -4,13 +4,15 @@ from .string_simplifier import StringSimplifier
 from .junk_remover import JunkRemover
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
+from .callsite_maker import CallsiteMaker
 
 _all_optimization_passes.extend(
     [
         (LibFunctionIdentifier, True),
         (JunkRemover, True),
+        (CallsiteMaker, True),
         (StringSimplifier, True),
         (AllocSimplifier, True),
-        (TypeCorrector, True),
+        # (TypeCorrector, True),
     ]
 )
