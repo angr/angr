@@ -1262,7 +1262,9 @@ class CFunctionCall(CStatement, CExpression):
         if self.is_expr:
             return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
         else:
-            raise AngrRuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+            raise AngrRuntimeError(
+                "CFunctionCall.type should not be accessed if the function call is used as a statement."
+            )
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
         """

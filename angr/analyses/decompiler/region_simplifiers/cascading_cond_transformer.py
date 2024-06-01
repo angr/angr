@@ -7,6 +7,7 @@ from ..structuring.structurer_nodes import ConditionNode, CascadingConditionNode
 from ..sequence_walker import SequenceWalker
 from ....errors import AngrRuntimeError
 
+
 class CascadingConditionTransformer(SequenceWalker):
     """
     Identifies and transforms `if { ... } else { if { ... } else { ... } }` to
