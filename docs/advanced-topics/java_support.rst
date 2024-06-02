@@ -68,4 +68,4 @@ There are multiple examples available:
   `java_androidnative1
   <https://github.com/angr/angr-examples/tree/master/examples/java_androidnative1>`_
 * Many other low-level tests: `test_java
-  <https://github.com/angr/angr/blob/master/tests/test_java.py>`_
+  <https://github.com/angr/angr/blob/master/tests/engines/test_java.py>`_
