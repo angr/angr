@@ -1,7 +1,7 @@
 # pylint:disable=no-else-break
 import logging
 
-from angr.errors import AngrCFGError
+from angr.errors import AngrCFGError, AngrRuntimeError
 
 
 l = logging.getLogger(name=__name__)
@@ -267,7 +267,7 @@ class SegmentList:
                     # done
                     break
                 else:
-                    raise RuntimeError("Unreachable reached")
+                    raise AngrRuntimeError("Unreachable reached")
             else:  # if segment.start > address
                 if address + size <= segment.start:
                     #                      |--- segment ---|
@@ -293,7 +293,7 @@ class SegmentList:
                     address = new_address
                     idx = self.search(address)
                 else:
-                    raise RuntimeError("Unreachable reached")
+                    raise AngrRuntimeError("Unreachable reached")
 
     def _dbg_output(self):
         """

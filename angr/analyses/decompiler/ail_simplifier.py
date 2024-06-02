@@ -27,6 +27,7 @@ from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.atoms import Register as RegisterAtom
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
+from ...errors import AngrRuntimeError
 from .. import Analysis, AnalysesHub
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
@@ -811,9 +812,9 @@ class AILSimplifier(Analysis):
                         else:
                             replace_with = eq.atom0
                     else:
-                        raise RuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
+                        raise AngrRuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
                 else:
-                    raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
+                    raise AngrRuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
 
                 to_replace_def = the_def
 

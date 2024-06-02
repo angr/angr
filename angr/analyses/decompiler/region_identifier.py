@@ -11,6 +11,7 @@ from ailment.expression import Const
 
 from angr.utils.graph import GraphUtils
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
+from ...errors import AngrRuntimeError
 from .. import Analysis, register_analysis
 from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
@@ -146,7 +147,7 @@ class RegionIdentifier(Analysis):
         try:
             return next(n for n in graph.nodes() if n.addr == self.function.addr)
         except StopIteration as ex:
-            raise RuntimeError("Cannot find the start node from the graph!") from ex
+            raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
 
     def _test_reducibility(self):
         # make a copy of the graph
