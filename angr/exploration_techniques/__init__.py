@@ -146,6 +146,7 @@ from .bucketizer import Bucketizer
 from .local_loop_seer import LocalLoopSeer
 from .timeout import Timeout
 from .suggestions import Suggestions
+from .stub_stasher import StubStasher
 
 __all__ = (
     "ExplorationTechnique",
@@ -173,4 +174,5 @@ __all__ = (
     "LocalLoopSeer",
     "Timeout",
     "Suggestions",
+    "StubStasher",
 )
