@@ -1,3 +1,4 @@
+from .structs import Arguments
 from ..sim_type import (
     RustSimTypeFunction,
     RustSimTypeStr,
@@ -19,18 +20,7 @@ prototypes = {
         returnty=RustSimTypeString(),
     ),
     "std::io::stdio::_print": RustSimTypeFunction(
-        args=[
-            RustSimTypeReference(
-                RustSimStruct(
-                    name="Arguments",
-                    fields={
-                        "pieces": RustSimTypeReference(RustSimTypeArray(RustSimTypeReference(RustSimTypeStr()))),
-                        "fmt": RustSimTypeSize(),
-                        "pieces2": RustSimTypeReference(RustSimTypeArray(RustSimTypeReference(RustSimTypeStr()))),
-                    },
-                )
-            )
-        ],
+        args=[RustSimTypeReference(Arguments)],
         returnty=None,
     ),
 }
