@@ -105,7 +105,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 # loop until: end of object or not symbolic or until next object
                 next_place = None
                 while next_addr < obj_end and self.symbolic_bitmap[next_addr]:
-                    if next_addr == subaddr + 1: # first loop
+                    if next_addr == subaddr + 1:  # first loop
                         next_place = self._get_next_place(next_addr)
                     if next_place is not None and next_place <= next_addr:
                         break
