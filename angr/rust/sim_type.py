@@ -255,6 +255,9 @@ class RustSimStruct(RustSimType, SimStruct):
             self.name, newline, members, newline, indented, "" if name is None else " " + name
         )
 
+    def __repr__(self):
+        return self.name
+
     def copy(self):
         return RustSimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
 
@@ -386,3 +389,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
 
     def __repr__(self):
         return "Vec"
+
+
+class RustSimTypeBottom(RustSimType, SimTypeBottom):
+    pass
