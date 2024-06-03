@@ -8,6 +8,7 @@ from ..sim_type import (
     RustSimTypeArray,
     RustSimTypeStr,
     RustSimTypeString,
+    RustSimTypeSize,
 )
 from ...analyses.typehoon.lifter import TypeLifter
 from ...analyses.typehoon.typeconsts import BottomType, Int8, Int16, Int32, Int64, TypeConstant, Struct
@@ -66,6 +67,7 @@ class RustTypeLifter(TypeLifter):
 
 _mapping = {
     RustSimTypeInt: RustTypeLifter._lift_SimTypeInt,
+    RustSimTypeSize: RustTypeLifter._lift_SimTypeInt,
     RustSimTypeReference: RustTypeLifter._lift_SimTypePointer,
     RustSimStruct: RustTypeLifter._lift_SimStruct,
     RustSimTypeArray: RustTypeLifter._lift_SimTypeArray,
