@@ -84,30 +84,50 @@ class UltraPage(MemoryObjectMixin, PageBase):
             self.symbolic_data[global_start_addr - page_addr] = new_item
             result[-1] = (global_start_addr, new_item)
 
-        for subaddr in range(addr, addr + size):
+        subaddr = addr
+        end = addr + size
+        while subaddr < end:
             realaddr = subaddr + page_addr
             if self.symbolic_bitmap[subaddr]:
                 cur_val = self._get_object(subaddr, page_addr, memory=memory)
-                if cur_val is last_run and last_run is symbolic_run:
-                    pass
+                # it must be a different object
+                cycle(realaddr)
+                next_addr = subaddr + 1
+
+                # figure out how long the current object is (limit end of page)
+                if cur_val is None:
+                    obj_end = end
                 else:
-                    cycle(realaddr)
-                    last_run = symbolic_run = cur_val
-                    result.append((realaddr, cur_val))
+                    obj_end = subaddr + cur_val.length
+                    obj_end = min(end, obj_end)
+
+                # determine how many bytes come from this object
+                # loop until: end of object or not symbolic or until next object
+                next_place = None
+                while next_addr < obj_end and self.symbolic_bitmap[next_addr]:
+                    if next_addr == subaddr + 1:  # first loop
+                        next_place = self._get_next_place(next_addr)
+                    if next_place is not None and next_place <= next_addr:
+                        break
+                    next_addr += 1
+
+                subaddr = next_addr
+                last_run = symbolic_run = cur_val
+                result.append((realaddr, cur_val))
+
             else:
-                cur_val = self.concrete_data[subaddr]
-                if last_run is concrete_run:
-                    if endness == "Iend_LE":
-                        last_run = concrete_run = concrete_run | (
-                            cur_val << (memory.state.arch.byte_width * (realaddr - result[-1][0]))
-                        )
-                    else:
-                        last_run = concrete_run = (concrete_run << memory.state.arch.byte_width) | cur_val
-                    result[-1] = (result[-1][0], concrete_run)
+                max_concrete_read = subaddr
+                while max_concrete_read < end and not self.symbolic_bitmap[max_concrete_read]:
+                    max_concrete_read += 1
+                cur_val = self.concrete_data[subaddr:max_concrete_read]
+                subaddr = max_concrete_read
+                # we know the last run was not a concrete one
+                cycle(realaddr)
+                if endness == "Iend_LE":
+                    last_run = concrete_run = cur_val[::-1]
                 else:
-                    cycle(realaddr)
                     last_run = concrete_run = cur_val
-                    result.append((realaddr, cur_val))
+                result.append((realaddr, cur_val))
 
         cycle(page_addr + addr + size)
         if not cooperate:
@@ -134,8 +154,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 addr, data, size, endness, page_addr=page_addr, memory=memory, **kwargs
             )
 
-        if size >= memory.page_size - addr:
-            size = memory.page_size - addr
+        size = min(size, memory.page_size - addr)
 
         byte_width = memory.state.arch.byte_width
 
@@ -409,6 +428,14 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 return obj
             else:
                 return None
+
+    def _get_next_place(self, start):
+        try:
+            place = next(self.symbolic_data.irange(minimum=start, reverse=False))
+        except StopIteration:
+            return None
+        else:
+            return place
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
         memory_objects = set()
