@@ -6,6 +6,7 @@ from ..sim_type import (
     RustSimTypeReference,
     RustSimStruct,
     RustSimTypeArray,
+    RustSimTypeSize,
 )
 from ...procedures.definitions import SimLibrary
 
@@ -24,7 +25,7 @@ prototypes = {
                     name="Arguments",
                     fields={
                         "pieces": RustSimTypeReference(RustSimTypeArray(RustSimTypeReference(RustSimTypeStr()))),
-                        "fmt": RustSimTypeInt(),
+                        "fmt": RustSimTypeSize(),
                         "pieces2": RustSimTypeReference(RustSimTypeArray(RustSimTypeReference(RustSimTypeStr()))),
                     },
                 )

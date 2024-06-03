@@ -45,6 +45,17 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return name
 
 
+class RustSimTypeSize(RustSimTypeInt):
+    def __init__(self, label=None):
+        super().__init__(size=0, signed=False)
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        return self._arch.bits
+
+
 class RustSimTypeFunction(RustSimType, SimTypeFunction):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and

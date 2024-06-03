@@ -84,8 +84,9 @@ class RustTypeTranslator(TypeTranslator):
 
         next_offset = 0
         for offset, typ in sorted(tc.fields.items(), key=lambda item: item[0]):
-            if offset > next_offset:
+            if offset > next_offset and tc.name is None:
                 # we need padding!
+                # If struct's name is known, do not pad
                 padding_size = offset - next_offset
                 s.fields["padding_%x" % next_offset] = RustSimTypeArray(
                     RustSimTypeInt(size=8, signed=False).with_arch(self.arch), padding_size
@@ -96,7 +97,10 @@ class RustTypeTranslator(TypeTranslator):
             # TODO: Handle SimTypeBottom
             assert not isinstance(translated_type, sim_type.SimTypeBottom)
 
-            s.fields["field_%x" % offset] = translated_type
+            field_name = "field_%x" % offset
+            if offset in tc.field_names:
+                field_name = tc.field_names[offset]
+            s.fields[field_name] = translated_type
 
             if isinstance(translated_type, RustSimTypeTempRef):
                 next_offset = self.arch.bytes + offset

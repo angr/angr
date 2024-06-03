@@ -3,7 +3,7 @@ from typing import Set, Optional, Dict, Union, TYPE_CHECKING
 from ...analyses.typehoon.typehoon import Typehoon
 from ...analyses.analysis import AnalysesHub
 from ..typehoon.translator import RustTypeTranslator
-from ..sim_type import RustSimTypeInt
+from ..sim_type import RustSimTypeInt, RustSimStruct
 from ...sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
 
 if TYPE_CHECKING:
