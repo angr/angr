@@ -25,18 +25,19 @@ class TestStructMemberAccess(unittest.TestCase):
         main_func = cfg.functions["main"]
         foo_func = cfg.functions["foo"]
 
-        angr.types.register_types(angr.types.parse_type("struct Test {char* a; long long b; int c;}"))
+        angr.types.register_types(angr.types.parse_type("struct Inner {long long a; int b;}"))
+        angr.types.register_types(angr.types.parse_type("struct Outer {char* a; struct Inner b;}"))
 
         foo_func.calling_convention = default_cc(
             proj.arch.name, platform=proj.simos.name if proj.simos is not None else None
         )(proj.arch)
-        foo_func.prototype = angr.types.parse_type("void (struct Test *a)").with_arch(proj.arch)
+        foo_func.prototype = angr.types.parse_type("void (struct Outer *a)").with_arch(proj.arch)
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg)
         text = dec.codegen.text
         assert '.a = "123"' in text
-        assert ".b = 2" in text
-        assert ".c = 3" in text
+        assert ".b.a = 2" in text
+        assert ".b.b = 3" in text
 
 
 if __name__ == "__main__":

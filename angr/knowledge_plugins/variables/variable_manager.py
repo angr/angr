@@ -975,8 +975,22 @@ class VariableManagerInternal(Serializable):
                         if mark_manual:
                             self.variables_with_manual_types.add(other_var)
         if isinstance(var, SimStackVariable) and isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
-            for offset in ty.type.offsets.values():
-                self.stack_offset_to_struct_member_info[var.offset + offset] = (offset, var, ty)
+            self.stack_offset_to_struct_member_info.update(self._extract_fields_from_struct(var, ty.type))
+
+    def _extract_fields_from_struct(self, var, ty: SimStruct, top_struct_offset=0):
+        result = {}
+        for name, field_offset in ty.offsets.items():
+            field_ty = ty.fields[name]
+            offset = top_struct_offset + field_offset
+            if isinstance(field_ty, TypeRef):
+                field_ty = field_ty.type
+            if isinstance(field_ty, SimStruct):
+                result.update(
+                    self._extract_fields_from_struct(var, field_ty, top_struct_offset=top_struct_offset + field_offset)
+                )
+            else:
+                result[var.offset + offset] = (offset, var, ty)
+        return result
 
     def get_variable_type(self, var) -> SimType | None:
         return self.variable_to_types.get(var, None)
