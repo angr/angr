@@ -3224,8 +3224,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if stmt.variable is not None:
-            cvar = self._variable(stmt.variable, stmt.size)
-            offset = stmt.offset or 0
+            if "struct_member_info" in stmt.tags:
+                offset, var, _ = stmt.struct_member_info
+                cvar = self._variable(var, stmt.size)
+            else:
+                cvar = self._variable(stmt.variable, stmt.size)
+                offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
 
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)

@@ -112,6 +112,8 @@ class VariableManagerInternal(Serializable):
         # optimization
         self._variables_without_writes = set()
 
+        self.stack_offset_to_struct_member_info: dict[SimStackVariable, (int, SimStackVariable, SimStruct)] = {}
+
         self.ret_val_size = None
 
     #
@@ -972,6 +974,9 @@ class VariableManagerInternal(Serializable):
                         self.variable_to_types[other_var] = ty
                         if mark_manual:
                             self.variables_with_manual_types.add(other_var)
+        if isinstance(var, SimStackVariable) and isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
+            for offset in ty.type.offsets.values():
+                self.stack_offset_to_struct_member_info[var.offset + offset] = (offset, var, ty)
 
     def get_variable_type(self, var) -> SimType | None:
         return self.variable_to_types.get(var, None)
