@@ -1,7 +1,7 @@
 # pylint: disable=wildcard-import
 # pylint: disable=wrong-import-position
 
-__version__ = "9.2.105.dev0"
+__version__ = "9.2.105"
 
 if bytes is str:
     raise Exception(
