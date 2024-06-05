@@ -1,6 +1,7 @@
 from typing import Dict, Union
 from itertools import count
 
+from ..definitions.structs import PreDefinedStructs
 from ...analyses.typehoon.translator import TypeTranslator
 from ...analyses.typehoon import typeconsts
 from ...analyses.typehoon.typeconsts import TypeConstant
@@ -75,7 +76,7 @@ class RustTypeTranslator(TypeTranslator):
 
         # Check if it's pre-defined Rust structs
         if name in PreDefinedStructs:
-            s = PreDefinedStructs[name]().with_arch(self.arch)
+            s = PreDefinedStructs[name].with_arch(self.arch)
             self.structs[tc] = s
             return s
 
@@ -140,5 +141,3 @@ TypeConstHandlers = {
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
 }
-
-PreDefinedStructs = {"String": RustSimTypeString, "str": RustSimTypeStr}

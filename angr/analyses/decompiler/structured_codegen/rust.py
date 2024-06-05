@@ -7,6 +7,7 @@ from functools import reduce
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 
+from ....rust.definitions.structs import StrReference
 from ....sim_type import (
     SimTypeLongLong,
     SimTypeChar,
@@ -1433,6 +1434,31 @@ class RustStructField(RustExpression):
         yield str(self.field), self
 
 
+class RustArray(RustExpression):
+    __slots__ = ("elements", "length", "element_type", "tags")
+
+    def __init__(self, elements, length, type, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.elements = elements
+        self.length = length
+        self._type = type
+        self.tags = tags
+
+    @property
+    def type(self):
+        return self._type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        bracket = RustClosingObject("[")
+        yield "[", bracket
+        for i, ele in enumerate(self.elements):
+            if i:
+                yield ", ", self
+            yield from RustExpression._try_c_repr_chunks(self.codegen._handle(ele))
+        yield "]", bracket
+
+
 class RustFakeVariable(RustExpression):
     """
     An uninterpreted name to display in the decompilation output. Pretty much always represents an error?
@@ -2068,6 +2094,9 @@ class RustConstant(RustExpression):
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return
+                elif isinstance(v, str):
+                    yield RustConstant.str_to_rust_str(v, is_heap_str=False), self
+                    return
                 elif isinstance(v, String):
                     yield RustConstant.str_to_rust_str(v.decoded_str, is_heap_str=v.is_heap_str), self
                     return
@@ -2084,12 +2113,6 @@ class RustConstant(RustExpression):
                     yield self.fmt_int(self.reference_values[self._type]), self
                     return
                 yield hex(self.reference_values[self._type]), self
-            elif isinstance(self._type, RustSimTypeReference) and isinstance(self._type.pts_to, RustSimTypeStr):
-                refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield RustConstant.str_to_rust_str(refval.content.decode("utf-8")), self
-            elif isinstance(self._type, RustSimTypeReference) and isinstance(self._type.pts_to, SimTypeWideChar):
-                refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield RustConstant.str_to_rust_str(refval.content.decode("utf_16_le"), prefix="L"), self
             else:
                 if isinstance(self.reference_values[self._type], int):
                     yield self.fmt_int(self.reference_values[self._type]), self
@@ -3135,6 +3158,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 cvar = self._variable(stmt.variable, stmt.size)
                 offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
+            if "array_info" in stmt.tags:
+                elements, type_, length = stmt.array_info
+                cdata = RustArray(elements, length, type_, tags=stmt.tags, codegen=self)
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
             addr_expr = self._handle(stmt.addr)
@@ -3328,6 +3354,23 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     type_ = RustSimTypeReference(SimTypeBottom(label="void")).with_arch(self.project.arch)
                     reference_values[type_] = self.project.kb.functions[expr.value]
                     function_pointer = True
+
+                elif (section := self.project.loader.find_section_containing(expr.value)) and section.is_readable:
+                    memory = self.project.loader.memory
+                    str_addr = memory.unpack(expr.value, self.project.arch.struct_fmt())[0]
+                    if (
+                        (section := self.project.loader.find_section_containing(str_addr))
+                        and section.is_readable
+                        and not section.is_writable
+                    ):
+                        str_len = memory.unpack(expr.value + self.project.arch.bytes, self.project.arch.struct_fmt())[0]
+                        try:
+                            decoded_str = memory.load(str_addr, str_len).decode("utf-8")
+                            type_ = StrReference()
+                            reference_values[type_] = decoded_str
+                            inline_string = True
+                        except UnicodeDecodeError:
+                            pass
 
                 # pure guessing: is it possible that it's a string?
                 elif (

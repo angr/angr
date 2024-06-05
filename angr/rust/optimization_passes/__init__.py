@@ -11,7 +11,7 @@ _all_optimization_passes.extend(
         (LibFunctionIdentifier, True),
         (JunkRemover, True),
         (CallsiteMaker, True),
-        (StringSimplifier, True),
+        # (StringSimplifier, True),
         (AllocSimplifier, True),
         # (TypeCorrector, True),
     ]
