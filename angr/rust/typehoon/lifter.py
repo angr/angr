@@ -28,7 +28,7 @@ class RustTypeLifter(TypeLifter):
         self.memo = {}
 
     def lift(self, ty: RustSimType):
-        handler = _mapping.get(type(ty), None)
+        handler = _mapping.get(RustSimStruct if isinstance(ty, RustSimStruct) else type(ty), None)
         if handler is None:
             return BottomType()
 
@@ -71,6 +71,4 @@ _mapping = {
     RustSimTypeReference: RustTypeLifter._lift_SimTypePointer,
     RustSimStruct: RustTypeLifter._lift_SimStruct,
     RustSimTypeArray: RustTypeLifter._lift_SimTypeArray,
-    RustSimTypeStr: RustTypeLifter._lift_SimStruct,
-    RustSimTypeString: RustTypeLifter._lift_SimStruct,
 }

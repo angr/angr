@@ -1,43 +1,48 @@
-import ailment.expression
-from ailment import Const
-from ailment.expression import Convert, BasePointerOffset
-from ailment.statement import Call, Store
+from ailment.expression import BasePointerOffset, Const
+from ailment.statement import Store
 
-from ..ailment.expression import Struct
-from ..sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArray
+from ..definitions.structs import ArrayReference
+from ..sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ...knowledge_plugins.key_definitions import LiveDefinitions
-from ...knowledge_plugins.key_definitions.constants import ObservationPointType
+from ...sim_variable import SimStackVariable
 
 
 class StructResolver:
-    def __init__(self, defs: LiveDefinitions, struct_ty: RustSimStruct):
-        self.defs = defs
+    def __init__(self, struct_ty: RustSimStruct, arch=None):
         self.struct_ty = struct_ty
+        self.arch = arch
 
-    def _resolve(self, ty):
-        if ty.__class__ in TypeHandlers:
-            handler = TypeHandlers[ty.__class__]
-            return handler(self, ty)
+    def find_field_type(self, offset):
+        offsets = self.struct_ty.offsets
+        for name, field_ty in self.struct_ty.fields.items():
+            field_offset = offsets[name]
+            if offset == field_offset:
+                return field_ty
+            elif isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
+                return StructResolver(field_ty).find_field_type(offset - field_offset)
         return None
 
-    def _resolve_reference(self, ty: RustSimTypeReference):
-        if isinstance(ty.pts_to, RustSimTypeArray):
-            pass
-
-    def resolve_by_stack_offset(self, offset):
-        fields = []
-        for field in self.struct_ty.fields:
-            print(field)
-
-
-TypeHandlers = {RustSimTypeReference: StructResolver._resolve_reference}
+    def resolve_element_ptrs(self, base, length):
+        result = []
+        if isinstance(self.struct_ty, ArrayReference) and isinstance(length, Const) and isinstance(length.value, int):
+            length = length.value
+            if isinstance(base, Const) and isinstance(base.value, int):
+                for i in range(length):
+                    ele = base.copy()
+                    ele.value += i * self.struct_ty.ele_ty.size // 8
+                    result.append(ele)
+            elif isinstance(base, BasePointerOffset):
+                for i in range(length):
+                    ele = base.copy()
+                    ele.offset += i * self.struct_ty.ele_ty.size // 8
+                    result.append(ele)
+        return result
 
 
 class CallsiteMaker(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Make callsite based on known/recovered prototypes"
 
     def __init__(self, func, **kwargs):
@@ -51,56 +56,43 @@ class CallsiteMaker(OptimizationPass):
         self.codeloc_to_block = {}
         for block in self._graph.nodes:
             self.codeloc_to_block[(block.addr, block.idx)] = block
+        self.variable_manager = self._variable_kb.variables[self._func.addr]
         self.analyze()
 
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _extract_expr(self, expr):
-        result = expr
-        while isinstance(result, Convert):
-            result = result.operand
-        return result
-
-    def _get_stmt_by_codeloc(self, codeloc):
-        key = (codeloc.block_addr, codeloc.block_idx)
-        if key in self.codeloc_to_block:
-            return self.codeloc_to_block[key].statements[codeloc.stmt_idx]
-        return None
-
-    def _get_def_by_stack_offset(self, defs, offset, size):
-        stack_defs = defs.get_stack_definitions(offset, size)
-        if stack_defs:
-            codeloc = next(iter(defs.get_stack_definitions(offset, size))).codeloc
-            stmt = self._get_stmt_by_codeloc(codeloc)
-            return self._extract_def_from_stmt(stmt)
-        return None
-
-    def _extract_def_from_stmt(self, stmt):
-        if isinstance(stmt, Store):
-            return stmt.data
-        return None
-
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
-            for stmt in block.statements:
-                if isinstance(stmt, Call) and isinstance(stmt.target, Const) and stmt.target.value in self.kb.functions:
-                    func = self.kb.functions[stmt.target.value]
-                    if prototype := func.prototype:
-                        defs = self.rd.get_observation_by_insn(stmt.ins_addr, ObservationPointType.OP_BEFORE)
-                        for argty, arg in zip(prototype.args, stmt.args):
-                            # Recover the definitions of struct arguments
-                            if isinstance(argty, RustSimTypeReference) and isinstance(argty.pts_to, RustSimStruct):
-                                arg = self._extract_expr(arg)
-                                # If it's a stack pointer, recover the definitions of struct fields
-                                if isinstance(arg, BasePointerOffset):
-                                    # import ipdb
-                                    #
-                                    # ipdb.set_trace()
-                                    print(f"{self._get_def_by_stack_offset(defs, arg.offset, arg.size)=}")
-                                    print(f"{self._get_def_by_stack_offset(defs, arg.offset + 8, arg.size)=}")
-                                    print(f"{self._get_def_by_stack_offset(defs, arg.offset + 16, arg.size)=}")
-                                    print(f"{self._get_def_by_stack_offset(defs, arg.offset + 24, arg.size)=}")
-                                    print(f"{self._get_def_by_stack_offset(defs, arg.offset + 32, arg.size)=}")
-                                    print(f"{self._get_def_by_stack_offset(defs, arg.offset + 40, arg.size)=}")
-                                    break
+            if not block.statements:
+                continue
+            new_statements = []
+            skip_one = False
+            for i in range(len(block.statements) - 1):
+                if skip_one:
+                    skip_one = False
+                    continue
+                stmt = block.statements[i]
+                next_stmt = block.statements[i + 1]
+                if "struct_member_info" in stmt.tags:
+                    offset, var, field_ty = stmt.struct_member_info
+                    if (
+                        isinstance(field_ty, ArrayReference)
+                        and "struct_member_info" in next_stmt.tags
+                        and isinstance(next_stmt, Store)
+                        and next_stmt.variable
+                        and stmt.variable
+                        and isinstance(stmt.variable, SimStackVariable)
+                        and isinstance(next_stmt.variable, SimStackVariable)
+                        and next_stmt.variable.offset - stmt.variable.offset == self.project.arch.bytes
+                    ):
+                        elements = StructResolver(field_ty).resolve_element_ptrs(stmt.data, next_stmt.data)
+                        stmt.tags["array_info"] = (elements, field_ty, next_stmt.data)
+                        new_statements.append(stmt)
+                        skip_one = True
+                    else:
+                        new_statements.append(stmt)
+                else:
+                    new_statements.append(stmt)
+            new_statements.append(block.statements[-1])
+            block.statements = new_statements
