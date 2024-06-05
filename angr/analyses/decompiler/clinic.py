@@ -5,7 +5,6 @@ import logging
 import enum
 from dataclasses import dataclass
 from typing import Any, NamedTuple, TYPE_CHECKING
-
 from collections.abc import Iterable
 
 import networkx
