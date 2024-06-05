@@ -350,7 +350,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
-    def get_by_name(self, name: str, check_previous_names: bool=False) -> Generator[Function, None, None]:
+    def get_by_name(self, name: str, check_previous_names: bool = False) -> Generator[Function, None, None]:
         for f in self._function_map.values():
             if f.name == name or (check_previous_names and name in f.previous_names):
                 yield f
@@ -411,7 +411,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         except KeyError:
             return None
 
-    def query(self, query: str, check_previous_names: bool=False) -> Function | None:
+    def query(self, query: str, check_previous_names: bool = False) -> Function | None:
         """
         Query for a function using selectors to disambiguate. Supported variations:
 
@@ -442,7 +442,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
         return None
 
-    def function(self, addr=None, name=None, check_previous_names=False, create=False, syscall=False, plt=None) -> Function | None:
+    def function(
+        self, addr=None, name=None, check_previous_names=False, create=False, syscall=False, plt=None
+    ) -> Function | None:
         """
         Get a function object from the function manager.
 

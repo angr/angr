@@ -110,7 +110,9 @@ class TestFunctionManager(unittest.TestCase):
         assert self.project.kb.functions.function(name="rejected") is None
         assert self.project.kb.functions.function(name="rejected", check_previous_names=True) is rejected
         assert self.project.kb.functions.function(name="rejected", check_previous_names=True).name == "renamed_rejected"
-        assert self.project.kb.functions.function(name="rejected", check_previous_names=True).previous_names == [ "rejected" ]
+        assert self.project.kb.functions.function(name="rejected", check_previous_names=True).previous_names == [
+            "rejected"
+        ]
 
         # These tests fail for reasons of fastpath, probably
         # assert main.bp_on_stack

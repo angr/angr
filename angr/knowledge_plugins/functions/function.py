@@ -223,7 +223,7 @@ class Function(Serializable):
         else:
             self.is_default_name = False
             self._name = name
-        self.previous_names = [ ]
+        self.previous_names = []
         self.from_signature = None
 
         # Determine the name the binary where this function is.
