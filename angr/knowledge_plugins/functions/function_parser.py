@@ -33,7 +33,7 @@ class FunctionParser:
         obj.is_simprocedure = function.is_simprocedure
         obj.returning = function.returning
         obj.alignment = function.alignment
-        obj.binary_name = function.binary_name
+        obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
 
         # signature matched?
@@ -105,7 +105,7 @@ class FunctionParser:
             is_simprocedure=cmsg.is_simprocedure,
             returning=cmsg.returning,
             alignment=cmsg.alignment,
-            binary_name=cmsg.binary_name,
+            binary_name=None if not cmsg.binary_name else cmsg.binary_name,
         )
         obj._project = project
         obj.normalized = cmsg.normalized
