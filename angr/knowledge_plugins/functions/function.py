@@ -743,7 +743,7 @@ class Function(Serializable):
 
         return name
 
-    def _get_initial_binary_name(self):
+    def _get_initial_binary_name(self) -> str | None:
         """
         Determine the name of the binary where this function is.
 
