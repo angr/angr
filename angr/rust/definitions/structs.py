@@ -61,8 +61,25 @@ class StrReference(RustSimStruct):
 
 class Option(RustSimStruct):
     def __init__(self, T):
+        name = f"Option<{repr(T)}>"
         super().__init__(fields={"is_some": RustSimTypeSize(), "value": T}, name=f"Option<{repr(T)}>")
+        PreDefinedStructs[name] = self
         self.T = T
+
+    def copy(self):
+        return Option(self.T).with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = Option(self.T)
+        out._arch = arch
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        self._arch_memo[arch.name] = out
+
+        return out
 
 
 Argument = RustSimStruct(

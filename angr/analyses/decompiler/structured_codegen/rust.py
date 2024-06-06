@@ -7,7 +7,7 @@ from functools import reduce
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 
-from ....rust.definitions.structs import StrReference
+from ....rust.definitions.structs import StrReference, Option
 from ....sim_type import (
     SimTypeLongLong,
     SimTypeChar,
@@ -34,6 +34,7 @@ from ....rust.sim_type import (
     RustSimTypeString,
     RustSimTypeVec,
     RustSimStruct,
+    RustSimTypeBottom,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -2119,9 +2120,13 @@ class RustConstant(RustExpression):
                     return
                 yield self.reference_values[self.type], self
 
-        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, RustSimTypeReference):
+        elif (
+            isinstance(self.value, int)
+            and self.value == 0
+            and (isinstance(self.type, RustSimTypeReference) or isinstance(self.type, RustSimStruct))
+        ):
             # print NULL instead
-            yield "NULL", self
+            yield "None", self
 
         elif isinstance(self._type, RustSimTypeReference) and isinstance(self.value, int):
             # Print pointers in hex
@@ -3161,6 +3166,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if "array_info" in stmt.tags:
                 elements, type_, length = stmt.array_info
                 cdata = RustArray(elements, length, type_, tags=stmt.tags, codegen=self)
+            elif "option_info" in stmt.tags:
+                cdata = RustConstant(0, stmt.option_info, tags=stmt.tags, codegen=self)
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
             addr_expr = self._handle(stmt.addr)
