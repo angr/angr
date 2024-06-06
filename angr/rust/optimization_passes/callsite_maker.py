@@ -1,7 +1,7 @@
 from ailment.expression import BasePointerOffset, Const
 from ailment.statement import Store
 
-from ..definitions.structs import ArrayReference
+from ..definitions.structs import ArrayReference, Option
 from ..sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...sim_variable import SimStackVariable
@@ -90,6 +90,14 @@ class CallsiteMaker(OptimizationPass):
                         stmt.tags["array_info"] = (elements, field_ty, next_stmt.data)
                         new_statements.append(stmt)
                         skip_one = True
+                    elif (
+                        isinstance(field_ty, Option)
+                        and isinstance(stmt, Store)
+                        and isinstance(stmt.data, Const)
+                        and stmt.data.value == 0
+                    ):
+                        stmt.tags["option_info"] = field_ty
+                        new_statements.append(stmt)
                     else:
                         new_statements.append(stmt)
                 else:
