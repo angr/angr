@@ -1,3 +1,4 @@
+from collections.abc import Reversible
 import operator
 import logging
 import itertools
@@ -40,7 +41,7 @@ class SimStateHistory(SimStatePlugin):
         self.jump_source = None if clone is None else clone.jump_source
         self.jump_avoidable = None if clone is None else clone.jump_avoidable
         self.jump_guard: BV | None = None if clone is None else clone.jump_guard
-        self.jumpkind = None if clone is None else clone.jumpkind
+        self.jumpkind: str | None = None if clone is None else clone.jumpkind
 
         # the execution log for this history
         self.recent_events = [] if clone is None else list(clone.recent_events)
@@ -358,19 +359,19 @@ class SimStateHistory(SimStatePlugin):
             yield from self.parent.lineage
 
     @property
-    def events(self):
+    def events(self) -> Reversible["SimEvent"]:
         return LambdaIterIter(self, operator.attrgetter("recent_events"))
 
     @property
-    def actions(self):
+    def actions(self) -> Reversible["SimAction"]:
         return LambdaIterIter(self, operator.attrgetter("recent_actions"))
 
     @property
-    def jumpkinds(self):
+    def jumpkinds(self) -> Reversible[str]:
         return LambdaAttrIter(self, operator.attrgetter("jumpkind"))
 
     @property
-    def jump_guards(self):
+    def jump_guards(self) -> Reversible[claripy.ast.Bool]:
         return LambdaAttrIter(self, operator.attrgetter("jump_guard"))
 
     @property
@@ -382,15 +383,15 @@ class SimStateHistory(SimStatePlugin):
         return LambdaAttrIter(self, operator.attrgetter("jump_source"))
 
     @property
-    def descriptions(self):
+    def descriptions(self) -> Reversible[str]:
         return LambdaAttrIter(self, operator.attrgetter("recent_description"))
 
     @property
-    def bbl_addrs(self):
+    def bbl_addrs(self) -> Reversible[int]:
         return LambdaIterIter(self, operator.attrgetter("recent_bbl_addrs"))
 
     @property
-    def ins_addrs(self):
+    def ins_addrs(self) -> Reversible[int]:
         return LambdaIterIter(self, operator.attrgetter("recent_ins_addrs"))
 
     @property

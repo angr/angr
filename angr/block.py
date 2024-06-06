@@ -419,7 +419,7 @@ class Block(Serializable):
         return BlockNode(self.addr, self.size, bytestr=self.bytes, thumb=self.thumb)
 
     @property
-    def bytes(self):
+    def bytes(self) -> bytes:
         if self._bytes is None:
             addr = self.addr
             if self.thumb:

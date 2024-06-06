@@ -1,7 +1,9 @@
 # pylint:disable=no-member
+from __future__ import annotations
+
 import pickle
 import logging
-from typing import Optional, DefaultDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from collections.abc import Callable
 from collections import defaultdict
 import bisect
@@ -75,7 +77,7 @@ class CFGModel(Serializable):
         self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
-        self._nodes_by_addr: DefaultDict[int, list[CFGNode]] = defaultdict(list)
+        self._nodes_by_addr: defaultdict[int, list[CFGNode]] = defaultdict(list)
         # CFGNodes dict indexed by block ID. Don't serialize
         self._nodes: dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
@@ -447,7 +449,7 @@ class CFGModel(Serializable):
                 successors.append(suc)
         return successors
 
-    def get_successors_and_jumpkinds(self, node, excluding_fakeret=True):
+    def get_successors_and_jumpkinds(self, node, excluding_fakeret=True) -> list[tuple[CFGNode, str]]:
         """
         Get a list of tuples where the first element is the successor of the CFG node and the second element is the
         jumpkind of the successor.
@@ -564,8 +566,8 @@ class CFGModel(Serializable):
         self,
         memory_data_addrs: list[int] | None = None,
         exec_mem_regions: list[tuple[int, int]] | None = None,
-        xrefs: Optional["XRefManager"] = None,
-        seg_list: Optional["SegmentList"] = None,
+        xrefs: XRefManager | None = None,
+        seg_list: SegmentList | None = None,
         data_type_guessing_handlers: list[Callable] | None = None,
     ) -> bool:
         """
@@ -745,8 +747,8 @@ class CFGModel(Serializable):
         data_addr,
         max_size,
         content_holder=None,
-        xrefs: Optional["XRefManager"] = None,
-        seg_list: Optional["SegmentList"] = None,
+        xrefs: XRefManager | None = None,
+        seg_list: SegmentList | None = None,
         data_type_guessing_handlers: list[Callable] | None = None,
         extra_memory_regions: list[tuple[int, int]] | None = None,
     ):
@@ -775,7 +777,7 @@ class CFGModel(Serializable):
         irsb_addr, stmt_idx = None, None
         if xrefs is not None and seg_list is not None:
             try:
-                ref: "XRef" = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
+                ref: XRef = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
                 irsb_addr = ref.block_addr
             except StopIteration:
                 pass
@@ -861,7 +863,7 @@ class CFGModel(Serializable):
         irsb_addr, stmt_idx = None, None
         if xrefs is not None and seg_list is not None:
             try:
-                ref: "XRef" = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
+                ref: XRef = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
                 irsb_addr = ref.block_addr
                 stmt_idx = ref.stmt_idx
             except StopIteration:
@@ -966,8 +968,8 @@ class CFGModel(Serializable):
         self,
         addr: int,
         size: int = 1,
-        kb: Optional["KnowledgeBase"] = None,
-    ) -> set["Function"]:
+        kb: KnowledgeBase | None = None,
+    ) -> set[Function]:
         """
         Find all functions with nodes intersecting [addr, addr + size).
 
@@ -990,9 +992,7 @@ class CFGModel(Serializable):
             functions.add(func)
         return functions
 
-    def find_function_for_reflow_into_addr(
-        self, addr: int, kb: Optional["KnowledgeBase"] = None
-    ) -> Optional["Function"]:
+    def find_function_for_reflow_into_addr(self, addr: int, kb: KnowledgeBase | None = None) -> Function | None:
         """
         Look for a function that flows into a new node at addr.
 
@@ -1019,7 +1019,7 @@ class CFGModel(Serializable):
 
         return None
 
-    def clear_region_for_reflow(self, addr: int, size: int = 1, kb: Optional["KnowledgeBase"] = None) -> None:
+    def clear_region_for_reflow(self, addr: int, size: int = 1, kb: KnowledgeBase | None = None) -> None:
         """
         Remove nodes in the graph intersecting region [addr, addr + size).
 
