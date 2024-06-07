@@ -68,7 +68,14 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
     base = False
 
     def __init__(
-        self, args: List[RustSimType], returnty: Optional[RustSimType], label=None, arg_names=None, variadic=False
+        self,
+        args: List[RustSimType],
+        returnty: Optional[RustSimType],
+        label=None,
+        arg_names=None,
+        variadic=False,
+        is_returnty_struct=False,
+        is_class_member_function=False,
     ):
         """
         :param label:    The type label
@@ -77,6 +84,8 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(args, returnty, label, arg_names, variadic)
+        self.is_returnty_struct = is_returnty_struct
+        self.is_class_member_function = is_class_member_function
 
     def __repr__(self):
         argstrs = [str(a) for a in self.args]
@@ -105,6 +114,8 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
+            is_returnty_struct=self.is_returnty_struct,
+            is_class_member_function=self.is_class_member_function,
         )
         out._arch = arch
         return out
@@ -127,7 +138,13 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
 
     def copy(self):
         return RustSimTypeFunction(
-            self.args, self.returnty, label=self.label, arg_names=self.arg_names, variadic=self.variadic
+            self.args,
+            self.returnty,
+            label=self.label,
+            arg_names=self.arg_names,
+            variadic=self.variadic,
+            is_returnty_struct=self.is_returnty_struct,
+            is_class_member_function=self.is_class_member_function,
         )
 
 

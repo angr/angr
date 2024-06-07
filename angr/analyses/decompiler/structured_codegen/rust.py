@@ -3219,6 +3219,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
                 ret_expr = ret_expr.operand
 
+        prototype = stmt.prototype
+        if prototype and isinstance(prototype, RustSimTypeFunction) and prototype.is_returnty_struct:
+            if len(args) >= 1:
+                ret_expr = args[0]
+                args = args[1:]
         result = RustFunctionCall(
             target,
             target_func,
