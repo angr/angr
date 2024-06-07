@@ -95,11 +95,11 @@ class RustTypeTranslator(TypeTranslator):
 
             translated_type = self._tc2simtype(typ)
 
-            # TODO: Handle SimTypeBottom
-            assert not isinstance(translated_type, sim_type.SimTypeBottom)
+            if isinstance(translated_type, sim_type.SimTypeBottom):
+                translated_type = RustSimTypeInt(self.arch.bytes * self.arch.byte_width).with_arch(self.arch)
 
             field_name = "field_%x" % offset
-            if offset in tc.field_names:
+            if tc.field_names and offset in tc.field_names:
                 field_name = tc.field_names[offset]
             s.fields[field_name] = translated_type
 
