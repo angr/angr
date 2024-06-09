@@ -529,8 +529,15 @@ class SimEngineRDVEX(
         return MultiValues(clrp)
 
     def _handle_Conversion(self, expr):
-        simop = vex_operations[expr.op]
-        bits = int(simop.op_attrs["to_size"])
+        if expr.op == "Iop_1Uto16":
+            bits = 16
+        elif expr.op == "Iop_8to1":
+            bits = 1
+        elif expr.op == "Iop_16to1":
+            bits = 1
+        else:
+            simop = vex_operations[expr.op]
+            bits = int(simop.op_attrs["to_size"])
         arg_0 = self._expr(expr.args[0])
 
         # if there are multiple values with only one offset, we apply conversion to each one of them

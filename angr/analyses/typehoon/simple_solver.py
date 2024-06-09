@@ -34,6 +34,7 @@ from .typeconsts import (
     Int32,
     Int64,
     Pointer,
+    Pointer16,
     Pointer32,
     Pointer64,
     Struct,
@@ -54,6 +55,7 @@ PRIMITIVE_TYPES = {
     Int16(),
     Int32(),
     Int64(),
+    Pointer16(),
     Pointer32(),
     Pointer64(),
     BottomType(),
@@ -70,6 +72,7 @@ Int8_ = Int8()
 Bottom_ = BottomType()
 Pointer64_ = Pointer64()
 Pointer32_ = Pointer32()
+Pointer16_ = Pointer16()
 Struct_ = Struct()
 Array_ = Array()
 
@@ -99,7 +102,20 @@ BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int16_, Bottom_)
 BASE_LATTICE_32.add_edge(Int8_, Bottom_)
 
+# lattice for 16-bit binaries
+BASE_LATTICE_16 = networkx.DiGraph()
+BASE_LATTICE_16.add_edge(Top_, Int_)
+BASE_LATTICE_16.add_edge(Int_, Int32_)
+BASE_LATTICE_16.add_edge(Int_, Int16_)
+BASE_LATTICE_16.add_edge(Int_, Int8_)
+BASE_LATTICE_16.add_edge(Int32_, Pointer32_)
+BASE_LATTICE_16.add_edge(Pointer32_, Bottom_)
+BASE_LATTICE_16.add_edge(Int16_, Pointer16_)
+BASE_LATTICE_16.add_edge(Int16_, Bottom_)
+BASE_LATTICE_16.add_edge(Int8_, Bottom_)
+
 BASE_LATTICES = {
+    16: BASE_LATTICE_16,
     32: BASE_LATTICE_32,
     64: BASE_LATTICE_64,
 }
@@ -378,7 +394,7 @@ class SimpleSolver:
     """
 
     def __init__(self, bits: int, constraints, typevars):
-        if bits not in (32, 64):
+        if bits not in (16, 32, 64):
             raise ValueError("Pointer size %d is not supported. Expect 32 or 64." % bits)
 
         self.bits = bits
@@ -1250,9 +1266,11 @@ class SimpleSolver:
 
         return paths
 
-    def _pointer_class(self) -> type[Pointer32] | type[Pointer64]:
+    def _pointer_class(self) -> type[Pointer16] | type[Pointer32] | type[Pointer64]:
         if self.bits == 32:
             return Pointer32
         elif self.bits == 64:
             return Pointer64
+        elif self.bits == 16:
+            return Pointer16
         raise NotImplementedError("Unsupported bits %d" % self.bits)

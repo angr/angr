@@ -254,7 +254,7 @@ class ConditionProcessor:
                     else:
                         reaching_condition = claripy.Or(claripy.And(pred_condition, edge_condition), reaching_condition)
 
-            if reaching_condition is not None:
+            if reaching_condition is not None and reaching_condition != NotImplemented:
                 reaching_conditions[node] = self.simplify_condition(reaching_condition)
 
         # My hypothesis: for nodes where two paths come together *and* those that cannot be further structured into
