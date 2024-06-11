@@ -70,7 +70,7 @@ Now let's see an example use case of symbolic execution with angr. Consider the 
  }
 
 
-The ``firstCall`` function will accept a 32-bit number as an input and will call 
+The ``firstCall`` function will accept a 32-bit number as an input and will call
 ``helloWorld`` function if the number is between 50 and 100.
 
 You can perform a symbolic execution to find a correct and valid input to reach
