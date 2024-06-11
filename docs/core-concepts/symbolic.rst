@@ -21,13 +21,14 @@ Example:
 
 Consider the following simple program in Python:
 
-.. code-block:: python
-
-   def check_value(x):
-       if x > 10:
-           return "Greater"
-       else:
-           return "Lesser or Equal"
+.. code-block:: c
+    const char* check_value(int x) {
+        if (x > 10) {
+            return "Greater";
+        } else {
+            return "Lesser or Equal";
+        }
+    }
 
 In normal execution, if ``x`` is set to 5, the program will follow the path
 where ``x <= 10`` and return "Lesser or Equal". In symbolic execution, ``x``
@@ -51,3 +52,69 @@ generating comprehensive test cases that cover edge cases and rare execution
 paths, enhancing the robustness and security of software systems. Overall,
 symbolic execution provides a powerful means to rigorously analyze and improve
 software and firmware reliability.
+
+Basic Execution
+---------------
+Now lets see an example use case of symbolic execution with angr. Consider the
+following example code,
+
+
+.. code-block:: c
+    void helloWorld() {
+        printf("Hello, World!\n");
+    }
+
+
+    void firstCall(uint32_t num) {
+        if (num > 50 && num <100)
+            HelloWorld();
+    }
+
+
+The ``firstCall`` function will accept a 32 bit number as an input and will call 
+``helloWorld`` function if the number is between 50 and 100.
+
+You can performa a symbolic execution to find a correct and valid input to reach
+the final ``helloWorld``function call with angr using following sample code.
+
+
+.. code-block:: python
+
+    import angr, claripy
+    # Load the binary
+    project = angr.Project('./3func', auto_load_libs=False)
+
+    # Define the address of the firstCall function
+    firstCall_addr = project.loader.main_object.get_symbol("firstCall")
+
+    # Define the address of the helloWorld function
+    helloWorld_addr = project.loader.main_object.get_symbol("helloWorld")
+    # Create a symbolic variable for the firstCall arg
+    input_arg = claripy.BVS('input_arg', 32)
+
+    # Create a blank state at the address of the firstCall function
+    init_state = project.factory.blank_state(addr=firstCall_addr.rebased_addr)
+
+    # Assuming the calling convention passes the argument in a register 
+    # (e.g., x86 uses edi for the argument)
+    init_state.regs.edi = input_arg
+
+    # Create a simulation manager
+    simgr = project.factory.simulation_manager(init_state)
+
+    # Explore the binary, looking for the address of helloWorld
+    simgr.explore(find=helloWorld_addr.rebased_addr)
+
+    # Check if we found a state that reached the target
+    if simgr.found:
+        input_value = simgr.found[0].solver.eval(input_arg)
+        print(f"Value of input_arg that reaches HelloWorld: {input_value}")
+    else:
+        print("Did not find a state that reaches HelloWorld.")
+
+
+It will produce the output like below with a valid arg that can reach the 
+function ``helloWorld``.
+
+.. code-block:: shell
+   Value of input_arg that reaches HelloWorld: 71
