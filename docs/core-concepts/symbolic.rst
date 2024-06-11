@@ -55,27 +55,26 @@ software and firmware reliability.
 
 Basic Execution
 ---------------
-Now lets see an example use case of symbolic execution with angr. Consider the
-following example code,
+Now let's see an example use case of symbolic execution with angr. Consider the following example code,
 
 
 .. code-block:: c
     void helloWorld() {
         printf("Hello, World!\n");
-    }
+ }
 
 
     void firstCall(uint32_t num) {
         if (num > 50 && num <100)
             HelloWorld();
-    }
+ }
 
 
-The ``firstCall`` function will accept a 32 bit number as an input and will call
+The ``firstCall`` function will accept a 32-bit number as an input and will call 
 ``helloWorld`` function if the number is between 50 and 100.
 
-You can performa a symbolic execution to find a correct and valid input to reach
-the final ``helloWorld``function call with angr using following sample code.
+You can perform a symbolic execution to find a correct and valid input to reach
+the final ``helloWorld`` function call with angr using the following sample code.
 
 
 .. code-block:: python
