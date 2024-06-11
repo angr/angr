@@ -71,7 +71,7 @@ following example code,
     }
 
 
-The ``firstCall`` function will accept a 32 bit number as an input and will call 
+The ``firstCall`` function will accept a 32 bit number as an input and will call
 ``helloWorld`` function if the number is between 50 and 100.
 
 You can performa a symbolic execution to find a correct and valid input to reach
@@ -95,7 +95,7 @@ the final ``helloWorld``function call with angr using following sample code.
     # Create a blank state at the address of the firstCall function
     init_state = project.factory.blank_state(addr=firstCall_addr.rebased_addr)
 
-    # Assuming the calling convention passes the argument in a register 
+    # Assuming the calling convention passes the argument in a register
     # (e.g., x86 uses edi for the argument)
     init_state.regs.edi = input_arg
 
@@ -113,7 +113,7 @@ the final ``helloWorld``function call with angr using following sample code.
         print("Did not find a state that reaches HelloWorld.")
 
 
-It will produce the output like below with a valid arg that can reach the 
+It will produce the output like below with a valid arg that can reach the
 function ``helloWorld``.
 
 .. code-block:: shell
