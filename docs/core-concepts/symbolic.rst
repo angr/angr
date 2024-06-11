@@ -19,9 +19,10 @@ discovery of bugs and vulnerabilities that might be missed in standard testing.
 Example:
 --------
 
-Consider the following simple program in Python:
+Consider the following simple program :
 
 .. code-block:: c
+
     const char* check_value(int x) {
         if (x > 10) {
             return "Greater";
