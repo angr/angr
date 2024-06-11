@@ -59,15 +59,16 @@ Now let's see an example use case of symbolic execution with angr. Consider the 
 
 
 .. code-block:: c
+
     void helloWorld() {
         printf("Hello, World!\n");
- }
+    }
 
 
     void firstCall(uint32_t num) {
         if (num > 50 && num <100)
             HelloWorld();
- }
+    }
 
 
 The ``firstCall`` function will accept a 32-bit number as an input and will call
