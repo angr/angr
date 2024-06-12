@@ -110,12 +110,22 @@ the final ``helloWorld`` function call with angr using the following sample code
     if simgr.found:
         input_value = simgr.found[0].solver.eval(input_arg)
         print(f"Value of input_arg that reaches HelloWorld: {input_value}")
+    	# Get the constraints for reaching the helloWorld function
+    	constraints = simgr.found[0].solver.constraints
+    	# Create a solver with the constraints
+    	solver = claripy.Solver()
+    	solver.add(constraints)
+    	min_val = solver.min(input_arg)
+    	max_val = solver.max(input_arg)
+    	print(f"Function arg: min = {min_val}, max = {max_val}")
     else:
         print("Did not find a state that reaches HelloWorld.")
 
 
-It will produce the output like below with a valid arg that can reach the
-function ``helloWorld``.
+It will produce the output like the below with a valid example function arg that can reach the
+function ``helloWorld`` that you can use as a test case.
 
 .. code-block:: shell
-   Value of input_arg that reaches HelloWorld: 71
+
+    Value of input_arg that reaches HelloWorld: 71
+    Function arg: min = 51, max = 99
