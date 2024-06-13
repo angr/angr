@@ -3566,8 +3566,14 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("phoenix")
     def test_simplifying_string_transformation_loops(self, decompiler_options=None):
-        project = angr.load_shellcode(b"U\x8b\xec\x8bF\x04\xf7f\x06]\xc3", arch="86_16", start_offset=0, load_address=0,
-                                      selfmodifying_code=False, rebase_granularity=0x1000)
+        project = angr.load_shellcode(
+            b"U\x8b\xec\x8bF\x04\xf7f\x06]\xc3",
+            arch="86_16",
+            start_offset=0,
+            load_address=0,
+            selfmodifying_code=False,
+            rebase_granularity=0x1000,
+        )
         block = project.factory.block(project.entry, byte_string=bytes16)
         cfg = project.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
