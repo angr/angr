@@ -4,7 +4,7 @@ from typing import Optional, Union
 from archinfo import Arch
 
 from .optimization_pass import OptimizationPassStage
-from .stack_canary_simplifier import StackCanarySimplifier
+from .stack_canary_simplifier import StackCanarySimplifier, AARCH64StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .expr_op_swapper import ExprOpSwapper
 from .ite_region_converter import ITERegionConverter
@@ -33,6 +33,7 @@ from .inlined_string_transformation_simplifier import InlinedStringTransformatio
 _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
+    (AARCH64StackCanarySimplifier, True),
     (WinStackCanarySimplifier, True),
     (BasePointerSaveSimplifier, True),
     (DivSimplifier, True),
