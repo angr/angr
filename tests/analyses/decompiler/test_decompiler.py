@@ -3564,6 +3564,21 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("foo") == 1  # the recursive call
         assert "bar" not in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_simplifying_string_transformation_loops(self, decompiler_options=None):
+        project = angr.load_shellcode(b"U\x8b\xec\x8bF\x04\xf7f\x06]\xc3", arch="86_16", start_offset=0, load_address=0,
+                                      selfmodifying_code=False, rebase_granularity=0x1000)
+        block = project.factory.block(project.entry, byte_string=bytes16)
+        cfg = project.analyses[CFGFast].prep()(data_references=True, normalize=True)
+
+        func = cfg.functions[0]
+        d = project.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        self._print_decompilation_result(d)
+
+        assert d.codegen is not None
+        assert "short _start(unsigned short v1, unsigned short a0)" in d.codegen.text
+        assert "return v1 * a0;" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
