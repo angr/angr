@@ -3565,8 +3565,8 @@ class TestDecompiler(unittest.TestCase):
         assert "bar" not in d.codegen.text
 
     @structuring_algo("phoenix")
-    def test_simplifying_string_transformation_loops(self, decompiler_options=None):
-        project = angr.load_shellcode(
+    def test_x86_16bit_platform(self, decompiler_options=None):
+        proj = angr.load_shellcode(
             b"U\x8b\xec\x8bF\x04\xf7f\x06]\xc3",
             arch="86_16",
             start_offset=0,
@@ -3574,11 +3574,10 @@ class TestDecompiler(unittest.TestCase):
             selfmodifying_code=False,
             rebase_granularity=0x1000,
         )
-        block = project.factory.block(project.entry, byte_string=bytes16)
-        cfg = project.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        cfg = proj.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
-        func = cfg.functions[0]
-        d = project.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        f = cfg.functions[0]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert d.codegen is not None
