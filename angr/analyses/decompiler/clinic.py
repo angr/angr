@@ -97,7 +97,8 @@ class Clinic(Analysis):
         insert_labels=True,
         optimization_passes=None,
         cfg=None,
-        peephole_optimizations: None | (
+        peephole_optimizations: None
+        | (
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
@@ -255,6 +256,10 @@ class Clinic(Analysis):
         self._remove_redundant_jump_blocks(ail_graph)
         if self._insert_labels:
             self._insert_block_labels(ail_graph)
+
+        # Transform the graph into partial SSA form
+        self._update_progress(21.0, text="Transforming to partial-SSA form")
+        ail_graph = self._transform_to_ssa(ail_graph)
 
         # Run simplification passes
         self._update_progress(22.0, text="Optimizing fresh ailment graph")
@@ -1159,6 +1164,11 @@ class Clinic(Analysis):
                     self.reaching_definitions = None
 
         return ail_graph
+
+    @timethis
+    def _transform_to_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        ssailification = self.project.analyses.Ssailification(self.function, ail_graph)
+        return ssailification.out_graph
 
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
