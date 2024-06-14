@@ -611,8 +611,16 @@ class ConditionProcessor:
             bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition)
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
-            else:
+            elif (
+                isinstance(last_stmt.false_target, ailment.Expr.Const)
+                and last_stmt.false_target.value == dst_block.addr
+            ):
                 return claripy.Not(bool_var)
+            else:
+                raise ValueError(
+                    "The provided block address does not match any jump target of the conditional jump. "
+                    "This is possibly caused by a wrong AIL graph."
+                )
 
         return claripy.true
 
