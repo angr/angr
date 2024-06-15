@@ -895,10 +895,6 @@ class PcodeBasicBlockLifter:
             last_decode_addr = irsb.addr
             last_imark_idx = 0
             for op_idx, op in enumerate(irsb._ops):
-                # OpCode space begins with control ops ending with RETURN. Quickly filter non-control instructions.
-                if op.opcode > pypcode.OpCode.RETURN:
-                    continue
-
                 if op.opcode == pypcode.OpCode.IMARK:
                     irsb._instruction_addresses.extend([vn.offset for vn in op.inputs])
                     last_decode_addr = op.inputs[0].offset
