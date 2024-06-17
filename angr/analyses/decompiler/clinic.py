@@ -2177,10 +2177,7 @@ class Clinic(Analysis):
         bottype = SimTypeBottom().with_arch(self.project.arch)
         for var in var_manager._variables:
             if var not in var_manager.variable_to_types:
-                if self._typehoon_cls == RustTypehoon:
-                    var_manager.set_variable_type(var, RustSimTypeInt(var.size * self.project.arch.byte_width))
-                else:
-                    var_manager.set_variable_type(var, bottype)
+                var_manager.set_variable_type(var, bottype)
 
         # Unify SSA variables
         tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
@@ -2307,11 +2304,6 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
         if stmt.ret_expr:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr)
-            # If stmt.ret_expr is stack variable, do some special handling
-            if isinstance(stmt.ret_expr, ailment.Expr.StackBaseOffset):
-                mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
-                if len(mem_vars):
-                    stmt.ret_expr.variable, stmt.ret_expr.offset = next(iter(mem_vars))
 
     def _link_variables_on_expr(
         self, variable_manager: VariableManagerInternal, global_variables, block, stmt_idx, stmt, expr

@@ -1,9 +1,10 @@
 from ailment.expression import BasePointerOffset, Const
-from ailment.statement import Store
+from ailment.statement import Store, Call
 
 from ..definitions.structs import ArrayReference, Option
 from ..sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
 from ...sim_variable import SimStackVariable
 
 
@@ -63,6 +64,41 @@ class CallsiteMaker(OptimizationPass):
         return self.project.is_rust_binary, None
 
     def _analyze(self, cache=None):
+        # Fix struct instantiation
+        for block in self._graph.nodes:
+            for i in range(len(block.statements)):
+                stmt = block.statements[i]
+                if (
+                    isinstance(stmt, Store)
+                    and stmt.variable
+                    and isinstance(stmt.variable, SimStackVariable)
+                    # and (
+                    #     (ty := unpack_typeref(self.variable_manager.get_variable_type(arg.variable)))
+                    #     and isinstance(ty, RustSimStruct)
+                    # )
+                ):
+                    pass
+        for block in self._graph.nodes:
+            if len(block.statements) and (isinstance((call := block.statements[-1]), Call) and call.args):
+                for arg in call.args:
+                    if (
+                        isinstance(arg, BasePointerOffset)
+                        and arg.variable
+                        and (
+                            (ty := unpack_typeref(self.variable_manager.get_variable_type(arg.variable)))
+                            and isinstance(ty, RustSimStruct)
+                        )
+                    ):
+                        for stmt in block.statements:
+                            if isinstance(stmt, Store):
+                                if (
+                                    stmt.variable
+                                    and isinstance(stmt.variable, SimStackVariable)
+                                    and (ty.size // 8) > (offset := stmt.variable.offset - arg.offset) > 0
+                                ):
+                                    stmt.variable = arg.variable
+                                    stmt.offset = offset
+
         for block in self._graph.nodes:
             if not block.statements:
                 continue
