@@ -2586,6 +2586,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]) -> RustVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
+        # if "c8" in str(variable):
+        #     import ipdb
+        #
+        #     ipdb.set_trace()
         unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
         variable_type = self._get_variable_type(
             variable, is_global=isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable)
@@ -2974,8 +2978,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     #
 
     def _handle(self, node, is_expr: bool = True, lvalue: bool = False):
-        if (node, is_expr) in self.ailexpr2cnode:
-            return self.ailexpr2cnode[(node, is_expr)]
+        # if (node, is_expr) in self.ailexpr2cnode:
+        #     return self.ailexpr2cnode[(node, is_expr)]
 
         handler: Optional[Callable] = self._handlers.get(node.__class__, None)
         if handler is not None:
@@ -3156,12 +3160,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if stmt.variable is not None:
-            if "struct_member_info" in stmt.tags:
-                offset, var, _ = stmt.struct_member_info
-                cvar = self._variable(var, stmt.size)
-            else:
-                cvar = self._variable(stmt.variable, stmt.size)
-                offset = stmt.offset or 0
+            # if "struct_member_info" in stmt.tags:
+            #     offset, var, _ = stmt.struct_member_info
+            #     cvar = self._variable(stmt.variable, stmt.size)
+            # else:
+            cvar = self._variable(stmt.variable, stmt.size)
+            offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
             if "array_info" in stmt.tags:
                 elements, type_, length = stmt.array_info
