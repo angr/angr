@@ -1,6 +1,7 @@
 from ailment.expression import BasePointerOffset, Const
 from ailment.statement import Store, Call
 
+from ..ailment.expression import Struct, Array
 from ..definitions.structs import ArrayReference, Option
 from ..sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -35,6 +36,7 @@ class StructResolver:
             elif isinstance(base, BasePointerOffset):
                 for i in range(length):
                     ele = base.copy()
+                    ele.variable = base.variable
                     ele.offset += i * self.struct_ty.ele_ty.size // 8
                     result.append(ele)
         return result
@@ -63,80 +65,71 @@ class CallsiteMaker(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
+    def _condense_struct_instantiation(self, statements, ty):
+        first_stmt = statements[0]
+        fields = {stmt.offset: stmt.data for stmt in statements}
+        condensed_fields = {}
+        for offset in fields:
+            field_ty = StructResolver(ty).find_field_type(offset)
+            if isinstance(field_ty, ArrayReference) and offset + self.project.arch.bytes in fields:
+                base = fields[offset]
+                length = fields[offset + self.project.arch.bytes]
+                elements = StructResolver(field_ty).resolve_element_ptrs(base, length)
+                data = Array(base.idx, elements, field_ty)
+                condensed_fields[offset] = data
+            elif isinstance(field_ty, Option) and isinstance(fields[offset], Const):
+                fields[offset].tags["type"] = field_ty.with_arch(self.project.arch)
+                condensed_fields[offset] = fields[offset]
+            else:
+                condensed_fields[offset] = fields[offset]
+
+        new_expr = Struct(first_stmt.data.idx, condensed_fields, ty)
+        new_stmt = Store(
+            first_stmt.idx,
+            first_stmt.addr,
+            new_expr,
+            new_expr.size,
+            self.project.arch.memory_endness,
+            ins_addr=first_stmt.ins_addr,
+        )
+        new_stmt.variable = first_stmt.variable
+        return [new_stmt]
+
     def _analyze(self, cache=None):
         # Fix struct instantiation
         for block in self._graph.nodes:
-            for i in range(len(block.statements)):
-                stmt = block.statements[i]
+            statements = list(block.statements)
+            new_statements = []
+            while len(statements):
+                stmt = statements.pop(0)
                 if (
                     isinstance(stmt, Store)
                     and stmt.variable
                     and isinstance(stmt.variable, SimStackVariable)
-                    # and (
-                    #     (ty := unpack_typeref(self.variable_manager.get_variable_type(arg.variable)))
-                    #     and isinstance(ty, RustSimStruct)
-                    # )
+                    and (
+                        (ty := unpack_typeref(self.variable_manager.get_variable_type(stmt.variable)))
+                        and isinstance(ty, RustSimStruct)
+                    )
                 ):
-                    pass
-        for block in self._graph.nodes:
-            if len(block.statements) and (isinstance((call := block.statements[-1]), Call) and call.args):
-                for arg in call.args:
-                    if (
-                        isinstance(arg, BasePointerOffset)
-                        and arg.variable
-                        and (
-                            (ty := unpack_typeref(self.variable_manager.get_variable_type(arg.variable)))
-                            and isinstance(ty, RustSimStruct)
-                        )
-                    ):
-                        for stmt in block.statements:
-                            if isinstance(stmt, Store):
-                                if (
-                                    stmt.variable
-                                    and isinstance(stmt.variable, SimStackVariable)
-                                    and (ty.size // 8) > (offset := stmt.variable.offset - arg.offset) > 0
-                                ):
-                                    stmt.variable = arg.variable
-                                    stmt.offset = offset
-
-        for block in self._graph.nodes:
-            if not block.statements:
-                continue
-            new_statements = []
-            skip_one = False
-            for i in range(len(block.statements) - 1):
-                if skip_one:
-                    skip_one = False
-                    continue
-                stmt = block.statements[i]
-                next_stmt = block.statements[i + 1]
-                if "struct_member_info" in stmt.tags:
-                    offset, var, field_ty = stmt.struct_member_info
-                    if (
-                        isinstance(field_ty, ArrayReference)
-                        and "struct_member_info" in next_stmt.tags
-                        and isinstance(next_stmt, Store)
-                        and next_stmt.variable
-                        and stmt.variable
-                        and isinstance(stmt.variable, SimStackVariable)
-                        and isinstance(next_stmt.variable, SimStackVariable)
-                        and next_stmt.variable.offset - stmt.variable.offset == self.project.arch.bytes
-                    ):
-                        elements = StructResolver(field_ty).resolve_element_ptrs(stmt.data, next_stmt.data)
-                        stmt.tags["array_info"] = (elements, field_ty, next_stmt.data)
-                        new_statements.append(stmt)
-                        skip_one = True
-                    elif (
-                        isinstance(field_ty, Option)
-                        and isinstance(stmt, Store)
-                        and isinstance(stmt.data, Const)
-                        and stmt.data.value == 0
-                    ):
-                        stmt.tags["option_info"] = field_ty
-                        new_statements.append(stmt)
-                    else:
-                        new_statements.append(stmt)
+                    # It's probably a struct instantiation. Let's find all related statements!
+                    statements.insert(0, stmt)
+                    related_statements = []
+                    while len(statements):
+                        next_stmt = statements.pop(0)
+                        if (
+                            isinstance(next_stmt, Store)
+                            and next_stmt.variable
+                            and isinstance(next_stmt.variable, SimStackVariable)
+                            and (ty.size // 8) > (offset := next_stmt.variable.offset - stmt.variable.offset) >= 0
+                        ):
+                            next_stmt.variable = stmt.variable
+                            next_stmt.offset = offset
+                            next_stmt.tags["struct_type"] = ty
+                            related_statements.append(next_stmt)
+                        else:
+                            statements.insert(0, next_stmt)
+                            break
+                    new_statements.extend(self._condense_struct_instantiation(related_statements, ty))
                 else:
                     new_statements.append(stmt)
-            new_statements.append(block.statements[-1])
             block.statements = new_statements

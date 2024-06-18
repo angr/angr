@@ -59,7 +59,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, Vec
+from ....rust.ailment.expression import String, Vec, Struct, Array
 
 if TYPE_CHECKING:
     import archinfo
@@ -632,9 +632,9 @@ class RustExpression(RustConstruct):
         self._type = v
 
     @staticmethod
-    def _try_c_repr_chunks(expr):
+    def _try_c_repr_chunks(expr, indent=0):
         if hasattr(expr, "c_repr_chunks"):
-            yield from expr.c_repr_chunks()
+            yield from expr.c_repr_chunks(indent=indent)
         else:
             yield str(expr), expr
 
@@ -1152,6 +1152,9 @@ class RustAssignment(RustStatement):
             "Sar": ">>",
         }
 
+        if not isinstance(self.rhs, RustStruct):
+            indent = 0
+
         if (
             self.codegen.use_compound_assignments
             and isinstance(self.lhs, RustVariable)
@@ -1164,10 +1167,10 @@ class RustAssignment(RustStatement):
         ):
             # a = a + x  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
-            yield from RustExpression._try_c_repr_chunks(self.rhs.rhs)
+            yield from RustExpression._try_c_repr_chunks(self.rhs.rhs, indent=indent)
         else:
             yield " = ", self
-            yield from RustExpression._try_c_repr_chunks(self.rhs)
+            yield from RustExpression._try_c_repr_chunks(self.rhs, indent=indent)
         if not asexpr:
             yield ";\n", self
 
@@ -1406,6 +1409,45 @@ class RustLabel(RustStatement):
         yield self.name, self
         yield ":", None
         yield "\n", None
+
+
+class RustStruct(RustExpression):
+    __slots__ = (
+        "fields",
+        "field_names",
+        "struct_type",
+        "tags",
+    )
+
+    def __init__(self, fields, field_names, struct_type: RustSimStruct, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.fields = fields
+        self.field_names = field_names
+        self.struct_type = struct_type
+        self.tags = tags
+
+    @property
+    def type(self):
+        return self.struct_type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        brace = RustClosingObject("{")
+        if self.collapsed:
+            yield "...", self
+            return
+        indent_str = self.indent_str(indent=indent)
+        field_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
+        yield str(self.type.name), self
+        yield " {\n", brace
+        for offset, name in self.field_names.items():
+            yield field_indent_str, None
+            yield name, self
+            yield ": ", self
+            yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.fields[offset]))
+            yield "\n", None
+        yield indent_str, None
+        yield "}", brace
 
 
 class RustStructField(RustExpression):
@@ -2376,6 +2418,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             String: self._handle_Expr_String,
             Vec: self._handle_Expr_Vec,
+            Struct: self._handle_Expr_Struct,
+            Array: self._handle_Expr_Array,
         }
 
         self._func = func
@@ -3160,18 +3204,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if stmt.variable is not None:
-            # if "struct_member_info" in stmt.tags:
-            #     offset, var, _ = stmt.struct_member_info
-            #     cvar = self._variable(stmt.variable, stmt.size)
-            # else:
             cvar = self._variable(stmt.variable, stmt.size)
             offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
-            if "array_info" in stmt.tags:
-                elements, type_, length = stmt.array_info
-                cdata = RustArray(elements, length, type_, tags=stmt.tags, codegen=self)
-            elif "option_info" in stmt.tags:
-                cdata = RustConstant(0, stmt.option_info, tags=stmt.tags, codegen=self)
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
             addr_expr = self._handle(stmt.addr)
@@ -3342,6 +3377,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         inline_string = False
         function_pointer = False
 
+        if type_ is None and "type" in expr.tags:
+            type_ = expr.type
+
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
@@ -3447,6 +3485,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         type_ = RustSimTypeVec().with_arch(self.project.arch)
         reference_values = {type_: expr}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Struct(self, expr: Struct, **kwargs):
+        return RustStruct(expr.fields, expr.field_names, expr.type, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Array(self, expr: Array, **kwargs):
+        return RustArray(expr.elements, expr.length, expr.type, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):
         return RustUnaryOp(

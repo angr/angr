@@ -1,4 +1,9 @@
 import ailment
+from ailment.tagged_object import TaggedObject
+from ailment.utils import stable_hash
+
+from angr.rust.definitions.structs import ArrayReference
+from angr.rust.sim_type import RustSimType, RustSimStruct
 
 
 class String(ailment.Const):
@@ -47,16 +52,20 @@ class Vec(ailment.Const):
 
 
 class Array(ailment.Expression):
-    def __init__(self, idx, elements, ele_ty, ele_num, **kwargs):
-        super().__init__(idx, 1, **kwargs)
+    def __init__(self, idx, elements, array_type: ArrayReference, **kwargs):
+        super().__init__(idx, (max(ele.depth for ele in elements) if len(elements) else 0) + 1, **kwargs)
         self.elements = elements
-        self.ele_ty = ele_ty
-        self.ele_num = ele_num
+        self.type = array_type
 
     @property
     def size(self):
-        return 1
+        return self.type.size // 8
 
+    @property
+    def bits(self):
+        return self.type.size
+
+    @property
     def length(self):
         return len(self.elements)
 
@@ -66,13 +75,42 @@ class Array(ailment.Expression):
     def __str__(self):
         return str(self.elements)
 
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((tuple(self.elements), self.type))
+
+    def likes(self, other):
+        return type(self) is type(other) and self.type == other.type and (self.elements == other.elements)
+
 
 class Struct(ailment.Expression):
-    def __init__(self, idx, depth, fields, **kwargs):
-        super().__init__(idx, **kwargs)
-        self.depth = depth
+    def __init__(self, idx, fields, struct_type: RustSimStruct, **kwargs):
+        super().__init__(idx, (max(field.depth for field in fields.values()) if len(fields) else 0) + 1, **kwargs)
         self.fields = fields
+        self.field_names = {}
+        for name, offset in struct_type.offsets.items():
+            self.field_names[offset] = name
+        self.type = struct_type
 
     @property
     def size(self):
-        return sum(field.size for field in self.fields)
+        return self.type.size // 8
+
+    @property
+    def bits(self):
+        return self.type.size
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return self.type.name + " " + str(self.fields)
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((tuple(self.fields.keys()), tuple(self.fields.values()), self.type))
+
+    def likes(self, other):
+        return type(self) is type(other) and self.type == other.type and (self.fields == other.fields)
