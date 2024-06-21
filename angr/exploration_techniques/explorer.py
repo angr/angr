@@ -88,6 +88,8 @@ class Explorer(ExplorationTechnique):
                 seen_nodes.add(id(n))
                 queue.extend(n.predecessors)
 
+            self._include_back_edges()
+
             if len(self.ok_blocks) == 0:
                 l.error("No addresses could be validated by the provided CFG!")
                 l.error("Usage of the CFG has been disabled for this explorer.")
@@ -141,6 +143,38 @@ class Explorer(ExplorationTechnique):
                 return self.avoid_stash
 
         return None
+
+    def _include_back_edges(self):
+        """
+        nodes leading back to an ok_block are included
+        this allows to handle loops in the CFG: for instance a basic block that checks the loop counter
+        has 2 successors. if loop body is not included in ok_blocks, the successor that leads back to the
+        check block will be discarded and the exit conditions will never be met.
+        """
+
+        def dfs(node, path, visited):
+            l.debug(f"Visiting node: {node.addr:#x}")
+            if node.addr in self.ok_blocks and len(path) > 0:
+                for n in path:
+                    self.ok_blocks.add(n.addr)
+                    l.debug(f"Adding node to ok_blocks from path: {n.addr:#x}")
+                return True
+
+            if node.addr in visited:
+                return False
+
+            visited.add(node.addr)
+            path.append(node)
+            for succ in node.successors:
+                dfs(succ, path, visited)
+
+            path.pop()
+            return False
+
+        for addr in list(self.ok_blocks):
+            nodes = self.cfg.model.get_all_nodes(addr)
+            for node in nodes:
+                dfs(node, [], set())
 
     def complete(self, simgr):
         return len(simgr.stashes[self.find_stash]) >= self.num_find
