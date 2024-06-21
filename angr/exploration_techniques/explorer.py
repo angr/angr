@@ -153,11 +153,9 @@ class Explorer(ExplorationTechnique):
         """
 
         def dfs(node, path, visited):
-            l.debug(f"Visiting node: {node.addr:#x}")
             if node.addr in self.ok_blocks and len(path) > 0:
                 for n in path:
                     self.ok_blocks.add(n.addr)
-                    l.debug(f"Adding node to ok_blocks from path: {n.addr:#x}")
                 return True
 
             if node.addr in visited:
