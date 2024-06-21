@@ -1,6 +1,8 @@
 import ailment
 import archinfo
+from ailment.statement import Call
 
+from ..sim_type import RustSimTypeFunction
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..ailment.expression import Vec, String
@@ -202,6 +204,18 @@ class AllocSimplifier(OptimizationPass):
         self.state.alloc_block.statements.append(new_stmt)
 
     def _analyze(self, cache=None):
+        for block in sorted(self._graph.nodes, key=lambda b: b.addr):
+            for stmt in block.statements:
+                if isinstance(stmt, Call):
+                    prototype = stmt.prototype
+                    if isinstance(prototype, RustSimTypeFunction) and prototype.is_returnty_struct and len(stmt.args):
+                        stmt.ret_expr = stmt.args[0]
+                        stmt.args = stmt.args[1:]
+                        prototype = prototype.copy()
+                        prototype.returnty = prototype.args[0]
+                        prototype.args = prototype.args[1:]
+                        stmt.prototype = prototype
+
         for block in list(self._graph.nodes()):
             self.state = AllocSimplifierState()
             # Is this block trying to allocate new heap memory?

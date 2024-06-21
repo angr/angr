@@ -1,1 +1,1 @@
-from .argument_isolation import *
+from .variable_isolation import *

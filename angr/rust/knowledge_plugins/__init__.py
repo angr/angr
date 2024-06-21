@@ -1,1 +1,1 @@
-from .argument_isolation import ArgumentIsolation
+from .variable_isolation import VariableIsolation
