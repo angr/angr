@@ -16,7 +16,7 @@ class VariableIsolation(Analysis):
         for block in sorted(self.func_graph.nodes, key=lambda b: b.addr):
             for stmt_idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Call) and (stmt.args or stmt.ret_expr):
-                    for arg_idx, arg in [(-1, stmt.ret_expr)] + list(enumerate(stmt.args)):
+                    for arg_idx, arg in [(-1, stmt.ret_expr)] + list(enumerate(stmt.args if stmt.args else [])):
                         if isinstance(arg, BasePointerOffset):
                             var = self.kb.variables[self.func.addr].find_variables_by_atom(
                                 block.addr, stmt_idx, arg if arg_idx != -1 else stmt, block_idx=block.idx

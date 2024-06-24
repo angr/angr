@@ -4,6 +4,7 @@ from collections import defaultdict
 import logging
 from functools import reduce
 
+import ailment
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 
@@ -3054,7 +3055,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         tags = {"ins_addr": loop_node.addr}
 
         if loop_node.sort == "while":
-            if loop_node.condition is None or loop_node.condition.value is True:
+            if loop_node.condition is None or (
+                isinstance(loop_node.condition, ailment.Const) and loop_node.condition.value is True
+            ):
                 return RustInfiniteLoop(
                     None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
                     tags=tags,
