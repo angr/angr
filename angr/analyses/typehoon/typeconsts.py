@@ -140,6 +140,20 @@ class Pointer(TypeConstant):
         return self._hash(set())
 
 
+class Pointer16(Pointer, Int16):
+    """
+    16-bit pointers.
+    """
+
+    def __init__(self, basetype=None):
+        Pointer.__init__(self, basetype)
+
+    @memoize
+    def __repr__(self, memo=None):
+        bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
+        return f"ptr16({bt})"
+
+
 class Pointer32(Pointer, Int32):
     """
     32-bit pointers.

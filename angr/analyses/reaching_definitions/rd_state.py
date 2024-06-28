@@ -178,6 +178,8 @@ class ReachingDefinitionsState:
             return claripy.BVS("stack_base", 32, explicit_name=True)
         elif self.arch.bits == 64:
             return claripy.BVS("stack_base", 64, explicit_name=True)
+        elif self.arch.bits == 16:
+            return claripy.BVS("stack_base", 16, explicit_name=True)
         else:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
 
