@@ -121,6 +121,18 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         self.state.scratch.bbl_addr = addr
 
         while True:
+            # check permissions, are we allowed to execute here? Do we care?
+            if o.STRICT_PAGE_ACCESS in self.state.options:
+                try:
+                    perms = self.state.memory.permissions(addr)
+                except errors.SimMemoryError as sim_mem_err:
+                    raise errors.SimSegfaultError(addr, "exec-miss") from sim_mem_err
+                else:
+                    if not self.state.solver.symbolic(perms):
+                        perms = self.state.solver.eval(perms)
+                        if not perms & 4 and o.ENABLE_NX in self.state.options:
+                            raise errors.SimSegfaultError(addr, "non-executable")
+
             if irsb is None:
                 irsb = self.lift_vex(
                     addr=addr,
@@ -147,18 +159,6 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
             if irsb.size == 0:
                 raise errors.SimIRSBError("Empty IRSB passed to HeavyVEXMixin.")
-
-            # check permissions, are we allowed to execute here? Do we care?
-            if o.STRICT_PAGE_ACCESS in self.state.options:
-                try:
-                    perms = self.state.memory.permissions(addr)
-                except errors.SimMemoryError as sim_mem_err:
-                    raise errors.SimSegfaultError(addr, "exec-miss") from sim_mem_err
-                else:
-                    if not self.state.solver.symbolic(perms):
-                        perms = self.state.solver.eval(perms)
-                        if not perms & 4 and o.ENABLE_NX in self.state.options:
-                            raise errors.SimSegfaultError(addr, "non-executable")
 
             self.state.scratch.set_tyenv(irsb.tyenv)
             self.state.scratch.irsb = irsb
