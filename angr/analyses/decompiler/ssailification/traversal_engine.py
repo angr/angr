@@ -2,10 +2,11 @@ from __future__ import annotations
 from collections import OrderedDict
 from claripy.utils.orderedset import OrderedSet
 
-from ailment.statement import Assignment
-from ailment.expression import Register
+from ailment.statement import Assignment, Call, Store, ConditionalJump
+from ailment.expression import Register, BinaryOp
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
+from .traversal_state import TraversalState
 
 
 class SimEngineSSATraversal(
@@ -15,6 +16,8 @@ class SimEngineSSATraversal(
     """
     This engine collects all register and stack variable locations and links them to the block of their creation.
     """
+
+    state: TraversalState
 
     def __init__(self, arch, sp_tracker=None, bp_as_gpr: bool = False, def_to_loc=None, loc_to_defs=None):
         super().__init__()
@@ -33,3 +36,53 @@ class SimEngineSSATraversal(
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(stmt.dst)
+
+            self.state.live_registers.add(stmt.dst.reg_offset)  # TODO: reg offset normalization
+
+        self._expr(stmt.src)
+
+    def _handle_Store(self, stmt: Store):
+        self._expr(stmt.addr)
+        self._expr(stmt.data)
+
+    def _handle_ConditionalJump(self, stmt: ConditionalJump):
+        self._expr(stmt.condition)
+        if stmt.true_target is not None:
+            self._expr(stmt.true_target)
+        if stmt.false_target is not None:
+            self._expr(stmt.false_target)
+
+    def _handle_Call(self, stmt: Call):
+        if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
+            codeloc = self._codeloc()
+            self.def_to_loc[stmt.ret_expr] = codeloc
+            if codeloc not in self.loc_to_defs:
+                self.loc_to_defs[codeloc] = OrderedSet()
+            self.loc_to_defs[codeloc].add(stmt.ret_expr)
+
+            self.state.live_registers.add(stmt.ret_expr.reg_offset)  # TODO: reg offset normalization
+
+        super()._ail_handle_Call(stmt)
+
+    def _handle_Register(self, expr: Register):
+        reg_offset = expr.reg_offset  # TODO: reg offset normalization
+
+        if reg_offset not in self.state.live_registers:
+            codeloc = self._codeloc()
+            self.def_to_loc[expr] = codeloc
+            if codeloc not in self.loc_to_defs:
+                self.loc_to_defs[codeloc] = OrderedSet()
+            self.loc_to_defs[codeloc].add(expr)
+
+            self.state.live_registers.add(reg_offset)
+
+    def _handle_Cmp(self, expr: BinaryOp):
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+
+    _handle_CmpLE = _handle_Cmp
+    _handle_CmpLT = _handle_Cmp
+    _handle_CmpGE = _handle_Cmp
+    _handle_CmpGT = _handle_Cmp
+    _handle_CmpEQ = _handle_Cmp
+    _handle_CmpNE = _handle_Cmp

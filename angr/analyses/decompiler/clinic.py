@@ -97,8 +97,7 @@ class Clinic(Analysis):
         insert_labels=True,
         optimization_passes=None,
         cfg=None,
-        peephole_optimizations: None
-        | (
+        peephole_optimizations: None | (
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
@@ -257,10 +256,6 @@ class Clinic(Analysis):
         if self._insert_labels:
             self._insert_block_labels(ail_graph)
 
-        # Transform the graph into partial SSA form
-        self._update_progress(21.0, text="Transforming to partial-SSA form")
-        ail_graph = self._transform_to_ssa(ail_graph)
-
         # Run simplification passes
         self._update_progress(22.0, text="Optimizing fresh ailment graph")
         ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
@@ -402,6 +397,10 @@ class Clinic(Analysis):
         self._update_progress(30.0, text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             ail_graph = self._make_returns(ail_graph)
+
+        # Transform the graph into partial SSA form
+        self._update_progress(21.0, text="Transforming to partial-SSA form")
+        ail_graph = self._transform_to_ssa(ail_graph)
 
         # full-function constant-only propagation
         self._update_progress(33.0, text="Constant propagation")
@@ -1215,11 +1214,10 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(
+        rd = self.project.analyses.SReachingDefinitions(
             subject=self.function,
             func_graph=ail_graph,
-            observe_callback=self._make_callsites_rd_observe_callback,
-            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+            # use_callee_saved_regs_at_return=not self._register_save_areas_removed,  FIXME
         )
 
         class TempClass:  # pylint:disable=missing-class-docstring
@@ -1504,6 +1502,14 @@ class Clinic(Analysis):
             if len(final_reg_vars) >= 1:
                 reg_var, offset = next(iter(final_reg_vars))
                 expr.variable = reg_var
+                expr.variable_offset = offset
+
+        elif type(expr) is ailment.Expr.VirtualVariable:
+            vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
+            assert len(vars_) <= 1
+            if len(vars_) == 1:
+                var, offset = next(iter(vars_))
+                expr.variable = var
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.Load:

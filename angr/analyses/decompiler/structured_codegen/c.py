@@ -2426,6 +2426,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
+            Expr.VirtualVariable: self._handle_VirtualVariable,
         }
 
         self._func = func
@@ -3520,6 +3521,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
         cexpr = self._handle(expr.expr)
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
+
+    def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
+        if expr.variable:
+            cvar = self._variable(expr.variable, None)
+            return cvar
+        return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         if expr.variable is not None:

@@ -20,6 +20,7 @@ from ailment.expression import (
     BinaryOp,
 )
 
+from angr.analyses.s_reaching_definitions import SRDAModel
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
@@ -88,7 +89,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions: ReachingDefinitionsModel | None = None
+        self._reaching_definitions: SRDAModel | None = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -178,18 +179,15 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> ReachingDefinitionsModel:
+    def _compute_reaching_definitions(self) -> SRDAModel:
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
-        rd = self.project.analyses.ReachingDefinitions(
+        rd = self.project.analyses.SReachingDefinitions(
             subject=self.func,
             func_graph=self.func_graph,
-            # init_context=(),    <-- in case of fire break glass
-            observe_all=False,
-            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            track_tmps=True,
-            element_limit=1,
+            # use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            # track_tmps=True,
         ).model
         self._reaching_definitions = rd
         return rd
@@ -198,12 +196,12 @@ class AILSimplifier(Analysis):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
-        prop = self.project.analyses.Propagator(
-            func=self.func,
+        prop = self.project.analyses.SPropagator(
+            subject=self.func,
             func_graph=self.func_graph,
-            gp=self._gp,
+            # gp=self._gp,
             only_consts=self._only_consts,
-            reaching_definitions=self._compute_reaching_definitions(),
+            # reaching_definitions=self._compute_reaching_definitions(),
             immediate_stmt_removal=immediate_stmt_removal,
         )
         self._propagator = prop
@@ -1222,20 +1220,25 @@ class AILSimplifier(Analysis):
                 else:
                     continue
 
-            uses = rd.all_uses.get_uses(def_)
-            if (
-                (
-                    isinstance(def_.atom, atoms.Register)
-                    and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
-                )
-                and len(uses) == 1
-                and next(iter(uses)) == def_.codeloc
-            ):
-                # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                uses = set()
+            if isinstance(def_.atom, atoms.VirtualVariable):
+                uses = rd.get_vvar_uses(def_.atom)
+            else:
+                continue
 
-            if not uses and not isinstance(def_.codeloc, ExternalCodeLocation):
-                stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
+            # uses = rd.all_uses.get_uses(def_)
+            # if (
+            #     isinstance(def_.atom, atoms.Register)
+            #     and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+            # ):
+            #     if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
+            #         # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+            #         uses = set()
+
+            if not uses:
+                if not isinstance(def_.codeloc, ExternalCodeLocation):
+                    stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
+                        def_.codeloc.stmt_idx
+                    )
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block

@@ -5,6 +5,9 @@ import logging
 import networkx
 
 import ailment
+from ailment import Block
+from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from ailment.statement import Assignment, Label
 
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis
@@ -39,8 +42,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
 
         ForwardAnalysis.__init__(
-            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
+            self, order_jobs=True, allow_merging=False, allow_widening=False, graph_visitor=self._graph_visitor
         )
+        self._graph = ail_graph
         self._def_to_vvid = def_to_vvid
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
@@ -55,6 +59,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         self._visited_blocks: set[Any] = set()
         self.out_blocks = {}
+        self.out_states = {}
 
         self._analyze()
 
@@ -72,12 +77,58 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         return new_graph
 
+    def create_phi_statements(self, node, udef_to_phiid: dict, phiid_to_loc: dict) -> list[Assignment]:
+        phi_ids = []
+        for phiid, (block_addr, block_idx) in phiid_to_loc.items():
+            if block_addr == node.addr and block_idx == node.idx:
+                phi_ids.append(phiid)
+
+        phiid_to_udef = {}
+        for udef, phiids in udef_to_phiid.items():
+            for phiid in phiids:
+                phiid_to_udef[phiid] = udef
+
+        phi_stmts = []
+        for phi_id in phi_ids:
+            _, reg_offset, reg_bits = phiid_to_udef[phi_id]
+
+            phi_var = Phi(
+                None,
+                reg_bits,
+                src_and_vvars=[],  # back patch later
+            )
+            phi_dst = VirtualVariable(None, phi_id, reg_bits, VirtualVariableCategory.REGISTER, oident=reg_offset)
+            phi_stmt = Assignment(
+                None,
+                phi_dst,
+                phi_var,
+                ins_addr=node.addr,
+            )
+            phi_stmts.append(phi_stmt)
+
+        return phi_stmts
+
+    def insert_phi_statements(self, node: Block, phi_stmts: list[Assignment]):
+        idx = 0
+        while idx < len(node.statements):
+            if not isinstance(node.statements[idx], Label):
+                break
+            idx += 1
+
+        if idx >= len(node.statements):
+            node.statements += phi_stmts
+        else:
+            node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
+
     #
     # Main analysis routines
     #
 
     def _pre_analysis(self):
-        pass
+        for node in self.graph:
+            phi_stmts = self.create_phi_statements(node, self._udef_to_phiid, self._phiid_to_loc)
+            if phi_stmts:
+                self.insert_phi_statements(node, phi_stmts)
 
     def _initial_abstract_state(self, node) -> RewritingState:
         return RewritingState(
@@ -86,16 +137,6 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             self._function,
             node,
         )
-
-    def _merge_states(self, node: ailment.Block, *states: RewritingState) -> tuple[RewritingState, bool]:
-        merged_state = RewritingState(
-            CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, block_idx=node.idx),
-            self.project.arch,
-            self._function,
-            node,
-        )
-        merge_occurred = merged_state.merge(node, self._udef_to_phiid, self._phiid_to_loc, *states)
-        return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state: RewritingState):
         """
@@ -113,14 +154,15 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             l.warning("Unsupported node type %s.", node.__class__)
             return False, state
 
+        if block_key in self._visited_blocks:
+            return False, state
+
         engine: SimEngineSSARewriting
 
         old_state = state
         state = old_state.copy()
         state.loc = CodeLocation(block.addr, stmt_idx=0, ins_addr=block.addr, block_idx=block.idx)
-        state.original_block = block
-        if old_state.out_block is not None:
-            state.out_block = old_state.out_block.copy()
+        state.original_block = node
 
         engine.process(
             state,
@@ -128,21 +170,57 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         )
 
         self._visited_blocks.add(block_key)
+        self.out_states[block_key] = state
 
         if state.out_block is not None:
             assert state.out_block.addr == block.addr
 
-            state.insert_phi_statements()
             if self.out_blocks.get(block_key, None) == state.out_block:
-                return False, state
+                return True, state
             self.out_blocks[block_key] = state.out_block
             state.out_block = None
             return True, state
 
-        return False, state
+        return True, state
 
     def _intra_analysis(self):
         pass
 
     def _post_analysis(self):
-        pass
+        # update phi nodes
+        for original_node in self.graph:
+            node_key = original_node.addr, original_node.idx
+            if node_key in self.out_blocks:
+                node = self.out_blocks[node_key]
+            else:
+                node = original_node
+
+            if any(
+                isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
+                for stmt in node.statements
+            ):
+                # there we go
+                new_stmts = []
+                for stmt_idx, stmt in enumerate(node.statements):
+                    if not (
+                        isinstance(stmt, Assignment)
+                        and isinstance(stmt.dst, VirtualVariable)
+                        and isinstance(stmt.src, Phi)
+                    ):
+                        new_stmts.append(stmt)
+                        continue
+                    reg_offset = stmt.dst.oident
+                    src_and_vvars = []
+                    for pred in self.graph.predecessors(original_node):
+                        out_state = self.out_states[(pred.addr, pred.idx)]
+                        if reg_offset in out_state.registers:
+                            vvar = out_state.registers[reg_offset].copy()
+                            vvar.idx = None  # FIXME
+                        else:
+                            vvar = None  # missing
+                        src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                    phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
+                    new_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
+                    new_stmts.append(new_stmt)
+                node = node.copy(statements=new_stmts)
+                self.out_blocks[node_key] = node

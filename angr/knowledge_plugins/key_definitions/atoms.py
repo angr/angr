@@ -239,6 +239,25 @@ class Register(Atom):
         )
 
 
+class VirtualVariable(Atom):
+    """
+    TODO
+    """
+
+    __slots__ = ("varid",)
+
+    def __init__(self, varid: int, size: int):
+        super().__init__(size)
+
+        self.varid = varid
+
+    def __repr__(self):
+        return "<VVar %d<%d>>" % (self.varid, self.size)
+
+    def _identity(self):
+        return self.varid, self.size
+
+
 class MemoryLocation(Atom):
     """
     Represents a memory slice.

@@ -12,6 +12,7 @@ from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
+from angr.analyses.s_reaching_definitions.s_rda import SRDAView
 from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 if TYPE_CHECKING:
@@ -106,7 +107,7 @@ class CallSiteMaker(Analysis):
                 prototype = dereference_simtype(prototype, type_collections).with_arch(self.project.arch)
 
         args = []
-        arg_defs = []
+        arg_vvars = []
         arg_locs = None
         if cc is None:
             l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
@@ -130,9 +131,21 @@ class CallSiteMaker(Analysis):
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
-                    value_and_defs = self._resolve_register_argument(last_stmt, arg_loc)
-                    arg_defs += [d for _, d in value_and_defs]
-                    args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
+                    value_and_def = self._resolve_register_argument(last_stmt, arg_loc)
+                    if value_and_def is not None:
+                        vvar_def = value_and_def[1]
+                        arg_vvars.append(vvar_def)
+                        vvar_use = Expr.VirtualVariable(
+                            None,
+                            vvar_def.varid,
+                            vvar_def.bits,
+                            vvar_def.category,
+                            oident=vvar_def.oident,
+                            **vvar_def.tags,
+                        )
+                        args.append(vvar_use)
+                    else:
+                        args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
                     _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
@@ -223,7 +236,7 @@ class CallSiteMaker(Analysis):
                 prototype=prototype,
                 args=args,
                 ret_expr=ret_expr,
-                arg_defs=arg_defs,
+                arg_vvars=arg_vvars,
                 **last_stmt.tags,
             )
         )
@@ -252,32 +265,21 @@ class CallSiteMaker(Analysis):
         l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
         return None
 
-    def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, Definition]]:
+    def _resolve_register_argument(self, call_stmt, arg_loc) -> tuple[int | None, Expr.VirtualVariable] | None:
         size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:
             # Find its definition
             ins_addr = call_stmt.tags["ins_addr"]
-            try:
-                rd: LiveDefinitions = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
-            except KeyError:
-                return set()
+            view = SRDAView(self._reaching_definitions.model)
+            vvar = view.get_reg_vvar_by_insn(offset, ins_addr, OP_BEFORE, block_idx=self.block.idx)
 
-            try:
-                vs: MultiValues = rd.registers.load(offset, size=size)
-            except SimMemoryMissingError:
-                return set()
-            values_and_defs_ = set()
-            for values in vs.values():
-                for value in values:
-                    concrete_value = value.concrete_value if value.concrete else None
-                    for def_ in rd.extract_defs(value):
-                        values_and_defs_.add((concrete_value, def_))
+            if vvar is not None:
+                vvar_value = view.get_vvar_value(vvar)
+                return vvar_value, vvar
 
-            return values_and_defs_
-
-        return set()
+        return None
 
     def _resolve_stack_argument(self, call_stmt, arg_loc) -> tuple[Any, Any]:  # pylint:disable=unused-argument
         size = arg_loc.size
@@ -363,9 +365,9 @@ class CallSiteMaker(Analysis):
 
             value = None
             if isinstance(arg_loc, SimRegArg):
-                value_and_defs = self._resolve_register_argument(call_stmt, arg_loc)
-                if len({v for v, _ in value_and_defs}) == 1:
-                    value = next(iter({v for v, _ in value_and_defs}))
+                value_and_def = self._resolve_register_argument(call_stmt, arg_loc)
+                if value_and_def is not None:
+                    value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
                 value, _ = self._resolve_stack_argument(call_stmt, arg_loc)

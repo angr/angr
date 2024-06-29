@@ -129,16 +129,17 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             if isinstance(def_, Register):
                 # TODO: unify it to the base register
                 base_regoffset = def_.reg_offset
-                udef_to_defs[("reg", base_regoffset)].add(def_)
+                reg_bits = def_.bits
+                udef_to_defs[("reg", base_regoffset, reg_bits)].add(def_)
                 loc = def_to_loc[def_]
-                udef_to_blockkeys[("reg", base_regoffset)].add((loc.block_addr, loc.block_idx))
+                udef_to_blockkeys[("reg", base_regoffset, reg_bits)].add((loc.block_addr, loc.block_idx))
             # other types are not supported
 
         udef_to_phiid = defaultdict(set)
         phiid_to_loc = {}
         for udef, block_keys in udef_to_blockkeys.items():
             blocks = set(blockkey_to_block[block_key] for block_key in block_keys)
-            frontier_plus = self._calculate_iterative_dominace_frontier_set(frontiers, blocks)
+            frontier_plus = self._calculate_iterated_dominace_frontier_set(frontiers, blocks)
             for block in frontier_plus:
                 phi_id = next(vv_ctr)
                 udef_to_phiid[udef].add(phi_id)
@@ -148,7 +149,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
 
-    def _calculate_iterative_dominace_frontier_set(self, frontiers: dict, blocks: set) -> set:
+    def _calculate_iterated_dominace_frontier_set(self, frontiers: dict, blocks: set) -> set:
         last_frontier: set | None = None
         while True:
             frontier = set()
@@ -157,7 +158,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             if last_frontier is not None and last_frontier == frontier:
                 break
             last_frontier = frontier
-            blocks = frontier
+            blocks |= frontier
         return last_frontier
 
 

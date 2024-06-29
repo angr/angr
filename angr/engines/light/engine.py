@@ -968,11 +968,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         except KeyError:
             return None
 
-    def _ail_handle_Load(self, expr):
-        raise NotImplementedError("Please implement the Load handler with your own logic.")
+    def _ail_handle_Load(self, expr: ailment.Expr.Load):
+        self._expr(expr.addr)
+        return expr
 
-    def _ail_handle_CallExpr(self, expr):
-        raise NotImplementedError("Please implement the CallExpr handler with your own logic.")
+    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
+        self._expr(expr.target)
+        return expr
 
     def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         arg = self._expr(expr.operand)
