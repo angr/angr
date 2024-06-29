@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from ailment import AILBlockWalkerBase
 from ailment.expression import VirtualVariable
-from ailment.statement import Statement, Assignment, Expression
+from ailment.statement import Statement, Assignment
 from ailment.block import Block
 
 from angr.code_location import CodeLocation

@@ -10,7 +10,6 @@ from ailment.expression import (
     Const,
     VirtualVariableCategory,
     BinaryOp,
-    UnaryOp,
     Phi,
 )
 

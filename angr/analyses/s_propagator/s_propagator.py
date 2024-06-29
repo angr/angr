@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from ailment.block import Block
-from ailment.expression import Const, VirtualVariable, VirtualVariableCategory, StackBaseOffset, Load
+from ailment.expression import Const, VirtualVariable, VirtualVariableCategory, StackBaseOffset
 from ailment.statement import Assignment, Store
 
 from angr.knowledge_plugins.functions import Function
@@ -85,7 +85,7 @@ class SPropagatorAnalysis(Analysis):
             case "block":
                 blocks = {(self.block.addr, self.block.idx): self.block}
             case "function":
-                blocks = dict(((block.addr, block.idx), block) for block in self.func_graph)
+                blocks = {(block.addr, block.idx): block for block in self.func_graph}
             case _:
                 raise NotImplementedError()
 

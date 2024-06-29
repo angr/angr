@@ -7,7 +7,6 @@ import archinfo
 from ailment import Stmt, Expr
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
-from angr.errors import SimMemoryMissingError
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, dereference_simtype
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -17,8 +16,6 @@ from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
-    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
     from angr.knowledge_plugins.key_definitions.definition import Definition
 
 

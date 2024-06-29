@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Any, Union, TYPE_CHECKING
+from typing import Any
 from collections.abc import Iterable
 from collections import defaultdict
 

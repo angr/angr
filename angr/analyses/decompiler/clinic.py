@@ -30,7 +30,6 @@ from ...sim_type import (
 )
 from ..stack_pointer_tracker import Register, OffsetVal
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis

@@ -40,7 +40,6 @@ from .counters.expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
-    from angr.analyses.reaching_definitions import ReachingDefinitionsModel
 
 
 _l = logging.getLogger(__name__)

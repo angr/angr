@@ -28,7 +28,7 @@ from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_op
 
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
+    from angr.knowledge_plugins.key_definitions.live_definitions import Definition
     from ailment.block import Block
 
 

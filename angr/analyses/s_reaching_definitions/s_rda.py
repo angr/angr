@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generator
+from collections.abc import Generator
 from collections import defaultdict
 
 from ailment.block import Block
@@ -128,13 +128,13 @@ class SRDAView:
 
     def observe(self, observation_points: list[ObservationPoint]):
 
-        insn_ops: dict[int, ObservationPointType] = dict((op[1], op[2]) for op in observation_points if op[0] == "insn")
-        stmt_ops: dict[tuple[tuple[int, int | None], int], ObservationPointType] = dict(
-            (op[1], op[2]) for op in observation_points if op[0] == "stmt"
-        )
-        node_ops: dict[tuple[int, int | None], ObservationPointType] = dict(
-            (op[1], op[2]) for op in observation_points if op[0] == "node"
-        )
+        insn_ops: dict[int, ObservationPointType] = {op[1]: op[2] for op in observation_points if op[0] == "insn"}
+        stmt_ops: dict[tuple[tuple[int, int | None], int], ObservationPointType] = {
+            op[1]: op[2] for op in observation_points if op[0] == "stmt"
+        }
+        node_ops: dict[tuple[int, int | None], ObservationPointType] = {
+            op[1]: op[2] for op in observation_points if op[0] == "node"
+        }
         # TODO: Other types
 
         traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
@@ -225,7 +225,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             case "block":
                 blocks = {(self.block.addr, self.block.idx): self.block}
             case "function":
-                blocks = dict(((block.addr, block.idx), block) for block in self.func_graph)
+                blocks = {(block.addr, block.idx): block for block in self.func_graph}
             case _:
                 raise NotImplementedError()
 

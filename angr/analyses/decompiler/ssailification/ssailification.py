@@ -114,7 +114,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         df = self.project.analyses.DominanceFrontier(self._function, func_graph=ail_graph)
         frontiers = df.frontiers
 
-        blockkey_to_block = dict(((block.addr, block.idx), block) for block in ail_graph)
+        blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
         blockkey_to_defs = defaultdict(set)
         for codeloc, defs in loc_to_defs.items():
             block_key = codeloc.block_addr, codeloc.block_idx
@@ -138,7 +138,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         udef_to_phiid = defaultdict(set)
         phiid_to_loc = {}
         for udef, block_keys in udef_to_blockkeys.items():
-            blocks = set(blockkey_to_block[block_key] for block_key in block_keys)
+            blocks = {blockkey_to_block[block_key] for block_key in block_keys}
             frontier_plus = self._calculate_iterated_dominace_frontier_set(frontiers, blocks)
             for block in frontier_plus:
                 phi_id = next(vv_ctr)

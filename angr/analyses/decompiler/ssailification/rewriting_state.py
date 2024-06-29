@@ -1,8 +1,7 @@
 from __future__ import annotations
-from typing import Self
 
-from ailment.statement import Statement, Assignment, Label
-from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from ailment.statement import Statement
+from ailment.expression import VirtualVariable
 from ailment.block import Block
 
 from angr.code_location import CodeLocation
