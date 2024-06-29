@@ -3,7 +3,7 @@ from typing import Generator
 from collections import defaultdict
 
 from ailment.block import Block
-from ailment.statement import Assignment, Call
+from ailment.statement import Assignment, Call, Return
 from ailment.expression import VirtualVariable, Tmp, VirtualVariableCategory, Expression
 
 from angr.utils.graph import GraphUtils
@@ -204,6 +204,10 @@ class SReachingDefinitionsAnalysis(Analysis):
         self._track_tmps = track_tmps
         self._sp_tracker = stack_pointer_tracker
 
+        self._bp_as_gpr = False
+        if self.func is not None:
+            self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
+
         self.model = SRDAModel(func_graph)
 
         self._analyze()
@@ -222,12 +226,6 @@ class SReachingDefinitionsAnalysis(Analysis):
         vvar_deflocs = get_vvar_deflocs(blocks.values())
         # find all explicit vvar uses
         vvar_uselocs = get_vvar_uselocs(blocks.values())
-        # find all implicit vvar uses
-        call_stmt_ids = []
-        for block in blocks.values():
-            for stmt_idx, stmt in enumerate(block.statements):
-                if isinstance(stmt, Call) and stmt.args is None:
-                    call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
         # update model
         for vvar, defloc in vvar_deflocs.items():
@@ -238,6 +236,16 @@ class SReachingDefinitionsAnalysis(Analysis):
 
         if self.mode == "function":
             srda_view = SRDAView(self.model)
+
+            # fix register uses at call sites
+
+            # find all implicit vvar uses
+            call_stmt_ids = []
+            for block in blocks.values():
+                for stmt_idx, stmt in enumerate(block.statements):
+                    if isinstance(stmt, Call) and stmt.args is None:
+                        call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
+
             observations = srda_view.observe(
                 [("stmt", insn_stmt_id, ObservationPointType.OP_BEFORE) for insn_stmt_id in call_stmt_ids]
             )
@@ -253,6 +261,37 @@ class SReachingDefinitionsAnalysis(Analysis):
                         iter(vvar for vvar in self.model.all_vvar_definitions if vvar.varid == vvar_id)
                     )  # TODO: optimize it with a lookup
                     self.model.all_vvar_uses[vvar].add((None, codeloc))
+
+            # fix register uses at return sites
+            ret_site_addrs = {ret_site.addr for ret_site in self.func.ret_sites}
+            if ret_site_addrs:
+                observations = srda_view.observe(
+                    [
+                        ("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)
+                        for block in blocks.values()
+                        if block.addr in ret_site_addrs
+                    ]
+                )
+                for key, reg_to_vvarids in observations.items():
+                    _, (block_addr, block_idx), _ = key
+                    block = blocks[(block_addr, block_idx)]
+                    if not block.statements:
+                        continue
+                    last_stmt = block.statements[-1]
+                    if not isinstance(last_stmt, Return):
+                        continue
+
+                    if self.project.arch.bp_offset in reg_to_vvarids:
+                        vvar_id = reg_to_vvarids[self.project.arch.bp_offset]
+                        codeloc = CodeLocation(
+                            block_addr, len(block.statements) - 1, block_idx=block_idx, ins_addr=last_stmt.ins_addr
+                        )
+                        if not self._bp_as_gpr:
+                            # use bp
+                            vvar = next(
+                                iter(vvar for vvar in self.model.all_vvar_definitions if vvar.varid == vvar_id)
+                            )  # TODO: optimize it with a lookup
+                            self.model.all_vvar_uses[vvar].add((None, codeloc))
 
         if self._track_tmps:
             # track tmps

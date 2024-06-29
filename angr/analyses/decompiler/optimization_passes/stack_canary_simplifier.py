@@ -197,15 +197,15 @@ class StackCanarySimplifier(OptimizationPass):
                 ):
                     # Check addr: must be fs+0x28
                     op0, op1 = stmt.data.addr.operands
-                    if isinstance(op1, ailment.Expr.Register):
+                    if isinstance(op1, ailment.Expr.VirtualVariable) and op1.was_reg:
                         op0, op1 = op1, op0
                     if (
-                        isinstance(op0, ailment.Expr.Register)
+                        isinstance(op0, ailment.Expr.VirtualVariable)
+                        and op0.was_reg
                         and isinstance(op1, ailment.Expr.Const)
-                        and op0.reg_offset == self.project.arch.get_register_offset("fs")
-                        and op1.value == 0x28
                     ):
-                        return first_block, idx
+                        if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
+                            return first_block, idx
 
             succs = list(self._graph.successors(first_block))
             if len(succs) == 1:
@@ -292,6 +292,7 @@ class StackCanarySimplifier(OptimizationPass):
             and expr.addr.op == "Add"
             and isinstance(expr.addr.operands[0], ailment.Expr.Const)
             and expr.addr.operands[0].value == 0x28
-            and isinstance(expr.addr.operands[1], ailment.Expr.Register)
+            and isinstance(expr.addr.operands[1], ailment.Expr.VirtualVariable)
+            and expr.addr.operands[1].was_reg
             and expr.addr.operands[1].reg_offset == fs_reg_offset
         )
