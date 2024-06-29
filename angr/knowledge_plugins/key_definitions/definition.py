@@ -12,7 +12,7 @@ from angr.misc.ux import once
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation, ExternalCodeLocation
-from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping
+from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping, VirtualVariable
 from .tag import Tag
 from ...sim_variable import SimVariable
 
@@ -202,6 +202,8 @@ class Definition(Generic[A]):
             return self.atom.size
         if isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
+        if isinstance(self.atom, VirtualVariable):
+            return self.atom.size
         raise ValueError(f"Unsupported operation size on {type(self.atom)}.")
 
     def matches(self, **kwargs) -> bool:

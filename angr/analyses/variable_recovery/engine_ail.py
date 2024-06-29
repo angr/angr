@@ -163,10 +163,9 @@ class SimEngineVRAIL(
             if ret_expr is not None:
                 # update the return value register
                 expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
-                self._assign_to_register(
-                    ret_reg_offset,
+                self._assign_to_vvar(
+                    ret_expr,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
-                    expr_bits // self.arch.byte_width,
                     dst=ret_expr,
                     create_variable=create_variable,
                 )

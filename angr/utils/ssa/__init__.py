@@ -4,7 +4,7 @@ from typing import Any
 
 from ailment import Expression, Block
 from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset
-from ailment.statement import Statement, Assignment
+from ailment.statement import Statement, Assignment, Call
 from ailment.block_walker import AILBlockWalkerBase
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -20,6 +20,15 @@ def get_vvar_deflocs(blocks) -> dict[VirtualVariable, CodeLocation]:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                 vvar_to_loc[stmt.dst] = CodeLocation(block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
+            elif isinstance(stmt, Call):
+                if isinstance(stmt.ret_expr, VirtualVariable):
+                    vvar_to_loc[stmt.ret_expr] = CodeLocation(
+                        block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
+                    )
+                if isinstance(stmt.fp_ret_expr, VirtualVariable):
+                    vvar_to_loc[stmt.fp_ret_expr] = CodeLocation(
+                        block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
+                    )
 
     return vvar_to_loc
 

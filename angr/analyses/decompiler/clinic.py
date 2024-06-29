@@ -1984,14 +1984,6 @@ class Clinic(Analysis):
     def _next_atom(self) -> int:
         return self._ail_manager.next_atom()
 
-    @staticmethod
-    def _make_callsites_rd_observe_callback(ob_type, **kwargs):
-        if ob_type != "insn":
-            return False
-        stmt = kwargs.pop("stmt")
-        op_type = kwargs.pop("op_type")
-        return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
-
     def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any] | None:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0

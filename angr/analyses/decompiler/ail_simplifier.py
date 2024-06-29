@@ -18,6 +18,7 @@ from ailment.expression import (
     Tmp,
     Const,
     BinaryOp,
+    VirtualVariable,
 )
 
 from angr.analyses.s_reaching_definitions import SRDAModel
@@ -237,7 +238,7 @@ class AILSimplifier(Analysis):
         rd = self._compute_reaching_definitions()
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
-            if isinstance(def_.atom, atoms.Register):
+            if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_reg:
                 # only do this for general purpose register
                 skip_def = False
                 for reg in self.project.arch.register_list:
@@ -261,7 +262,7 @@ class AILSimplifier(Analysis):
                         the_block = self.blocks.get(old_block, old_block)
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
                         r, new_block = False, None
-                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
+                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                             tags = dict(stmt.dst.tags)
                             tags["reg_name"] = self.project.arch.translate_register_name(
                                 def_.atom.reg_offset, size=to_size
@@ -459,11 +460,11 @@ class AILSimplifier(Analysis):
         return narrowed
 
     def _narrowing_needed(
-        self, def_, rd, addr_and_idx_to_block
+        self, def_, rd: SRDAModel, addr_and_idx_to_block
     ) -> tuple[bool, int | None, list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] | None]:
         def_size = def_.size
         # find its uses
-        use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
+        use_and_exprs = rd.get_vvar_uses_with_expr(def_.atom)
 
         all_used_sizes = set()
         used_by: list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
@@ -1222,17 +1223,13 @@ class AILSimplifier(Analysis):
 
             if isinstance(def_.atom, atoms.VirtualVariable):
                 uses = rd.get_vvar_uses(def_.atom)
+                if def_.atom.was_reg and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets:
+                    if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
+                        # TODO: Verify if we still need this hack after moving to SSA
+                        # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                        uses = set()
             else:
                 continue
-
-            # uses = rd.all_uses.get_uses(def_)
-            # if (
-            #     isinstance(def_.atom, atoms.Register)
-            #     and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
-            # ):
-            #     if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
-            #         # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-            #         uses = set()
 
             if not uses:
                 if not isinstance(def_.codeloc, ExternalCodeLocation):

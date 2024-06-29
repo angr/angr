@@ -26,7 +26,7 @@ class SRDAModel:
     @property
     def all_definitions(self) -> Generator[Definition, None, None]:
         for vvar, defloc in self.all_vvar_definitions.items():
-            yield Definition(atoms.VirtualVariable(vvar.varid, vvar.size), defloc)
+            yield Definition(atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident), defloc)
 
     def get_all_tmp_definitions(self, block_loc: CodeLocation) -> set[Definition]:
         s = set()
@@ -38,6 +38,13 @@ class SRDAModel:
         the_vvar = next(iter(v for v in self.all_vvar_uses if v.varid == obj.varid), None)
         if the_vvar is not None:
             return {loc for _, loc in self.all_vvar_uses[the_vvar]}
+        return set()
+
+    def get_vvar_uses_with_expr(self, obj: atoms.VirtualVariable) -> set[tuple[CodeLocation, VirtualVariable]]:
+        the_vvar = next(iter(v for v in self.all_vvar_uses if v.varid == obj.varid), None)
+        if the_vvar is not None:
+            return {(loc, expr) for expr, loc in self.all_vvar_uses[the_vvar]}
+        return set()
 
     def get_tmp_uses(self, obj: atoms.Tmp, block_loc: CodeLocation) -> set[CodeLocation]:
         if block_loc not in self.all_tmp_uses:
