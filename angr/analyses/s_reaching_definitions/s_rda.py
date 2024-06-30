@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections.abc import Generator
 from collections import defaultdict
+import logging
 
 from ailment.block import Block
 from ailment.statement import Assignment, Call, Return
@@ -12,12 +13,17 @@ from angr.knowledge_plugins.key_definitions import atoms, Definition
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, ObservationPoint
 from angr.code_location import CodeLocation
 from angr.analyses import Analysis, register_analysis
-from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs
+from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs, get_reg_offset_base
+from angr.calling_conventions import SimRegArg, default_cc
+
+
+_l = logging.getLogger(__name__)
 
 
 class SRDAModel:
-    def __init__(self, func_graph):
+    def __init__(self, func_graph, arch):
         self.func_graph = func_graph
+        self.arch = arch
         self.all_vvar_definitions: dict[VirtualVariable, CodeLocation] = {}
         self.all_vvar_uses: dict[VirtualVariable, set[tuple[VirtualVariable | None, CodeLocation]]] = defaultdict(set)
         self.all_tmp_definitions: dict[CodeLocation, dict[atoms.Tmp, int]] = defaultdict(dict)
@@ -61,9 +67,24 @@ class SRDAView:
     def __init__(self, model: SRDAModel):
         self.model = model
 
+    def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
+        cc = stmt.calling_convention
+        if cc is None:
+            # get the default calling convention
+            cc = default_cc(self.model.arch)  # TODO: platform and language
+        if cc is not None:
+            reg_list = stmt.calling_convention.CALLER_SAVED_REGS
+            if isinstance(stmt.calling_convention.RETURN_VAL, SimRegArg):
+                reg_list.append(stmt.calling_convention.RETURN_VAL.reg_name)
+            return {self.model.arch.registers[reg_name][0] for reg_name in reg_list}
+        _l.warning("Cannot determine registers that are clobbered by call statement %r.", stmt)
+        return set()
+
     def get_reg_vvar_by_insn(
         self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
+        reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
+
         # find the starting block
         for block in self.model.func_graph:
             if block.idx == block_idx and block.addr <= addr < block.addr + block.original_size:
@@ -97,11 +118,23 @@ class SRDAView:
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
-                    and stmt.dst.category == VirtualVariableCategory.REGISTER
-                    and stmt.dst.oident == reg_offset
+                    and stmt.dst.was_reg
+                    and stmt.dst.reg_offset == reg_offset
                 ):
                     vvars.add(stmt.dst)
                     break
+                elif isinstance(stmt, Call):
+                    if (
+                        isinstance(stmt.ret_expr, VirtualVariable)
+                        and stmt.ret_expr.was_reg
+                        and stmt.ret_expr.reg_offset == reg_offset
+                    ):
+                        vvars.add(stmt.ret_expr)
+                        break
+                    # is it clobbered maybe?
+                    clobbered_regs = self._get_call_clobbered_regs(stmt)
+                    if reg_offset in clobbered_regs:
+                        break
             else:
                 # not found
                 for pred in self.model.func_graph.predecessors(block):
@@ -170,9 +203,13 @@ class SRDAView:
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
-                    and stmt.dst.category == VirtualVariableCategory.REGISTER
+                    and stmt.dst.was_reg
                 ):
-                    live_register_to_vvarid[stmt.dst.oident] = stmt.dst.varid
+                    base_offset = get_reg_offset_base(stmt.dst.reg_offset, self.model.arch)
+                    live_register_to_vvarid[base_offset] = stmt.dst.varid
+                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
+                    base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
+                    live_register_to_vvarid[base_offset] = stmt.ret_expr.varid
 
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
                     observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = live_register_to_vvarid.copy()
@@ -215,7 +252,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         if self.func is not None:
             self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
 
-        self.model = SRDAModel(func_graph)
+        self.model = SRDAModel(func_graph, self.project.arch)
 
         self._analyze()
 
