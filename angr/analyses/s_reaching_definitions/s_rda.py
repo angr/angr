@@ -5,7 +5,7 @@ import logging
 
 from ailment.block import Block
 from ailment.statement import Assignment, Call, Return
-from ailment.expression import VirtualVariable, Tmp, VirtualVariableCategory, Expression
+from ailment.expression import VirtualVariable, Tmp, Expression
 
 from angr.utils.graph import GraphUtils
 from angr.knowledge_plugins.functions import Function
@@ -200,11 +200,7 @@ class SRDAView:
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
                     observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = live_register_to_vvarid.copy()
 
-                if (
-                    isinstance(stmt, Assignment)
-                    and isinstance(stmt.dst, VirtualVariable)
-                    and stmt.dst.was_reg
-                ):
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                     base_offset = get_reg_offset_base(stmt.dst.reg_offset, self.model.arch)
                     live_register_to_vvarid[base_offset] = stmt.dst.varid
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
