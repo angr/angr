@@ -6,6 +6,7 @@ from ailment.statement import Assignment, Call, Store, ConditionalJump
 from ailment.expression import Register, BinaryOp
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
+from angr.utils.ssa import get_reg_offset_base
 from .traversal_state import TraversalState
 
 
@@ -37,7 +38,8 @@ class SimEngineSSATraversal(
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(stmt.dst)
 
-            self.state.live_registers.add(stmt.dst.reg_offset)  # TODO: reg offset normalization
+            base_off = get_reg_offset_base(stmt.dst.reg_offset, self.arch)
+            self.state.live_registers.add(base_off)
 
         self._expr(stmt.src)
 
@@ -60,21 +62,22 @@ class SimEngineSSATraversal(
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(stmt.ret_expr)
 
-            self.state.live_registers.add(stmt.ret_expr.reg_offset)  # TODO: reg offset normalization
+            base_off = get_reg_offset_base(stmt.ret_expr.reg_offset, self.arch)
+            self.state.live_registers.add(base_off)
 
         super()._ail_handle_Call(stmt)
 
     def _handle_Register(self, expr: Register):
-        reg_offset = expr.reg_offset  # TODO: reg offset normalization
+        base_offset = get_reg_offset_base(expr.reg_offset, self.arch)
 
-        if reg_offset not in self.state.live_registers:
+        if base_offset not in self.state.live_registers:
             codeloc = self._codeloc()
             self.def_to_loc[expr] = codeloc
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(expr)
 
-            self.state.live_registers.add(reg_offset)
+            self.state.live_registers.add(base_offset)
 
     def _handle_Cmp(self, expr: BinaryOp):
         self._expr(expr.operands[0])

@@ -24,8 +24,6 @@ class SPropagatorModel:
     def __init__(self):
         self.replacements = {}
 
-        self.equivalence = {}
-
 
 class SPropagatorAnalysis(Analysis):
     """

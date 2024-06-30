@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 
 from ailment.statement import Statement
 from ailment.expression import VirtualVariable
@@ -14,23 +15,30 @@ class RewritingState:
         arch,
         func,
         original_block: Block,
-        registers: dict | None = None,
+        registers: dict[int, dict[int, VirtualVariable]] | None = None,
     ):
         self.loc = loc
         self.arch = arch
         self.func = func
 
-        self.registers: dict[int, VirtualVariable] = registers if registers is not None else {}
+        self.registers: defaultdict[int, dict[int, VirtualVariable]] = (
+            registers if registers is not None else defaultdict(dict)
+        )
         self.original_block = original_block
         self.out_block = None
 
     def copy(self) -> RewritingState:
+
+        copy_regs = defaultdict(dict)
+        for k, vdict in self.registers.items():
+            copy_regs[k] = vdict.copy()
+
         state = RewritingState(
             self.loc,
             self.arch,
             self.func,
             self.original_block,
-            registers=self.registers.copy(),
+            registers=copy_regs,
         )
         return state
 

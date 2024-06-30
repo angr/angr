@@ -1165,7 +1165,7 @@ class Clinic(Analysis):
 
     @timethis
     def _transform_to_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        ssailification = self.project.analyses.Ssailification(self.function, ail_graph)
+        ssailification = self.project.analyses.Ssailification(self.function, ail_graph, ail_manager=self._ail_manager)
         return ssailification.out_graph
 
     @timethis

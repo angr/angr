@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+import archinfo
 from ailment import Expression, Block
 from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset
 from ailment.statement import Statement, Assignment, Call
@@ -11,6 +12,46 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
 from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
+
+
+def get_reg_offset_base_and_size(
+    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: bool = True
+) -> tuple[int, int] | None:
+    """
+    Translate a given register offset into the offset of its full register and obtain the size of the full register.
+
+    :param reg_offset:  The offset of the register to translate.
+    :param arch:        The corresponding Arch object.
+    :param size:        Size of the register to translate. Optional.
+    :param resilient:   When set to True, this function will return the provided offset and size for registers that the
+                        arch does not know about.
+    :return:            A tuple of translated offset and the size of the full register.
+    """
+
+    base_reg_and_size = arch.get_base_register(reg_offset, size=size)
+    if resilient and base_reg_and_size is None:
+        return reg_offset, size
+    return base_reg_and_size
+
+
+def get_reg_offset_base(
+    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: bool = True
+) -> int | None:
+    """
+    Translate a given register offset into the offset of its full register.
+
+    :param reg_offset:  The offset of the register to translate.
+    :param arch:        The corresponding Arch object.
+    :param size:        Size of the register to translate. Optional.
+    :param resilient:   When set to True, this function will return the provided offset and size for registers that the
+                        arch does not know about.
+    :return:            The translated offset of the full register.
+    """
+
+    base_reg_and_size = arch.get_base_register(reg_offset, size=size)
+    if base_reg_and_size is None:
+        return reg_offset if resilient else None
+    return base_reg_and_size[0]
 
 
 def get_vvar_deflocs(blocks) -> dict[VirtualVariable, CodeLocation]:
@@ -90,7 +131,7 @@ class ConstAndVVarWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Load, Register)):
+        if isinstance(expr, (Tmp, Load, Register, Phi)):
             self.all_const_and_vvar_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
@@ -112,7 +153,7 @@ class ConstVVarAndLoadWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Register)):
+        if isinstance(expr, (Tmp, Register, Phi)):
             self.all_const_vvar_load_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)

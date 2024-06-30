@@ -1,1 +1,1 @@
-from .s_rda import SReachingDefinitionsAnalysis, SRDAModel
+from .s_rda import SReachingDefinitionsAnalysis, SRDAModel, SRDAView

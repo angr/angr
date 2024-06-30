@@ -6,7 +6,7 @@ import networkx
 
 import ailment
 from ailment import Block
-from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from ailment.expression import Expression, Phi, VirtualVariable, VirtualVariableCategory
 from ailment.statement import Assignment, Label
 
 from angr.code_location import CodeLocation
@@ -33,9 +33,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         ail_graph,
         sp_tracker,
         bp_as_gpr: bool,
-        def_to_vvid: dict[Any, int],
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
+        ail_manager,
     ):
         self.project = project
         self._function = func
@@ -45,16 +45,16 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             self, order_jobs=True, allow_merging=False, allow_widening=False, graph_visitor=self._graph_visitor
         )
         self._graph = ail_graph
-        self._def_to_vvid = def_to_vvid
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
+        self._ail_manager = ail_manager
         self._engine_ail = SimEngineSSARewriting(
             self.project.arch,
             sp_tracker=sp_tracker,
             bp_as_gpr=bp_as_gpr,
-            def_to_vvid=self._def_to_vvid,
             udef_to_phiid=self._udef_to_phiid,
             phiid_to_loc=self._phiid_to_loc,
+            ail_manager=ail_manager,
         )
 
         self._visited_blocks: set[Any] = set()
@@ -63,6 +63,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         self._analyze()
 
+        self.def_to_vvid: dict[Expression, int] = self._engine_ail.def_to_vvid
         self.out_graph = self._make_new_graph(ail_graph)
 
     def _make_new_graph(self, old_graph: networkx.DiGraph) -> networkx.DiGraph:
@@ -93,11 +94,17 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             _, reg_offset, reg_bits = phiid_to_udef[phi_id]
 
             phi_var = Phi(
-                None,
+                self._ail_manager.next_atom(),
                 reg_bits,
                 src_and_vvars=[],  # back patch later
             )
-            phi_dst = VirtualVariable(None, phi_id, reg_bits, VirtualVariableCategory.REGISTER, oident=reg_offset)
+            phi_dst = VirtualVariable(
+                self._ail_manager.next_atom(),
+                next(self._engine_ail.vvar_id_ctr),
+                reg_bits,
+                VirtualVariableCategory.REGISTER,
+                oident=reg_offset,
+            )
             phi_stmt = Assignment(
                 None,
                 phi_dst,
@@ -210,12 +217,13 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         new_stmts.append(stmt)
                         continue
                     reg_offset = stmt.dst.oident
+                    reg_size = stmt.dst.size
                     src_and_vvars = []
                     for pred in self.graph.predecessors(original_node):
                         out_state = self.out_states[(pred.addr, pred.idx)]
-                        if reg_offset in out_state.registers:
-                            vvar = out_state.registers[reg_offset].copy()
-                            vvar.idx = None  # FIXME
+                        if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
+                            vvar = out_state.registers[reg_offset][reg_size].copy()
+                            vvar.idx = self._ail_manager.next_atom()
                         else:
                             vvar = None  # missing
                         src_and_vvars.append(((pred.addr, pred.idx), vvar))
