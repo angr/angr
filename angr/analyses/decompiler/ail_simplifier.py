@@ -21,7 +21,7 @@ from ailment.expression import (
     VirtualVariable,
 )
 
-from angr.analyses.s_reaching_definitions import SRDAModel, SRDAView
+from angr.analyses.s_reaching_definitions import SRDAModel
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
