@@ -859,7 +859,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         self.tmps = {}
         self.block: ailment.Block = block
         self.state = state
-        self.arch = state.arch
+        if self.arch is None:
+            # we only access state.arch if the arch of this engine itself is not previously configured
+            self.arch = state.arch
 
         self._process_Stmt(whitelist=whitelist)
 
@@ -922,29 +924,33 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _handle_Stmt(self, stmt):
         handler = "_handle_%s" % type(stmt).__name__
         if hasattr(self, handler):
-            getattr(self, handler)(stmt)
-            return
+            r = getattr(self, handler)(stmt)
+            return r
 
         # compatibility
         old_handler = "_ail_handle_%s" % type(stmt).__name__
         if hasattr(self, old_handler):
-            getattr(self, old_handler)(stmt)
-            return
+            r = getattr(self, old_handler)(stmt)
+            return r
 
         if self.l is not None:
             self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
+        return None
+
+    def _ail_handle_Assignment(self, stmt):
+        pass
 
     def _ail_handle_Label(self, stmt):
         pass
 
     def _ail_handle_Jump(self, stmt):
-        raise NotImplementedError("Please implement the Jump handler with your own logic.")
+        pass
 
     def _ail_handle_Call(self, stmt):
-        raise NotImplementedError("Please implement the Call handler with your own logic.")
+        pass
 
     def _ail_handle_Return(self, stmt):
-        raise NotImplementedError("Please implement the Return handler with your own logic.")
+        pass
 
     #
     # Expression handlers
@@ -964,11 +970,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         except KeyError:
             return None
 
-    def _ail_handle_Load(self, expr):
-        raise NotImplementedError("Please implement the Load handler with your own logic.")
+    def _ail_handle_Load(self, expr: ailment.Expr.Load):
+        self._expr(expr.addr)
+        return expr
 
-    def _ail_handle_CallExpr(self, expr):
-        raise NotImplementedError("Please implement the CallExpr handler with your own logic.")
+    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
+        self._expr(expr.target)
+        return expr
 
     def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         arg = self._expr(expr.operand)

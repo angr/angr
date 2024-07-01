@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Union
 import enum
 
 DEBUG = False
@@ -21,3 +23,7 @@ class ObservationPointType(enum.IntEnum):
 # For backwards compatibility
 OP_BEFORE = ObservationPointType.OP_BEFORE
 OP_AFTER = ObservationPointType.OP_AFTER
+
+ObservationPoint = tuple[
+    Literal["insn", "node", "stmt", "exit"], Union[int, tuple[int, int], tuple[int, int, int]], ObservationPointType
+]

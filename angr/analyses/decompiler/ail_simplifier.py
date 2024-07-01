@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Any, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -17,14 +18,15 @@ from ailment.expression import (
     Tmp,
     Const,
     BinaryOp,
+    VirtualVariable,
 )
 
+from angr.analyses.s_reaching_definitions import SRDAModel
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
-from ...knowledge_plugins.key_definitions.atoms import Register as RegisterAtom
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...errors import AngrRuntimeError
@@ -37,7 +39,6 @@ from .expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
-    from angr.analyses.reaching_definitions import ReachingDefinitionsModel
 
 
 _l = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ class AILSimplifier(Analysis):
         remove_dead_memdefs=False,
         stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
-        ail_manager: Optional["Manager"] = None,
+        ail_manager: Manager | None = None,
         gp: int | None = None,
         narrow_expressions=False,
         only_consts=False,
@@ -87,7 +88,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions: Optional["ReachingDefinitionsModel"] = None
+        self._reaching_definitions: SRDAModel | None = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -177,18 +178,15 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
+    def _compute_reaching_definitions(self) -> SRDAModel:
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
-        rd = self.project.analyses.ReachingDefinitions(
+        rd = self.project.analyses.SReachingDefinitions(
             subject=self.func,
             func_graph=self.func_graph,
-            # init_context=(),    <-- in case of fire break glass
-            observe_all=False,
-            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            track_tmps=True,
-            element_limit=1,
+            # use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            # track_tmps=True,
         ).model
         self._reaching_definitions = rd
         return rd
@@ -197,16 +195,32 @@ class AILSimplifier(Analysis):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
-        prop = self.project.analyses.Propagator(
-            func=self.func,
+        prop = self.project.analyses.SPropagator(
+            subject=self.func,
             func_graph=self.func_graph,
-            gp=self._gp,
+            # gp=self._gp,
             only_consts=self._only_consts,
-            reaching_definitions=self._compute_reaching_definitions(),
+            # reaching_definitions=self._compute_reaching_definitions(),
             immediate_stmt_removal=immediate_stmt_removal,
         )
         self._propagator = prop
         return prop
+
+    def _compute_equivalence(self) -> set[Equivalence]:
+        equivalence = set()
+        for block in self.func_graph:
+            for stmt_idx, stmt in enumerate(block.statements):
+                if isinstance(stmt, Assignment):
+                    if isinstance(stmt.dst, VirtualVariable) and isinstance(
+                        stmt.src, (VirtualVariable, Tmp, Call, Convert)
+                    ):
+                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
+                elif isinstance(stmt, Call):
+                    if isinstance(stmt.ret_expr, VirtualVariable):
+                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
+        return equivalence
 
     def _clear_cache(self) -> None:
         self._propagator = None
@@ -238,7 +252,7 @@ class AILSimplifier(Analysis):
         rd = self._compute_reaching_definitions()
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
-            if isinstance(def_.atom, atoms.Register):
+            if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_reg:
                 # only do this for general purpose register
                 skip_def = False
                 for reg in self.project.arch.register_list:
@@ -262,7 +276,7 @@ class AILSimplifier(Analysis):
                         the_block = self.blocks.get(old_block, old_block)
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
                         r, new_block = False, None
-                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
+                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                             tags = dict(stmt.dst.tags)
                             tags["reg_name"] = self.project.arch.translate_register_name(
                                 def_.atom.reg_offset, size=to_size
@@ -460,11 +474,11 @@ class AILSimplifier(Analysis):
         return narrowed
 
     def _narrowing_needed(
-        self, def_, rd, addr_and_idx_to_block
+        self, def_, rd: SRDAModel, addr_and_idx_to_block
     ) -> tuple[bool, int | None, list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] | None]:
         def_size = def_.size
         # find its uses
-        use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
+        use_and_exprs = rd.get_vvar_uses_with_expr(def_.atom)
 
         all_used_sizes = set()
         used_by: list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
@@ -603,8 +617,8 @@ class AILSimplifier(Analysis):
 
         simplified = False
 
-        prop = self._compute_propagation()
-        if not prop.model.equivalence:
+        equivalence = self._compute_equivalence()
+        if not equivalence:
             return simplified
 
         addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
@@ -613,7 +627,7 @@ class AILSimplifier(Analysis):
 
         equivalences: dict[Any, set[Equivalence]] = defaultdict(set)
         atom_by_loc = set()
-        for eq in prop.model.equivalence:
+        for eq in equivalence:
             equivalences[eq.atom1].add(eq)
             atom_by_loc.add((eq.codeloc, eq.atom1))
 
@@ -880,8 +894,8 @@ class AILSimplifier(Analysis):
                 use_expr_defns = []
                 for d in rd.all_uses.get_uses_by_location(u):
                     if (
-                        isinstance(d.atom, RegisterAtom)
-                        and isinstance(def_.atom, RegisterAtom)
+                        isinstance(d.atom, atoms.Register)
+                        and isinstance(def_.atom, atoms.Register)
                         and d.atom.reg_offset == def_.atom.reg_offset
                     ):
                         use_expr_defns.append(d)
@@ -1007,8 +1021,8 @@ class AILSimplifier(Analysis):
 
         simplified = False
 
-        prop = self._compute_propagation()
-        if not prop.model.equivalence:
+        equivalence = self._compute_equivalence()
+        if not equivalence:
             return simplified
 
         addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
@@ -1018,10 +1032,9 @@ class AILSimplifier(Analysis):
         def_locations_to_remove: set[CodeLocation] = set()
         updated_use_locations: set[CodeLocation] = set()
 
-        eq: Equivalence
-        for eq in prop.model.equivalence:
+        for eq in equivalence:
             # register variable == Call
-            if isinstance(eq.atom0, Register):
+            if isinstance(eq.atom0, VirtualVariable):
                 call_addr: int | None
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
@@ -1042,21 +1055,18 @@ class AILSimplifier(Analysis):
                     # we must rerun Propagator to get an updated definition (and Equivalence)
                     continue
 
-                # find the definition of this register
+                # find all uses of this virtual register
                 rd = self._compute_reaching_definitions()
-                defs = [
-                    d
-                    for d in rd.all_definitions
-                    if d.codeloc == eq.codeloc
-                    and isinstance(d.atom, atoms.Register)
-                    and d.atom.reg_offset == eq.atom0.reg_offset
-                ]
-                if not defs or len(defs) > 1:
-                    continue
-                the_def: Definition = defs[0]
 
-                # find all uses of this definition
-                all_uses: set[tuple[CodeLocation, Any]] = set(rd.all_uses.get_uses_with_expr(the_def))
+                # the_def: Definition = defs[0]
+                the_def: Definition = Definition(
+                    atoms.VirtualVariable(
+                        eq.atom0.varid, eq.atom0.size, category=eq.atom0.category, oident=eq.atom0.oident
+                    ),
+                    eq.codeloc,
+                )
+
+                all_uses: set[tuple[CodeLocation, Any]] = set(rd.get_vvar_uses_with_expr(the_def.atom))
 
                 if len(all_uses) != 1:
                     continue
@@ -1084,39 +1094,40 @@ class AILSimplifier(Analysis):
                     continue
 
                 # check if the register has been overwritten by statements in between the def site and the use site
-                usesite_atom_defs = set(rd.get_defs(the_def.atom, u, OP_BEFORE))
-                if len(usesite_atom_defs) != 1:
-                    continue
-                usesite_atom_def = next(iter(usesite_atom_defs))
-                if usesite_atom_def != the_def:
-                    continue
+                # usesite_atom_defs = set(rd.get_defs(the_def.atom, u, OP_BEFORE))
+                # if len(usesite_atom_defs) != 1:
+                #     continue
+                # usesite_atom_def = next(iter(usesite_atom_defs))
+                # if usesite_atom_def != the_def:
+                #     continue
 
                 # check if any atoms that the call relies on has been overwritten by statements in between the def site
                 # and the use site.
-                defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
-                defsite_used_atoms = set()
-                for dd in defsite_all_expr_uses:
-                    defsite_used_atoms.add(dd.atom)
-                usesite_expr_def_outdated = False
-                for defsite_expr_atom in defsite_used_atoms:
-                    usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
-                    if not usesite_expr_uses:
-                        # the atom is not defined at the use site - it's fine
-                        continue
-                    defsite_expr_uses = set(rd.get_defs(defsite_expr_atom, the_def.codeloc, OP_BEFORE))
-                    if usesite_expr_uses != defsite_expr_uses:
-                        # special case: ok if this atom is assigned to at the def site and has not been overwritten
-                        if len(usesite_expr_uses) == 1:
-                            usesite_expr_use = next(iter(usesite_expr_uses))
-                            if usesite_expr_use.atom == defsite_expr_atom and (
-                                usesite_expr_use.codeloc == the_def.codeloc
-                                or usesite_expr_use.codeloc.block_addr == call_addr
-                            ):
-                                continue
-                        usesite_expr_def_outdated = True
-                        break
-                if usesite_expr_def_outdated:
-                    continue
+                # TODO: Prove non-interference
+                # defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
+                # defsite_used_atoms = set()
+                # for dd in defsite_all_expr_uses:
+                #     defsite_used_atoms.add(dd.atom)
+                # usesite_expr_def_outdated = False
+                # for defsite_expr_atom in defsite_used_atoms:
+                #     usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
+                #     if not usesite_expr_uses:
+                #         # the atom is not defined at the use site - it's fine
+                #         continue
+                #     defsite_expr_uses = set(rd.get_defs(defsite_expr_atom, the_def.codeloc, OP_BEFORE))
+                #     if usesite_expr_uses != defsite_expr_uses:
+                #         # special case: ok if this atom is assigned to at the def site and has not been overwritten
+                #         if len(usesite_expr_uses) == 1:
+                #             usesite_expr_use = next(iter(usesite_expr_uses))
+                #             if usesite_expr_use.atom == defsite_expr_atom and (
+                #                 usesite_expr_use.codeloc == the_def.codeloc
+                #                 or usesite_expr_use.codeloc.block_addr == call_addr
+                #             ):
+                #                 continue
+                #         usesite_expr_def_outdated = True
+                #         break
+                # if usesite_expr_def_outdated:
+                #     continue
 
                 # check if there are any calls in between the def site and the use site
                 if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:
@@ -1131,7 +1142,7 @@ class AILSimplifier(Analysis):
                 the_block = self.blocks.get(old_block, old_block)
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
-                if isinstance(eq.atom0, Register):
+                if isinstance(eq.atom0, VirtualVariable):
                     src = used_expr
                     dst: Expression = call
 
@@ -1191,7 +1202,8 @@ class AILSimplifier(Analysis):
 
             # update the uses
             rd = self._compute_reaching_definitions()
-            rd.all_uses.remove_use(the_def, codeloc, expr=src_expr)
+            # TODO: can we still update uses here?
+            # rd.all_uses.remove_use(the_def, codeloc, expr=src_expr)
             return True, new_block
 
         return False, None
@@ -1222,14 +1234,15 @@ class AILSimplifier(Analysis):
                     else:
                         continue
 
-            uses = rd.all_uses.get_uses(def_)
-            if (
-                isinstance(def_.atom, atoms.Register)
-                and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
-            ):
-                if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
-                    # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                    uses = set()
+            if isinstance(def_.atom, atoms.VirtualVariable):
+                uses = rd.get_vvar_uses(def_.atom)
+                if def_.atom.was_reg and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets:
+                    if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
+                        # TODO: Verify if we still need this hack after moving to SSA
+                        # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                        uses = set()
+            else:
+                continue
 
             if not uses:
                 if not isinstance(def_.codeloc, ExternalCodeLocation):

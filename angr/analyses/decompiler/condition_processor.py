@@ -745,7 +745,7 @@ class ConditionProcessor:
             return _dummy_bvs(condition, self._condition_mapping)
         elif isinstance(condition, ailment.Stmt.Call):
             return _dummy_bvs(condition, self._condition_mapping, name_suffix=hex(condition.tags.get("ins_addr", 0)))
-        elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
+        elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
             if condition.variable is not None:
                 var = claripy.BVS(

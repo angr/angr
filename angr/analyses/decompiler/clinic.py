@@ -30,7 +30,6 @@ from ...sim_type import (
 )
 from ..stack_pointer_tracker import Register, OffsetVal
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
@@ -397,6 +396,10 @@ class Clinic(Analysis):
         self._update_progress(30.0, text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             ail_graph = self._make_returns(ail_graph)
+
+        # Transform the graph into partial SSA form
+        self._update_progress(21.0, text="Transforming to partial-SSA form")
+        ail_graph = self._transform_to_ssa(ail_graph)
 
         # full-function constant-only propagation
         self._update_progress(33.0, text="Constant propagation")
@@ -1161,6 +1164,11 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
+    def _transform_to_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        ssailification = self.project.analyses.Ssailification(self.function, ail_graph, ail_manager=self._ail_manager)
+        return ssailification.out_graph
+
+    @timethis
     def _make_argument_list(self) -> list[SimVariable]:
         if self.function.calling_convention is not None and self.function.prototype is not None:
             args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
@@ -1207,11 +1215,10 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(
+        rd = self.project.analyses.SReachingDefinitions(
             subject=self.function,
             func_graph=ail_graph,
-            observe_callback=self._make_callsites_rd_observe_callback,
-            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+            # use_callee_saved_regs_at_return=not self._register_save_areas_removed,  FIXME
         )
 
         class TempClass:  # pylint:disable=missing-class-docstring
@@ -1497,6 +1504,14 @@ class Clinic(Analysis):
             if len(final_reg_vars) >= 1:
                 reg_var, offset = next(iter(final_reg_vars))
                 expr.variable = reg_var
+                expr.variable_offset = offset
+
+        elif type(expr) is ailment.Expr.VirtualVariable:
+            vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
+            assert len(vars_) <= 1
+            if len(vars_) == 1:
+                var, offset = next(iter(vars_))
+                expr.variable = var
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.Load:
@@ -1967,14 +1982,6 @@ class Clinic(Analysis):
 
     def _next_atom(self) -> int:
         return self._ail_manager.next_atom()
-
-    @staticmethod
-    def _make_callsites_rd_observe_callback(ob_type, **kwargs):
-        if ob_type != "insn":
-            return False
-        stmt = kwargs.pop("stmt")
-        op_type = kwargs.pop("op_type")
-        return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
 
     def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any] | None:
         if isinstance(addr, ailment.Expr.Const):

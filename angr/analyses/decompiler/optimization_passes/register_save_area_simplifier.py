@@ -95,7 +95,8 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             if (
                 isinstance(stmt, ailment.Stmt.Store)
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data, ailment.Expr.Register)
+                and isinstance(stmt.data, ailment.Expr.VirtualVariable)
+                and stmt.data.was_reg
             ):
                 # it's storing registers to the stack!
                 stack_offset = stmt.addr.offset
@@ -113,7 +114,8 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 for idx, stmt in enumerate(block.statements):
                     if (
                         isinstance(stmt, ailment.Stmt.Assignment)
-                        and isinstance(stmt.dst, ailment.Expr.Register)
+                        and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                        and stmt.dst.was_reg
                         and isinstance(stmt.src, ailment.Expr.Load)
                         and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
                     ):

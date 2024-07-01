@@ -66,6 +66,10 @@ class SimEngineVRAIL(
 
             self.tmps[stmt.dst.tmp_idx] = data
 
+        elif dst_type is ailment.Expr.VirtualVariable:
+            data = self._expr(stmt.src)
+            self._assign_to_vvar(stmt.dst, data, src=stmt.src, dst=stmt.dst)
+
         else:
             l.warning("Unsupported dst type %s.", dst_type)
 
@@ -98,10 +102,11 @@ class SimEngineVRAIL(
         create_variable = True
         if not is_expr:
             # this is a call statement. we need to update the return value register later
-            ret_expr: ailment.Expr.Register | None = stmt.ret_expr
+            ret_expr: ailment.Expr.VirtualVariable | None = stmt.ret_expr
             if ret_expr is not None:
-                ret_reg_offset = ret_expr.reg_offset
-                ret_expr_bits = ret_expr.bits
+                if ret_expr.category == ailment.Expr.VirtualVariableCategory.REGISTER:
+                    ret_reg_offset = ret_expr.oident
+                    ret_expr_bits = ret_expr.bits
             else:
                 # the return expression is not used, so we treat this call as not returning anything
                 if stmt.calling_convention is not None:
@@ -163,10 +168,9 @@ class SimEngineVRAIL(
                     expr_bits = self.state.arch.bits
                 else:
                     expr_bits = ret_expr_bits
-                self._assign_to_register(
-                    ret_reg_offset,
+                self._assign_to_vvar(
+                    ret_expr,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
-                    expr_bits // self.arch.byte_width,
                     dst=ret_expr,
                     create_variable=create_variable,
                 )
@@ -230,6 +234,10 @@ class SimEngineVRAIL(
         size = expr.size
 
         r = self._load(addr_r, size, expr=expr)
+        return r
+
+    def _ail_handle_VirtualVariable(self, expr: ailment.Expr.VirtualVariable):
+        r = self._read_from_vvar(expr, expr=expr)
         return r
 
     def _ail_handle_Const(self, expr: ailment.Expr.Const):

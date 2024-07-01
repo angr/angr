@@ -9,8 +9,9 @@ class DominanceFrontier(Analysis):
     querying the frontier information.
     """
 
-    def __init__(self, func, exception_edges=False):
+    def __init__(self, func, func_graph=None, exception_edges=False):
         self.function = func
+        self.func_graph = func_graph
         self._exception_edges = exception_edges
 
         self.frontiers = None
@@ -18,6 +19,8 @@ class DominanceFrontier(Analysis):
         self._compute()
 
     def _get_graph(self):
+        if self.func_graph is not None:
+            return self.func_graph
         g = self.function.graph_ex(exception_edges=self._exception_edges)
         return g
 
@@ -27,8 +30,19 @@ class DominanceFrontier(Analysis):
         # Compute the dominator tree
         if self.function.startpoint is None:
             # The function might be empty or is corrupted (maybe the object is created manually)
-            raise TypeError("Startpoint of function %s is None. Is this function empty?" % repr(self.function))
-        doms = Dominators(g, self.function.startpoint)
+            raise ValueError("Startpoint of function %s is None. Is this function empty?" % repr(self.function))
+
+        if self.function.startpoint not in g:
+            # find the actual start point
+            startpoint = next(iter(nn for nn in g if nn.addr == self.function.startpoint.addr), None)
+            if startpoint is None:
+                raise ValueError(
+                    f"Cannot find the startpoint of function {repr(self.function)} in the given function graph."
+                )
+        else:
+            startpoint = self.function.startpoint
+
+        doms = Dominators(g, startpoint)
 
         # Compute the dominance frontier
         dom_frontiers = compute_dominance_frontier(g, doms.dom)

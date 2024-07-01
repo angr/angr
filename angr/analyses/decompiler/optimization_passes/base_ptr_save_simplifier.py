@@ -88,7 +88,8 @@ class BasePointerSaveSimplifier(OptimizationPass):
             if (
                 isinstance(stmt, ailment.Stmt.Store)
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data, ailment.Expr.Register)
+                and isinstance(stmt.data, ailment.Expr.VirtualVariable)
+                and stmt.data.was_reg
                 and stmt.data.reg_offset == self.project.arch.bp_offset
                 and stmt.addr.offset < 0
             ):
@@ -124,7 +125,8 @@ class BasePointerSaveSimplifier(OptimizationPass):
                 for idx, stmt in enumerate(endpoint_block.statements):
                     if (
                         isinstance(stmt, ailment.Stmt.Assignment)
-                        and isinstance(stmt.dst, ailment.Expr.Register)
+                        and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                        and stmt.dst.was_reg
                         and stmt.dst.reg_offset == self.project.arch.bp_offset
                         and isinstance(stmt.src, ailment.Expr.Load)
                         and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)

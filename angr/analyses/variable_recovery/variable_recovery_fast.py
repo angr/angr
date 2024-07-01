@@ -45,6 +45,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         stack_region=None,
         register_region=None,
         global_region=None,
+        vvar_region=None,
         typevars=None,
         type_constraints=None,
         func_typevar=None,
@@ -61,6 +62,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             stack_region=stack_region,
             register_region=register_region,
             global_region=global_region,
+            vvar_region=vvar_region,
             typevars=typevars,
             type_constraints=type_constraints,
             func_typevar=func_typevar,
@@ -91,6 +93,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
             global_region=self.global_region.copy(),
+            vvar_region=self.vvar_region.copy(),
             typevars=self.typevars,
             type_constraints=self.type_constraints,
             func_typevar=self.func_typevar,
@@ -178,6 +181,12 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                     ret_val_size = o.ret_val_size
                     merge_occurred = True
 
+        merged_vvar_region = self.vvar_region.copy()
+        for o in others:
+            if not merged_vvar_region.keys().isdisjoint(o.vvar_region.keys()):
+                l.warning("Duplicate vvar IDs detected during state merging.")
+            merged_vvar_region |= o.vvar_region
+
         # clean up
         self.phi_variables = {}
         self.successor_block_addr = None
@@ -190,6 +199,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             stack_region=merged_stack_region,
             register_region=merged_register_region,
             global_region=merged_global_region,
+            vvar_region=merged_vvar_region,
             typevars=typevars,
             type_constraints=type_constraints,
             func_typevar=self.func_typevar,
