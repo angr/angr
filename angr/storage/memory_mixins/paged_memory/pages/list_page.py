@@ -134,7 +134,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         merged_offsets = set()
         for b in sorted(changed_offsets):
             if merged_to is not None and not b >= merged_to:
-                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -145,10 +145,10 @@ class ListPage(MemoryObjectMixin, PageBase):
             # all memories that don't have those bytes
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
-                    l.info("... present in %s", fv)
+                    l.debug("... present in %s", fv)
                     memory_objects.append((sm.content[b], fv))
                 else:
-                    l.info("... not present in %s", fv)
+                    l.debug("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
             mos = {mo for mo, _ in memory_objects}
@@ -207,7 +207,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                             min_size = i
                             break
                 merged_to = b + min_size
-                l.info("... determined minimum size of %d", min_size)
+                l.debug("... determined minimum size of %d", min_size)
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
