@@ -1,11 +1,10 @@
-import importlib
+import importlib.metadata
 import os
 import sys
 import datetime
 import gc
 import ctypes
-
-from .import_hooks import remove_fake_pkg_resources
+import sysconfig
 
 
 have_gitpython = False
@@ -34,10 +33,6 @@ def get_venv():
 
 
 def print_versions():
-    remove_fake_pkg_resources()
-    # import the real pkg_resources
-    import pkg_resources  # pylint:disable=import-outside-toplevel
-
     for m in angr_modules:
         print("######## %s #########" % m)
         try:
@@ -50,7 +45,7 @@ def print_versions():
         print("Python found it in %s" % (python_filename))
         try:
             pip_package = python_packages.get(m, m)
-            pip_version = pkg_resources.get_distribution(pip_package)
+            pip_version = importlib.metadata.version(pip_package)
             print("Pip version %s" % pip_version)
         except Exception:  # pylint: disable-broad-except
             print("Pip version not found!")
@@ -83,11 +78,7 @@ def print_git_info(dirname):
 
 
 def print_system_info():
-    remove_fake_pkg_resources()
-    # import the real pkg_resources
-    import pkg_resources  # pylint:disable=import-outside-toplevel
-
-    print("Platform: " + pkg_resources.get_build_platform())
+    print("Platform: " + sysconfig.get_platform())
     print("Python version: " + str(sys.version))
 
 

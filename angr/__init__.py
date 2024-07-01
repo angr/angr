@@ -36,12 +36,6 @@ loggers = Loggers()
 del Loggers
 del logging
 
-# import hook: pkg_resources is too slow to import, but it is used by some other packages that angr depends on. while
-# we upstream our fixes, we replace it with a light-weight solution.
-from .misc.import_hooks import import_fake_pkg_resources
-
-import_fake_pkg_resources(force=False)
-
 # this must happen first, prior to initializing analyses
 from .sim_procedure import SimProcedure
 from .procedures import SIM_PROCEDURES, SimProcedures, SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
