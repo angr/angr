@@ -42,13 +42,10 @@ def _build_native():
         ("PYVEX_LIB_FILE", "pyvex", "lib\\pyvex.lib"),
     )
     for var, pkg, fnm in env_data:
-        try:
-            base = importlib.resources.files(pkg).joinpath(fnm)
-            for child in fnm.split("\\"):
-                base = base.joinpath(child)
-            env[var] = str(base)
-        except KeyError:
-            pass
+        base = importlib.resources.files(pkg)
+        for child in fnm.split("\\"):
+            base = base.joinpath(child)
+        env[var] = str(base)
 
     if sys.platform == "win32":
         cmd = ["nmake", "/f", "Makefile-win"]
