@@ -1,9 +1,9 @@
 import binascii
 import copy
 import ctypes
+import importlib.resources
 import itertools
 import logging
-import os
 import sys
 import threading
 import time
@@ -392,23 +392,6 @@ class _VexArchInfo(ctypes.Structure):
     ]
 
 
-def _locate_lib(module: str, library: str) -> str:
-    """
-    Attempt to find a native library without using pkg_resources, and only fall back to pkg_resources upon failures.
-    This is because "import pkg_resources" is slow.
-
-    :return:    The full path of the native library.
-    """
-    base_dir = os.path.join(os.path.dirname(__file__), "..")
-    attempt = os.path.join(base_dir, library)
-    if os.path.isfile(attempt):
-        return attempt
-
-    import pkg_resources  # pylint:disable=import-outside-toplevel
-
-    return pkg_resources.resource_filename(module, os.path.join(library))
-
-
 def _load_native():
     if sys.platform == "darwin":
         libfile = "angr_native.dylib"
@@ -418,7 +401,7 @@ def _load_native():
         libfile = "angr_native.so"
 
     try:
-        angr_path = _locate_lib("angr", os.path.join("lib", libfile))
+        angr_path = str(importlib.resources.files("angr") / "lib" / libfile)
         h = ctypes.CDLL(angr_path)
 
         VexArch = ctypes.c_int
