@@ -72,6 +72,12 @@ class SimEngineLightMixin:
                     return 0
                 elif isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
                     return spoffset_expr.args[1].args[0]
+            elif spoffset_expr.op == "__sub__":
+                if len(spoffset_expr.args) == 1:
+                    # Unexpected but fine
+                    return 0
+                elif isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
+                    return spoffset_expr.args[1].args[0] & ((1 << spoffset_expr.size()) - 1)
         return None
 
 
