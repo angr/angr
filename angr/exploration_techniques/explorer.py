@@ -12,7 +12,7 @@ l = logging.getLogger(name=__name__)
 class Explorer(ExplorationTechnique):
     """
     Search for up to "num_find" paths that satisfy condition "find", avoiding condition "avoid". Stashes found paths
-    into "find_stash' and avoided paths into "avoid_stash".
+    into "find_stash' and avoided paths into "avoid_stash". If "num_find" is zero, all possible paths will be explored.
 
     The "find" and "avoid" parameters may be any of:
 
@@ -143,4 +143,7 @@ class Explorer(ExplorationTechnique):
         return None
 
     def complete(self, simgr):
-        return len(simgr.stashes[self.find_stash]) >= self.num_find
+        if self.num_find == 0:
+            return False
+        else:
+            return len(simgr.stashes[self.find_stash]) >= self.num_find
