@@ -35,6 +35,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         bp_as_gpr: bool,
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
+        stackvar_locs: dict[int, int],
         ail_manager,
     ):
         self.project = project
@@ -47,6 +48,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         self._graph = ail_graph
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
+        self._stackvar_locs = stackvar_locs
         self._ail_manager = ail_manager
         self._engine_ail = SimEngineSSARewriting(
             self.project.arch,
@@ -54,6 +56,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             bp_as_gpr=bp_as_gpr,
             udef_to_phiid=self._udef_to_phiid,
             phiid_to_loc=self._phiid_to_loc,
+            stackvar_locs=self._stackvar_locs,
             ail_manager=ail_manager,
         )
 
@@ -91,20 +94,44 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         phi_stmts = []
         for phi_id in phi_ids:
-            _, reg_offset, reg_bits = phiid_to_udef[phi_id]
+            udef = phiid_to_udef[phi_id]
+            category = udef[0]
 
-            phi_var = Phi(
-                self._ail_manager.next_atom(),
-                reg_bits,
-                src_and_vvars=[],  # back patch later
-            )
-            phi_dst = VirtualVariable(
-                self._ail_manager.next_atom(),
-                next(self._engine_ail.vvar_id_ctr),
-                reg_bits,
-                VirtualVariableCategory.REGISTER,
-                oident=reg_offset,
-            )
+            match category:
+                case "reg":
+                    _, reg_offset, reg_bits = udef
+
+                    phi_var = Phi(
+                        self._ail_manager.next_atom(),
+                        reg_bits,
+                        src_and_vvars=[],  # back patch later
+                    )
+                    phi_dst = VirtualVariable(
+                        self._ail_manager.next_atom(),
+                        next(self._engine_ail.vvar_id_ctr),
+                        reg_bits,
+                        VirtualVariableCategory.REGISTER,
+                        oident=reg_offset,
+                    )
+
+                case "stack":
+                    _, stack_offset, stack_size = udef
+
+                    phi_var = Phi(
+                        self._ail_manager.next_atom(),
+                        stack_size * self.project.arch.byte_width,
+                        src_and_vvars=[],  # back patch later
+                    )
+                    phi_dst = VirtualVariable(
+                        self._ail_manager.next_atom(),
+                        next(self._engine_ail.vvar_id_ctr),
+                        stack_size * self.project.arch.byte_width,
+                        VirtualVariableCategory.STACK,
+                        oident=stack_offset,
+                    )
+                case _:
+                    raise NotImplementedError()
+
             phi_stmt = Assignment(
                 None,
                 phi_dst,
@@ -216,17 +243,38 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                     ):
                         new_stmts.append(stmt)
                         continue
-                    reg_offset = stmt.dst.oident
-                    reg_size = stmt.dst.size
+
                     src_and_vvars = []
-                    for pred in self.graph.predecessors(original_node):
-                        out_state = self.out_states[(pred.addr, pred.idx)]
-                        if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
-                            vvar = out_state.registers[reg_offset][reg_size].copy()
-                            vvar.idx = self._ail_manager.next_atom()
-                        else:
-                            vvar = None  # missing
-                        src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                    if stmt.dst.was_reg:
+                        reg_offset = stmt.dst.oident
+                        reg_size = stmt.dst.size
+
+                        for pred in self.graph.predecessors(original_node):
+                            out_state: RewritingState = self.out_states[(pred.addr, pred.idx)]
+                            if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
+                                vvar = out_state.registers[reg_offset][reg_size].copy()
+                                vvar.idx = self._ail_manager.next_atom()
+                            else:
+                                vvar = None  # missing
+                            src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                    elif stmt.dst.was_stack:
+                        stack_offset = stmt.dst.stack_offset
+                        stackvar_size = stmt.dst.size
+
+                        for pred in self.graph.predecessors(original_node):
+                            out_state: RewritingState = self.out_states[(pred.addr, pred.idx)]
+                            if (
+                                stack_offset in out_state.stackvars
+                                and stackvar_size in out_state.stackvars[stack_offset]
+                            ):
+                                vvar = out_state.stackvars[stack_offset][stackvar_size].copy()
+                                vvar.idx = self._ail_manager.next_atom()
+                            else:
+                                vvar = None  # missing
+                            src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                    else:
+                        raise NotImplementedError()
+
                     phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
                     new_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
                     new_stmts.append(new_stmt)

@@ -399,7 +399,7 @@ class Clinic(Analysis):
 
         # Transform the graph into partial SSA form
         self._update_progress(21.0, text="Transforming to partial-SSA form")
-        ail_graph = self._transform_to_ssa(ail_graph)
+        ail_graph = self._transform_to_ssa_level0(ail_graph)
 
         # full-function constant-only propagation
         self._update_progress(33.0, text="Constant propagation")
@@ -451,6 +451,9 @@ class Clinic(Analysis):
         ail_graph = self._simplify_blocks(
             ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
         )
+
+        # rewrite (qualified) stack variables into SSA form
+        ail_graph = self._transform_to_ssa_level1(ail_graph)
 
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
@@ -1164,8 +1167,17 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _transform_to_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        ssailification = self.project.analyses.Ssailification(self.function, ail_graph, ail_manager=self._ail_manager)
+    def _transform_to_ssa_level0(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        ssailification = self.project.analyses.Ssailification(
+            self.function, ail_graph, ail_manager=self._ail_manager, ssa_stackvars=False
+        )
+        return ssailification.out_graph
+
+    @timethis
+    def _transform_to_ssa_level1(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        ssailification = self.project.analyses.Ssailification(
+            self.function, ail_graph, ail_manager=self._ail_manager, ssa_stackvars=True
+        )
         return ssailification.out_graph
 
     @timethis

@@ -1,10 +1,12 @@
 from __future__ import annotations
 import logging
-from typing import DefaultDict, Any
+from typing import Any
 from collections import defaultdict
 from itertools import count
+from bisect import bisect_left
 
-from ailment.expression import Register
+from ailment.expression import Register, StackBaseOffset
+from ailment.statement import Store
 
 from angr.knowledge_plugins.functions import Function
 from angr.code_location import CodeLocation
@@ -27,9 +29,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         ail_graph,
         canonical_size=8,
         stack_pointer_tracker=None,
-        use_callee_saved_regs_at_return=True,
         func_addr: int | None = None,
         ail_manager=None,
+        ssa_stackvars: bool = False,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -44,12 +46,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._function = func
 
         self._canonical_size = canonical_size
-        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
         self._ail_manager = ail_manager
+        self._ssa_stackvars = ssa_stackvars
         self.out_graph = None
-
-        self._node_iterations: DefaultDict[int | tuple, int] = defaultdict(int)
 
         bp_as_gpr = self._function.info.get("bp_as_gpr", False)
 
@@ -60,11 +60,13 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             ail_graph,
             stack_pointer_tracker,
             bp_as_gpr,
+            ssa_stackvars,
         )
 
         # calculate virtual variables and phi nodes
         self._udef_to_phiid: dict[tuple, set[int]] = None
         self._phiid_to_loc: dict[int, tuple[int, int | None]] = None
+        self._stackvar_locs: dict[int, int] = None
         self._calculate_virtual_variables(ail_graph, traversal.def_to_loc, traversal.loc_to_defs)
 
         # insert phi variables and rewrite uses
@@ -76,6 +78,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             bp_as_gpr,
             self._udef_to_phiid,
             self._phiid_to_loc,
+            self._stackvar_locs,
             self._ail_manager,
         )
         self.out_graph = rewriter.out_graph
@@ -97,6 +100,15 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 for def_ in defs:
                     blockkey_to_defs[block_key].add(def_)
 
+        if self._ssa_stackvars:
+            # for stack variables, we collect all definitions and identify stack variable locations using heuristics
+
+            stackvar_locs = self._synthesize_stackvar_locs([def_ for def_ in def_to_loc if isinstance(def_, Store)])
+            sorted_stackvar_offs = list(sorted(stackvar_locs))
+        else:
+            stackvar_locs = {}
+            sorted_stackvar_offs = []
+
         # computer phi node locations for each unified definition
         udef_to_defs = defaultdict(set)
         udef_to_blockkeys = defaultdict(set)
@@ -112,6 +124,17 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 if base_off != def_.reg_offset:
                     reg_bits = def_.size * self.project.arch.byte_width
                     udef_to_defs[("reg", def_.reg_offset, reg_bits)].add((loc.block_addr, loc.block_idx))
+            elif isinstance(def_, Store):
+                if isinstance(def_.addr, StackBaseOffset) and isinstance(def_.addr.offset, int):
+                    loc = def_to_loc[def_]
+
+                    idx_begin = bisect_left(sorted_stackvar_offs, def_.addr.offset)
+                    for i in range(idx_begin, len(sorted_stackvar_offs)):
+                        off = sorted_stackvar_offs[i]
+                        if off >= def_.addr.offset + def_.size:
+                            break
+                        udef_to_defs[("stack", off, stackvar_locs[off])].add(def_)
+                        udef_to_blockkeys[("stack", off, stackvar_locs[off])].add((loc.block_addr, loc.block_idx))
             else:
                 raise NotImplementedError()
                 # other types are not supported yet
@@ -128,6 +151,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 udef_to_phiid[udef].add(phi_id)
                 phiid_to_loc[phi_id] = block.addr, block.idx
 
+        self._stackvar_locs = stackvar_locs
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
 
@@ -142,6 +166,37 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             last_frontier = frontier
             blocks |= frontier
         return last_frontier
+
+    def _synthesize_stackvar_locs(self, defs: list[Store]) -> dict[int, int]:
+        accesses: defaultdict[int, set[int]] = defaultdict(set)
+        offs: set[int] = set()
+
+        for def_ in defs:
+            if isinstance(def_.addr, StackBaseOffset):
+                stack_off = def_.addr.offset
+                accesses[stack_off].add(def_.size)
+                offs.add(stack_off)
+
+        sorted_offs = list(sorted(offs))
+        locs: dict[int, int] = {}
+        for idx, off in enumerate(sorted_offs):
+            sorted_sizes = list(sorted(accesses[off]))
+            if idx < len(sorted_offs) - 1:
+                next_off = sorted_offs[idx + 1]
+                allowed_sizes = [sz for sz in sorted_sizes if off + sz <= next_off]
+            else:
+                allowed_sizes = sorted_sizes
+
+            if len(allowed_sizes) == 1:
+                locs[off] = allowed_sizes[0]
+            # else:
+            #     last_off = off
+            #     for a in allowed_sizes:
+            #         locs[off + a] = off + a - last_off
+            #         last_off = off + a
+            # TODO: Update locs for sizes beyond allowed_sizes
+
+        return locs
 
 
 register_analysis(Ssailification, "Ssailification")

@@ -56,14 +56,14 @@ class StackCanarySimplifier(OptimizationPass):
         first_block, stmt_idx = init_stmt
         canary_init_stmt = first_block.statements[stmt_idx]
         # where is the stack canary stored?
-        if not isinstance(canary_init_stmt.addr, ailment.Expr.StackBaseOffset):
+        if not (isinstance(canary_init_stmt.dst, ailment.Expr.VirtualVariable) and canary_init_stmt.dst.was_stack):
             _l.debug(
-                "Unsupported canary storing location %s. Expects an ailment.Expr.StackBaseOffset.",
+                "Unsupported canary storing location %s. Expects a stack VirtualVariable.",
                 canary_init_stmt.addr,
             )
             return
 
-        store_offset = canary_init_stmt.addr.offset
+        store_offset = canary_init_stmt.dst.stack_offset
         if not isinstance(store_offset, int):
             _l.debug("Unsupported canary storing offset %s. Expects an int.", store_offset)
 
@@ -190,13 +190,15 @@ class StackCanarySimplifier(OptimizationPass):
 
             for idx, stmt in enumerate(first_block.statements):
                 if (
-                    isinstance(stmt, ailment.Stmt.Store)
-                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                    and isinstance(stmt.data, ailment.Expr.Load)
-                    and self._is_add(stmt.data.addr)
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.was_stack
+                    and isinstance(stmt.dst.stack_offset, int)
+                    and isinstance(stmt.src, ailment.Expr.Load)
+                    and self._is_add(stmt.src.addr)
                 ):
                     # Check addr: must be fs+0x28
-                    op0, op1 = stmt.data.addr.operands
+                    op0, op1 = stmt.src.addr.operands
                     if isinstance(op1, ailment.Expr.VirtualVariable) and op1.was_reg:
                         op0, op1 = op1, op0
                     if (
@@ -280,9 +282,11 @@ class StackCanarySimplifier(OptimizationPass):
 
     @staticmethod
     def _is_stack_canary_load_expr(expr, bits: int, canary_value_stack_offset: int) -> bool:
-        if not (isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.StackBaseOffset)):
+        if not (
+            isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack and isinstance(expr.stack_offset, int)
+        ):
             return False
-        return s2u(expr.addr.offset, bits) == s2u(canary_value_stack_offset, bits)
+        return s2u(expr.stack_offset, bits) == s2u(canary_value_stack_offset, bits)
 
     @staticmethod
     def _is_random_number_load_expr(expr, fs_reg_offset: int) -> bool:

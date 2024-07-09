@@ -4,7 +4,7 @@ import copy
 import logging
 
 import archinfo
-from ailment import Stmt, Expr
+from ailment import Stmt, Expr, Const
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, dereference_simtype
@@ -373,6 +373,8 @@ class CallSiteMaker(Analysis):
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
                 return None
 
+            if isinstance(value, Const) and isinstance(value.value, int):
+                value = value.value
             if isinstance(value, int):
                 fmt_str = self._load_string(value)
                 if fmt_str:

@@ -14,6 +14,7 @@ from ailment.expression import (
     BinaryOp,
     Phi,
     Convert,
+    StackBaseOffset,
 )
 
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -42,6 +43,7 @@ class SimEngineSSARewriting(
         bp_as_gpr: bool = False,
         udef_to_phiid: dict[tuple, set[int]] = None,
         phiid_to_loc: dict[int, tuple[int, int | None]] = None,
+        stackvar_locs: dict[int, int] = None,
         ail_manager=None,
     ):
         super().__init__()
@@ -50,6 +52,7 @@ class SimEngineSSARewriting(
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.def_to_vvid: dict[Any, int] = {}
+        self.stackvar_locs = stackvar_locs
         self.vvar_id_ctr = count()
         self.udef_to_phiid = udef_to_phiid
         self.phiid_to_loc = phiid_to_loc
@@ -74,7 +77,9 @@ class SimEngineSSARewriting(
 
         if isinstance(stmt.dst, VirtualVariable):
             if stmt.dst.category == VirtualVariableCategory.REGISTER:
-                self.state.registers[stmt.dst.oident][stmt.dst.size] = stmt.dst
+                self.state.registers[stmt.dst.reg_offset][stmt.dst.size] = stmt.dst
+            elif stmt.dst.category == VirtualVariableCategory.STACK:
+                self.state.stackvars[stmt.dst.stack_offset][stmt.dst.size] = stmt.dst
             new_dst = None
         else:
             new_dst = self._replace_def_expr(stmt.dst)
@@ -127,7 +132,11 @@ class SimEngineSSARewriting(
             return new_stmt
         return None
 
-    def _handle_Store(self, stmt: Store) -> Store | None:
+    def _handle_Store(self, stmt: Store) -> Store | Assignment | None:
+        vvar = self._replace_def_store(stmt)
+        if vvar is not None:
+            return Assignment(stmt.idx, vvar, stmt.data, **stmt.tags)
+
         new_addr = self._expr(stmt.addr)
         new_data = self._expr(stmt.data)
 
@@ -194,10 +203,31 @@ class SimEngineSSARewriting(
         new_expr = self._replace_use_reg(expr)
         return new_expr
 
-    def _handle_Load(self, expr: Load) -> Load | None:
+    def _handle_Load(self, expr: Load) -> Load | VirtualVariable | None:
+        if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
+            new_expr = self._replace_use_load(expr)
+            if new_expr is not None:
+                return new_expr
+
         new_addr = self._expr(expr.addr)
         if new_addr is not None:
             return Load(expr.idx, new_addr, expr.size, expr.endness, guard=expr.guard, alt=expr.alt, **expr.tags)
+        return None
+
+    def _handle_Convert(self, expr: Convert) -> Convert | None:
+        new_operand = self._expr(expr.operand)
+        if new_operand is not None:
+            return Convert(
+                expr.idx,
+                expr.from_bits,
+                expr.to_bits,
+                expr.is_signed,
+                new_operand,
+                from_type=expr.from_type,
+                to_type=expr.to_type,
+                rounding=expr.rounding_mode,
+                **expr.tags,
+            )
         return None
 
     def _handle_Const(self, expr: Const) -> None:
@@ -206,8 +236,23 @@ class SimEngineSSARewriting(
     def _handle_Phi(self, expr: Phi) -> None:
         return None
 
+    def _handle_VirtualVariable(self, expr: VirtualVariable) -> None:
+        return None
+
     def _handle_Return(self, expr: Return) -> Return | None:
-        new_ret_exprs = tuple(map(self._expr, expr.ret_exprs)) if expr.ret_exprs is not None else None
+        if expr.ret_exprs is None:
+            new_ret_exprs = None
+        else:
+            updated = False
+            new_ret_exprs = []
+            for r in expr.ret_exprs:
+                new_r = self._expr(r)
+                if new_r is not None:
+                    updated = True
+                new_ret_exprs.append(new_r if new_r is not None else None)
+            if not updated:
+                new_ret_exprs = None
+
         if new_ret_exprs:
             return Return(expr.idx, new_ret_exprs, **expr.tags)
         return None
@@ -302,24 +347,32 @@ class SimEngineSSARewriting(
         )
         return new_expr
 
-    def _replace_def_expr(self, expr: Expression) -> VirtualVariable | None:
+    def _replace_def_expr(self, thing: Expression | Statement) -> VirtualVariable | None:
         """
         Return a new virtual variable for the given defined expression.
         """
-
-        if isinstance(expr, Register):
-            # get the virtual variable ID
-            vvid = self.get_vvid_by_def(expr)
-            base_offset, base_size = get_reg_offset_base_and_size(expr.reg_offset, self.arch, size=expr.size)
-            return VirtualVariable(
-                expr.idx,
-                vvid,
-                base_size * self.arch.byte_width,
-                VirtualVariableCategory.REGISTER,
-                oident=base_offset,
-                **expr.tags,
-            )
+        if isinstance(thing, Register):
+            return self._replace_def_reg(thing)
+        elif isinstance(thing, Store):
+            return self._replace_def_store(thing)
         return None
+
+    def _replace_def_reg(self, expr: Register) -> VirtualVariable:
+        """
+        Return a new virtual variable for the given defined register.
+        """
+
+        # get the virtual variable ID
+        vvid = self.get_vvid_by_def(expr)
+        base_offset, base_size = get_reg_offset_base_and_size(expr.reg_offset, self.arch, size=expr.size)
+        return VirtualVariable(
+            expr.idx,
+            vvid,
+            base_size * self.arch.byte_width,
+            VirtualVariableCategory.REGISTER,
+            oident=base_offset,
+            **expr.tags,
+        )
 
     def _get_full_reg_vvar(self, reg_offset: int, size: int) -> VirtualVariable:
         base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch, size=size)
@@ -337,6 +390,22 @@ class SimEngineSSARewriting(
             self.state.registers[base_off][base_size] = vvar
             return vvar
         return self.state.registers[base_off][base_size]
+
+    def _replace_def_store(self, stmt: Store) -> VirtualVariable | None:
+        if isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
+            if stmt.addr.offset in self.stackvar_locs and stmt.size == self.stackvar_locs[stmt.addr.offset]:
+                vvar_id = self.get_vvid_by_def(stmt)
+                vvar = VirtualVariable(
+                    self.ail_manager.next_atom(),
+                    vvar_id,
+                    stmt.size * self.arch.byte_width,
+                    category=VirtualVariableCategory.STACK,
+                    oident=stmt.addr.offset,
+                    # FIXME: tags
+                )
+                self.state.stackvars[stmt.addr.offset][stmt.size] = vvar
+                return vvar
+        return None
 
     def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
 
@@ -400,15 +469,31 @@ class SimEngineSSARewriting(
         )
         return truncated
 
+    def _replace_use_load(self, expr: Load) -> VirtualVariable | None:
+        if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
+            if expr.addr.offset in self.stackvar_locs and expr.size == self.stackvar_locs[expr.addr.offset]:
+                # TODO: Support truncation
+                # TODO: Maybe also support concatenation
+                vvar = self.state.stackvars[expr.addr.offset][expr.size]
+                return VirtualVariable(
+                    expr.idx,
+                    vvar.varid,
+                    vvar.bits,
+                    VirtualVariableCategory.STACK,
+                    oident=vvar.stack_offset,
+                    **vvar.tags,
+                )
+        return None
+
     #
     # Utils
     #
 
-    def get_vvid_by_def(self, expr: Expression) -> int:
-        if expr in self.def_to_vvid:
-            return self.def_to_vvid[expr]
+    def get_vvid_by_def(self, thing: Expression | Statement) -> int:
+        if thing in self.def_to_vvid:
+            return self.def_to_vvid[thing]
         vvid = next(self.vvar_id_ctr)
-        self.def_to_vvid[expr] = vvid
+        self.def_to_vvid[thing] = vvid
         return vvid
 
     def _clear_aliasing_regs(self, reg_offset: int, size: int, remove_base_reg: bool = True) -> None:

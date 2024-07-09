@@ -16,6 +16,7 @@ class RewritingState:
         func,
         original_block: Block,
         registers: dict[int, dict[int, VirtualVariable]] | None = None,
+        stackvars: dict[int, dict[int, VirtualVariable]] | None = None,
     ):
         self.loc = loc
         self.arch = arch
@@ -23,6 +24,9 @@ class RewritingState:
 
         self.registers: defaultdict[int, dict[int, VirtualVariable]] = (
             registers if registers is not None else defaultdict(dict)
+        )
+        self.stackvars: defaultdict[int, dict[int, VirtualVariable]] = (
+            stackvars if stackvars is not None else defaultdict(dict)
         )
         self.original_block = original_block
         self.out_block = None
@@ -33,12 +37,17 @@ class RewritingState:
         for k, vdict in self.registers.items():
             copy_regs[k] = vdict.copy()
 
+        copy_stackvars = defaultdict(dict)
+        for k, vdict in self.stackvars.items():
+            copy_stackvars[k] = vdict.copy()
+
         state = RewritingState(
             self.loc,
             self.arch,
             self.func,
             self.original_block,
             registers=copy_regs,
+            stackvars=copy_stackvars,
         )
         return state
 

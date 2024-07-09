@@ -270,8 +270,18 @@ class VirtualVariable(Atom):
         return self.category == ailment.Expr.VirtualVariableCategory.REGISTER
 
     @property
+    def was_stack(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.STACK
+
+    @property
     def reg_offset(self) -> int | None:
         if self.was_reg:
+            return self.oident
+        return None
+
+    @property
+    def stack_offset(self) -> int | None:
+        if self.was_stack:
             return self.oident
         return None
 

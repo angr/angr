@@ -401,14 +401,22 @@ class SimEngineVRBase(SimEngineLight):
             }
 
         if not existing_vars:
-            if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
+            if vvar.was_reg:
                 variable = SimRegisterVariable(
-                    vvar.oident,
+                    vvar.reg_offset,
                     vvar.size,
                     ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
                     region=self.func_addr,
                 )
-                self.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
+                self.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
+            elif vvar.was_stack:
+                variable = SimStackVariable(
+                    vvar.stack_offset,
+                    vvar.size,
+                    ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
+                    region=self.func_addr,
+                )
+                self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
             else:
                 raise NotImplementedError()
         else:

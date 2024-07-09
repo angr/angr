@@ -960,6 +960,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _ail_handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.value
 
+    def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
+        return expr
+
     def _ail_handle_Tmp(self, expr):
         tmp_idx = expr.tmp_idx
 

@@ -94,7 +94,7 @@ class AILSimplifier(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
         self._unify_vars = unify_variables
-        self._ail_manager = ail_manager
+        self._ail_manager: Manager | None = ail_manager
         self._gp = gp
         self._narrow_expressions = narrow_expressions
         self._only_consts = only_consts
@@ -217,9 +217,18 @@ class AILSimplifier(Analysis):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
                 elif isinstance(stmt, Call):
-                    if isinstance(stmt.ret_expr, VirtualVariable):
+                    if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
+                elif isinstance(stmt, Store) and isinstance(stmt.size, int):
+                    if (
+                        isinstance(stmt.addr, StackBaseOffset)
+                        and isinstance(stmt.addr.offset, int)
+                        and isinstance(stmt.data, (VirtualVariable, Tmp, Call, Convert))
+                    ):
+                        atom = SimStackVariable(stmt.addr.offset, stmt.size)
+                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        equivalence.add(Equivalence(codeloc, atom, stmt.data))
         return equivalence
 
     def _clear_cache(self) -> None:
@@ -650,20 +659,22 @@ class AILSimplifier(Analysis):
             # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
             # eq.atom1 is the use.
             the_def = None
-            if isinstance(eq.atom0, SimMemoryVariable):  # covers both Stack and Global variables
-                if isinstance(eq.atom1, Register):
+            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
+                if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                     # stack_var == register or global_var == register
                     to_replace = eq.atom1
                     to_replace_is_def = False
-                elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Register):
+                elif (
+                    isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, VirtualVariable) and eq.atom1.was_reg
+                ):
                     # stack_var == Conv(register, M->N)
                     to_replace = eq.atom1.operand
                     to_replace_is_def = False
                 else:
                     continue
 
-            elif isinstance(eq.atom0, Register):
-                if isinstance(eq.atom1, Register):
+            elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
+                if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                     # register == register
                     if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
                         to_replace = eq.atom0
@@ -684,11 +695,17 @@ class AILSimplifier(Analysis):
                 defs = []
                 for def_ in rd.all_definitions:
                     if def_.codeloc == eq.codeloc:
-                        if isinstance(to_replace, SimStackVariable):
+                        if isinstance(to_replace, VirtualVariable) and to_replace.was_stack:
+                            if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(
+                                def_.atom.addr, atoms.SpOffset
+                            ):
+                                if to_replace.offset == def_.atom.addr.offset:
+                                    defs.append(def_)
+                        elif isinstance(to_replace, VirtualVariable) and to_replace.was_reg:
                             if (
-                                isinstance(def_.atom, atoms.MemoryLocation)
-                                and isinstance(def_.atom.addr, atoms.SpOffset)
-                                and to_replace.offset == def_.atom.addr.offset
+                                isinstance(def_.atom, atoms.VirtualVariable)
+                                and def_.atom.was_reg
+                                and to_replace.reg_offset == def_.atom.reg_offset
                             ):
                                 defs.append(def_)
                         elif (
@@ -702,19 +719,23 @@ class AILSimplifier(Analysis):
                 the_def = defs[0]
             else:
                 # find uses
-                defs = rd.all_uses.get_uses_by_location(eq.codeloc)
+                defs = rd.get_uses_by_location(eq.codeloc)
                 if len(defs) != 1:
                     # there are multiple defs for this register - we do not support replacing all of them
                     continue
                 for def_ in defs:
                     def_: Definition
-                    if isinstance(def_.atom, atoms.Register) and def_.atom.reg_offset == to_replace.reg_offset:
+                    if (
+                        isinstance(def_.atom, atoms.VirtualVariable)
+                        and def_.atom.was_reg
+                        and def_.atom.reg_offset == to_replace.reg_offset
+                    ):
                         # found it!
                         the_def = def_
                         break
             if the_def is None:
                 continue
-            if the_def.codeloc.context:
+            if the_def.codeloc.context:  # FIXME: now the_def.codeloc.context is never filled in
                 # the definition is in a callee function
                 continue
 
@@ -732,31 +753,34 @@ class AILSimplifier(Analysis):
                 if defs and len(defs) == 1:
                     arg_copy_def = defs[0]
                     if (
-                        isinstance(arg_copy_def.atom, atoms.MemoryLocation)
-                        and isinstance(arg_copy_def.atom.addr, SpOffset)
-                        or isinstance(arg_copy_def.atom, atoms.Register)
+                        isinstance(arg_copy_def.atom, atoms.VirtualVariable)
+                        and arg_copy_def.atom.was_stack
+                        or (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg)
                     ):
                         # found the copied definition (either a stack variable or a register variable)
 
                         # Make sure there is no other write to this stack location if the copy is a stack variable
-                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation) and any(
-                            (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
-                            for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.MemoryLocation)
-                        ):
-                            continue
+                        if isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack:
+                            if any(
+                                (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
+                                for def_ in rd.all_definitions
+                                if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_stack
+                            ):
+                                continue
 
                         # Make sure the register is never updated across this function
                         if any(
                             (def_ != the_def and def_.atom == the_def.atom)
                             for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
+                            if isinstance(def_.atom, atoms.VirtualVariable)
+                            and def_.atom.was_reg
+                            and rd.get_vvar_uses(def_.atom)
                         ):
                             continue
 
                         # find all its uses
                         all_arg_copy_var_uses: set[tuple[CodeLocation, Any]] = set(
-                            rd.all_uses.get_uses_with_expr(arg_copy_def)
+                            rd.get_vvar_uses_with_expr(arg_copy_def.atom)
                         )
                         all_uses_with_def = set()
 
@@ -803,26 +827,28 @@ class AILSimplifier(Analysis):
                     ):
                         continue
 
-                if isinstance(eq.atom0, SimStackVariable):
+                if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
                     # create the memory loading expression
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
-                    replace_with = Load(
+                    replace_with = VirtualVariable(
                         new_idx,
-                        StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
-                        eq.atom0.size,
-                        endness=self.project.arch.memory_endness,
+                        eq.atom0.varid,
+                        eq.atom0.bits,
+                        category=eq.atom0.category,
+                        oident=eq.atom0.oident,
+                        **eq.atom0.tags,
                     )
-                elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
-                    # create the memory loading expression
-                    new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
-                    replace_with = Load(
-                        new_idx,
-                        Const(None, None, eq.atom0.addr, self.project.arch.bits),
-                        eq.atom0.size,
-                        endness=self.project.arch.memory_endness,
-                    )
-                elif isinstance(eq.atom0, Register):
-                    if isinstance(eq.atom1, Register):
+                # elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
+                #     # create the memory loading expression
+                #     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                #     replace_with = Load(
+                #         new_idx,
+                #         Const(None, None, eq.atom0.addr, self.project.arch.bits),
+                #         eq.atom0.size,
+                #         endness=self.project.arch.memory_endness,
+                #     )
+                elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
+                    if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                         if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
                             replace_with = eq.atom1
                         else:
@@ -836,12 +862,12 @@ class AILSimplifier(Analysis):
 
                 # find all uses of this definition
                 # we make a copy of the set since we may touch the set (uses) when replacing expressions
-                all_uses: set[tuple[CodeLocation, Any]] = set(rd.all_uses.get_uses_with_expr(to_replace_def))
+                all_uses: set[tuple[CodeLocation, Any]] = set(rd.get_vvar_uses_with_expr(to_replace_def.atom))
                 # make sure none of these uses are phi nodes (depends on more than one def)
                 all_uses_with_unique_def = set()
                 for use_and_expr in all_uses:
                     use_loc, used_expr = use_and_expr
-                    defs_and_exprs = rd.all_uses.get_uses_by_location(use_loc, exprs=True)
+                    defs_and_exprs = rd.get_uses_by_location(use_loc, exprs=True)
                     filtered_defs = {def_ for def_, expr_ in defs_and_exprs if expr_ == used_expr}
                     if len(filtered_defs) == 1:
                         all_uses_with_unique_def.add(use_and_expr)
@@ -894,10 +920,12 @@ class AILSimplifier(Analysis):
                 u, used_expr = use_and_expr
 
                 use_expr_defns = []
-                for d in rd.all_uses.get_uses_by_location(u):
+                for d in rd.get_uses_by_location(u):
                     if (
-                        isinstance(d.atom, atoms.Register)
-                        and isinstance(def_.atom, atoms.Register)
+                        isinstance(d.atom, atoms.VirtualVariable)
+                        and d.atom.was_reg
+                        and isinstance(def_.atom, atoms.VirtualVariable)
+                        and def_.atom.was_reg
                         and d.atom.reg_offset == def_.atom.reg_offset
                     ) or d.atom == def_.atom:
                         use_expr_defns.append(d)

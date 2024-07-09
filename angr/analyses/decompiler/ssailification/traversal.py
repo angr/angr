@@ -19,9 +19,10 @@ class TraversalAnalysis(ForwardAnalysis[None, NodeType, object, object]):
     TraversalAnalysis traverses the AIL graph and collects definitions.
     """
 
-    def __init__(self, project, func, ail_graph, sp_tracker, bp_as_gpr: bool):
+    def __init__(self, project, func, ail_graph, sp_tracker, bp_as_gpr: bool, stackvars: bool):
 
         self.project = project
+        self._stackvars = stackvars
         self._function = func
         self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
 
@@ -32,6 +33,7 @@ class TraversalAnalysis(ForwardAnalysis[None, NodeType, object, object]):
             self.project.arch,
             sp_tracker=sp_tracker,
             bp_as_gpr=bp_as_gpr,
+            stackvars=self._stackvars,
         )
 
         self._visited_blocks: set[Any] = set()

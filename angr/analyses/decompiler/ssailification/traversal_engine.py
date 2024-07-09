@@ -3,7 +3,7 @@ from collections import OrderedDict
 from claripy.utils.orderedset import OrderedSet
 
 from ailment.statement import Assignment, Call, Store, ConditionalJump
-from ailment.expression import Register, BinaryOp
+from ailment.expression import Register, BinaryOp, StackBaseOffset
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 from angr.utils.ssa import get_reg_offset_base
@@ -20,12 +20,15 @@ class SimEngineSSATraversal(
 
     state: TraversalState
 
-    def __init__(self, arch, sp_tracker=None, bp_as_gpr: bool = False, def_to_loc=None, loc_to_defs=None):
+    def __init__(
+        self, arch, sp_tracker=None, bp_as_gpr: bool = False, def_to_loc=None, loc_to_defs=None, stackvars: bool = False
+    ):
         super().__init__()
 
         self.arch = arch
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
+        self.stackvars = stackvars
 
         self.def_to_loc = def_to_loc if def_to_loc is not None else OrderedDict()
         self.loc_to_defs = loc_to_defs if loc_to_defs is not None else OrderedDict()
@@ -46,6 +49,15 @@ class SimEngineSSATraversal(
     def _handle_Store(self, stmt: Store):
         self._expr(stmt.addr)
         self._expr(stmt.data)
+
+        if self.stackvars and isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
+            codeloc = self._codeloc()
+            self.def_to_loc[stmt] = codeloc
+            if codeloc not in self.loc_to_defs:
+                self.loc_to_defs[codeloc] = OrderedSet()
+            self.loc_to_defs[codeloc].add(stmt)
+
+            self.state.live_stackvars.add((stmt.addr.offset, stmt.size))
 
     def _handle_ConditionalJump(self, stmt: ConditionalJump):
         self._expr(stmt.condition)
@@ -89,3 +101,9 @@ class SimEngineSSATraversal(
     _handle_CmpGT = _handle_Cmp
     _handle_CmpEQ = _handle_Cmp
     _handle_CmpNE = _handle_Cmp
+
+    def _handle_Dummy(self, expr):
+        pass
+
+    _handle_VirtualVariable = _handle_Dummy
+    _handle_Phi = _handle_Dummy

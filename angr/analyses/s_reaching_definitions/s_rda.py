@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 from collections.abc import Generator
 from collections import defaultdict
 import logging
@@ -11,7 +12,7 @@ from angr.utils.graph import GraphUtils
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions import atoms, Definition
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, ObservationPoint
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs, get_reg_offset_base
 from angr.calling_conventions import SimRegArg, default_cc
@@ -39,6 +40,43 @@ class SRDAModel:
         for tmp_atom, stmt_idx in self.all_tmp_definitions[block_loc].items():
             s.add(Definition(tmp_atom, CodeLocation(block_loc.block_addr, stmt_idx, block_idx=block_loc.block_idx)))
         return s
+
+    def get_uses_by_location(
+        self, loc: CodeLocation, exprs: bool = False
+    ) -> set[Definition] | set[tuple[Definition, Any | None]]:
+        """
+        Retrieve all definitions that are used at a given location.
+
+        :param loc:     The code location.
+        :return:        A set of definitions that are used at the given location.
+        """
+        if exprs:
+            defs: set[tuple[Definition, Any]] = set()
+            for vvar, uses in self.all_vvar_uses.items():
+                for expr, loc_ in uses:
+                    if loc_ == loc:
+                        defs.add(
+                            (
+                                Definition(
+                                    atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident),
+                                    self.all_vvar_definitions[vvar],
+                                ),
+                                expr,
+                            )
+                        )
+            return defs
+
+        defs: set[Definition] = set()
+        for vvar, uses in self.all_vvar_uses.items():
+            for _, loc_ in uses:
+                if loc_ == loc:
+                    defs.add(
+                        Definition(
+                            atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident),
+                            self.all_vvar_definitions[vvar],
+                        )
+                    )
+        return defs
 
     def get_vvar_uses(self, obj: atoms.VirtualVariable) -> set[CodeLocation]:
         the_vvar = next(iter(v for v in self.all_vvar_uses if v.varid == obj.varid), None)
@@ -242,7 +280,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.func_graph = func_graph
         self.func_addr = func_addr
         self._track_tmps = track_tmps
-        self._sp_tracker = stack_pointer_tracker
+        self._sp_tracker = stack_pointer_tracker  # FIXME: Is it still used?
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -275,6 +313,14 @@ class SReachingDefinitionsAnalysis(Analysis):
                 self.model.all_vvar_uses[vvar].add((vvar_at_use, useloc))
 
         if self.mode == "function":
+            # fix register definitions for arguments
+            defined_vvarids = {vvar.varid for vvar in vvar_deflocs}
+            undefined_vvarids = set(vvar_uselocs.keys()).difference(defined_vvarids)
+            for vvar_id in undefined_vvarids:
+                used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
+                self.model.all_vvar_definitions[used_vvar] = ExternalCodeLocation()
+                self.model.all_vvar_uses[used_vvar] |= vvar_uselocs[vvar_id]
+
             srda_view = SRDAView(self.model)
 
             # fix register uses at call sites
