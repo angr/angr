@@ -22,9 +22,8 @@ from ailment.expression import (
 )
 
 from angr.analyses.s_reaching_definitions import SRDAModel
-from ...engines.light import SpOffset
 from ...code_location import CodeLocation, ExternalCodeLocation
-from ...sim_variable import SimStackVariable, SimMemoryVariable
+from ...sim_variable import SimStackVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
