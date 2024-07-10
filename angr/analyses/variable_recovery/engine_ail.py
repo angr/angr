@@ -160,12 +160,25 @@ class SimEngineVRAIL(
             # call expression mode
             ret_val = RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
         else:
-            if ret_expr is not None:
-                # update the return value register
+            # update the return value register
+            if isinstance(ret_expr, ailment.Expr.VirtualVariable):
                 expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
                 self._assign_to_vvar(
                     ret_expr,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
+                    dst=ret_expr,
+                    create_variable=create_variable,
+                )
+            elif isinstance(ret_expr, ailment.Expr.Register):
+                l.warning("Left-over register found in call.ret_expr.")
+                if return_value_use_full_width_reg:
+                    expr_bits = self.state.arch.bits
+                else:
+                    expr_bits = ret_expr_bits
+                self._assign_to_register(
+                    ret_expr.reg_offset,
+                    RichR(self.state.top(expr_bits), typevar=ret_ty),
+                    expr_bits // self.arch.byte_width,
                     dst=ret_expr,
                     create_variable=create_variable,
                 )
