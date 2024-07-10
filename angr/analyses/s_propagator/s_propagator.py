@@ -124,9 +124,10 @@ class SPropagatorAnalysis(Analysis):
                     }
                     if len(src_values) == 1:
                         # replace it!
-                        const_vvars[vvar.varid] = const_vvars[next(iter(src_varids))]
+                        const_value = const_vvars[next(iter(src_varids))]
+                        const_vvars[vvar.varid] = const_value
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                            replacements[useloc][vvar_at_use] = v
+                            replacements[useloc][vvar_at_use] = const_value
 
             if vvar.varid in vvar_uselocs and len(vvar_uselocs[vvar.varid]) == 1:
                 vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))

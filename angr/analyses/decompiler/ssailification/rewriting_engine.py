@@ -235,7 +235,7 @@ class SimEngineSSARewriting(
                 new_operand,
                 from_type=expr.from_type,
                 to_type=expr.to_type,
-                rounding=expr.rounding_mode,
+                rounding_mode=expr.rounding_mode,
                 **expr.tags,
             )
         return None
@@ -282,7 +282,7 @@ class SimEngineSSARewriting(
                 expr.signed,
                 bits=expr.bits,
                 floating_point=expr.floating_point,
-                rounding=expr.rounding_mode,
+                rounding_mode=expr.rounding_mode,
                 from_bits=expr.from_bits,
                 to_bits=expr.to_bits,
                 **expr.tags,
@@ -388,7 +388,7 @@ class SimEngineSSARewriting(
         base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch, size=size)
         if base_off not in self.state.registers or base_size not in self.state.registers[base_off]:
             # somehow it's never defined before...
-            _l.warning("Creating a new virtual variable for an undefined register (%d [%d]).", base_off, base_size)
+            _l.debug("Creating a new virtual variable for an undefined register (%d [%d]).", base_off, base_size)
             vvar = VirtualVariable(
                 self.ail_manager.next_atom(),
                 self.next_vvar_id(),
@@ -482,6 +482,18 @@ class SimEngineSSARewriting(
     def _replace_use_load(self, expr: Load) -> VirtualVariable | None:
         if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
             if expr.addr.offset in self.stackvar_locs and expr.size == self.stackvar_locs[expr.addr.offset]:
+                if expr.size not in self.state.stackvars[expr.addr.offset]:
+                    vvar_id = self.get_vvid_by_def(expr)
+                    vvar = VirtualVariable(
+                        self.ail_manager.next_atom(),
+                        vvar_id,
+                        expr.size * self.arch.byte_width,
+                        category=VirtualVariableCategory.STACK,
+                        oident=expr.addr.offset,
+                        **expr.tags,
+                    )
+                    return vvar
+
                 # TODO: Support truncation
                 # TODO: Maybe also support concatenation
                 vvar = self.state.stackvars[expr.addr.offset][expr.size]

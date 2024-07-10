@@ -109,11 +109,11 @@ class SRDAView:
         cc = stmt.calling_convention
         if cc is None:
             # get the default calling convention
-            cc = default_cc(self.model.arch)  # TODO: platform and language
+            cc = default_cc(self.model.arch.name)  # TODO: platform and language
         if cc is not None:
-            reg_list = stmt.calling_convention.CALLER_SAVED_REGS
-            if isinstance(stmt.calling_convention.RETURN_VAL, SimRegArg):
-                reg_list.append(stmt.calling_convention.RETURN_VAL.reg_name)
+            reg_list = cc.CALLER_SAVED_REGS
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                reg_list.append(cc.RETURN_VAL.reg_name)
             return {self.model.arch.registers[reg_name][0] for reg_name in reg_list}
         _l.warning("Cannot determine registers that are clobbered by call statement %r.", stmt)
         return set()

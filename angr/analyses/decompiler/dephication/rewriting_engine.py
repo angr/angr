@@ -157,7 +157,7 @@ class SimEngineDephiRewriting(
                 new_operand,
                 from_type=expr.from_type,
                 to_type=expr.to_type,
-                rounding=expr.rounding_mode,
+                rounding_mode=expr.rounding_mode,
                 **expr.tags,
             )
         return None
@@ -208,7 +208,7 @@ class SimEngineDephiRewriting(
                 expr.signed,
                 bits=expr.bits,
                 floating_point=expr.floating_point,
-                rounding=expr.rounding_mode,
+                rounding_mode=expr.rounding_mode,
                 from_bits=expr.from_bits,
                 to_bits=expr.to_bits,
                 **expr.tags,

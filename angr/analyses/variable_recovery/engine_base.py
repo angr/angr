@@ -350,7 +350,8 @@ class SimEngineVRBase(SimEngineLight):
         v = MultiValues(annotated_data)
         self.state.register_region.store(offset, v)
         # register with the variable manager
-        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
+        overwrite = isinstance(dst, ailment.Expr.VirtualVariable)
+        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=overwrite)
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
@@ -426,7 +427,8 @@ class SimEngineVRBase(SimEngineLight):
         annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
         self.state.vvar_region[vvar.varid] = annotated_data
         # register with the variable manager
-        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
+        overwrite = isinstance(dst, ailment.Expr.VirtualVariable)
+        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=overwrite)
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
@@ -966,11 +968,12 @@ class SimEngineVRBase(SimEngineLight):
         else:
             value_list = list(values.values())
 
+        overwrite = isinstance(expr, ailment.Expr.VirtualVariable)
         variable_set = set()
         for value_set in value_list:
             for value in value_set:
                 for _, var in self.state.extract_variables(value):
-                    self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
+                    self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=overwrite)
                     variable_set.add(var)
 
         if offset == self.arch.sp_offset:
@@ -1035,13 +1038,22 @@ class SimEngineVRBase(SimEngineLight):
                 # create a new variable if necessary
                 if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
                     variable = SimRegisterVariable(
-                        vvar.oident,
+                        vvar.reg_offset,
                         vvar.size,
                         ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
                         region=self.func_addr,
                     )
                     value = self.state.annotate_with_variables(value, [(0, variable)])
-                    self.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
+                    self.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
+                elif vvar.category == ailment.Expr.VirtualVariableCategory.STACK:
+                    variable = SimStackVariable(
+                        vvar.stack_offset,
+                        vvar.size,
+                        ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
+                        region=self.func_addr,
+                    )
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+                    self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
                 else:
                     raise NotImplementedError()
 
@@ -1049,7 +1061,7 @@ class SimEngineVRBase(SimEngineLight):
 
         variable_set = set()
         for _, var in self.state.extract_variables(value):
-            self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
+            self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=True)
             variable_set.add(var)
 
         if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER and vvar.oident == self.arch.sp_offset:

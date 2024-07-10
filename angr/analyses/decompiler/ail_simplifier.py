@@ -656,7 +656,9 @@ class AILSimplifier(Analysis):
                     to_replace = eq.atom1
                     to_replace_is_def = False
                 elif (
-                    isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, VirtualVariable) and eq.atom1.was_reg
+                    isinstance(eq.atom1, Convert)
+                    and isinstance(eq.atom1.operand, VirtualVariable)
+                    and eq.atom1.operand.was_reg
                 ):
                     # stack_var == Conv(register, M->N)
                     to_replace = eq.atom1.operand
