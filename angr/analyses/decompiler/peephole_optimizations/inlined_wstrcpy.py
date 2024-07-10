@@ -6,6 +6,7 @@ from archinfo import Endness
 from ailment.expression import Const, StackBaseOffset
 from ailment.statement import Call, Store
 
+from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
 
 
@@ -102,7 +103,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
                 continue
             if isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
                 if isinstance(stmt.data, Const):
-                    r[stmt.addr.offset] = idx, stmt.data
+                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, stmt.endness)
                 else:
                     r[stmt.addr.offset] = idx, None
 
