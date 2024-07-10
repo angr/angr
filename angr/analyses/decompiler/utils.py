@@ -657,7 +657,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     path = pathlib.Path(path).resolve().absolute()
     proj = angr.Project(path, auto_load_libs=False)
     cfg = proj.analyses.CFG(normalize=True, data_references=True)
-    proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+    # proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
 
     # collect all functions when None are provided
     if functions is None:
