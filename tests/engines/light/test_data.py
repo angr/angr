@@ -2,6 +2,7 @@
 from unittest import main, TestCase
 
 from angr.engines.light.data import SpOffset
+from angr.engines.light.engine import SimEngineLightMixin
 
 
 class TestSpOffset(TestCase):
@@ -12,6 +13,13 @@ class TestSpOffset(TestCase):
 
         self.assertEqual(first_offset - second_offset, -10)
 
+    def test_extract_offset_to_sp_sub(self):
+        test = SimEngineLightMixin()
+        sp = test.sp_offset(64, 0)
+        sp_offset_expr = sp - 0x10
+        sp_offset = test.extract_offset_to_sp(sp_offset_expr)
+
+        self.assertEqual(sp_offset, 0xfffffffffffffff0)
 
 if __name__ == "__main__":
     main()
