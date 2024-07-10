@@ -199,7 +199,6 @@ class AILSimplifier(Analysis):
             func_graph=self.func_graph,
             # gp=self._gp,
             only_consts=self._only_consts,
-            # reaching_definitions=self._compute_reaching_definitions(),
             immediate_stmt_removal=immediate_stmt_removal,
         )
         self._propagator = prop

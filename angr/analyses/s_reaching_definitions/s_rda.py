@@ -349,35 +349,35 @@ class SReachingDefinitionsAnalysis(Analysis):
                     self.model.all_vvar_uses[vvar].add((None, codeloc))
 
             # fix register uses at return sites
-            ret_site_addrs = {ret_site.addr for ret_site in self.func.ret_sites}
-            if ret_site_addrs:
-                observations = srda_view.observe(
-                    [
-                        ("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)
-                        for block in blocks.values()
-                        if block.addr in ret_site_addrs
-                    ]
-                )
-                for key, reg_to_vvarids in observations.items():
-                    _, (block_addr, block_idx), _ = key
-                    block = blocks[(block_addr, block_idx)]
-                    if not block.statements:
-                        continue
-                    last_stmt = block.statements[-1]
-                    if not isinstance(last_stmt, Return):
-                        continue
-
-                    if self.project.arch.bp_offset in reg_to_vvarids:
-                        vvar_id = reg_to_vvarids[self.project.arch.bp_offset]
-                        codeloc = CodeLocation(
-                            block_addr, len(block.statements) - 1, block_idx=block_idx, ins_addr=last_stmt.ins_addr
-                        )
-                        if not self._bp_as_gpr:
-                            # use bp
-                            vvar = next(
-                                iter(vvar for vvar in self.model.all_vvar_definitions if vvar.varid == vvar_id)
-                            )  # TODO: optimize it with a lookup
-                            self.model.all_vvar_uses[vvar].add((None, codeloc))
+            # ret_site_addrs = {ret_site.addr for ret_site in self.func.ret_sites}
+            # if ret_site_addrs:
+            #     observations = srda_view.observe(
+            #         [
+            #             ("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)
+            #             for block in blocks.values()
+            #             if block.addr in ret_site_addrs
+            #         ]
+            #     )
+            #     for key, reg_to_vvarids in observations.items():
+            #         _, (block_addr, block_idx), _ = key
+            #         block = blocks[(block_addr, block_idx)]
+            #         if not block.statements:
+            #             continue
+            #         last_stmt = block.statements[-1]
+            #         if not isinstance(last_stmt, Return):
+            #             continue
+        #
+        #         if self.project.arch.bp_offset in reg_to_vvarids:
+        #             vvar_id = reg_to_vvarids[self.project.arch.bp_offset]
+        #             codeloc = CodeLocation(
+        #                 block_addr, len(block.statements) - 1, block_idx=block_idx, ins_addr=last_stmt.ins_addr
+        #             )
+        #             if not self._bp_as_gpr:
+        #                 # use bp
+        #                 vvar = next(
+        #                     iter(vvar for vvar in self.model.all_vvar_definitions if vvar.varid == vvar_id)
+        #                 )  # TODO: optimize it with a lookup
+        #                 self.model.all_vvar_uses[vvar].add((None, codeloc))
 
         if self._track_tmps:
             # track tmps

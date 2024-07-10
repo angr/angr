@@ -516,6 +516,13 @@ class Clinic(Analysis):
         self._update_progress(75.0, text="Making argument list")
         arg_list = self._make_argument_list()
 
+        # Run simplification passes
+        self._update_progress(95.0, text="Running simplifications 4")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
+
+        # Rewrite the graph to remove phi expressions
+        ail_graph = self._transform_from_ssa(ail_graph)
+
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
@@ -523,12 +530,6 @@ class Clinic(Analysis):
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
-
-        # Run simplification passes
-        self._update_progress(95.0, text="Running simplifications 4")
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY, variable_kb=variable_kb
-        )
 
         # remove empty nodes from the graph
         ail_graph = self.remove_empty_nodes(ail_graph)
@@ -1190,6 +1191,11 @@ class Clinic(Analysis):
         )
         self._vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
+
+    @timethis
+    def _transform_from_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        dephication = self.project.analyses.Dephication(self.function, ail_graph)
+        return dephication.out_graph
 
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:

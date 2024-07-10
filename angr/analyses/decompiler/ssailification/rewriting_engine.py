@@ -155,6 +155,7 @@ class SimEngineSSARewriting(
                 stmt.addr if new_addr is None else new_addr,
                 stmt.data if new_data is None else new_data,
                 stmt.size,
+                stmt.endness,
                 guard=stmt.guard,
                 **stmt.tags,
             )
@@ -195,7 +196,7 @@ class SimEngineSSARewriting(
                 self._clear_aliasing_regs(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size)
                 self.state.registers[stmt.fp_ret_expr.reg_offset][stmt.fp_ret_expr.size] = new_fp_ret_expr
 
-        if new_target is not None or new_ret_expr is not None:
+        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
             return Call(
                 stmt.idx,
                 stmt.target if new_target is None else new_target,

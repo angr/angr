@@ -132,6 +132,34 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         merged_global_region.set_state(self)
         merge_occurred |= merged_global_region.merge([other.global_region for other in others], None)
 
+        merged_vvar_region = self.vvar_region.copy()
+        phi_vars = defaultdict(set)
+        for o in others:
+            for o_k, o_v in o.vvar_region.items():
+                if o_k not in merged_vvar_region:
+                    merged_vvar_region[o_k] = o_v
+                else:
+                    if o_v is not merged_vvar_region[o_k]:
+                        for addr_and_simvar in self.extract_variables(merged_vvar_region[o_k]):
+                            phi_vars[o_k].add(addr_and_simvar)
+                        for addr_and_simvar in self.extract_variables(o.vvar_region[o_k]):
+                            phi_vars[o_k].add(addr_and_simvar)
+
+        for vvid, addr_and_simvars in phi_vars.items():
+            if len(addr_and_simvars) == 1:
+                obj = next(iter(addr_and_simvars))
+                bits = obj[1].size * self.project.arch.byte_width
+                merged_vvar_region[vvid] = self.annotate_with_variables(self.top(bits), [obj])
+            else:
+                simvars = set()
+                for _, simvar in addr_and_simvars:
+                    simvars.add(simvar)
+                phi_var = self.variable_manager[self.func_addr].make_phi_node(successor, *simvars)
+                for simvar in simvars:
+                    self.phi_variables[simvar] = phi_var
+                new_v = self.annotate_with_variables(self.top(phi_var.bits), [(successor, phi_var)])
+                merged_vvar_region[vvid] = new_v
+
         typevars = self.typevars
         type_constraints = self.type_constraints
         delayed_typeconstraints = self.delayed_type_constraints
@@ -177,12 +205,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             if o.ret_val_size is not None and (ret_val_size is None or o.ret_val_size > ret_val_size):
                 ret_val_size = o.ret_val_size
                 merge_occurred = True
-
-        merged_vvar_region = self.vvar_region.copy()
-        for o in others:
-            if not merged_vvar_region.keys().isdisjoint(o.vvar_region.keys()):
-                l.warning("Duplicate vvar IDs detected during state merging.")
-            merged_vvar_region |= o.vvar_region
 
         # clean up
         self.phi_variables = {}
