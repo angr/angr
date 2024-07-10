@@ -32,6 +32,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         func_addr: int | None = None,
         ail_manager=None,
         ssa_stackvars: bool = False,
+        vvar_id_start: int = 0,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -80,8 +81,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._phiid_to_loc,
             self._stackvar_locs,
             self._ail_manager,
+            vvar_id_start=vvar_id_start,
         )
         self.out_graph = rewriter.out_graph
+        self.max_vvar_id = rewriter.max_vvar_id
 
     def _calculate_virtual_variables(self, ail_graph, def_to_loc: dict, loc_to_defs: dict[CodeLocation, Any]):
         """

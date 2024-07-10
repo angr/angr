@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Any
-from itertools import count
 import logging
 
 from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump
@@ -45,6 +44,7 @@ class SimEngineSSARewriting(
         phiid_to_loc: dict[int, tuple[int, int | None]] = None,
         stackvar_locs: dict[int, int] = None,
         ail_manager=None,
+        vvar_id_start: int = 0,
     ):
         super().__init__()
 
@@ -53,10 +53,19 @@ class SimEngineSSARewriting(
         self.bp_as_gpr = bp_as_gpr
         self.def_to_vvid: dict[Any, int] = {}
         self.stackvar_locs = stackvar_locs
-        self.vvar_id_ctr = count()
         self.udef_to_phiid = udef_to_phiid
         self.phiid_to_loc = phiid_to_loc
         self.ail_manager = ail_manager
+
+        self._current_vvar_id = vvar_id_start
+
+    @property
+    def current_vvar_id(self) -> int:
+        return self._current_vvar_id
+
+    def next_vvar_id(self) -> int:
+        self._current_vvar_id += 1
+        return self._current_vvar_id
 
     #
     # Handlers
@@ -381,7 +390,7 @@ class SimEngineSSARewriting(
             _l.warning("Creating a new virtual variable for an undefined register (%d [%d]).", base_off, base_size)
             vvar = VirtualVariable(
                 self.ail_manager.next_atom(),
-                next(self.vvar_id_ctr),
+                self.next_vvar_id(),
                 base_size * self.arch.byte_width,
                 category=VirtualVariableCategory.REGISTER,
                 oident=base_off,
@@ -492,7 +501,7 @@ class SimEngineSSARewriting(
     def get_vvid_by_def(self, thing: Expression | Statement) -> int:
         if thing in self.def_to_vvid:
             return self.def_to_vvid[thing]
-        vvid = next(self.vvar_id_ctr)
+        vvid = self.next_vvar_id()
         self.def_to_vvid[thing] = vvid
         return vvid
 

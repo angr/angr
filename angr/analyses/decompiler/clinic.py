@@ -140,6 +140,7 @@ class Clinic(Analysis):
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
+        self._vvar_id_start = 0
 
         # inlining help
         self._sp_shift = sp_shift
@@ -1169,15 +1170,25 @@ class Clinic(Analysis):
     @timethis
     def _transform_to_ssa_level0(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         ssailification = self.project.analyses.Ssailification(
-            self.function, ail_graph, ail_manager=self._ail_manager, ssa_stackvars=False
+            self.function,
+            ail_graph,
+            ail_manager=self._ail_manager,
+            ssa_stackvars=False,
+            vvar_id_start=self._vvar_id_start,
         )
+        self._vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
 
     @timethis
     def _transform_to_ssa_level1(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         ssailification = self.project.analyses.Ssailification(
-            self.function, ail_graph, ail_manager=self._ail_manager, ssa_stackvars=True
+            self.function,
+            ail_graph,
+            ail_manager=self._ail_manager,
+            ssa_stackvars=True,
+            vvar_id_start=self._vvar_id_start,
         )
+        self._vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
 
     @timethis

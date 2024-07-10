@@ -182,7 +182,7 @@ class ExpressionUseFinder(AILBlockWalker):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, ailment.Register) and expr.variable is not None:
+        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.variable is not None:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
                 if block is not None:
                     self.uses[expr.variable].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
@@ -230,7 +230,8 @@ class ExpressionCounter(SequenceWalker):
     def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
         if (
             isinstance(stmt, ailment.Stmt.Assignment)
-            and isinstance(stmt.dst, ailment.Expr.Register)
+            and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+            and stmt.dst.was_reg
             and stmt.dst.variable is not None
         ):
             u = self._u(stmt.dst.variable)
@@ -249,7 +250,8 @@ class ExpressionCounter(SequenceWalker):
                 )
         if (
             isinstance(stmt, ailment.Stmt.Call)
-            and isinstance(stmt.ret_expr, ailment.Expr.Register)
+            and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
+            and stmt.ret_expr.was_reg
             and stmt.ret_expr.variable is not None
         ):
             u = self._u(stmt.ret_expr.variable)
@@ -354,7 +356,8 @@ class ExpressionReplacer(AILBlockWalker):
         for idx, stmt_ in enumerate(expr.stmts):
             if (
                 isinstance(stmt_, Assignment)
-                and isinstance(stmt_.dst, ailment.Expr.Register)
+                and isinstance(stmt_.dst, ailment.Expr.VirtualVariable)
+                and stmt_.dst.was_reg
                 and stmt_.dst.variable is not None
             ) and stmt_.dst.variable in self._assignments:
                 # remove this statement
@@ -414,7 +417,7 @@ class ExpressionReplacer(AILBlockWalker):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, ailment.Register) and expr.variable is not None:
+        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.variable is not None:
             unified_var = self._u(expr.variable)
             if unified_var in self._uses:
                 replace_with, _ = self._assignments[unified_var]
@@ -449,7 +452,8 @@ class ExpressionFolder(SequenceWalker):
         for stmt in node.statements:
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
-                and isinstance(stmt.dst, ailment.Expr.Register)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
                 and stmt.dst.variable is not None
             ):
                 unified_var = self._u(stmt.dst.variable)
@@ -458,7 +462,8 @@ class ExpressionFolder(SequenceWalker):
                     continue
             if (
                 isinstance(stmt, ailment.Stmt.Call)
-                and isinstance(stmt.ret_expr, ailment.Expr.Register)
+                and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
+                and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None
             ):
                 unified_var = self._u(stmt.ret_expr.variable)

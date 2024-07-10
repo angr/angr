@@ -37,6 +37,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         phiid_to_loc: dict[int, tuple[int, int | None]],
         stackvar_locs: dict[int, int],
         ail_manager,
+        vvar_id_start: int = 0,
     ):
         self.project = project
         self._function = func
@@ -58,6 +59,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             phiid_to_loc=self._phiid_to_loc,
             stackvar_locs=self._stackvar_locs,
             ail_manager=ail_manager,
+            vvar_id_start=vvar_id_start,
         )
 
         self._visited_blocks: set[Any] = set()
@@ -68,6 +70,10 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         self.def_to_vvid: dict[Expression, int] = self._engine_ail.def_to_vvid
         self.out_graph = self._make_new_graph(ail_graph)
+
+    @property
+    def max_vvar_id(self) -> int | None:
+        return self._engine_ail.current_vvar_id
 
     def _make_new_graph(self, old_graph: networkx.DiGraph) -> networkx.DiGraph:
         new_graph = networkx.DiGraph()
@@ -108,7 +114,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
-                        next(self._engine_ail.vvar_id_ctr),
+                        self._engine_ail.next_vvar_id(),
                         reg_bits,
                         VirtualVariableCategory.REGISTER,
                         oident=reg_offset,
@@ -124,7 +130,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
-                        next(self._engine_ail.vvar_id_ctr),
+                        self._engine_ail.next_vvar_id(),
                         stack_size * self.project.arch.byte_width,
                         VirtualVariableCategory.STACK,
                         oident=stack_offset,

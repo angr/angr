@@ -285,17 +285,13 @@ class AILSimplifier(Analysis):
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
                         r, new_block = False, None
                         if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
-                            tags = dict(stmt.dst.tags)
-                            tags["reg_name"] = self.project.arch.translate_register_name(
-                                def_.atom.reg_offset, size=to_size
-                            )
-                            tags["write_size"] = stmt.dst.size
-                            new_assignment_dst = Register(
+                            new_assignment_dst = VirtualVariable(
                                 stmt.dst.idx,
-                                None,
-                                def_.atom.reg_offset,
+                                stmt.dst.varid,
                                 to_size * self.project.arch.byte_width,
-                                **tags,
+                                category=def_.atom.category,
+                                oident=def_.atom.oident,
+                                **stmt.dst.tags,
                             )
                             new_assignment_src = Convert(
                                 stmt.src.idx,  # FIXME: This is a hack
@@ -322,12 +318,13 @@ class AILSimplifier(Analysis):
                                 tags["reg_name"] = self.project.arch.translate_register_name(
                                     def_.atom.reg_offset, size=to_size
                                 )
-                                new_retexpr = Register(
+                                new_retexpr = VirtualVariable(
                                     stmt.ret_expr.idx,
-                                    None,
-                                    def_.atom.reg_offset,
+                                    stmt.ret_expr.varid,
                                     to_size * self.project.arch.byte_width,
-                                    **tags,
+                                    category=def_.atom.category,
+                                    oident=def_.atom.oident,
+                                    **stmt.ret_expr.tags,
                                 )
                                 r, new_block = BlockSimplifier._replace_and_build(
                                     the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
@@ -339,7 +336,11 @@ class AILSimplifier(Analysis):
 
                     # replace all uses if necessary
                     for use_loc, (use_type, use_expr_tpl) in use_exprs:
-                        if isinstance(use_expr_tpl[0], Register) and to_size == use_expr_tpl[0].size:
+                        if (
+                            isinstance(use_expr_tpl[0], VirtualVariable)
+                            and use_expr_tpl[0].was_reg
+                            and to_size == use_expr_tpl[0].size
+                        ):
                             # don't replace registers to the same registers
                             continue
 
@@ -349,16 +350,13 @@ class AILSimplifier(Analysis):
                         if use_type in {"expr", "mask", "convert"}:
                             # the first used expr
                             use_expr_0 = use_expr_tpl[0]
-                            tags = dict(use_expr_0.tags)
-                            tags["reg_name"] = self.project.arch.translate_register_name(
-                                def_.atom.reg_offset, size=to_size
-                            )
-                            new_use_expr_0 = Register(
+                            new_use_expr_0 = VirtualVariable(
                                 use_expr_0.idx,
-                                None,
-                                def_.atom.reg_offset,
+                                def_.atom.varid,
                                 to_size * self.project.arch.byte_width,
-                                **tags,
+                                category=def_.atom.category,
+                                oident=def_.atom.oident,
+                                **use_expr_0.tags,
                             )
 
                             # the second used expr (if it exists)
@@ -413,16 +411,11 @@ class AILSimplifier(Analysis):
                                 new_block = None
                         elif use_type == "binop-convert":
                             use_expr_0 = use_expr_tpl[0]
-                            tags = dict(use_expr_0.tags)
-                            tags["reg_name"] = self.project.arch.translate_register_name(
-                                def_.atom.reg_offset, size=to_size
-                            )
-                            new_use_expr_0 = Register(
+                            new_use_expr_0 = VirtualVariable(
                                 use_expr_0.idx,
-                                None,
-                                def_.atom.reg_offset,
+                                def_.atom.varid,
                                 to_size * self.project.arch.byte_width,
-                                **tags,
+                                **use_expr_0.tags,
                             )
 
                             use_expr_1: BinaryOp = use_expr_tpl[1]
