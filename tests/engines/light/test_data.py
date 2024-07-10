@@ -19,7 +19,8 @@ class TestSpOffset(TestCase):
         sp_offset_expr = sp - 0x10
         sp_offset = test.extract_offset_to_sp(sp_offset_expr)
 
-        self.assertEqual(sp_offset, 0xfffffffffffffff0)
+        self.assertEqual(sp_offset, 0xFFFFFFFFFFFFFFF0)
+
 
 if __name__ == "__main__":
     main()
