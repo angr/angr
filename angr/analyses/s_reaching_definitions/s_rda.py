@@ -5,7 +5,7 @@ from collections import defaultdict
 import logging
 
 from ailment.block import Block
-from ailment.statement import Assignment, Call, Return
+from ailment.statement import Assignment, Call
 from ailment.expression import VirtualVariable, Tmp, Expression
 
 from angr.utils.graph import GraphUtils
