@@ -752,9 +752,7 @@ class ConditionProcessor:
                     f"ailexpr_{repr(condition)}-{condition.variable.ident}", condition.bits, explicit_name=True
                 )
             else:
-                var = claripy.BVS(
-                    f"ailexpr_{repr(condition)}-{condition.idx}", condition.bits, explicit_name=True
-                )
+                var = claripy.BVS(f"ailexpr_{repr(condition)}-{condition.idx}", condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Convert):
