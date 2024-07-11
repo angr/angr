@@ -519,8 +519,9 @@ class PropagatorVEXState(PropagatorState):
 
     def load_register(self, offset, size):
         # TODO: Fix me
-        if size != self.gpr_size:
-            return self.top(size * self.arch.byte_width).annotate(RegisterAnnotation(offset, size))
+        # load register even if size != self.gpr_size
+        # if size != self.gpr_size:
+        #     return self.top(size * self.arch.byte_width).annotate(RegisterAnnotation(offset, size))
 
         try:
             v = self._registers.load(offset, size=size)
