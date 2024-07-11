@@ -753,7 +753,7 @@ class ConditionProcessor:
                 )
             else:
                 var = claripy.BVS(
-                    "ailexpr_%s-%d" % (repr(condition), condition.idx), condition.bits, explicit_name=True
+                    f"ailexpr_{repr(condition)}-{condition.idx}", condition.bits, explicit_name=True
                 )
             self._condition_mapping[var.args[0]] = condition
             return var
