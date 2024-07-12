@@ -479,7 +479,6 @@ class PropagatorVEXState(PropagatorState):
             )
         elif reg_values:
             for reg, value in reg_values.items():
-                import ipdb; ipdb.set_trace()
                 state.store_register(
                     project.arch.registers[reg][0],
                     project.arch.registers[reg][1],
