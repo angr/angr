@@ -53,7 +53,7 @@ class AllocSimplifier(OptimizationPass):
     def _try_simplify_alloc_block(self):
         if len(self.state.alloc_call.args) >= 1:
             alloc_size = extract_value(self.state.alloc_call.args[0])
-            alloc_align = None
+            alloc_align = 1
             if len(self.state.alloc_call.args) >= 2:
                 alloc_align = extract_value(self.state.alloc_call.args[1])
             self.state.alloc_size = alloc_size
@@ -98,64 +98,60 @@ class AllocSimplifier(OptimizationPass):
         self.state.init_bytes = init_bytes
         self.state.new_init_statements = new_statements
 
-    def _try_simplify_vec(self):
+    def _try_simplify_vec_like(self):
         ret_expr = self.state.alloc_call.ret_expr
-        vec_var, vec_var_base, vec_var_offset = None, None, 0
-        vec_length, vec_capacity = None, None
-        tmp_new_init_statements = []
+        alloc_var, alloc_base, alloc_offset = None, None, 0
+        alloc_length, alloc_capacity = None, None
+        new_init_statements = []
         for stmt in self.state.new_init_statements:
             discard = False
-            if isinstance(stmt, ailment.statement.Store):
+            if isinstance(stmt, ailment.statement.Store) and not (alloc_var and alloc_length and alloc_capacity):
+                addr = stmt.addr
+                data = stmt.data
                 # Identify variable (with base and offset)
                 # Variable can be a stack base offset or register
-                if vec_var is None:
-                    if stmt.data.likes(ret_expr):
-                        if isinstance(stmt.addr, ailment.expression.StackBaseOffset):
-                            vec_var = stmt.addr
-                            vec_var_base = stmt.addr.base
-                            vec_var_offset = stmt.addr.offset
-                            discard = True
-                        elif isinstance(stmt.addr, ailment.expression.Register):
-                            vec_var = stmt.addr
-                            vec_var_base = stmt.addr.reg_offset
-                            vec_var_offset = 0
-                            discard = True
-                # After the variable is identified, search for other fields (length and capacity)
-                else:
-                    addr = stmt.addr
-                    data = stmt.data
-                    # Infer alloc_align if it's not available
-                    if isinstance(data, ailment.expression.Const) and data.value * self.state.alloc_align == len(
-                        self.state.init_bytes
+                if data.likes(ret_expr):
+                    if isinstance(stmt.addr, ailment.expression.StackBaseOffset):
+                        alloc_var = stmt.addr
+                        alloc_base = stmt.addr.base
+                        alloc_offset = stmt.addr.offset
+                        discard = True
+                    elif isinstance(stmt.addr, ailment.expression.Register):
+                        alloc_var = stmt.addr
+                        alloc_base = stmt.addr.reg_offset
+                        alloc_offset = 0
+                        discard = True
+                # Search for other fields (length and capacity)
+                elif isinstance(data, ailment.expression.Const) and data.value * self.state.alloc_align == len(
+                    self.state.init_bytes
+                ):
+                    data = data.value
+                    base, offset = None, None
+                    if isinstance(addr, ailment.expression.StackBaseOffset):
+                        base = addr.base
+                        offset = addr.offset
+                    elif (
+                        isinstance(addr, ailment.expression.BinaryOp)
+                        and addr.op == "Add"
+                        and isinstance(addr.operands[0], ailment.expression.Register)
+                        and isinstance(addr.operands[1], ailment.expression.Const)
                     ):
-                        data = data.value
-                        base, offset = None, None
-                        if isinstance(addr, ailment.expression.StackBaseOffset):
-                            base = addr.base
-                            offset = addr.offset
-                        elif (
-                            isinstance(addr, ailment.expression.BinaryOp)
-                            and addr.op == "Add"
-                            and isinstance(addr.operands[0], ailment.expression.Register)
-                            and isinstance(addr.operands[1], ailment.expression.Const)
-                        ):
-                            base = addr.operands[0].reg_offset
-                            offset = addr.operands[1].value
-                        if base == vec_var_base:
-                            if vec_length is None and offset == vec_var_offset + self.project.arch.bytes:
-                                vec_length = data
-                                discard = True
-                            elif vec_capacity is None and offset == vec_var_offset + self.project.arch.bytes * 2:
-                                vec_capacity = data
-                                discard = True
+                        base = addr.operands[0].reg_offset
+                        offset = addr.operands[1].value
+                    if not alloc_length:
+                        alloc_length = data
+                        discard = True
+                    else:
+                        alloc_capacity = data
+                        discard = True
             if not discard:
-                tmp_new_init_statements.append(stmt)
-        if not vec_length or not vec_capacity:
+                new_init_statements.append(stmt)
+        if not alloc_length or not alloc_capacity:
             return
         if self.state.alloc_align == 1:
             try:
                 decoded_str = self.state.init_bytes.decode("utf-8")
-                addr = vec_var
+                addr = alloc_var
                 if isinstance(addr, ailment.expression.StackBaseOffset):
                     addr = ailment.expression.StackBaseOffset(
                         addr.idx, self.project.arch.bits * 3, addr.offset, **addr.tags
@@ -169,7 +165,7 @@ class AllocSimplifier(OptimizationPass):
                     ret_expr=addr,
                     **self.state.alloc_call.tags,
                 )
-                self.state.new_init_statements = tmp_new_init_statements
+                self.state.new_init_statements = new_init_statements
                 self._do_simplify(new_stmt)
                 return
             except UnicodeDecodeError:
@@ -180,7 +176,7 @@ class AllocSimplifier(OptimizationPass):
             int.from_bytes(self.state.init_bytes[i : i + self.state.alloc_align], endian)
             for i in range(0, len(self.state.init_bytes), self.state.alloc_align)
         ]
-        addr = vec_var
+        addr = alloc_var
         data = Vec(addr.idx, addr.variable, 0, self.project.arch.bits * 3, elements)
         new_stmt = ailment.Stmt.Store(
             addr.idx,
@@ -190,11 +186,11 @@ class AllocSimplifier(OptimizationPass):
             self.project.arch.memory_endness,
             ins_addr=self.state.alloc_call.ins_addr,
         )
-        self.state.new_init_statements = tmp_new_init_statements
+        self.state.new_init_statements = new_init_statements
         self._do_simplify(new_stmt)
 
     def _try_simplify(self):
-        funcs = [self._try_simplify_vec]
+        funcs = [self._try_simplify_vec_like]
         for func in funcs:
             func()
 
