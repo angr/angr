@@ -7,7 +7,11 @@ from ...utils.library import get_rust_function_name
 
 def extract_callee(obj, kb):
     if isinstance(obj, ailment.Block) and obj.statements:
-        return extract_callee(obj.statements[-1], kb)
+        for stmt in reversed(obj.statements):
+            if isinstance(stmt, Call):
+                return extract_callee(stmt, kb)
+            if not isinstance(stmt, Label) or not isinstance(stmt, Jump):
+                break
     if isinstance(obj, Call) and isinstance(obj.target, Const):
         callee_addr = obj.target.value
         if callee_addr in kb.functions:

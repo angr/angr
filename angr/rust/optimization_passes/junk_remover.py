@@ -1,14 +1,27 @@
-from ...analyses.decompiler.ailgraph_walker import RemoveNodeNotice, AILGraphWalker
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from collections import defaultdict
+
+import ailment
+
+from .base import TransformationPass
+from ..stats import Stats
+from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from .utils import *
-from ...utils.library import get_rust_function_name
 
 
-class JunkRemover(OptimizationPass):
+DECONSTRUCTION_FUNCTIONS = ("__rust_dealloc", "close")
+DECONSTRUCTION_FUNCTION_PREFIXES = "core::ptr::drop_in_place"
+NON_RETURNING_FUNCTIONS = (
+    "alloc::raw_vec::handle_error",
+    "alloc::alloc::handle_alloc_error",
+    "core::panicking::panic_bounds_check",
+)
+
+
+class JunkRemover(TransformationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
-    NAME = "Remove redundant statements"
+    NAME = "Remove unnecessary code in Rust AIL CFG"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -18,137 +31,123 @@ class JunkRemover(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _handle_handle_alloc_error(self, block):
-        pass
+    def _is_potential_junk_block(self, block):
+        for stmt in reversed(block.statements):
+            if any(
+                pred.statements
+                and isinstance(pred.statements[-1], Call)
+                and not (
+                    self.match_call(pred, DECONSTRUCTION_FUNCTIONS)
+                    or self.match_call(pred, DECONSTRUCTION_FUNCTION_PREFIXES, match_prefix=True)
+                )
+                for pred in self._graph.predecessors(block)
+            ):
+                return False
+            if (
+                isinstance(stmt, Label)
+                or isinstance(stmt, Jump)
+                or isinstance(stmt, ConditionalJump)
+                or isinstance(stmt, Assignment)
+                or isinstance(stmt, Return)
+            ):
+                continue
+            elif self.match_call(stmt, DECONSTRUCTION_FUNCTIONS) or self.match_call(
+                stmt, DECONSTRUCTION_FUNCTION_PREFIXES, match_prefix=True
+            ):
+                continue
+            else:
+                return False
+        return True
 
-    def _handle_dealloc(self, block):
-        pass
+    def _find_epilogue_blocks(self, return_blocks):
+        all_epilogue_blocks = set()
+        queue = list(return_blocks)
+        visited = set()
+        while len(queue):
+            block = queue.pop(0)
+            if block in visited:
+                continue
+            visited.add(block)
+            if self._is_potential_junk_block(block):
+                all_epilogue_blocks.add(block)
+                for pred in self._graph.predecessors(block):
+                    queue.append(pred)
+        updated = True
+        while updated:
+            updated = False
+            for block in set(all_epilogue_blocks):
+                if any(succ not in all_epilogue_blocks for succ in self._graph.successors(block)):
+                    all_epilogue_blocks.remove(block)
+                    updated = True
 
-    def _handle_unwrap_failed(self, block):
-        pass
+        epilogue_blocks = defaultdict(set)
+        for return_block in return_blocks:
+            queue = [return_block]
+            visited = set()
+
+            while len(queue):
+                block = queue.pop(0)
+                if block in visited:
+                    continue
+                visited.add(block)
+                epilogue_blocks[return_block].add(block)
+                for pred in self._graph.predecessors(block):
+                    succs = self._graph.successors(pred)
+                    if pred in all_epilogue_blocks and succs and all(b in all_epilogue_blocks for b in succs):
+                        queue.append(pred)
+        return epilogue_blocks
+
+    def _simplify_non_returning_calls(self):
+        removed = set()
+        for block in self._graph.nodes:
+            if (
+                block.statements
+                and isinstance(block.statements[-1], ConditionalJump)
+                and len(succs := list(self._graph.successors(block))) == 2
+            ):
+                block0, block1 = succs[0], succs[1]
+                if self.match_call(block0, NON_RETURNING_FUNCTIONS):
+                    self.replace_jump_target(block, block0, block1)
+                    removed.add(block0)
+                elif self.match_call(block1, NON_RETURNING_FUNCTIONS):
+                    self.replace_jump_target(block, block1, block0)
+                    removed.add(block1)
+        for block in removed:
+            self._graph.remove_node(block)
+
+    def _simlify_epilogue(self):
+        return_blocks = set()
+
+        for block in self._graph.nodes:
+            if block.statements and isinstance(block.statements[-1], Return):
+                return_blocks.add(block)
+
+        epilogue_blocks = self._find_epilogue_blocks(return_blocks)
+
+        redirected = set()
+
+        for block in self._graph.nodes:
+            for return_block, bad_blocks in epilogue_blocks.items():
+                if block not in bad_blocks and block.statements:
+                    succs = list(self._graph.successors(block))
+                    if succs and all(succ in bad_blocks for succ in succs):
+                        self.replace_jump_target(block, None, return_block)
+                        redirected.add(block)
+                    else:
+                        for succ in list(self._graph.successors(block)):
+                            if succ in bad_blocks:
+                                self.replace_jump_target(block, succ, return_block)
+                                redirected.add(block)
+
+        Stats.redirected_blocks += len(redirected)
+
+        for return_block, bad_blocks in epilogue_blocks.items():
+            for bad_block in bad_blocks:
+                if bad_block not in return_blocks:
+                    Stats.removed_epilogue_blocks += 1
+                    self._graph.remove_node(bad_block)
 
     def _analyze(self, cache=None):
-        def handle_node(node: ailment.Block):
-            removed = False
-            if node.statements:
-                func = extract_callee(node.statements[-1], self.kb)
-                if func:
-                    demangled_name = get_rust_function_name(func.demangled_name)
-                    if demangled_name in JunkHandlers:
-                        removed = True
-                        handler = JunkHandlers[demangled_name]
-                        handler(self, node)
-            if removed:
-                preds = list(pred for pred in self._graph.predecessors(node) if pred is not node)
-                succs = list(succ for succ in self._graph.successors(node) if succ is not node)
-                if len(preds) == 1 and len(succs) == 0:
-                    pred = preds[0]
-                    value_updated = False
-                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                        last_stmt = pred.statements[-1]
-                        if (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and last_stmt.true_target.value == node.addr
-                        ):
-                            value_updated = True
-                            last_stmt = ailment.Stmt.Jump(
-                                last_stmt.idx,
-                                last_stmt.true_target,
-                                last_stmt.true_target_idx,
-                                ins_addr=last_stmt.ins_addr,
-                            )
-                        elif (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and last_stmt.false_target.value == node.addr
-                        ):
-                            value_updated = True
-                            last_stmt = ailment.Stmt.Jump(
-                                last_stmt.idx,
-                                last_stmt.false_target,
-                                last_stmt.false_target_idx,
-                                ins_addr=last_stmt.ins_addr,
-                            )
-                        pred.statements[-1] = last_stmt
-                        if value_updated:
-                            raise RemoveNodeNotice()
-                elif len(preds) == 1 and len(succs) == 1:
-                    pred = preds[0]
-                    succ = succs[0]
-                    value_updated = False
-                    # update the last statement of pred
-                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                        last_stmt = pred.statements[-1]
-                        if (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and last_stmt.true_target.value == node.addr
-                        ):
-                            last_stmt.true_target.value = succ.addr
-                            value_updated = True
-                        if (
-                            isinstance(last_stmt.false_target, ailment.Expr.Const)
-                            and last_stmt.false_target.value == node.addr
-                        ):
-                            last_stmt.false_target.value = succ.addr
-                            value_updated = True
-                        if (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and isinstance(last_stmt.false_target, ailment.Expr.Const)
-                            and last_stmt.true_target.value == last_stmt.false_target.value
-                        ):
-                            last_stmt = ailment.Stmt.Jump(
-                                last_stmt.idx,
-                                last_stmt.true_target,
-                                last_stmt.true_target_idx,
-                                ins_addr=last_stmt.ins_addr,
-                            )
-                        pred.statements[-1] = last_stmt
-
-                    if value_updated:
-                        self._graph.add_edge(pred, succ)
-                        raise RemoveNodeNotice()
-                elif len(preds) >= 1 and len(succs) == 1:
-                    succ = succs[0]
-                    branch_updates = 0
-                    for pred in preds:
-                        # test how many last statements of pred can potentially be updated
-                        if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                            last_stmt = pred.statements[-1]
-                            if (
-                                isinstance(last_stmt.true_target, ailment.Expr.Const)
-                                and last_stmt.true_target.value == node.addr
-                            ):
-                                branch_updates += 1
-                            if (
-                                isinstance(last_stmt.false_target, ailment.Expr.Const)
-                                and last_stmt.false_target.value == node.addr
-                            ):
-                                branch_updates += 1
-
-                    if branch_updates == len(preds):
-                        # actually do the update
-                        for pred in preds:
-                            self._graph.add_edge(pred, succ)
-                            if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                                last_stmt = pred.statements[-1]
-                                if (
-                                    isinstance(last_stmt.true_target, ailment.Expr.Const)
-                                    and last_stmt.true_target.value == node.addr
-                                ):
-                                    last_stmt.true_target.value = succ.addr
-                                if (
-                                    isinstance(last_stmt.false_target, ailment.Expr.Const)
-                                    and last_stmt.false_target.value == node.addr
-                                ):
-                                    last_stmt.false_target.value = succ.addr
-                        raise RemoveNodeNotice()
-                elif not preds or not succs:
-                    raise RemoveNodeNotice()
-
-        AILGraphWalker(self._graph, handle_node, replace_nodes=True).walk()
-
-
-JunkHandlers = {
-    "alloc::alloc::handle_alloc_error": JunkRemover._handle_handle_alloc_error,
-    "__rust_dealloc": JunkRemover._handle_dealloc,
-    "core::result::unwrap_failed": JunkRemover._handle_unwrap_failed,
-}
+        Stats.function_numbers += 1
+        self._simplify_non_returning_calls()
+        self._simlify_epilogue()
