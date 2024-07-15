@@ -76,6 +76,7 @@ class ReachingDefinitionsAnalysis(
         track_liveness: bool = True,
         func_addr: int | None = None,
         element_limit: int = 5,
+        merge_into_tops: bool = True,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -110,6 +111,10 @@ class ReachingDefinitionsAnalysis(
         :param track_liveness:                  Whether to track liveness information. This can consume
                                                 sizeable amounts of RAM on large functions. (e.g. ~15GB for a function
                                                 with 4k nodes)
+        :param merge_into_tops:                 Merge known values into TOP if TOP is present.
+                                                If True: {TOP} V {0xabc} = {TOP}
+                                                If False: {TOP} V {0xabc} = {TOP, 0xabc}
+
 
         """
 
@@ -134,6 +139,7 @@ class ReachingDefinitionsAnalysis(
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
         self._element_limit = element_limit
+        self._merge_into_tops = merge_into_tops
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
@@ -473,6 +479,7 @@ class ReachingDefinitionsAnalysis(
                 canonical_size=self._canonical_size,
                 initializer=self._state_initializer,
                 element_limit=self._element_limit,
+                merge_into_tops=self._merge_into_tops,
             )
 
     # pylint: disable=no-self-use,arguments-differ

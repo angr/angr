@@ -128,6 +128,7 @@ class LiveDefinitions:
         tmp_uses=None,
         other_uses=None,
         element_limit=5,
+        merge_into_tops: bool = True,
     ):
         self.project: Optional["Project"] = None
         self.arch = arch
@@ -143,6 +144,7 @@ class LiveDefinitions:
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 endness=self.arch.register_endness,
                 element_limit=element_limit,
+                merge_into_top=merge_into_tops,
             )
             if registers is None
             else registers
@@ -155,6 +157,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_into_top=merge_into_tops,
             )
             if stack is None
             else stack
@@ -167,6 +170,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_into_top=merge_into_tops,
             )
             if memory is None
             else memory
@@ -179,6 +183,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_into_top=merge_into_tops,
             )
             if heap is None
             else heap

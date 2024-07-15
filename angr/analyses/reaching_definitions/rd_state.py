@@ -93,6 +93,7 @@ class ReachingDefinitionsState:
         all_definitions: set[Definition] | None = None,
         initializer: Optional["RDAStateInitializer"] = None,
         element_limit: int = 5,
+        merge_into_tops: bool = True,
     ):
         # handy short-hands
         self.codeloc = codeloc
@@ -130,6 +131,7 @@ class ReachingDefinitionsState:
                 track_tmps=self._track_tmps,
                 canonical_size=canonical_size,
                 element_limit=element_limit,
+                merge_into_tops=merge_into_tops,
             )
             if self.analysis is not None:
                 self.live_definitions.project = self.analysis.project
