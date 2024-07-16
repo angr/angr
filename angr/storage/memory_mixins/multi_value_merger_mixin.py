@@ -7,8 +7,15 @@ from . import MemoryMixin
 
 class MultiValueMergerMixin(MemoryMixin):
     def __init__(
-        self, *args, element_limit=5, annotation_limit=256, top_func=None, is_top_func=None, phi_maker=None,
-            merge_into_top=True, **kwargs
+        self,
+        *args,
+        element_limit=5,
+        annotation_limit=256,
+        top_func=None,
+        is_top_func=None,
+        phi_maker=None,
+        merge_into_top=True,
+        **kwargs,
     ):
         self._element_limit = element_limit
         self._annotation_limit = annotation_limit
