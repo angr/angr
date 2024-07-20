@@ -1,7 +1,5 @@
 from collections import defaultdict
 
-import ailment
-
 from .base import TransformationPass
 from ..stats import Stats
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
@@ -29,7 +27,8 @@ class JunkRemover(TransformationPass):
         self.analyze()
 
     def _check(self):
-        return self.project.is_rust_binary, None
+        # return self.project.is_rust_binary, None
+        return False, None
 
     def _is_potential_junk_block(self, block):
         for stmt in reversed(block.statements):
@@ -103,9 +102,9 @@ class JunkRemover(TransformationPass):
             if (
                 block.statements
                 and isinstance(block.statements[-1], ConditionalJump)
-                and len(succs := list(self._graph.successors(block))) == 2
+                and self.num_successors(block) == 2
             ):
-                block0, block1 = succs[0], succs[1]
+                block0, block1 = self.get_two_successors(block)
                 if self.match_call(block0, NON_RETURNING_FUNCTIONS):
                     self.replace_jump_target(block, block0, block1)
                     removed.add(block0)

@@ -90,3 +90,12 @@ class TransformationPass(OptimizationPass):
         else:
             return
         self._graph.add_edge(block, new_target)
+
+    def num_successors(self, block):
+        return len(list(self._graph.successors(block)))
+
+    def get_one_successor(self, block):
+        return next(self._graph.successors(block))
+
+    def get_two_successors(self, block):
+        return tuple(self._graph.successors(block))
