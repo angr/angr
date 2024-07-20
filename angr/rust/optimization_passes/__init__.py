@@ -5,6 +5,7 @@ from .junk_remover import JunkRemover
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
 from .callsite_maker import CallsiteMaker
+from .ownership_simplifier import OwnershipSimplifier
 
 _all_optimization_passes.extend(
     [
@@ -14,5 +15,6 @@ _all_optimization_passes.extend(
         # (StringSimplifier, True),
         (AllocSimplifier, True),
         # (TypeCorrector, True),
+        (OwnershipSimplifier, True),
     ]
 )
