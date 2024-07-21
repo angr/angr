@@ -40,7 +40,7 @@ from ....rust.sim_type import (
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
-from ....utils.library import get_rust_function_name
+from ....rust.utils.library import demangle
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ..utils import structured_node_is_simple_return
 from ....errors import UnsupportedNodeTypeError
@@ -550,7 +550,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         yield "fn ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
-            normalized_name = get_rust_function_name(self.demangled_name)
+            normalized_name = demangle(self.name)
         else:
             normalized_name = self.name
         yield normalized_name, self
@@ -1275,7 +1275,7 @@ class RustFunctionCall(RustStatement, RustExpression):
 
         if self.callee_func is not None:
             if self.callee_func.demangled_name and self.show_demangled_name:
-                func_name = get_rust_function_name(self.callee_func.demangled_name)
+                func_name = demangle(self.callee_func.name)
             else:
                 func_name = self.callee_func.name
             yield func_name, self
@@ -2148,7 +2148,7 @@ class RustConstant(RustExpression):
                     yield str(v), self
                     return
                 elif isinstance(v, Function):
-                    yield get_rust_function_name(v.demangled_name), self
+                    yield demangle(v.name), self
                     return
 
         if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
