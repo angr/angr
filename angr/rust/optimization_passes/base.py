@@ -4,7 +4,7 @@ from ailment import Block, Const
 from ailment.statement import Call, Statement, Jump, ConditionalJump
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ...utils.library import get_rust_function_name
+from ...rust.utils.library import demangle
 
 
 class TransformationPass(OptimizationPass):
@@ -19,7 +19,7 @@ class TransformationPass(OptimizationPass):
             stmt = block_or_stmt.statements[-1]
         if isinstance(stmt, Call) and isinstance(stmt.target, Const) and stmt.target.value in self.kb.functions:
             func = self.kb.functions[stmt.target.value]
-            name = get_rust_function_name(func.demangled_name)
+            name = demangle(func.name)
             if match_prefix:
                 return any(name.startswith(func_name) for func_name in func_list)
             return name in func_list
