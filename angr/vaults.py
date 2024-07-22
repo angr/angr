@@ -88,7 +88,6 @@ class Vault(collections.abc.MutableMapping):
             claripy.ast.BV,
             claripy.ast.FP,
             claripy.ast.Bool,
-            claripy.ast.Int,
             claripy.ast.Bits,
         }
         self.module_dedup = set()  # {'claripy', 'angr', 'archinfo', 'pyvex' } # cle causes recursion
