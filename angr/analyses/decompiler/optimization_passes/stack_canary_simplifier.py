@@ -291,3 +291,74 @@ class StackCanarySimplifier(OptimizationPass):
             and isinstance(expr.addr.operands[1], ailment.Expr.Register)
             and expr.addr.operands[1].reg_offset == fs_reg_offset
         )
+
+
+class AARCH64StackCanarySimplifier(StackCanarySimplifier):
+    """
+    Remove stack canary checks from decompilation results for AARCH64.
+
+    FIXME: We should implement a more general solution so that we can support the symbols stripped.
+    """
+
+    ARCHES = ["AARCH64"]
+
+    def _is_stack_chk_guard_laod_expr(self, load_expr) -> bool:
+        """Check if the load expression is loading the global variable named `__stack_chk_guard`."""
+        if not isinstance(load_expr, ailment.Expr.Load):
+            return False
+        if not isinstance(load_expr.addr, ailment.Expr.Const):
+            return False
+        # Check if the address is the glaobal vraibale that named `__stack_chk_guard`
+        symbol = self.project.loader.find_symbol(load_expr.addr.value)
+        if symbol is not None and symbol.name == "__stack_chk_guard":
+            return True
+        return False
+
+    def _find_canary_init_stmt(self):
+        """Find the statement that initializes the stack canary."""
+        first_block = self._get_block(self._func.addr)
+        if first_block is None:
+            return None
+
+        # NOTE: If there is a statement that loads the stack canary from the global variable
+        # `__stack_chk_guard` and stores it to the stack, we consider it as the statement that
+        # initializes the stack canary. This is not a general solution, we should implement a more
+        # general solution so that we can support the symbols stripped.
+        for idx, stmt in enumerate(first_block.statements):
+            if (
+                isinstance(stmt, ailment.Stmt.Store)
+                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                and self._is_stack_chk_guard_laod_expr(stmt.data)
+            ):
+                return first_block, idx
+
+        return None
+
+    def _find_canary_comparison_stmt(self, block, canary_value_stack_offset):
+        """Find the statement that compares the stack canary with the value stored in the stack."""
+        for idx, stmt in enumerate(block.statements):
+            if not isinstance(stmt, ailment.Stmt.ConditionalJump):
+                continue
+
+            condition = stmt.condition
+            if not isinstance(condition, ailment.Expr.BinaryOp) or condition.op != "CmpNE":
+                continue
+
+            expr0, expr1 = condition.operands
+            if not isinstance(expr0, ailment.Expr.Load) or not isinstance(expr1, ailment.Expr.Load):
+                continue
+
+            if not (
+                (
+                    self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
+                    and self._is_stack_chk_guard_laod_expr(expr1)
+                )
+                or (
+                    self._is_stack_chk_guard_laod_expr(expr0)
+                    and self._is_stack_canary_load_expr(expr1, self.project.arch.bits, canary_value_stack_offset)
+                )
+            ):
+                continue
+
+            # Fanlly, we find the canary comparison statement by the above checks.
+            return idx
