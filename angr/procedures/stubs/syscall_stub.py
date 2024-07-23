@@ -11,8 +11,7 @@ class syscall(angr.SimProcedure):
 
         # code duplicated from ReturnUnconstrained
         size = self.prototype.returnty.size
-        # ummmmm do we really want to rely on this behavior?
-        if size is NotImplemented:
+        if size is None:
             return None
         else:
             return self.state.solver.Unconstrained(
