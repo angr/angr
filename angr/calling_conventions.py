@@ -1,6 +1,6 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 import logging
-from typing import Optional, Union
+from typing import Optional, Union, cast
 from collections import defaultdict
 
 import claripy
@@ -768,16 +768,16 @@ class SimCC:
         result = prototype if prototype is not None else SimTypeFunction([], charp)
         for arg in args[len(result.args) :]:
             if type(arg) in (int, bytes, PointerWrapper):
-                result.args.append(charp)
+                result.args += (charp,)
             elif type(arg) is float:
-                result.args.append(SimTypeDouble())
+                result.args += (SimTypeDouble(),)
             elif isinstance(arg, claripy.ast.BV):
-                result.args.append(SimTypeNum(len(arg), False))
+                result.args += (SimTypeNum(len(arg), False),)
             elif isinstance(arg, claripy.ast.FP):
                 if arg.sort == claripy.FSORT_FLOAT:
-                    result.args.append(SimTypeFloat())
+                    result.args += (SimTypeFloat(),)
                 elif arg.sort == claripy.FSORT_DOUBLE:
-                    result.args.append(SimTypeDouble())
+                    result.args += (SimTypeDouble(),)
                 else:
                     raise TypeError("WHAT kind of floating point is this")
             else:
@@ -797,6 +797,8 @@ class SimCC:
 
     def set_return_val(self, state, val, ty, stack_base=None, perspective_returned=False):
         loc = self.return_val(ty, perspective_returned=perspective_returned)
+        if loc is None:
+            raise ValueError("Cannot set return value - there is no return value location")
         loc.set_value(state, val, stack_base=stack_base)
 
     def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
@@ -919,7 +921,7 @@ class SimCC:
         TODO: support the stack_base parameter from setup_callsite...? Does that make sense in this context?
         Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
         """
-        if return_val is not None and not isinstance(prototype.returnty, SimTypeBottom):
+        if return_val is not None and prototype is not None and not isinstance(prototype.returnty, SimTypeBottom):
             self.set_return_val(state, return_val, prototype.returnty)
             # ummmmmmmm hack
             loc = self.return_val(prototype.returnty)
@@ -928,11 +930,11 @@ class SimCC:
 
         ret_addr = self.return_addr.get_value(state)
 
-        if state.arch.sp_offset is not None:
+        if state.arch.sp_offset is not None and prototype is not None:
             if force_callee_cleanup or self.CALLEE_CLEANUP:
                 session = self.arg_session(prototype.returnty)
                 if self.return_in_implicit_outparam(prototype.returnty):
-                    extra = [self.return_val(prototype.returnty).ptr_loc]
+                    extra = [cast(SimReferenceArgument, self.return_val(prototype.returnty)).ptr_loc]
                 else:
                     extra = []
                 state.regs.sp += self.stack_space(extra + [self.next_arg(session, x) for x in prototype.args])

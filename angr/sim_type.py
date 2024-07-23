@@ -146,7 +146,9 @@ class SimType:
     def _init_str(self):
         return f"NotImplemented({self.__class__.__name__})"
 
-    def c_repr(self, name=None, full=0, memo=None, indent: int | None = 0):  # pylint: disable=unused-argument
+    def c_repr(
+        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
         else:
@@ -540,9 +542,9 @@ class SimTypeChar(SimTypeReg):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
 
-        out = super().extract(state, addr, concrete)
+        out = state.memory.load(addr, 1, endness=state.arch.memory_endness)
         if concrete:
-            return bytes(cast(list[int], [out]))
+            return bytes(cast(list[int], [state.solver.eval(out)]))
         return out
 
     def _init_str(self):
