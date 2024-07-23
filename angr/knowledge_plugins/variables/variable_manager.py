@@ -7,8 +7,8 @@ import networkx
 
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
-from claripy.utils.orderedset import OrderedSet
 
+from angr.utils.orderedset import OrderedSet
 from ...protos import variables_pb2
 from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
