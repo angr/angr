@@ -24,6 +24,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes import (
     DUPLICATING_OPTS,
     LoweredSwitchSimplifier,
+    CrossJumpReverter,
     InlinedStringTransformationSimplifier,
     ReturnDuplicatorLow,
     ReturnDuplicatorHigh,
