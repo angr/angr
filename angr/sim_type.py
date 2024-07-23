@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
-from typing import Iterable, Literal, Optional, Any, List, Union, TYPE_CHECKING, cast, overload
+from typing import Literal, Optional, Any, Union, TYPE_CHECKING, cast, overload
+from collections.abc import Iterable
 import logging
 
 try:
@@ -541,7 +542,7 @@ class SimTypeChar(SimTypeReg):
 
         out = super().extract(state, addr, concrete)
         if concrete:
-            return bytes(cast(List[int], [out]))
+            return bytes(cast(list[int], [out]))
         return out
 
     def _init_str(self):
@@ -3173,7 +3174,7 @@ def _decl_to_type(
         else:
             variadic = False
         r = SimTypeFunction(
-            cast(List[SimType], argtyps),
+            cast(list[SimType], argtyps),
             _decl_to_type(decl.type, extra_types, arch=arch),
             arg_names=arg_names,
             variadic=variadic,
