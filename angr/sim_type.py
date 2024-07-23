@@ -1263,7 +1263,9 @@ class SimTypeFloat(SimTypeReg):
         return 32
 
     def extract(self, state, addr, concrete=False):
-        itype = claripy.fpToFP(super().extract(state, addr, False), self.sort)
+        itype = claripy.fpToFP(
+            state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness), self.sort
+        )
         if concrete:
             return state.solver.eval(itype)
         return itype
@@ -3415,10 +3417,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
         else:
             raise TypeError("Unknown type '%s'" % " ".join(key))
 
-        if not isinstance(t, SimCppClass):
-            raise AngrTypeError("Provided a definition for a C++ class that was not SimCppClass")
-
-        if unqualified_name != decl:
+        if unqualified_name != decl and isinstance(t, NamedTypeMixin):
             t = t.copy()
             t.name = decl  # pylint:disable=attribute-defined-outside-init
         return t
