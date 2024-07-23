@@ -7,7 +7,6 @@ import networkx
 from sortedcontainers import SortedDict
 
 import pyvex
-from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource, Hex, Coff, SRec, XBE
 from cle.backends import NamedRegion
 import archinfo
@@ -34,6 +33,7 @@ from angr.codenode import HookNode, BlockNode
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from angr.analyses import Analysis
 from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.utils.orderedset import OrderedSet
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 if TYPE_CHECKING:
