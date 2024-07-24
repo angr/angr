@@ -77,7 +77,8 @@ class SimEngineSSARewriting(
         new_stmt = super()._handle_Stmt(stmt)
         if new_stmt is not None:
             if type(new_stmt) is tuple:
-                map(self.state.append_statement, new_stmt)
+                for stmt_ in new_stmt:
+                    self.state.append_statement(stmt_)
             else:
                 self.state.append_statement(new_stmt)
         else:

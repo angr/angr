@@ -4,8 +4,18 @@ from typing import Any
 from collections import defaultdict
 
 from archinfo import Endness
-from ailment.expression import Const, Register, Load, StackBaseOffset, Convert, BinaryOp
-from ailment.statement import Store, ConditionalJump, Jump
+from ailment.expression import (
+    Const,
+    Register,
+    Load,
+    StackBaseOffset,
+    Convert,
+    BinaryOp,
+    VirtualVariable,
+    Phi,
+    VirtualVariableCategory,
+)
+from ailment.statement import Store, ConditionalJump, Jump, Assignment
 import claripy
 
 from angr.engines.light import SimEngineLightAILMixin
@@ -42,6 +52,7 @@ class InlinedStringTransformationState:
 
         self.registers = FasterMemory(memory_id="reg")
         self.memory = FasterMemory(memory_id="mem")
+        self.virtual_variables = {}
 
         self.registers.set_state(self)
         self.memory.set_state(self)
@@ -71,6 +82,14 @@ class InlinedStringTransformationState:
         except SimMemoryMissingError:
             return None
 
+    def vvar_store(self, vvar: VirtualVariable, value: claripy.Bits | None) -> None:
+        self.virtual_variables[vvar.varid] = value
+
+    def vvar_load(self, vvar: VirtualVariable) -> claripy.Bits | None:
+        if vvar.varid in self.virtual_variables:
+            return self.virtual_variables[vvar.varid]
+        return None
+
 
 class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     """
@@ -94,6 +113,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         self.finished: bool = False
 
         i = 0
+        self.last_pc = None
         self.pc = self.start
         while i < self.step_limit:
             if self.pc not in self.nodes:
@@ -125,10 +145,22 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         return None
 
     def _handle_Assignment(self, stmt):
-        if isinstance(stmt.dst, Register):
-            val = self._expr(stmt.src)
-            if isinstance(val, claripy.Bits):
-                self.state.reg_store(stmt.dst, val)
+        if isinstance(stmt.dst, VirtualVariable):
+            if stmt.dst.was_reg:
+                val = self._expr(stmt.src)
+                if isinstance(val, claripy.Bits):
+                    self.state.vvar_store(stmt.dst, val)
+            elif stmt.dst.was_stack:
+                addr = (stmt.dst.stack_offset + self.STACK_BASE) & self.MASK
+                val = self._expr(stmt.src)
+                if isinstance(val, claripy.ast.BV):
+                    self.state.mem_store(addr, val, self.arch.memory_endness)
+                    # log it
+                    for i in range(0, val.size() // self.arch.byte_width):
+                        byte_off = i
+                        if self.arch.memory_endness == Endness.LE:
+                            byte_off = val.size() // self.arch.byte_width - i - 1
+                        self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
     def _handle_Store(self, stmt):
         addr_and_type = self._process_address(stmt.addr)
@@ -146,12 +178,14 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                         self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
     def _handle_Jump(self, stmt):
+        self.last_pc = self.pc
         if isinstance(stmt.target, Const):
             self.pc = stmt.target.value
         else:
             self.pc = None
 
     def _handle_ConditionalJump(self, stmt):
+        self.last_pc = self.pc
         self.pc = None
         if isinstance(stmt.true_target, Const) and isinstance(stmt.false_target, Const):
             cond = self._expr(stmt.condition)
@@ -181,6 +215,27 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
 
     def _handle_Register(self, expr: Register):
         return self.state.reg_load(expr)
+
+    def _handle_VirtualVariable(self, expr: VirtualVariable):
+        if expr.was_stack:
+            addr = (expr.stack_offset + self.STACK_BASE) & self.MASK
+            v = self.state.mem_load(addr, expr.size, self.arch.memory_endness)
+            # log it
+            for i in range(0, expr.size):
+                byte_off = i
+                if self.arch.memory_endness == Endness.LE:
+                    byte_off = expr.size - i - 1
+                self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
+            return v
+        elif expr.was_reg:
+            return self.state.vvar_load(expr)
+        return None
+
+    def _handle_Phi(self, expr: Phi):
+        for src, vvar in expr.src_and_vvars:
+            if src[0] == self.last_pc:
+                return self.state.vvar_load(vvar)
+        return None
 
     def _handle_Convert(self, expr: Convert):
         v = self._expr(expr.operand)
@@ -291,17 +346,22 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             store_statements = []
             for off, stack_accesses in enumerate(desc.stack_accesses):
                 # the last element is the final storing statement
-                stack_addr = StackBaseOffset(None, self.project.arch.bits, desc.beginning_stack_offset + off)
                 new_value_ast = stack_accesses[-1][2]
                 new_value = Const(None, None, new_value_ast.concrete_value, self.project.arch.byte_width)
-                stmt = Store(
+                stmt = Assignment(
                     None,
-                    stack_addr,
+                    VirtualVariable(
+                        None,
+                        self.vvar_id_start,
+                        self.project.arch.bits,
+                        category=VirtualVariableCategory.STACK,
+                        oident=desc.beginning_stack_offset + off,
+                        ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
+                    ),
                     new_value,
-                    1,
-                    "Iend_LE",
                     ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
                 )
+                self.vvar_id_start += 1
                 store_statements.append(stmt)
             if new_statements and isinstance(new_statements[-1], (ConditionalJump, Jump)):
                 new_statements = new_statements[:-1] + store_statements + new_statements[-1:]
