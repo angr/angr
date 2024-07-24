@@ -414,6 +414,8 @@ class AILSimplifier(Analysis):
                                 use_expr_0.idx,
                                 def_.atom.varid,
                                 to_size * self.project.arch.byte_width,
+                                category=def_.atom.category,
+                                oident=def_.atom.oident,
                                 **use_expr_0.tags,
                             )
 
