@@ -1359,7 +1359,7 @@ class AILSimplifier(Analysis):
         return simplified
 
     def _find_cyclic_dependent_phis(self, rd: SRDAModel) -> set[int]:
-        blocks_dict = dict(((bb.addr, bb.idx), bb) for bb in self.func_graph)
+        blocks_dict = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
         phi_vvar_used_by: dict[int, set[int]] = defaultdict(set)
         for phi_var_id in rd.phi_vvar_ids:

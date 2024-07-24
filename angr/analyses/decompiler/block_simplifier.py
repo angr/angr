@@ -10,11 +10,8 @@ from ailment import AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation, CodeLocation
 
-from ...engines.light.data import SpOffset
-from ...knowledge_plugins.key_definitions import atoms
 from ...analyses.s_propagator import SPropagatorAnalysis
 from ...analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
-from ...errors import SimMemoryMissingError
 from .. import Analysis, register_analysis
 from .peephole_optimizations import (
     MULTI_STMT_OPTS,
@@ -27,7 +24,6 @@ from .peephole_optimizations import (
 from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
 
 if TYPE_CHECKING:
-    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
     from angr.knowledge_plugins.key_definitions.live_definitions import Definition
     from ailment.block import Block
 

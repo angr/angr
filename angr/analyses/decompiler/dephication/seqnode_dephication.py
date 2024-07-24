@@ -10,7 +10,7 @@ from ailment.expression import VirtualVariable, Phi
 from angr.utils.ail import is_phi_assignment
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, CodeNode
+from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from .dephication_base import DephicationBase
 from .rewriting_engine import SimEngineDephiRewriting

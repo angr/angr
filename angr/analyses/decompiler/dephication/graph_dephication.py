@@ -8,7 +8,7 @@ from ailment.expression import Phi, VirtualVariable
 from ailment.statement import Assignment
 
 from angr.knowledge_plugins.functions import Function
-from angr.analyses import Analysis, register_analysis
+from angr.analyses import register_analysis
 from .graph_rewriting import GraphRewritingAnalysis
 from .dephication_base import DephicationBase
 
