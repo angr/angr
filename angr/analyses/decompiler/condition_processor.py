@@ -33,7 +33,7 @@ from .structuring.structurer_nodes import (
     IncompleteSwitchCaseNode,
 )
 from .graph_region import GraphRegion
-from .utils import first_nonlabel_statement, peephole_optimize_expr
+from .utils import first_nonlabel_nonphi_statement, peephole_optimize_expr
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -592,9 +592,9 @@ class ConditionProcessor:
         if (
             isinstance(src_block, ailment.Block)
             and src_block.statements
-            and isinstance(first_nonlabel_statement(src_block), ailment.Stmt.ConditionalJump)
+            and isinstance(first_nonlabel_nonphi_statement(src_block), ailment.Stmt.ConditionalJump)
         ):
-            last_stmt = first_nonlabel_statement(src_block)
+            last_stmt = first_nonlabel_nonphi_statement(src_block)
         else:
             last_stmt = self.get_last_statement(src_block)
 
