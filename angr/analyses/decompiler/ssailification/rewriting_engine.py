@@ -396,7 +396,11 @@ class SimEngineSSARewriting(
 
     def _get_full_reg_vvar(self, reg_offset: int, size: int) -> VirtualVariable:
         base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch, size=size)
-        if base_off not in self.state.registers or base_size not in self.state.registers[base_off]:
+        if (
+            base_off not in self.state.registers
+            or base_size not in self.state.registers[base_off]
+            or self.state.registers[base_off][base_size] is None
+        ):
             # somehow it's never defined before...
             _l.debug("Creating a new virtual variable for an undefined register (%d [%d]).", base_off, base_size)
             vvar = VirtualVariable(
@@ -430,7 +434,10 @@ class SimEngineSSARewriting(
     def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
 
         if reg_expr.reg_offset in self.state.registers:
-            if reg_expr.size in self.state.registers[reg_expr.reg_offset]:
+            if (
+                reg_expr.size in self.state.registers[reg_expr.reg_offset]
+                and self.state.registers[reg_expr.reg_offset][reg_expr.size] is not None
+            ):
                 vvar = self.state.registers[reg_expr.reg_offset][reg_expr.size]
                 return VirtualVariable(
                     reg_expr.idx,
@@ -444,16 +451,17 @@ class SimEngineSSARewriting(
             for existing_size in sorted(self.state.registers[reg_expr.reg_offset], reverse=True):
                 if reg_expr.size < existing_size:
                     vvar = self.state.registers[reg_expr.reg_offset][existing_size]
-                    # extract it
-                    truncated = Convert(
-                        self.ail_manager.next_atom(),
-                        vvar.bits,
-                        reg_expr.bits,
-                        False,
-                        vvar,
-                        **reg_expr.tags,
-                    )
-                    return truncated
+                    if vvar is not None:
+                        # extract it
+                        truncated = Convert(
+                            self.ail_manager.next_atom(),
+                            vvar.bits,
+                            reg_expr.bits,
+                            False,
+                            vvar,
+                            **reg_expr.tags,
+                        )
+                        return truncated
                 else:
                     break
 
