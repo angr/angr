@@ -391,6 +391,8 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._ri is None:
             return False
 
+        # we should try-catch structuring here because we can often pass completely invalid graphs
+        # that break the assumptions of the structuring algorithm
         try:
             rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
                 self._ri.region,
@@ -398,6 +400,7 @@ class StructuringOptimizationPass(OptimizationPass):
                 func=self._func,
                 structurer_cls=PhoenixStructurer,
             )
+        # pylint:disable=broad-except
         except Exception:
             _l.warning("Internal structuring failed for OptimizationPass on %s", self._func.name)
             rs = None

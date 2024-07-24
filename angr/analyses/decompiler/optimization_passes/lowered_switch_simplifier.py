@@ -133,14 +133,16 @@ class StableVarExprHasher(AILBlockWalkerBase):
 
 class LoweredSwitchSimplifier(StructuringOptimizationPass):
     """
-    Recognize and simplify lowered switch-case constructs.
+    This optimization recognizes and reverts switch cases that have been lowered and possibly split into multiple
+    if-else statements. This optimization, discussed in the USENIX 2024 paper SAILR, aims to undo the compiler
+    optimization known as "Switch Lowering", present in both GCC and Clang. An in-depth discussion of this
+    optimization can be found in the paper or in our documentation of the optimization:
+    https://github.com/mahaloz/sailr-eval/issues/14#issue-2232616411
+
+    Note, this optimization does not occur in MSVC, which uses a different optimization strategy for switch cases.
+    As a hack for now, we only run this deoptimization on Linux binaries.
     """
 
-    ARCHES = [
-        "AMD64",
-    ]
-    # XXX: this optimization only occurs when compiled by Clang and GCC, as such, we do a hack of not running
-    #   this on Windows to avoid cases where MSVC is used to compile the binary
     PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
@@ -150,7 +152,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     )
     STRUCTURING = ["phoenix"]
 
-    def __init__(self, func, **kwargs):
+    def __init__(self, func, min_isolated_cases=3, **kwargs):
         super().__init__(func, require_gotos=False, prevent_new_gotos=False, simplify_ail=False, **kwargs)
 
         # this is the max number of cases that can be in a switch that can be converted to a
@@ -161,9 +163,12 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # NOTE: this means that there must be less than default_case_values for us to convert an if-tree to a switch
         self._max_case_values = default_case_values_threshold
 
-        # this is a heuristic
-        self._min_continuous_cases = 2
+        # this is a heuristic to reduce the number of non-continuous if-stmts that happen to look like
+        # they could be a lowered switch-case construct
+        self._min_isolated_cases = min_isolated_cases
 
+        # used to determine if a switch-case construct is present in the code, useful for invalidating
+        # other heuristics that minimize false positives
         self._switches_present_in_code = 0
 
         self.analyze()
@@ -232,11 +237,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     _l.debug("Skipping switch-case conversion due to all cases being continuous for %s", real_cases[0])
                     continue
 
-                # RULE 3: Sometimes you may accidentally turn a small series of if-stmts (2) into a switch case.
-                # A false-positive almost always occur when the max number of continuous cases is less than 2.
+                # RULE 3: Sometimes you may accidentally turn a small series of non-continous if-stmts (2)
+                # into a switch case. A false-positive almost always occur when the number of cases is less than 3.
                 # However, much like the previous rule, we should still convert it to a switch-case if a switch-case
-                # construct is present in the code (it could result in a merge).
-                if max_continuous_cases < self._min_continuous_cases and self._switches_present_in_code == 0:
+                # construct is present in the code (it could result in a merge of a large one).
+                if len(real_cases) < self._min_isolated_cases and self._switches_present_in_code == 0:
                     _l.debug("Skipping switch-case conversion due to too few continuous cases for %s", real_cases[0])
                     continue
 
@@ -292,7 +297,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # would result in a successor node no longer being present in the graph
                 if any(onode not in graph_copy for onode in original_nodes):
                     self.out_graph = None
-                    return
+                    return False
 
                 # add edges between the head and case nodes
                 for onode in original_nodes:
