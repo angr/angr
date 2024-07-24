@@ -3358,7 +3358,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                 # next case - if b is directly from function prologue detection, or a basic block that is a successor of
                 # a wrongly identified basic block, we might be totally misdecoding b
-                if b.instruction_addrs[0] not in a.instruction_addrs:
+                if len(b.instruction_addrs) > 0 and b.instruction_addrs[0] not in a.instruction_addrs:
                     # use a, truncate b
 
                     new_b_addr = a.addr + a.size  # b starts right after a terminates
