@@ -12,6 +12,7 @@ from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
 from angr.analyses.decompiler.utils import add_labels
+from angr.analyses.decompiler.seq_cf_structure_counter import ControlFlowStructureCounter
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -277,6 +278,7 @@ class StructuringOptimizationPass(OptimizationPass):
         prevent_new_gotos=True,
         strictly_less_gotos=False,
         recover_structure_fails=True,
+        must_improve_rel_quality=False,
         max_opt_iters=1,
         simplify_ail=True,
         require_gotos=True,
@@ -289,27 +291,23 @@ class StructuringOptimizationPass(OptimizationPass):
         self._max_opt_iters = max_opt_iters
         self._simplify_ail = simplify_ail
         self._require_gotos = require_gotos
+        self._must_improve_rel_quality = must_improve_rel_quality
 
         self._goto_manager: GotoManager | None = None
         self._prev_graph: networkx.DiGraph | None = None
 
+        # relative quality metrics (excludes gotos)
+        self._initial_structure_counter = None
+        self._current_structure_counter = None
+
     def _analyze(self, cache=None) -> bool:
         raise NotImplementedError()
-
-    # pylint:disable=unused-argument,no-self-use
-    def _analyze_simplified_region(self, region):
-        """
-        Analyze the simplified regions after a successful structuring pass.
-        This should be overridden by the subclass if it needs to do anything with the simplified regions for making
-        optimizations decisions.
-        """
-        return
 
     def analyze(self):
         """
         Wrapper for _analyze() that verifies the graph is structurable before and after the optimization.
         """
-        if not self._graph_is_structurable(self._graph):
+        if not self._graph_is_structurable(self._graph, initial=True):
             return
 
         initial_gotos = self._goto_manager.gotos.copy()
@@ -352,6 +350,10 @@ class StructuringOptimizationPass(OptimizationPass):
                 self.out_graph = None
                 return
 
+        if self._must_improve_rel_quality and not self._improves_relative_quality():
+            self.out_graph = None
+            return
+
     def _fixed_point_analyze(self, cache=None):
         for _ in range(self._max_opt_iters):
             if self._require_gotos and not self._goto_manager.gotos:
@@ -371,7 +373,7 @@ class StructuringOptimizationPass(OptimizationPass):
                 self.out_graph = self._prev_graph if self._recover_structure_fails else None
                 break
 
-    def _graph_is_structurable(self, graph, readd_labels=False) -> bool:
+    def _graph_is_structurable(self, graph, readd_labels=False, initial=False) -> bool:
         """
         Checks weather the input graph is structurable under the Phoenix schema-matching structuring algorithm.
         As a side effect, this will also update the region identifier and goto manager of this optimization pass.
@@ -413,6 +415,54 @@ class StructuringOptimizationPass(OptimizationPass):
         if not rs or rs.goto_manager is None or rs.result is None:
             return False
 
-        self._analyze_simplified_region(rs.result)
+        self._analyze_simplified_region(rs.result, initial=initial)
         self._goto_manager = rs.goto_manager
+        return True
+
+    # pylint:disable=no-self-use
+    def _analyze_simplified_region(self, region, initial=False):
+        """
+        Analyze the simplified regions after a successful structuring pass.
+        This should be overridden by the subclass if it needs to do anything with the simplified regions for making
+        optimizations decisions.
+        """
+        if region is None:
+            return
+
+        # record quality metrics
+        if self._must_improve_rel_quality:
+            if initial:
+                self._initial_structure_counter = ControlFlowStructureCounter(region)
+            else:
+                self._current_structure_counter = ControlFlowStructureCounter(region)
+
+    def _improves_relative_quality(self) -> bool:
+        """
+        Checks if the new structured output improves (or maintains) the relative quality of the control flow structures
+        present in the function.
+
+        For now, this only involves loops
+        """
+        if self._initial_structure_counter is None or self._current_structure_counter is None:
+            _l.warning("Relative quality check failed due to missing structure counters")
+            return True
+
+        prev_wloops = self._initial_structure_counter.while_loops
+        curr_wloops = self._current_structure_counter.while_loops
+        prev_dloops = self._initial_structure_counter.do_while_loops
+        curr_dloops = self._current_structure_counter.do_while_loops
+        prev_floops = self._initial_structure_counter.for_loops
+        curr_floops = self._current_structure_counter.for_loops
+        total_prev_loops = prev_wloops + prev_dloops + prev_floops
+        total_curr_loops = curr_wloops + curr_dloops + curr_floops
+
+        # Sometimes, if we mess up structuring you can easily tell because we traded "good" loops for "bad" loops.
+        # Generally, loops are ordered good -> bad as follows: for, while, do-while.
+        # Note: this check is only for _trading_, meaning the total number of loops must be the same.
+        #
+        # 1. We traded to remove a for-loop
+        # 2. We traded to add a do-while loop
+        if (curr_floops < prev_floops or curr_dloops > prev_dloops) and total_curr_loops == total_prev_loops:
+            return False
+
         return True

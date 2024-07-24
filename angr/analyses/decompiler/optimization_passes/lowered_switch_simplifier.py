@@ -153,7 +153,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     STRUCTURING = ["phoenix"]
 
     def __init__(self, func, min_distinct_cases=2, **kwargs):
-        super().__init__(func, require_gotos=False, prevent_new_gotos=False, simplify_ail=False, **kwargs)
+        super().__init__(
+            func,
+            require_gotos=False,
+            prevent_new_gotos=False,
+            simplify_ail=False,
+            must_improve_rel_quality=True,
+            **kwargs,
+        )
 
         # this is the max number of cases that can be in a switch that can be converted to a
         # if-tree (if the number of cases is greater than this, the switch will not be converted)
@@ -194,7 +201,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def _count_distinct_cases(cases: list[Case]) -> int:
         return len({case.target for case in cases})
 
-    def _analyze_simplified_region(self, region):
+    def _analyze_simplified_region(self, region, initial=False):
+        super()._analyze_simplified_region(region, initial=initial)
         finder = SwitchClusterFinder(region)
         self._switches_present_in_code = len(finder.var2switches.values())
 
