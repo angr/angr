@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument
+import logging
 from typing import TYPE_CHECKING
 from collections.abc import Generator
 from enum import Enum
@@ -14,6 +15,8 @@ from angr.analyses.decompiler.utils import add_labels
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+
+_l = logging.getLogger(__name__)
 
 
 class MultipleBlocksException(Exception):
@@ -388,12 +391,17 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._ri is None:
             return False
 
-        rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            self._ri.region,
-            cond_proc=self._ri.cond_proc,
-            func=self._func,
-            structurer_cls=PhoenixStructurer,
-        )
+        try:
+            rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
+                self._ri.region,
+                cond_proc=self._ri.cond_proc,
+                func=self._func,
+                structurer_cls=PhoenixStructurer,
+            )
+        except Exception:
+            _l.warning("Internal structuring failed for OptimizationPass on %s", self._func.name)
+            rs = None
+
         if not rs or not rs.result or not rs.result.nodes or rs.result_incomplete:
             return False
 
