@@ -22,7 +22,7 @@ class RewritingState:
         self.arch = arch
         self.func = func
 
-        self.registers: defaultdict[int, dict[int, VirtualVariable]] = (
+        self.registers: defaultdict[int, dict[int, VirtualVariable | None]] = (
             registers if registers is not None else defaultdict(dict)
         )
         self.stackvars: defaultdict[int, dict[int, VirtualVariable]] = (

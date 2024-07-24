@@ -47,7 +47,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         stack_region=None,
         register_region=None,
         global_region=None,
-        vvar_region=None,
         typevars=None,
         type_constraints=None,
         func_typevar=None,
@@ -64,7 +63,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             stack_region=stack_region,
             register_region=register_region,
             global_region=global_region,
-            vvar_region=vvar_region,
             typevars=typevars,
             type_constraints=type_constraints,
             func_typevar=func_typevar,
@@ -95,7 +93,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
             global_region=self.global_region.copy(),
-            vvar_region=self.vvar_region.copy(),
             typevars=self.typevars,
             type_constraints=self.type_constraints,
             func_typevar=self.func_typevar,
@@ -131,34 +128,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         merged_global_region = self.global_region.copy()
         merged_global_region.set_state(self)
         merge_occurred |= merged_global_region.merge([other.global_region for other in others], None)
-
-        merged_vvar_region = self.vvar_region.copy()
-        phi_vars = defaultdict(set)
-        for o in others:
-            for o_k, o_v in o.vvar_region.items():
-                if o_k not in merged_vvar_region:
-                    merged_vvar_region[o_k] = o_v
-                else:
-                    if o_v is not merged_vvar_region[o_k]:
-                        for addr_and_simvar in self.extract_variables(merged_vvar_region[o_k]):
-                            phi_vars[o_k].add(addr_and_simvar)
-                        for addr_and_simvar in self.extract_variables(o.vvar_region[o_k]):
-                            phi_vars[o_k].add(addr_and_simvar)
-
-        for vvid, addr_and_simvars in phi_vars.items():
-            if len(addr_and_simvars) == 1:
-                obj = next(iter(addr_and_simvars))
-                bits = obj[1].size * self.project.arch.byte_width
-                merged_vvar_region[vvid] = self.annotate_with_variables(self.top(bits), [obj])
-            else:
-                simvars = set()
-                for _, simvar in addr_and_simvars:
-                    simvars.add(simvar)
-                phi_var = self.variable_manager[self.func_addr].make_phi_node(successor, *simvars)
-                for simvar in simvars:
-                    self.phi_variables[simvar] = phi_var
-                new_v = self.annotate_with_variables(self.top(phi_var.bits), [(successor, phi_var)])
-                merged_vvar_region[vvid] = new_v
 
         typevars = self.typevars
         type_constraints = self.type_constraints
@@ -218,7 +187,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             stack_region=merged_stack_region,
             register_region=merged_register_region,
             global_region=merged_global_region,
-            vvar_region=merged_vvar_region,
             typevars=typevars,
             type_constraints=type_constraints,
             func_typevar=self.func_typevar,
@@ -270,6 +238,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_args: list[SimVariable] | None = None,
         store_live_variables=False,
         unify_variables=True,
+        vvar_to_vvar: dict[int, int] | None = None,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -286,7 +255,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         if not func.block_addrs_set or func.startpoint is None:
             raise AngrVariableRecoveryError(f"Function {func!r} is empty.")
 
-        VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
+        VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables, vvar_to_vvar=vvar_to_vvar)
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=function_graph_visitor
         )
@@ -297,7 +266,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._func_args = func_args
         self._unify_variables = unify_variables
 
-        self._ail_engine = SimEngineVRAIL(self.project, self.kb, call_info=call_info)
+        self._ail_engine = SimEngineVRAIL(self.project, self.kb, call_info=call_info, vvar_to_vvar=self.vvar_to_vvar)
         self._vex_engine = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
         self._node_iterations = defaultdict(int)

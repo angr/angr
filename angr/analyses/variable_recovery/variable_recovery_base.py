@@ -82,7 +82,7 @@ class VariableRecoveryBase(Analysis):
     The base class for VariableRecovery and VariableRecoveryFast.
     """
 
-    def __init__(self, func, max_iterations, store_live_variables: bool):
+    def __init__(self, func, max_iterations, store_live_variables: bool, vvar_to_vvar: dict[int, int] | None = None):
         self.function = func
         self.variable_manager = self.kb.variables
 
@@ -92,6 +92,7 @@ class VariableRecoveryBase(Analysis):
         self._outstates = {}
         self._instates: dict[Any, VariableRecoveryStateBase] = {}
         self._dominance_frontiers = None
+        self.vvar_to_vvar = vvar_to_vvar
 
     #
     # Public methods
@@ -158,7 +159,6 @@ class VariableRecoveryStateBase:
         stack_region=None,
         register_region=None,
         global_region=None,
-        vvar_region=None,
         typevars=None,
         type_constraints=None,
         func_typevar=None,
@@ -213,11 +213,6 @@ class VariableRecoveryStateBase:
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
         self.global_region.set_state(self)
-
-        if vvar_region is not None:
-            self.vvar_region: dict[int, Any] = vvar_region
-        else:
-            self.vvar_region = {}
 
         # Used during merging
         self.successor_block_addr: int | None = None

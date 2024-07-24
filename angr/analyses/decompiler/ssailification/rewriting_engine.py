@@ -38,6 +38,7 @@ class SimEngineSSARewriting(
     def __init__(
         self,
         arch,
+        project=None,
         sp_tracker=None,
         bp_as_gpr: bool = False,
         udef_to_phiid: dict[tuple, set[int]] = None,
@@ -49,6 +50,7 @@ class SimEngineSSARewriting(
         super().__init__()
 
         self.arch = arch
+        self.project = project
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.def_to_vvid: dict[Any, int] = {}
@@ -183,6 +185,14 @@ class SimEngineSSARewriting(
         new_target = self._replace_use_reg(stmt.target) if isinstance(stmt.target, Register) else None
         new_ret_expr = self._replace_def_expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._replace_def_expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
+
+        cc = stmt.calling_convention if stmt.calling_convention is not None else self.project.factory.cc()
+        if cc is not None:
+            # clean up all caller-saved registers (and their subregisters)
+            for reg_name in cc.CALLER_SAVED_REGS:
+                base_off, base_size = self.arch.registers[reg_name]
+                self._clear_aliasing_regs(base_off, base_size)
+                self.state.registers[base_off][base_size] = None
 
         if new_ret_expr is not None:
             if isinstance(stmt.ret_expr, Register):

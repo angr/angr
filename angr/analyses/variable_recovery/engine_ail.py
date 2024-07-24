@@ -35,11 +35,17 @@ class SimEngineVRAIL(
     state: VariableRecoveryFastState
     block: ailment.Block
 
-    def __init__(self, *args, call_info=None, **kwargs):
+    def __init__(self, *args, call_info=None, vvar_to_vvar: dict[int, int] | None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
+        self.vvar_to_vvar = vvar_to_vvar
+
+    def _mapped_vvarid(self, vvar_id: int) -> int | None:
+        if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
+            return self.vvar_to_vvar[vvar_id]
+        return None
 
     # Statement handlers
 
@@ -69,7 +75,9 @@ class SimEngineVRAIL(
 
         elif dst_type is ailment.Expr.VirtualVariable:
             data = self._expr(stmt.src)
-            self._assign_to_vvar(stmt.dst, data, src=stmt.src, dst=stmt.dst)
+            self._assign_to_vvar(
+                stmt.dst, data, src=stmt.src, dst=stmt.dst, vvar_id=self._mapped_vvarid(stmt.dst.varid)
+            )
 
         else:
             l.warning("Unsupported dst type %s.", dst_type)
@@ -168,6 +176,7 @@ class SimEngineVRAIL(
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
                     dst=ret_expr,
                     create_variable=create_variable,
+                    vvar_id=self._mapped_vvarid(ret_expr.varid),
                 )
             elif isinstance(ret_expr, ailment.Expr.Register):
                 l.warning("Left-over register found in call.ret_expr.")
@@ -244,8 +253,21 @@ class SimEngineVRAIL(
         return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_VirtualVariable(self, expr: ailment.Expr.VirtualVariable):
-        r = self._read_from_vvar(expr, expr=expr)
+        r = self._read_from_vvar(expr, expr=expr, vvar_id=self._mapped_vvarid(expr.varid))
         return r
+
+    def _ail_handle_Phi(self, expr: ailment.Expr.Phi):
+        tvs = set()
+        for _, vvar in expr.src_and_vvars:
+            if vvar is not None:
+                r = self._read_from_vvar(vvar, expr=expr, vvar_id=self._mapped_vvarid(vvar.varid))
+                if r.typevar is not None:
+                    tvs.add(r.typevar)
+
+        tv = typevars.TypeVariable()
+        for tv_ in tvs:
+            self.state.add_type_constraint(typevars.Subtype(tv, tv_))
+        return RichR(self.state.top(expr.bits), typevar=tv)
 
     def _ail_handle_Const(self, expr: ailment.Expr.Const):
         if isinstance(expr.value, float):

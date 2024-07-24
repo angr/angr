@@ -1239,28 +1239,36 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
-        def_: Definition
         for def_ in rd.all_definitions:
             if def_.dummy:
                 continue
             # we do not remove references to global memory regions no matter what
             if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
                 continue
-            if isinstance(def_.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
-                # we always remove definitions for stack arguments
-                if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
-                    if (def_.atom.addr.offset & mask) not in stackarg_offsets:
-                        continue
-                else:
-                    continue
-
             if isinstance(def_.atom, atoms.VirtualVariable):
-                uses = rd.get_vvar_uses(def_.atom)
-                if def_.atom.was_reg and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets:
-                    if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
-                        # TODO: Verify if we still need this hack after moving to SSA
-                        # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                        uses = set()
+                if def_.atom.was_stack:
+                    if not self._remove_dead_memdefs:
+                        if stackarg_offsets is not None:
+                            # we always remove definitions for stack arguments
+                            if (def_.atom.stack_offset & mask) not in stackarg_offsets:
+                                continue
+                        elif rd.is_phi_vvar_id(def_.atom.varid):
+                            # we always remove unused phi variables
+                            pass
+                        else:
+                            continue
+                    uses = rd.get_vvar_uses(def_.atom)
+
+                elif def_.atom.was_reg:
+                    uses = rd.get_vvar_uses(def_.atom)
+                    if def_.atom.reg_offset in self.project.arch.artificial_registers_offsets:
+                        if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
+                            # TODO: Verify if we still need this hack after moving to SSA
+                            # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                            uses = set()
+                else:
+                    uses = set()
+
             else:
                 continue
 
@@ -1269,6 +1277,12 @@ class AILSimplifier(Analysis):
                     stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
                         def_.codeloc.stmt_idx
                     )
+
+        # find all phi variables that are only ever used by other phi variables
+        redundant_phi_varids = self._find_cyclic_dependent_phis(rd)
+        for phi_varid in redundant_phi_varids:
+            loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+            stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
@@ -1343,6 +1357,53 @@ class AILSimplifier(Analysis):
             self.blocks[old_block] = new_block
 
         return simplified
+
+    def _find_cyclic_dependent_phis(self, rd: SRDAModel) -> set[int]:
+        blocks_dict = dict(((bb.addr, bb.idx), bb) for bb in self.func_graph)
+
+        phi_vvar_used_by: dict[int, set[int]] = defaultdict(set)
+        for phi_var_id in rd.phi_vvar_ids:
+            vvar = rd.varid_to_vvar[phi_var_id]
+            used_by = set()
+            for used_vvar, loc in rd.all_vvar_uses[vvar]:
+                if used_vvar is None:
+                    # no explicit reference
+                    used_by.add(None)
+                else:
+                    stmt = blocks_dict[loc.block_addr, loc.block_idx].statements[loc.stmt_idx]
+                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                        used_by.add(stmt.dst.varid)
+                    else:
+                        used_by.add(None)
+            phi_vvar_used_by[phi_var_id] |= used_by
+
+        # saturate
+        cyclic_dependent_phi_varids = set()
+        for phi_var_id, used_by_initial in phi_vvar_used_by.items():
+            if not used_by_initial:
+                # will be removed by dead assignment elimination anyway
+                continue
+            expanded = set()
+            all_uses = used_by_initial.copy()
+            has_nonphi_usage = False
+            while not has_nonphi_usage:
+                for varid in list(all_uses):
+                    if varid in expanded:
+                        continue
+                    if varid is None or varid not in rd.phi_vvar_ids:
+                        has_nonphi_usage = True
+                        break
+                    expanded.add(varid)
+                    all_uses |= phi_vvar_used_by[varid]
+                else:
+                    # no longer expandable
+                    break
+
+            if not has_nonphi_usage:
+                cyclic_dependent_phi_varids.add(phi_var_id)
+                cyclic_dependent_phi_varids |= {use for use in all_uses if use is not None}
+
+        return cyclic_dependent_phi_varids
 
     #
     # Rewriting ccalls

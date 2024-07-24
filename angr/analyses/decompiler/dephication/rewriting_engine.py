@@ -11,6 +11,7 @@ from ailment.expression import (
     BinaryOp,
     Phi,
     Convert,
+    StackBaseOffset,
 )
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
@@ -72,6 +73,8 @@ class SimEngineDephiRewriting(
                 stmt.dst.bits,
                 stmt.dst.category,
                 oident=stmt.dst.oident,
+                variable=stmt.dst.variable,
+                variable_offset=stmt.dst.variable_offset,
                 **stmt.dst.tags,
             )
 
@@ -171,7 +174,14 @@ class SimEngineDephiRewriting(
     def _handle_VirtualVariable(self, expr: VirtualVariable) -> VirtualVariable | None:
         if expr.varid in self.vvar_to_vvar:
             return VirtualVariable(
-                expr.idx, self.vvar_to_vvar[expr.varid], expr.bits, expr.category, oident=expr.oident, **expr.tags
+                expr.idx,
+                self.vvar_to_vvar[expr.varid],
+                expr.bits,
+                expr.category,
+                oident=expr.oident,
+                variable=expr.variable,
+                variable_offset=expr.variable_offset,
+                **expr.tags,
             )
         return None
 
@@ -213,4 +223,7 @@ class SimEngineDephiRewriting(
                 to_bits=expr.to_bits,
                 **expr.tags,
             )
+        return None
+
+    def _handle_StackBaseOffset(self, expr: StackBaseOffset) -> None:
         return None

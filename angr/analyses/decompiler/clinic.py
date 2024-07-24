@@ -140,7 +140,7 @@ class Clinic(Analysis):
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
-        self._vvar_id_start = 0
+        self.vvar_id_start = 0
 
         # inlining help
         self._sp_shift = sp_shift
@@ -516,16 +516,16 @@ class Clinic(Analysis):
         self._update_progress(75.0, text="Making argument list")
         arg_list = self._make_argument_list()
 
-        # Run simplification passes
-        self._update_progress(95.0, text="Running simplifications 4")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
-
-        # Rewrite the graph to remove phi expressions
-        ail_graph = self._transform_from_ssa(ail_graph)
+        # Get virtual variable mapping that can de-phi the SSA representation
+        vvar2vvar = self._collect_dephi_vvar_mapping(ail_graph)
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
+        variable_kb = self._recover_and_link_variables(ail_graph, arg_list, vvar2vvar)
+
+        # Run simplification passes
+        self._update_progress(95.0, text="Running simplifications 4")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
@@ -538,6 +538,7 @@ class Clinic(Analysis):
         self.variable_kb = variable_kb
         self.cc_graph = self.copy_graph(ail_graph)
         self.externs = self._collect_externs(ail_graph, variable_kb)
+        self.vvar_to_vvar = vvar2vvar
         return ail_graph
 
     def _analyze_for_data_refs(self):
@@ -1155,6 +1156,7 @@ class Clinic(Analysis):
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
                 variable_kb=variable_kb,
+                vvar_id_start=self.vvar_id_start,
                 **kwargs,
             )
             if a.out_graph:
@@ -1165,6 +1167,7 @@ class Clinic(Analysis):
                     self._register_save_areas_removed = True
                     # clear the cached RDA result
                     self.reaching_definitions = None
+                self.vvar_id_start = a.vvar_id_start
 
         return ail_graph
 
@@ -1175,9 +1178,9 @@ class Clinic(Analysis):
             ail_graph,
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
-            vvar_id_start=self._vvar_id_start,
+            vvar_id_start=self.vvar_id_start,
         )
-        self._vvar_id_start = ssailification.max_vvar_id + 1
+        self.vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
 
     @timethis
@@ -1187,15 +1190,15 @@ class Clinic(Analysis):
             ail_graph,
             ail_manager=self._ail_manager,
             ssa_stackvars=True,
-            vvar_id_start=self._vvar_id_start,
+            vvar_id_start=self.vvar_id_start,
         )
-        self._vvar_id_start = ssailification.max_vvar_id + 1
+        self.vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
 
     @timethis
-    def _transform_from_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        dephication = self.project.analyses.Dephication(self.function, ail_graph)
-        return dephication.out_graph
+    def _collect_dephi_vvar_mapping(self, ail_graph: networkx.DiGraph) -> dict[int, int]:
+        dephication = self.project.analyses.GraphDephication(self.function, ail_graph, rewrite=False)
+        return dephication.vvar_to_vvar_mapping
 
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
@@ -1267,7 +1270,6 @@ class Clinic(Analysis):
                     self.function.addr,
                     stack_pointer_tracker=stack_pointer_tracker,
                     peephole_optimizations=self.peephole_optimizations,
-                    stack_arg_offsets=csm.stack_arg_offsets,
                 )
                 return simp.result_block
             return None
@@ -1342,7 +1344,7 @@ class Clinic(Analysis):
         self.function.is_prototype_guessed = False
 
     @timethis
-    def _recover_and_link_variables(self, ail_graph, arg_list):
+    def _recover_and_link_variables(self, ail_graph, arg_list: list, vvar2vvar: dict[int, int]):
         # variable recovery
         tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
         tmp_kb.functions = self.kb.functions
@@ -1353,6 +1355,7 @@ class Clinic(Analysis):
             track_sp=False,
             func_args=arg_list,
             unify_variables=False,
+            vvar_to_vvar=vvar2vvar,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]

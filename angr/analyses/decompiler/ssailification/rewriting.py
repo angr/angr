@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Callable
 import logging
 
 import networkx
@@ -53,6 +53,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         self._ail_manager = ail_manager
         self._engine_ail = SimEngineSSARewriting(
             self.project.arch,
+            project=self.project,
             sp_tracker=sp_tracker,
             bp_as_gpr=bp_as_gpr,
             udef_to_phiid=self._udef_to_phiid,
@@ -255,28 +256,40 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         reg_offset = stmt.dst.oident
                         reg_size = stmt.dst.size
 
-                        for pred in self.graph.predecessors(original_node):
-                            out_state: RewritingState = self.out_states[(pred.addr, pred.idx)]
+                        def reg_predicate(node_) -> tuple[bool, Any]:
+                            out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
                             if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
+                                if out_state.registers[reg_offset][reg_size] is None:
+                                    # the vvar is not set. it should never be referenced
+                                    return True, None
                                 vvar = out_state.registers[reg_offset][reg_size].copy()
                                 vvar.idx = self._ail_manager.next_atom()
-                            else:
-                                vvar = None  # missing
+                                return True, vvar
+                            return False, None
+
+                        for pred in self.graph.predecessors(original_node):
+                            vvar = self._follow_one_path_backward(self.graph, pred, reg_predicate)
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                     elif stmt.dst.was_stack:
                         stack_offset = stmt.dst.stack_offset
                         stackvar_size = stmt.dst.size
 
-                        for pred in self.graph.predecessors(original_node):
-                            out_state: RewritingState = self.out_states[(pred.addr, pred.idx)]
+                        def stack_predicate(node_) -> tuple[bool, Any]:
+                            out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
                             if (
                                 stack_offset in out_state.stackvars
                                 and stackvar_size in out_state.stackvars[stack_offset]
                             ):
+                                if out_state.stackvars[stack_offset][stackvar_size] is None:
+                                    # the vvar is not set. it should never be referenced
+                                    return True, None
                                 vvar = out_state.stackvars[stack_offset][stackvar_size].copy()
                                 vvar.idx = self._ail_manager.next_atom()
-                            else:
-                                vvar = None  # missing
+                                return True, vvar
+                            return False, None
+
+                        for pred in self.graph.predecessors(original_node):
+                            vvar = self._follow_one_path_backward(self.graph, pred, stack_predicate)
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                     else:
                         raise NotImplementedError()
@@ -286,3 +299,20 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                     new_stmts.append(new_stmt)
                 node = node.copy(statements=new_stmts)
                 self.out_blocks[node_key] = node
+
+    def _follow_one_path_backward(self, graph: networkx.DiGraph, src, predicate: Callable) -> Any:
+        visited = set()
+        return_value = None
+        the_node = src
+        while the_node not in visited:
+            visited.add(the_node)
+            stop, return_value = predicate(the_node)
+            if stop:
+                break
+            # keep going
+            more_preds = list(graph.predecessors(the_node))
+            if len(more_preds) != 1:
+                # no longer a single path back
+                break
+            the_node = more_preds[0]
+        return return_value

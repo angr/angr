@@ -98,6 +98,9 @@ class SPropagatorAnalysis(Analysis):
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
         for vvar, defloc in vvar_deflocs.items():
+            if not vvar.was_reg:
+                continue
+
             vvarid_to_vvar[vvar.varid] = vvar
             defloc = vvar_deflocs[vvar]
             block = blocks[(defloc.block_addr, defloc.block_idx)]

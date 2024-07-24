@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import logging
 
 import ailment
@@ -77,6 +77,7 @@ class SimEngineVRBase(SimEngineLight):
         self.project = project
         self.kb = kb
         self.variable_manager: VariableManager | None = None
+        self.vvar_region: dict[int, Any] = {}
 
     @property
     def func_addr(self):
@@ -365,8 +366,17 @@ class SimEngineVRBase(SimEngineLight):
             self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
     def _assign_to_vvar(
-        self, vvar: ailment.Expr.VirtualVariable, richr, src=None, dst=None, create_variable: bool = True
+        self,
+        vvar: ailment.Expr.VirtualVariable,
+        richr,
+        src=None,
+        dst=None,
+        create_variable: bool = True,
+        vvar_id: int | None = None,
     ):
+
+        if vvar_id is None:
+            vvar_id = vvar.varid
 
         if (
             vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER
@@ -374,7 +384,7 @@ class SimEngineVRBase(SimEngineLight):
             or not create_variable
         ):
             # only store the value. don't worry about variables.
-            self.state.vvar_region[vvar.varid] = richr.data
+            self.vvar_region[vvar_id] = richr.data
             return
 
         codeloc: CodeLocation = self._codeloc()
@@ -389,17 +399,14 @@ class SimEngineVRBase(SimEngineLight):
             self.block.addr, self.stmt_idx, dst
         )
         if not existing_vars:
-            # next check if we are overwriting *part* of an existing variable that is not an input variable
+            # next check if there is already a variable for the vvar ID
             addr_and_variables = set()
             try:
-                value = self.state.vvar_region[vvar.varid]
+                value = self.vvar_region[vvar_id]
                 addr_and_variables.update(self.state.extract_variables(value))
             except KeyError:
                 pass
-            input_vars = self.variable_manager[self.func_addr].input_variables()
-            existing_vars = {
-                (av[1], av[0]) for av in addr_and_variables if av[1] not in input_vars and av[1].size > vvar.size
-            }
+            existing_vars = {(av[1], av[0]) for av in addr_and_variables}
 
         if not existing_vars:
             if vvar.was_reg:
@@ -425,7 +432,7 @@ class SimEngineVRBase(SimEngineLight):
 
         # FIXME: The offset does not have to be 0
         annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
-        self.state.vvar_region[vvar.varid] = annotated_data
+        self.vvar_region[vvar_id] = annotated_data
         # register with the variable manager
         overwrite = isinstance(dst, ailment.Expr.VirtualVariable)
         self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=overwrite)
@@ -1010,10 +1017,15 @@ class SimEngineVRBase(SimEngineLight):
             return RichR(r_value, variable=var)
         return RichR(r_value, variable=var, typevar=typevar)
 
-    def _read_from_vvar(self, vvar: ailment.Expr.VirtualVariable, expr=None, create_variable: bool = True):
+    def _read_from_vvar(
+        self, vvar: ailment.Expr.VirtualVariable, expr=None, create_variable: bool = True, vvar_id: int | None = None
+    ):
         codeloc = self._codeloc()
 
-        value: claripy.ast.Base | None = self.state.vvar_region.get(vvar.varid, None)
+        if vvar_id is None:
+            vvar_id = vvar.varid
+
+        value: claripy.ast.Base | None = self.vvar_region.get(vvar_id, None)
 
         # fallback for register arguments
         if value is None and vvar.was_reg:
@@ -1057,7 +1069,7 @@ class SimEngineVRBase(SimEngineLight):
                 else:
                     raise NotImplementedError()
 
-            self.state.vvar_region[vvar.varid] = value
+            self.vvar_region[vvar_id] = value
 
         variable_set = set()
         for _, var in self.state.extract_variables(value):

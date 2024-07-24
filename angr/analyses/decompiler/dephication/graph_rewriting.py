@@ -5,9 +5,8 @@ import logging
 import networkx
 
 import ailment
-from ailment.expression import Phi, VirtualVariable
-from ailment.statement import Assignment, Statement
 
+from angr.utils.ail import is_phi_assignment
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis.visitors.graph import NodeType
 from angr.analyses.forward_analysis import FunctionGraphVisitor
@@ -17,7 +16,7 @@ from .rewriting_engine import SimEngineDephiRewriting
 l = logging.getLogger(__name__)
 
 
-class RewritingAnalysis(ForwardAnalysis[None, NodeType, object, object]):
+class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object]):
     """
     This analysis traverses the AIL graph and rewrites virtual variables accordingly.
     """
@@ -48,7 +47,7 @@ class RewritingAnalysis(ForwardAnalysis[None, NodeType, object, object]):
         # remove phi statements
         # modifying blocks inline should be fine here - no one has ever used these blocks
         for block in self.out_blocks.values():
-            block.statements = [stmt for stmt in block.statements if not self._is_phi_assignment(stmt)]
+            block.statements = [stmt for stmt in block.statements if not is_phi_assignment(stmt)]
 
         self.out_graph = self._make_new_graph(ail_graph)
 
@@ -63,10 +62,6 @@ class RewritingAnalysis(ForwardAnalysis[None, NodeType, object, object]):
             )
 
         return new_graph
-
-    @staticmethod
-    def _is_phi_assignment(stmt: Statement) -> bool:
-        return isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
 
     #
     # Main analysis routines

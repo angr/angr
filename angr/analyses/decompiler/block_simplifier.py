@@ -67,7 +67,6 @@ class BlockSimplifier(Analysis):
         peephole_optimizations: None | (
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,
-        stack_arg_offsets: set[tuple[int, int]] | None = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
     ):
@@ -80,7 +79,6 @@ class BlockSimplifier(Analysis):
         self.func_addr = func_addr
 
         self._remove_dead_memdefs = remove_dead_memdefs
-        self._stack_arg_offsets = stack_arg_offsets
         self._stack_pointer_tracker = stack_pointer_tracker
 
         if peephole_optimizations is None:
@@ -315,53 +313,13 @@ class BlockSimplifier(Analysis):
         # Find dead assignments
         dead_defs_stmt_idx = set()
         all_defs: Iterable[Definition] = rd.get_all_tmp_definitions(block_loc)
-        mask = (1 << self.project.arch.bits) - 1
-        stackarg_offsets = (
-            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
-        )
         for d in all_defs:
-            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
-                continue
-            if isinstance(d.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
-                # we always remove definitions for stack arguments
-                if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
-                    if (d.atom.addr.offset & mask) not in stackarg_offsets:
-                        continue
-                else:
-                    continue
+            assert not isinstance(d.codeloc, ExternalCodeLocation)
+            assert not d.dummy
 
-            if isinstance(d.atom, atoms.Tmp):
-                uses = rd.get_tmp_uses(d.atom, block_loc)
-                if not uses:
-                    dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-            else:
-                raise NotImplementedError()
-                uses = rd.all_uses.get_uses(d)
-                if not uses:
-                    # it's entirely possible that at the end of the block, a register definition is not used.
-                    # however, it might be used in future blocks.
-                    # so we only remove a definition if the definition is not alive anymore at the end of the block
-                    defs_ = set()
-                    if isinstance(d.atom, atoms.Register):
-                        try:
-                            vs: MultiValues = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
-                        except SimMemoryMissingError:
-                            vs = None
-                    elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                        stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-                        try:
-                            vs: MultiValues = live_defs.stack.load(stack_addr, size=d.atom.size, endness=d.atom.endness)
-                        except SimMemoryMissingError:
-                            vs = None
-                    else:
-                        continue
-                    if vs is not None:
-                        for values in vs.values():
-                            for value in values:
-                                defs_.update(live_defs.extract_defs(value))
-
-                    if d not in defs_:
-                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+            uses = rd.get_tmp_uses(d.atom, block_loc)
+            if not uses:
+                dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
         used_tmps: set[int] = set()
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well

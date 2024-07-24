@@ -166,12 +166,11 @@ class CallSiteMaker(Analysis):
             if len(new_stmts) >= 1:
                 the_stmt = new_stmts[-1]
                 if (
-                    isinstance(the_stmt, Stmt.Store)
-                    and isinstance(the_stmt.data, Expr.Const)
-                    and (
-                        isinstance(the_stmt.addr, Expr.StackBaseOffset)
-                        and the_stmt.data.value == self.block.addr + self.block.original_size
-                    )
+                    isinstance(the_stmt, Stmt.Assignment)
+                    and isinstance(the_stmt.dst, Expr.VirtualVariable)
+                    and the_stmt.dst.was_stack
+                    and isinstance(the_stmt.src, Expr.Const)
+                    and the_stmt.src.value == self.block.addr + self.block.original_size
                 ):
                     # yes it is!
                     new_stmts = new_stmts[:-1]

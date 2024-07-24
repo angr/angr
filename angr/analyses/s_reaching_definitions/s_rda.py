@@ -25,15 +25,27 @@ class SRDAModel:
     def __init__(self, func_graph, arch):
         self.func_graph = func_graph
         self.arch = arch
+        self.varid_to_vvar: dict[int, VirtualVariable] = {}
         self.all_vvar_definitions: dict[VirtualVariable, CodeLocation] = {}
         self.all_vvar_uses: dict[VirtualVariable, set[tuple[VirtualVariable | None, CodeLocation]]] = defaultdict(set)
         self.all_tmp_definitions: dict[CodeLocation, dict[atoms.Tmp, int]] = defaultdict(dict)
         self.all_tmp_uses: dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
+        self.phi_vvar_ids: set[int] = set()
 
     @property
     def all_definitions(self) -> Generator[Definition, None, None]:
         for vvar, defloc in self.all_vvar_definitions.items():
             yield Definition(atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident), defloc)
+
+    def is_phi_vvar_id(self, idx: int) -> bool:
+        return idx in self.phi_vvar_ids
+
+    def get_all_definitions(self, block_loc: CodeLocation) -> set[Definition]:
+        s = set()
+        for vvar, codeloc in self.all_vvar_definitions.items():
+            if codeloc.block_addr == block_loc.block_addr and codeloc.block_idx == block_loc.block_idx:
+                s.add(Definition(atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident), codeloc))
+        return s | self.get_all_tmp_definitions(block_loc)
 
     def get_all_tmp_definitions(self, block_loc: CodeLocation) -> set[Definition]:
         s = set()
@@ -79,13 +91,13 @@ class SRDAModel:
         return defs
 
     def get_vvar_uses(self, obj: atoms.VirtualVariable) -> set[CodeLocation]:
-        the_vvar = next(iter(v for v in self.all_vvar_uses if v.varid == obj.varid), None)
+        the_vvar = self.varid_to_vvar.get(obj.varid, None)
         if the_vvar is not None:
             return {loc for _, loc in self.all_vvar_uses[the_vvar]}
         return set()
 
     def get_vvar_uses_with_expr(self, obj: atoms.VirtualVariable) -> set[tuple[CodeLocation, VirtualVariable]]:
-        the_vvar = next(iter(v for v in self.all_vvar_uses if v.varid == obj.varid), None)
+        the_vvar = self.varid_to_vvar.get(obj.varid, None)
         if the_vvar is not None:
             return {(loc, expr) for expr, loc in self.all_vvar_uses[the_vvar]}
         return set()
@@ -99,6 +111,13 @@ class SRDAModel:
         for _, stmt_idx in self.all_tmp_uses[block_loc][obj]:
             s.add(CodeLocation(block_loc.block_addr, stmt_idx, block_idx=block_loc.block_idx))
         return s
+
+    def get_uses_by_def(self, def_: Definition) -> set[CodeLocation]:
+        if isinstance(def_.atom, atoms.Tmp):
+            return self.get_tmp_uses(def_.atom, CodeLocation(def_.codeloc.block_addr, block_idx=def_.codeloc.block_idx))
+        if isinstance(def_.atom, atoms.VirtualVariable):
+            return self.get_vvar_uses(def_.atom)
+        return set()
 
 
 class SRDAView:
@@ -300,17 +319,21 @@ class SReachingDefinitionsAnalysis(Analysis):
             case _:
                 raise NotImplementedError()
 
+        phi_vvars = set()
         # find all vvar definitions
-        vvar_deflocs = get_vvar_deflocs(blocks.values())
+        vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
         # find all explicit vvar uses
         vvar_uselocs = get_vvar_uselocs(blocks.values())
 
         # update model
         for vvar, defloc in vvar_deflocs.items():
+            self.model.varid_to_vvar[vvar.varid] = vvar
             self.model.all_vvar_definitions[vvar] = defloc
 
             for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                 self.model.all_vvar_uses[vvar].add((vvar_at_use, useloc))
+
+        self.model.phi_vvar_ids = {vvar.varid for vvar in phi_vvars}
 
         if self.mode == "function":
             # fix register definitions for arguments
@@ -318,6 +341,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             undefined_vvarids = set(vvar_uselocs.keys()).difference(defined_vvarids)
             for vvar_id in undefined_vvarids:
                 used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
+                self.model.varid_to_vvar[used_vvar] = used_vvar
                 self.model.all_vvar_definitions[used_vvar] = ExternalCodeLocation()
                 self.model.all_vvar_uses[used_vvar] |= vvar_uselocs[vvar_id]
 
