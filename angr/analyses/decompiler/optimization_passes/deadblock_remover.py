@@ -36,7 +36,7 @@ class DeadblockRemover(OptimizationPass):
             acyclic_graph = self._graph
         else:
             acyclic_graph = to_acyclic_graph(self._graph)
-        cond_proc.recover_reaching_conditions(region=None, graph=acyclic_graph)
+        cond_proc.recover_reaching_conditions(region=None, graph=acyclic_graph, simplify_conditions=False)
 
         if not any(claripy.is_false(c) for c in cond_proc.reaching_conditions.values()):
             return False, None

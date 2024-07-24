@@ -184,7 +184,12 @@ class ConditionProcessor:
         self.edge_conditions = edge_conditions
 
     def recover_reaching_conditions(
-        self, region, graph=None, with_successors=False, case_entry_to_switch_head: dict[int, int] | None = None
+        self,
+        region,
+        graph=None,
+        with_successors=False,
+        case_entry_to_switch_head: dict[int, int] | None = None,
+        simplify_conditions: bool = True,
     ):
         """
         Recover the reaching conditions for each block in an acyclic graph. Note that we assume the graph that's passed
@@ -255,7 +260,9 @@ class ConditionProcessor:
                         reaching_condition = claripy.Or(claripy.And(pred_condition, edge_condition), reaching_condition)
 
             if reaching_condition is not None:
-                reaching_conditions[node] = self.simplify_condition(reaching_condition)
+                reaching_conditions[node] = (
+                    self.simplify_condition(reaching_condition) if simplify_conditions else reaching_condition
+                )
 
         # My hypothesis: for nodes where two paths come together *and* those that cannot be further structured into
         # another if-else construct (we take the short-cut by testing if the operator is an "Or" after running our
