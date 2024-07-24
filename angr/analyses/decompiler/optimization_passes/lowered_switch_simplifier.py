@@ -11,7 +11,7 @@ from ailment.expression import Expression, BinaryOp, Const, Load
 from angr.utils.graph import GraphUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
+from .optimization_pass import OptimizationPassStage, MultipleBlocksException, StructuringOptimizationPass
 
 if TYPE_CHECKING:
     from ailment.expression import UnaryOp, Convert
@@ -130,7 +130,7 @@ class StableVarExprHasher(AILBlockWalkerBase):
         super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class LoweredSwitchSimplifier(OptimizationPass):
+class LoweredSwitchSimplifier(StructuringOptimizationPass):
     """
     Recognize and simplify lowered switch-case constructs.
     """
@@ -150,7 +150,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
     STRUCTURING = ["phoenix"]
 
     def __init__(self, func, min_case_size=3, **kwargs):
-        super().__init__(func, **kwargs)
+        super().__init__(func, require_gotos=False, prevent_new_gotos=False, simplify_ail=False, **kwargs)
         # controls the minimum number of cases that must exist in the final switch to be converted
         # this mimics the compilers checks for switch-conversions
         self._min_case_size = min_case_size
@@ -164,7 +164,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
         if not variablehash_to_cases:
-            return
+            return False
 
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
@@ -283,6 +283,8 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             graph_copy.add_edge(node_copy, node_copy)
                         else:
                             graph_copy.add_edge(node_copy, succ)
+
+        return True
 
     def _find_cascading_switch_variable_comparisons(self):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
