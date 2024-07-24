@@ -48,10 +48,10 @@ _all_optimization_passes = [
     (DeadblockRemover, True),
     (SwitchDefaultCaseDuplicator, True),
     (LoweredSwitchSimplifier, True),
-    (ReturnDuplicatorLow, False),
-    (ReturnDeduplicator, False),
+    (ReturnDuplicatorLow, True),
+    (ReturnDeduplicator, True),
     (CodeMotionOptimization, True),
-    (CrossJumpReverter, False),
+    (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
     (InlinedStringTransformationSimplifier, True),
 ]
