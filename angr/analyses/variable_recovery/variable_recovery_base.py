@@ -328,6 +328,9 @@ class VariableRecoveryStateBase:
         elif self.arch.bits == 64:
             base = 0x7F_FFFF_FFFE_0000
             mask = 0xFFFF_FFFF_FFFF_FFFF
+        elif self.arch.bits == 16:
+            base = 0x7FFE
+            mask = 0xFFFF
         else:
             raise AngrRuntimeError("Unsupported bits %d" % self.arch.bits)
         return (offset + base) & mask

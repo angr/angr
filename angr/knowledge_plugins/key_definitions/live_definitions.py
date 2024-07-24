@@ -85,6 +85,7 @@ class LiveDefinitions:
     uncovered during the analysis.
     """
 
+    INITIAL_SP_16BIT = 0x7FFE
     INITIAL_SP_32BIT = 0x7FFF0000
     INITIAL_SP_64BIT = 0x7FFFFFFF0000
     _tops = {}
@@ -445,6 +446,9 @@ class LiveDefinitions:
         elif self.arch.bits == 64:
             base_v = self.INITIAL_SP_64BIT
             mask = 0xFFFF_FFFF_FFFF_FFFF
+        elif self.arch.bits == 16:
+            base_v = self.INITIAL_SP_16BIT
+            mask = 0xFFFF
         else:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
         return (base_v + offset) & mask
