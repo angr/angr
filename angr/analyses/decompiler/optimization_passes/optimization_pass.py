@@ -296,6 +296,7 @@ class StructuringOptimizationPass(OptimizationPass):
     def _analyze(self, cache=None) -> bool:
         raise NotImplementedError()
 
+    # pylint:disable=unused-argument,no-self-use
     def _analyze_simplified_region(self, region):
         """
         Analyze the simplified regions after a successful structuring pass.
