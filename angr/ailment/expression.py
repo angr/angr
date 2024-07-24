@@ -1,4 +1,7 @@
 # pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring
+from __future__ import annotations
+from enum import IntEnum
+
 from typing import TYPE_CHECKING
 
 try:
@@ -65,7 +68,7 @@ class Atom(Expression):
         "variable_offset",
     )
 
-    def __init__(self, idx, variable, variable_offset=0, **kwargs):
+    def __init__(self, idx, variable=None, variable_offset=0, **kwargs):
         super().__init__(idx, 0, **kwargs)
         self.variable = variable
         self.variable_offset = variable_offset
@@ -121,7 +124,7 @@ class Const(Atom):
     def sign_bit(self):
         return self.value >> (self.bits - 1)
 
-    def copy(self) -> "Const":
+    def copy(self) -> Const:
         return Const(self.idx, self.variable, self.value, self.bits, **self.tags)
 
 
@@ -155,7 +158,7 @@ class Tmp(Atom):
     def _hash_core(self):
         return stable_hash(("tmp", self.tmp_idx, self.bits))
 
-    def copy(self) -> "Tmp":
+    def copy(self) -> Tmp:
         return Tmp(self.idx, self.variable, self.tmp_idx, self.bits, **self.tags)
 
 
@@ -194,8 +197,151 @@ class Register(Atom):
     def _hash_core(self):
         return stable_hash(("reg", self.reg_offset, self.bits, self.idx))
 
-    def copy(self) -> "Register":
+    def copy(self) -> Register:
         return Register(self.idx, self.variable, self.reg_offset, self.bits, **self.tags)
+
+
+class VirtualVariableCategory(IntEnum):
+    REGISTER = 0
+    STACK = 1
+    MEMORY = 2
+    UNKNOWN = 3
+
+
+class VirtualVariable(Atom):
+
+    __slots__ = (
+        "bits",
+        "varid",
+        "category",
+        "oident",
+    )
+
+    def __init__(
+        self,
+        idx,
+        varid: int,
+        bits,
+        category: VirtualVariableCategory,
+        oident: int | str | None = None,
+        **kwargs,
+    ):
+        super().__init__(idx, **kwargs)
+
+        self.varid = varid
+        self.category = category
+        self.oident = oident
+        self.bits = bits
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def was_reg(self) -> bool:
+        return self.category == VirtualVariableCategory.REGISTER
+
+    @property
+    def was_stack(self) -> bool:
+        return self.category == VirtualVariableCategory.STACK
+
+    @property
+    def reg_offset(self) -> int | None:
+        if self.was_reg:
+            return self.oident
+        return None
+
+    @property
+    def stack_offset(self) -> int | None:
+        if self.was_stack:
+            return self.oident
+        return None
+
+    def likes(self, atom):
+        return (
+            isinstance(atom, VirtualVariable)
+            and self.varid == atom.varid
+            and self.bits == atom.bits
+            and self.category == atom.category
+            and self.oident == atom.oident
+        )
+
+    def __repr__(self):
+        ori_str = ""
+        match self.category:
+            case VirtualVariableCategory.REGISTER:
+                ori_str = f"{{reg {self.reg_offset}}}"
+            case VirtualVariableCategory.STACK:
+                ori_str = f"{{stack {self.oident}}}"
+        return f"vvar_{self.varid}{ori_str}"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash(("var", self.varid, self.bits, self.category, self.oident))
+
+    def copy(self) -> VirtualVariable:
+        return VirtualVariable(
+            self.idx,
+            self.varid,
+            self.bits,
+            self.category,
+            oident=self.oident,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            **self.tags,
+        )
+
+
+class Phi(Atom):
+
+    __slots__ = (
+        "bits",
+        "src_and_vvars",
+    )
+
+    def __init__(
+        self,
+        idx,
+        bits,
+        src_and_vvars: list[tuple[tuple[int, int], VirtualVariable]],
+        **kwargs,
+    ):
+        super().__init__(idx, **kwargs)
+        self.bits = bits
+        self.src_and_vvars = src_and_vvars
+
+    @property
+    def size(self) -> int:
+        return self.bits // 8
+
+    @property
+    def op(self) -> str:
+        return "Phi"
+
+    @property
+    def verbose_op(self) -> str:
+        return "Phi"
+
+    def likes(self, atom) -> bool:
+        if isinstance(atom, Phi) and self.bits == atom.bits:
+            self_src_and_vvarids = {(src, vvar.varid if vvar is not None else None) for src, vvar in self.src_and_vvars}
+            other_src_and_vvarids = {
+                (src, vvar.varid if vvar is not None else None) for src, vvar in atom.src_and_vvars
+            }
+            return self_src_and_vvarids == other_src_and_vvarids
+        return False
+
+    def __repr__(self):
+        return f"𝜙@{self.bits}b {self.src_and_vvars}"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars))))
+
+    def copy(self) -> Phi:
+        return Phi(self.idx, self.bits, self.src_and_vvars[::], **self.tags)
 
 
 class Op(Expression):
@@ -262,7 +408,7 @@ class UnaryOp(Op):
     def size(self):
         return self.bits // 8
 
-    def copy(self) -> "UnaryOp":
+    def copy(self) -> UnaryOp:
         return UnaryOp(
             self.idx, self.op, self.operand, variable=self.variable, variable_offset=self.variable_offset, **self.tags
         )
@@ -376,7 +522,7 @@ class Convert(UnaryOp):
         else:
             return False, self
 
-    def copy(self) -> "Convert":
+    def copy(self) -> Convert:
         return Convert(
             self.idx,
             self.from_bits,
@@ -453,7 +599,7 @@ class Reinterpret(UnaryOp):
         else:
             return False, self
 
-    def copy(self) -> "Reinterpret":
+    def copy(self) -> Reinterpret:
         return Reinterpret(
             self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, self.operand, **self.tags
         )
@@ -695,7 +841,7 @@ class BinaryOp(Op):
     def size(self):
         return self.bits // 8
 
-    def copy(self) -> "BinaryOp":
+    def copy(self) -> BinaryOp:
         return BinaryOp(
             self.idx,
             self.op,
@@ -811,7 +957,7 @@ class TernaryOp(Op):
     def size(self):
         return self.bits // 8
 
-    def copy(self) -> "TernaryOp":
+    def copy(self) -> TernaryOp:
         return TernaryOp(self.idx, self.op, self.operands[::], bits=self.bits, **self.tags)
 
 
@@ -889,7 +1035,7 @@ class Load(Expression):
     def _hash_core(self):
         return stable_hash(("Load", self.addr, self.size, self.endness))
 
-    def copy(self) -> "Load":
+    def copy(self) -> Load:
         return Load(
             self.idx,
             self.addr,
@@ -991,7 +1137,7 @@ class ITE(Expression):
     def size(self):
         return self.bits // 8
 
-    def copy(self) -> "ITE":
+    def copy(self) -> ITE:
         return ITE(self.idx, self.cond, self.iffalse, self.iftrue, **self.tags)
 
 
@@ -1020,7 +1166,7 @@ class DirtyExpression(Expression):
     def __str__(self):
         return "[D] %s" % str(self.dirty_expr)
 
-    def copy(self) -> "DirtyExpression":
+    def copy(self) -> DirtyExpression:
         return DirtyExpression(self.idx, self.dirty_expr, bits=self.bits, **self.tags)
 
     def replace(self, old_expr, new_expr):
@@ -1076,7 +1222,7 @@ class VEXCCallExpression(Expression):
         operands_str = ", ".join(repr(op) for op in self.operands)
         return f"{self.cee_name}({operands_str})"
 
-    def copy(self) -> "VEXCCallExpression":
+    def copy(self) -> VEXCCallExpression:
         return VEXCCallExpression(self.idx, self.cee_name, self.operands, bits=self.bits, **self.tags)
 
     def replace(self, old_expr, new_expr):
@@ -1114,7 +1260,7 @@ class MultiStatementExpression(Expression):
         "expr",
     )
 
-    def __init__(self, idx: int | None, stmts: list["Statement"], expr: Expression, **kwargs):
+    def __init__(self, idx: int | None, stmts: list[Statement], expr: Expression, **kwargs):
         super().__init__(idx, expr.depth + 1, **kwargs)
         self.stmts = stmts
         self.expr = expr
@@ -1166,7 +1312,7 @@ class MultiStatementExpression(Expression):
             )
         return False, self
 
-    def copy(self) -> "MultiStatementExpression":
+    def copy(self) -> MultiStatementExpression:
         return MultiStatementExpression(self.idx, self.stmts[::], self.expr, **self.tags)
 
 
@@ -1237,7 +1383,7 @@ class BasePointerOffset(Expression):
             return True, BasePointerOffset(self.idx, self.bits, new_base, new_offset, **self.tags)
         return False, self
 
-    def copy(self) -> "BasePointerOffset":
+    def copy(self) -> BasePointerOffset:
         return BasePointerOffset(self.idx, self.bits, self.base, self.offset, **self.tags)
 
 
@@ -1250,7 +1396,7 @@ class StackBaseOffset(BasePointerOffset):
             offset -= 1 << bits
         super().__init__(idx, bits, "stack_base", offset, **kwargs)
 
-    def copy(self) -> "StackBaseOffset":
+    def copy(self) -> StackBaseOffset:
         return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
 
 

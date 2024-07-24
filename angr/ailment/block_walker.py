@@ -17,6 +17,8 @@ from .expression import (
     Register,
     Const,
     MultiStatementExpression,
+    VirtualVariable,
+    Phi,
 )
 
 
@@ -47,6 +49,8 @@ class AILBlockWalkerBase:
             Register: self._handle_Register,
             Const: self._handle_Const,
             MultiStatementExpression: self._handle_MultiStatementExpression,
+            VirtualVariable: self._handle_VirtualVariable,
+            Phi: self._handle_Phi,
         }
 
         self.stmt_handlers: dict[type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -151,6 +155,15 @@ class AILBlockWalkerBase:
 
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None):
         pass
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        pass
+
+    def _handle_Phi(self, expr_id: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, (_, vvar) in enumerate(expr.src_and_vvars):
+            self._handle_expr(idx, vvar, stmt_idx, stmt, block)
 
     def _handle_MultiStatementExpression(
         self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
