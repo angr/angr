@@ -152,7 +152,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     )
     STRUCTURING = ["phoenix"]
 
-    def __init__(self, func, min_isolated_cases=3, **kwargs):
+    def __init__(self, func, min_distinct_cases=2, **kwargs):
         super().__init__(func, require_gotos=False, prevent_new_gotos=False, simplify_ail=False, **kwargs)
 
         # this is the max number of cases that can be in a switch that can be converted to a
@@ -163,9 +163,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # NOTE: this means that there must be less than default_case_values for us to convert an if-tree to a switch
         self._max_case_values = default_case_values_threshold
 
-        # this is a heuristic to reduce the number of non-continuous if-stmts that happen to look like
-        # they could be a lowered switch-case construct
-        self._min_isolated_cases = min_isolated_cases
+        self._min_distinct_cases = min_distinct_cases
 
         # used to determine if a switch-case construct is present in the code, useful for invalidating
         # other heuristics that minimize false positives
@@ -191,6 +189,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # Final check to include the last sequence
         max_len = max(max_len, current_len)
         return max_len
+
+    @staticmethod
+    def _count_distinct_cases(cases: list[Case]) -> int:
+        return len({case.target for case in cases})
 
     def _analyze_simplified_region(self, region):
         finder = SwitchClusterFinder(region)
@@ -237,12 +239,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     _l.debug("Skipping switch-case conversion due to all cases being continuous for %s", real_cases[0])
                     continue
 
-                # RULE 3: Sometimes you may accidentally turn a small series of non-continous if-stmts (2)
-                # into a switch case. A false-positive almost always occur when the number of cases is less than 3.
-                # However, much like the previous rule, we should still convert it to a switch-case if a switch-case
-                # construct is present in the code (it could result in a merge of a large one).
-                if len(real_cases) < self._min_isolated_cases and self._switches_present_in_code == 0:
-                    _l.debug("Skipping switch-case conversion due to too few continuous cases for %s", real_cases[0])
+                # RULE 3: It is not a real cluster if there are not enough distinct cases.
+                # A distinct case is a case that has a different body of code.
+                distinct_cases = self._count_distinct_cases(real_cases)
+                if distinct_cases < self._min_distinct_cases and self._switches_present_in_code == 0:
+                    _l.debug("Skipping switch-case conversion due to too few distinct cases for %s", real_cases[0])
                     continue
 
                 original_nodes = [case.original_node for case in real_cases]
