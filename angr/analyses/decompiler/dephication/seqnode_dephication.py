@@ -54,6 +54,9 @@ class SeqNodeRewriter(SequenceWalker):
         self.engine = SimEngineDephiRewriting(arch, self.vvar_to_vvar)
 
         self.output = self.walk(seq_node)
+        if self.output is None:
+            # nothing is changed during rewriting
+            self.output = seq_node
 
     # TODO: Implement other handlers
 
