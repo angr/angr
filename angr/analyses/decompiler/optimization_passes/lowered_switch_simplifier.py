@@ -157,27 +157,35 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # if-tree (if the number of cases is greater than this, the switch will not be converted)
         # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/targhooks.cc#L1899
         # TODO: add architecture specific values
-        default_case_values_threshold = 5
-        # NOTE: this means that there must be less than 5 cases for us to convert an if-tree to a switch
+        default_case_values_threshold = 6
+        # NOTE: this means that there must be less than default_case_values for us to convert an if-tree to a switch
         self._max_case_values = default_case_values_threshold
+
+        # this is a heuristic
+        self._min_continuous_cases = 2
 
         self._switches_present_in_code = 0
 
         self.analyze()
 
     @staticmethod
-    def _count_continuous_cases(cases: list[Case]) -> int:
-        if not cases:
+    def _count_max_continuous_cases(cases: list[Case]) -> int:
+        if not cases:  # Return 0 if the list is empty
             return 0
 
+        max_len = 0
+        current_len = 1  # Start with 1 since a single number is a sequence of length 1
         sorted_cases = sorted(cases, key=lambda c: c.value)
-        continuous_cases = 1
         for i in range(1, len(sorted_cases)):
-            if sorted_cases[i].value - sorted_cases[i - 1].value == 1:
-                continuous_cases += 1
+            if sorted_cases[i].value == sorted_cases[i - 1].value + 1:
+                current_len += 1
             else:
-                break
-        return continuous_cases
+                max_len = max(max_len, current_len)
+                current_len = 1
+
+        # Final check to include the last sequence
+        max_len = max(max_len, current_len)
+        return max_len
 
     def _analyze_simplified_region(self, region):
         finder = SwitchClusterFinder(region)
@@ -200,7 +208,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         for _, caselists in variablehash_to_cases.items():
             for cases, redundant_nodes in caselists:
                 real_cases = [case for case in cases if case.value != "default"]
-                num_continuous_cases = self._count_continuous_cases(real_cases)
+                max_continuous_cases = self._count_max_continuous_cases(real_cases)
 
                 # There are a few rules used in most compilers about when to lower a switch that would otherwise
                 # be a jump table into either a series of if-trees or into series of bit tests.
@@ -209,7 +217,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # then specified by the default_case_values_threshold, therefore we should never try to rever it
                 # if there is more or equal than that.
                 # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/tree-switch-conversion.cc#L1406
-                if num_continuous_cases >= self._max_case_values:
+                if max_continuous_cases >= self._max_case_values:
                     _l.debug("Skipping switch-case conversion due to too many cases for %s", real_cases[0])
                     continue
 
@@ -219,9 +227,17 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # However, we need to also consider the case where the cases we are looking at are currently a smaller
                 # cluster split off a non-continuous cluster. In this case, we should still convert it to a switch-case
                 # iff a switch-case construct is present in the code.
-                is_all_continuous = num_continuous_cases == len(real_cases)
+                is_all_continuous = max_continuous_cases == len(real_cases)
                 if is_all_continuous and self._switches_present_in_code == 0:
                     _l.debug("Skipping switch-case conversion due to all cases being continuous for %s", real_cases[0])
+                    continue
+
+                # RULE 3: Sometimes you may accidentally turn a small series of if-stmts (2) into a switch case.
+                # A false-positive almost always occur when the max number of continuous cases is less than 2.
+                # However, much like the previous rule, we should still convert it to a switch-case if a switch-case
+                # construct is present in the code (it could result in a merge).
+                if max_continuous_cases < self._min_continuous_cases and self._switches_present_in_code == 0:
+                    _l.debug("Skipping switch-case conversion due to too few continuous cases for %s", real_cases[0])
                     continue
 
                 original_nodes = [case.original_node for case in real_cases]
