@@ -278,7 +278,7 @@ class StructuringOptimizationPass(OptimizationPass):
         prevent_new_gotos=True,
         strictly_less_gotos=False,
         recover_structure_fails=True,
-        must_improve_rel_quality=False,
+        must_improve_rel_quality=True,
         max_opt_iters=1,
         simplify_ail=True,
         require_gotos=True,
