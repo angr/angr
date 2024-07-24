@@ -11,7 +11,8 @@ from ailment.expression import Expression, BinaryOp, Const, Load
 from angr.utils.graph import GraphUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
+from .optimization_pass import OptimizationPassStage, MultipleBlocksException, StructuringOptimizationPass
+from ..region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
 
 if TYPE_CHECKING:
     from ailment.expression import UnaryOp, Convert
@@ -130,15 +131,19 @@ class StableVarExprHasher(AILBlockWalkerBase):
         super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class LoweredSwitchSimplifier(OptimizationPass):
+class LoweredSwitchSimplifier(StructuringOptimizationPass):
     """
-    Recognize and simplify lowered switch-case constructs.
+    This optimization recognizes and reverts switch cases that have been lowered and possibly split into multiple
+    if-else statements. This optimization, discussed in the USENIX 2024 paper SAILR, aims to undo the compiler
+    optimization known as "Switch Lowering", present in both GCC and Clang. An in-depth discussion of this
+    optimization can be found in the paper or in our documentation of the optimization:
+    https://github.com/mahaloz/sailr-eval/issues/14#issue-2232616411
+
+    Note, this optimization does not occur in MSVC, which uses a different optimization strategy for switch cases.
+    As a hack for now, we only run this deoptimization on Linux binaries.
     """
 
-    ARCHES = [
-        "AMD64",
-    ]
-    PLATFORMS = ["linux", "windows"]
+    PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
@@ -147,11 +152,59 @@ class LoweredSwitchSimplifier(OptimizationPass):
     )
     STRUCTURING = ["phoenix"]
 
-    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, **kwargs):
+    def __init__(self, func, min_distinct_cases=2, **kwargs):
         super().__init__(
-            func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx, graph=graph, **kwargs
+            func,
+            require_gotos=False,
+            prevent_new_gotos=False,
+            simplify_ail=False,
+            must_improve_rel_quality=True,
+            **kwargs,
         )
+
+        # this is the max number of cases that can be in a switch that can be converted to a
+        # if-tree (if the number of cases is greater than this, the switch will not be converted)
+        # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/targhooks.cc#L1899
+        # TODO: add architecture specific values
+        default_case_values_threshold = 6
+        # NOTE: this means that there must be less than default_case_values for us to convert an if-tree to a switch
+        self._max_case_values = default_case_values_threshold
+
+        self._min_distinct_cases = min_distinct_cases
+
+        # used to determine if a switch-case construct is present in the code, useful for invalidating
+        # other heuristics that minimize false positives
+        self._switches_present_in_code = 0
+
         self.analyze()
+
+    @staticmethod
+    def _count_max_continuous_cases(cases: list[Case]) -> int:
+        if not cases:  # Return 0 if the list is empty
+            return 0
+
+        max_len = 0
+        current_len = 1  # Start with 1 since a single number is a sequence of length 1
+        sorted_cases = sorted(cases, key=lambda c: c.value)
+        for i in range(1, len(sorted_cases)):
+            if sorted_cases[i].value == sorted_cases[i - 1].value + 1:
+                current_len += 1
+            else:
+                max_len = max(max_len, current_len)
+                current_len = 1
+
+        # Final check to include the last sequence
+        max_len = max(max_len, current_len)
+        return max_len
+
+    @staticmethod
+    def _count_distinct_cases(cases: list[Case]) -> int:
+        return len({case.target for case in cases})
+
+    def _analyze_simplified_region(self, region, initial=False):
+        super()._analyze_simplified_region(region, initial=initial)
+        finder = SwitchClusterFinder(region)
+        self._switches_present_in_code = len(finder.var2switches.values())
 
     def _check(self):
         # TODO: More filtering
@@ -161,7 +214,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
         if not variablehash_to_cases:
-            return
+            return False
 
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
@@ -169,7 +222,39 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         for _, caselists in variablehash_to_cases.items():
             for cases, redundant_nodes in caselists:
-                original_nodes = [case.original_node for case in cases if case.value != "default"]
+                real_cases = [case for case in cases if case.value != "default"]
+                max_continuous_cases = self._count_max_continuous_cases(real_cases)
+
+                # There are a few rules used in most compilers about when to lower a switch that would otherwise
+                # be a jump table into either a series of if-trees or into series of bit tests.
+                #
+                # RULE 1: You only ever convert a Switch into if-stmts if there are less continuous cases
+                # then specified by the default_case_values_threshold, therefore we should never try to rever it
+                # if there is more or equal than that.
+                # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/tree-switch-conversion.cc#L1406
+                if max_continuous_cases >= self._max_case_values:
+                    _l.debug("Skipping switch-case conversion due to too many cases for %s", real_cases[0])
+                    continue
+
+                # RULE 2: You only ever convert a Switch into if-stmts if at least one of the cases is not continuous.
+                # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/tree-switch-conversion.cc#L1960
+                #
+                # However, we need to also consider the case where the cases we are looking at are currently a smaller
+                # cluster split off a non-continuous cluster. In this case, we should still convert it to a switch-case
+                # iff a switch-case construct is present in the code.
+                is_all_continuous = max_continuous_cases == len(real_cases)
+                if is_all_continuous and self._switches_present_in_code == 0:
+                    _l.debug("Skipping switch-case conversion due to all cases being continuous for %s", real_cases[0])
+                    continue
+
+                # RULE 3: It is not a real cluster if there are not enough distinct cases.
+                # A distinct case is a case that has a different body of code.
+                distinct_cases = self._count_distinct_cases(real_cases)
+                if distinct_cases < self._min_distinct_cases and self._switches_present_in_code == 0:
+                    _l.debug("Skipping switch-case conversion due to too few distinct cases for %s", real_cases[0])
+                    continue
+
+                original_nodes = [case.original_node for case in real_cases]
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
@@ -221,7 +306,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 # would result in a successor node no longer being present in the graph
                 if any(onode not in graph_copy for onode in original_nodes):
                     self.out_graph = None
-                    return
+                    return False
 
                 # add edges between the head and case nodes
                 for onode in original_nodes:
@@ -276,6 +361,8 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             graph_copy.add_edge(node_copy, node_copy)
                         else:
                             graph_copy.add_edge(node_copy, succ)
+
+        return True
 
     def _find_cascading_switch_variable_comparisons(self):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
