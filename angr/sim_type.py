@@ -1,30 +1,36 @@
-# pylint:disable=abstract-method,line-too-long,missing-class-docstring
+# pylint:disable=abstract-method,line-too-long,missing-class-docstring,wrong-import-position
+from __future__ import annotations
 from __future__ import annotations
 
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Literal, Optional, Any, Union, TYPE_CHECKING, cast, overload
+from collections.abc import Iterable
 import logging
-
-try:
-    import pycparser
-except ImportError:
-    pycparser = None
 
 try:
     import CppHeaderParser
 except ImportError:
     CppHeaderParser = None
 
-from archinfo import Endness
+from archinfo import Endness, Arch
 import claripy
 
-from angr.errors import AngrMissingTypeError
+from angr.errors import AngrMissingTypeError, AngrTypeError
 from .misc.ux import deprecated
 
 if TYPE_CHECKING:
+    import pycparser
     from angr.procedures.definitions import SimTypeCollection
+    from angr.storage.memory_mixins import _Coerce
+
+    StoreType = Union[_Coerce, claripy.ast.BV]
+else:
+    try:
+        import pycparser
+    except ImportError:
+        pycparser = None
 
 
 l = logging.getLogger(name=__name__)
@@ -39,18 +45,19 @@ class SimType:
     SimType exists to track type information for SimProcedures.
     """
 
-    _fields = ()
-    _arch = None
-    _size = None
-    _can_refine_int = False
-    _base_name = None
-    base = True
+    _fields: tuple[str, ...] = ()
+    _arch: Arch | None
+    _size: int | None = None
+    _can_refine_int: bool = False
+    _base_name: str
+    base: bool = True
 
     def __init__(self, label=None):
         """
         :param label: the type label.
         """
         self.label = label
+        self._arch = None
 
     @staticmethod
     def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
@@ -106,13 +113,11 @@ class SimType:
         raise KeyError(f"{k} is not a valid refinement")
 
     @property
-    def size(self):
+    def size(self) -> int | None:
         """
-        The size of the type in bits.
+        The size of the type in bits, or None if no size is computable.
         """
-        if self._size is not None:
-            return self._size
-        return NotImplemented
+        return self._size
 
     @property
     def alignment(self):
@@ -121,11 +126,11 @@ class SimType:
         """
         if self._arch is None:
             raise ValueError("Can't tell my alignment without an arch!")
-        if self.size is NotImplemented:
-            return NotImplemented
+        if self.size is None:
+            raise AngrTypeError("Cannot compute the alignment of a type with no size")
         return self.size // self._arch.byte_width
 
-    def with_arch(self, arch):
+    def with_arch(self, arch: Arch | None):
         if arch is None:
             return self
         if self._arch is not None and self._arch == arch:
@@ -141,7 +146,9 @@ class SimType:
     def _init_str(self):
         return f"NotImplemented({self.__class__.__name__})"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):  # pylint:disable=unused-argument
+    def c_repr(
+        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
         else:
@@ -150,7 +157,13 @@ class SimType:
     def copy(self):
         raise NotImplementedError()
 
-    def extract_claripy(self, bits):
+    def extract(self, state: SimState, addr, concrete: bool = False) -> Any:
+        raise NotImplementedError
+
+    def store(self, state: SimState, addr, value: Any):
+        raise NotImplementedError
+
+    def extract_claripy(self, bits) -> Any:
         """
         Given a bitvector `bits` which was loaded from memory in a big-endian fashion, return a more appropriate or
         structured representation of the data.
@@ -173,6 +186,15 @@ class TypeRef(SimType):
         self._name = name
 
     @property
+    def type(self):
+        return self._type
+
+    @type.setter
+    def type(self, val):
+        self._type = val
+        self._arch = val._arch
+
+    @property
     def name(self):
         """
         This is a read-only property because it is desirable to store typerefs in a mapping from name to type, and we
@@ -188,10 +210,6 @@ class TypeRef(SimType):
 
     def __repr__(self):
         return self.name
-
-    @property
-    def _arch(self):
-        return self.type._arch
 
     @property
     def size(self):
@@ -278,7 +296,7 @@ class SimTypeTop(SimType):
 
     _fields = ("size",)
 
-    def __init__(self, size=None, label=None):
+    def __init__(self, size: int | None = None, label=None):
         SimType.__init__(self, label)
         self._size = size
 
@@ -296,7 +314,7 @@ class SimTypeReg(SimType):
 
     _fields = ("size",)
 
-    def __init__(self, size, label=None):
+    def __init__(self, size: int | None, label=None):
         """
         :param label: the type label.
         :param size: the size of the type (e.g. 32bit, 8bit, etc.).
@@ -307,19 +325,10 @@ class SimTypeReg(SimType):
     def __repr__(self):
         return f"reg{self.size}_t"
 
-    def extract(self, state, addr, concrete=False):
-        # TODO: EDG says this looks dangerously closed-minded. Just in case...
-        assert self.size % state.arch.byte_width == 0
-
-        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
-        if not concrete:
-            return out
-        return state.solver.eval(out)
-
-    def store(self, state, addr, value):
+    def store(self, state, addr, value: StoreType):
         store_endness = state.arch.memory_endness
         try:
-            value = value.ast
+            value = value.ast  # type: ignore
         except AttributeError:
             pass
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
@@ -345,7 +354,7 @@ class SimTypeNum(SimType):
 
     _fields = SimType._fields + ("signed", "size")
 
-    def __init__(self, size, signed=True, label=None):
+    def __init__(self, size: int, signed=True, label=None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
@@ -355,8 +364,19 @@ class SimTypeNum(SimType):
         self._size = size
         self.signed = signed
 
+    @property
+    def size(self) -> int:
+        assert self._size is not None
+        return self._size
+
     def __repr__(self):
         return "{}int{}_t".format("" if self.signed else "u", self.size)
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -367,14 +387,14 @@ class SimTypeNum(SimType):
             n -= 1 << (self.size)
         return n
 
-    def store(self, state, addr, value):
+    def store(self, state, addr, value: StoreType):
         store_endness = state.arch.memory_endness
 
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
-        elif isinstance(value, int):
-            value = state.solver.BVV(value, self.size)
+        elif isinstance(value, int) and self.size is not None:
+            value = claripy.BVV(value, self.size)
         elif isinstance(value, bytes):
             store_endness = "Iend_BE"
         else:
@@ -426,8 +446,14 @@ class SimTypeInt(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         try:
             return self._arch.sizeof[self._base_name]
-        except KeyError as ex:
-            raise ValueError(f"Arch {self._arch.name} doesn't have its {self._base_name} type defined!") from ex
+        except KeyError as e:
+            raise ValueError(f"Arch {self._arch.name} doesn't have its {self._base_name} type defined!") from e
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -488,13 +514,13 @@ class SimTypeChar(SimTypeReg):
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
-        SimTypeReg.__init__(self, 8, label=label)
+        super().__init__(8, label=label)
         self.signed = signed
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "char"
 
-    def store(self, state, addr, value):
+    def store(self, state, addr, value: StoreType):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
         try:
@@ -506,13 +532,19 @@ class SimTypeChar(SimTypeReg):
             else:
                 raise
 
-    def extract(self, state, addr, concrete=False):
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> bytes: ...
+
+    def extract(self, state, addr, concrete: bool = False) -> claripy.ast.BV | bytes:
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
 
-        out = super().extract(state, addr, concrete)
+        out = state.memory.load(addr, 1, endness=state.arch.memory_endness)
         if concrete:
-            return bytes([out])
+            return bytes(cast(list[int], [state.solver.eval(out)]))
         return out
 
     def _init_str(self):
@@ -542,7 +574,7 @@ class SimTypeWideChar(SimTypeReg):
     def __repr__(self):
         return "wchar"
 
-    def store(self, state, addr, value):
+    def store(self, state, addr, value: StoreType):
         self._size = state.arch.byte_width
         try:
             super().store(state, addr, value)
@@ -553,7 +585,7 @@ class SimTypeWideChar(SimTypeReg):
             else:
                 raise
 
-    def extract(self, state, addr, concrete=False):
+    def extract(self, state, addr, concrete=False) -> Any:
         self._size = state.arch.byte_width
 
         out = super().extract(state, addr, concrete)
@@ -571,14 +603,30 @@ class SimTypeWideChar(SimTypeReg):
         return self.__class__(signed=self.signed, label=self.label)
 
 
-class SimTypeBool(SimTypeChar):
+class SimTypeBool(SimTypeReg):
     _base_name = "bool"
+
+    def __init__(self, signed=True, label=None):
+        """
+        :param label: the type label.
+        """
+        # FIXME: Now the size of a char is state-dependent.
+        super().__init__(8, label=label)
+        self.signed = signed
 
     def __repr__(self):
         return "bool"
 
-    def store(self, state, addr, value):
-        return super().store(state, addr, int(value))
+    def store(self, state, addr, value: StoreType | bool):
+        if isinstance(value, bool):
+            value = int(value)
+        return super().store(state, addr, value)
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.Bool: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> bool: ...
 
     def extract(self, state, addr, concrete=False):
         ver = super().extract(state, addr, concrete)
@@ -588,6 +636,9 @@ class SimTypeBool(SimTypeChar):
 
     def _init_str(self):
         return f"{self.__class__.__name__}()"
+
+    def copy(self):
+        return self.__class__(signed=self.signed, label=self.label)
 
 
 class SimTypeFd(SimTypeReg):
@@ -605,6 +656,10 @@ class SimTypeFd(SimTypeReg):
         # TODO: That's so closed-minded!
         super().__init__(32, label=label)
 
+    @property
+    def size(self):
+        return 32
+
     def __repr__(self):
         return "fd_t"
 
@@ -616,6 +671,21 @@ class SimTypeFd(SimTypeReg):
             self.__class__.__name__,
             ('label="%s"' % self.label) if self.label is not None else "",
         )
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+
+    def extract(self, state, addr, concrete=False):
+        # TODO: EDG says this looks dangerously closed-minded. Just in case...
+        assert self.size % state.arch.byte_width == 0
+
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        return state.solver.eval(out)
 
 
 class SimTypePointer(SimTypeReg):
@@ -677,6 +747,21 @@ class SimTypePointer(SimTypeReg):
     def copy(self):
         return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
 
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+
+    def extract(self, state, addr, concrete=False):
+        # TODO: EDG says this looks dangerously closed-minded. Just in case...
+        assert self.size % state.arch.byte_width == 0
+
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        return state.solver.eval(out)
+
 
 class SimTypeReference(SimTypeReg):
     """
@@ -720,6 +805,21 @@ class SimTypeReference(SimTypeReg):
     def copy(self):
         return SimTypeReference(self.refs, label=self.label)
 
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+
+    def extract(self, state, addr, concrete=False):
+        # TODO: EDG says this looks dangerously closed-minded. Just in case...
+        assert self.size % state.arch.byte_width == 0
+
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        return state.solver.eval(out)
+
 
 class SimTypeArray(SimType):
     """
@@ -752,6 +852,8 @@ class SimTypeArray(SimType):
     def size(self):
         if self.length is None:
             return 0
+        if self.elem_type.size is None:
+            return None
         return self.elem_type.size * self.length
 
     @property
@@ -773,14 +875,27 @@ class SimTypeArray(SimType):
             addr=view._addr + k * (self.elem_type.size // view.state.arch.byte_width), ty=self.elem_type
         )
 
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> list[Any]:  # associated types...
+        ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> list[Any]: ...
+
     def extract(self, state, addr, concrete=False):
+        if self.length is None:
+            return []
+        if self.elem_type.size is None:
+            return None
         return [
             self.elem_type.extract(state, addr + i * (self.elem_type.size // state.arch.byte_width), concrete)
             for i in range(self.length)
         ]
 
-    def store(self, state, addr, values):
-        for i, val in enumerate(values):
+    def store(self, state, addr, value: list[StoreType]):
+        if self.elem_type.size is None:
+            raise AngrTypeError("Cannot call store on an array of unsized types")
+        for i, val in enumerate(value):
             self.elem_type.store(state, addr + i * (self.elem_type.size // state.arch.byte_width), val)
 
     def _init_str(self):
@@ -795,7 +910,7 @@ class SimTypeArray(SimType):
 SimTypeFixedSizeArray = SimTypeArray
 
 
-class SimTypeString(NamedTypeMixin, SimTypeArray):
+class SimTypeString(NamedTypeMixin, SimType):
     """
     SimTypeString is a type that represents a C-style string,
     i.e. a NUL-terminated array of bytes.
@@ -803,15 +918,30 @@ class SimTypeString(NamedTypeMixin, SimTypeArray):
 
     _fields = SimTypeArray._fields + ("length",)
 
-    def __init__(self, length=None, label=None, name: str | None = None):
+    def __init__(self, length: int | None = None, label=None, name: str | None = None):
         """
         :param label:   The type label.
         :param length:  An expression of the length of the string, if known.
         """
-        super().__init__(SimTypeChar(), label=label, length=length, name=name)
+        super().__init__(label=label, name=name)
+        self.elem_type = SimTypeChar()
+        self.length = length
 
     def __repr__(self):
         return "string_t"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None:
+            return repr(self)
+
+        name = "{}[{}]".format(name, self.length if self.length is not None else "")
+        return self.elem_type.c_repr(name, full, memo, indent)
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> bytes: ...
 
     def extract(self, state: SimState, addr, concrete=False):
         if self.length is None:
@@ -853,19 +983,36 @@ class SimTypeString(NamedTypeMixin, SimTypeArray):
     def copy(self):
         return SimTypeString(length=self.length, label=self.label, name=self.name)
 
+    def _init_str(self):
+        return "{}({}, {}{})".format(
+            self.__class__.__name__,
+            self.elem_type._init_str(),
+            self.length,
+            f", {self.label}" if self.label is not None else "",
+        )
 
-class SimTypeWString(NamedTypeMixin, SimTypeArray):
+
+class SimTypeWString(NamedTypeMixin, SimType):
     """
     A wide-character null-terminated string, where each character is 2 bytes.
     """
 
     _fields = SimTypeArray._fields + ("length",)
 
-    def __init__(self, length=None, label=None, name: str | None = None):
-        super().__init__(SimTypeNum(16, False), label=label, length=length, name=name)
+    def __init__(self, length: int | None = None, label=None, name: str | None = None):
+        super().__init__(label=label, name=name)
+        self.elem_type = SimTypeNum(16, False)
+        self.length = length
 
     def __repr__(self):
         return "wstring_t"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None:
+            return repr(self)
+
+        name = "{}[{}]".format(name, self.length if self.length is not None else "")
+        return self.elem_type.c_repr(name, full, memo, indent)
 
     def extract(self, state, addr, concrete=False):
         if self.length is None:
@@ -891,6 +1038,9 @@ class SimTypeWString(NamedTypeMixin, SimTypeArray):
                 for x in out.chop(16)
             )
 
+    def store(self, state, addr, value):
+        raise NotImplementedError
+
     _can_refine_int = True
 
     def _refine(self, view, k):
@@ -912,6 +1062,14 @@ class SimTypeWString(NamedTypeMixin, SimTypeArray):
     def copy(self):
         return SimTypeWString(length=self.length, label=self.label, name=self.name)
 
+    def _init_str(self):
+        return "{}({}, {}{})".format(
+            self.__class__.__name__,
+            self.elem_type._init_str(),
+            self.length,
+            f", {self.label}" if self.label is not None else "",
+        )
+
 
 class SimTypeFunction(SimType):
     """
@@ -922,7 +1080,14 @@ class SimTypeFunction(SimType):
     _fields = ("args", "returnty")
     base = False
 
-    def __init__(self, args: list[SimType], returnty: SimType | None, label=None, arg_names=None, variadic=False):
+    def __init__(
+        self,
+        args: Iterable[SimType],
+        returnty: SimType | None,
+        label=None,
+        arg_names: Iterable[str] | None = None,
+        variadic=False,
+    ):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -930,9 +1095,9 @@ class SimTypeFunction(SimType):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(label=label)
-        self.args: list[SimType] = args
+        self.args: tuple[SimType, ...] = tuple(args)
         self.returnty: SimType | None = returnty
-        self.arg_names = arg_names if arg_names else ()
+        self.arg_names = tuple(arg_names) if arg_names else ()
         self.variadic = variadic
 
     def __hash__(self):
@@ -983,7 +1148,7 @@ class SimTypeFunction(SimType):
         return "{}([{}], {}{}{}{})".format(
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
-            self.returnty._init_str(),
+            self.returnty._init_str() if self.returnty else "void",
             (', label="%s"' % self.label) if self.label else "",
             (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
@@ -1005,7 +1170,13 @@ class SimTypeCppFunction(SimTypeFunction):
     """
 
     def __init__(
-        self, args, returnty, label=None, arg_names: tuple[str] = None, ctor: bool = False, dtor: bool = False
+        self,
+        args,
+        returnty,
+        label=None,
+        arg_names: Iterable[str] | None = None,
+        ctor: bool = False,
+        dtor: bool = False,
     ):
         super().__init__(args, returnty, label=label, arg_names=arg_names, variadic=False)
         self.ctor = ctor
@@ -1087,18 +1258,24 @@ class SimTypeFloat(SimTypeReg):
     sort = claripy.FSORT_FLOAT
     signed = True
 
+    @property
+    def size(self) -> int:
+        return 32
+
     def extract(self, state, addr, concrete=False):
-        itype = claripy.fpToFP(super().extract(state, addr, False), self.sort)
+        itype = claripy.fpToFP(
+            state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness), self.sort
+        )
         if concrete:
             return state.solver.eval(itype)
         return itype
 
-    def store(self, state, addr, value):
-        if type(value) in (int, float):
+    def store(self, state, addr, value: StoreType | claripy.ast.FP):
+        if isinstance(value, (int, float)):
             value = claripy.FPV(float(value), self.sort)
-        return super().store(state, addr, value)
+        return super().store(state, addr, value)  # type: ignore    # trust me bro
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "float"
 
     def _init_str(self):
@@ -1121,6 +1298,10 @@ class SimTypeDouble(SimTypeFloat):
 
     sort = claripy.FSORT_DOUBLE
 
+    @property
+    def size(self) -> int:
+        return 64
+
     def __repr__(self):
         return "double"
 
@@ -1138,12 +1319,12 @@ class SimTypeDouble(SimTypeFloat):
 class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields")
 
-    def __init__(self, fields: dict[str, SimType] | OrderedDict, name=None, pack=False, align=None):
+    def __init__(self, fields: dict[str, SimType] | OrderedDict[str, SimType], name=None, pack=False, align=None):
         super().__init__(None, name="<anon>" if name is None else name)
 
         self._pack = pack
         self._align = align
-        self.fields = fields
+        self.fields: OrderedDict[str, SimType] = OrderedDict(fields)
 
         self._arch_memo = {}
 
@@ -1153,10 +1334,13 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @property
     def offsets(self) -> dict[str, int]:
+        if self._arch is None:
+            raise ValueError("Need an arch to calculate offsets")
+
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.items():
-            if isinstance(ty, SimTypeBottom):
+            if ty.size is None:
                 l.warning(
                     "Found a bottom field in struct %s. Ignore and increment the offset using the default "
                     "element size.",
@@ -1178,7 +1362,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         return offsets
 
-    def extract(self, state, addr, concrete=False):
+    def extract(self, state, addr, concrete=False) -> SimStructValue:
         values = {}
         for name, offset in self.offsets.items():
             ty = self.fields[name]
@@ -1194,7 +1378,7 @@ class SimStruct(NamedTypeMixin, SimType):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = SimStruct(None, name=self.name, pack=self._pack, align=self._align)
+        out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
 
@@ -1202,7 +1386,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
-        for name, ty in out.fields.items():
+        for _, ty in out.fields.items():
             if isinstance(ty, SimTypeNumOffset):
                 out._pack = True
                 ty.offset = offset_so_far % arch.byte_width
@@ -1218,15 +1402,13 @@ class SimStruct(NamedTypeMixin, SimType):
 
         indented = " " * indent if indent is not None else ""
         new_indent = indent + 4 if indent is not None else None
-        new_indented = " " * new_indent if indent is not None else ""
+        new_indented = " " * new_indent if new_indent is not None else ""
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
             new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
-        return "struct {} {{{}{}{}{}}}{}".format(
-            self.name, newline, members, newline, indented, "" if name is None else " " + name
-        )
+        return f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
 
     def __hash__(self):
         return hash((SimStruct, self._name, self._align, self._pack, tuple(self.fields.keys())))
@@ -1235,11 +1417,15 @@ class SimStruct(NamedTypeMixin, SimType):
     def size(self):
         if not self.offsets:
             return 0
+        if self._arch is None:
+            raise ValueError("Need an arch to compute size")
 
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
         if isinstance(last_type, SimTypeNumOffset):
             return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
+        elif last_type.size is None:
+            raise AngrTypeError("Cannot compute the size of a struct with elements with no size")
         else:
             return last_off * self._arch.byte_width + last_type.size
 
@@ -1259,7 +1445,7 @@ class SimStruct(NamedTypeMixin, SimType):
         ty = self.fields[k]
         return view._deeper(ty=ty, addr=view._addr + offset)
 
-    def store(self, state, addr, value):
+    def store(self, state, addr, value: StoreType):
         if type(value) is dict:
             pass
         elif type(value) is SimStructValue:
@@ -1368,10 +1554,10 @@ class SimStructValue:
             for f in self._struct.fields:
                 if isinstance(f, NamedTypeMixin) and f.name is None:
                     try:
-                        return f[k]
+                        return f[k]  # type: ignore # lukas WHAT
                     except KeyError:
                         continue
-            return self._values[k]
+            raise KeyError(k)
 
         return self._values[k]
 
@@ -1431,15 +1617,13 @@ class SimUnion(NamedTypeMixin, SimType):
 
         indented = " " * indent if indent is not None else ""
         new_indent = indent + 4 if indent is not None else None
-        new_indented = " " * new_indent if indent is not None else ""
+        new_indented = " " * new_indent if new_indent is not None else ""
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
             new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.members.items()
         )
-        return "union {} {{{}{}{}{}}}{}".format(
-            self.name, newline, members, newline, indented, "" if name is None else " " + name
-        )
+        return f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
 
     def _init_str(self):
         return '{}({{{}}}, name="{}", label="{}")'.format(
@@ -1498,7 +1682,7 @@ class SimUnionValue:
 
     def __getitem__(self, k):
         if k not in self._values:
-            return super().__getitem__(k)
+            raise KeyError(k)
         return self._values[k]
 
     def copy(self):
@@ -1515,7 +1699,7 @@ class SimCppClass(SimStruct):
         pack: bool = False,
         align=None,
     ):
-        super().__init__(members, name=name, pack=pack, align=align)
+        super().__init__(members or {}, name=name, pack=pack, align=align)
         # these are actually addresses in the binary
         self.function_members = function_members
         # this should also be added to the fields once we know the offsets of the members of this object
@@ -1528,7 +1712,7 @@ class SimCppClass(SimStruct):
     def __repr__(self):
         return "class %s" % self.name
 
-    def extract(self, state, addr, concrete=False):
+    def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}
         for name, offset in self.offsets.items():
             ty = self.fields[name]
@@ -1540,7 +1724,7 @@ class SimCppClass(SimStruct):
 
         return SimCppClassValue(self, values=values)
 
-    def store(self, state, addr, value):
+    def store(self, state, addr, value: StoreType):
         if type(value) is dict:
             pass
         elif type(value) is SimCppClassValue:
@@ -1566,14 +1750,14 @@ class SimCppClass(SimStruct):
         )
 
 
-class SimCppClassValue:
+class SimCppClassValue(SimStructValue):
     """
     A SimCppClass type paired with some real values
     """
 
-    def __init__(self, class_type, values):
+    def __init__(self, class_type: SimCppClass, values):
+        super().__init__(class_type, values)
         self._class = class_type
-        self._values = defaultdict(lambda: None, values or ())
 
     def __indented_repr__(self, indent=0):
         fields = []
@@ -1594,18 +1778,17 @@ class SimCppClassValue:
     def __getattr__(self, k):
         return self[k]
 
-    def __getitem__(self, k):
-        if type(k) is int:
-            k = self._class.fields[k]
+    def __getitem__(self, k: int | str):
+        if isinstance(k, int):
+            k = list(self._class.fields.keys())[k]
         if k not in self._values:
             for f in self._class.fields:
                 if isinstance(f, NamedTypeMixin) and f.name is None:
                     try:
-                        return f[k]
+                        return f[k]  # type: ignore # lukas WHAT
                     except KeyError:
                         continue
-            else:
-                return self._values[k]
+            return self._values[k]
 
         return self._values[k]
 
@@ -1623,6 +1806,12 @@ class SimTypeNumOffset(SimTypeNum):
     def __init__(self, size, signed=True, label=None, offset=0):
         super().__init__(size, signed, label)
         self.offset = offset
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
 
     def extract(self, state: SimState, addr, concrete=False):
         if state.arch.memory_endness != Endness.LE:
@@ -1659,7 +1848,7 @@ class SimTypeRef(SimType):
         self.original_type = original_type
 
     @property
-    def name(self) -> str:
+    def name(self) -> str | None:
         return self.label
 
     def set_size(self, v: int):
@@ -1678,8 +1867,8 @@ class SimTypeRef(SimType):
         return f'SimTypeRef("{self.name}", {original_type_name})'
 
 
-ALL_TYPES = {}
-BASIC_TYPES = {
+ALL_TYPES: dict[str, SimType] = {}
+BASIC_TYPES: dict[str, SimType] = {
     "char": SimTypeChar(),
     "signed char": SimTypeChar(),
     "unsigned char": SimTypeChar(signed=False),
@@ -2756,6 +2945,8 @@ def define_struct(defn):
     >>> define_struct('struct abcd {int x; int y;}')
     """
     struct = parse_type(defn)
+    if not isinstance(struct, SimStruct):
+        raise AngrTypeError("Passed a non-struct type to define_struct")
     ALL_TYPES[struct.name] = struct
     ALL_TYPES["struct " + struct.name] = struct
     return struct
@@ -2840,6 +3031,7 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
     if preprocess:
         defn = do_preprocess(defn)
 
+    # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, pycparser.c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
@@ -2859,12 +3051,14 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
                 out[piece.name] = ty
 
             # Don't forget to update typedef types
-            if (isinstance(ty, SimStruct) or isinstance(ty, SimUnion)) and ty.name != "<anon>":
+            if isinstance(ty, (SimStruct, SimUnion)) and ty.name != "<anon>":
                 for _, i in extra_types.items():
-                    if type(i) is type(ty) and i.name == ty.name:
+                    if isinstance(i, type(ty)) and i.name == ty.name:
                         if isinstance(ty, SimStruct):
+                            assert isinstance(i, SimStruct)
                             i.fields = ty.fields
                         else:
+                            assert isinstance(i, SimUnion)
                             i.members = ty.members
 
         elif isinstance(piece, pycparser.c_ast.Typedef):
@@ -2877,7 +3071,7 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
 _type_parser_singleton = None
 
 
-def type_parser_singleton() -> pycparser.CParser | None:
+def type_parser_singleton() -> pycparser.CParser:
     global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None:
         if _type_parser_singleton is None:
@@ -2916,6 +3110,7 @@ def parse_type_with_name(
     if preprocess:
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
+    # pylint: disable=unexpected-keyword-arg
     node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, pycparser.c_ast.Typename) and not isinstance(node, pycparser.c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
@@ -2940,7 +3135,9 @@ def _accepts_scope_stack():
     setattr(pycparser.CParser, "parse", parse)
 
 
-def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
+def _decl_to_type(
+    decl, extra_types: dict[str, SimType] | None = None, bitsize=None, arch: Arch | None = None
+) -> SimType:
     if extra_types is None:
         extra_types = {}
 
@@ -2967,7 +3164,12 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             else None
         )
         # special handling: func(void) is func()
-        if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom) and arg_names[0] is None:
+        if (
+            len(argtyps) == 1
+            and isinstance(argtyps[0], SimTypeBottom)
+            and arg_names is not None
+            and arg_names[0] is None
+        ):
             argtyps = ()
             arg_names = None
         if argtyps and argtyps[-1] is ...:
@@ -2976,7 +3178,10 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
         else:
             variadic = False
         r = SimTypeFunction(
-            argtyps, _decl_to_type(decl.type, extra_types, arch=arch), arg_names=arg_names, variadic=variadic
+            cast(list[SimType], argtyps),
+            _decl_to_type(decl.type, extra_types, arch=arch),
+            arg_names=arg_names,
+            variadic=variadic,
         )
         r._arch = arch
         return r
@@ -3025,9 +3230,11 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             from_global = False
             if struct is None:
                 struct = ALL_TYPES.get(key, None)
-                from_global = True
                 if struct is not None:
+                    from_global = True
                     struct = struct.with_arch(arch)
+            if struct is not None and not isinstance(struct, SimStruct):
+                raise AngrTypeError("Provided a non-SimStruct value for a type that must be a struct")
 
             if struct is None:
                 struct = SimStruct(fields, decl.name)
@@ -3055,12 +3262,14 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
 
         if decl.name is not None:
             key = "union " + decl.name
-            if key in extra_types:
-                union = extra_types[key]
-            elif key in ALL_TYPES:
-                union = ALL_TYPES[key]
-            else:
-                union = None
+            union = extra_types.get(key, None)
+            from_global = False
+            if union is None:
+                if key in ALL_TYPES:
+                    union = ALL_TYPES[key]
+                    from_global = True
+            if union is not None and not isinstance(union, SimUnion):
+                raise AngrTypeError("Provided a non-SimUnion value for a type that must be a union")
 
             if union is None:
                 union = SimUnion(fields, decl.name)
@@ -3068,7 +3277,11 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             elif not union.members:
                 union.members = fields
             elif fields and union.members != fields:
-                raise ValueError("Redefining body of " + key)
+                if from_global:
+                    union = SimStruct(fields, decl.name)
+                    union._arch = arch
+                else:
+                    raise ValueError("Redefining body of " + key)
 
             extra_types[key] = union
         else:
@@ -3135,6 +3348,8 @@ def _parse_const(c, arch=None, extra_types=None):
 
 
 def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes=True):
+    if CppHeaderParser is None:
+        raise ImportError("Please install CppHeaderParser to parse C++ definitions")
     if isinstance(decl, CppHeaderParser.CppMethod):
         the_func = decl
         func_name = the_func["name"]
@@ -3154,7 +3369,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
             arg_names.append(arg_name)
 
         args = tuple(args)
-        arg_names: tuple[str] = tuple(arg_names)
+        arg_names_tuple: tuple[str, ...] = tuple(arg_names)
         # returns
         if not the_func["returns"].strip():
             returnty = SimTypeBottom()
@@ -3163,7 +3378,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
         # other properties
         ctor = the_func["constructor"]
         dtor = the_func["destructor"]
-        func = SimTypeCppFunction(args, returnty, arg_names=arg_names, ctor=ctor, dtor=dtor)
+        func = SimTypeCppFunction(args, returnty, arg_names=arg_names_tuple, ctor=ctor, dtor=dtor)
         return func
 
     elif isinstance(decl, str):
@@ -3202,9 +3417,9 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
         else:
             raise TypeError("Unknown type '%s'" % " ".join(key))
 
-        if unqualified_name != decl:
+        if unqualified_name != decl and isinstance(t, NamedTypeMixin):
             t = t.copy()
-            t.name = decl
+            t.name = decl  # pylint:disable=attribute-defined-outside-init
         return t
 
     raise NotImplementedError()
@@ -3216,6 +3431,7 @@ def normalize_cpp_function_name(name: str) -> str:
     while s != _s:
         _s = s if s is not None else _s
         s = re.sub(r"<[^<>]+>", "", _s)
+    assert s is not None
 
     m = re.search(r"{([a-z\s]+)}", s)
     if m is not None:
@@ -3270,15 +3486,17 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     func_decls: dict[str, SimTypeCppFunction] = {}
     for the_func in h.functions:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto: SimTypeCppFunction | None = _cpp_decl_to_type(the_func, {}, opaque_classes=True)
+        proto = cast(Optional[SimTypeCppFunction], _cpp_decl_to_type(the_func, {}, opaque_classes=True))
         if proto is not None and the_func["class"]:
-            func_name = the_func["class"] + "::" + the_func["name"]
-            proto.args = (
-                SimTypePointer(pts_to=SimTypeBottom(label="void")),
-            ) + proto.args  # pylint:disable=attribute-defined-outside-init
+            func_name = cast(str, the_func["class"] + "::" + the_func["name"])
+            proto.args = (SimTypePointer(pts_to=SimTypeBottom(label="void")),) + tuple(
+                proto.args
+            )  # pylint:disable=attribute-defined-outside-init
             proto.arg_names = ("this",) + proto.arg_names  # pylint:disable=attribute-defined-outside-init
+        elif proto is None:
+            raise ValueError("proto is None but class is also None... not sure what this edge case means")
         else:
-            func_name = the_func["name"]
+            func_name = cast(str, the_func["name"])
         func_decls[func_name] = proto
 
     return func_decls, {}
@@ -3296,7 +3514,7 @@ def dereference_simtype(
         if t.name in memo:
             return memo[t.name]
 
-        if type_collections:
+        if type_collections and t.name is not None:
             for tc in type_collections:
                 try:
                     real_type = tc.get(t.name)
@@ -3334,7 +3552,7 @@ def dereference_simtype(
             dereference_simtype(t.returnty, type_collections, memo=memo) if t.returnty is not None else None
         )
         real_type = t.copy()
-        real_type.args = real_args
+        real_type.args = tuple(real_args)
         real_type.returnty = real_return_type
     else:
         return t

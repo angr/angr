@@ -37,12 +37,13 @@ class TestFunction(unittest.TestCase):
         func_main.apply_definition("int main(int argc, char** argv)")
 
         # Check prototype of function
-        assert func_main.prototype.args == [
-            angr.sim_type.SimTypeInt().with_arch(p.arch),
-            angr.sim_type.SimTypePointer(
-                angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()).with_arch(p.arch)
-            ).with_arch(p.arch),
-        ]
+        assert func_main.prototype is not None
+        assert func_main.prototype.args == (
+            angr.types.SimTypeInt().with_arch(p.arch),
+            angr.types.SimTypePointer(angr.types.SimTypePointer(angr.types.SimTypeChar()).with_arch(p.arch)).with_arch(
+                p.arch
+            ),
+        )
         # Check that the default calling convention of the architecture was applied
         assert isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]["Linux"])
 
