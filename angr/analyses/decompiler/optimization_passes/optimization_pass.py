@@ -302,7 +302,7 @@ class StructuringOptimizationPass(OptimizationPass):
         This should be overridden by the subclass if it needs to do anything with the simplified regions for making
         optimizations decisions.
         """
-        pass
+        return
 
     def analyze(self):
         """
