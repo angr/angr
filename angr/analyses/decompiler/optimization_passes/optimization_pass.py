@@ -293,6 +293,14 @@ class StructuringOptimizationPass(OptimizationPass):
     def _analyze(self, cache=None) -> bool:
         raise NotImplementedError()
 
+    def _analyze_simplified_region(self, region):
+        """
+        Analyze the simplified regions after a successful structuring pass.
+        This should be overridden by the subclass if it needs to do anything with the simplified regions for making
+        optimizations decisions.
+        """
+        pass
+
     def analyze(self):
         """
         Wrapper for _analyze() that verifies the graph is structurable before and after the optimization.
@@ -390,8 +398,9 @@ class StructuringOptimizationPass(OptimizationPass):
             return False
 
         rs = self.project.analyses.RegionSimplifier(self._func, rs.result, kb=self.kb, variable_kb=self._variable_kb)
-        if not rs or rs.goto_manager is None:
+        if not rs or rs.goto_manager is None or rs.result is None:
             return False
 
+        self._analyze_simplified_region(rs.result)
         self._goto_manager = rs.goto_manager
         return True

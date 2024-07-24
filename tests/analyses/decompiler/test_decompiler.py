@@ -2439,6 +2439,32 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
+    @structuring_algo("phoenix")
+    def test_continuous_small_switch_cluster(self, decompiler_options=None):
+        # In this sample, main contains a switch statement that gets split into one large normal switch
+        # (a jump table in assembly) and a small if-tree of 3 cases. The if-tree should be merged into the
+        # switch statement.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "touch_touch_no_switch.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        text = text.replace("4294967166", "-130")
+        text = text.replace("4294967165", "-131")
+
+        assert text.count("switch") == 1
+        assert text.count("case -130:") == 1
+        assert text.count("case -131:") == 1
+
     @slow_test
     @structuring_algo("phoenix")
     def test_eager_returns_simplifier_no_duplication_of_default_case(self, decompiler_options=None):
