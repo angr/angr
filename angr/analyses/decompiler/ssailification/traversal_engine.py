@@ -1,12 +1,12 @@
 from __future__ import annotations
 from collections import OrderedDict
-from claripy.utils.orderedset import OrderedSet
 
 from ailment.statement import Assignment, Call, Store, ConditionalJump
 from ailment.expression import Register, BinaryOp, StackBaseOffset
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 from angr.utils.ssa import get_reg_offset_base
+from angr.utils.orderedset import OrderedSet
 from .traversal_state import TraversalState
 
 
