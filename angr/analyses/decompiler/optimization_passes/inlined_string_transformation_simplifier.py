@@ -15,7 +15,7 @@ from ailment.expression import (
     Phi,
     VirtualVariableCategory,
 )
-from ailment.statement import Store, ConditionalJump, Jump, Assignment
+from ailment.statement import ConditionalJump, Jump, Assignment
 import claripy
 
 from angr.engines.light import SimEngineLightAILMixin
