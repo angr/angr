@@ -2462,6 +2462,8 @@ class PhoenixStructurer(StructurerBase):
             for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Label):
                     continue
+                if is_phi_assignment(stmt):
+                    continue
                 if isinstance(stmt, ConditionalJump):
                     if idx == len(block.statements) - 1:
                         continue
