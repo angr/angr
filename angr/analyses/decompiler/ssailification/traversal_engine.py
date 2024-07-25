@@ -102,6 +102,18 @@ class SimEngineSSATraversal(
     _handle_CmpEQ = _handle_Cmp
     _handle_CmpNE = _handle_Cmp
 
+    def _handle_UnaryOp(self, expr):
+        self._expr(expr.operand)
+
+    def _handle_BinaryOp(self, expr):
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+
+    def _handle_TernaryOp(self, expr):
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+        self._expr(expr.operands[2])
+
     def _handle_Dummy(self, expr):
         pass
 
