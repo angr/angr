@@ -22,8 +22,9 @@ from ailment.expression import (
 )
 
 from angr.analyses.s_reaching_definitions import SRDAModel
+from angr.utils.ail import is_phi_assignment
 from ...code_location import CodeLocation, ExternalCodeLocation
-from ...sim_variable import SimStackVariable
+from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
@@ -218,13 +219,19 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
-                elif isinstance(stmt, Store) and isinstance(stmt.size, int):
-                    if (
-                        isinstance(stmt.addr, StackBaseOffset)
-                        and isinstance(stmt.addr.offset, int)
-                        and isinstance(stmt.data, (VirtualVariable, Tmp, Call, Convert))
-                    ):
+                elif (
+                    isinstance(stmt, Store)
+                    and isinstance(stmt.size, int)
+                    and isinstance(stmt.data, (VirtualVariable, Tmp, Call, Convert))
+                ):
+                    if isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
+                        # stack variable
                         atom = SimStackVariable(stmt.addr.offset, stmt.size)
+                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        equivalence.add(Equivalence(codeloc, atom, stmt.data))
+                    elif isinstance(stmt.addr, Const):
+                        # global variable
+                        atom = SimMemoryVariable(stmt.addr.value, stmt.size)
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, atom, stmt.data))
         return equivalence
@@ -282,6 +289,9 @@ class AILSimplifier(Analysis):
 
                         the_block = self.blocks.get(old_block, old_block)
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
+                        if is_phi_assignment(stmt):
+                            # we do not support narrowing variables that are defined by phi statements yet
+                            continue
                         r, new_block = False, None
                         if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                             new_assignment_dst = VirtualVariable(
@@ -652,7 +662,7 @@ class AILSimplifier(Analysis):
             # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
             # eq.atom1 is the use.
             the_def = None
-            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
+            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack or isinstance(eq.atom0, SimMemoryVariable):
                 if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                     # stack_var == register or global_var == register
                     to_replace = eq.atom1
@@ -833,15 +843,15 @@ class AILSimplifier(Analysis):
                         oident=eq.atom0.oident,
                         **eq.atom0.tags,
                     )
-                # elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
-                #     # create the memory loading expression
-                #     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
-                #     replace_with = Load(
-                #         new_idx,
-                #         Const(None, None, eq.atom0.addr, self.project.arch.bits),
-                #         eq.atom0.size,
-                #         endness=self.project.arch.memory_endness,
-                #     )
+                elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
+                    # create the memory loading expression
+                    new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                    replace_with = Load(
+                        new_idx,
+                        Const(None, None, eq.atom0.addr, self.project.arch.bits),
+                        eq.atom0.size,
+                        endness=self.project.arch.memory_endness,
+                    )
                 elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
                     if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                         if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
@@ -1081,7 +1091,6 @@ class AILSimplifier(Analysis):
                 # find all uses of this virtual register
                 rd = self._compute_reaching_definitions()
 
-                # the_def: Definition = defs[0]
                 the_def: Definition = Definition(
                     atoms.VirtualVariable(
                         eq.atom0.varid, eq.atom0.size, category=eq.atom0.category, oident=eq.atom0.oident

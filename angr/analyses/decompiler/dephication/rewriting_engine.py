@@ -99,6 +99,7 @@ class SimEngineDephiRewriting(
                 stmt.data if new_data is None else new_data,
                 stmt.size,
                 stmt.endness,
+                variable=stmt.variable,
                 guard=stmt.guard,
                 **stmt.tags,
             )

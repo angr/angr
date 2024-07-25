@@ -15,7 +15,7 @@ from ..structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
-from ..utils import is_statement_terminating
+from ..utils import is_statement_terminating, has_nonlabel_nonphi_statements
 
 
 class LoopSimplifier(SequenceWalker):
@@ -99,10 +99,21 @@ class LoopSimplifier(SequenceWalker):
                 for block in self.continue_preludes[node]
             )
         ):
-            node.sort = "for"
-            node.iterator = self.continue_preludes[node][0].statements[-1]
-            for block in self.continue_preludes[node]:
-                block.statements = block.statements[:-1]
+            if (
+                all(has_nonlabel_nonphi_statements(block) for block in self.continue_preludes[node])
+                and all(
+                    not self._control_transferring_statement(block.statements[-1])
+                    for block in self.continue_preludes[node]
+                )
+                and all(
+                    block.statements[-1] == self.continue_preludes[node][0].statements[-1]
+                    for block in self.continue_preludes[node]
+                )
+            ):
+                node.sort = "for"
+                node.iterator = self.continue_preludes[node][0].statements[-1]
+                for block in self.continue_preludes[node]:
+                    block.statements = block.statements[:-1]
 
         # find for-loop initializers
         if isinstance(predecessor, MultiNode):

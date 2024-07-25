@@ -15,6 +15,7 @@ from angr.utils.ssa import (
     is_const_assignment,
     is_const_and_vvar_assignment,
     is_const_vvar_load_assignment,
+    is_const_vvar_tmp_assignment,
     get_tmp_uselocs,
     get_tmp_deflocs,
 )
@@ -194,7 +195,7 @@ class SPropagatorAnalysis(Analysis):
                             ][tmp_used] = stmt.src
                         continue
 
-                    r = is_const_and_vvar_assignment(stmt)
+                    r = is_const_vvar_tmp_assignment(stmt)
                     if r:
                         # we can propagate it!
                         if isinstance(stmt.src, VirtualVariable):

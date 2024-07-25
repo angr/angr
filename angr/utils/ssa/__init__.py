@@ -133,7 +133,7 @@ class ConstAndVVarWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Load, Register, Phi)):
+        if isinstance(expr, (Tmp, Load, Register, Phi, Call)):
             self.all_const_and_vvar_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
@@ -147,6 +147,28 @@ def is_const_and_vvar_assignment(stmt: Statement) -> bool:
     return False
 
 
+class ConstVVarAndTmpWalker(AILBlockWalkerBase):
+    def __init__(self):
+        super().__init__()
+        self.all_const_vvar_tmp_expr = True
+
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Any:
+        if isinstance(expr, (Load, Register, Phi, Call)):
+            self.all_const_vvar_tmp_expr = False
+            return
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
+    if isinstance(stmt, Assignment):
+        walker = ConstVVarAndTmpWalker()
+        walker.walk_expression(stmt.src)
+        return walker.all_const_vvar_tmp_expr
+    return False
+
+
 class ConstVVarAndLoadWalker(AILBlockWalkerBase):
     def __init__(self):
         super().__init__()
@@ -155,7 +177,7 @@ class ConstVVarAndLoadWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Register, Phi)):
+        if isinstance(expr, (Tmp, Register, Phi, Call)):
             self.all_const_vvar_load_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)

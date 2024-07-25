@@ -336,7 +336,7 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
 
 def has_nonlabel_nonphi_statements(block: ailment.Block) -> bool:
     return block.statements and any(
-        not (isinstance(stmt, ailment.Stmt.Label) and is_phi_assignment(stmt)) for stmt in block.statements
+        not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)) for stmt in block.statements
     )
 
 
@@ -363,7 +363,7 @@ def first_nonlabel_nonphi_statement(block: Union[ailment.Block, "MultiNode"]) ->
         return None
 
     for stmt in block.statements:
-        if not isinstance(stmt, ailment.Stmt.Label) and not is_phi_assignment(stmt):
+        if not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)):
             return stmt
     return None
 

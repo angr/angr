@@ -4,7 +4,6 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Generator
 from enum import Enum
-import logging
 
 import networkx  # pylint:disable=unused-import
 import ailment
@@ -18,8 +17,6 @@ from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
-
-_l = logging.getLogger(__name__)
 
 
 _l = logging.getLogger(__name__)
