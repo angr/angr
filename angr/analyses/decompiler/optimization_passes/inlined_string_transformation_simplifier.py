@@ -220,12 +220,13 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         if expr.was_stack:
             addr = (expr.stack_offset + self.STACK_BASE) & self.MASK
             v = self.state.mem_load(addr, expr.size, self.arch.memory_endness)
-            # log it
-            for i in range(0, expr.size):
-                byte_off = i
-                if self.arch.memory_endness == Endness.LE:
-                    byte_off = expr.size - i - 1
-                self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
+            if isinstance(v, claripy.Bits):
+                # log it
+                for i in range(0, expr.size):
+                    byte_off = i
+                    if self.arch.memory_endness == Endness.LE:
+                        byte_off = expr.size - i - 1
+                    self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
             return v
         elif expr.was_reg:
             return self.state.vvar_load(expr)
