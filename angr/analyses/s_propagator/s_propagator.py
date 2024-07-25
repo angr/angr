@@ -13,7 +13,6 @@ from angr.utils.ssa import (
     get_vvar_deflocs,
     is_phi_assignment,
     is_const_assignment,
-    is_const_and_vvar_assignment,
     is_const_vvar_load_assignment,
     is_const_vvar_tmp_assignment,
     get_tmp_uselocs,

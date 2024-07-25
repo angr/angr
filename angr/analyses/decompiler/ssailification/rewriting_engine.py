@@ -385,13 +385,12 @@ class SimEngineSSARewriting(
 
         # get the virtual variable ID
         vvid = self.get_vvid_by_def(expr)
-        base_offset, base_size = get_reg_offset_base_and_size(expr.reg_offset, self.arch, size=expr.size)
         return VirtualVariable(
             expr.idx,
             vvid,
-            base_size * self.arch.byte_width,
+            expr.bits,
             VirtualVariableCategory.REGISTER,
-            oident=base_offset,
+            oident=expr.reg_offset,
             **expr.tags,
         )
 
