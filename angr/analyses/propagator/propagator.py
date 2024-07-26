@@ -68,7 +68,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
         immediate_stmt_removal: bool = False,
         profiling: bool = False,
-        reg_values: dict[str, Any] = None
+        reg_values: dict[str, Any] = None,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
@@ -257,7 +257,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             initial_codeloc=self._initial_codeloc,
             model=self.model,
-            reg_values = self._reg_values,
+            reg_values=self._reg_values,
         )
         return self._initial_state
 
