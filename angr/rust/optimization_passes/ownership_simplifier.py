@@ -67,11 +67,9 @@ class OwnershipSimplifier(OptimizationPass):
         last_stmt.addr = first_stmt.addr
         last_stmt.size = sum(stmt.size for stmt in stmts)
         last_stmt.data.size = last_stmt.size
-        print(f"Merged: {stmts} to {last_stmt}")
         return last_stmt
 
     def _simplify_ownership_transfer(self, stmts):
-        print(f"{stmts=}")
         new_stmts = []
         pending_stmts = []
 
@@ -96,7 +94,6 @@ class OwnershipSimplifier(OptimizationPass):
 
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
-            pprint(block.statements)
             new_stmts = []
             pending_stmts = []
             for stmt in block.statements:
