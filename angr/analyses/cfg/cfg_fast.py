@@ -1948,7 +1948,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         entries: List[CFGJob] = []
 
         if (
-            self.functions.contains_addr(cfg_job.src_node.addr)
+            cfg_job.src_node is not None
+            and self.functions.contains_addr(cfg_job.src_node.addr)
             and self.functions[cfg_job.src_node.addr].is_default_name
             and cfg_job.src_node.addr not in self.kb.labels
             and cfg_job.jumpkind == "Ijk_Boring"
