@@ -19,6 +19,10 @@ prototypes = {
         args=[RustSimTypeReference(RustSimTypeStr())],
         returnty=RustSimTypeString(),
     ),
+    "Vec::with_capacity": RustSimTypeFunction(
+        args=[RustSimTypeSize()],
+        returnty=RustSimTypeString(),
+    ),
     "std::io::stdio::_print": RustSimTypeFunction(
         args=[RustSimTypeReference(Arguments)],
         returnty=None,

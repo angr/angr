@@ -27,8 +27,7 @@ class JunkRemover(TransformationPass):
         self.analyze()
 
     def _check(self):
-        # return self.project.is_rust_binary, None
-        return False, None
+        return self.project.is_rust_binary, None
 
     def _is_potential_junk_block(self, block):
         for stmt in reversed(block.statements):
