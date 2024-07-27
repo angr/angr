@@ -148,9 +148,10 @@ class LoaderSerializer:
         loader = cle.Loader(BytesIO(main_object.content), main_opts=load_args[main_object])
 
         skip_mainbin, _ = LoaderSerializer.should_skip_main_binary(loader)
+
+        loader._main_binary_path = main_object.path
         if not skip_mainbin:
             # fix the binary name of the main binary
-            loader._main_binary_path = main_object.path
             loader.main_object.binary = main_object.path
 
         return loader
