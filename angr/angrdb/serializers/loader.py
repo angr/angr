@@ -65,7 +65,7 @@ class LoaderSerializer:
             else:
                 serializable_keys.append(key)
 
-        return encoder.encode(dict((k, load_args[k]) for k in serializable_keys))
+        return encoder.encode({k: load_args[k] for k in serializable_keys})
 
     @staticmethod
     def should_skip_main_binary(loader) -> tuple[bool, cle.backends.Backend | None]:
