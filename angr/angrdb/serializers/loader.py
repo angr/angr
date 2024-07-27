@@ -15,6 +15,10 @@ _l = logging.getLogger(__name__)
 
 
 class LoadArgsJSONEncoder(json.JSONEncoder):
+    """
+    A JSON encoder that supports serializing bytes.
+    """
+
     def default(self, o):
         if isinstance(o, bytes):
             return {
@@ -25,10 +29,14 @@ class LoadArgsJSONEncoder(json.JSONEncoder):
 
 
 class LoadArgsJSONDecoder(json.JSONDecoder):
+    """
+    A JSON decoder that supports unserializing into bytes.
+    """
+
     def __init__(self):
         super().__init__(object_hook=self._objhook)
 
-    def _objhook(self, d: dict):
+    def _objhook(self, d: dict):  # pylint:disable=no-self-use
         if "__custom_type__" in d:
             match d["__custom_type__"]:
                 case "bytes":
