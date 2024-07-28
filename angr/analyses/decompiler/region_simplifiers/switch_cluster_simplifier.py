@@ -123,9 +123,7 @@ class SwitchClusterFinder(SequenceWalker):
             variable = None
             if isinstance(cond.operands[1], ailment.Expr.Const):
                 v = cond.operands[1].value
-            if isinstance(cond.operands[0], (ailment.Expr.Register, ailment.Expr.Load)) and hasattr(
-                cond.operands[0], "variable"
-            ):
+            if isinstance(cond.operands[0], ailment.Expr.VirtualVariable) and hasattr(cond.operands[0], "variable"):
                 # there we go
                 variable = cond.operands[0].variable
 
