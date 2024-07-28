@@ -461,8 +461,7 @@ class StructuringOptimizationPass(OptimizationPass):
         # Note: this check is only for _trading_, meaning the total number of loops must be the same.
         #
         # 1. We traded to remove a for-loop
-        # 2. We traded to add a do-while loop
-        if (curr_floops < prev_floops or curr_dloops > prev_dloops) and total_curr_loops == total_prev_loops:
+        if curr_floops < prev_floops and total_curr_loops == total_prev_loops:
             return False
 
         return True

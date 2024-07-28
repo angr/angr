@@ -109,6 +109,32 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
 
                 if self._goto_manager.is_goto_edge(block, dst):
                     return True
+
+            # another special case: A "goto edge" that ReturnDuplicator wants to test might be an edge that Phoenix
+            # includes in its loop region (during the cyclic refinement). In fact, Phoenix tends to include as many
+            # nodes as possible into the loop region, and generate a goto edge (which ends up in the structured code)
+            # from `dst` to the loop successor.
+            # an example of this is captured by the test case `TestDecompiler.test_stty_recover_mode_ret_dup_region`.
+            # until someone (ideally @mahaloz) implements a more principled way of translating "goto statements" that
+            # Phoenix generates and "goto edges" that ReturnDuplicator tests, we rely on the following stopgap to
+            # handle this case.
+            node = dst
+            while True:
+                succs = list(graph.successors(node))
+                if len(succs) != 1:
+                    break
+                succ = succs[0]
+                if succ is node:
+                    # loop!
+                    break
+                succ_preds = list(graph.predecessors(succ))
+                if len(succ_preds) != 1:
+                    break
+                if self._goto_manager.is_goto_edge(node, succ):
+                    return True
+                # keep testing the next edge
+                node = succ
+
         else:
             return self._goto_manager.is_goto_edge(src, dst)
 

@@ -719,7 +719,7 @@ class PhoenixStructurer(StructurerBase):
                             break_stmt = Jump(
                                 None,
                                 Const(None, None, successor.addr, self.project.arch.bits),
-                                None,
+                                target_idx=successor.idx if isinstance(successor, Block) else None,
                                 ins_addr=last_src_stmt.ins_addr,
                             )
                             break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
@@ -727,7 +727,7 @@ class PhoenixStructurer(StructurerBase):
                             break_stmt = Jump(
                                 None,
                                 Const(None, None, successor.addr, self.project.arch.bits),
-                                None,
+                                target_idx=successor.idx if isinstance(successor, Block) else None,
                                 ins_addr=last_src_stmt.ins_addr,
                             )
                             break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
@@ -744,7 +744,7 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     None,
                                     Const(None, None, successor.addr, self.project.arch.bits),
-                                    None,
+                                    target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.ins_addr,
                                 )
                                 break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])

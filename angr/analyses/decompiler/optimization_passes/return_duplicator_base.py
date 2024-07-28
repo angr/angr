@@ -150,6 +150,7 @@ class ReturnDuplicatorBase:
             else:
                 node_copy = copy.deepcopy(node)
                 node_copy.idx = next(self.node_idx)
+                self._fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 
             # modify Jump.target_idx and ConditionalJump.{true,false}_target_idx accordingly
@@ -446,3 +447,20 @@ class ReturnDuplicatorBase:
         all_region_block_sets = {}
         _unpack_every_region(top_region, all_region_block_sets)
         return all_region_block_sets
+
+    @staticmethod
+    def _fix_copied_node_labels(block: Block):
+        for i in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
+            stmt = block.statements[i]
+            if isinstance(stmt, Label):
+                # fix the default name by suffixing it with the new block ID
+                new_name = stmt.name if stmt.name else f"Label_{stmt.ins_addr:x}"
+                if stmt.block_idx is not None:
+                    suffix = f"__{stmt.block_idx}"
+                    if new_name.endswith(suffix):
+                        new_name = new_name[: -len(suffix)]
+                else:
+                    new_name = stmt.name
+                new_name += f"__{block.idx}"
+
+                block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)
