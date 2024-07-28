@@ -2486,7 +2486,7 @@ class PhoenixStructurer(StructurerBase):
             if node.statements:
                 idx = 0
                 first_stmt = node.statements[idx]
-                while isinstance(first_stmt, Label):
+                while isinstance(first_stmt, Label) or is_phi_assignment(first_stmt):
                     idx += 1
                     if idx >= len(node.statements):
                         first_stmt = None
