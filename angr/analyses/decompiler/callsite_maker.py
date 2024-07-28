@@ -218,11 +218,13 @@ class CallSiteMaker(Analysis):
             and prototype.returnty is not None
             and not isinstance(prototype.returnty, SimTypeBottom)
         ):
-            # try to narrow the return expression if needed
-            ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
-            if ret_expr.bits > ret_type_bits:
-                ret_expr = ret_expr.copy()
-                ret_expr.bits = ret_type_bits
+            if not isinstance(ret_expr, Expr.VirtualVariable):
+                # try to narrow the return expression if needed
+                ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
+                if ret_expr.bits > ret_type_bits:
+                    ret_expr = ret_expr.copy()
+                    ret_expr.bits = ret_type_bits
+            # TODO: Support narrowing virtual variables
 
         new_stmts.append(
             Stmt.Call(
