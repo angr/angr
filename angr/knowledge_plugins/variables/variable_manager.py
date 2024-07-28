@@ -907,7 +907,7 @@ class VariableManagerInternal(Serializable):
         # find variables that are likely only used by phi assignments
         phi_only_vars = []
         if func_blocks:
-            func_block_by_addr = dict(((block.addr, block.idx), block) for block in func_blocks)
+            func_block_by_addr = {(block.addr, block.idx): block for block in func_blocks}
             for var in list(sorted_stack_variables):
                 if self._is_variable_only_written_by_phi_stmt(var, func_block_by_addr):
                     sorted_stack_variables.remove(var)
