@@ -4,7 +4,7 @@ import inspect
 import networkx
 
 from ailment import Block
-from ailment.statement import ConditionalJump
+from ailment.statement import ConditionalJump, Label
 
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import StructuringOptimizationPass
@@ -71,23 +71,29 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         return ReturnDuplicatorBase._check(self)
 
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False):
-        return self._is_goto_edge(src, dst, graph=graph, check_for_ifstmts=True)
+        return self._is_goto_edge(src, dst, graph=graph)
 
     def _is_goto_edge(
         self,
         src: Block,
         dst: Block,
         graph: networkx.DiGraph = None,
-        check_for_ifstmts=True,
         max_level_check=1,
     ):
         """
-        TODO: correct how goto edge addressing works
+        TODO: Implement a more principled way of checking if an edge is a goto edge with Phoenix's structuring info
         This function only exists because a long-standing bug that sometimes reports the if-stmt addr
-        above a goto edge as the goto src. Because of this, we need to check for predecessors above the goto and
-        see if they are a goto. This needs to include Jump to deal with loops.
+        above a goto edge as the goto src.
         """
-        if check_for_ifstmts and graph is not None:
+        # Do a simple and fast check first
+        is_simple_goto = self._goto_manager.is_goto_edge(src, dst)
+        if is_simple_goto:
+            return True
+
+        if graph is not None:
+            # Special case 1:
+            # We need to check for predecessors above the goto and see if they are a goto.
+            # This needs to include Jump to deal with loops.
             blocks = [src]
             level_blocks = [src]
             for _ in range(max_level_check):
@@ -110,7 +116,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
                 if self._goto_manager.is_goto_edge(block, dst):
                     return True
 
-            # another special case: A "goto edge" that ReturnDuplicator wants to test might be an edge that Phoenix
+            # Special case 2: A "goto edge" that ReturnDuplicator wants to test might be an edge that Phoenix
             # includes in its loop region (during the cyclic refinement). In fact, Phoenix tends to include as many
             # nodes as possible into the loop region, and generate a goto edge (which ends up in the structured code)
             # from `dst` to the loop successor.
@@ -135,8 +141,52 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
                 # keep testing the next edge
                 node = succ
 
-        else:
-            return self._goto_manager.is_goto_edge(src, dst)
+            # Special case 3: In Phoenix, regions full of only if-stmts and be collapsed and moved. This causes
+            # the goto manager to report gotos that are at the top of the region instead of ones in the middle of it.
+            # Because of this, we need to gather all of the nodes above the original src and check if any of them
+            # go to the destination. Additionally, we need to do this on the supergraph to get rid of
+            # goto edges that are removed by Phoenix.
+            # This case is observed in the test case `TestDecompiler.test_tail_tail_bytes_ret_dup`.
+            if self._supergraph is None:
+                return False
+
+            super_to_og_nodes = {n: self._supergraph.nodes[n]["original_nodes"] for n in self._supergraph.nodes}
+            og_to_super_nodes = {og: super_n for super_n, ogs in super_to_og_nodes.items() for og in ogs}
+            super_src = og_to_super_nodes.get(src, None)
+            super_dst = og_to_super_nodes.get(dst, None)
+            if super_src is None or super_dst is None:
+                return False
+
+            # collect all nodes which have only an if-stmt in them that are ancestors of super_src
+            check_blks = {super_src}
+            level_blocks = {super_src}
+            for _ in range(10):
+                done = False
+                if_blks = set()
+                for lblock in level_blocks:
+                    preds = list(self._supergraph.predecessors(lblock))
+                    for pred in preds:
+                        only_cond_jump = all(isinstance(s, (ConditionalJump, Label)) for s in pred.statements)
+                        if only_cond_jump:
+                            if_blks.add(pred)
+
+                    done = len(if_blks) == 0
+
+                if done:
+                    break
+
+                check_blks |= if_blks
+                level_blocks = if_blks
+
+            # convert all the found if-only super-blocks back into their original blocks
+            og_check_blocks = set()
+            for blk in check_blks:
+                og_check_blocks |= set(super_to_og_nodes[blk])
+
+            # check if any of the original blocks are gotos to the destination
+            for block in og_check_blocks:
+                if self._goto_manager.is_goto_edge(block, dst):
+                    return True
 
         return False
 

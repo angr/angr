@@ -3285,9 +3285,8 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
 
         assert "{\n}" not in text
-        # TODO: should be 0, but we got the wrong address from the GotoManager
-        #   and our virtualization choice is not optimal
-        assert text.count("goto") <= 2
+        # TODO: and our virtualization choice is not optimal
+        assert text.count("goto") <= 1
 
     def test_dd_iread_ret_dup_region(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")

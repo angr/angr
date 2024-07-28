@@ -38,6 +38,8 @@ class ReturnDuplicatorBase:
         self.node_idx = count(start=node_idx_start)
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
+        self._current_iteration = 0
+        self._supergraph = None
 
         # this should also be set by the optimization passes initer
         self._func = func
@@ -71,6 +73,8 @@ class ReturnDuplicatorBase:
             # for connected in_edges that form a region
             endnode_regions = self._copy_connected_edge_components(endnode_regions, graph)
 
+        # refresh the supergraph
+        self._supergraph = to_ail_supergraph(graph)
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
             for in_edge in in_edges:
