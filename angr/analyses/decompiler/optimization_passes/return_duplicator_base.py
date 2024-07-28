@@ -450,7 +450,7 @@ class ReturnDuplicatorBase:
 
     @staticmethod
     def _fix_copied_node_labels(block: Block):
-        for i in range(len(block.statements)):
+        for i in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
             stmt = block.statements[i]
             if isinstance(stmt, Label):
                 # fix the default name by suffixing it with the new block ID
