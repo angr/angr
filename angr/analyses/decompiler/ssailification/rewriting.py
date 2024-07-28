@@ -82,9 +82,11 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         for node in old_graph:
             new_graph.add_node(self.out_blocks.get((node.addr, node.idx), node))
 
-        for src, dst in old_graph.edges:
+        for src, dst, data in old_graph.edges(data=True):
             new_graph.add_edge(
-                self.out_blocks.get((src.addr, src.idx), src), self.out_blocks.get((dst.addr, dst.idx), dst)
+                self.out_blocks.get((src.addr, src.idx), src),
+                self.out_blocks.get((dst.addr, dst.idx), dst),
+                **data,
             )
 
         return new_graph
