@@ -3313,10 +3313,17 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         text = d.codegen.text
 
+        # all calls should still be there
+        assert "strtoul_tcflag_t" in text
+        assert "strtoul_cc_t" in text
+
         assert "{\n}" not in text
         assert "goto" not in text
         # there are 4 or less in the source
         assert text.count("return") <= 4
+        # constant propagation should correctly transform all returns to constant returns
+        assert "return 0;" in text
+        assert "return 1;" in text
 
     def test_plt_stub_annotation(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
