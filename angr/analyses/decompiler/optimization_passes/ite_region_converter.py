@@ -161,7 +161,7 @@ class ITERegionConverter(OptimizationPass):
         for stmt in block.statements:
             if not is_phi_assignment(stmt):
                 continue
-            src_vars = dict((src, vvar.varid if vvar is not None else None) for src, vvar in stmt.src.src_and_vvars)
+            src_vars = {src: vvar.varid if vvar is not None else None for src, vvar in stmt.src.src_and_vvars}
             if src_vars.get(addr0, None) == stmt0.dst.varid and src_vars.get(addr1, None) == stmt1.dst.varid:
                 # this is the phi assignment that assigns stmt0.dst and stmt1.dst to a new variable
                 found_phi_assignment = True
