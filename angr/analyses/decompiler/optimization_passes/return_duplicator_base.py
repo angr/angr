@@ -38,7 +38,6 @@ class ReturnDuplicatorBase:
         self.node_idx = count(start=node_idx_start)
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
-        self._current_iteration = 0
         self._supergraph = None
 
         # this should also be set by the optimization passes initer

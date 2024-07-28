@@ -141,9 +141,9 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
                 # keep testing the next edge
                 node = succ
 
-            # Special case 3: In Phoenix, regions full of only if-stmts and be collapsed and moved. This causes
+            # Special case 3: In Phoenix, regions full of only if-stmts can be collapsed and moved. This causes
             # the goto manager to report gotos that are at the top of the region instead of ones in the middle of it.
-            # Because of this, we need to gather all of the nodes above the original src and check if any of them
+            # Because of this, we need to gather all the nodes above the original src and check if any of them
             # go to the destination. Additionally, we need to do this on the supergraph to get rid of
             # goto edges that are removed by Phoenix.
             # This case is observed in the test case `TestDecompiler.test_tail_tail_bytes_ret_dup`.
