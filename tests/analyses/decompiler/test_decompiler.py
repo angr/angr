@@ -3310,6 +3310,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["recover_mode"]
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
         text = d.codegen.text
 
         assert "{\n}" not in text
