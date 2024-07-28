@@ -234,7 +234,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
 
     def _handle_Phi(self, expr: Phi):
         for src, vvar in expr.src_and_vvars:
-            if src[0] == self.last_pc:
+            if src[0] == self.last_pc and vvar is not None:
                 return self.state.vvar_load(vvar)
         return None
 
