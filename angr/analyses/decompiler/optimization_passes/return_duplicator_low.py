@@ -184,9 +184,35 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
                 og_check_blocks |= set(super_to_og_nodes[blk])
 
             # check if any of the original blocks are gotos to the destination
+            goto_hits = 0
             for block in og_check_blocks:
                 if self._goto_manager.is_goto_edge(block, dst):
-                    return True
+                    goto_hits += 1
+
+            # Although it is good to find a goto in the if-only block region, having more than a single goto
+            # existing that goes to the same dst is a bad sign. This can be seen in the the following test:
+            # TestDecompiler.test_dd_iread_ret_dup_region
+            #
+            # It occurs when you have something like:
+            # ```
+            # if (a || c)
+            #     goto target;
+            # target:
+            # return 0;
+            # ```
+            #
+            #
+            # This looks like an edge from (a, target) and (c, target) but it is actually a single edge.
+            # If you allow both to duplicate you get the following:
+            # ```
+            # if (a):
+            #    return
+            # if (c):
+            #    return
+            # ```
+            # This is not the desired behavior.
+            # So we need to check if there is only a single goto that goes to the destination.
+            return goto_hits == 1
 
         return False
 
