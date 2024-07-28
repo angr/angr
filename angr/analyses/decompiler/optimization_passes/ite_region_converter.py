@@ -2,9 +2,11 @@
 from __future__ import annotations
 import logging
 
+from ailment.block import Block
 from ailment.statement import ConditionalJump, Assignment, Jump
-from ailment.expression import ITE, Const
+from ailment.expression import ITE, Const, VirtualVariable, Phi
 
+from angr.utils.ail import is_phi_assignment
 from ....utils.graph import subgraph_between_nodes
 from ..utils import remove_labels, to_ail_supergraph
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -40,8 +42,10 @@ class ITERegionConverter(OptimizationPass):
             if not ite_assign_regions:
                 break
 
-            for region_head, region_tail, true_stmt, false_stmt in ite_assign_regions:
-                round_update |= self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
+            for region_head, region_tail, true_block, true_stmt, false_block, false_stmt in ite_assign_regions:
+                round_update |= self._convert_region_to_ternary_expr(
+                    region_head, region_tail, true_block, true_stmt, false_block, false_stmt
+                )
 
             if not round_update:
                 break
@@ -106,10 +110,8 @@ class ITERegionConverter(OptimizationPass):
 
             true_stmt = true_stmts[0]
             false_stmt = false_stmts[0]
-            if (
-                not isinstance(true_stmt, Assignment)
-                or not isinstance(false_stmt, Assignment)
-                or not true_stmt.dst.likes(false_stmt.dst)
+            if not (isinstance(true_stmt, Assignment) and isinstance(true_stmt.dst, VirtualVariable)) or not (
+                isinstance(false_stmt, Assignment) and isinstance(false_stmt.dst, VirtualVariable)
             ):
                 continue
 
@@ -126,6 +128,13 @@ class ITERegionConverter(OptimizationPass):
                 continue
             common_successor = true_successors[0]
 
+            # the common successor must have a phi assignment with source variables being assigned to in true_stmt and
+            # false_stmt
+            if not self._has_qualified_phi_assignments(
+                common_successor, true_child, true_stmt, false_child, false_stmt
+            ):
+                continue
+
             # lastly, normalize the region we will be editing
             region_head = super_to_normal_node.get(if_stmt_block)
             tail_blocks = list(self.blocks_by_addr.get(common_successor.addr, []))
@@ -134,11 +143,38 @@ class ITERegionConverter(OptimizationPass):
                 continue
 
             # we have now found a valid ITE-like expression case
-            ite_candidates.append((region_head, region_tail, true_stmt, false_stmt))
+            ite_candidates.append((region_head, region_tail, true_child, true_stmt, false_child, false_stmt))
 
         return ite_candidates
 
-    def _convert_region_to_ternary_expr(self, region_head, region_tail, true_stmt, false_stmt):
+    def _has_qualified_phi_assignments(
+        self, block: Block, block0: Block, stmt0: Assignment, block1: Block, stmt1: Assignment
+    ):
+        assert isinstance(stmt0.dst, VirtualVariable)
+        assert isinstance(stmt1.dst, VirtualVariable)
+
+        addr0 = block0.addr, block0.idx
+        addr1 = block1.addr, block1.idx
+
+        found_phi_assignment = False
+        has_unexpected_phi_assignment = False
+        for stmt in block.statements:
+            if not is_phi_assignment(stmt):
+                continue
+            src_vars = dict((src, vvar.varid if vvar is not None else None) for src, vvar in stmt.src.src_and_vvars)
+            if src_vars.get(addr0, None) == stmt0.dst.varid and src_vars.get(addr1, None) == stmt1.dst.varid:
+                # this is the phi assignment that assigns stmt0.dst and stmt1.dst to a new variable
+                found_phi_assignment = True
+            else:
+                if addr0 in src_vars and addr1 in src_vars and src_vars[addr0] == src_vars[addr1]:
+                    # for all other phi assignments, the source variable out of the two origins must be the same one
+                    pass
+                else:
+                    has_unexpected_phi_assignment = True
+
+        return found_phi_assignment and not has_unexpected_phi_assignment
+
+    def _convert_region_to_ternary_expr(self, region_head, region_tail, true_block, true_stmt, false_block, false_stmt):
         if region_head not in self._graph or region_tail not in self._graph:
             return False
 
@@ -152,13 +188,22 @@ class ITERegionConverter(OptimizationPass):
         ternary_expr = ITE(
             None,
             conditional_jump.condition,
-            true_stmt.src,
             false_stmt.src,
+            true_stmt.src,
             ins_addr=addr_obj.ins_addr,
             vex_block_addr=addr_obj.vex_block_addr,
             vex_stmt_idx=addr_obj.vex_stmt_idx,
         )
         new_assignment = true_stmt.copy()
+        new_assignment.dst = VirtualVariable(
+            true_stmt.dst.idx,
+            self.vvar_id_start,
+            true_stmt.dst.bits,
+            true_stmt.dst.category,
+            oident=true_stmt.dst.oident,
+            **true_stmt.dst.tags,
+        )
+        self.vvar_id_start += 1
         new_assignment.src = ternary_expr
         new_region_head.statements[-1] = new_assignment
 
@@ -181,10 +226,42 @@ class ITERegionConverter(OptimizationPass):
             self._remove_block(node)
 
         #
+        # Update phi assignments in region tail
+        #
+
+        stmts = []
+        for stmt in region_tail.statements:
+            if not is_phi_assignment(stmt):
+                stmts.append(stmt)
+                continue
+            new_src_and_vvars = []
+            for src, vvar in stmt.src.src_and_vvars:
+                if src not in {(true_block.addr, true_block.idx), (false_block.addr, false_block.idx)}:
+                    new_src_and_vvars.append((src, vvar))
+            new_vvar = new_assignment.dst.copy()
+            new_src_and_vvars.append(((region_head.addr, region_head.idx), new_vvar))
+
+            new_phi = Phi(
+                stmt.src.idx,
+                stmt.src.bits,
+                new_src_and_vvars,
+                **stmt.src.tags,
+            )
+            new_phi_assignment = Assignment(
+                stmt.idx,
+                stmt.dst,
+                new_phi,
+                **stmt.tags,
+            )
+            stmts.append(new_phi_assignment)
+        new_region_tail = Block(region_tail.addr, region_tail.original_size, statements=stmts, idx=region_tail.idx)
+
+        #
         # update head and tail
         #
 
         self._update_block(region_head, new_region_head)
-        self._graph.add_edge(new_region_head, region_tail)
+        self._update_block(region_tail, new_region_tail)
+        self._graph.add_edge(new_region_head, new_region_tail)
 
         return True
