@@ -87,22 +87,24 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
         for idx, stmt in enumerate(first_block.statements):
             if (
-                isinstance(stmt, ailment.Stmt.Store)
-                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data, ailment.Expr.VirtualVariable)
-                and stmt.data.was_reg
-                and stmt.data.reg_offset == self.project.arch.bp_offset
-                and stmt.addr.offset < 0
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_stack
+                and stmt.dst.stack_offset < 0
+                and isinstance(stmt.src, ailment.Expr.VirtualVariable)
+                and stmt.src.was_reg
+                and stmt.src.reg_offset == self.project.arch.bp_offset
             ):
-                return first_block, idx, stmt.addr
+                return first_block, idx, stmt.dst
             if (
-                isinstance(stmt, ailment.Stmt.Store)
-                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data, ailment.Expr.StackBaseOffset)
-                and stmt.data.offset == 0
-                and stmt.addr.offset < 0
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_stack
+                and stmt.dst.stack_offset < 0
+                and isinstance(stmt.src, ailment.Expr.StackBaseOffset)
+                and stmt.src.offset == 0
             ):
-                return first_block, idx, stmt.addr
+                return first_block, idx, stmt.dst
 
         # Not found
         return None

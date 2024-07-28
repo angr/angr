@@ -48,7 +48,14 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
     def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None):
         if expr.varid in self.vvar_mapping:
             return VirtualVariable(
-                expr.idx, self.vvar_mapping[expr.varid], expr.bits, expr.category, expr.oident, **expr.tags
+                expr.idx,
+                self.vvar_mapping[expr.varid],
+                expr.bits,
+                expr.category,
+                expr.oident,
+                variable=expr.variable,
+                variable_offset=expr.variable_offset,
+                **expr.tags,
             )
         return None
 

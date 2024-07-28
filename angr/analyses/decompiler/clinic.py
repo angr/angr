@@ -1418,6 +1418,7 @@ class Clinic(Analysis):
             labels=self.kb.labels,
             arg_names=self.function.prototype.arg_names if self.function.prototype else None,
             reset=self._reset_variable_names,
+            func_blocks=list(ail_graph),
         )
 
         # Link variables to each statement

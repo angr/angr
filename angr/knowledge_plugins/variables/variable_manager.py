@@ -6,10 +6,12 @@ from itertools import count, chain
 
 import networkx
 
+import ailment
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
 from angr.utils.orderedset import OrderedSet
+from angr.utils.ail import is_phi_assignment
 from ...protos import variables_pb2
 from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
@@ -843,14 +845,21 @@ class VariableManagerInternal(Serializable):
                     var.name = f"g_{var.addr}"
 
     def assign_unified_variable_names(
-        self, labels=None, arg_names: list[str] | None = None, reset: bool = False
+        self,
+        labels=None,
+        arg_names: list[str] | None = None,
+        reset: bool = False,
+        func_blocks: list[ailment.Block] = None,
     ) -> None:
         """
-        Assign default names to all unified variables.
+        Assign default names to all unified variables. If `func_blocks` is provided, we will find out variables that
+        are only ever written to in Phi assignments and never used elsewhere, and put these variables at the end of
+        the sorted list. These variables are likely completely removed during the dephication process.
 
         :param labels:    Known labels in the binary.
         :param arg_names: Known argument names.
         :param reset:     Reset all variable names or not.
+        :param func_blocks: A list of function blocks of the function where these variables are accessed.
         """
 
         def _id_from_varident(ident: str) -> int:
@@ -895,7 +904,20 @@ class VariableManagerInternal(Serializable):
         sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: v.offset)
         sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: _id_from_varident(v.ident))
 
-        for var in chain(sorted_stack_variables, sorted_reg_variables):
+        # find variables that are likely only used by phi assignments
+        phi_only_vars = []
+        if func_blocks:
+            func_block_by_addr = dict(((block.addr, block.idx), block) for block in func_blocks)
+            for var in list(sorted_stack_variables):
+                if self._is_variable_only_written_by_phi_stmt(var, func_block_by_addr):
+                    sorted_stack_variables.remove(var)
+                    phi_only_vars.append(var)
+            for var in list(sorted_reg_variables):
+                if self._is_variable_only_written_by_phi_stmt(var, func_block_by_addr):
+                    sorted_reg_variables.remove(var)
+                    phi_only_vars.append(var)
+
+        for var in chain(sorted_stack_variables, sorted_reg_variables, phi_only_vars):
             idx = next(var_ctr)
             if var.name is not None and not reset:
                 continue
@@ -1081,6 +1103,19 @@ class VariableManagerInternal(Serializable):
         """
 
         return self._variables_to_unified_variables.get(variable, None)
+
+    def _is_variable_only_written_by_phi_stmt(
+        self, var: SimVariable, func_block_by_addr: dict[tuple[int, int | None], ailment.Block]
+    ) -> bool:
+        accesses = self.get_variable_accesses(var)
+        if len(accesses) == 1 and accesses[0].access_type == VariableAccessSort.WRITE:
+            acc = accesses[0]
+            block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx), None)
+            if block is not None:
+                stmt = block.statements[acc.location.stmt_idx]
+                if is_phi_assignment(stmt):
+                    return True
+        return False
 
 
 class VariableManager(KnowledgeBasePlugin):
