@@ -9,6 +9,7 @@ from ailment import Expression, Block, AILBlockWalker
 from ailment.expression import ITE
 from ailment.statement import Statement, Assignment, Call
 
+from angr.utils.ail import is_phi_assignment
 from ..sequence_walker import SequenceWalker
 from ..structuring.structurer_nodes import (
     ConditionNode,
@@ -228,26 +229,28 @@ class ExpressionCounter(SequenceWalker):
         return self._variable_manager.unified_variable(v)
 
     def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
-        if (
-            isinstance(stmt, ailment.Stmt.Assignment)
-            and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-            and stmt.dst.was_reg
-            and stmt.dst.variable is not None
-        ):
-            u = self._u(stmt.dst.variable)
-            if u is not None:
-                # dependency
-                dependency_finder = ExpressionUseFinder()
-                dependency_finder.walk_expression(stmt.src)
-                dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                self.assignments[u].add(
-                    (
-                        stmt.src,
-                        dependencies,
-                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
-                        dependency_finder.has_load,
+        if isinstance(stmt, ailment.Stmt.Assignment):
+            if is_phi_assignment(stmt):
+                return
+            if (
+                isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.variable is not None
+            ):
+                u = self._u(stmt.dst.variable)
+                if u is not None:
+                    # dependency
+                    dependency_finder = ExpressionUseFinder()
+                    dependency_finder.walk_expression(stmt.src)
+                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
+                    self.assignments[u].add(
+                        (
+                            stmt.src,
+                            dependencies,
+                            StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                            dependency_finder.has_load,
+                        )
                     )
-                )
         if (
             isinstance(stmt, ailment.Stmt.Call)
             and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
