@@ -746,6 +746,9 @@ class CFGBase(Analysis):
         memory_regions = []
 
         for b in binaries:
+            if not b.has_memory:
+                continue
+
             if isinstance(b, ELF):
                 # If we have sections, we get result from sections
                 sections = []
