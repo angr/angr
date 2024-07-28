@@ -104,6 +104,7 @@ class Decompiler(Analysis):
         if decompile:
             self._decompile()
 
+    @timethis
     def _decompile(self):
         if self.func.is_simprocedure:
             return
