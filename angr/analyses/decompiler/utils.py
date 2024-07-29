@@ -523,6 +523,11 @@ def peephole_optimize_exprs(block, expr_opts):
     def _handle_expr(
         expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expr.Expression | None:
+        # process the expr
+        processed = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+        if processed is not None:
+            expr = processed
         old_expr = expr
 
         redo = True
@@ -538,11 +543,8 @@ def peephole_optimize_exprs(block, expr_opts):
 
         if expr is not old_expr:
             _any_update.v = True
-            # continue to process the expr
-            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-            return expr if r is None else r
 
-        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+        return expr
 
     # run expression optimizers
     walker = ailment.AILBlockWalker()
