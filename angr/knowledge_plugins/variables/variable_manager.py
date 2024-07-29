@@ -909,11 +909,11 @@ class VariableManagerInternal(Serializable):
         if func_blocks:
             func_block_by_addr = {(block.addr, block.idx): block for block in func_blocks}
             for var in list(sorted_stack_variables):
-                if self._is_variable_only_written_by_phi_stmt(var, func_block_by_addr):
+                if self._is_variable_only_used_by_phi_stmt(var, func_block_by_addr):
                     sorted_stack_variables.remove(var)
                     phi_only_vars.append(var)
             for var in list(sorted_reg_variables):
-                if self._is_variable_only_written_by_phi_stmt(var, func_block_by_addr):
+                if self._is_variable_only_used_by_phi_stmt(var, func_block_by_addr):
                     sorted_reg_variables.remove(var)
                     phi_only_vars.append(var)
 
@@ -1104,18 +1104,20 @@ class VariableManagerInternal(Serializable):
 
         return self._variables_to_unified_variables.get(variable, None)
 
-    def _is_variable_only_written_by_phi_stmt(
+    def _is_variable_only_used_by_phi_stmt(
         self, var: SimVariable, func_block_by_addr: dict[tuple[int, int | None], ailment.Block]
     ) -> bool:
         accesses = self.get_variable_accesses(var)
-        if len(accesses) == 1 and accesses[0].access_type == VariableAccessSort.WRITE:
-            acc = accesses[0]
+        if not accesses:
+            # not used at all?
+            return False
+        for acc in accesses:
             block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx), None)
             if block is not None:
                 stmt = block.statements[acc.location.stmt_idx]
-                if is_phi_assignment(stmt):
-                    return True
-        return False
+                if not is_phi_assignment(stmt):
+                    return False
+        return True
 
 
 class VariableManager(KnowledgeBasePlugin):

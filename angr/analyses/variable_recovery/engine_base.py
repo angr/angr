@@ -351,8 +351,7 @@ class SimEngineVRBase(SimEngineLight):
         v = MultiValues(annotated_data)
         self.state.register_region.store(offset, v)
         # register with the variable manager
-        overwrite = isinstance(dst, ailment.Expr.VirtualVariable)
-        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=overwrite)
+        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
@@ -433,9 +432,7 @@ class SimEngineVRBase(SimEngineLight):
         # FIXME: The offset does not have to be 0
         annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
         self.vvar_region[vvar_id] = annotated_data
-        # register with the variable manager
-        overwrite = isinstance(dst, ailment.Expr.VirtualVariable)
-        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=overwrite)
+        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
@@ -975,12 +972,11 @@ class SimEngineVRBase(SimEngineLight):
         else:
             value_list = list(values.values())
 
-        overwrite = isinstance(expr, ailment.Expr.VirtualVariable)
         variable_set = set()
         for value_set in value_list:
             for value in value_set:
                 for _, var in self.state.extract_variables(value):
-                    self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=overwrite)
+                    self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=False)
                     variable_set.add(var)
 
         if offset == self.arch.sp_offset:
@@ -1073,7 +1069,7 @@ class SimEngineVRBase(SimEngineLight):
 
         variable_set = set()
         for _, var in self.state.extract_variables(value):
-            self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=True)
+            self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=False)
             variable_set.add(var)
 
         if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER and vvar.oident == self.arch.sp_offset:
