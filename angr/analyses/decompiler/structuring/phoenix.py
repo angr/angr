@@ -423,6 +423,9 @@ class PhoenixStructurer(StructurerBase):
             isinstance(node, SequenceNode)
             and node.nodes
             and isinstance(node.nodes[-1], ConditionNode)
+            # must ensure the nodes before the condition node are empty. otherwise the condition may use variables that
+            # are updated in these nodes leading up to the condition node.
+            and all(not has_nonlabel_nonphi_statements(nn) for nn in node.nodes[:-1])
             and node.nodes[-1].true_node is not None
             and node.nodes[-1].false_node is not None
         ):
