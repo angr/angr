@@ -68,6 +68,26 @@ class AILBlockTempCollector(AILBlockWalker):
             self.temps.add(expr)
 
 
+class ExprNarrowingInfo:
+    """
+    Stores the analysis result of _narrowing_needed().
+    """
+
+    __slots__ = ("narrowable", "to_size", "use_exprs", "phi_vars")
+
+    def __init__(
+        self,
+        narrowable: bool,
+        to_size: int | None = None,
+        use_exprs: list[tuple[atoms.VirtualVariable, CodeLocation, tuple[str, tuple[Expression, ...]]]] | None = None,
+        phi_vars: set[atoms.VirtualVariable] | None = None,
+    ):
+        self.narrowable = narrowable
+        self.to_size = to_size
+        self.use_exprs = use_exprs
+        self.phi_vars = phi_vars
+
+
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -267,6 +287,7 @@ class AILSimplifier(Analysis):
 
         rd = self._compute_reaching_definitions()
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
+        narrowing_candidates: dict[int, tuple[Definition, ExprNarrowingInfo]] = {}
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
             if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_reg:
                 # only do this for general purpose register
@@ -279,248 +300,333 @@ class AILSimplifier(Analysis):
                 if skip_def:
                     continue
 
-                needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
-                if needs_narrowing:
-                    # replace the definition
-                    if not isinstance(def_.codeloc, ExternalCodeLocation):
-                        old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
-                        if old_block is None:
-                            # this definition might be inside a callee function, which is why the block does not exist
-                            # ignore it
-                            continue
+                narrow = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
+                if narrow.narrowable:
+                    # we cannot narrow it immediately because any definition that is used by phi variables must be
+                    # narrowed together with all other definitions that can reach the phi variables.
+                    # so we record the information and decide if we are going to narrow these expressions or not at the
+                    # end of the loop.
+                    narrowing_candidates[def_.atom.varid] = def_, narrow
 
-                        the_block = self.blocks.get(old_block, old_block)
-                        stmt = the_block.statements[def_.codeloc.stmt_idx]
-                        if is_phi_assignment(stmt):
-                            # we do not support narrowing variables that are defined by phi statements yet
-                            continue
-                        r, new_block = False, None
-                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
-                            new_assignment_dst = VirtualVariable(
-                                stmt.dst.idx,
-                                stmt.dst.varid,
-                                to_size * self.project.arch.byte_width,
-                                category=def_.atom.category,
-                                oident=def_.atom.oident,
-                                **stmt.dst.tags,
-                            )
-                            new_assignment_src = Convert(
-                                stmt.src.idx,  # FIXME: This is a hack
-                                stmt.src.bits,
-                                to_size * self.project.arch.byte_width,
+        # first, determine which phi vars need to be narrowed and can be narrowed.
+        # a phi var can only be narrowed if all its source vvars are narrowable
+        vvar_to_narrowing_size = {}
+        for def_varid, (_, narrow_info) in narrowing_candidates.items():
+            vvar_to_narrowing_size[def_varid] = narrow_info.to_size
+
+        narrowable_phivarids = set()
+        for def_vvarid, (_, narrow_info) in narrowing_candidates.items():
+            if def_vvarid in rd.phi_vvar_ids:
+                narrowing_sizes = set()
+                src_vvarids = rd.phivarid_to_varids[def_vvarid]
+                for vvarid in src_vvarids:
+                    narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid, None))
+                if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
+                    # we can narrow this phi vvar!
+                    narrowable_phivarids.add(def_vvarid)
+
+        # now determine what to narrow!
+        narrowables = []
+
+        for def_, narrow_info in narrowing_candidates.values():
+            if not narrow_info.phi_vars:
+                # not used by any other phi variables. good!
+                narrowables.append((def_, narrow_info))
+            elif {phivar.varid for phivar in narrow_info.phi_vars}.issubset(narrowable_phivarids):
+                # all phi vvars that use this definition can be narrowed
+                narrowables.append((def_, narrow_info))
+
+        # let's narrow them (finally)
+        for def_, narrow_info in narrowables:
+            # replace the definition
+            if not isinstance(def_.codeloc, ExternalCodeLocation):
+                old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+                if old_block is None:
+                    # this definition might be inside a callee function, which is why the block does not exist
+                    # ignore it
+                    continue
+
+                the_block = self.blocks.get(old_block, old_block)
+                stmt = the_block.statements[def_.codeloc.stmt_idx]
+                if is_phi_assignment(stmt):
+                    # we do not support narrowing variables that are defined by phi statements yet
+                    continue
+                r, new_block = False, None
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+                    new_assignment_dst = VirtualVariable(
+                        stmt.dst.idx,
+                        stmt.dst.varid,
+                        narrow_info.to_size * self.project.arch.byte_width,
+                        category=def_.atom.category,
+                        oident=def_.atom.oident,
+                        **stmt.dst.tags,
+                    )
+                    new_assignment_src = Convert(
+                        stmt.src.idx,  # FIXME: This is a hack
+                        stmt.src.bits,
+                        narrow_info.to_size * self.project.arch.byte_width,
+                        False,
+                        stmt.src,
+                        **stmt.src.tags,
+                    )
+                    r, new_block = BlockSimplifier._replace_and_build(
+                        the_block,
+                        {
+                            def_.codeloc: {
+                                stmt.dst: new_assignment_dst,
+                                stmt.src: new_assignment_src,
+                            }
+                        },
+                        replace_assignment_dsts=True,
+                        replace_loads=True,
+                    )
+                elif isinstance(stmt, Call):
+                    if stmt.ret_expr is not None:
+                        tags = dict(stmt.ret_expr.tags)
+                        tags["reg_name"] = self.project.arch.translate_register_name(
+                            def_.atom.reg_offset, size=narrow_info.to_size
+                        )
+                        new_retexpr = VirtualVariable(
+                            stmt.ret_expr.idx,
+                            stmt.ret_expr.varid,
+                            narrow_info.to_size * self.project.arch.byte_width,
+                            category=def_.atom.category,
+                            oident=def_.atom.oident,
+                            **stmt.ret_expr.tags,
+                        )
+                        r, new_block = BlockSimplifier._replace_and_build(
+                            the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
+                        )
+                if not r:
+                    # couldn't replace the definition...
+                    continue
+                self.blocks[old_block] = new_block
+
+            # replace all uses if necessary
+            for use_atom, use_loc, (use_type, use_expr_tpl) in narrow_info.use_exprs:
+                if (
+                    isinstance(use_expr_tpl[0], VirtualVariable)
+                    and use_expr_tpl[0].was_reg
+                    and narrow_info.to_size == use_expr_tpl[0].size
+                ):
+                    # don't replace registers to the same registers
+                    continue
+                if use_atom.varid != def_.atom.varid:
+                    # don't replace this use - it will be replaced later
+                    continue
+
+                old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
+                the_block = self.blocks.get(old_block, old_block)
+
+                if use_type in {"expr", "mask", "convert"}:
+                    # the first used expr
+                    use_expr_0 = use_expr_tpl[0]
+                    new_use_expr_0 = VirtualVariable(
+                        use_expr_0.idx,
+                        def_.atom.varid,
+                        narrow_info.to_size * self.project.arch.byte_width,
+                        category=def_.atom.category,
+                        oident=def_.atom.oident,
+                        **use_expr_0.tags,
+                    )
+
+                    # the second used expr (if it exists)
+                    if len(use_expr_tpl) == 2:
+                        use_expr_1 = use_expr_tpl[1]
+                        assert isinstance(use_expr_1, BinaryOp)
+                        con = use_expr_1.operands[1]
+                        assert isinstance(con, Const)
+                        new_use_expr_1 = BinaryOp(
+                            use_expr_1.idx,
+                            use_expr_1.op,
+                            [
+                                new_use_expr_0,
+                                Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
+                            ],
+                            use_expr_1.signed,
+                            floating_point=use_expr_1.floating_point,
+                            rounding_mode=use_expr_1.rounding_mode,
+                            **use_expr_1.tags,
+                        )
+
+                        if use_expr_1.size > new_use_expr_1.size:
+                            new_use_expr_1 = Convert(
+                                None,
+                                new_use_expr_1.bits,
+                                use_expr_1.bits,
                                 False,
-                                stmt.src,
-                                **stmt.src.tags,
-                            )
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block,
-                                {
-                                    def_.codeloc: {
-                                        stmt.dst: new_assignment_dst,
-                                        stmt.src: new_assignment_src,
-                                    }
-                                },
-                                replace_assignment_dsts=True,
-                                replace_loads=True,
-                            )
-                        elif isinstance(stmt, Call):
-                            if stmt.ret_expr is not None:
-                                tags = dict(stmt.ret_expr.tags)
-                                tags["reg_name"] = self.project.arch.translate_register_name(
-                                    def_.atom.reg_offset, size=to_size
-                                )
-                                new_retexpr = VirtualVariable(
-                                    stmt.ret_expr.idx,
-                                    stmt.ret_expr.varid,
-                                    to_size * self.project.arch.byte_width,
-                                    category=def_.atom.category,
-                                    oident=def_.atom.oident,
-                                    **stmt.ret_expr.tags,
-                                )
-                                r, new_block = BlockSimplifier._replace_and_build(
-                                    the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
-                                )
-                        if not r:
-                            # couldn't replace the definition...
-                            continue
-                        self.blocks[old_block] = new_block
-
-                    # replace all uses if necessary
-                    for use_loc, (use_type, use_expr_tpl) in use_exprs:
-                        if (
-                            isinstance(use_expr_tpl[0], VirtualVariable)
-                            and use_expr_tpl[0].was_reg
-                            and to_size == use_expr_tpl[0].size
-                        ):
-                            # don't replace registers to the same registers
-                            continue
-
-                        old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
-                        the_block = self.blocks.get(old_block, old_block)
-
-                        if use_type in {"expr", "mask", "convert"}:
-                            # the first used expr
-                            use_expr_0 = use_expr_tpl[0]
-                            new_use_expr_0 = VirtualVariable(
-                                use_expr_0.idx,
-                                def_.atom.varid,
-                                to_size * self.project.arch.byte_width,
-                                category=def_.atom.category,
-                                oident=def_.atom.oident,
-                                **use_expr_0.tags,
+                                new_use_expr_1,
+                                **new_use_expr_1.tags,
                             )
 
-                            # the second used expr (if it exists)
-                            if len(use_expr_tpl) == 2:
-                                use_expr_1 = use_expr_tpl[1]
-                                assert isinstance(use_expr_1, BinaryOp)
-                                con = use_expr_1.operands[1]
-                                assert isinstance(con, Const)
-                                new_use_expr_1 = BinaryOp(
-                                    use_expr_1.idx,
-                                    use_expr_1.op,
-                                    [
-                                        new_use_expr_0,
-                                        Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
-                                    ],
-                                    use_expr_1.signed,
-                                    floating_point=use_expr_1.floating_point,
-                                    rounding_mode=use_expr_1.rounding_mode,
-                                    **use_expr_1.tags,
-                                )
-
-                                if use_expr_1.size > new_use_expr_1.size:
-                                    new_use_expr_1 = Convert(
-                                        None,
-                                        new_use_expr_1.bits,
-                                        use_expr_1.bits,
-                                        False,
-                                        new_use_expr_1,
-                                        **new_use_expr_1.tags,
-                                    )
-
-                                r, new_block = BlockSimplifier._replace_and_build(
-                                    the_block, {use_loc: {use_expr_1: new_use_expr_1}}
-                                )
-                            elif len(use_expr_tpl) == 1:
-                                if use_expr_0.size > new_use_expr_0.size:
-                                    new_use_expr_0 = Convert(
-                                        None,
-                                        new_use_expr_0.bits,
-                                        use_expr_0.bits,
-                                        False,
-                                        new_use_expr_0,
-                                        **new_use_expr_0.tags,
-                                    )
-
-                                r, new_block = BlockSimplifier._replace_and_build(
-                                    the_block, {use_loc: {use_expr_0: new_use_expr_0}}
-                                )
-                            else:
-                                _l.warning("Nothing to replace at %s.", use_loc)
-                                r = False
-                                new_block = None
-                        elif use_type == "binop-convert":
-                            use_expr_0 = use_expr_tpl[0]
-                            new_use_expr_0 = VirtualVariable(
-                                use_expr_0.idx,
-                                def_.atom.varid,
-                                to_size * self.project.arch.byte_width,
-                                category=def_.atom.category,
-                                oident=def_.atom.oident,
-                                **use_expr_0.tags,
+                        r, new_block = BlockSimplifier._replace_and_build(
+                            the_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                        )
+                    elif len(use_expr_tpl) == 1:
+                        if use_expr_0.size > new_use_expr_0.size:
+                            new_use_expr_0 = Convert(
+                                None,
+                                new_use_expr_0.bits,
+                                use_expr_0.bits,
+                                False,
+                                new_use_expr_0,
+                                **new_use_expr_0.tags,
                             )
 
-                            use_expr_1: BinaryOp = use_expr_tpl[1]
-                            # build the new use_expr_1
-                            new_use_expr_1_operands = {}
-                            if use_expr_1.operands[0] is use_expr_0:
-                                new_use_expr_1_operands[0] = new_use_expr_0
-                                other_operand = use_expr_1.operands[1]
-                            else:
-                                new_use_expr_1_operands[1] = new_use_expr_0
-                                other_operand = use_expr_1.operands[0]
-                            use_expr_2: Convert = use_expr_tpl[2]
-                            if other_operand.bits == use_expr_2.from_bits:
-                                new_other_operand = Convert(
-                                    None, use_expr_2.from_bits, use_expr_2.to_bits, False, other_operand
-                                )
-                            else:
-                                # Some operations, like Sar and Shl, have operands with different sizes
-                                new_other_operand = other_operand
+                        r, new_block = BlockSimplifier._replace_and_build(
+                            the_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                        )
+                    else:
+                        _l.warning("Nothing to replace at %s.", use_loc)
+                        r = False
+                        new_block = None
+                elif use_type == "binop-convert":
+                    use_expr_0 = use_expr_tpl[0]
+                    new_use_expr_0 = VirtualVariable(
+                        use_expr_0.idx,
+                        def_.atom.varid,
+                        narrow_info.to_size * self.project.arch.byte_width,
+                        category=def_.atom.category,
+                        oident=def_.atom.oident,
+                        **use_expr_0.tags,
+                    )
 
-                            if 0 in new_use_expr_1_operands:
-                                new_use_expr_1_operands[1] = new_other_operand
-                            else:
-                                new_use_expr_1_operands[0] = new_other_operand
+                    use_expr_1: BinaryOp = use_expr_tpl[1]
+                    # build the new use_expr_1
+                    new_use_expr_1_operands = {}
+                    if use_expr_1.operands[0] is use_expr_0:
+                        new_use_expr_1_operands[0] = new_use_expr_0
+                        other_operand = use_expr_1.operands[1]
+                    else:
+                        new_use_expr_1_operands[1] = new_use_expr_0
+                        other_operand = use_expr_1.operands[0]
+                    use_expr_2: Convert = use_expr_tpl[2]
+                    if other_operand.bits == use_expr_2.from_bits:
+                        new_other_operand = Convert(
+                            None, use_expr_2.from_bits, use_expr_2.to_bits, False, other_operand
+                        )
+                    else:
+                        # Some operations, like Sar and Shl, have operands with different sizes
+                        new_other_operand = other_operand
 
-                            # build new use_expr_1
-                            new_use_expr_1 = BinaryOp(
-                                use_expr_1.idx,
-                                use_expr_1.op,
-                                [new_use_expr_1_operands[0], new_use_expr_1_operands[1]],
-                                use_expr_1.signed,
-                                bits=to_size * 8,
-                                floating_point=use_expr_1.floating_point,
-                                rounding_mode=use_expr_1.rounding_mode,
-                                **use_expr_1.tags,
-                            )
+                    if 0 in new_use_expr_1_operands:
+                        new_use_expr_1_operands[1] = new_other_operand
+                    else:
+                        new_use_expr_1_operands[0] = new_other_operand
 
-                            # first remove the old conversion
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
-                            )
-                            # then replace use_expr_1
-                            if r:
-                                r, new_block = BlockSimplifier._replace_and_build(
-                                    new_block, {use_loc: {use_expr_1: new_use_expr_1}}
-                                )
-                        else:
-                            raise TypeError(f'Unsupported use_type value "{use_type}"')
+                    # build new use_expr_1
+                    new_use_expr_1 = BinaryOp(
+                        use_expr_1.idx,
+                        use_expr_1.op,
+                        [new_use_expr_1_operands[0], new_use_expr_1_operands[1]],
+                        use_expr_1.signed,
+                        bits=narrow_info.to_size * 8,
+                        floating_point=use_expr_1.floating_point,
+                        rounding_mode=use_expr_1.rounding_mode,
+                        **use_expr_1.tags,
+                    )
 
-                        if not r:
-                            _l.warning("Failed to replace use-expr at %s.", use_loc)
-                        else:
-                            self.blocks[old_block] = new_block
+                    # first remove the old conversion
+                    r, new_block = BlockSimplifier._replace_and_build(
+                        the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
+                    )
+                    # then replace use_expr_1
+                    if r:
+                        r, new_block = BlockSimplifier._replace_and_build(
+                            new_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                        )
+                else:
+                    raise TypeError(f'Unsupported use_type value "{use_type}"')
 
-                    narrowed = True
+                if not r:
+                    _l.warning("Failed to replace use-expr at %s.", use_loc)
+                else:
+                    self.blocks[old_block] = new_block
+
+            narrowed = True
 
         return narrowed
 
-    def _narrowing_needed(
-        self, def_, rd: SRDAModel, addr_and_idx_to_block
-    ) -> tuple[bool, int | None, list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] | None]:
+    def _narrowing_needed(self, def_, rd: SRDAModel, addr_and_idx_to_block) -> ExprNarrowingInfo:
+
         def_size = def_.size
         # find its uses
-        use_and_exprs = rd.get_vvar_uses_with_expr(def_.atom)
+        # some use locations are phi assignments. we keep tracking the uses of phi variables and update the dictionary
+        result = self._get_vvar_use_and_exprs_recursive(def_.atom, rd, addr_and_idx_to_block)
+        if result is None:
+            info = ExprNarrowingInfo(False)
+            return info
+        use_and_exprs, phi_vars = result
 
         all_used_sizes = set()
-        used_by: list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
+        used_by: list[tuple[atoms.VirtualVariable, CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
 
-        for loc, expr in use_and_exprs:
+        for atom, loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
             if old_block is None:
                 # missing a block for whatever reason
-                return False, None, None
+                info = ExprNarrowingInfo(False)
+                return info
 
             block = self.blocks.get(old_block, old_block)
             if loc.stmt_idx >= len(block.statements):
                 # missing a statement for whatever reason
-                return False, None, None
+                info = ExprNarrowingInfo(False)
+                return info
             stmt = block.statements[loc.stmt_idx]
 
             expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:
                 # it's probably used in full width
-                return False, None, None
+                info = ExprNarrowingInfo(False)
+                return info
 
             all_used_sizes.add(expr_size)
-            used_by.append((loc, used_by_exprs))
+            used_by.append((atom, loc, used_by_exprs))
 
         if len(all_used_sizes) == 1 and next(iter(all_used_sizes)) < def_size:
-            return True, next(iter(all_used_sizes)), used_by
+            info = ExprNarrowingInfo(True, to_size=next(iter(all_used_sizes)), use_exprs=used_by, phi_vars=phi_vars)
+            return info
 
-        return False, None, None
+        info = ExprNarrowingInfo(False)
+        return info
+
+    def _get_vvar_use_and_exprs_recursive(
+        self, initial_atom: atoms.VirtualVariable, rd, block_dict: dict[tuple[int, int | None], Block]
+    ) -> tuple[list[tuple[atoms.VirtualVariable, CodeLocation, Expression]], set[VirtualVariable]] | None:
+
+        result = []
+        atom_queue = [initial_atom]
+        phi_vars = set()
+        seen = set()
+        while atom_queue:
+            atom = atom_queue.pop(0)
+            seen.add(atom)
+
+            use_and_exprs = rd.get_vvar_uses_with_expr(atom)
+
+            for loc, expr in use_and_exprs:
+                old_block = block_dict.get((loc.block_addr, loc.block_idx), None)
+                if old_block is None:
+                    # missing a block for whatever reason
+                    return None
+
+                block = self.blocks.get(old_block, old_block)
+                if loc.stmt_idx >= len(block.statements):
+                    # missing a statement for whatever reason
+                    return None
+                stmt = block.statements[loc.stmt_idx]
+
+                if is_phi_assignment(stmt):
+                    phi_vars.add(stmt.dst)
+                    new_atom = atoms.VirtualVariable(
+                        stmt.dst.varid, stmt.dst.size, stmt.dst.category, oident=stmt.dst.oident
+                    )
+                    if new_atom not in seen:
+                        atom_queue.append(new_atom)
+                else:
+                    result.append((atom, loc, expr))
+        return result, phi_vars
 
     def _extract_expression_effective_size(
         self, statement, expr

@@ -54,7 +54,9 @@ def get_reg_offset_base(
     return base_reg_and_size[0]
 
 
-def get_vvar_deflocs(blocks, phi_vvars: set | None = None) -> dict[VirtualVariable, CodeLocation]:
+def get_vvar_deflocs(
+    blocks, phi_vvars: dict[VirtualVariable, set[VirtualVariable]] | None = None
+) -> dict[VirtualVariable, CodeLocation]:
     vvar_to_loc: dict[VirtualVariable, CodeLocation] = {}
 
     for block in blocks:
@@ -62,7 +64,7 @@ def get_vvar_deflocs(blocks, phi_vvars: set | None = None) -> dict[VirtualVariab
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                 vvar_to_loc[stmt.dst] = CodeLocation(block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                 if phi_vvars is not None and isinstance(stmt.src, Phi):
-                    phi_vvars.add(stmt.dst)
+                    phi_vvars[stmt.dst] = {vvar_ for src, vvar_ in stmt.src.src_and_vvars}
             elif isinstance(stmt, Call):
                 if isinstance(stmt.ret_expr, VirtualVariable):
                     vvar_to_loc[stmt.ret_expr] = CodeLocation(

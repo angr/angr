@@ -31,6 +31,7 @@ class SRDAModel:
         self.all_tmp_definitions: dict[CodeLocation, dict[atoms.Tmp, int]] = defaultdict(dict)
         self.all_tmp_uses: dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
         self.phi_vvar_ids: set[int] = set()
+        self.phivarid_to_varids: dict[int, set[int]] = {}
 
     @property
     def all_definitions(self) -> Generator[Definition, None, None]:
@@ -318,7 +319,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             case _:
                 raise NotImplementedError()
 
-        phi_vvars = set()
+        phi_vvars = {}
         # find all vvar definitions
         vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
         # find all explicit vvar uses
@@ -333,6 +334,11 @@ class SReachingDefinitionsAnalysis(Analysis):
                 self.model.all_vvar_uses[vvar].add((vvar_at_use, useloc))
 
         self.model.phi_vvar_ids = {vvar.varid for vvar in phi_vvars}
+        self.model.phivarid_to_varids = {}
+        for vvar, src_vvars in phi_vvars.items():
+            self.model.phivarid_to_varids[vvar.varid] = {
+                src_vvar.varid for src_vvar in src_vvars if src_vvar is not None
+            }
 
         if self.mode == "function":
             # fix register definitions for arguments
@@ -340,7 +346,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             undefined_vvarids = set(vvar_uselocs.keys()).difference(defined_vvarids)
             for vvar_id in undefined_vvarids:
                 used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
-                self.model.varid_to_vvar[used_vvar] = used_vvar
+                self.model.varid_to_vvar[used_vvar.varid] = used_vvar
                 self.model.all_vvar_definitions[used_vvar] = ExternalCodeLocation()
                 self.model.all_vvar_uses[used_vvar] |= vvar_uselocs[vvar_id]
 
