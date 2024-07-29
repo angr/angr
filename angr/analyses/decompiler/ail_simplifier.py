@@ -1281,7 +1281,7 @@ class AILSimplifier(Analysis):
 
         for eq in equivalence:
             # register variable == Call
-            if isinstance(eq.atom0, VirtualVariable):
+            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
                 call_addr: int | None
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
