@@ -22,8 +22,8 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
 
         # x + x = 2*x
         if (
-            type(operand_0) in [Expr.Convert, Expr.Register]
-            and isinstance(operand_1, (Expr.Convert, Expr.Register))
+            type(operand_0) in [Expr.Convert, Expr.VirtualVariable]
+            and isinstance(operand_1, (Expr.Convert, Expr.VirtualVariable))
             and operand_0 == operand_1
         ):
             count = Expr.Const(expr.idx, None, 2, operand_1.bits)
@@ -92,12 +92,13 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
 
         # x + x = 2*x
         if (
-            type(operand_0) in [Expr.Convert, Expr.Register]
-            and isinstance(operand_1, (Expr.Convert, Expr.Register))
+            type(operand_0) in [Expr.Convert, Expr.VirtualVariable]
+            and isinstance(operand_1, (Expr.Convert, Expr.VirtualVariable))
             and operand_0 == operand_1
         ):
             count = Expr.Const(expr.idx, None, 0, 8)
-            return Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
+            new_expr = Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
+            return new_expr
 
         # 2*x - x = x
         if Expr.BinaryOp in [type(operand_0), type(operand_1)]:
