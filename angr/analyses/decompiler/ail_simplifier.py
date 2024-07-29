@@ -315,27 +315,13 @@ class AILSimplifier(Analysis):
         for def_varid, (_, narrow_info) in narrowing_candidates.items():
             vvar_to_narrowing_size[def_varid] = narrow_info.to_size
 
-        narrowable_phivarids = set()
-        for def_vvarid, (_, narrow_info) in narrowing_candidates.items():
-            if def_vvarid in rd.phi_vvar_ids:
-                narrowing_sizes = set()
-                src_vvarids = rd.phivarid_to_varids[def_vvarid]
-                for vvarid in src_vvarids:
-                    narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid, None))
-                if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
-                    # we can narrow this phi vvar!
-                    narrowable_phivarids.add(def_vvarid)
-
-        # now determine what to narrow!
-        narrowables = []
-
-        for def_, narrow_info in narrowing_candidates.values():
-            if not narrow_info.phi_vars:
-                # not used by any other phi variables. good!
-                narrowables.append((def_, narrow_info))
-            elif {phivar.varid for phivar in narrow_info.phi_vars}.issubset(narrowable_phivarids):
-                # all phi vvars that use this definition can be narrowed
-                narrowables.append((def_, narrow_info))
+        blacklist_varids = set()
+        while True:
+            repeat, narrowables = self._compute_narrowables_once(
+                rd, narrowing_candidates, vvar_to_narrowing_size, blacklist_varids
+            )
+            if not repeat:
+                break
 
         # let's narrow them (finally)
         for def_, narrow_info in narrowables:
@@ -375,7 +361,7 @@ class AILSimplifier(Analysis):
                         new_src_and_vvars.append((src, new_vvar))
                     new_assignment_src = Phi(
                         stmt.src.idx,
-                        stmt.src.bits,
+                        narrow_info.to_size * self.project.arch.byte_width,
                         new_src_and_vvars,
                         **stmt.src.tags,
                     )
@@ -440,8 +426,21 @@ class AILSimplifier(Analysis):
                     continue
                 self.blocks[old_block] = new_block
 
+            use_exprs = list(narrow_info.use_exprs)
+            if narrow_info.phi_vars:
+                for phi_var in narrow_info.phi_vars:
+                    loc = rd.all_vvar_definitions[phi_var]
+                    old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx))
+                    the_block = self.blocks.get(old_block, old_block)
+                    stmt = the_block.statements[loc.stmt_idx]
+                    assert is_phi_assignment(stmt)
+
+                    for _, vvar in stmt.src.src_and_vvars:
+                        if vvar.varid == def_.atom.varid:
+                            use_exprs.append((vvar, loc, ("phi-src-expr", (vvar,))))
+
             # replace all uses if necessary
-            for use_atom, use_loc, (use_type, use_expr_tpl) in narrow_info.use_exprs:
+            for use_atom, use_loc, (use_type, use_expr_tpl) in use_exprs:
                 if (
                     isinstance(use_expr_tpl[0], VirtualVariable)
                     and use_expr_tpl[0].was_reg
@@ -518,6 +517,20 @@ class AILSimplifier(Analysis):
                         _l.warning("Nothing to replace at %s.", use_loc)
                         r = False
                         new_block = None
+
+                elif use_type == "phi-src-expr":
+                    # the size of the replaced variable will be different from its original size, and it's expected
+                    use_expr = use_expr_tpl[0]
+                    new_use_expr = VirtualVariable(
+                        use_expr.idx,
+                        def_.atom.varid,
+                        narrow_info.to_size * self.project.arch.byte_width,
+                        category=def_.atom.category,
+                        oident=def_.atom.oident,
+                        **use_expr.tags,
+                    )
+                    r, new_block = BlockSimplifier._replace_and_build(the_block, {use_loc: {use_expr: new_use_expr}})
+
                 elif use_type == "binop-convert":
                     use_expr_0 = use_expr_tpl[0]
                     new_use_expr_0 = VirtualVariable(
@@ -584,6 +597,49 @@ class AILSimplifier(Analysis):
             narrowed = True
 
         return narrowed
+
+    def _compute_narrowables_once(
+        self, rd, narrowing_candidates: dict, vvar_to_narrowing_size: dict[int, int], blacklist_varids: set
+    ):
+        repeat = False
+        narrowable_phivarids = set()
+        for def_vvarid, (_, narrow_info) in narrowing_candidates.items():
+            if def_vvarid in blacklist_varids:
+                continue
+            if def_vvarid in rd.phi_vvar_ids:
+                narrowing_sizes = set()
+                src_vvarids = rd.phivarid_to_varids[def_vvarid]
+                for vvarid in src_vvarids:
+                    if vvarid in blacklist_varids:
+                        narrowing_sizes.add(None)
+                    else:
+                        narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid, None))
+                if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
+                    # we can narrow this phi vvar!
+                    narrowable_phivarids.add(def_vvarid)
+
+        # now determine what to narrow!
+        narrowables = []
+
+        for def_, narrow_info in narrowing_candidates.values():
+            if def_.atom.varid in blacklist_varids:
+                continue
+            if not narrow_info.phi_vars:
+                # not used by any other phi variables. good!
+                narrowables.append((def_, narrow_info))
+            else:
+                if {phivar.varid for phivar in narrow_info.phi_vars}.issubset(narrowable_phivarids):
+                    # all phi vvars that use this definition can be narrowed
+                    narrowables.append((def_, narrow_info))
+                else:
+                    # this vvar cannot be narrowed
+                    # note that all phi variables that relies on this vvar also cannot be narrowed! we must analyze
+                    # again
+                    repeat = True
+                    blacklist_varids.add(def_.atom.varid)
+                    blacklist_varids |= {phivar.varid for phivar in narrow_info.phi_vars}
+
+        return repeat, narrowables
 
     def _narrowing_needed(self, def_, rd: SRDAModel, addr_and_idx_to_block) -> ExprNarrowingInfo:
 
