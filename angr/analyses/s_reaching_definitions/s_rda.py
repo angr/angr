@@ -228,51 +228,50 @@ class SRDAView:
         # TODO: Other types
 
         traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
-        live_register_to_vvarid: dict[int, int] = {}
+        all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, int]] = defaultdict(dict)
 
         observations = {}
         for block in traversal_order:
+            reg2vvarid = all_reg2vvarid[block.addr, block.idx]
+
             if (block.addr, block.idx) in node_ops and node_ops[
                 (block.addr, block.idx)
             ] == ObservationPointType.OP_BEFORE:
-                observations[("block", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = (
-                    live_register_to_vvarid.copy()
-                )
+                observations[("block", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = reg2vvarid.copy()
 
             last_insn_addr = None
             for stmt_idx, stmt in enumerate(block.statements):
                 if last_insn_addr != stmt.ins_addr:
                     # observe
                     if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = (
-                            live_register_to_vvarid.copy()
-                        )
+                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = reg2vvarid.copy()
                     if stmt.ins_addr in insn_ops and insn_ops[stmt.ins_addr] == ObservationPointType.OP_BEFORE:
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = (
-                            live_register_to_vvarid.copy()
-                        )
+                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = reg2vvarid.copy()
                     last_insn_addr = stmt.ins_addr
 
                 stmt_key = (block.addr, block.idx), stmt_idx
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = live_register_to_vvarid.copy()
+                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = reg2vvarid.copy()
 
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                     base_offset = get_reg_offset_base(stmt.dst.reg_offset, self.model.arch)
-                    live_register_to_vvarid[base_offset] = stmt.dst.varid
+                    reg2vvarid[base_offset] = stmt.dst.varid
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
                     base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
-                    live_register_to_vvarid[base_offset] = stmt.ret_expr.varid
+                    reg2vvarid[base_offset] = stmt.ret_expr.varid
 
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = live_register_to_vvarid.copy()
+                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = reg2vvarid.copy()
 
             if (block.addr, block.idx) in node_ops and node_ops[
                 (block.addr, block.idx)
             ] == ObservationPointType.OP_AFTER:
-                observations[("block", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = (
-                    live_register_to_vvarid.copy()
-                )
+                observations[("block", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = reg2vvarid.copy()
+
+            for succ in self.model.func_graph.successors(block):
+                if succ is block:
+                    continue
+                all_reg2vvarid[succ.addr, succ.idx] = reg2vvarid.copy()
 
         return observations
 

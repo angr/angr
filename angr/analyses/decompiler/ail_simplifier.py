@@ -4,6 +4,8 @@ from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
+import networkx
+
 from ailment import AILBlockWalker
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement
@@ -1388,31 +1390,22 @@ class AILSimplifier(Analysis):
                         used_by.add(None)
             phi_vvar_used_by[phi_var_id] |= used_by
 
-        # saturate
-        cyclic_dependent_phi_varids = set()
+        g = networkx.DiGraph()
+        dummy_vvar_id = -1
         for phi_var_id, used_by_initial in phi_vvar_used_by.items():
-            if not used_by_initial:
-                # will be removed by dead assignment elimination anyway
-                continue
-            expanded = set()
-            all_uses = used_by_initial.copy()
-            has_nonphi_usage = False
-            while not has_nonphi_usage:
-                for varid in list(all_uses):
-                    if varid in expanded:
-                        continue
-                    if varid is None or varid not in rd.phi_vvar_ids:
-                        has_nonphi_usage = True
-                        break
-                    expanded.add(varid)
-                    all_uses |= phi_vvar_used_by[varid]
+            for u in used_by_initial:
+                if u is None:
+                    # we can't have None in networkx.DiGraph
+                    g.add_edge(phi_var_id, dummy_vvar_id)
                 else:
-                    # no longer expandable
-                    break
+                    g.add_edge(phi_var_id, u)
 
-            if not has_nonphi_usage:
-                cyclic_dependent_phi_varids.add(phi_var_id)
-                cyclic_dependent_phi_varids |= {use for use in all_uses if use is not None}
+        cyclic_dependent_phi_varids = set()
+        for scc in networkx.strongly_connected_components(g):
+            if len(scc) == 1:
+                continue
+            if all(varid in rd.phi_vvar_ids for varid in scc):
+                cyclic_dependent_phi_varids |= set(scc)
 
         return cyclic_dependent_phi_varids
 
