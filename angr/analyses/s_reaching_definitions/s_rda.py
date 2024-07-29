@@ -5,9 +5,10 @@ from collections import defaultdict
 import logging
 
 from ailment.block import Block
-from ailment.statement import Assignment, Call
+from ailment.statement import Assignment, Call, Label
 from ailment.expression import VirtualVariable, Tmp, Expression
 
+from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions import atoms, Definition
@@ -153,6 +154,13 @@ class SRDAView:
 
         starting_stmt_idx = len(the_block.statements) if op_type == ObservationPointType.OP_AFTER else 0
         for stmt_idx, stmt in enumerate(the_block.statements):
+            # skip all labels and phi assignments
+            if isinstance(stmt, Label) or is_phi_assignment(stmt):
+                if op_type == ObservationPointType.OP_BEFORE:
+                    # ensure that we tick starting_stmt_idx forward
+                    starting_stmt_idx = stmt_idx
+                continue
+
             if op_type == ObservationPointType.OP_BEFORE and stmt.ins_addr == addr:
                 starting_stmt_idx = stmt_idx
                 break
