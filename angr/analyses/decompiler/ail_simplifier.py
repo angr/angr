@@ -21,6 +21,7 @@ from ailment.expression import (
     Const,
     BinaryOp,
     VirtualVariable,
+    Phi,
 )
 
 from angr.analyses.s_reaching_definitions import SRDAModel
@@ -348,11 +349,48 @@ class AILSimplifier(Analysis):
 
                 the_block = self.blocks.get(old_block, old_block)
                 stmt = the_block.statements[def_.codeloc.stmt_idx]
-                if is_phi_assignment(stmt):
-                    # we do not support narrowing variables that are defined by phi statements yet
-                    continue
                 r, new_block = False, None
-                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+                if is_phi_assignment(stmt):
+                    new_assignment_dst = VirtualVariable(
+                        stmt.dst.idx,
+                        stmt.dst.varid,
+                        narrow_info.to_size * self.project.arch.byte_width,
+                        category=def_.atom.category,
+                        oident=def_.atom.oident,
+                        **stmt.dst.tags,
+                    )
+                    new_src_and_vvars = []
+                    for src, vvar in stmt.src.src_and_vvars:
+                        if vvar.varid == stmt.dst.varid:
+                            new_vvar = VirtualVariable(
+                                vvar.idx,
+                                vvar.varid,
+                                narrow_info.to_size * self.project.arch.byte_width,
+                                category=vvar.category,
+                                oident=vvar.oident,
+                                **vvar.tags,
+                            )
+                        else:
+                            new_vvar = vvar
+                        new_src_and_vvars.append((src, new_vvar))
+                    new_assignment_src = Phi(
+                        stmt.src.idx,
+                        stmt.src.bits,
+                        new_src_and_vvars,
+                        **stmt.src.tags,
+                    )
+                    r, new_block = BlockSimplifier._replace_and_build(
+                        the_block,
+                        {
+                            def_.codeloc: {
+                                stmt.dst: new_assignment_dst,
+                                stmt.src: new_assignment_src,
+                            }
+                        },
+                        replace_assignment_dsts=True,
+                        replace_loads=True,
+                    )
+                elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                     new_assignment_dst = VirtualVariable(
                         stmt.dst.idx,
                         stmt.dst.varid,
