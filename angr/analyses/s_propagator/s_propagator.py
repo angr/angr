@@ -115,8 +115,8 @@ class SPropagatorAnalysis(Analysis):
 
             r, v = is_phi_assignment(stmt)
             if r:
-                src_varids = {vvar.varid for _, vvar in v.src_and_vvars if vvar is not None}
-                if all(varid in const_vvars for varid in src_varids):
+                src_varids = {vvar.varid if vvar is not None else None for _, vvar in v.src_and_vvars}
+                if None not in src_varids and all(varid in const_vvars for varid in src_varids):
                     src_values = {
                         (
                             (const_vvars[varid].value, const_vvars[varid].bits)
