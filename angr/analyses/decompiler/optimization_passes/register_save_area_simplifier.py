@@ -22,6 +22,9 @@ def s2u(s, bits):
 class RegisterSaveAreaSimplifier(OptimizationPass):
     """
     Optimizes away register spilling effects, including callee-saved registers.
+
+    This optimization runs between SSA-level0 and SSA-level1, which means registers are converted to vvars but stack
+    accesses stay unchanged.
     """
 
     ARCHES = None
@@ -94,15 +97,15 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         for idx, stmt in enumerate(first_block.statements):
             if (
-                isinstance(stmt, ailment.Stmt.Assignment)
-                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                and stmt.dst.was_stack
-                and isinstance(stmt.src, ailment.Expr.VirtualVariable)
-                and stmt.src.was_reg
+                isinstance(stmt, ailment.Stmt.Store)
+                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                and isinstance(stmt.addr.offset, int)
+                and isinstance(stmt.data, ailment.Expr.VirtualVariable)
+                and stmt.data.was_reg
             ):
                 # it's storing registers to the stack!
-                stack_offset = stmt.dst.stack_offset
-                reg_offset = stmt.src.reg_offset
+                stack_offset = stmt.addr.offset
+                reg_offset = stmt.data.reg_offset
                 codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
                 results.append((reg_offset, stack_offset, codeloc))
 
