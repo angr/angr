@@ -311,8 +311,8 @@ class SimEngineVRBase(SimEngineLight):
         data: claripy.ast.Base = richr.data
 
         # lea
-        self._ensure_variable_existence(richr, codeloc, src_expr=src)
-        self._reference(richr, codeloc, src=src)
+        self._ensure_variable_existence(richr, codeloc)
+        self._reference(richr, codeloc)
 
         # handle register writes
 
@@ -390,8 +390,8 @@ class SimEngineVRBase(SimEngineLight):
         data: claripy.ast.Base = richr.data
 
         # lea
-        self._ensure_variable_existence(richr, codeloc, src_expr=src)
-        self._reference(richr, codeloc, src=src)
+        self._ensure_variable_existence(richr, codeloc)
+        self._reference(richr, codeloc)
 
         # first check if there is an existing variable for the atom at this location already
         existing_vars: set[tuple[SimVariable, int]] = self.variable_manager[self.func_addr].find_variables_by_atom(
