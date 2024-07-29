@@ -250,6 +250,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         isinstance(stmt, Assignment)
                         and isinstance(stmt.dst, VirtualVariable)
                         and isinstance(stmt.src, Phi)
+                        and len(stmt.src.src_and_vvars) == 0  # avoid re-assignment
                     ):
                         new_stmts.append(stmt)
                         continue
