@@ -132,7 +132,7 @@ class SPropagatorAnalysis(Analysis):
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                             replacements[useloc][vvar_at_use] = const_value
 
-            if vvar.varid in vvar_uselocs and len(vvar_uselocs[vvar.varid]) == 1:
+            if self.mode == "function" and vvar.varid in vvar_uselocs and len(vvar_uselocs[vvar.varid]) == 1:
                 vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
                 if (
                     vvar_useloc.block_addr == defloc.block_addr
