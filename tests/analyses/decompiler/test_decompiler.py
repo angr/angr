@@ -2261,7 +2261,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        cgc_allocate_call = re.search(r"cgc_allocate\(([^()]+)\)", d.codegen.text)
+        cgc_allocate_call = re.search(r"cgc_allocate\(([^\n]+)\)", d.codegen.text)
         assert cgc_allocate_call is not None, "Expect a call to cgc_allocate(), found None"
         comma_count = cgc_allocate_call.group(1).count(",")
         assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
