@@ -1,26 +1,25 @@
 import logging
-
-from ailment import Block, Const
-from ailment.expression import Convert, Register
-import claripy
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from .optimization_pass import OptimizationPass, OptimizationPassStage
-from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
 from collections.abc import Callable
-from ..utils import remove_labels, add_labels
-
-import networkx as nx
 import itertools
+
+import networkx
+import claripy
+from ailment import Block, Const
 from ailment.block_walker import AILBlockWalkerBase
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
+from ailment.expression import Convert, Register
 
-from ... import AnalysesHub
+from .optimization_pass import OptimizationPass, OptimizationPassStage
+from ..utils import remove_labels, add_labels
+from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
+from ....knowledge_plugins.key_definitions.constants import OP_BEFORE
 
-l = logging.getLogger(__name__)
+
+_l = logging.getLogger(__name__)
 
 
 class PairAILBlockWalker:
-    def __init__(self, graph: nx.DiGraph, stmt_pair_handlers=None):
+    def __init__(self, graph: networkx.DiGraph, stmt_pair_handlers=None):
         self.graph = graph
 
         _default_stmt_handlers = {
@@ -31,7 +30,7 @@ class PairAILBlockWalker:
             Return: self._handle_Return_pair,
         }
 
-        self.stmt_pair_handlers: dict[type, Callable] = (
+        self.stmt_pair_handlers: dict[Statement, Callable] = (
             stmt_pair_handlers if stmt_pair_handlers else _default_stmt_handlers
         )
 
@@ -95,19 +94,19 @@ class PairAILBlockWalker:
     #
 
     def _handle_Assignment_pair(self, obj0, blk0, obj1, blk1):
-        pass
+        return
 
     def _handle_Call_pair(self, obj0, blk0, obj1, blk1):
-        pass
+        return
 
     def _handle_Store_pair(self, obj0, blk0, obj1, blk1):
-        pass
+        return
 
     def _handle_ConditionalJump_pair(self, obj0, blk0, obj1, blk1):
-        pass
+        return
 
     def _handle_Return_pair(self, obj0, blk0, obj1, blk1):
-        pass
+        return
 
 
 class ConstPropOptReverter(OptimizationPass):
@@ -128,7 +127,6 @@ class ConstPropOptReverter(OptimizationPass):
         self.rd = reaching_definitions
         super().__init__(func, **kwargs)
 
-        self.write_graph = None
         self.resolution = False
         self.analyze()
 
@@ -204,7 +202,7 @@ class ConstPropOptReverter(OptimizationPass):
         ):
             """
             B0:
-            return foo();   // considered constant)
+            return foo();   // considered constant
             B1:
             return rax;     // considered symbolic
 
@@ -230,7 +228,7 @@ class ConstPropOptReverter(OptimizationPass):
                 self._update_block(const_block, new_const_block)
                 self.resolution = True
         else:
-            l.debug("This case is not supported yet for Return depropagation")
+            _l.debug("This case is not supported yet for Return de-propagation")
 
     #
     # Handle Similar Calls
@@ -252,9 +250,10 @@ class ConstPropOptReverter(OptimizationPass):
         if not arg_conflicts:
             return
 
-        l.info(
-            f"Found two calls at ({hex(blk0.addr)}, {hex(blk1.addr)}) that are similar. "
-            f"Attempting to resolve const args now..."
+        _l.debug(
+            "Found two calls at (%x, %x) that are similar. " "Attempting to resolve const args now...",
+            blk0.addr,
+            blk1.addr,
         )
 
         # destroy old ReachDefs, since we need a new one
@@ -311,7 +310,7 @@ class ConstPropOptReverter(OptimizationPass):
             if not const_value == const_arg.value:
                 continue
 
-            l.info(f"Constant argument at position {i} was resolved to symbolic arg {sym_arg}")
+            _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
             const_call = calls[const_arg]
             const_arg_i = const_call.args.index(const_arg)
             const_call.args[const_arg_i] = sym_arg
@@ -366,6 +365,3 @@ class ConstPropOptReverter(OptimizationPass):
             return False
 
         return True
-
-
-AnalysesHub.register_default("CallArgSimplifier", ConstPropOptReverter)

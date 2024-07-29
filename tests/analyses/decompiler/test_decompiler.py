@@ -3598,6 +3598,27 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("foo") == 1  # the recursive call
         assert "bar" not in d.codegen.text
 
+    @for_all_structuring_algos
+    def test_const_prop_reverter(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        xdectoumax_calls = re.findall("xdectoumax(.+?,.+?,(.+?),.+)", text)
+        assert len(xdectoumax_calls) > 0
+        third_args = [c[1].strip() for c in xdectoumax_calls]
+
+        # we should've eliminated all instances of 75 being in the third argument
+        assert third_args.count("75") == 0, "Failed to remove the constant from the call"
+        # additionally, we should've replaced them (1) with its variable
+        assert third_args.count("max_width") == 2
+
 
 if __name__ == "__main__":
     unittest.main()
