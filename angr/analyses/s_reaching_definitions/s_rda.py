@@ -408,13 +408,26 @@ class SReachingDefinitionsAnalysis(Analysis):
                 block = blocks[(block_addr, block_idx)]
                 stmt = block.statements[stmt_idx]
 
-                # just use all registers because we don't know anything about the calling convention
-                codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
-                for reg_offset, vvar_id in reg_to_vvarids.items():
-                    vvar = next(
-                        iter(vvar for vvar in self.model.all_vvar_definitions if vvar.varid == vvar_id)
-                    )  # TODO: optimize it with a lookup
-                    self.model.all_vvar_uses[vvar].add((None, codeloc))
+                assert isinstance(stmt, Call)
+                if stmt.prototype is None:
+                    # without knowing the prototype, we must conservatively add uses to all registers that are
+                    # potentially used here
+                    if stmt.calling_convention is not None:
+                        cc = stmt.calling_convention
+                    else:
+                        # just use all registers in the default calling convention because we don't know anything about the
+                        # calling convention yet
+                        cc = default_cc(self.project.arch.name)(self.project.arch)
+
+                    codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
+                    arg_locs = cc.ARG_REGS
+
+                    for arg_reg_name in arg_locs:
+                        reg_offset = self.project.arch.registers[arg_reg_name][0]
+                        if reg_offset in reg_to_vvarids:
+                            vvarid = reg_to_vvarids[reg_offset]
+                            vvar = self.model.varid_to_vvar[vvarid]
+                            self.model.all_vvar_uses[vvar].add((None, codeloc))
 
             # fix register uses at return sites
             # ret_site_addrs = {ret_site.addr for ret_site in self.func.ret_sites}
