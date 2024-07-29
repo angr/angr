@@ -140,17 +140,18 @@ class SimEngineSSARewriting(
                 **stmt.tags,
             )
             if stmt_base_reg is not None:
-                return new_stmt, stmt
+                return new_stmt, stmt_base_reg
             return new_stmt
         return None
 
     def _handle_Store(self, stmt: Store) -> Store | Assignment | None:
+        new_data = self._expr(stmt.data)
         vvar = self._replace_def_store(stmt)
         if vvar is not None:
-            return Assignment(stmt.idx, vvar, stmt.data, **stmt.tags)
+            return Assignment(stmt.idx, vvar, stmt.data if new_data is None else new_data, **stmt.tags)
 
+        # fall back to Store
         new_addr = self._expr(stmt.addr)
-        new_data = self._expr(stmt.data)
 
         if new_addr is not None or new_data is not None:
             return Store(
@@ -321,6 +322,7 @@ class SimEngineSSARewriting(
         base_mask = ((1 << (base_size * self.arch.byte_width)) - 1) ^ (
             ((1 << (size * self.arch.byte_width)) - 1) << ((offset - base_offset) * self.arch.byte_width)
         )
+        base_mask = Const(self.ail_manager.next_atom(), None, base_mask, existing_vvar.bits)
         new_base_expr = BinaryOp(
             self.ail_manager.next_atom(),
             "Or",
