@@ -139,11 +139,7 @@ class SRDAView:
         _l.warning("Cannot determine registers that are clobbered by call statement %r.", stmt)
         return set()
 
-    def get_reg_vvar_by_insn(
-        self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
-    ) -> VirtualVariable | None:
-        reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
-
+    def _get_vvar_by_insn(self, addr: int, op_type: ObservationPointType, predicate, block_idx: int | None = None):
         # find the starting block
         for block in self.model.func_graph:
             if block.idx == block_idx and block.addr <= addr < block.addr + block.original_size:
@@ -168,7 +164,6 @@ class SRDAView:
                 starting_stmt_idx = stmt_idx
                 break
 
-        vvars = set()
         traversed = set()
         queue = [(the_block, starting_stmt_idx)]
         while queue:
@@ -181,32 +176,68 @@ class SRDAView:
                 stmts = block.statements
 
             for stmt in reversed(stmts):
-                if (
-                    isinstance(stmt, Assignment)
-                    and isinstance(stmt.dst, VirtualVariable)
-                    and stmt.dst.was_reg
-                    and stmt.dst.reg_offset == reg_offset
-                ):
-                    vvars.add(stmt.dst)
+                should_break = predicate(stmt)
+                if should_break:
                     break
-                elif isinstance(stmt, Call):
-                    if (
-                        isinstance(stmt.ret_expr, VirtualVariable)
-                        and stmt.ret_expr.was_reg
-                        and stmt.ret_expr.reg_offset == reg_offset
-                    ):
-                        vvars.add(stmt.ret_expr)
-                        break
-                    # is it clobbered maybe?
-                    clobbered_regs = self._get_call_clobbered_regs(stmt)
-                    if reg_offset in clobbered_regs:
-                        break
             else:
                 # not found
                 for pred in self.model.func_graph.predecessors(block):
                     if pred not in traversed:
                         traversed.add(pred)
                         queue.append((pred, None))
+
+    def get_reg_vvar_by_insn(
+        self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
+    ) -> VirtualVariable | None:
+        reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
+        vvars = set()
+
+        def _predicate(stmt) -> bool:
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.reg_offset == reg_offset
+            ):
+                vvars.add(stmt.dst)
+                return True
+            elif isinstance(stmt, Call):
+                if (
+                    isinstance(stmt.ret_expr, VirtualVariable)
+                    and stmt.ret_expr.was_reg
+                    and stmt.ret_expr.reg_offset == reg_offset
+                ):
+                    vvars.add(stmt.ret_expr)
+                    return True
+                # is it clobbered maybe?
+                clobbered_regs = self._get_call_clobbered_regs(stmt)
+                if reg_offset in clobbered_regs:
+                    return True
+            return False
+
+        self._get_vvar_by_insn(addr, op_type, _predicate, block_idx=block_idx)
+
+        assert len(vvars) <= 1
+        return next(iter(vvars), None)
+
+    def get_stack_vvar_by_insn(
+        self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
+    ) -> VirtualVariable | None:
+        vvars = set()
+
+        def _predicate(stmt) -> bool:
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_stack
+                and stmt.dst.stack_offset == stack_offset
+                and stmt.dst.size == size
+            ):
+                vvars.add(stmt.dst)
+                return True
+            return False
+
+        self._get_vvar_by_insn(addr, op_type, _predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
         return next(iter(vvars), None)

@@ -286,12 +286,34 @@ class CallSiteMaker(Analysis):
             # adjust the offset
             offset -= self.project.arch.bytes
 
-        # TODO: Support extracting values
+        sp_base = self._stack_pointer_tracker.offset_before(call_stmt.ins_addr, self.project.arch.sp_offset)
+        sp_offset = sp_base + offset
+        if sp_offset >= (1 << (self.project.arch.bits - 1)):
+            # make it a signed integer
+            mask = (1 << self.project.arch.bits) - 1
+            sp_offset = -(((~sp_offset) & mask) + 1)
+
+        if self._reaching_definitions is not None:
+            # find its definition
+            view = SRDAView(self._reaching_definitions.model)
+            vvar = view.get_stack_vvar_by_insn(sp_offset, size, call_stmt.ins_addr, OP_BEFORE, block_idx=self.block.idx)
+            if vvar is not None:
+                value = view.get_vvar_value(vvar)
+                if value is not None:
+                    return None, value
+                else:
+                    return None, Expr.VirtualVariable(
+                        self._atom_idx(),
+                        vvar.varid,
+                        vvar.bits,
+                        vvar.category,
+                        oident=vvar.oident,
+                        ins_addr=call_stmt.ins_addr,
+                    )
 
         return None, Expr.Load(
             self._atom_idx(),
-            Expr.Register(self._atom_idx(), None, self.project.arch.sp_offset, self.project.arch.bits)
-            + Expr.Const(self._atom_idx(), None, offset, self.project.arch.bits),
+            Expr.StackBaseOffset(self._atom_idx(), self.project.arch.bits, sp_offset),
             size,
             self.project.arch.memory_endness,
             func_arg=True,
