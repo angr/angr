@@ -398,6 +398,10 @@ class Clinic(Analysis):
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             ail_graph = self._make_returns(ail_graph)
 
+        ail_graph = self._run_simplification_passes(
+            ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
+        )
+
         # Transform the graph into partial SSA form
         self._update_progress(21.0, text="Transforming to partial-SSA form")
         ail_graph = self._transform_to_ssa_level0(ail_graph)
