@@ -1100,6 +1100,18 @@ class AILSimplifier(Analysis):
 
                 remove_initial_assignment = False  # expression folding will take care of it
 
+            # if any of the uses are phi assignments, we skip
+            used_in_phi_assignment = False
+            for _, use_and_expr in all_uses_with_def:
+                u = use_and_expr[0]
+                block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
+                stmt = block.statements[u.stmt_idx]
+                if is_phi_assignment(stmt):
+                    used_in_phi_assignment = True
+                    break
+            if used_in_phi_assignment:
+                continue
+
             # ensure the uses we consider are all after the eq location
             filtered_all_uses_with_def = []
             for def_, use_and_expr in all_uses_with_def:
