@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from ailment.block import Block
 from ailment.expression import Const, VirtualVariable, VirtualVariableCategory, StackBaseOffset
-from ailment.statement import Assignment, Store
+from ailment.statement import Assignment, Store, Return
 
 from angr.knowledge_plugins.functions import Function
 from angr.code_location import CodeLocation
@@ -13,6 +13,7 @@ from angr.utils.ssa import (
     get_vvar_deflocs,
     is_phi_assignment,
     is_const_assignment,
+    is_const_and_vvar_assignment,
     is_const_vvar_load_assignment,
     is_const_vvar_tmp_assignment,
     get_tmp_uselocs,
@@ -92,6 +93,12 @@ class SPropagatorAnalysis(Analysis):
         # find all vvar uses
         vvar_uselocs = get_vvar_uselocs(blocks.values())
 
+        # find all ret sites
+        retsites: set[tuple[int, int | None, int]] = set()
+        for bb in blocks.values():
+            if bb.statements and isinstance(bb.statements[-1], Return):
+                retsites.add((bb.addr, bb.idx, len(bb.statements) - 1))
+
         replacements = defaultdict(dict)
 
         # find constant assignments
@@ -132,20 +139,35 @@ class SPropagatorAnalysis(Analysis):
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                             replacements[useloc][vvar_at_use] = const_value
 
-            if self.mode == "function" and vvar.varid in vvar_uselocs and len(vvar_uselocs[vvar.varid]) == 1:
-                vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
-                if (
-                    vvar_useloc.block_addr == defloc.block_addr
-                    and vvar_useloc.block_idx == defloc.block_idx
-                    and is_const_vvar_load_assignment(stmt)
-                    and not any(
-                        isinstance(stmt_, Store)
-                        for stmt_ in block.statements[defloc.stmt_idx + 1 : vvar_useloc.stmt_idx - 1]
+            if self.mode == "function" and vvar.varid in vvar_uselocs:
+                if len(vvar_uselocs[vvar.varid]) == 1:
+                    vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
+                    if (
+                        is_const_vvar_load_assignment(stmt)
+                        and vvar_useloc.block_addr == defloc.block_addr
+                        and vvar_useloc.block_idx == defloc.block_idx
+                        and not any(
+                            isinstance(stmt_, Store)
+                            for stmt_ in block.statements[defloc.stmt_idx + 1 : vvar_useloc.stmt_idx - 1]
+                        )
+                    ):
+                        # we can propagate this load because there is no store between its def and use
+                        replacements[vvar_useloc][vvar_used] = stmt.src
+                        continue
+                elif (
+                    len(
+                        {
+                            loc
+                            for _, loc in vvar_uselocs[vvar.varid]
+                            if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in retsites
+                        }
                     )
+                    == 1
                 ):
-                    # we can propagate this load because there is no store between its def and use
-                    replacements[vvar_useloc][vvar_used] = stmt.src
-                    continue
+                    if is_const_and_vvar_assignment(stmt):
+                        # this vvar is used once if we exclude its uses at ret sites. we can propagate it
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                            replacements[vvar_useloc][vvar_used] = stmt.src
 
         for vvar_id, uselocs in vvar_uselocs.items():
             if vvar_id not in vvarid_to_vvar:
