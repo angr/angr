@@ -1196,7 +1196,7 @@ class Clinic(Analysis):
             arg_vvar = ailment.Expr.VirtualVariable(
                 self._ail_manager.next_atom(),
                 self.vvar_id_start,
-                arg.size,
+                arg.bits,
                 ailment.Expr.VirtualVariableCategory.PARAMETER,
                 oident=arg.reg,
                 ins_addr=self.function.addr,
