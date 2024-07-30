@@ -2987,14 +2987,14 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options_0, optimization_passes=all_optimization_passes
         )
+        self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*in_stream\)",
+                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*v\d+\)",
                 dec.codegen.text,
             )
             is not None
         )
-        self._print_decompilation_result(dec)
 
         # never use multi-statement expressions
         decompiler_options_1 = [
@@ -3008,7 +3008,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n;]+;",
+                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n;]+;",
                 dec.codegen.text,
             )
             is not None
