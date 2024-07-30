@@ -3552,6 +3552,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
         if expr.variable:
             cvar = self._variable(expr.variable, None)
+            if expr.variable.size != expr.size:
+                l.warning(
+                    "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
+                    expr.size,
+                    expr.variable.size,
+                )
+                src_type = cvar.type
+                dst_type = {
+                    64: SimTypeLongLong(signed=False),
+                    32: SimTypeInt(signed=False),
+                    16: SimTypeShort(signed=False),
+                    8: SimTypeChar(signed=False),
+                }.get(expr.bits, None)
+                if dst_type is not None:
+                    dst_type = dst_type.with_arch(self.project.arch)
+                    return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
             return cvar
         return CDirtyExpression(expr, codegen=self)
 
