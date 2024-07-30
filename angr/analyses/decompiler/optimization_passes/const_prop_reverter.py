@@ -4,7 +4,7 @@ import itertools
 
 import networkx
 import claripy
-from ailment import Block, Const
+from ailment import Const
 from ailment.block_walker import AILBlockWalkerBase
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
 from ailment.expression import Convert, Register
@@ -19,6 +19,11 @@ _l = logging.getLogger(__name__)
 
 
 class PairAILBlockWalker:
+    """
+    This AILBlockWalker will walk two blocks at a time and call a handler for each pair of statements that are
+    instances of the same type. This is useful for comparing two statements for similarity across blocks.
+    """
+
     def __init__(self, graph: networkx.DiGraph, stmt_pair_handlers=None):
         self.graph = graph
 
@@ -34,6 +39,7 @@ class PairAILBlockWalker:
             stmt_pair_handlers if stmt_pair_handlers else _default_stmt_handlers
         )
 
+    # pylint: disable=no-self-use
     def _walk_block(self, block):
         walked_objs = {Assignment: set(), Call: set(), Store: set(), ConditionalJump: set(), Return: set()}
 
@@ -117,15 +123,26 @@ class PairAILBlockWalker:
 
 class ConstPropOptReverter(OptimizationPass):
     """
-    Reverts the effects of constant propagation done by the compiler by converting two
-    statements with a difference of a const and a symbolic variable and converting the constant
-    into a symbolic variable, given that they have the same value on branches.
+    This optimization reverts the effects of constant propagation done by the compiler as discussed in the
+    USENIX 2024 paper SAILR. This optimization's main goal is to enable later optimizations that rely on
+    symbolic variables to be more effective. This optimization pass will convert two statements with a difference of
+    a const and a symbolic variable into two statements with the symbolic variables.
+
+    As an example:
+    x = 75
+    puts(x)
+    puts(75)
+
+    will be converted to:
+    x = 75
+    puts(x)
+    puts(x)
     """
 
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
-    NAME = "Revert Constant Propagation Opt"
+    NAME = "Revert Constant Propagation Optimizations"
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, region_identifier=None, reaching_definitions=None, **kwargs):
@@ -339,26 +356,3 @@ class ConstPropOptReverter(OptimizationPass):
         conflicts = {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
 
         return conflicts
-
-    #
-    # utils
-    #
-
-    def in_stmts(self, call, blk):
-        for stmt in blk.statements:
-            if call == stmt:
-                return True
-
-            if isinstance(stmt, Store) and stmt.data == call:
-                return True
-
-        return False
-
-    def _share_subregion(self, blocks: list[Block]) -> bool:
-        for region in self.ri.regions_by_block_addrs:
-            if all(block.addr in region for block in blocks):
-                break
-        else:
-            return False
-
-        return True
