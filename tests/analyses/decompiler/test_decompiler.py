@@ -2862,15 +2862,9 @@ class TestDecompiler(unittest.TestCase):
         #     v4 = 48;
         #     qsort();
         # Expected:
-        #     v1 = number_of_occurs;
-        #     if (number_of_occurs) {
-        #         v2 = occurs_table;
-        #         v3 = &compare_occurs;
-        #         v4 = 48;
-        #         qsort();
-        #     }
-        #     return;
-        assert re.search(r"if\(.+?\)\{{0,1}.+?\}{0,1}return", text) is not None
+        #     if (*((long long *)&number_of_occurs))
+        #         qsort(*((long long *)&occurs_table), *((long long *)&number_of_occurs), 48, compare_occurs);
+        assert re.search(r"if\(.+?\).+qsort\(.*\);.*return", text) is not None
 
     @for_all_structuring_algos
     def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
