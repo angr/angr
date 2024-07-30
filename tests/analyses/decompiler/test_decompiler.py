@@ -1666,12 +1666,7 @@ class TestDecompiler(unittest.TestCase):
         assert "c_ptr->c3[argc] = argc;" in d.codegen.text
         assert "c_ptr->c2[argc].b2.a2 = argc;" in d.codegen.text
         assert "b_ptr += 1;" in d.codegen.text
-        # TODO: re-enable the assert like it is below and replace the re.search with the propagate value
-        #   this should be in this form, but the propagation with pop/push registers is currently broken.
-        #   tracked in: https://github.com/angr/angr/issues/4514
-        # assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
-        # this checks for the form: `v11 = ...; return v11;`
-        assert re.search("v\\d+ = c_ptr->c4->c2\\[argc].b2.a2;\n {4}return v\\d+;", d.codegen.text) is not None
+        assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
     @slow_test
     @for_all_structuring_algos
