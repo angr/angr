@@ -154,6 +154,11 @@ class SPropagatorAnalysis(Analysis):
                         # we can propagate this load because there is no store between its def and use
                         replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
+
+                    elif is_const_vvar_load_assignment(stmt):
+                        replacements[vvar_useloc][vvar_used] = stmt.src
+                        continue
+
                 elif (
                     len(
                         {
