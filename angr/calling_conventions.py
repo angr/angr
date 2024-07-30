@@ -2247,7 +2247,7 @@ ARCH_NAME_ALIASES = {
     "ARMEL": [],
     "ARMHF": [],
     "ARMCortexM": [],
-    "AARCH64": ["arm64"],
+    "AARCH64": ["arm64", "aarch64"],
     "MIPS32": [],
     "MIPS64": [],
     "PPC32": ["powerpc32"],
@@ -2315,10 +2315,16 @@ def unify_arch_name(arch: str) -> str:
         # Sleigh architecture names
         chunks = arch.lower().split(":")
         if len(chunks) >= 3:
-            arch_base, endianness, bits = chunks[:3]  # pylint:disable=unused-variable
-            arch = f"{arch_base}{bits}"
+            arch_base, _, bits = chunks[:3]
 
-    return ALIAS_TO_ARCH_NAME.get(arch, arch)
+        if arch_base in ALIAS_TO_ARCH_NAME:
+            return ALIAS_TO_ARCH_NAME[arch_base]
+
+        base_with_bits = f"{arch_base}{bits}"
+        if base_with_bits in ALIAS_TO_ARCH_NAME:
+            return ALIAS_TO_ARCH_NAME[base_with_bits]
+
+    return arch
 
 
 SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
