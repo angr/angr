@@ -356,6 +356,13 @@ def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.S
     return None
 
 
+def first_nonlabel_statement_id(block: ailment.Block) -> int | None:
+    for idx, stmt in enumerate(block.statements):
+        if not isinstance(stmt, ailment.Stmt.Label):
+            return idx
+    return len(block.statements)
+
+
 def first_nonlabel_nonphi_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:

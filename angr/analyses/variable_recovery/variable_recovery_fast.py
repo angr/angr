@@ -9,6 +9,7 @@ import networkx
 import claripy
 import pyvex
 import ailment
+from ailment.expression import VirtualVariable
 
 import angr.errors
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -238,6 +239,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_args: list[SimVariable] | None = None,
         store_live_variables=False,
         unify_variables=True,
+        func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         vvar_to_vvar: dict[int, int] | None = None,
     ):
         if not isinstance(func, Function):
@@ -264,10 +266,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._job_ctr = 0
         self._track_sp = track_sp and self.project.arch.sp_offset is not None
         self._func_args = func_args
+        self._func_arg_vvars = func_arg_vvars
         self._unify_variables = unify_variables
 
-        self._ail_engine = SimEngineVRAIL(self.project, self.kb, call_info=call_info, vvar_to_vvar=self.vvar_to_vvar)
-        self._vex_engine = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
+        self._ail_engine: SimEngineVRAIL = SimEngineVRAIL(
+            self.project, self.kb, call_info=call_info, vvar_to_vvar=self.vvar_to_vvar
+        )
+        self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
         self._node_iterations = defaultdict(int)
 
@@ -373,7 +378,21 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             except angr.errors.SimMemoryMissingError:
                 state.register_region.store(t9_offset, claripy.BVV(node.addr, t9_size * 8))
 
-        if self._func_args:
+        if self._func_arg_vvars:
+            for arg_vvar, arg in self._func_arg_vvars.values():
+                if isinstance(arg, SimRegisterVariable):
+                    v = claripy.BVS("reg_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    self._ail_engine.vvar_region[arg_vvar.varid] = v
+                    internal_manager.add_variable("register", arg.reg, arg)
+                elif isinstance(arg, SimStackVariable):
+                    v = claripy.BVS("stack_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    self._ail_engine.vvar_region[arg_vvar.varid] = v
+                    internal_manager.add_variable("stack", arg.offset, arg)
+                else:
+                    raise TypeError("Unsupported function argument type %s." % type(arg))
+        elif self._func_args:
             for arg in self._func_args:
                 if isinstance(arg, SimRegisterVariable):
                     v = claripy.BVS("reg_arg", arg.bits)

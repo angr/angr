@@ -1062,6 +1062,8 @@ class SimEngineVRBase(SimEngineLight):
                     )
                     value = self.state.annotate_with_variables(value, [(0, variable)])
                     self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
+                elif vvar.category == ailment.Expr.VirtualVariableCategory.PARAMETER:
+                    raise KeyError(f"Missing virtual variable for parameter {vvar}")
                 else:
                     raise NotImplementedError()
 

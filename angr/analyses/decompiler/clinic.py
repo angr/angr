@@ -46,6 +46,7 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
+from .utils import first_nonlabel_statement_id
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -402,6 +403,12 @@ class Clinic(Analysis):
             ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
         )
 
+        # Make function arguments
+        self._update_progress(75.0, text="Making argument list")
+        arg_list = self._make_argument_list()
+        arg_vvars = {}
+        ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
+
         # Transform the graph into partial SSA form
         self._update_progress(21.0, text="Transforming to partial-SSA form")
         ail_graph = self._transform_to_ssa_level0(ail_graph)
@@ -508,17 +515,13 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
         )
 
-        self._update_progress(72.0, text="Simplifying blocks 4")
+        self._update_progress(75.0, text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_pointer_tracker=spt,
             cache=block_simplification_cache,
         )
-
-        # Make function arguments
-        self._update_progress(75.0, text="Making argument list")
-        arg_list = self._make_argument_list()
 
         # transform the graph to conventional SSA (CSSA) form
         ail_graph = self._transform_to_cssa(ail_graph)
@@ -528,7 +531,7 @@ class Clinic(Analysis):
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(ail_graph, arg_list, vvar2vvar)
+        variable_kb = self._recover_and_link_variables(ail_graph, arg_list, arg_vvars, vvar2vvar)
 
         # Run simplification passes
         self._update_progress(95.0, text="Running simplifications 4")
@@ -1179,6 +1182,46 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
+    def _create_argument_accessing_statements(
+        self,
+        arg_list: list[SimVariable],
+        ail_graph: networkx.DiGraph,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]],
+    ) -> networkx.DiGraph:
+        entrypoint = next(iter(bb for bb in ail_graph if bb.addr == self.function.addr))
+        new_stmts = []
+        for arg in arg_list:
+            if not isinstance(arg, SimRegisterVariable):
+                continue
+            arg_vvar = ailment.Expr.VirtualVariable(
+                self._ail_manager.next_atom(),
+                self.vvar_id_start,
+                arg.size,
+                ailment.Expr.VirtualVariableCategory.PARAMETER,
+                oident=arg.reg,
+                ins_addr=self.function.addr,
+            )
+            self.vvar_id_start += 1
+            arg_vvars[arg_vvar.varid] = arg_vvar, arg
+            reg_dst = ailment.Expr.Register(
+                self._ail_manager.next_atom(), None, arg.reg, arg.bits, ins_addr=self.function.addr
+            )
+            stmt = ailment.Stmt.Assignment(
+                self._ail_manager.next_atom(),
+                reg_dst,
+                arg_vvar,
+                ins_addr=self.function.addr,
+            )
+            new_stmts.append(stmt)
+
+        non_label_stmt_idx = first_nonlabel_statement_id(entrypoint)
+        # update the ail block in-place
+        entrypoint.statements = (
+            entrypoint.statements[:non_label_stmt_idx] + new_stmts + entrypoint.statements[non_label_stmt_idx:]
+        )
+        return ail_graph
+
+    @timethis
     def _transform_to_ssa_level0(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         ssailification = self.project.analyses.Ssailification(
             self.function,
@@ -1356,7 +1399,13 @@ class Clinic(Analysis):
         self.function.is_prototype_guessed = False
 
     @timethis
-    def _recover_and_link_variables(self, ail_graph, arg_list: list, vvar2vvar: dict[int, int]):
+    def _recover_and_link_variables(
+        self,
+        ail_graph,
+        arg_list: list,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]],
+        vvar2vvar: dict[int, int],
+    ):
         # variable recovery
         tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
         tmp_kb.functions = self.kb.functions
@@ -1367,6 +1416,7 @@ class Clinic(Analysis):
             track_sp=False,
             func_args=arg_list,
             unify_variables=False,
+            func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
         )
         # get ground-truth types
