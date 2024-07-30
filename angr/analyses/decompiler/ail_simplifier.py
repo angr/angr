@@ -1504,9 +1504,9 @@ class AILSimplifier(Analysis):
                     )
 
         # find all phi variables that are only ever used by other phi variables
-        redundant_phi_varids = self._find_cyclic_dependent_phis(rd)
-        for phi_varid in redundant_phi_varids:
-            loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+        redundant_phi_and_dirty_varids = self._find_cyclic_dependent_phis_and_dirty_vvars(rd)
+        for varid in redundant_phi_and_dirty_varids:
+            loc = rd.all_vvar_definitions[rd.varid_to_vvar[varid]]
             stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
@@ -1583,12 +1583,26 @@ class AILSimplifier(Analysis):
 
         return simplified
 
-    def _find_cyclic_dependent_phis(self, rd: SRDAModel) -> set[int]:
+    def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel) -> set[int]:
         blocks_dict = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
-        phi_vvar_used_by: dict[int, set[int]] = defaultdict(set)
-        for phi_var_id in rd.phi_vvar_ids:
-            vvar = rd.varid_to_vvar[phi_var_id]
+        # find dirty vvars
+        dirty_vvar_ids = set()
+        for bb in self.func_graph:
+            for stmt in bb.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_reg
+                    and isinstance(stmt.src, DirtyExpression)
+                ):
+                    dirty_vvar_ids.add(stmt.dst.varid)
+
+        phi_and_dirty_vvar_ids = rd.phi_vvar_ids | dirty_vvar_ids
+
+        vvar_used_by: dict[int, set[int]] = defaultdict(set)
+        for var_id in phi_and_dirty_vvar_ids:
+            vvar = rd.varid_to_vvar[var_id]
             used_by = set()
             for used_vvar, loc in rd.all_vvar_uses[vvar]:
                 if used_vvar is None:
@@ -1600,23 +1614,23 @@ class AILSimplifier(Analysis):
                         used_by.add(stmt.dst.varid)
                     else:
                         used_by.add(None)
-            phi_vvar_used_by[phi_var_id] |= used_by
+            vvar_used_by[var_id] |= used_by
 
         g = networkx.DiGraph()
         dummy_vvar_id = -1
-        for phi_var_id, used_by_initial in phi_vvar_used_by.items():
+        for var_id, used_by_initial in vvar_used_by.items():
             for u in used_by_initial:
                 if u is None:
                     # we can't have None in networkx.DiGraph
-                    g.add_edge(phi_var_id, dummy_vvar_id)
+                    g.add_edge(var_id, dummy_vvar_id)
                 else:
-                    g.add_edge(phi_var_id, u)
+                    g.add_edge(var_id, u)
 
         cyclic_dependent_phi_varids = set()
         for scc in networkx.strongly_connected_components(g):
             if len(scc) == 1:
                 continue
-            if all(varid in rd.phi_vvar_ids for varid in scc):
+            if all(varid in phi_and_dirty_vvar_ids for varid in scc):
                 cyclic_dependent_phi_varids |= set(scc)
 
         return cyclic_dependent_phi_varids
