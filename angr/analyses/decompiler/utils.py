@@ -334,9 +334,7 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def has_nonlabel_nonphi_statements(block: ailment.Block | MultiNode) -> bool:
-    if isinstance(block, MultiNode):
-        return any(has_nonlabel_nonphi_statements(b) for b in block.nodes)
+def has_nonlabel_nonphi_statements(block: ailment.Block) -> bool:
     return block.statements and any(
         not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)) for stmt in block.statements
     )
