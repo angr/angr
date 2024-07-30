@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use,line-too-long
+# pylint: disable=missing-class-docstring,no-self-use,line-too-long,no-member
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import logging
