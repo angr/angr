@@ -1447,6 +1447,14 @@ class Clinic(Analysis):
                 offset = var.offset
                 if offset in variable_manager.stack_offset_to_struct_member_info:
                     stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
+            elif (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_stack
+            ):
+                offset = stmt.dst.stack_offset
+                if offset in variable_manager.stack_offset_to_struct_member_info:
+                    stmt.dst.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
 
     def _link_variables_on_block(self, block, kb):
         """
