@@ -230,7 +230,7 @@ class SPropagatorAnalysis(Analysis):
                             ][tmp_used] = v
                         continue
 
-                    if len(tmp_uses) == 1:
+                    if len(tmp_uses) <= 2:
                         tmp_used, tmp_use_stmtidx = next(iter(tmp_uses))
                         if is_const_vvar_load_assignment(stmt) and not any(
                             isinstance(stmt_, Store)
