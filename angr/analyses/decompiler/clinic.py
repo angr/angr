@@ -520,6 +520,9 @@ class Clinic(Analysis):
         self._update_progress(75.0, text="Making argument list")
         arg_list = self._make_argument_list()
 
+        # transform the graph to conventional SSA (CSSA) form
+        ail_graph = self._transform_to_cssa(ail_graph)
+
         # Get virtual variable mapping that can de-phi the SSA representation
         vvar2vvar = self._collect_dephi_vvar_mapping(ail_graph)
 
@@ -1198,6 +1201,11 @@ class Clinic(Analysis):
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
+
+    @timethis
+    def _transform_to_cssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        # TODO: Implement me
+        return ail_graph
 
     @timethis
     def _collect_dephi_vvar_mapping(self, ail_graph: networkx.DiGraph) -> dict[int, int]:
