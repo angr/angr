@@ -4,7 +4,7 @@ from typing import Any
 
 import archinfo
 from ailment import Expression, Block
-from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset
+from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression
 from ailment.statement import Statement, Assignment, Call
 from ailment.block_walker import AILBlockWalkerBase
 
@@ -135,7 +135,7 @@ class ConstAndVVarWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Load, Register, Phi, Call)):
+        if isinstance(expr, (Tmp, Load, Register, Phi, Call, DirtyExpression)):
             self.all_const_and_vvar_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
@@ -157,7 +157,7 @@ class ConstVVarAndTmpWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Load, Register, Phi, Call)):
+        if isinstance(expr, (Load, Register, Phi, Call, DirtyExpression)):
             self.all_const_vvar_tmp_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
@@ -179,7 +179,7 @@ class ConstVVarAndLoadWalker(AILBlockWalkerBase):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Register, Phi, Call)):
+        if isinstance(expr, (Tmp, Register, Phi, Call, DirtyExpression)):
             self.all_const_vvar_load_expr = False
             return
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
