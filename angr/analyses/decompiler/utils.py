@@ -356,7 +356,7 @@ def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.S
     return None
 
 
-def first_nonlabel_nonphi_statement(block: Union[ailment.Block, "MultiNode"]) -> ailment.Stmt.Statement | None:
+def first_nonlabel_nonphi_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
             stmt = first_nonlabel_nonphi_statement(n)
@@ -386,7 +386,7 @@ def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     return None
 
 
-def first_nonlabel_nonphi_node(seq: "SequenceNode") -> Union["BaseNode", ailment.Block] | None:
+def first_nonlabel_nonphi_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
             inner_node = node.node
