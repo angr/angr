@@ -93,18 +93,23 @@ class PairAILBlockWalker:
     # default handlers
     #
 
+    # pylint: disable=unused-argument,no-self-use
     def _handle_Assignment_pair(self, obj0, blk0, obj1, blk1):
         return
 
+    # pylint: disable=unused-argument,no-self-use
     def _handle_Call_pair(self, obj0, blk0, obj1, blk1):
         return
 
+    # pylint: disable=unused-argument,no-self-use
     def _handle_Store_pair(self, obj0, blk0, obj1, blk1):
         return
 
+    # pylint: disable=unused-argument,no-self-use
     def _handle_ConditionalJump_pair(self, obj0, blk0, obj1, blk1):
         return
 
+    # pylint: disable=unused-argument,no-self-use
     def _handle_Return_pair(self, obj0, blk0, obj1, blk1):
         return
 
@@ -220,7 +225,7 @@ class ConstPropOptReverter(OptimizationPass):
                 const_block = expr_to_blk[const_expr]
 
                 # rax = foo();
-                reg_assign = Assignment(None, symb_expr, const_expr)
+                reg_assign = Assignment(None, symb_expr, const_expr, **const_expr.tags)
 
                 # construct new constant block
                 new_const_block = const_block.copy()
