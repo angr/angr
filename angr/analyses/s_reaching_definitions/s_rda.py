@@ -35,7 +35,7 @@ class SRDAModel:
         self.phivarid_to_varids: dict[int, set[int]] = {}
 
     @property
-    def all_definitions(self) -> Generator[Definition, None, None]:
+    def all_definitions(self) -> Generator[Definition]:
         for vvar, defloc in self.all_vvar_definitions.items():
             yield Definition(atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident), defloc)
 
