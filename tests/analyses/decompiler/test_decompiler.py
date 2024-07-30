@@ -3683,6 +3683,39 @@ class TestDecompiler(unittest.TestCase):
         function.normalize()
         proj.analyses.Decompiler(func=function, cfg=cfg)
 
+    @structuring_algo("phoenix")
+    def test_sailr_motivating_example(self, decompiler_options):
+        # The testcase is taken directly from the motivating example of the USENIX 2024 paper SAILR.
+        # When working, this testcase should test the following deoptimizations:
+        # - ISD (de-duplication)
+        # - ISC (Cross-jump reverter, some CSE reverter)
+        #
+        # The output decompilation structure should look _exactly_ like the source code found here:
+        # https://github.com/angr/binaries/blob/bdf9ba7c4013e5d8706a16ed79ef29ee776492a1/tests_src/decompiler/sailr_motivating_example.c#L44
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["schedule_job"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        # TODO: CrossJumpReverter should be enabled, fix me before merging
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux", disable_opts={CrossJumpReverter}
+        )
+
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        text = d.codegen.text
+
+        # there should be a singular goto that jumps to the end of the function (the LABEL)
+        assert text.count("goto") == 1
+        assert text.count("LABEL") == 2
+
+        assert text.count("refresh_jobs") == 1
+
 
 if __name__ == "__main__":
     unittest.main()
