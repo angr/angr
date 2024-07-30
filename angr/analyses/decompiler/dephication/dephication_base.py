@@ -36,6 +36,22 @@ class DephicationBase(Analysis):
             for varid in varids:
                 vvar_to_phivarids[varid].add(phi_varid)
 
+        # iterate until fixed point
+        while True:
+            changed = False
+            for varid in list(vvar_to_phivarids):
+                phivarids = vvar_to_phivarids[varid]
+                new = phivarids.copy()
+                for vv in phivarids:
+                    if vv in vvar_to_phivarids:
+                        new |= vvar_to_phivarids[vv]
+                if new != phivarids:
+                    changed = True
+                    vvar_to_phivarids[varid] = new
+
+            if not changed:
+                break
+
         # unify those that are mapped to multiple phi variables
         phivarid_to_phivarid = {}
         for phivarids in vvar_to_phivarids.values():
