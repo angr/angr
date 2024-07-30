@@ -2317,12 +2317,12 @@ def unify_arch_name(arch: str) -> str:
         if len(chunks) >= 3:
             arch_base, _, bits = chunks[:3]
 
-        if arch_base in ALIAS_TO_ARCH_NAME:
-            return ALIAS_TO_ARCH_NAME[arch_base]
+            if arch_base in ALIAS_TO_ARCH_NAME:
+                return ALIAS_TO_ARCH_NAME[arch_base]
 
-        base_with_bits = f"{arch_base}{bits}"
-        if base_with_bits in ALIAS_TO_ARCH_NAME:
-            return ALIAS_TO_ARCH_NAME[base_with_bits]
+            base_with_bits = f"{arch_base}{bits}"
+            if base_with_bits in ALIAS_TO_ARCH_NAME:
+                return ALIAS_TO_ARCH_NAME[base_with_bits]
 
     return arch
 
