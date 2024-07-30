@@ -205,7 +205,8 @@ class VirtualVariableCategory(IntEnum):
     REGISTER = 0
     STACK = 1
     MEMORY = 2
-    UNKNOWN = 3
+    PARAMETER = 3
+    UNKNOWN = 4
 
 
 class VirtualVariable(Atom):
@@ -223,7 +224,7 @@ class VirtualVariable(Atom):
         varid: int,
         bits,
         category: VirtualVariableCategory,
-        oident: int | str | None = None,
+        oident: int | str | tuple | None = None,
         **kwargs,
     ):
         super().__init__(idx, **kwargs)
@@ -244,6 +245,10 @@ class VirtualVariable(Atom):
     @property
     def was_stack(self) -> bool:
         return self.category == VirtualVariableCategory.STACK
+
+    @property
+    def was_parameter(self) -> bool:
+        return self.category == VirtualVariableCategory.PARAMETER
 
     @property
     def reg_offset(self) -> int | None:
