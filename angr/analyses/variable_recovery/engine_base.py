@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 import logging
 
 import ailment
@@ -75,6 +75,7 @@ class SimEngineVRBase(SimEngineLight):
         self.project = project
         self.kb = kb
         self.variable_manager: Optional["VariableManager"] = None
+        self.vvar_region: dict[int, Any] = {}
 
     @property
     def func_addr(self):
@@ -311,8 +312,8 @@ class SimEngineVRBase(SimEngineLight):
         data: claripy.ast.Base = richr.data
 
         # lea
-        self._ensure_variable_existence(richr, codeloc, src_expr=src)
-        self._reference(richr, codeloc, src=src)
+        self._ensure_variable_existence(richr, codeloc)
+        self._reference(richr, codeloc)
 
         # handle register writes
 
@@ -351,7 +352,88 @@ class SimEngineVRBase(SimEngineLight):
         v = MultiValues(annotated_data)
         self.state.register_region.store(offset, v)
         # register with the variable manager
-        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
+        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
+
+        if richr.typevar is not None:
+            if not self.state.typevars.has_type_variable_for(variable, codeloc):
+                # assign a new type variable to it
+                typevar = typevars.TypeVariable()
+                self.state.typevars.add_type_variable(variable, codeloc, typevar)
+                # create constraints
+            else:
+                typevar = self.state.typevars.get_type_variable(variable, codeloc)
+            self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
+
+    def _assign_to_vvar(
+        self,
+        vvar: ailment.Expr.VirtualVariable,
+        richr,
+        src=None,
+        dst=None,
+        create_variable: bool = True,
+        vvar_id: int | None = None,
+    ):
+
+        if vvar_id is None:
+            vvar_id = vvar.varid
+
+        if (
+            vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER
+            and vvar.oident in (self.arch.ip_offset, self.arch.sp_offset, self.arch.lr_offset)
+            or not create_variable
+        ):
+            # only store the value. don't worry about variables.
+            self.vvar_region[vvar_id] = richr.data
+            return
+
+        codeloc: CodeLocation = self._codeloc()
+        data: claripy.ast.Base = richr.data
+
+        # lea
+        self._ensure_variable_existence(richr, codeloc)
+        self._reference(richr, codeloc)
+
+        # first check if there is an existing variable for the atom at this location already
+        existing_vars: set[tuple[SimVariable, int]] = self.variable_manager[self.func_addr].find_variables_by_atom(
+            self.block.addr, self.stmt_idx, dst
+        )
+        if not existing_vars:
+            # next check if there is already a variable for the vvar ID
+            addr_and_variables = set()
+            try:
+                value = self.vvar_region[vvar_id]
+                addr_and_variables.update(self.state.extract_variables(value))
+            except KeyError:
+                pass
+            existing_vars = {(av[1], av[0]) for av in addr_and_variables}
+
+        if not existing_vars:
+            if vvar.was_reg:
+                variable = SimRegisterVariable(
+                    vvar.reg_offset,
+                    vvar.size,
+                    ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
+                    region=self.func_addr,
+                )
+                self.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
+            elif vvar.was_stack:
+                variable = SimStackVariable(
+                    vvar.stack_offset,
+                    vvar.size,
+                    ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
+                    region=self.func_addr,
+                )
+                self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
+            else:
+                raise NotImplementedError()
+        else:
+            variable, _ = next(iter(existing_vars))
+
+        # FIXME: The offset does not have to be 0
+        annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
+        self.vvar_region[vvar_id] = annotated_data
+        self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
@@ -900,7 +982,7 @@ class SimEngineVRBase(SimEngineLight):
         for value_set in value_list:
             for value in value_set:
                 for _, var in self.state.extract_variables(value):
-                    self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
+                    self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=False)
                     variable_set.add(var)
 
         if offset == self.arch.sp_offset:
@@ -937,6 +1019,98 @@ class SimEngineVRBase(SimEngineLight):
             # ignore the variable and the associated type if we are only reading part of the variable
             return RichR(r_value, variable=var)
         return RichR(r_value, variable=var, typevar=typevar)
+
+    def _read_from_vvar(
+        self, vvar: ailment.Expr.VirtualVariable, expr=None, create_variable: bool = True, vvar_id: int | None = None
+    ):
+        codeloc = self._codeloc()
+
+        if vvar_id is None:
+            vvar_id = vvar.varid
+
+        value: claripy.ast.Base | None = self.vvar_region.get(vvar_id, None)
+
+        # fallback for register arguments
+        if value is None and vvar.was_reg:
+            richr = self._read_from_register(vvar.reg_offset, vvar.size, expr=vvar, create_variable=True)
+            return richr
+
+        if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER and vvar.oident in (
+            self.arch.sp_offset,
+            self.arch.ip_offset,
+        ):
+            # load values. don't worry about variables
+            if value is None:
+                r_value = self.state.top(vvar.size)
+            else:
+                r_value = value
+            return RichR(r_value, variable=None, typevar=None)
+
+        if value is None:
+            # the value does not exist.
+            value = self.state.top(vvar.bits)
+            if create_variable:
+                # create a new variable if necessary
+                if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
+                    variable = SimRegisterVariable(
+                        vvar.reg_offset,
+                        vvar.size,
+                        ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
+                        region=self.func_addr,
+                    )
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+                    self.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
+                elif vvar.category == ailment.Expr.VirtualVariableCategory.STACK:
+                    variable = SimStackVariable(
+                        vvar.stack_offset,
+                        vvar.size,
+                        ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
+                        region=self.func_addr,
+                    )
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+                    self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
+                elif vvar.category == ailment.Expr.VirtualVariableCategory.PARAMETER:
+                    raise KeyError(f"Missing virtual variable for parameter {vvar}")
+                else:
+                    raise NotImplementedError()
+
+            self.vvar_region[vvar_id] = value
+
+        variable_set = set()
+        for _, var in self.state.extract_variables(value):
+            self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr, overwrite=False)
+            variable_set.add(var)
+
+        if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER and vvar.oident == self.arch.sp_offset:
+            # ignore sp
+            typevar = None
+            var = None
+        else:
+            # we accept the precision loss here by only returning the first variable
+            # FIXME: Multiple variables
+            typevar = None
+            var = None
+            if variable_set:
+                var = next(iter(variable_set))
+
+                # add delayed type constraints
+                if var in self.state.delayed_type_constraints:
+                    for constraint in self.state.delayed_type_constraints[var]:
+                        self.state.add_type_constraint(constraint)
+                    self.state.delayed_type_constraints.pop(var)
+
+                if var not in self.state.typevars:
+                    typevar = typevars.TypeVariable()
+                    self.state.typevars.add_type_variable(var, codeloc, typevar)
+                else:
+                    # FIXME: This is an extremely stupid hack. Fix it later.
+                    # | typevar = next(reversed(list(self.state.typevars[var].values())))
+                    typevar = self.state.typevars[var]
+
+        if var is not None and var.size != vvar.size:
+            # ignore the variable and the associated type if we are only reading part of the variable
+            return RichR(value, variable=var)
+        return RichR(value, variable=var, typevar=typevar)
 
     def _create_access_typevar(
         self, typevar: TypeVariable | DerivedTypeVariable, is_store: bool, size: int, offset: int

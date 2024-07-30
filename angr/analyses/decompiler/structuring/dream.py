@@ -21,7 +21,7 @@ from ..utils import (
     get_ast_subexprs,
     switch_extract_cmp_bounds,
     remove_last_statement,
-    first_nonlabel_node,
+    first_nonlabel_nonphi_node,
 )
 from .structurer_nodes import (
     SequenceNode,
@@ -240,7 +240,7 @@ class DreamStructurer(StructurerBase):
     def _refine_loop_while(loop_node):
         if loop_node.sort == "while" and loop_node.condition is None and loop_node.sequence_node.nodes:
             # it's an endless loop
-            first_node = first_nonlabel_node(loop_node.sequence_node)
+            first_node = first_nonlabel_nonphi_node(loop_node.sequence_node)
             if type(first_node) is CodeNode:
                 inner_first_node = first_node.node
             else:

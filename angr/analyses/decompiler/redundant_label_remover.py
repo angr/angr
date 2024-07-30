@@ -4,7 +4,7 @@ import ailment
 
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
-from .utils import first_nonlabel_statement
+from .utils import first_nonlabel_nonphi_statement
 
 
 class RedundantLabelRemover:
@@ -94,7 +94,7 @@ class RedundantLabelRemover:
                 else:
                     break
 
-            first_stmt = first_nonlabel_statement(block)
+            first_stmt = first_nonlabel_nonphi_statement(block)
             if isinstance(first_stmt, ailment.Stmt.ConditionalJump):
                 if isinstance(first_stmt.true_target, ailment.Expr.Const):
                     tpl = first_stmt.true_target.value, None

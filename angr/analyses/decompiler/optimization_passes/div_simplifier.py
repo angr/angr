@@ -196,7 +196,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
 
         if isinstance(operand_1, Expr.Const):
-            if isinstance(operand_0, Expr.Register):
+            if isinstance(operand_0, Expr.VirtualVariable) and operand_0.was_reg:
                 new_operand = Expr.Const(operand_1.idx, None, 2**operand_1.value, operand_0.bits)
                 return Expr.BinaryOp(expr.idx, "Div", [operand_0, new_operand], expr.signed)
             elif (

@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections import OrderedDict as ODict
 from collections import defaultdict, OrderedDict
 import logging
@@ -12,7 +13,7 @@ import claripy
 from ... import Analysis
 from ..condition_processor import ConditionProcessor
 from ..sequence_walker import SequenceWalker
-from ..utils import extract_jump_targets, insert_node, remove_last_statement
+from ..utils import extract_jump_targets, insert_node, remove_last_statement, has_nonlabel_nonphi_statements
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -50,13 +51,13 @@ class StructurerBase(Analysis):
         region,
         parent_map=None,
         condition_processor=None,
-        func: Optional["Function"] = None,
+        func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         improve_structurer=True,
         **kwargs,
     ):
-        self._region: "GraphRegion" = region
+        self._region: GraphRegion = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
@@ -952,3 +953,12 @@ class StructurerBase(Analysis):
             if isinstance(stmt.target, ailment.Expr.Const) and stmt.target.value == addr:
                 return True
         return False
+
+    @staticmethod
+    def has_nonlabel_nonphi_statements(node: BaseNode) -> bool:
+        if isinstance(node, ailment.Block):
+            return has_nonlabel_nonphi_statements(node)
+        if isinstance(node, MultiNode):
+            return any(has_nonlabel_nonphi_statements(b) for b in node.nodes)
+        if isinstance(node, SequenceNode):
+            return any(StructurerBase.has_nonlabel_nonphi_statements(nn) for nn in node.nodes)

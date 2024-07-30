@@ -11,7 +11,7 @@ from angr.misc.ux import once
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation, ExternalCodeLocation
-from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping
+from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping, VirtualVariable
 from .tag import Tag
 from ...sim_variable import SimVariable
 
@@ -206,6 +206,8 @@ class Definition(Generic[A]):
             return self.atom.size
         elif isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
+        elif isinstance(self.atom, VirtualVariable):
+            return self.atom.size
         else:
             raise ValueError("Unsupported operation size on %s." % type(self.atom))
 

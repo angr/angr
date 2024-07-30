@@ -15,7 +15,7 @@ class X86GccGetPcSimplifier(OptimizationPass):
 
     ARCHES = ["X86"]
     PLATFORMS = ["linux"]
-    STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
     NAME = "Simplify getpc()"
     DESCRIPTION = __doc__.strip()
 

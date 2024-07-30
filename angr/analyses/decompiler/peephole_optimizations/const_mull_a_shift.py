@@ -20,7 +20,7 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
 
         if isinstance(expr, Convert):
             if expr.from_bits == 64 and expr.to_bits == 32:
-                r = self.optimize_binaryop(expr)
+                r = self.optimize_binaryop(expr.operand)
 
         elif isinstance(expr, BinaryOp):
             r = self.optimize_binaryop(expr)
@@ -35,16 +35,24 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
         if isinstance(expr, BinaryOp) and expr.op == "Shr" and isinstance(expr.operands[1], Const):
             # (N * a) >> M  ==>  a / N1
             inner = expr.operands[0]
-            if isinstance(inner, BinaryOp) and inner.op == "Mull" and isinstance(inner.operands[0], Const):
-                C = inner.operands[0].value
-                X = inner.operands[1]
-                V = expr.operands[1].value
-                ndigits = 5 if V == 32 else 6
-                divisor = self._check_divisor(pow(2, V), C, ndigits)
-                if divisor is not None:
-                    new_const = Const(None, None, divisor, X.bits)
-                    new_div = BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
-                    return new_div
+            if isinstance(inner, BinaryOp) and inner.op in {"Mull", "Mul"}:
+                if isinstance(inner.operands[0], Const) and not isinstance(inner.operands[1], Const):
+                    C = inner.operands[0].value
+                    X = inner.operands[1]
+                elif isinstance(inner.operands[1], Const) and not isinstance(inner.operands[0], Const):
+                    C = inner.operands[1].value
+                    X = inner.operands[0]
+                else:
+                    C = X = None
+
+                if C is not None and X is not None:
+                    V = expr.operands[1].value
+                    ndigits = 5 if V == 32 else 6
+                    divisor = self._check_divisor(pow(2, V), C, ndigits)
+                    if divisor is not None:
+                        new_const = Const(None, None, divisor, X.bits)
+                        new_div = BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
+                        return new_div
 
         elif isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
             expr0, expr1 = expr.operands
@@ -63,7 +71,7 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                 ):
                     a0 = expr0.operands[0].operands[0]
                     a1 = expr1.operands[0]
-                    if a0 == a1:
+                    if a0.likes(a1):
                         # (a * x >> M1) +/- (a >> M2)  ==>  a / N
                         C = expr0.operands[0].operands[1].value
                         X = a0

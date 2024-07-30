@@ -142,6 +142,16 @@ class OffsetVal:
             return self.reg == other.reg and self.offset == other.offset
         return False
 
+    def __lt__(self, other):
+        if isinstance(other, OffsetVal):
+            return self.reg == other.reg and self.offset < other.offset
+        return False
+
+    def __le__(self, other):
+        if isinstance(other, OffsetVal):
+            return self.reg == other.reg and self.offset <= other.offset
+        return False
+
     def __hash__(self):
         return hash((type(self), self._reg, self._offset))
 
@@ -169,15 +179,16 @@ class FrozenStackPointerTrackerState:
     Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
     """
 
-    __slots__ = "regs", "memory", "is_tracking_memory"
+    __slots__ = "regs", "memory", "is_tracking_memory", "resilient"
 
-    def __init__(self, regs, memory, is_tracking_memory):
+    def __init__(self, regs, memory, is_tracking_memory, resilient):
         self.regs = regs
         self.memory = memory
         self.is_tracking_memory = is_tracking_memory
+        self.resilient = resilient
 
     def unfreeze(self):
-        return StackPointerTrackerState(dict(self.regs), dict(self.memory), self.is_tracking_memory)
+        return StackPointerTrackerState(dict(self.regs), dict(self.memory), self.is_tracking_memory, self.resilient)
 
     def __hash__(self):
         if self.is_tracking_memory:
@@ -202,15 +213,16 @@ class StackPointerTrackerState:
     Abstract state for StackPointerTracker analysis.
     """
 
-    __slots__ = "regs", "memory", "is_tracking_memory"
+    __slots__ = "regs", "memory", "is_tracking_memory", "resilient"
 
-    def __init__(self, regs, memory, is_tracking_memory):
+    def __init__(self, regs, memory, is_tracking_memory, resilient: bool):
         self.regs = regs
         if is_tracking_memory:
             self.memory = memory
         else:
             self.memory = {}
         self.is_tracking_memory = is_tracking_memory
+        self.resilient = resilient
 
     def give_up_on_memory_tracking(self):
         self.memory = {}
@@ -249,11 +261,11 @@ class StackPointerTrackerState:
             self.regs[reg] = val
 
     def copy(self):
-        return StackPointerTrackerState(self.regs.copy(), self.memory.copy(), self.is_tracking_memory)
+        return StackPointerTrackerState(self.regs.copy(), self.memory.copy(), self.is_tracking_memory, self.resilient)
 
     def freeze(self):
         return FrozenStackPointerTrackerState(
-            frozenset(self.regs.items()), frozenset(self.memory.items()), self.is_tracking_memory
+            frozenset(self.regs.items()), frozenset(self.memory.items()), self.is_tracking_memory, self.resilient
         )
 
     def __eq__(self, other):
@@ -272,13 +284,14 @@ class StackPointerTrackerState:
 
     def merge(self, other):
         return StackPointerTrackerState(
-            regs=_dict_merge(self.regs, other.regs),
-            memory=_dict_merge(self.memory, other.memory),
+            regs=_dict_merge(self.regs, other.regs, self.resilient),
+            memory=_dict_merge(self.memory, other.memory, self.resilient),
             is_tracking_memory=self.is_tracking_memory and other.is_tracking_memory,
+            resilient=self.resilient or other.resilient,
         )
 
 
-def _dict_merge(d1, d2):
+def _dict_merge(d1, d2, resilient: bool):
     all_keys = set(d1.keys()) | set(d2.keys())
     merged = {}
     for k in all_keys:
@@ -293,7 +306,10 @@ def _dict_merge(d1, d2):
         elif d1[k] == d2[k]:
             merged[k] = d1[k]
         else:  # d1[k] != d2[k]
-            merged[k] = TOP
+            if resilient and isinstance(d1[k], OffsetVal) and isinstance(d2[k], OffsetVal):
+                merged[k] = min(d1[k], d2[k])
+            else:
+                merged[k] = TOP
     return merged
 
 
@@ -319,6 +335,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         track_memory=True,
         cross_insn_opt=True,
         initial_reg_values=None,
+        resilient: bool = True,
     ):
         if func is not None:
             if not func.normalized:
@@ -340,6 +357,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._blocks = {}
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
+        self._resilient = resilient
 
         if initial_reg_values:
             self._reg_value_at_block_start[func.addr if func is not None else block.addr] = initial_reg_values
@@ -483,7 +501,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 # a merge with normal blocks happen.
                 initial_regs = {r: BOTTOM for r in self.reg_offsets}
 
-        return StackPointerTrackerState(regs=initial_regs, memory={}, is_tracking_memory=self.track_mem).freeze()
+        return StackPointerTrackerState(
+            regs=initial_regs, memory={}, is_tracking_memory=self.track_mem, resilient=self._resilient
+        ).freeze()
 
     def _set_state(self, addr, new_val, pre_or_post):
         previous_val = self._state_for(addr, pre_or_post)

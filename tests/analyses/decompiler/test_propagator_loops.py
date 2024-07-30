@@ -94,7 +94,7 @@ class TestPropagatorLoops(unittest.TestCase):
             leave
             ret"""
         )
-        assert re.match(r"\(Load\(addr=stack_base-16, size=4, endness=Iend_LE\) <=s 0x9<32>\)", str(cond)) is not None
+        assert re.match(r"\(vvar_\d+{stack -16} <=s 0x9<32>\)", str(cond)) is not None
 
 
 if __name__ == "__main__":

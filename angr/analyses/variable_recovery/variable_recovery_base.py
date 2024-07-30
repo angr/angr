@@ -81,7 +81,7 @@ class VariableRecoveryBase(Analysis):
     The base class for VariableRecovery and VariableRecoveryFast.
     """
 
-    def __init__(self, func, max_iterations, store_live_variables: bool):
+    def __init__(self, func, max_iterations, store_live_variables: bool, vvar_to_vvar: dict[int, int] | None = None):
         self.function = func
         self.variable_manager = self.kb.variables
 
@@ -91,6 +91,7 @@ class VariableRecoveryBase(Analysis):
         self._outstates = {}
         self._instates: dict[Any, VariableRecoveryStateBase] = {}
         self._dominance_frontiers = None
+        self.vvar_to_vvar = vvar_to_vvar
 
     #
     # Public methods

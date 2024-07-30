@@ -13,6 +13,7 @@ from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from angr.utils.graph import GraphUtils
+from angr.utils.ail import is_phi_assignment
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges
@@ -22,8 +23,8 @@ from ..utils import (
     extract_jump_targets,
     switch_extract_cmp_bounds,
     is_empty_or_label_only_node,
-    has_nonlabel_statements,
-    first_nonlabel_statement,
+    has_nonlabel_nonphi_statements,
+    first_nonlabel_nonphi_statement,
 )
 from ..call_counter import AILCallCounter
 from .structurer_nodes import (
@@ -297,10 +298,10 @@ class PhoenixStructurer(StructurerBase):
                     and head_block.nodes
                     and isinstance(head_block.nodes[0], Block)
                     and head_block.nodes[0].statements
-                    and isinstance(first_nonlabel_statement(head_block.nodes[0]), ConditionalJump)
+                    and isinstance(first_nonlabel_nonphi_statement(head_block.nodes[0]), ConditionalJump)
                     or isinstance(head_block, Block)
                     and head_block.statements
-                    and isinstance(first_nonlabel_statement(head_block), ConditionalJump)
+                    and isinstance(first_nonlabel_nonphi_statement(head_block), ConditionalJump)
                 ):
                     # it's a while loop if the conditional jump (or the head block) is at the beginning of node
                     loop_type = "while" if head_block_idx == 0 else "do-while"
@@ -421,6 +422,9 @@ class PhoenixStructurer(StructurerBase):
             isinstance(node, SequenceNode)
             and node.nodes
             and isinstance(node.nodes[-1], ConditionNode)
+            # must ensure the nodes before the condition node are empty. otherwise the condition may use variables that
+            # are updated in these nodes leading up to the condition node.
+            and all(not self.has_nonlabel_nonphi_statements(nn) for nn in node.nodes[:-1])
             and node.nodes[-1].true_node is not None
             and node.nodes[-1].false_node is not None
         ):
@@ -2287,7 +2291,7 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_Block(block: Block, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.statements:
-                first_stmt = first_nonlabel_statement(block)
+                first_stmt = first_nonlabel_nonphi_statement(block)
                 if first_stmt is not None:
                     # this block has content. increment the block ID counter
                     walker.block_id += 1
@@ -2306,7 +2310,7 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.nodes and isinstance(block.nodes[-1], Block) and block.nodes[-1].statements:
-                first_stmt = first_nonlabel_statement(block)
+                first_stmt = first_nonlabel_nonphi_statement(block)
                 if first_stmt is not None:
                     # this block has content. increment the block ID counter
                     walker.block_id += 1
@@ -2386,7 +2390,7 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _count_statements(node: BaseNode | Block) -> int:
         if isinstance(node, Block):
-            return sum(1 for stmt in node.statements if not isinstance(stmt, Label))
+            return sum(1 for stmt in node.statements if not isinstance(stmt, Label) and not is_phi_assignment(stmt))
         elif isinstance(node, MultiNode):
             return sum(PhoenixStructurer._count_statements(nn) for nn in node.nodes)
         elif isinstance(node, SequenceNode):
@@ -2456,6 +2460,8 @@ class PhoenixStructurer(StructurerBase):
             for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Label):
                     continue
+                if is_phi_assignment(stmt):
+                    continue
                 if isinstance(stmt, ConditionalJump):
                     if idx == len(block.statements) - 1:
                         continue
@@ -2478,7 +2484,7 @@ class PhoenixStructurer(StructurerBase):
             if node.statements:
                 idx = 0
                 first_stmt = node.statements[idx]
-                while isinstance(first_stmt, Label):
+                while isinstance(first_stmt, Label) or is_phi_assignment(first_stmt):
                     idx += 1
                     if idx >= len(node.statements):
                         first_stmt = None
@@ -2495,7 +2501,7 @@ class PhoenixStructurer(StructurerBase):
         if isinstance(node, MultiNode):
             for nn in node.nodes:
                 if isinstance(nn, Block):
-                    if not has_nonlabel_statements(nn):
+                    if not has_nonlabel_nonphi_statements(nn):
                         continue
                     return PhoenixStructurer._remove_first_statement_if_jump(nn)
                 break

@@ -5,6 +5,7 @@ from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
 from ailment.expression import (
     Load,
+    VirtualVariable,
     Expression,
     BinaryOp,
     UnaryOp,
@@ -190,6 +191,15 @@ class BlockIOFinder(AILBlockWalkerBase):
         load_loc = self._handle_expr(0, expr.addr, stmt_idx, stmt, block, is_memory=True)
         self._add_or_update_dict(self.derefed_at, stmt_idx, load_loc)
         return load_loc
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=True
+    ):
+        if expr.was_stack:
+            load_loc = MemoryLocation(SpOffset(self._project.arch.bits, expr.stack_offset), expr.bits)
+            self._add_or_update_dict(self.derefed_at, stmt_idx, load_loc)
+            return load_loc
+        return None
 
     def _handle_CallExpr(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False

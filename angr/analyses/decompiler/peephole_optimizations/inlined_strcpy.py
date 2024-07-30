@@ -3,8 +3,8 @@ import string
 
 from archinfo import Endness
 
-from ailment.expression import Const, StackBaseOffset
-from ailment.statement import Call, Store
+from ailment.expression import Const, StackBaseOffset, VirtualVariable
+from ailment.statement import Call, Assignment
 
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
@@ -22,11 +22,16 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
     NAME = "Simplifying inlined strcpy"
-    stmt_classes = (Store,)
+    stmt_classes = (Assignment,)
 
-    def optimize(self, stmt: Store, stmt_idx: int = None, block=None, **kwargs):
-        if isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
-            r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.data.size, stmt.endness)
+    def optimize(self, stmt: Assignment, stmt_idx: int = None, block=None, **kwargs):
+        if (
+            isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and isinstance(stmt.src, Const)
+            and isinstance(stmt.src.value, int)
+        ):
+            r, s = self.is_integer_likely_a_string(stmt.src.value, stmt.src.size, self.project.arch.memory_endness)
             if r:
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
@@ -34,8 +39,8 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                     stmt.idx,
                     "strncpy",
                     args=[
-                        stmt.addr,
-                        Const(None, None, str_id, stmt.addr.bits, custom_string=True),
+                        StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset),
+                        Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                         Const(None, None, len(s), self.project.arch.bits),
                     ],
                     **stmt.tags,
@@ -75,8 +80,8 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                             stmt.idx,
                             "strncpy",
                             args=[
-                                stmt.addr,
-                                Const(None, None, str_id, stmt.addr.bits, custom_string=True),
+                                StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset),
+                                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                                 Const(None, None, len(s), self.project.arch.bits),
                             ],
                             **stmt.tags,
@@ -95,17 +100,21 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             n |= v.value
         return n, size
 
-    @staticmethod
-    def collect_constant_stores(block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
+    def collect_constant_stores(self, block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
         r = {}
         for idx, stmt in enumerate(block.statements):
             if idx < starting_stmt_idx:
                 continue
-            if isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
-                if isinstance(stmt.data, Const):
-                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, stmt.endness)
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_stack
+                and isinstance(stmt.dst.stack_offset, int)
+            ):
+                if isinstance(stmt.src, Const):
+                    r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
                 else:
-                    r[stmt.addr.offset] = idx, None
+                    r[stmt.dst.stack_offset] = idx, None
 
         return r
 

@@ -1,7 +1,8 @@
 # pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
+from __future__ import annotations
 import pathlib
 import copy
-from typing import Any, Union
+from typing import Any
 from collections.abc import Iterable
 import logging
 
@@ -9,6 +10,7 @@ import networkx
 import ailment
 
 import angr
+from angr.utils.ail import is_phi_assignment
 from .call_counter import AILBlockCallCounter
 from .seq_to_blocks import SequenceToBlocks
 
@@ -337,7 +339,13 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> ailment.Stmt.Statement | None:
+def has_nonlabel_nonphi_statements(block: ailment.Block) -> bool:
+    return block.statements and any(
+        not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)) for stmt in block.statements
+    )
+
+
+def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
             stmt = first_nonlabel_statement(n)
@@ -351,6 +359,27 @@ def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> ailmen
     return None
 
 
+def first_nonlabel_statement_id(block: ailment.Block) -> int | None:
+    for idx, stmt in enumerate(block.statements):
+        if not isinstance(stmt, ailment.Stmt.Label):
+            return idx
+    return len(block.statements)
+
+
+def first_nonlabel_nonphi_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
+    if isinstance(block, MultiNode):
+        for n in block.nodes:
+            stmt = first_nonlabel_nonphi_statement(n)
+            if stmt is not None:
+                return stmt
+        return None
+
+    for stmt in block.statements:
+        if not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)):
+            return stmt
+    return None
+
+
 def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | None:
     for stmt in reversed(block.statements):
         if not isinstance(stmt, ailment.Stmt.Label):
@@ -358,13 +387,25 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
     return None
 
 
-def first_nonlabel_node(seq: "SequenceNode") -> Union["BaseNode", ailment.Block] | None:
+def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
             inner_node = node.node
         else:
             inner_node = node
         if isinstance(inner_node, ailment.Block) and not has_nonlabel_statements(inner_node):
+            continue
+        return node
+    return None
+
+
+def first_nonlabel_nonphi_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
+    for node in seq.nodes:
+        if isinstance(node, CodeNode):
+            inner_node = node.node
+        else:
+            inner_node = node
+        if isinstance(inner_node, ailment.Block) and not has_nonlabel_nonphi_statements(inner_node):
             continue
         return node
     return None
@@ -409,7 +450,7 @@ def update_labels(graph: networkx.DiGraph):
     return add_labels(remove_labels(graph))
 
 
-def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
+def structured_node_is_simple_return(node: SequenceNode | MultiNode, graph: networkx.DiGraph) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
     if (cond) {
@@ -422,7 +463,7 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     Returns true on any block ending in linear statements and a return.
     """
 
-    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> list[ailment.Block]:
+    def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 
@@ -452,7 +493,15 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     if valid_last_stmt and last_block.statements:
         valid_last_stmt = not isinstance(last_block.statements[-1], (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump))
 
-    return valid_last_stmt and last_block in graph and not list(graph.successors(last_block))
+    if valid_last_stmt:
+        # note that the block may not be the same block in the AIL graph post dephication. we must find the block again
+        # in the graph.
+        for bb in graph:
+            if bb.addr == last_block.addr and bb.idx == last_block.idx:
+                # found it
+                succs = list(graph.successors(bb))
+                return not succs or succs == [bb]
+    return False
 
 
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
@@ -480,6 +529,11 @@ def peephole_optimize_exprs(block, expr_opts):
     def _handle_expr(
         expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expr.Expression | None:
+        # process the expr
+        processed = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+        if processed is not None:
+            expr = processed
         old_expr = expr
 
         redo = True
@@ -495,11 +549,8 @@ def peephole_optimize_exprs(block, expr_opts):
 
         if expr is not old_expr:
             _any_update.v = True
-            # continue to process the expr
-            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-            return expr if r is None else r
 
-        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+        return expr
 
     # run expression optimizers
     walker = ailment.AILBlockWalker()
@@ -743,7 +794,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr: int):
     raise KeyError("The block is not in the graph!")
 
 
-def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
+def sequence_to_blocks(seq: BaseNode) -> list[ailment.Block]:
     """
     Converts a sequence node (BaseNode) to a list of ailment blocks contained in it and all its children.
     """
@@ -753,7 +804,7 @@ def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
 
 
 def sequence_to_statements(
-    seq: "BaseNode", exclude=(ailment.statement.Jump, ailment.statement.Jump)
+    seq: BaseNode, exclude=(ailment.statement.Jump, ailment.statement.Jump)
 ) -> list[ailment.statement.Statement]:
     """
     Converts a sequence node (BaseNode) to a list of ailment Statements contained in it and all its children.

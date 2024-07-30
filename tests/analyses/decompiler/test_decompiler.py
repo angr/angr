@@ -1217,12 +1217,10 @@ class TestDecompiler(unittest.TestCase):
         dw = d.codegen.cfunc.statements.statements[1]
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
-        assert len(stmts) == 5
-        assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
-        assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
+        assert len(stmts) == 3
+        assert stmts[0].lhs.unified_variable == stmts[2].rhs.operand.unified_variable
+        assert stmts[1].lhs.unified_variable == stmts[2].lhs.operand.unified_variable
+        assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -1632,12 +1630,7 @@ class TestDecompiler(unittest.TestCase):
         assert "c_ptr->c3[argc] = argc;" in d.codegen.text
         assert "c_ptr->c2[argc].b2.a2 = argc;" in d.codegen.text
         assert "b_ptr += 1;" in d.codegen.text
-        # TODO: re-enable the assert like it is below and replace the re.search with the propagate value
-        #   this should be in this form, but the propagation with pop/push registers is currently broken.
-        #   tracked in: https://github.com/angr/angr/issues/4514
-        # assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
-        # this checks for the form: `v11 = ...; return v11;`
-        assert re.search("v\\d+ = c_ptr->c4->c2\\[argc].b2.a2;\n {4}return v\\d+;", d.codegen.text) is not None
+        assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
     @slow_test
     @for_all_structuring_algos
@@ -1787,7 +1780,12 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("if (!v0)") == 3 or d.codegen.text.count("if (v0)") == 3
+        assert (
+            d.codegen.text.count("if (!v0)") == 3
+            or d.codegen.text.count("if (v0)") == 3
+            or d.codegen.text.count("if (!v0)") == 2
+            and d.codegen.text.count("if (!a0)") == 1
+        )
         assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("phoenix")
@@ -2223,7 +2221,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        cgc_allocate_call = re.search(r"cgc_allocate\(([^()]+)\)", d.codegen.text)
+        cgc_allocate_call = re.search(r"cgc_allocate\(([^\n]+)\)", d.codegen.text)
         assert cgc_allocate_call is not None, "Expect a call to cgc_allocate(), found None"
         comma_count = cgc_allocate_call.group(1).count(",")
         assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
@@ -2837,7 +2835,7 @@ class TestDecompiler(unittest.TestCase):
         #         qsort();
         #     }
         #     return;
-        assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
+        assert re.search(r"if\(.+?\).+qsort\(.*\);.*return", text) is not None
 
     @for_all_structuring_algos
     def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
@@ -2959,14 +2957,14 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options_0, optimization_passes=all_optimization_passes
         )
+        self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*in_stream\)",
+                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*v\d+\)",
                 dec.codegen.text,
             )
             is not None
         )
-        self._print_decompilation_result(dec)
 
         # never use multi-statement expressions
         decompiler_options_1 = decompiler_options + [
@@ -2979,7 +2977,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n;]+;",
+                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n;]+;",
                 dec.codegen.text,
             )
             is not None

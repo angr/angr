@@ -59,7 +59,7 @@ class ReturnDeduplicator(OptimizationPass):
              D
 
 
-        The super blocks of the true and falst child will be used as the replacement for the true and false child
+        The super blocks of the true and false child will be used as the replacement for the true and false child
         to assure correctness.
         """
 

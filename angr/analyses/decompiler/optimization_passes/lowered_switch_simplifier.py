@@ -9,7 +9,7 @@ from ailment.statement import ConditionalJump, Label, Assignment, Jump
 from ailment.expression import Expression, BinaryOp, Const, Load
 
 from angr.utils.graph import GraphUtils
-from ..utils import first_nonlabel_statement, remove_last_statement
+from ..utils import first_nonlabel_nonphi_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
 from .optimization_pass import OptimizationPassStage, MultipleBlocksException, StructuringOptimizationPass
 from ..region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
@@ -609,7 +609,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
         if isinstance(node, Block) and node.statements:
             stmt = node.statements[-1]
-            if stmt is not None and stmt is not first_nonlabel_statement(node):
+            if stmt is not None and stmt is not first_nonlabel_nonphi_statement(node):
                 if (
                     isinstance(stmt, ConditionalJump)
                     and isinstance(stmt.true_target, Const)
@@ -653,7 +653,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # there is only one non-label statement
 
         if isinstance(node, Block):
-            stmt = first_nonlabel_statement(node)
+            stmt = first_nonlabel_nonphi_statement(node)
             if stmt is not None and stmt is node.statements[-1]:
                 if (
                     isinstance(stmt, ConditionalJump)
@@ -698,7 +698,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # there is only one non-label statement
 
         if isinstance(node, Block):
-            stmt = first_nonlabel_statement(node)
+            stmt = first_nonlabel_nonphi_statement(node)
             if stmt is not None and stmt is node.statements[-1]:
                 if (
                     isinstance(stmt, ConditionalJump)
@@ -785,7 +785,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             onode, value, target, target_idx, next_node_addr = ca_others[next_node_addr]
             onode: Block
 
-            if first_nonlabel_statement(onode) is not onode.statements[-1]:
+            if first_nonlabel_nonphi_statement(onode) is not onode.statements[-1]:
                 onode = onode.copy(statements=[onode.statements[-1]])
 
             graph.add_edge(last_node, onode)

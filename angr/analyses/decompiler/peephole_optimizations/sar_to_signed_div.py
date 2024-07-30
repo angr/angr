@@ -1,4 +1,4 @@
-from ailment.expression import Convert, BinaryOp, Const, ITE, Expression, Register
+from ailment.expression import Convert, BinaryOp, Const, ITE, Expression, VirtualVariable
 
 from .base import PeepholeOptimizationExprBase
 
@@ -18,7 +18,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[1], Const):
                 op0, const = expr.operands
 
-                if isinstance(op0, Register) and stmt_idx is not None and block is not None:
+                if isinstance(op0, VirtualVariable) and op0.was_reg and stmt_idx is not None and block is not None:
                     # look back by one statement to find its definition
                     op0 = self.find_definition(op0, stmt_idx, block)
                     # TODO: Ensure the new op0 does not have any expressions that overlap with the old op0 (a register)

@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Optional, DefaultDict, Any, Union, TYPE_CHECKING
+from typing import DefaultDict, Any
 from collections.abc import Iterable
 from collections import defaultdict
 
@@ -13,7 +14,7 @@ from ...codenode import CodeNode
 from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType, ObservationPoint
 from ...code_location import CodeLocation, ExternalCodeLocation
 from ...misc.ux import deprecated
 from ..forward_analysis.visitors.graph import NodeType
@@ -26,12 +27,6 @@ from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
 
-if TYPE_CHECKING:
-    from typing import Literal
-
-    ObservationPoint = tuple[
-        Literal["insn", "node", "stmt", "exit"], Union[int, tuple[int, int], tuple[int, int, int]], ObservationPointType
-    ]
 
 l = logging.getLogger(name=__name__)
 
@@ -59,12 +54,12 @@ class ReachingDefinitionsAnalysis(
         max_iterations=30,
         track_tmps=False,
         track_consts=True,
-        observation_points: "Iterable[ObservationPoint]" = None,
+        observation_points: Iterable[ObservationPoint] = None,
         init_state: ReachingDefinitionsState = None,
         init_context=None,
-        state_initializer: Optional["RDAStateInitializer"] = None,
+        state_initializer: RDAStateInitializer | None = None,
         cc=None,
-        function_handler: "Optional[FunctionHandler]" = None,
+        function_handler: FunctionHandler | None = None,
         observe_all=False,
         visited_blocks=None,
         dep_graph: DepGraph | bool | None = True,

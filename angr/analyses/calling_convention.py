@@ -409,7 +409,7 @@ class CallingConventionAnalysis(Analysis):
         call_sites_by_function: dict["Function", list[tuple[int, int]]] = defaultdict(list)
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
-            if edge_type != "Ijk_Call":
+            if not (edge_type == "Ijk_Call" or edge_type == "Ijk_Boring" and self._cfg.graph.out_degree[src] == 1):
                 continue
             if not self.kb.functions.contains_addr(src.function_address):
                 continue

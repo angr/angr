@@ -44,6 +44,7 @@ from .inlined_strcpy import InlinedStrcpy
 from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
 from .inlined_wstrcpy import InlinedWstrcpy
 from .cmpord_rewriter import CmpORDRewriter
+from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 

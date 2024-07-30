@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Optional, Union, Any, TYPE_CHECKING
@@ -24,11 +25,11 @@ from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
 from .utils import remove_labels
 from .sequence_walker import SequenceWalker
+from .structuring.structurer_nodes import SequenceNode
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
-    from .structuring.structurer_nodes import SequenceNode
     from .structured_codegen.c import CStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
@@ -49,7 +50,7 @@ class Decompiler(Analysis):
     def __init__(
         self,
         func: Function | str | int,
-        cfg: Union["CFGFast", "CFGModel"] | None = None,
+        cfg: CFGFast | CFGModel | None = None,
         options=None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
@@ -92,16 +93,18 @@ class Decompiler(Analysis):
         self._inline_functions = inline_functions
 
         self.clinic = None  # mostly for debugging purposes
-        self.codegen: Optional["CStructuredCodeGenerator"] = None
+        self.codegen: CStructuredCodeGenerator | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
-        self.seq_node: Optional["SequenceNode"] = None
+        self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
+        self.vvar_id_start = None
 
         if decompile:
             self._decompile()
 
+    @timethis
     def _decompile(self):
         if self.func.is_simprocedure:
             return
@@ -187,6 +190,7 @@ class Decompiler(Analysis):
         self.cache = cache
         self._variable_kb = clinic.variable_kb
         self._update_progress(70.0, text="Identifying regions")
+        self.vvar_id_start = clinic.vvar_id_start
 
         if clinic.graph is None:
             # the function is empty
@@ -219,6 +223,10 @@ class Decompiler(Analysis):
             ite_exprs=ite_exprs,
         )
 
+        # Rewrite the graph to remove phi expressions
+        # this is probably optional if we do not pretty-print clinic.graph
+        clinic.graph = self._transform_graph_from_ssa(clinic.graph)
+
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = remove_labels(clinic.copy_graph())
 
@@ -250,6 +258,10 @@ class Decompiler(Analysis):
             seq_node = self._run_post_structuring_simplification_passes(
                 seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
             )
+
+            # rewrite the sequence node to remove phi expressions
+            seq_node = self._transform_seqnode_from_ssa(seq_node)
+
             # update memory data
             if self._cfg is not None and self._update_memory_data:
                 self.find_data_references_and_update_memory_data(seq_node)
@@ -377,6 +389,7 @@ class Decompiler(Analysis):
                 variable_kb=self._variable_kb,
                 region_identifier=ri,
                 reaching_definitions=reaching_definitions,
+                vvar_id_start=self.vvar_id_start,
                 **kwargs,
             )
 
@@ -393,6 +406,8 @@ class Decompiler(Analysis):
                 cond_proc = ConditionProcessor(self.project.arch)
                 # always update RI on graph change
                 ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
+
+                self.vvar_id_start = a.vvar_id_start
 
         return ail_graph, self._recover_regions(ail_graph, ConditionProcessor(self.project.arch), update_graph=True)
 
@@ -488,7 +503,7 @@ class Decompiler(Analysis):
 
         return codegen
 
-    def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
+    def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
@@ -522,6 +537,14 @@ class Decompiler(Analysis):
         self._cfg.tidy_data_references(
             memory_data_addrs=added_memory_data_addrs,
         )
+
+    def _transform_graph_from_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        dephication = self.project.analyses.GraphDephication(self.func, ail_graph, rewrite=True)
+        return dephication.output
+
+    def _transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
+        dephication = self.project.analyses.SeqNodeDephication(self.func, seq_node, rewrite=True)
+        return dephication.output
 
     @staticmethod
     def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:

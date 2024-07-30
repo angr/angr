@@ -20,8 +20,8 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         operand_1 = self._expr(expr.operands[1])
 
         # x + x = 2*x
-        if type(operand_0) in [Expr.Convert, Expr.Register]:
-            if isinstance(operand_1, (Expr.Convert, Expr.Register)):
+        if type(operand_0) in [Expr.Convert, Expr.VirtualVariable]:
+            if isinstance(operand_1, (Expr.Convert, Expr.VirtualVariable)):
                 if operand_0 == operand_1:
                     count = Expr.Const(expr.idx, None, 2, operand_1.bits)
                     return Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
@@ -91,8 +91,8 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         operand_1 = self._expr(expr.operands[1])
 
         # x + x = 2*x
-        if type(operand_0) in [Expr.Convert, Expr.Register]:
-            if isinstance(operand_1, (Expr.Convert, Expr.Register)):
+        if type(operand_0) in [Expr.Convert, Expr.VirtualVariable]:
+            if isinstance(operand_1, (Expr.Convert, Expr.VirtualVariable)):
                 if operand_0 == operand_1:
                     count = Expr.Const(expr.idx, None, 0, 8)
                     new_expr = Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
