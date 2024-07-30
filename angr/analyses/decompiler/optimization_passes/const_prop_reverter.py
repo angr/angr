@@ -55,6 +55,7 @@ class PairAILBlockWalker:
             _default_stmt_handlers[type(stmt)](stmt_idx, stmt, block_)
             walked_objs[type(stmt)].add(stmt)
 
+        # pylint: disable=unused-argument
         def _handle_call_expr(expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block_):
             walked_objs[Call].add(expr)
 
@@ -205,20 +206,22 @@ class ConstPropOptReverter(OptimizationPass):
             and isinstance(const_expr, Call)
             and isinstance(const_expr.ret_expr, Register)
         ):
-            """
-            B0:
-            return foo();   // considered constant
-            B1:
-            return rax;     // considered symbolic
-
-            =>
-
-            B0:
-            rax = foo();
-            return rax;
-            B1:
-            return rax;
-            """
+            # Handles the following case
+            #   B0:
+            #   return foo();   // considered constant
+            #   B1:
+            #   return rax;     // considered symbolic
+            #
+            #   =>
+            #
+            #   B0:
+            #   rax = foo();
+            #   return rax;
+            #   B1:
+            #   return rax;
+            #
+            # This is useful later for merging the return.
+            #
             call_return_reg = const_expr.ret_expr
             if symb_expr.likes(call_return_reg):
                 symb_return_stmt = expr_to_blk[symb_expr].statements[-1]
@@ -256,7 +259,7 @@ class ConstPropOptReverter(OptimizationPass):
             return
 
         _l.debug(
-            "Found two calls at (%x, %x) that are similar. " "Attempting to resolve const args now...",
+            "Found two calls at (%x, %x) that are similar. Attempting to resolve const args now...",
             blk0.addr,
             blk1.addr,
         )
@@ -295,7 +298,9 @@ class ConstPropOptReverter(OptimizationPass):
                 const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
 
                 state_load_vals = const_state.get_value_from_atom(target_atom)
-            except Exception:
+            except AttributeError:
+                continue
+            except KeyError:
                 continue
 
             if not state_load_vals:
@@ -334,19 +339,6 @@ class ConstPropOptReverter(OptimizationPass):
         conflicts = {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
 
         return conflicts
-
-    #
-    # other handlers
-    #
-
-    def _handle_Assignment_pair(self, obj0, blk0, obj1, blk1):
-        pass
-
-    def _handle_Store_pair(self, obj0, blk0, obj1, blk1):
-        pass
-
-    def _handle_ConditionalJump_pair(self, obj0, blk0, obj1, blk1):
-        pass
 
     #
     # utils
