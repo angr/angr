@@ -239,6 +239,19 @@ class StackCanarySimplifier(OptimizationPass):
                 if isinstance(expr0, ailment.Expr.BinaryOp) and expr0.op == "Xor":
                     # a ^ b
                     op0, op1 = expr0.operands
+                    if isinstance(op0, ailment.Expr.VirtualVariable) and op0.was_reg:
+                        # maybe op0 holds the value of another stack variable, like the following:
+                        #
+                        # 00 | 0x404e75 | LABEL_404e75:
+                        # 01 | 0x404e75 | vvar_62{reg 16} = vvar_79{stack -64}
+                        # 02 | 0x404e7a | vvar_66{reg 16} = (vvar_62{reg 16} ^ Load(addr=(0x28<64> + vvar_31{reg 208}),
+                        #                 size=8, endness=Iend_LE))
+                        # 03 | 0x404e83 | if (((vvar_62{reg 16} ^ Load(addr=(0x28<64> + vvar_31{reg 208}), size=8,
+                        #                 endness=Iend_LE)) == 0x0<64>)) { Goto ... } else { Goto ... }
+                        op0_v = self._get_vvar_value(block, op0.varid)
+                        if isinstance(op0_v, ailment.Expr.VirtualVariable) and op0_v.was_stack:
+                            op0 = op0_v
+
                     if not (
                         self._is_stack_canary_load_expr(op0, self.project.arch.bits, canary_value_stack_offset)
                         and self._is_random_number_load_expr(op1, self.project.arch.get_register_offset("fs"))
@@ -300,3 +313,14 @@ class StackCanarySimplifier(OptimizationPass):
             and expr.addr.operands[1].was_reg
             and expr.addr.operands[1].reg_offset == fs_reg_offset
         )
+
+    @staticmethod
+    def _get_vvar_value(block: ailment.Block, vvar_id: int) -> ailment.Expression | None:
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.varid == vvar_id
+            ):
+                return stmt.src
+        return None
