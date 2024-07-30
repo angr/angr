@@ -1602,6 +1602,10 @@ class AILSimplifier(Analysis):
 
         vvar_used_by: dict[int, set[int]] = defaultdict(set)
         for var_id in phi_and_dirty_vvar_ids:
+            if var_id in rd.phivarid_to_varids:
+                for used_by_varid in rd.phivarid_to_varids[var_id]:
+                    vvar_used_by[used_by_varid].add(var_id)
+
             vvar = rd.varid_to_vvar[var_id]
             used_by = set()
             for used_vvar, loc in rd.all_vvar_uses[vvar]:
@@ -1630,6 +1634,17 @@ class AILSimplifier(Analysis):
         for scc in networkx.strongly_connected_components(g):
             if len(scc) == 1:
                 continue
+
+            bail = False
+            for varid in scc:
+                # ensure this vvar does not use anything else outside the scc
+                preds = list(g.predecessors(varid))
+                if any(pred_varid not in scc for pred_varid in preds):
+                    bail = True
+                    break
+            if bail:
+                continue
+
             if all(varid in phi_and_dirty_vvar_ids for varid in scc):
                 cyclic_dependent_phi_varids |= set(scc)
 
