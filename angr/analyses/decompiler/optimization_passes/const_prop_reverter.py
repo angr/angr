@@ -150,6 +150,7 @@ class ConstPropOptReverter(OptimizationPass):
         self.rd = reaching_definitions
         super().__init__(func, **kwargs)
 
+        self._call_pair_targets = []
         self.resolution = False
         self.analyze()
 
@@ -171,11 +172,75 @@ class ConstPropOptReverter(OptimizationPass):
 
         walker = PairAILBlockWalker(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
         walker.walk()
+        if self._call_pair_targets:
+            self._analyze_call_pair_targets()
 
         if not self.resolution:
             self.out_graph = None
         else:
             self.out_graph = add_labels(self.out_graph)
+
+    def _analyze_call_pair_targets(self):
+        all_obs_points = []
+        for _, observation_points in self._call_pair_targets:
+            all_obs_points.extend(observation_points)
+
+        self.rd = self.project.analyses.ReachingDefinitions(subject=self._func, observation_points=all_obs_points)
+
+        for (call0, blk0, call1, blk1, arg_conflicts), _ in self._call_pair_targets:
+            # attempt to do constant resolution for each argument that differs
+            for i, args in arg_conflicts.items():
+                a0, a1 = args[:]
+                calls = {a0: call0, a1: call1}
+                blks = {call0: blk0, call1: blk1}
+
+                # we can only resolve two arguments where one is constant and one is symbolic
+                const_arg = None
+                sym_arg = None
+                for arg in calls:
+                    if isinstance(arg, Const) and const_arg is None:
+                        const_arg = arg
+                    elif not isinstance(arg, Const) and sym_arg is None:
+                        sym_arg = arg
+
+                if const_arg is None or sym_arg is None:
+                    continue
+
+                unwrapped_sym_arg = sym_arg.operands[0] if isinstance(sym_arg, Convert) else sym_arg
+                try:
+                    # TODO: make this support more than just Loads
+                    # target must be a Load of a memory location
+                    target_atom = MemoryLocation(unwrapped_sym_arg.addr.value, unwrapped_sym_arg.size, "Iend_LE")
+                    const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
+
+                    state_load_vals = const_state.get_value_from_atom(target_atom)
+                except AttributeError:
+                    continue
+                except KeyError:
+                    continue
+
+                if not state_load_vals:
+                    continue
+
+                state_vals = list(state_load_vals.values())
+                # the symbolic variable MUST resolve to only a single value
+                if len(state_vals) != 1:
+                    continue
+
+                state_val = list(state_vals[0])[0]
+                if hasattr(state_val, "concrete") and state_val.concrete:
+                    const_value = claripy.Solver().eval(state_val, 1)[0]
+                else:
+                    continue
+
+                if not const_value == const_arg.value:
+                    continue
+
+                _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
+                const_call = calls[const_arg]
+                const_arg_i = const_call.args.index(const_arg)
+                const_call.args[const_arg_i] = sym_arg
+                self.resolution = True
 
     #
     # Handle Similar Returns
@@ -282,66 +347,10 @@ class ConstPropOptReverter(OptimizationPass):
         )
 
         # destroy old ReachDefs, since we need a new one
-        self.rd = None
         observation_points = ("node", blk0.addr, OP_BEFORE), ("node", blk1.addr, OP_BEFORE)
 
-        # attempt to do constant resolution for each argument that differs
-        for i, args in arg_conflicts.items():
-            a0, a1 = args[:]
-            calls = {a0: call0, a1: call1}
-            blks = {call0: blk0, call1: blk1}
-
-            # we can only resolve two arguments where one is constant and one is symbolic
-            const_arg = None
-            sym_arg = None
-            for arg in calls:
-                if isinstance(arg, Const) and const_arg is None:
-                    const_arg = arg
-                elif not isinstance(arg, Const) and sym_arg is None:
-                    sym_arg = arg
-
-            if const_arg is None or sym_arg is None:
-                continue
-
-            if self.rd is None:
-                self.rd = self.project.analyses.ReachingDefinitions(
-                    subject=self._func, observation_points=observation_points
-                )
-            unwrapped_sym_arg = sym_arg.operands[0] if isinstance(sym_arg, Convert) else sym_arg
-            try:
-                # TODO: make this support more than just Loads
-                # target must be a Load of a memory location
-                target_atom = MemoryLocation(unwrapped_sym_arg.addr.value, unwrapped_sym_arg.size, "Iend_LE")
-                const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
-
-                state_load_vals = const_state.get_value_from_atom(target_atom)
-            except AttributeError:
-                continue
-            except KeyError:
-                continue
-
-            if not state_load_vals:
-                continue
-
-            state_vals = list(state_load_vals.values())
-            # the symbolic variable MUST resolve to only a single value
-            if len(state_vals) != 1:
-                continue
-
-            state_val = list(state_vals[0])[0]
-            if hasattr(state_val, "concrete") and state_val.concrete:
-                const_value = claripy.Solver().eval(state_val, 1)[0]
-            else:
-                continue
-
-            if not const_value == const_arg.value:
-                continue
-
-            _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
-            const_call = calls[const_arg]
-            const_arg_i = const_call.args.index(const_arg)
-            const_call.args[const_arg_i] = sym_arg
-            self.resolution = True
+        # do full analysis after collecting all calls in _analyze
+        self._call_pair_targets.append(((call0, blk0, call1, blk1, arg_conflicts), observation_points))
 
     @staticmethod
     def find_conflicting_call_args(call0: Call, call1: Call):
