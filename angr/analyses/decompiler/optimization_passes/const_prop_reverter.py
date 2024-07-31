@@ -9,7 +9,7 @@ from ailment.block_walker import AILBlockWalkerBase
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
 from ailment.expression import Convert, Register
 
-from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .optimization_pass import OptimizationPass, OptimizationPassStage, SAILRStructurer
 from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
 from ....knowledge_plugins.key_definitions.constants import OP_BEFORE
 
@@ -140,6 +140,7 @@ class ConstPropOptReverter(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
+    STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Revert Constant Propagation Optimizations"
     DESCRIPTION = __doc__.strip()

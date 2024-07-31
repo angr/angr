@@ -30,7 +30,7 @@ from angr.analyses.decompiler.optimization_passes import (
     ReturnDuplicatorHigh,
 )
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
-from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
+from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.misc.testing import is_testing
 from angr.utils.library import convert_cproto_to_py
@@ -90,6 +90,10 @@ def for_all_structuring_algos(func):
         ret_vals = []
         structurer_option = get_structurer_option()
         for structurer in STRUCTURER_CLASSES:
+            # skip Phoenix since SAILR supersedes it and is a subclass
+            if structurer == PhoenixStructurer.NAME:
+                continue
+
             new_opts = orig_opts + [(structurer_option, structurer)]
             ret_vals.append(func(*args, decompiler_options=new_opts, **kwargs))
 
@@ -801,7 +805,7 @@ class TestDecompiler(unittest.TestCase):
                 assert "strlen(" in line
                 assert line.count("strlen") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompilation_call_expr_folding_into_if_conditions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -823,7 +827,7 @@ class TestDecompiler(unittest.TestCase):
         )
         assert m is not None
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompilation_stat_human_fstype(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -845,7 +849,7 @@ class TestDecompiler(unittest.TestCase):
         assert "switch (" in d.codegen.text
         assert "if (" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompilation_stat_human_fstype_no_eager_returns(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -868,7 +872,7 @@ class TestDecompiler(unittest.TestCase):
         assert "break;" in d.codegen.text
         assert "if (" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompilation_stat_human_fstype_eager_returns_before_lowered_switch_simplifier(
         self, decompiler_options=None
     ):
@@ -1669,7 +1673,7 @@ class TestDecompiler(unittest.TestCase):
         assert "if (timespec_cmp(" in dec.codegen.text or "if ((int)timespec_cmp(" in dec.codegen.text
         assert "&& localtime_rz(localtz, " in dec.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_cascading_boolean_and(self, decompiler_options=None):
         # test binary contributed by zion
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_cascading_boolean_and")
@@ -1805,7 +1809,7 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("if (!v0)") == 3 or d.codegen.text.count("if (v0)") == 3
         assert d.codegen.text.count("break;") > 0
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_setb(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "basenc")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -1942,7 +1946,7 @@ class TestDecompiler(unittest.TestCase):
             assert "0;" in d.codegen.text
             assert "-1;" in d.codegen.text or "4294967295" in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_split_lines_split(self, decompiler_options=None):
         # Region identifier's fine-tuned loop refinement logic ensures there is only one goto statement in the
         # decompilation output.
@@ -1958,7 +1962,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("goto ") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_ptx_fix_output_parameters(self, decompiler_options=None):
         # the carefully tuned edge sorting logic in Phoenix's last_resort_refinement ensures that there are one or two
         # goto statements in this function.
@@ -1974,7 +1978,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert len(list(re.findall(r"LABEL_[^;:]+:", d.codegen.text))) in {1, 2}
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_dd_advance_input_after_read_error(self, decompiler_options=None):
         # incorrect _unify_local_variables logic was creating incorrectly simplified logic:
         #
@@ -1998,7 +2002,7 @@ class TestDecompiler(unittest.TestCase):
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
         assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=[^\n]*input_seek_errno[^\n]*;", condensed)
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_dd_iwrite(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2013,7 +2017,7 @@ class TestDecompiler(unittest.TestCase):
         assert "amd64g_calculate_condition" not in d.codegen.text  # we should rewrite the ccall to expr == 0
         assert "a1 == a1" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_uname_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "uname.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2046,7 +2050,7 @@ class TestDecompiler(unittest.TestCase):
         assert len(proj.kb.functions["xstrtol"].prototype.args) == 5
         assert re.search(r"xstrtol\([^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+\)", d.codegen.text) is not None
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_rewrite_negated_cascading_logical_conjunction_expressions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2084,7 +2088,7 @@ class TestDecompiler(unittest.TestCase):
         assert "finish_and_exit(" in d.codegen.text
         assert "goto" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_sort_specify_nmerge(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sort.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2096,7 +2100,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_ls_print_many_per_line(self, decompiler_options=None):
         # complex variable types involved. a struct with only one field was causing _access() in
         # CStructuredCodeGenerator to end up in an infinite loop.
@@ -2112,7 +2116,7 @@ class TestDecompiler(unittest.TestCase):
         assert "calculate_columns(" in d.codegen.text
         assert "putchar_unlocked(eolbyte)" in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_who_condensing_opt_reversion(self, decompiler_options=None):
         """
         This testcase verifies that all the Irreducible Statement Condensing (ISC) optimizations are reverted by
@@ -2135,7 +2139,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("goto ") == 0
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_tr_build_spec_list(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2161,7 +2165,7 @@ class TestDecompiler(unittest.TestCase):
         # this goto may go away in the future if the loops are structured correctly
         assert d.codegen.text.count("goto LABEL_400d2a;") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sha384sum-digest.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2195,7 +2199,7 @@ class TestDecompiler(unittest.TestCase):
         assert "return " in d.codegen.text
         assert "stack_chk_fail" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_tr_card_of_complement(self, decompiler_options=None):
         # this function has a single-block loop (rep stosq). make sure we handle properly without introducing gotos.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
@@ -2212,7 +2216,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         assert "goto " not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_printenv_main(self, decompiler_options=None):
         # when a subgraph inside a loop cannot be structured, instead of entering last-resort refinement, we should
         # return the subgraph and let structuring resume with the knowledge of the loop.
@@ -2243,7 +2247,7 @@ class TestDecompiler(unittest.TestCase):
         comma_count = cgc_allocate_call.group(1).count(",")
         assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_reverting_switch_lowering_cksum_digest_print_filename(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2266,7 +2270,7 @@ class TestDecompiler(unittest.TestCase):
         assert "default:" in d.codegen.text
         assert "goto" not in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_reverting_switch_lowering_cksum_digest_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2285,7 +2289,7 @@ class TestDecompiler(unittest.TestCase):
         assert "case 4294967165:" in d.codegen.text
         assert "case 4294967166:" in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_reverting_switch_lowering_filename_unescape(self, decompiler_options=None):
         # nested switch-cases
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "b2sum-digest.o")
@@ -2314,7 +2318,7 @@ class TestDecompiler(unittest.TestCase):
         # switch-cases into break nodes.
         # assert d.codegen.text.count("break;") == 5
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_cat_main(self, decompiler_options=None):
         # nested switch-cases
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cat.o")
@@ -2336,7 +2340,7 @@ class TestDecompiler(unittest.TestCase):
             "> 118" not in d.codegen.text and ">= 119" not in d.codegen.text
         )  # > 118 (>= 119) goes to the default case
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_cat_main_no_endpoint_dup(self, decompiler_options=None):
         # nested switch-cases
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cat.o")
@@ -2369,7 +2373,7 @@ class TestDecompiler(unittest.TestCase):
         assert "case 117:" in d.codegen.text
         assert "case 118:" in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):
         # nested switch-cases
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "whoami.o")
@@ -2454,7 +2458,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_continuous_small_switch_cluster(self, decompiler_options=None):
         # In this sample, main contains a switch statement that gets split into one large normal switch
         # (a jump table in assembly) and a small if-tree of 3 cases. The if-tree should be merged into the
@@ -2481,7 +2485,7 @@ class TestDecompiler(unittest.TestCase):
         assert text.count("case -131:") == 1
 
     @slow_test
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_eager_returns_simplifier_no_duplication_of_default_case(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2511,7 +2515,7 @@ class TestDecompiler(unittest.TestCase):
         # ensure there are no empty scopes
         assert "{}" not in d.codegen.text.replace(" ", "").replace("\n", "")
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_od_else_simplification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od_gccO2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2537,7 +2541,7 @@ class TestDecompiler(unittest.TestCase):
         # the first if in the program should have no else, and that first else should be a simple return
         assert first_if_location == good_if.start()
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_sensitive_eager_returns(self, decompiler_options=None):
         """
         Tests the feature to stop eager returns from triggering on return sites that have
@@ -2620,7 +2624,7 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         assert re.search(r"\[read_packet\([^)]*\)\] = 0;", text) is not None
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ifelsesimplifier_insert_node_into_while_body(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/4082
 
@@ -2896,7 +2900,7 @@ class TestDecompiler(unittest.TestCase):
         #     return;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_numfmt_process_field(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "numfmt.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2952,7 +2956,7 @@ class TestDecompiler(unittest.TestCase):
         d = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         assert cproto in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_multistatementexpression_od_read_char(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od.o")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -3027,7 +3031,7 @@ class TestDecompiler(unittest.TestCase):
         assert "extern" not in text
         assert "std::rt::lang_start::h9b2e0b6aeda0bae0(rust_hello_world::main::h932c4676a11c63c3" in text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_remove_rm_fts(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "remove.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3056,7 +3060,7 @@ class TestDecompiler(unittest.TestCase):
         # proper propagation
         assert lines[1].strip(" ").startswith("if (")
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_incorrect_duplication_chcon_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "chcon.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3073,7 +3077,7 @@ class TestDecompiler(unittest.TestCase):
         # loops. In the original source, there is only a single while loop.
         assert d.codegen.text.count("while (") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_function_with_long_cascading_data_flows(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3100,7 +3104,7 @@ class TestDecompiler(unittest.TestCase):
         assert rol_count == 44
         assert ror_count == 20
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_function_with_inline_unicode_strings(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "aaba7db353eb9400e3471eaaa1cf0105f6d1fab0ce63f1a2665c8ba0e8963a05.bin"
@@ -3117,7 +3121,7 @@ class TestDecompiler(unittest.TestCase):
         assert 'L"\\\\Registry\\\\Machine\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\WinApi"' in d.codegen.text
         assert 'L"WinDeviceAddress"' in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ifelseflatten_iplink_bridge(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "iplink_bridge.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3145,7 +3149,7 @@ class TestDecompiler(unittest.TestCase):
         assert first_if_location == good_if_return.start()
         assert not text[first_if_location + len(good_if_return.group(0)) :].startswith("    else")
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ifelseflatten_gzip(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "gzip.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3166,7 +3170,7 @@ class TestDecompiler(unittest.TestCase):
         first_correct_if = correct_ifs[0]
         assert first_correct_if.start() == first_if_location
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ifelseflatten_iprule(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "iprule.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3192,7 +3196,7 @@ class TestDecompiler(unittest.TestCase):
         first_correct_if = correct_ifs[0]
         assert first_correct_if.start() == first_if_location
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ifelseflatten_clientloop(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "clientloop.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3220,7 +3224,7 @@ class TestDecompiler(unittest.TestCase):
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ifelseflatten_certtool_common(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "certtool-common.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3249,7 +3253,7 @@ class TestDecompiler(unittest.TestCase):
         # bad_matches = re.findall(r'\bif\s*\(\s*[^!].*\)', text)
         # assert len(bad_matches) == 0
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_tr_O2_parse_str(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr_O2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3263,7 +3267,7 @@ class TestDecompiler(unittest.TestCase):
         line_count = d.codegen.text.count("\n")
         assert line_count > 20  # there should be at least 20 lines of code. it was failing structuring
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_sioctl_140005250(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "sioctl.sys")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3406,7 +3410,7 @@ class TestDecompiler(unittest.TestCase):
         assert "-1" in text
         assert "16" in text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_infinite_loop_arm(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "aarch64", "decompiler", "test_inf_loop_arm")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3418,7 +3422,7 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen is not None
         assert "while (true)" in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ail_graph_access(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3444,7 +3448,7 @@ class TestDecompiler(unittest.TestCase):
         )
         assert unopt_rets < opt_rets
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_cancel_sys_incorrect_memory_write_removal(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "cancel.sys")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3481,7 +3485,7 @@ class TestDecompiler(unittest.TestCase):
         )
         assert m0 is not None or m1 is not None
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_less_ret_dupe_gs_data_processor(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "gs_data_processor")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3494,7 +3498,7 @@ class TestDecompiler(unittest.TestCase):
         text = text.replace("4294967295", "-1")
         assert text.count("return -1;") <= 2
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_phoenix_last_resort_refinement_on_region_with_multiple_successors(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "1179ea5ceedaa1ae4014666f42a20e976701d61fe52f1e126fc78066fddab4b7.exe"
@@ -3508,7 +3512,7 @@ class TestDecompiler(unittest.TestCase):
         # should not crash!
         assert text.count("407710288") == 1 or text.count("0x184d2a50") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_hostname_bad_mem_read(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "hostname")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3519,7 +3523,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen is not None
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_incorrect_function_argument_unification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "liblzma.so.5.6.1")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3531,7 +3535,7 @@ class TestDecompiler(unittest.TestCase):
         # should not simplify away the bitwise-or operation
         assert text.count(" |= ") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_simplifying_string_transformation_loops(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "cancel.sys")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3545,7 +3549,7 @@ class TestDecompiler(unittest.TestCase):
         assert "wstrncpy(" in d.codegen.text
         assert "ObMakeTemporaryObject" in d.codegen.text
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ite_region_converter_missing_break_statement(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/4574
         bin_path = os.path.join(test_location, "x86_64", "ite_region_converter_missing_breaks")
@@ -3565,7 +3569,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("break;") == 2
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_ternary_expression_over_propagation(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/4573
         bin_path = os.path.join(test_location, "x86_64", "ite_region_converter_missing_breaks")

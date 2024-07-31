@@ -4,6 +4,7 @@ import logging
 from ailment import Block
 from ailment.statement import ConditionalJump, Return
 
+from ..structuring import SAILRStructurer, DreamStructurer
 from ....utils.graph import subgraph_between_nodes
 from ..utils import remove_labels, to_ail_supergraph, update_labels
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -28,6 +29,7 @@ class ReturnDeduplicator(OptimizationPass):
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Deduplicates return statements that may have been duplicated"
     DESCRIPTION = __doc__.strip()
+    STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

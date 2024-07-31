@@ -12,7 +12,7 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
-from angr.utils.graph import GraphUtils, TemporaryNode, PostDominators
+from angr.utils.graph import GraphUtils
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges
@@ -24,7 +24,6 @@ from ..utils import (
     is_empty_or_label_only_node,
     has_nonlabel_statements,
     first_nonlabel_statement,
-    structured_node_is_simple_return,
 )
 from ..call_counter import AILCallCounter
 from .structurer_nodes import (
@@ -84,7 +83,7 @@ class PhoenixStructurer(StructurerBase):
         func: Optional["Function"] = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
-        improve_structurer=True,
+        improve_algorithm=False,
         use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.MAX_ONE_CALL,
         **kwargs,
     ):
@@ -95,7 +94,6 @@ class PhoenixStructurer(StructurerBase):
             func=func,
             case_entry_to_switch_head=case_entry_to_switch_head,
             parent_region=parent_region,
-            improve_structurer=improve_structurer,
             **kwargs,
         )
 
@@ -112,13 +110,17 @@ class PhoenixStructurer(StructurerBase):
         # absorbed into other SequenceNodes
         self.dowhile_known_tail_nodes: set = set()
 
-        self._phoenix_improved = self._improve_structurer
+        # in reimplementing the core phoenix algorithm from the phoenix decompiler paper, two types of changes were
+        # made to the algorithm:
+        # 1. Mandatory fixes to correct flaws we found in the algorithm
+        # 2. Optional fixes to improve the results of already correct choices
+        #
+        # the improve_algorithm flag controls whether the optional fixes are applied. these are disabled by default
+        # to be as close to the original algorithm as possible. for best results, enable this flag.
+        self._improve_algorithm = improve_algorithm
         self._edge_virtualization_hints = []
 
         self._use_multistmtexprs = use_multistmtexprs
-        if not self._phoenix_improved:
-            self._use_multistmtexprs = MultiStmtExprMode.NEVER
-
         self._analyze()
 
     @staticmethod
@@ -246,7 +248,7 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_jumps_to_continues(loop_node.sequence_node, loop_node=loop_node)
             return True
 
-        if self._phoenix_improved:
+        if self._improve_algorithm:
             matched, loop_node, successor_node = self._match_cyclic_while_with_single_successor(
                 node, head, graph, full_graph
             )
@@ -379,7 +381,7 @@ class PhoenixStructurer(StructurerBase):
 
                             return True, loop_node, right
 
-                if self._phoenix_improved:
+                if self._improve_algorithm:
                     if full_graph.out_degree[node] == 1:
                         # while (true) { ...; if (...) break; }
                         _, _, head_block = self._find_node_going_to_dst(node, left, condjump_only=True)
@@ -498,7 +500,7 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_last_statement_if_jump(succ)
                             drop_succ = False
 
-                            if self._phoenix_improved:
+                            if self._improve_algorithm:
                                 # absorb the entire succ block if possible
                                 if self._is_sequential_statement_block(succ) and self._should_use_multistmtexprs(succ):
                                     stmts = self._build_multistatementexpr_statements(succ)
@@ -1004,7 +1006,7 @@ class PhoenixStructurer(StructurerBase):
             any_matches |= matched
             if matched:
                 break
-            if self._phoenix_improved:
+            if self._improve_algorithm:
                 l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
                 matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
                 l.debug("... matched: %s", matched)
@@ -2108,7 +2110,7 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: networkx.DiGraph | None) -> bool:
-        if self._phoenix_improved:
+        if self._improve_algorithm:
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
                 if graph.has_edge(src, dst):
@@ -2229,6 +2231,15 @@ class PhoenixStructurer(StructurerBase):
             remove_last_statement(src)
 
     def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
+        """
+        The original Phoenix algorithm had no support for multi-stmt expressions, such as the following:
+        if ((x = y) && z) { ... }
+
+        There are multiple levels at which multi-stmt expressions can be used. If the Phoenix algorith is not not
+        set to be in improved mode, then we should not use multi-stmt expressions at all.
+        """
+        if not self._improve_algorithm:
+            return False
         if self._use_multistmtexprs == MultiStmtExprMode.NEVER:
             return False
         if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
@@ -2507,79 +2518,7 @@ class PhoenixStructurer(StructurerBase):
         Returns a list of edges that are ordered by the best edges to virtualize first.
         The criteria for "best" is defined by a variety of heuristics described below.
         """
-        if len(edges) <= 1:
-            return edges
-
-        # TODO: the graph we have here is not an accurate graph and can have no "entry node". We need a better graph.
-        try:
-            entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
-        except IndexError:
-            entry_node = None
-
-        best_edges = edges
-        if self._phoenix_improved and entry_node is not None:
-            # the first few heuristics are based on the post-dominator count of the edge
-            # so we collect them for each candidate edge
-            edge_postdom_count = {}
-            edge_sibling_count = {}
-            for edge in edges:
-                _, dst = edge
-                graph_copy = networkx.DiGraph(graph)
-                graph_copy.remove_edge(*edge)
-                sibling_cnt = graph_copy.in_degree(dst)
-                if sibling_cnt == 0:
-                    continue
-
-                edge_sibling_count[edge] = sibling_cnt
-                post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
-                post_doms = set()
-                for postdom_node, dominatee in post_dom_graph.edges():
-                    if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
-                        post_doms.add((postdom_node, dominatee))
-                edge_postdom_count[edge] = len(post_doms)
-
-                # H1: the edge that has the least amount of sibling edges should be virtualized first
-                # this is believed to reduce the amount of virtualization needed in future rounds and increase
-                # the edges that enter a single outer-scope if-stmt
-                if edge_sibling_count:
-                    min_sibling_count = min(edge_sibling_count.values())
-                    best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
-                    if len(best_edges) == 1:
-                        return best_edges
-
-                    # create the next heuristic based on the best edges from the previous heuristic
-                    filtered_edge_postdom_count = edge_postdom_count.copy()
-                    for edge in list(edge_postdom_count.keys()):
-                        if edge not in best_edges:
-                            del filtered_edge_postdom_count[edge]
-                    if filtered_edge_postdom_count:
-                        edge_postdom_count = filtered_edge_postdom_count
-
-                # H2: the edge, when removed, that causes the most post-dominators of the graph should be virtualized
-                # first. this is believed to make the code more linear looking be reducing the amount of scopes.
-                # informally, we believe post-dominators to be an inverse indicator of the number of scopes present
-                if edge_postdom_count:
-                    max_postdom_count = max(edge_postdom_count.values())
-                    best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_postdom_count]
-                    if len(best_edges) == 1:
-                        return best_edges
-
-                # H3: the edge that goes directly to a return statement should be virtualized first
-                # this is believed to be good because it can be corrected in later optimization by duplicating
-                # the return
-                candidate_edges = best_edges
-                best_edges = []
-                for src, dst in candidate_edges:
-                    if graph.has_node(dst) and structured_node_is_simple_return(dst, graph):
-                        best_edges.append((src, dst))
-
-                if len(best_edges) == 1:
-                    return best_edges
-                elif not best_edges:
-                    best_edges = candidate_edges
-
-        # if we have another tie, or we never used improved heuristics, then we do the chick_order.
-        return PhoenixStructurer._chick_order_edges(best_edges, node_seq)
+        return PhoenixStructurer._chick_order_edges(edges, node_seq)
 
     @staticmethod
     def _chick_order_edges(edges: list, node_seq: dict[Any, int]) -> list:

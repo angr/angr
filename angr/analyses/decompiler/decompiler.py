@@ -14,7 +14,7 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
-from .structuring import RecursiveStructurer, PhoenixStructurer
+from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
@@ -146,8 +146,9 @@ class Decompiler(Analysis):
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
-            self._recursive_structurer_params["structurer_cls"] = PhoenixStructurer
-        if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
+            self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
+        # is the algorithm based on Phoenix (a schema-based algorithm)?
+        if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
             self._complete_successors = True
             fold_callexprs_into_conditions = True
