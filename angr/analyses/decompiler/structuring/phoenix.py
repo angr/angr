@@ -2502,7 +2502,7 @@ class PhoenixStructurer(StructurerBase):
                 break
         return None
 
-    def _order_virtualizable_edges(self, graph: networkx.DiGraph, edges: List, node_seq: Dict[Any, int]) -> List:
+    def _order_virtualizable_edges(self, graph: networkx.DiGraph, edges: list, node_seq: dict[Any, int]) -> list:
         """
         Returns a list of edges that are ordered by the best edges to virtualize first.
         The criteria for "best" is defined by a variety of heuristics described below.
