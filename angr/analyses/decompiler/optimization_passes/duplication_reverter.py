@@ -11,7 +11,7 @@ import networkx as nx
 import ailment
 from ailment import AILBlockWalkerBase
 from ailment.block import Block
-from ailment.statement import Statement, ConditionalJump, Jump, Assignment
+from ailment.statement import Statement, ConditionalJump, Jump, Assignment, Return, Label
 from ailment.expression import Const, Register, Convert, BinaryOp, Expression
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -1188,8 +1188,11 @@ def remove_redundant_jumps(graph: nx.DiGraph):
                         continue
 
                     # remove the outdated successor edge
-                    outdated_blk = [blk for blk in target_successors if blk.addr != last_stmt.true_target.value][0]
+                    outdated_blks = [blk for blk in target_successors if blk.addr != last_stmt.true_target.value]
+                    if len(outdated_blks) != 1:
+                        continue
 
+                    outdated_blk = outdated_blks[0]
                     graph.remove_edge(target_blk, outdated_blk)
                     l.info(f"Removing simple redundant jump/cond: {(target_blk, outdated_blk)}")
                     # restart the search because we fixed edges
@@ -1287,19 +1290,10 @@ class DuplicationReverter(OptimizationPass):
         Entry analysis routine that will trigger the other analysis stages
         XXX: when in evaluation: stop_if_more_goto=True so that we never emit more gotos than we originally had
         """
-        if _DEBUG:
-            try:
-                self.deduplication_analysis(max_fix_attempts=30)
-            except StructuringError:
-                l.critical(f"Structuring failed! This function {self.target_name} is dead in the water!")
-        else:
-            try:
-                self.deduplication_analysis(max_fix_attempts=30)
-            except StructuringError:
-                l.critical(f"Structuring failed! This function {self.target_name} is dead in the water!")
-            except Exception as e:
-                l.critical(f"Encountered an error while de-duplicating on {self.target_name}: {e}")
-                self.out_graph = None
+        try:
+            self.deduplication_analysis(max_fix_attempts=30)
+        except StructuringError:
+            l.critical(f"Structuring failed! This function {self.target_name} is dead in the water!")
 
         if self.out_graph is not None:
             output_graph = True
@@ -1775,6 +1769,19 @@ class DuplicationReverter(OptimizationPass):
     def create_merged_subgraph(self, blocks, graph: nx.DiGraph) -> AILMergeGraph:
         # Before creating a full graph LCS, optimize the common seq between the starting blocks
         blocks = list(self.maximize_similarity_of_blocks(blocks[0], blocks[1], graph))
+
+        # Eliminate all cases that may only have returns (we should do that in a later pass)
+        all_only_returns = True
+        for block in blocks:
+            for stmt in block.statements:
+                if not isinstance(stmt, (Return, Label)):
+                    all_only_returns = False
+                    break
+            if not all_only_returns:
+                break
+        if all_only_returns:
+            self.candidate_blacklist.add(tuple(blocks))
+            raise SAILRSemanticError("Both blocks only contain returns, this analysis must skip it")
 
         # Traverse both blocks subgraphs within the original graph and find the longest common AIL sequence.
         # Use one of the blocks subraphs to construct the top-half of the new merged graph that contains no inserted

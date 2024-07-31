@@ -30,6 +30,7 @@ from angr.analyses.decompiler.optimization_passes import (
     InlinedStringTransformationSimplifier,
     ReturnDuplicatorLow,
     ReturnDuplicatorHigh,
+    DuplicationReverter,
 )
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
@@ -3263,6 +3264,27 @@ class TestDecompiler(unittest.TestCase):
         # assert len(bad_matches) == 0
 
     @structuring_algo("sailr")
+    def test_sort_zaptemp_if_choices(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sort.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["zaptemp"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert text.count("goto") == 0
+
+        total_ifs = text.count("if")
+        # TODO: there should actually be only **3** in the source, however, we fail for-loop recovery
+        #   in the future we should fix this case to recover for-loop from while.
+        assert total_ifs <= 4
+
+        null_if_cases = re.findall(r"if \(!*v\d\)", text)
+        assert len(null_if_cases) == 1
+
+    @structuring_algo("phoenix")
     def test_decompiling_tr_O2_parse_str(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr_O2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3634,7 +3656,12 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["main"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux", disable_opts={DuplicationReverter}
+        )
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3684,7 +3711,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.Decompiler(func=function, cfg=cfg)
 
     @structuring_algo("phoenix")
-    def test_sailr_motivating_example(self, decompiler_options):
+    def test_sailr_motivating_example(self, decompiler_options=None):
         # The testcase is taken directly from the motivating example of the USENIX 2024 paper SAILR.
         # When working, this testcase should test the following deoptimizations:
         # - ISD (de-duplication)
@@ -3715,6 +3742,55 @@ class TestDecompiler(unittest.TestCase):
         assert text.count("LABEL") == 2
 
         assert text.count("refresh_jobs") == 1
+
+    @structuring_algo("phoenix")
+    def test_true_a_graph_deduplication(self, decompiler_options=None):
+        # This testcases tests DuplicationReverter fixes a region with a duplicated graph.
+        # The binary, true_a, is a special version of true that was compiled from coreutils v8 or so.
+        # In this version, true came with the function `get_charset_aliases`, compiled into the binary.
+        # A copy of that source can be found here:
+        # https://sources.debian.org/src/coreutils/8.26-3/lib/localcharset.c/#L124
+        #
+        # This testcase validates that we get as close as possible to the original source by removing the duplicated
+        # graph which includes two mallocs. Other regions are deduplicated but are tested haphazardly.
+        bin_path = os.path.join(test_location, "x86_64", "true_a")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x404410]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert text.count("malloc") == 2
+        # TODO: there is som inconsistency in generating the conditions to bound the successors of this region
+        #   so this can most-likely be re-enabled with virtual variable insertion
+        # assert text.count("sub_404860") == 1
+
+    @structuring_algo("phoenix")
+    def test_deduplication_too_sensitive_split_3(self, decompiler_options=None):
+        # This tests the deduplicator goto-trigger is not too sensitive. In this binary there is duplicate assignment
+        # that was legit written by the programmer. It so happens to be close to a goto, which used to trigger this opt
+        # to remove it and cause more gotos. Therefore, this should actually never result in a successful fixup of the
+        # assignment.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["split_3"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # If this testcase should fail in finding this assignment in the decompilation than do a search for
+        # anywhere that algorithm_bits is used. It's possible we messed up the regex here.
+        # What we are looking for is that the use of this value is used at least 3 times.
+        assign_vars = re.findall("(v[0-9]{1,2}) = .*algorithm_bits.*;", text)
+        assert len(assign_vars) == 1
+        assign_var = assign_vars[0]
+
+        assert text.count(f"digest_length = {assign_var};") >= 3
 
 
 if __name__ == "__main__":
