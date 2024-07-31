@@ -33,6 +33,9 @@ class SAILRStructurer(PhoenixStructurer):
         )
 
     def _order_virtualizable_edges(self, graph: networkx.DiGraph, edges: list, node_seq: dict[Any, int]) -> list:
+        """
+        The criteria for "best" is defined by a variety of heuristics described below.
+        """
         if len(edges) <= 1:
             return edges
 

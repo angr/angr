@@ -30,7 +30,7 @@ from angr.analyses.decompiler.optimization_passes import (
     ReturnDuplicatorHigh,
 )
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
-from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer
+from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.misc.testing import is_testing
 from angr.utils.library import convert_cproto_to_py
@@ -1925,7 +1925,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert "faccessat(" in d.codegen.text
         if decompiler_options:
-            if decompiler_options[-1][-1] == "phoenix":
+            if decompiler_options[-1][-1] == SAILRStructurer.NAME:
                 # make sure there is one label
                 all_labels = set()
                 all_gotos = set()
