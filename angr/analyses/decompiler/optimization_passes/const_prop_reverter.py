@@ -12,7 +12,9 @@ from ailment.expression import Convert, Register, Expression
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 from ..structuring import SAILRStructurer, DreamStructurer
-from .optimization_pass import OptimizationPass, OptimizationPassStage, SAILRStructurer
+from .optimization_pass import OptimizationPass, OptimizationPassStage
+from ..structuring import SAILRStructurer
+from ..utils import remove_labels, add_labels
 from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
 from ....knowledge_plugins.key_definitions.constants import OP_BEFORE
 
