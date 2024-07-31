@@ -1,7 +1,7 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 from typing import Any, DefaultDict, Optional, TYPE_CHECKING
 from collections import OrderedDict as ODict
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from enum import Enum
 import logging
 
@@ -1309,7 +1309,7 @@ class PhoenixStructurer(StructurerBase):
         graph,
         full_graph,
     ) -> tuple[ODict, Any, set[Any]]:
-        cases: ODict[int | tuple[int], SequenceNode] = OrderedDict()
+        cases: ODict[int | tuple[int], SequenceNode] = ODict()
         to_remove = set()
 
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
@@ -2324,7 +2324,6 @@ class PhoenixStructurer(StructurerBase):
                     walker.block_id += 1
                 if _check(block.nodes[-1].statements[-1]):
                     walker.parent_and_block.append((walker.block_id, parent, block))
-                    return
 
         def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             walker.block_id += 1
@@ -2335,7 +2334,6 @@ class PhoenixStructurer(StructurerBase):
             ):
                 # FIXME: idx is ignored
                 walker.parent_and_block.append((walker.block_id, parent, break_node))
-                return
 
         walker = SequenceWalker(
             handlers={
@@ -2513,6 +2511,7 @@ class PhoenixStructurer(StructurerBase):
                 break
         return None
 
+    # pylint: disable=unused-argument,no-self-use
     def _order_virtualizable_edges(self, graph: networkx.DiGraph, edges: list, node_seq: dict[Any, int]) -> list:
         """
         Returns a list of edges that are ordered by the best edges to virtualize first.
