@@ -317,6 +317,11 @@ class Decompiler(Analysis):
                 continue
             if pass_.STRUCTURING:
                 if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                    l.warning(
+                        "Skipping %s because it does not support structuring algorithm: %s",
+                        pass_,
+                        self._recursive_structurer_params["structurer_cls"].NAME,
+                    )
                     continue
 
             a = pass_(
@@ -368,6 +373,11 @@ class Decompiler(Analysis):
                 continue
             if pass_.STRUCTURING:
                 if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                    l.warning(
+                        "Skipping %s because it does not support structuring algorithm: %s",
+                        pass_,
+                        self._recursive_structurer_params["structurer_cls"].NAME,
+                    )
                     continue
 
             a = pass_(
