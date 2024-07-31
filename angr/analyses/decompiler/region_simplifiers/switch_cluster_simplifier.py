@@ -4,6 +4,8 @@ from typing import DefaultDict, Any
 from collections import OrderedDict, defaultdict
 
 import ailment
+from ailment import UnaryOp
+from ailment.expression import negate
 
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode, BaseNode, BreakNode
@@ -520,6 +522,9 @@ def simplify_lowered_switches_core(
 
     if outermost_node is None:
         return False
+    if isinstance(outermost_node.condition, UnaryOp) and outermost_node.condition.op == "Not":
+        # attempt to flip any simple negated comparison for normalized operations
+        outermost_node.condition = negate(outermost_node.condition.operand)
 
     caseno_to_node = {}
     default_node_candidates: list[tuple[BaseNode, BaseNode]] = []  # parent to default node candidate
