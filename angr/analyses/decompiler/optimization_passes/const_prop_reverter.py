@@ -143,7 +143,7 @@ class ConstPropOptReverter(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     # allow DREAM since it's useful for return merging
-    STRUCTURING = [SAILRStructurer.NAME, DreamStructurer]
+    STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Revert Constant Propagation Optimizations"
     DESCRIPTION = __doc__.strip()
