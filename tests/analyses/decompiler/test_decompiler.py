@@ -3710,7 +3710,7 @@ class TestDecompiler(unittest.TestCase):
         function.normalize()
         proj.analyses.Decompiler(func=function, cfg=cfg)
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_sailr_motivating_example(self, decompiler_options=None):
         # The testcase is taken directly from the motivating example of the USENIX 2024 paper SAILR.
         # When working, this testcase should test the following deoptimizations:
@@ -3743,7 +3743,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert text.count("refresh_jobs") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_true_a_graph_deduplication(self, decompiler_options=None):
         # This testcases tests DuplicationReverter fixes a region with a duplicated graph.
         # The binary, true_a, is a special version of true that was compiled from coreutils v8 or so.
@@ -3768,7 +3768,7 @@ class TestDecompiler(unittest.TestCase):
         #   so this can most-likely be re-enabled with virtual variable insertion
         # assert text.count("sub_404860") == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_deduplication_too_sensitive_split_3(self, decompiler_options=None):
         # This tests the deduplicator goto-trigger is not too sensitive. In this binary there is duplicate assignment
         # that was legit written by the programmer. It so happens to be close to a goto, which used to trigger this opt
