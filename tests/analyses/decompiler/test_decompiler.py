@@ -3649,7 +3649,7 @@ class TestDecompiler(unittest.TestCase):
         assert "bar" not in d.codegen.text
 
     @for_all_structuring_algos
-    def test_const_prop_reverter(self, decompiler_options=None):
+    def test_const_prop_reverter_fmt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
@@ -3742,6 +3742,24 @@ class TestDecompiler(unittest.TestCase):
         assert text.count("LABEL") == 2
 
         assert text.count("refresh_jobs") == 1
+
+    @structuring_algo("sailr")
+    def test_fmt_deduplication(self, decompiler_options=None):
+        # This testcase is highly related to the constant depropagation testcase above, also for the fmt binary
+        # on the function main. If that testcase fails, this one will fail. This testcase tests that we can deduplicate
+        # after we have successfully eliminated some constants (making statements different)
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        assert text.count("invalid width") == 2
+        assert text.count("xdectoumax") == 2
 
     @structuring_algo("sailr")
     def test_true_a_graph_deduplication(self, decompiler_options=None):
