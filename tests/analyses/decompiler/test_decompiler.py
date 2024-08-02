@@ -59,6 +59,21 @@ def set_decompiler_option(decompiler_options: list[tuple], params: list[tuple]) 
     return decompiler_options
 
 
+def options_to_structuring_algo(decompiler_options: list[tuple]) -> str | None:
+    """
+    Locates and returns the structuring algorithm specified in the decompiler options.
+    If no structuring algorithm is specified, returns None.
+    """
+    if not decompiler_options:
+        return None
+
+    for option, value in decompiler_options:
+        if option.param == "structurer_cls":
+            return value
+
+    return None
+
+
 def for_all_structuring_algos(func):
     """
     A helper wrapper that wraps a unittest function that has an option for 'decompiler_options'.
@@ -3618,6 +3633,15 @@ class TestDecompiler(unittest.TestCase):
         assert third_args.count("75") == 0, "Failed to remove the constant from the call"
         # additionally, we should've replaced them (1) with its variable
         assert third_args.count("max_width") == 2
+
+        # as a side-test, we should validate that replacing the constant does not mess up the
+        # structure of the loop. The code containing the de-propagated call should never
+        # be inside the loop (only valid in Phoenix based algorithms)
+        if options_to_structuring_algo(decompiler_options) == "phoenix":
+            # we should never have more than 2 indents because that would mean the code is inside the loop
+            indent = " " * 4
+            max_width_assigns = re.findall(rf"{indent*2}max_width = xdectoumax\(", text)
+            assert len(max_width_assigns) == 1
 
 
 if __name__ == "__main__":
