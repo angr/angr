@@ -1,4 +1,5 @@
 from ...analyses.decompiler.optimization_passes import _all_optimization_passes
+from .unwrap_simplifier import UnwrapSimplifier
 from .lib_function_identifier import LibFunctionIdentifier
 from .string_simplifier import StringSimplifier
 from .junk_remover import JunkRemover
@@ -12,6 +13,7 @@ _all_optimization_passes.extend(
         (LibFunctionIdentifier, True),
         (JunkRemover, True),
         (CallsiteMaker, True),
+        (UnwrapSimplifier, True),
         # (StringSimplifier, True),
         (AllocSimplifier, True),
         # (TypeCorrector, True),
