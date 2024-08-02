@@ -10,7 +10,6 @@ from ailment.statement import Call, Statement, ConditionalJump, Assignment, Stor
 from ailment.expression import Convert, Register
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-from ..utils import remove_labels, add_labels
 from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
 from ....knowledge_plugins.key_definitions.constants import OP_BEFORE
 
@@ -159,8 +158,7 @@ class ConstPropOptReverter(OptimizationPass):
 
     def _analyze(self, cache=None):
         self.resolution = False
-        self.out_graph = remove_labels(self._graph)
-        # self.out_graph = self._graph
+        self.out_graph = self._graph.copy()
 
         _pair_stmt_handlers = {
             Call: self._handle_Call_pair,
@@ -177,8 +175,6 @@ class ConstPropOptReverter(OptimizationPass):
 
         if not self.resolution:
             self.out_graph = None
-        else:
-            self.out_graph = add_labels(self.out_graph)
 
     def _analyze_call_pair_targets(self):
         all_obs_points = []
