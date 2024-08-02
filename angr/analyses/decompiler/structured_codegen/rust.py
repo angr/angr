@@ -1245,6 +1245,14 @@ class RustFunctionCall(RustStatement, RustExpression):
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
 
+        # Special handling for Rust calling convention - return type is struct
+        prototype = self.prototype
+        if isinstance(prototype, RustSimTypeFunction) and prototype.is_returnty_struct:
+            self.ret_expr = self.args[0]
+            if isinstance(self.ret_expr, RustUnaryOp) and self.ret_expr.op == "Reference":
+                self.ret_expr = self.ret_expr.operand
+            self.args = self.args[1:]
+
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
