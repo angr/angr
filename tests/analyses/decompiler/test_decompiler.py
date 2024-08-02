@@ -3641,7 +3641,7 @@ class TestDecompiler(unittest.TestCase):
         # as a side-test, we should validate that replacing the constant does not mess up the
         # structure of the loop. The code containing the de-propagated call should never
         # be inside the loop (only valid in Phoenix based algorithms)
-        if options_to_structuring_algo(decompiler_options) == "phoenix":
+        if options_to_structuring_algo(decompiler_options) == SAILRStructurer.NAME:
             # we should never have more than 2 indents because that would mean the code is inside the loop
             indent = " " * 4
             max_width_assigns = re.findall(rf"{indent*2}max_width = xdectoumax\(", text)
