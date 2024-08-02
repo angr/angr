@@ -30,6 +30,10 @@ prototypes = {
     "std::env::args": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_returnty_struct=True
     ),
+    "core::result::unwrap": RustSimTypeFunction(
+        args=[RustSimTypeReference(RustSimTypeInt(64))],
+        returnty=None,
+    ),
 }
 
 for name, prototype in prototypes.items():
