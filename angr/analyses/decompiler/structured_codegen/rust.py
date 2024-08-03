@@ -40,7 +40,7 @@ from ....rust.sim_type import (
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
-from ....rust.utils.library import demangle
+from ....rust.utils.library import demangle, normalize
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ..utils import structured_node_is_simple_return
 from ....errors import UnsupportedNodeTypeError
@@ -1245,14 +1245,6 @@ class RustFunctionCall(RustStatement, RustExpression):
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
 
-        # Special handling for Rust calling convention - return type is struct
-        prototype = self.prototype
-        if isinstance(prototype, RustSimTypeFunction) and prototype.is_returnty_struct:
-            self.ret_expr = self.args[0]
-            if isinstance(self.ret_expr, RustUnaryOp) and self.ret_expr.op == "Reference":
-                self.ret_expr = self.ret_expr.operand
-            self.args = self.args[1:]
-
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
@@ -1274,18 +1266,40 @@ class RustFunctionCall(RustStatement, RustExpression):
         :param asexpr:  True if this call is used as an expression (which means we will skip the generation of
                         semicolons and newlines at the end of the call).
         """
+
+        prototype = self.prototype
+        ret_expr = self.ret_expr
+        args = self.args
+        object_expr = None
+        is_class_member_function = False
+        if isinstance(prototype, RustSimTypeFunction):
+            # Special handling for Rust calling convention - return type is struct
+            if prototype.is_returnty_struct:
+                ret_expr = args[0]
+                if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
+                    ret_expr = ret_expr.operand
+                args = args[1:]
+            # Special handling for Rust calling convention - it's a class member function
+            if prototype.is_class_member_function:
+                is_class_member_function = True
+                object_expr = args[0]
+                if isinstance(object_expr, RustUnaryOp) and object_expr.op == "Reference":
+                    object_expr = object_expr.operand
+                args = args[1:]
+
         indent_str = self.indent_str(indent=indent)
         yield indent_str, None
 
-        if not self.is_expr and self.ret_expr is not None:
-            yield from RustExpression._try_c_repr_chunks(self.ret_expr)
+        if not self.is_expr and ret_expr is not None:
+            yield from RustExpression._try_c_repr_chunks(ret_expr)
             yield " = ", None
 
+        if is_class_member_function:
+            yield from RustExpression._try_c_repr_chunks(object_expr)
+            yield ".", None
+
         if self.callee_func is not None:
-            if self.callee_func.demangled_name and self.show_demangled_name:
-                func_name = demangle(self.callee_func.name)
-            else:
-                func_name = self.callee_func.name
+            func_name = normalize(self.callee_func.name, remove_polymorphism=True, concise=is_class_member_function)
             yield func_name, self
         else:
             yield from RustExpression._try_c_repr_chunks(self.callee_target)
@@ -1293,7 +1307,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         paren = RustClosingObject("(")
         yield "(", paren
 
-        for i, arg in enumerate(self.args):
+        for i, arg in enumerate(args):
             if i:
                 yield ", ", None
             yield from RustExpression._try_c_repr_chunks(arg)

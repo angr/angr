@@ -30,6 +30,15 @@ prototypes = {
     "std::env::args": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_returnty_struct=True
     ),
+    "std::env::Args::len": RustSimTypeFunction(
+        args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=RustSimTypeSize(), is_class_member_function=True
+    ),
+    "std::env::Args::next": RustSimTypeFunction(
+        args=[RustSimTypeReference(RustSimTypeInt(64)), RustSimTypeReference(RustSimTypeInt(64))],
+        returnty=RustSimTypeSize(),
+        is_returnty_struct=True,
+        is_class_member_function=True,
+    ),
     "core::result::unwrap": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64))],
         returnty=None,
