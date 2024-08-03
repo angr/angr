@@ -1,3 +1,6 @@
+import re
+
+
 def _is_control(c):
     return ord(c) < 32 or ord(c) == 127
 
@@ -59,6 +62,9 @@ def _is_rust_hash(s):
     return s.startswith("h") and all(c in "0123456789abcdef" for c in s[1:])
 
 
+POLYMORPHISM_PATTERN = re.compile(r"<(.*) as (.*)>::(.*)")
+
+
 def demangle(s):
     if s.startswith("_ZN"):
         inner = s[3:]
@@ -90,4 +96,15 @@ def demangle(s):
         demangled = "::".join(demangled[:-1])
     else:
         demangled = "::".join(demangled)
+    return demangled
+
+
+def normalize(name, remove_polymorphism=False, concise=False):
+    demangled = demangle(name)
+    if remove_polymorphism:
+        search = POLYMORPHISM_PATTERN.search(demangled)
+        if search and len(search.groups()) == 3:
+            demangled = search.group(1) + "::" + search.group(3)
+    if concise:
+        demangled = demangled.split("::")[-1]
     return demangled
