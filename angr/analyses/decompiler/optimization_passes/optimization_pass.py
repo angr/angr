@@ -13,7 +13,7 @@ from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import add_labels
-from angr.analyses.decompiler.seq_cf_structure_counter import ControlFlowStructureCounter
+from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function

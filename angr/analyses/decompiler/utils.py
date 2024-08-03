@@ -10,7 +10,7 @@ import networkx
 import ailment
 
 import angr
-from .call_counter import AILBlockCallCounter
+from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
 from .seq_to_blocks import SequenceToBlocks
 
 _l = logging.getLogger(__name__)
@@ -730,12 +730,22 @@ def calls_in_graph(graph: networkx.DiGraph) -> int:
     return counter.calls
 
 
-def find_block_by_addr(graph: networkx.DiGraph, addr: int):
+def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
+    if insn_addr:
+
+        def _get_addr(b):
+            return b.statements[0].ins_addr
+
+    else:
+
+        def _get_addr(b):
+            return b.addr
+
     for block in graph.nodes():
-        if block.addr == addr:
+        if _get_addr(block) == addr:
             return block
 
-    raise KeyError("The block is not in the graph!")
+    raise Exception("The block is not in the graph!")
 
 
 def sequence_to_blocks(seq: BaseNode) -> list[ailment.Block]:

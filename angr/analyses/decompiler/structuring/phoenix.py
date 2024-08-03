@@ -25,7 +25,7 @@ from ..utils import (
     has_nonlabel_statements,
     first_nonlabel_statement,
 )
-from ..call_counter import AILCallCounter
+from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from ailment import Block
 from ailment.block_walker import AILBlockWalkerBase
 
-from .sequence_walker import SequenceWalker
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
     from ailment.statement import Call
