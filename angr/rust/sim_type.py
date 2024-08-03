@@ -238,7 +238,7 @@ class RustSimStruct(RustSimType, SimStruct):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = RustSimStruct(None, name=self.name, pack=self._pack, align=self._align)
+        out = RustSimStruct(OrderedDict(), name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
 
