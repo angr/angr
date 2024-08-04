@@ -91,7 +91,7 @@ Arguments = RustSimStruct(
     name="Arguments",
     fields={
         "pieces": ArrayReference(StrReference()),
-        "fmt": Option(RustSimTypeInt(64)),
         "args": ArrayReference(RustSimTypeReference(Argument)),
+        "fmt": Option(RustSimTypeInt(64)),
     },
 )
