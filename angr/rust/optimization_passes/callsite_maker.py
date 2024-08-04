@@ -1,5 +1,7 @@
+import claripy
 from ailment.expression import BasePointerOffset, Const
-from ailment.statement import Store, Call
+from ailment.statement import Store
+from archinfo import Endness
 
 from ..ailment.expression import Struct, Array
 from ..definitions.structs import ArrayReference, Option
@@ -65,25 +67,55 @@ class CallsiteMaker(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _condense_struct_instantiation(self, statements, ty):
+    def _truncate(self, data, bits):
+        if bits < data.bits and isinstance(data, Const):
+            bv = claripy.BVV(data.value, data.bits)
+            leftover = data.copy()
+            data = data.copy()
+            data.bits = bits
+            leftover.bits = bv.size() - bits
+            if self.project.arch.memory_endness == Endness.LE:
+                data.value = bv[bits - 1 : 0].concrete_value
+                leftover.value = bv[bv.size() - 1 : bits].concrete_value
+            else:
+                data.value = bv[bv.size() - 1 : bv.size() - bits].concrete_value
+                leftover.value = bv[bv.size() - bits - 1 : 0].concrete_value
+            return data, leftover
+        return None, None
+
+    def _recover_struct_inst(self, statements, ty: RustSimStruct):
         first_stmt = statements[0]
-        fields = {stmt.offset: stmt.data for stmt in statements}
-        condensed_fields = {}
-        for offset in fields:
+        offset_to_data = [(stmt.offset, stmt.data) for stmt in statements]
+        fixed_offset_to_data = {}
+        fixed_fields = {}
+
+        # Fix field size unmatch
+        while len(offset_to_data):
+            offset, data = offset_to_data.pop(0)
             field_ty = StructResolver(ty).find_field_type(offset)
-            if isinstance(field_ty, ArrayReference) and offset + self.project.arch.bytes in fields:
-                base = fields[offset]
-                length = fields[offset + self.project.arch.bytes]
+            if field_ty is None:
+                continue
+            if data.bits > field_ty.size:
+                data, leftover = self._truncate(data, field_ty.size)
+                offset_to_data.append((offset + field_ty.size // 8, leftover))
+            fixed_offset_to_data[offset] = data
+
+        offset_to_data = fixed_offset_to_data
+        for offset in offset_to_data:
+            field_ty = StructResolver(ty).find_field_type(offset)
+            if isinstance(field_ty, ArrayReference) and offset + self.project.arch.bytes in offset_to_data:
+                base = offset_to_data[offset]
+                length = offset_to_data[offset + self.project.arch.bytes]
                 elements = StructResolver(field_ty).resolve_element_ptrs(base, length)
                 data = Array(base.idx, elements, field_ty)
-                condensed_fields[offset] = data
-            elif isinstance(field_ty, Option) and isinstance(fields[offset], Const):
-                fields[offset].tags["type"] = field_ty.with_arch(self.project.arch)
-                condensed_fields[offset] = fields[offset]
+                fixed_fields[offset] = data
+            elif isinstance(field_ty, Option) and isinstance(offset_to_data[offset], Const):
+                offset_to_data[offset].tags["type"] = field_ty.with_arch(self.project.arch)
+                fixed_fields[offset] = offset_to_data[offset]
             else:
-                condensed_fields[offset] = fields[offset]
+                fixed_fields[offset] = offset_to_data[offset]
 
-        new_expr = Struct(first_stmt.data.idx, condensed_fields, ty)
+        new_expr = Struct(first_stmt.data.idx, fixed_fields, ty)
         new_stmt = Store(
             first_stmt.idx,
             first_stmt.addr,
@@ -129,7 +161,7 @@ class CallsiteMaker(OptimizationPass):
                         else:
                             statements.insert(0, next_stmt)
                             break
-                    new_statements.extend(self._condense_struct_instantiation(related_statements, ty))
+                    new_statements.extend(self._recover_struct_inst(related_statements, ty))
                 else:
                     new_statements.append(stmt)
             block.statements = new_statements
