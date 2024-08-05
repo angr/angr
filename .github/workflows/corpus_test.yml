@@ -1,0 +1,417 @@
+name: Corpus Test
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  fetch_metadata_for_binaries:
+    runs-on: ubuntu-latest
+    # Expose step output as job output
+    outputs:
+      chunks: ${{ steps.fetch_metadata_for_binaries.outputs.chunks }}
+
+    steps:
+      - name: Fetch metadata for binaries
+        id: fetch_metadata_for_binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Applying 'apt' changes."
+          sudo apt update
+          sudo apt install -y curl jq
+
+          # Fetch the list of binaries from the binaries repository using the GitHub API
+          fetch_files_from_tree() {
+              local sha=$1
+              local prefix=$2
+              local response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/${{ vars.CORPUS_GITHUB_OWNER }}/${{ vars.CORPUS_GITHUB_REPO }}/git/trees/${sha}?recursive=1")
+              
+              echo "$response" | jq -r --arg prefix "$prefix" '.tree[] | select(.type == "blob") | $prefix + "/" + .path'
+          }
+
+          # Gather the individual paths from the CORPUS_GITHUB_PATH.
+          echo "Semicolon-delimited path list: '${{ vars.CORPUS_GITHUB_PATH }}'"
+          all_paths=()
+          while read path; do
+              all_paths+=("$path")
+          done < <(echo "${{ vars.CORPUS_GITHUB_PATH }}" | tr ';' '\n')
+
+          echo "Number of separate paths: ${#all_paths[@]}"
+
+          all_files=()
+
+          # Initial path to start fetching files
+          for ((i=0; i<${#all_paths[@]}; i++)); do
+            initial_path="${all_paths[i]}"
+            echo "Fetching corpus files from path '${initial_path}'."
+
+            # Fetch the top-level SHAs and paths
+            owner_repo="${{ vars.CORPUS_GITHUB_OWNER }}/${{ vars.CORPUS_GITHUB_REPO }}"
+            top_level_response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/${owner_repo}/contents/${initial_path}?ref=${{ vars.CORPUS_GITHUB_BRANCH }}")
+
+            # Collect all SHAs and their corresponding paths
+            sha_path_pairs=$(echo "$top_level_response" | jq -r '.[] | select(.type == "dir") | .sha + " " + .path')
+            top_level_files=$(echo "$top_level_response" | jq -r '.[] | select(.type == "file") | .path')
+
+            all_files+=($top_level_files)
+
+            # Fetch files for each SHA and combine the results
+            if [ -n "$sha_path_pairs" ]; then
+              while IFS= read -r sha_path; do
+                sha=$(echo "$sha_path" | awk '{print $1}')
+                path=$(echo "$sha_path" | awk '{print $2}')
+                files=$(fetch_files_from_tree $sha $path)
+                all_files+=($files)
+              done <<< "$sha_path_pairs"
+            fi
+          done
+
+          # Count the number of files
+          files_count=$(echo "${all_files[@]}" | wc -w)
+          echo "Total number of files: $files_count"
+
+          # Calculate the number of files each job should handle (max 256 jobs)
+          MAX_MATRIX_JOBS=256
+          CHUNK_SUFFIX_LENGTH=${#MAX_MATRIX_JOBS}
+          segment_size=$((($files_count + $((MAX_MATRIX_JOBS - 1))) / MAX_MATRIX_JOBS))
+          echo "Segment size (number of files per job): $segment_size"
+
+          # Set environment variables for each chunk
+          chunks=()
+          current_chunk=""
+          chunk_count=0
+
+          for file in "${all_files[@]}"; do
+            if [[ -n "$current_chunk" ]]; then
+              current_chunk+=","
+            fi
+            current_chunk+="$file"
+            count=$((count + 1))
+
+            # if the segment size is reached, add chunk to array and reset
+            if [[ $count -ge $segment_size ]]; then
+              chunks+=("$current_chunk")
+              current_chunk=""
+              count=0
+            fi
+          done
+
+          # Add the last chunk if it has any files
+          if [[ -n "$current_chunk" ]]; then
+            chunks+=("$current_chunk")
+          fi
+
+          # Output the chunks in JSON format
+          echo "chunks=$(printf '%s\n' "${chunks[@]}" | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+
+  analyze_binaries:
+    needs: [fetch_metadata_for_binaries]
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        chunk: ${{ fromJson(needs.fetch_metadata_for_binaries.outputs.chunks) }}
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python and Install Testing Dependencies
+        uses: actions/setup-python@v5
+        id: setup_python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+      - name: Restore venv Cache
+        uses: actions/cache/restore@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+      - run: python -m venv .venv
+        name: Create venv
+        shell: bash
+      - run: |
+          source .venv/bin/activate
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
+          pip install git+https://github.com/angr/archinfo.git
+          pip install git+https://github.com/angr/pyvex.git
+          pip install git+https://github.com/angr/cle.git
+          pip install git+https://github.com/angr/claripy.git
+          pip install git+https://github.com/angr/ailment.git
+          pip install requests
+        name: Install angr Dependencies
+      - run: |
+          source .venv/bin/activate
+          pip install --no-build-isolation .
+        name: Install angr
+      - run: |
+          source .venv/bin/activate
+          pip install pytest pytest-insta
+        name: Install test frameworks
+
+      - name: Save venv Cache
+        uses: actions/cache/save@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
+      - name: Fetch binary files and run analysis
+        env:
+          CORPUS_BRANCH: ${{ vars.CORPUS_GITHUB_BRANCH }}
+          CORPUS_OWNER: ${{ vars.CORPUS_GITHUB_OWNER }}
+          CORPUS_REPO: ${{ vars.CORPUS_GITHUB_REPO }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT_BRANCH: ${{ vars.SNAPSHOT_GITHUB_BRANCH }}
+          SNAPSHOT_OWNER: ${{ vars.SNAPSHOT_GITHUB_OWNER }}
+          SNAPSHOT_REPO: ${{ vars.SNAPSHOT_GITHUB_REPO }}
+          NIGHTLY: ${{ vars.NIGHTLY_CORPUS_TEST }}
+        run: |
+          source .venv/bin/activate
+
+          # Determine the environment variable name for the current chunk
+          files="${{ matrix.chunk }}"
+
+          # Convert the comma-separated list of binaries into an array
+          IFS=',' read -ra files_array <<< "$files"
+
+          # Set the context to the corpus_test folder for running pytest
+          cd corpus_tests
+          mkdir -p binaries snapshots
+
+          changed_snapshots=0
+          for file in "${files_array[@]}"; do
+            if [[ -n "$file" ]]; then
+              echo "Processing binary: $file"
+
+              # Create the directory to place the downloaded file.
+              mkdir -p "binaries/$(dirname $file)"
+
+              # Fetch the binary file from the binaries repository
+              owner_repo_branch="$CORPUS_OWNER/$CORPUS_REPO/$CORPUS_BRANCH"
+              binary_url="https://raw.githubusercontent.com/${owner_repo_branch}/$file"
+              echo "Retrieving binary from '${binary_url}'."
+              curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  -o binaries/$file \
+                  "${binary_url}"
+
+              echo -e "Downloaded binary:\n$(ls -l binaries/$file)"
+
+              # Fetch the corresponding snapshot.
+              # Make sure this process is in sync with the code in test_corpus.py.
+              snapshot_repo_file="${file}.json.txt"
+
+              # Suffix of "__0.txt" is not needed for single named snapshots.
+              pytest_insta_prefix="corpus__decompilation__"
+              pytest_insta_suffix=""
+              escaped_snapshot_file="$(echo $snapshot_repo_file | sed -e 's:/:_:g')"
+              pytest_insta_snapshot_file="snapshots/${pytest_insta_prefix}${escaped_snapshot_file}${pytest_insta_suffix}"
+              owner_repo_branch="$SNAPSHOT_OWNER/$SNAPSHOT_REPO/$SNAPSHOT_BRANCH"
+              snapshot_url="https://raw.githubusercontent.com/${owner_repo_branch}/snapshots/${snapshot_repo_file}"
+
+              echo "Retrieving snapshot from '${snapshot_url}'."
+              curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  -o "${pytest_insta_snapshot_file}" \
+                  "${snapshot_url}"
+
+              if [ ! -e "${pytest_insta_snapshot_file}" ]; then
+                echo "*** Failed to download snapshot at '${snapshot_url}'."
+                exit 1
+              fi
+
+              echo -e "Downloaded snapshot:\n$(ls -l ${pytest_insta_snapshot_file})"
+
+              echo "Duplicating snapshot to 'snapshots/${snapshot_repo_file}'."
+              mkdir -p "$(dirname snapshots/${snapshot_repo_file})"
+              cp "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"
+
+              # Run Angr Analysis on the binary file
+              echo "Running 'angr' and 'pytest --insta update' to compare decompiler snapshots for '${file}'."
+              pytest --insta update --binary binaries/$file > ${pytest_insta_snapshot_file}.log 2>&1
+              if diff -q "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"; then
+                echo "Decompilation unchanged for '$file'."
+              else
+                echo "Decompilation CHANGED for '$file'."
+                changed_snapshots=$[changed_snapshots + 1]
+                if [[ "$NIGHTLY" == "1" ]]; then
+                  diff -u "snapshots/${snapshot_repo_file}" "${pytest_insta_snapshot_file}"
+                fi
+                cp "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"
+              fi
+            fi
+          done
+
+          if [ "$NIGHTLY" == "1" ] && [ $changed_snapshots -gt 0 ]; then
+            echo "Failing nightly build due to snapshot diffs."
+            exit 1
+          fi
+
+      - name: Push snapshots to snapshot repo
+        env:
+          SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          NIGHTLY: ${{ vars.NIGHTLY_CORPUS_TEST }}
+        run: |
+          if [[ "$NIGHTLY" == "1" ]]; then
+            echo "Nightly build detected; not pushing snapshots."
+            exit 0
+          fi
+
+          # Use all the virtual environment Python packages (requests).
+          source .venv/bin/activate
+
+          cd corpus_tests
+
+          angr_branch="${{ github.event.pull_request.head.ref }}"
+          snapshot_base_branch="${{ vars.SNAPSHOT_GITHUB_BRANCH }}"
+          snapshot_branch="update-snapshots-${angr_branch}"
+          snapshot_owner="${{ vars.SNAPSHOT_GITHUB_OWNER }}"
+          snapshot_repo="${{ vars.SNAPSHOT_GITHUB_REPO }}"
+          snapshot_gh_user="github-actions[bot]"
+          snapshot_gh_email="${gh_user}@users.noreply.github.com"
+          ghapi=./ghapi.py
+          tries=3
+
+          echo "Creating snapshots branch '${snapshot_branch}'."
+          n=0
+          while ! python3 $ghapi \
+              --auth-token "$SNAPSHOT_TOKEN" \
+              --owner "$snapshot_owner" \
+              --repo "$snapshot_repo" \
+              --branch "${snapshot_base_branch}" \
+              create_branch "${snapshot_branch}" --allow-existing-branch; do
+            n=$[n+1]
+            if [ $n -ge $tries ]; then
+              break
+            fi
+            wait_time="$(printf '%u.%03u' $[RANDOM % 4] $[RANDOM % 1000])"
+            echo "Branch creation failed; waiting ${wait_time}s to try again."
+            sleep ${wait_time}
+          done
+
+          # ls -l $(find snapshots/ -type f -name '*.json.txt')
+          for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
+            # Second arg is the file path in the snapshots repo.
+            n=0
+            while ! python3 $ghapi \
+                --auth-token "$SNAPSHOT_TOKEN" \
+                --owner "$snapshot_owner" \
+                --repo "$snapshot_repo" \
+                --branch "${snapshot_branch}" \
+                push_file "${file}" "${file}"; do
+              n=$[n+1]
+              if [ $n -ge $tries ]; then
+                break
+              fi
+              wait_time="$(printf '%u.%03u' $[RANDOM % 4] $[RANDOM % 1000])"
+              echo "Pushing file failed; waiting ${wait_time}s to try again."
+              sleep ${wait_time}
+            done
+          done
+
+  create_pr_custom:
+    needs: [analyze_binaries]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python and Install Testing Dependencies
+        uses: actions/setup-python@v5
+        id: setup_python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Restore venv Cache
+        uses: actions/cache/restore@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
+      - run: python -m venv .venv
+        name: Create venv
+        shell: bash
+
+      - name: Create pull request
+        env:
+          SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          NIGHTLY: ${{ vars.NIGHTLY_CORPUS_TEST }}
+        run: |
+          if [[ "$NIGHTLY" == "1" ]]; then
+            echo "Nightly build detected; not creating snapshots pull request."
+            exit 0
+          fi
+
+          source .venv/bin/activate
+
+          cd corpus_tests
+
+          angr_branch="${{ github.event.pull_request.head.ref }}"
+          snapshot_base_branch="${{ vars.SNAPSHOT_GITHUB_BRANCH }}"
+          snapshot_branch="update-snapshots-${angr_branch}"
+          snapshot_owner="${{ vars.SNAPSHOT_GITHUB_OWNER }}"
+          snapshot_repo="${{ vars.SNAPSHOT_GITHUB_REPO }}"
+          snapshot_gh_user="github-actions[bot]"
+          snapshot_gh_email="github-actions[bot]@users.noreply.github.com"
+          ghapi=./ghapi.py
+          tries=3
+
+          echo "Creating snapshots PR for '${snapshot_branch}' -> '${snapshot_base_branch}'."
+          n=0
+          while ! python3 $ghapi \
+              --auth-token "$SNAPSHOT_TOKEN" \
+              --owner "$snapshot_owner" \
+              --repo "$snapshot_repo" \
+              --branch "${snapshot_base_branch}" \
+              create_pr "${snapshot_branch}" "Decompilation snapshots: ${snapshot_branch} -> ${snapshot_base_branch}"; do
+            n=$[n+1]
+            if [ $n -ge $tries ]; then
+              break
+            fi
+            wait_time="$(printf '%u.%03u' $[RANDOM % 4] $[RANDOM % 1000])"
+            echo "Pull request creation failed; waiting ${wait_time}s to try again."
+            sleep ${wait_time}
+          done
+
+          # If the PR cannot be created it is (usually) because there are no
+          # changes between the branches. ghapi.py push_file command will
+          # not push the file if its contents have not changed.
+
+          if [[ $n -ge $tries ]]; then
+            echo "Snapshot pull request not created. Decompiler output unchanged (success)."
+            exit 0
+          else
+            echo "Snapshot pull request successfully created. Decompiler output CHANGED. (FAILURE)"
+            exit 1
+          fi
+
+  # create_pr:
+  #   needs: [analyze_binaries]
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Check out repo
+  #       uses: actions/checkout@v3
+  #       with:
+  #         repository: ${{ vars.SNAPSHOT_GITHUB_OWNER }}/${{ vars.SNAPSHOT_GITHUB_REPO }}
+  #         token: ${{ secrets.SNAPSHOTS_PAT }}
+  #         fetch-depth: 0
+  #         ref: main
+
+  #     - name: Create Pull Request
+  #       uses: peter-evans/create-pull-request@v5
+  #       with:
+  #         token: ${{ secrets.SNAPSHOTS_PAT }}
+  #         commit-message: "Update decompilation snapshots for comparison"
+  #         branch: update-snapshots-${{ github.ref_name }}
+  #         title: "Update decompilation snapshots"
+  #         body: "This PR updates the decompilation snapshots generated by the tool"
+  #         head-branch: update-snapshots-${{ github.ref_name }}
+  #         base: main
+  #         repository: ${{ vars.SNAPSHOT_GITHUB_OWNER }}/${{ vars.SNAPSHOT_GITHUB_REPO }}
