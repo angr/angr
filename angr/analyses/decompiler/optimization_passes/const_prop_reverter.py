@@ -7,7 +7,7 @@ import claripy
 from ailment import Const
 from ailment.block_walker import AILBlockWalkerBase
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Convert, Register
+from ailment.expression import Convert, Register, Expression
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
@@ -325,9 +325,10 @@ class ConstPropOptReverter(OptimizationPass):
             return
 
         # verify both calls are calls to the same function
-        if (isinstance(obj0.target, str) or isinstance(obj1.target, str)) and obj0.target != obj1.target:
-            return
-        elif not obj0.target.likes(obj1.target):
+        if isinstance(obj0.target, Expression) and isinstance(obj1.target, Expression):
+            if not obj0.target.likes(obj1.target):
+                return
+        elif obj0.target != obj1.target:
             return
 
         call0, call1 = obj0, obj1
