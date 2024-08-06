@@ -2981,7 +2981,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         simsucc = self.project.factory.default_engine.process(self._initial_state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
-            if ip._model_concrete is not ip:
+            if claripy.backends.concrete.convert(ip) is not ip:
                 target_addr = ip.concrete_value
                 obj = self.project.loader.find_object_containing(target_addr, membership_check=False)
                 if (obj is not None and obj is not self.project.loader.main_object) or self.project.is_hooked(

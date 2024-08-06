@@ -349,7 +349,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         result = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
-            if getattr(addr._model_vsa, "uninitialized", False):
+            if getattr(claripy.backends.vsa.convert(addr), "uninitialized", False):
                 raise errors.SimUninitializedAccessError("addr", addr)
         return result
 

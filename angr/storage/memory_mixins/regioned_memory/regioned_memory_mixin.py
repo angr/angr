@@ -96,7 +96,7 @@ class RegionedMemoryMixin(MemoryMixin):
         return o
 
     def load(self, addr, size: BV | int | None = None, endness=None, condition: Bool | None = None, **kwargs):
-        if isinstance(size, BV) and isinstance(size._model_vsa, ValueSet):
+        if isinstance(size, BV) and isinstance(claripy.backends.vsa.convert(size), ValueSet):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:
                 var_name = "invalid_read_%d_%#x" % (next(invalid_read_ctr), self.state.scratch.ins_addr)
@@ -176,7 +176,7 @@ class RegionedMemoryMixin(MemoryMixin):
             r, s, i = self._regions[region].find(si, data, max_search, **kwargs)
             # Post-process r so that it's still a ValueSet
             region_base_addr = self._region_base(region)
-            r = self.state.solver.ValueSet(r.size(), region, region_base_addr, r._model_vsa)
+            r = self.state.solver.ValueSet(r.size(), region, region_base_addr, claripy.backends.vsa.convert(r))
             return r, s, i
 
     def set_state(self, state):
@@ -449,11 +449,11 @@ class RegionedMemoryMixin(MemoryMixin):
             raise SimMemoryError("_normalize_address_type() does not take claripy models.")
 
         if isinstance(addr_e, claripy.ast.Base):
-            if not isinstance(addr_e._model_vsa, ValueSet):
+            if not isinstance(claripy.backends.vsa.convert(addr_e), ValueSet):
                 # Convert it to a ValueSet first by annotating it
-                addr_e = addr_e.annotate(RegionAnnotation("global", 0, addr_e._model_vsa))
+                addr_e = addr_e.annotate(RegionAnnotation("global", 0, claripy.backends.vsa.convert(addr_e)))
 
-            model_vsa = addr_e._model_vsa
+            model_vsa = claripy.backends.vsa.convert(addr_e)
             if isinstance(model_vsa, ValueSet):
                 yield from model_vsa.items()
             else:

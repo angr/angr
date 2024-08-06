@@ -1,6 +1,8 @@
 import logging
-from typing import Any
 from collections.abc import Iterable
+from typing import Any
+
+import claripy
 
 from .. import MemoryMixin
 
@@ -40,4 +42,4 @@ class AbstractMergerMixin(MemoryMixin):
 
     @staticmethod
     def _is_uninitialized(a):
-        return getattr(a._model_vsa, "uninitialized", False)
+        return getattr(claripy.backends.vsa.convert(a), "uninitialized", False)
