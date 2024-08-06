@@ -7,6 +7,8 @@ import random
 import unittest
 from itertools import combinations
 
+import claripy
+
 import angr
 from angr import SimState, SIM_LIBRARIES
 
@@ -343,7 +345,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
         ss_res = strstr(s, arguments=[addr_haystack, addr_needle])
         results = set(s.solver.eval_upto(ss_res, len(haystack) * 2))
-        expected = {(addr_haystack.cv + i) for i in range(len(haystack))} | {0}
+        expected = {(claripy.backends.concrete.convert(addr_haystack).value + i) for i in range(len(haystack))} | {0}
         assert results == expected
 
         s_match = s.copy()
@@ -380,7 +382,12 @@ class TestStringSimProcedures(unittest.TestCase):
         s_nomatch.add_constraints(ss_res == 0)
 
         num_possible = min(s.libc.max_symbolic_strstr, 1 + (len(str_haystack) - len(str_needle)) // 8)
-        expected = set(range(addr_haystack.cv, addr_haystack.cv + num_possible))
+        expected = set(
+            range(
+                claripy.backends.concrete.convert(addr_haystack).value,
+                claripy.backends.concrete.convert(addr_haystack).value + num_possible,
+            )
+        )
         results = set(s_match.solver.eval_exact(ss_res, num_possible))
         assert results == expected
         assert s_nomatch.solver.satisfiable()
