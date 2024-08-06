@@ -11,7 +11,7 @@ from ailment.expression import Expression, BinaryOp, Const, Load
 from angr.utils.graph import GraphUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from .optimization_pass import OptimizationPassStage, MultipleBlocksException, StructuringOptimizationPass
+from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
 from ..region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
 
 if TYPE_CHECKING:
@@ -143,14 +143,13 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     As a hack for now, we only run this deoptimization on Linux binaries.
     """
 
+    # TODO: this needs to be updated to support Windows, but detect and disable on MSVC
     PLATFORMS = ["linux"]
-    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
         "Convert lowered switch-cases (if-else) to switch-cases. Only works when the Phoenix structuring "
         "algorithm is in use."
     )
-    STRUCTURING = ["phoenix"]
 
     def __init__(self, func, min_distinct_cases=2, **kwargs):
         super().__init__(

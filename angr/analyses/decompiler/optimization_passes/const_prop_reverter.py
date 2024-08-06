@@ -10,6 +10,7 @@ from ailment.statement import Call, Statement, ConditionalJump, Assignment, Stor
 from ailment.expression import Convert, Register, Expression
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+from ..structuring import SAILRStructurer, DreamStructurer
 from ....knowledge_plugins.key_definitions.atoms import MemoryLocation
 from ....knowledge_plugins.key_definitions.constants import OP_BEFORE
 
@@ -140,6 +141,8 @@ class ConstPropOptReverter(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
+    # allow DREAM since it's useful for return merging
+    STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Revert Constant Propagation Optimizations"
     DESCRIPTION = __doc__.strip()

@@ -10,7 +10,7 @@ import ailment
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import GotoManager
-from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
+from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import add_labels
 from angr.analyses.decompiler.seq_cf_structure_counter import ControlFlowStructureCounter
 
@@ -266,10 +266,17 @@ class StructuringOptimizationPass(OptimizationPass):
     The base class for any optimization pass that requires structuring. Optimization passes that inherit from this class
     should directly depend on structuring artifacts, such as regions and gotos. Otherwise, they should use
     OptimizationPass. This is the heaviest (computation time) optimization pass class.
+
+    By default this type of optimization should work:
+    - on any architecture
+    - on any platform
+    - during region identification (to have iterative structuring)
+    - only with the SAILR structuring algorithm
     """
 
     ARCHES = None
     PLATFORMS = None
+    STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
     def __init__(
@@ -401,7 +408,7 @@ class StructuringOptimizationPass(OptimizationPass):
                 self._ri.region,
                 cond_proc=self._ri.cond_proc,
                 func=self._func,
-                structurer_cls=PhoenixStructurer,
+                structurer_cls=SAILRStructurer,
             )
         # pylint:disable=broad-except
         except Exception:
