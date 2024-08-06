@@ -1,8 +1,11 @@
+import logging
+
+import claripy
+
 import angr
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 from angr.storage.memory_mixins.regioned_memory.abstract_address_descriptor import AbstractAddressDescriptor
 
-import logging
 
 l = logging.getLogger(name=__name__)
 
@@ -52,7 +55,7 @@ class strlen(angr.SimProcedure):
                 # Convert r to the same region as s
                 r_desc = self.state.memory._normalize_address(r)
                 r_aw_iter = self.state.memory._concretize_address_descriptor(
-                    r_desc, None, target_region=next(iter(s_ptr._model_vsa.regions.keys()))
+                    r_desc, None, target_region=next(iter(claripy.backends.vsa.convert(s_ptr).regions.keys()))
                 )
 
                 for r_aw in r_aw_iter:

@@ -1572,11 +1572,11 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_expr = successor_state.regs.sp
 
-                    if isinstance(reg_sp_expr._model_vsa, claripy.vsa.StridedInterval):  # type: ignore
-                        reg_sp_si = reg_sp_expr._model_vsa
+                    if isinstance(claripy.backends.vsa.convert(reg_sp_expr), claripy.vsa.StridedInterval):
+                        reg_sp_si = claripy.backends.vsa.convert(reg_sp_expr)
                         # reg_sp_si.min  # reg_sp_val
-                    elif isinstance(reg_sp_expr._model_vsa, claripy.vsa.ValueSet):  # type: ignore
-                        reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]  # type: ignore
+                    elif isinstance(claripy.backends.vsa.convert(reg_sp_expr), claripy.vsa.ValueSet):
+                        reg_sp_si = next(iter(claripy.backends.vsa.convert(reg_sp_expr).items()))[1]
                         # reg_sp_si.min  # reg_sp_val
                         # TODO: Finish it!
 
@@ -1717,21 +1717,20 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         reg_sp_offset = arch.sp_offset
         reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
 
-        if type(reg_sp_expr._model_vsa) is claripy.BVV:  # pylint:disable=unidiomatic-typecheck
+        reg_sp_expr_vsa = claripy.backends.vsa.convert(reg_sp_expr)
+        if isinstance(reg_sp_expr_vsa, claripy.bv.BVV):
             reg_sp_val = successor_state.solver.eval(reg_sp_expr)
             reg_sp_si = successor_state.solver.SI(to_conv=reg_sp_expr)
-            reg_sp_si = reg_sp_si._model_vsa
-        elif type(reg_sp_expr._model_vsa) is int:  # pylint:disable=unidiomatic-typecheck
-            reg_sp_val = reg_sp_expr._model_vsa
+            reg_sp_si = claripy.backends.vsa.convert(reg_sp_si)
+        elif isinstance(reg_sp_expr_vsa, int):
+            reg_sp_val = claripy.backends.vsa.convert(reg_sp_expr)
             reg_sp_si = successor_state.solver.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
-            reg_sp_si = reg_sp_si._model_vsa
-        elif (
-            type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval
-        ):  # pylint:disable=unidiomatic-typecheck # type: ignore
-            reg_sp_si = reg_sp_expr._model_vsa
+            reg_sp_si = claripy.backends.vsa.convert(reg_sp_si)
+        elif isinstance(reg_sp_expr_vsa, claripy.vsa.StridedInterval):
+            reg_sp_si = reg_sp_expr_vsa
             reg_sp_val = reg_sp_si.min
         else:
-            reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]
+            reg_sp_si = next(iter(reg_sp_expr_vsa.items()))[1]
             reg_sp_val = reg_sp_si.min
 
         reg_sp_val = reg_sp_val - arch.bytes  # TODO: Is it OK?

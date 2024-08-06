@@ -1,6 +1,7 @@
 import collections.abc
-import claripy
 from typing import TYPE_CHECKING
+
+import claripy
 
 from .protos import variables_pb2 as pb2
 from .serializable import Serializable
@@ -271,20 +272,7 @@ class SimMemoryVariable(SimVariable):
         if self._hash is not None:
             return self._hash
 
-        if isinstance(self.addr, AddressWrapper):
-            addr_hash = hash(self.addr)
-        elif type(self.addr) is int:
-            addr_hash = self.addr
-        elif self.addr._model_concrete is not self.addr:
-            addr_hash = hash(self.addr._model_concrete)
-        elif self.addr._model_vsa is not self.addr:
-            addr_hash = hash(self.addr._model_vsa)
-        elif self.addr._model_z3 is not self.addr:
-            addr_hash = hash(self.addr._model_z3)
-        else:
-            addr_hash = hash(self.addr)
-        self._hash = hash((addr_hash, hash(self.size), self.ident))
-
+        self._hash = hash((hash(self.addr), hash(self.size), self.ident))
         return self._hash
 
     def __eq__(self, other):
@@ -557,6 +545,3 @@ class SimVariableSet(collections.abc.MutableSet):
         else:
             __import__("ipdb").set_trace()
             raise Exception("WTF is this variable?")
-
-
-from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper

@@ -1734,7 +1734,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # full-function data propagation before performing jump table recovery.
                 l.debug("Multiple statements adding bases, not supported yet")  # FIXME: Just check the addresses?
 
-        jumptable_addr_vsa = jumptable_addr._model_vsa
+        jumptable_addr_vsa = claripy.backends.vsa.convert(jumptable_addr)
 
         if not isinstance(jumptable_addr_vsa, claripy.vsa.StridedInterval):
             return None
@@ -2103,7 +2103,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
             read_length = state.inspect.mem_read_length
             if not isinstance(read_length, int):
-                read_length = read_length._model_vsa.upper_bound
+                read_length = claripy.backends.vsa.convert(read_length).upper_bound
             if read_length > 16:
                 return
             new_read_addr = state.solver.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
