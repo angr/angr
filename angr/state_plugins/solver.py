@@ -299,17 +299,11 @@ class SimSolver(SimStatePlugin):
         approximate_first = o.APPROXIMATE_FIRST in self.state.options
 
         if o.STRINGS_ANALYSIS in self.state.options:
-            if "smtlib_cvc4" in backend_manager.backends._backends_by_name:
-                our_backend = backend_manager.backends.smtlib_cvc4
-            elif "smtlib_z3" in backend_manager.backends._backends_by_name:
-                our_backend = backend_manager.backends.smtlib_z3
-            elif "smtlib_abc" in backend_manager.backends._backends_by_name:
-                our_backend = backend_manager.backends.smtlib_abc
-            else:
-                our_backend = backend_manager.backends.z3
             if o.COMPOSITE_SOLVER in self.state.options:
                 self._stored_solver = claripy.SolverComposite(
-                    template_solver_string=claripy.SolverCompositeChild(backend=our_backend, track=track)
+                    template_solver_string=claripy.SolverCompositeChild(
+                        backend=backend_manager.backends.z3, track=track
+                    )
                 )
         elif o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
