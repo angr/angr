@@ -25,7 +25,7 @@ from ..utils import (
     has_nonlabel_statements,
     first_nonlabel_statement,
 )
-from ..call_counter import AILCallCounter
+from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,
@@ -2293,7 +2293,7 @@ class PhoenixStructurer(StructurerBase):
                 ):
                     return True
             elif isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
-                if any(case_addr == dst_addr for _, _, _, case_addr in last_stmt.case_addrs):
+                if any(case_addr == dst_addr for _, _, _, _, case_addr in last_stmt.case_addrs):
                     return True
             return False
 
