@@ -7,13 +7,13 @@ from .string_simplifier import StringSimplifier
 from .epilogue_simplifier import EpilogueSimplifier
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
-from .callsite_maker import CallsiteMaker
+from .struct_instantiation_simplifier import StructInstantiationSimplifier
 from .ownership_simplifier import OwnershipSimplifier
 
 _all_optimization_passes.extend(
     [
         (LibFunctionIdentifier, True),
-        (CallsiteMaker, True),
+        (StructInstantiationSimplifier, True),
         (EpilogueSimplifier, True),
         (ErrorHandlingSimplifier, True),
         (UnwrapSimplifier, True),

@@ -44,7 +44,7 @@ class StructResolver:
         return result
 
 
-class CallsiteMaker(OptimizationPass):
+class StructInstantiationSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
