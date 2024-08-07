@@ -1,16 +1,14 @@
-from pprint import pprint
-
 from ailment.expression import BasePointerOffset, Load
 from ailment.statement import Store
 
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 class OwnershipSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
-    NAME = "Simplify ownership transferring"
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify ownership transfer operations"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
