@@ -287,6 +287,7 @@ class StructuringOptimizationPass(OptimizationPass):
         max_opt_iters=1,
         simplify_ail=True,
         require_gotos=True,
+        readd_labels=False,
         **kwargs,
     ):
         super().__init__(func, **kwargs)
@@ -297,6 +298,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._simplify_ail = simplify_ail
         self._require_gotos = require_gotos
         self._must_improve_rel_quality = must_improve_rel_quality
+        self._readd_labels = readd_labels
 
         self._goto_manager: GotoManager | None = None
         self._prev_graph: networkx.DiGraph | None = None
@@ -337,7 +339,11 @@ class StructuringOptimizationPass(OptimizationPass):
         if self.out_graph is None:
             return
 
-        if not self._graph_is_structurable(self.out_graph):
+        # since all checks have completed, add labels back out here
+        if self._readd_labels:
+            self.out_graph = add_labels(self.out_graph)
+
+        if not self._graph_is_structurable(self.out_graph, readd_labels=False):
             self.out_graph = None
             return
 
@@ -348,7 +354,7 @@ class StructuringOptimizationPass(OptimizationPass):
 
         if self._prevent_new_gotos:
             prev_gotos = len(initial_gotos)
-            new_gotos = len(self._goto_manager.gotos)
+            new_gotos = len(self._get_new_gotos())
             if (self._strictly_less_gotos and (new_gotos >= prev_gotos)) or (
                 not self._strictly_less_gotos and (new_gotos > prev_gotos)
             ):
@@ -358,6 +364,9 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._must_improve_rel_quality and not self._improves_relative_quality():
             self.out_graph = None
             return
+
+    def _get_new_gotos(self):
+        return self._goto_manager.gotos
 
     def _fixed_point_analyze(self, cache=None):
         for _ in range(self._max_opt_iters):
@@ -374,9 +383,12 @@ class StructuringOptimizationPass(OptimizationPass):
                 break
 
             # check if the graph is structurable
-            if not self._graph_is_structurable(self.out_graph):
-                self.out_graph = self._prev_graph if self._recover_structure_fails else None
-                break
+            if not self._graph_is_structurable(self.out_graph, readd_labels=self._readd_labels):
+                if self._recover_structure_fails:
+                    self.out_graph = self._prev_graph
+                else:
+                    self.out_graph = None
+                    break
 
     def _graph_is_structurable(self, graph, readd_labels=False, initial=False) -> bool:
         """

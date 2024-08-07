@@ -178,7 +178,11 @@ class AILMergeGraph:
                     )
 
                 b1_og_succs = list(self.original_graph.successors(b1_og))
-                assert len(b1_og_succs) == 1
+                if len(b1_og_succs) != 1:
+                    raise SAILRSemanticError(
+                        "Encountered a merge-end pair which ends in a return, this should be skipped!"
+                    )
+
                 b1 = b1_og_succs[0]
             else:
                 b0, b1 = merge_end_pair

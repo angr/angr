@@ -2304,7 +2304,7 @@ class PhoenixStructurer(StructurerBase):
                 )
                 or (
                     isinstance(last_stmt, IncompleteSwitchCaseHeadStatement)
-                    and any(case_addr == dst_addr for _, _, _, case_addr in last_stmt.case_addrs)
+                    and any(case_addr == dst_addr for _, _, _, _, case_addr in last_stmt.case_addrs)
                 )
             )
 

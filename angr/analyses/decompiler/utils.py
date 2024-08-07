@@ -276,7 +276,7 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     return new_node
 
 
-def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
+def to_ail_supergraph(transition_graph: networkx.DiGraph, allow_fake=False) -> networkx.DiGraph:
     """
     Takes an AIL graph and converts it into a AIL graph that treats calls and redundant jumps
     as parts of a bigger block instead of transitions. Calls to returning functions do not terminate basic blocks.
@@ -295,7 +295,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
 
             if len(list(transition_graph.successors(src))) == 1 and len(list(transition_graph.predecessors(dst))) == 1:
                 # calls in the middle of blocks OR boring jumps
-                if (type_ == "fake_return") or (src.addr + src.original_size == dst.addr):
+                if (type_ == "fake_return") or (src.addr + src.original_size == dst.addr) or allow_fake:
                     _merge_ail_nodes(transition_graph, src, dst)
                     break
 
@@ -371,7 +371,9 @@ def remove_labels(graph: networkx.DiGraph):
         node_copy.statements = [stmt for stmt in node_copy.statements if not isinstance(stmt, ailment.Stmt.Label)]
         nodes_map[node] = node_copy
 
-    new_graph.add_nodes_from(nodes_map.values())
+    for old_node in graph.nodes:
+        new_graph.add_node(nodes_map[old_node])
+
     for src, dst, data in graph.edges(data=True):
         new_graph.add_edge(nodes_map[src], nodes_map[dst], **data)
 
@@ -387,7 +389,9 @@ def add_labels(graph: networkx.DiGraph):
         node_copy.statements = [lbl, *node_copy.statements]
         nodes_map[node] = node_copy
 
-    new_graph.add_nodes_from(nodes_map.values())
+    for old_node in graph.nodes:
+        new_graph.add_node(nodes_map[old_node])
+
     for src, dst in graph.edges:
         new_graph.add_edge(nodes_map[src], nodes_map[dst])
 

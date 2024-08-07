@@ -1,5 +1,4 @@
 from collections import defaultdict
-from copy import deepcopy
 import logging
 from itertools import combinations
 import itertools
@@ -12,7 +11,7 @@ from ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
 from ailment.expression import Const, Register, Convert, Expression
 
 from .ail_merge_graph import AILMergeGraph, AILBlockSplit
-from .errors import StructuringError, SAILRSemanticError
+from .errors import SAILRSemanticError
 from .similarity import longest_ail_graph_subseq
 
 from .utils import (
@@ -24,15 +23,11 @@ from .utils import (
     ail_block_from_stmts,
     deepcopy_ail_anyjump,
 )
-from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
-from ..optimization_pass import OptimizationPass, OptimizationPassStage
+from ..optimization_pass import StructuringOptimizationPass
 from ...block_io_finder import BlockIOFinder
 from ...block_similarity import is_similar, index_of_similar_stmts, longest_ail_subseq
-from ...goto_manager import GotoManager
-from ...region_identifier import RegionIdentifier
-from ...structuring import RecursiveStructurer, PhoenixStructurer
-from .....analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
-from ...utils import to_ail_supergraph, remove_labels, add_labels
+from ...utils import to_ail_supergraph, remove_labels
+from ...counters.boolean_counter import BooleanCounter
 from .....knowledge_plugins.key_definitions.atoms import MemoryLocation
 
 l = logging.getLogger(name=__name__)
@@ -40,24 +35,30 @@ _DEBUG = False
 l.setLevel(logging.DEBUG)
 
 
-class DuplicationReverter(OptimizationPass):
+class DuplicationReverter(StructuringOptimizationPass):
     """
     Reverts the duplication of statements
     """
 
-    ARCHES = None
-    PLATFORMS = None
-    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Revert Statement Duplication Optimizations"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, region_identifier=None, reaching_definitions=None, max_guarding_conditions=4, **kwargs):
-        self.ri: RegionIdentifier = region_identifier
-        self.rd: ReachingDefinitionsAnalysis = reaching_definitions
-        super().__init__(func, **kwargs)
+    def __init__(self, func, max_guarding_conditions=4, **kwargs):
+        super().__init__(
+            func,
+            prevent_new_gotos=True,
+            strictly_less_gotos=False,
+            # TODO: this should be False, but there is a bug in true_a
+            recover_structure_fails=True,
+            must_improve_rel_quality=False,
+            max_opt_iters=30,
+            simplify_ail=True,
+            require_gotos=True,
+            readd_labels=True,
+            **kwargs,
+        )
 
         self.max_guarding_conditions = max_guarding_conditions
-        self.goto_manager: GotoManager | None = None
         self.write_graph: nx.DiGraph | None = None
         self.candidate_blacklist = set()
 
@@ -79,11 +80,8 @@ class DuplicationReverter(OptimizationPass):
     # Main Optimization Pass (after search)
     #
 
+    """
     def _analyze(self, cache=None, stop_if_more_goto=True):
-        """
-        Entry analysis routine that will trigger the other analysis stages
-        XXX: when in evaluation: stop_if_more_goto=True so that we never emit more gotos than we originally had
-        """
         try:
             self.deduplication_analysis(max_fix_attempts=30)
         except StructuringError:
@@ -92,7 +90,7 @@ class DuplicationReverter(OptimizationPass):
         if self.out_graph is not None:
             output_graph = True
             # if structuring failed
-            if self.goto_manager is None:
+            if self._goto_manager is None:
                 self.out_graph = self.prev_graph
                 self.write_graph = self.prev_graph
                 if not self._structure_graph():
@@ -100,7 +98,7 @@ class DuplicationReverter(OptimizationPass):
 
             if stop_if_more_goto and output_graph:
                 future_irreducible_gotos = self._find_future_irreducible_gotos()
-                targetable_goto_cnt = len(self.goto_manager.gotos) - len(future_irreducible_gotos)
+                targetable_goto_cnt = len(self._goto_manager.gotos) - len(future_irreducible_gotos)
                 if targetable_goto_cnt > self._starting_goto_count:
                     l.info(
                         f"{self.__class__.__name__} generated >= gotos then it started with "
@@ -111,6 +109,7 @@ class DuplicationReverter(OptimizationPass):
             self.out_graph = add_labels(self.remove_broken_jumps(self.out_graph)) if output_graph else None
 
     def deduplication_analysis(self, max_fix_attempts=30, max_guarding_conditions=10):
+        max_fix_attempts = self._max_op
         self.write_graph = remove_labels(to_ail_supergraph(copy_graph_and_nodes(self._graph)))
 
         updates = True
@@ -143,19 +142,19 @@ class DuplicationReverter(OptimizationPass):
 
     def _structure_graph(self):
         # reset gotos
-        self.goto_manager = None
+        self._goto_manager = None
 
         # do structuring
         self.write_graph = add_labels(self.write_graph)
-        self.ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+        self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self._func,
             graph=self.write_graph,
-            cond_proc=self.ri.cond_proc,
+            cond_proc=self._ri.cond_proc,
             force_loop_single_exit=False,
             complete_successors=True,
         )
         rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            deepcopy(self.ri.region), cond_proc=self.ri.cond_proc, func=self._func, structurer_cls=PhoenixStructurer
+            deepcopy(self._ri.region), cond_proc=self._ri.cond_proc, func=self._func, structurer_cls=PhoenixStructurer
         )
         self.write_graph = remove_labels(self.write_graph)
         if not rs.result.nodes:
@@ -163,7 +162,7 @@ class DuplicationReverter(OptimizationPass):
             return False
 
         rs = self.project.analyses.RegionSimplifier(self._func, rs.result, kb=self.kb, variable_kb=self._variable_kb)
-        self.goto_manager = rs.goto_manager
+        self._goto_manager = rs._goto_manager
 
         return True
 
@@ -172,7 +171,7 @@ class DuplicationReverter(OptimizationPass):
 
         # collect gotos
         if self._starting_goto_count is None:
-            self._starting_goto_count = len(self.goto_manager.gotos)
+            self._starting_goto_count = len(self._goto_manager.gotos)
 
         if not success:
             if not _DEBUG:
@@ -182,17 +181,35 @@ class DuplicationReverter(OptimizationPass):
 
             raise StructuringError
 
-        if not self.goto_manager:
+        if not self._goto_manager:
             return True
 
         # optimize the graph?
         self.write_graph = self.simple_optimize_graph(self.write_graph)
         return False
+    """
 
-    def _post_deduplication_round(self):
-        self.prev_graph = self.out_graph.copy() if self.out_graph is not None else self._graph
-        self.out_graph = self.simple_optimize_graph(self.write_graph)
-        self.write_graph = self.simple_optimize_graph(self.write_graph)
+    def _analyze(self, cache=None) -> bool:
+        # pre-deduplication
+        graph = self.out_graph or self._graph
+        self.write_graph = self.simple_optimize_graph(remove_labels(to_ail_supergraph(copy_graph_and_nodes(graph))))
+
+        try:
+            fake_deduplication, success = self._deduplication_round()
+        except SAILRSemanticError as e:
+            l.info(f"Skipping this round because of {e}...")
+            return True
+
+        # post-deduplication
+        if success:
+            self.out_graph = to_ail_supergraph(self.write_graph)
+
+        return success | fake_deduplication
+
+    def _get_new_gotos(self):
+        future_irreducible_gotos = self._find_future_irreducible_gotos()
+        new_gotos = [goto for goto in self._goto_manager.gotos if goto not in future_irreducible_gotos]
+        return new_gotos
 
     def _deduplication_round(self, max_guarding_conditions=10):
         #
@@ -217,7 +234,13 @@ class DuplicationReverter(OptimizationPass):
         candidate = sorted(candidates.pop(), key=lambda x: x.addr)
         l.info(f"Selecting the candidate: {candidate}")
 
-        ail_merge_graph = self.create_merged_subgraph(candidate, self.write_graph)
+        try:
+            ail_merge_graph = self.create_merged_subgraph(candidate, self.write_graph)
+        except SAILRSemanticError as e:
+            self.candidate_blacklist.add(tuple(candidate))
+            l.info(f"Skipping this candidate because of {e}...")
+            return True, False
+
         candidate = ail_merge_graph.starts
         for block in ail_merge_graph.original_ends:
             if self._block_has_goto_edge(
@@ -381,7 +404,114 @@ class DuplicationReverter(OptimizationPass):
 
                 self.write_graph.add_edge(orig_pred, new_succ)
 
+        l.info("| | | | Candidate merge successful!!!")
+        self.write_graph = self._correct_all_broken_jumps(self.write_graph)
+        self.write_graph = self._uniquify_addrs(self.write_graph)
         return False, True
+
+    def _uniquify_addrs(self, graph):
+        new_graph = nx.DiGraph()
+        new_nodes = {}
+        nodes_by_addr = defaultdict(list)
+        for node in graph.nodes:
+            nodes_by_addr[node.addr].append(node)
+
+        for addr, nodes in nodes_by_addr.items():
+            if len(nodes) == 1:
+                continue
+
+            # we have multiple nodes with the same address
+            duplicate_addr_nodes = sorted(nodes, key=lambda x: (x.idx or -1), reverse=True)
+            for duplicate_node in duplicate_addr_nodes:
+                new_node = duplicate_node.copy()
+                new_node.idx = None
+                new_addr = self.new_block_addr()
+                new_node.addr = new_addr
+                for i, stmt in enumerate(new_node.statements):
+                    if stmt.tags and "ins_addr" in stmt.tags:
+                        stmt.tags["ins_addr"] = new_addr + i + 1
+
+                new_nodes[duplicate_node] = new_node
+
+        # reset the idx for all of them since they are unique now, also fix the jump targets idx
+        for node in graph.nodes:
+            new_node = new_nodes[node] if node in new_nodes else node.copy()
+            new_node.idx = None
+            if new_node.statements and isinstance(new_node.statements[-1], Jump):
+                new_node.statements[-1].target_idx = None
+
+            new_nodes[node] = new_node
+
+        # fixup every single jump target (before adding them to the graph)
+        for src, dst, data in graph.edges(data=True):
+            new_src = new_nodes[src]
+            new_dst = new_nodes[dst]
+            if new_dst is not dst:
+                new_new_src = new_src.copy()
+                new_new_src.statements[-1] = correct_jump_targets(new_new_src.statements[-1], {dst.addr: new_dst.addr})
+                new_nodes[src] = new_new_src
+
+        # add all the nodes in the same order back to the graph
+        for node in graph.nodes:
+            new_graph.add_node(new_nodes[node])
+        for src, dst, data in graph.edges(data=True):
+            new_graph.add_edge(new_nodes[src], new_nodes[dst], **data)
+
+        return new_graph
+
+    def _correct_all_broken_jumps(self, graph):
+        new_graph = nx.DiGraph()
+        new_nodes = {}
+        for node in graph.nodes:
+            # correct the last statement of the node for single-successor nodes
+            new_node = node
+            if graph.out_degree(node) == 1:
+                last_stmt = node.statements[-1]
+                successor = list(graph.successors(node))[0]
+                if isinstance(last_stmt, Jump):
+                    if last_stmt.target.value != successor.addr:
+                        new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
+                        last_stmt.target_idx = successor.idx
+                        new_last_stmt.target = Const(None, None, successor.addr, self.project.arch.bits)
+                        new_node = node.copy()
+                        new_node.statements[-1] = new_last_stmt
+                # the last statement is not a jump, but this node should have one, so add it
+                else:
+                    new_node = node.copy()
+                    new_last_stmt = Jump(
+                        None, Const(None, None, successor.addr, self.project.arch.bits), target_idx=successor.idx
+                    )
+                    # TODO: improve addressing here
+                    new_last_stmt.tags["ins_addr"] = new_node.addr + 1
+                    new_node.statements.append(new_last_stmt)
+
+            elif graph.out_degree(node) == 2:
+                last_stmt = node.statements[-1]
+                if isinstance(last_stmt, ConditionalJump):
+                    real_successor_addrs = list(_n.addr for _n in graph.successors(node))
+                    addr_map = {}
+                    unmapped_addrs = []
+                    for target in (last_stmt.true_target, last_stmt.false_target):
+                        if target.value in real_successor_addrs:
+                            addr_map[target.value] = target.value
+                            real_successor_addrs.remove(target.value)
+                        else:
+                            unmapped_addrs.append(target.value)
+
+                    # right now we can only correct cases where one edge is incorrect
+                    if len(real_successor_addrs) == 1 and len(unmapped_addrs) == 1:
+                        addr_map[unmapped_addrs[0]] = real_successor_addrs[0]
+                        new_last_stmt = correct_jump_targets(last_stmt, addr_map, new_stmt=True)
+                        new_node = node.copy()
+                        new_node.statements[-1] = new_last_stmt
+
+            new_nodes[node] = new_node
+            new_graph.add_node(new_node)
+
+        for src, dst, data in graph.edges(data=True):
+            new_graph.add_edge(new_nodes[src], new_nodes[dst], **data)
+
+        return new_graph
 
     def _construct_best_condition_block_for_merge(self, blocks, graph) -> tuple[Block, Block]:
         # find the conditions that block both of these blocks
@@ -744,7 +874,7 @@ class DuplicationReverter(OptimizationPass):
         # since instructions can shift...
         last_stmt = block.statements[-1]
 
-        gotos = self.goto_manager.gotos_in_block(block)
+        gotos = self._goto_manager.gotos_in_block(block)
         for goto in gotos:
             target_block = find_block_in_successors_by_addr(goto.dst_addr, block, graph)
             if any(self._has_single_successor_path(end, target_block, graph) for end in other_ends):
@@ -759,7 +889,7 @@ class DuplicationReverter(OptimizationPass):
             for pred in graph.predecessors(block):
                 last_stmt = pred.statements[-1]
                 if isinstance(last_stmt, ConditionalJump):
-                    gotos = self.goto_manager.gotos_in_block(pred)
+                    gotos = self._goto_manager.gotos_in_block(pred)
                     # TODO: this is only valid for duplication reverter, but it should be better
                     if gotos and block.idx is not None:
                         return True
@@ -771,7 +901,7 @@ class DuplicationReverter(OptimizationPass):
             for succ in graph.successors(block):
                 last_stmt = succ.statements[-1]
                 if isinstance(last_stmt, ConditionalJump):
-                    gotos = self.goto_manager.gotos_in_block(succ)
+                    gotos = self._goto_manager.gotos_in_block(succ)
                     # TODO: this is only valid for duplication reverter, but it should be better
                     if gotos and block.idx is not None:
                         return True
@@ -796,7 +926,7 @@ class DuplicationReverter(OptimizationPass):
         blocks_by_addr = {blk.addr: blk for blk in self.out_graph.nodes()}
 
         bad_gotos = set()
-        for goto in self.goto_manager.gotos:
+        for goto in self._goto_manager.gotos:
             goto_end_block = blocks_by_addr.get(goto.dst_addr, None)
             # skip gotos that don't exist
             if not goto_end_block:
@@ -852,21 +982,21 @@ class DuplicationReverter(OptimizationPass):
         # now that we have a full target graph, we want to know the condensed conditions that allow
         # control flow to get to that target end. We get the reaching conditions to construct a gaurding
         # node later
-        self.ri.cond_proc.recover_reaching_conditions(None, graph=full_condition_graph)
+        self._ri.cond_proc.recover_reaching_conditions(None, graph=full_condition_graph)
         conditions_by_start = {}
         for sink in sinks:
-            if sink in self.ri.cond_proc.guarding_conditions:
-                condition = self.ri.cond_proc.guarding_conditions[sink]
-            elif sink in self.ri.cond_proc.reaching_conditions:
-                condition = self.ri.cond_proc.reaching_conditions[sink]
+            if sink in self._ri.cond_proc.guarding_conditions:
+                condition = self._ri.cond_proc.guarding_conditions[sink]
+            elif sink in self._ri.cond_proc.reaching_conditions:
+                condition = self._ri.cond_proc.reaching_conditions[sink]
             else:
                 raise Exception(f"Unable to find the conditions for target: {sink}")
 
-            condition = self.ri.cond_proc.simplify_condition(condition)
+            condition = self._ri.cond_proc.simplify_condition(condition)
             if condition.is_true() or condition.is_false():
-                condition = self.ri.cond_proc.simplify_condition(self.ri.cond_proc.reaching_conditions[sink])
+                condition = self._ri.cond_proc.simplify_condition(self._ri.cond_proc.reaching_conditions[sink])
 
-            conditions_by_start[sink] = self.ri.cond_proc.convert_claripy_bool_ast(condition)
+            conditions_by_start[sink] = self._ri.cond_proc.convert_claripy_bool_ast(condition)
 
         return conditions_by_start
 
@@ -954,22 +1084,8 @@ class DuplicationReverter(OptimizationPass):
 
         return cond_graph, pre_graphs_maps
 
-    def _update_subregions(self, updated_addrs, new_addrs):
-        # for region in self.ri.regions_by_block_addrs:
-        #    if any(addr in region for addr in updated_addrs):
-        #        for new_addr in new_addrs:
-        #            region.append(new_addr)
-        ## make each index has a list of unique addrs
-        # for i in range(len(self.ri.regions_by_block_addrs)):
-        #    self.ri.regions_by_block_addrs[i] = list(set(self.ri.regions_by_block_addrs[i]))
-
-        # refresh RegionIdentifier
-        self.ri = self.project.analyses.RegionIdentifier(
-            self.ri.function, cond_proc=self.ri.cond_proc, graph=self.write_graph
-        )
-
     def _share_subregion(self, blocks: list[Block]) -> bool:
-        for region in self.ri.regions_by_block_addrs:
+        for region in self._ri.regions_by_block_addrs:
             if all(block.addr in region for block in blocks):
                 return True
         else:
@@ -1350,11 +1466,11 @@ class DuplicationReverter(OptimizationPass):
     def simple_optimize_graph(self, graph):
         def _to_ail_supergraph(graph_):
             # make supergraph conversion always say no change
-            return to_ail_supergraph(graph_), False
+            return to_ail_supergraph(graph_, allow_fake=True), False
 
         new_graph = graph.copy()
         opts = [
-            self.remove_redundant_jumps,
+            # self.remove_redundant_jumps,
             _to_ail_supergraph,
         ]
 

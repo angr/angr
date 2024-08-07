@@ -1,11 +1,14 @@
 import itertools
+import logging
 
 import networkx as nx
 
 from ailment.block import Block
 
 from .utils import bfs_list_blocks
-from ...block_similarity import longest_ail_subseq
+from ...block_similarity import longest_ail_subseq, is_similar
+
+_l = logging.getLogger(name=__name__)
 
 
 def longest_ail_graph_subseq(block_list, graph):
@@ -107,3 +110,16 @@ def ail_similarity_to_orig_blocks(orig_block, graph_similarity, graph):
         graph_sim = graph_sim[len(lcs) :]
 
     return orig_blocks, split_blocks
+
+
+def find_block_by_similarity(block, graph, node_list=None):
+    nodes = node_list if node_list else list(graph.nodes())
+    similar_blocks = []
+    for other_block in nodes:
+        if is_similar(block, other_block, graph=graph):
+            similar_blocks.append(other_block)
+
+    if len(similar_blocks) > 1:
+        _l.warning("found multiple similar blocks")
+
+    return similar_blocks[0]

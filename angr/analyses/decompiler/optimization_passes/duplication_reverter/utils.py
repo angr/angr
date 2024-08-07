@@ -10,7 +10,6 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump
 
 from .errors import UnsupportedAILNodeError
-from ...block_similarity import is_similar
 from ...structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from .....utils.graph import dominates
 
@@ -231,21 +230,3 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
         return jump_stmt
     else:
         return stmt
-
-
-#
-# Block Utilities
-#
-
-
-def find_block_by_similarity(block, graph, node_list=None):
-    nodes = node_list if node_list else list(graph.nodes())
-    similar_blocks = []
-    for other_block in nodes:
-        if is_similar(block, other_block, graph=graph):
-            similar_blocks.append(other_block)
-
-    if len(similar_blocks) > 1:
-        _l.warning("found multiple similar blocks")
-
-    return similar_blocks[0]
