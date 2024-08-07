@@ -6,16 +6,10 @@ from ...analyses.decompiler.optimization_passes.optimization_pass import Optimiz
 from .utils import *
 
 
-DECONSTRUCTION_FUNCTIONS = ("__rust_dealloc", "close")
-DECONSTRUCTION_FUNCTION_PREFIXES = "core::ptr::drop_in_place"
-NON_RETURNING_FUNCTIONS = (
-    "alloc::raw_vec::handle_error",
-    "alloc::alloc::handle_alloc_error",
-    "core::panicking::panic_bounds_check",
-)
+DECONSTRUCTION_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place")
 
 
-class JunkRemover(TransformationPass):
+class EpilogueSimplifier(TransformationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -34,10 +28,7 @@ class JunkRemover(TransformationPass):
             if any(
                 pred.statements
                 and isinstance(pred.statements[-1], Call)
-                and not (
-                    self.match_call(pred, DECONSTRUCTION_FUNCTIONS)
-                    or self.match_call(pred, DECONSTRUCTION_FUNCTION_PREFIXES, match_prefix=True)
-                )
+                and not self.match_call(pred, DECONSTRUCTION_FUNCTIONS)
                 for pred in self._graph.predecessors(block)
             ):
                 return False
@@ -49,9 +40,7 @@ class JunkRemover(TransformationPass):
                 or isinstance(stmt, Return)
             ):
                 continue
-            elif self.match_call(stmt, DECONSTRUCTION_FUNCTIONS) or self.match_call(
-                stmt, DECONSTRUCTION_FUNCTION_PREFIXES, match_prefix=True
-            ):
+            elif self.match_call(stmt, DECONSTRUCTION_FUNCTIONS):
                 continue
             else:
                 return False
@@ -95,24 +84,6 @@ class JunkRemover(TransformationPass):
                         queue.append(pred)
         return epilogue_blocks
 
-    def _simplify_non_returning_calls(self):
-        removed = set()
-        for block in self._graph.nodes:
-            if (
-                block.statements
-                and isinstance(block.statements[-1], ConditionalJump)
-                and self.num_successors(block) == 2
-            ):
-                block0, block1 = self.get_two_successors(block)
-                if self.match_call(block0, NON_RETURNING_FUNCTIONS):
-                    self.replace_jump_target(block, block0, block1)
-                    removed.add(block0)
-                elif self.match_call(block1, NON_RETURNING_FUNCTIONS):
-                    self.replace_jump_target(block, block1, block0)
-                    removed.add(block1)
-        for block in removed:
-            self._graph.remove_node(block)
-
     def _simlify_epilogue(self):
         return_blocks = set()
 
@@ -146,6 +117,4 @@ class JunkRemover(TransformationPass):
                     self._graph.remove_node(bad_block)
 
     def _analyze(self, cache=None):
-        Stats.function_numbers += 1
-        self._simplify_non_returning_calls()
         self._simlify_epilogue()

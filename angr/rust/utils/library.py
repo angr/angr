@@ -63,6 +63,7 @@ def _is_rust_hash(s):
 
 
 POLYMORPHISM_PATTERN = re.compile(r"<(.*) as (.*)>::(.*)")
+POLYMORPHISM_PATTERN_2 = re.compile(r"<.*?>")
 
 
 def demangle(s):
@@ -105,6 +106,7 @@ def normalize(name, remove_polymorphism=False, concise=False):
         search = POLYMORPHISM_PATTERN.search(demangled)
         if search and len(search.groups()) == 3:
             demangled = search.group(1) + "::" + search.group(3)
+        demangled = POLYMORPHISM_PATTERN_2.sub("", demangled)
     if concise:
         demangled = demangled.split("::")[-1]
     return demangled

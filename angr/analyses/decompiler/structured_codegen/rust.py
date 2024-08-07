@@ -1219,6 +1219,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         "is_expr",
         "show_demangled_name",
         "show_disambiguated_name",
+        "callsite_prototype",
     )
 
     def __init__(
@@ -1232,6 +1233,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
+        callsite_prototype: Optional[RustSimTypeFunction] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -1244,9 +1246,12 @@ class RustFunctionCall(RustStatement, RustExpression):
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
+        self.callsite_prototype = callsite_prototype
 
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
+        if self.callsite_prototype:
+            return self.callsite_prototype
         if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.callee_func.prototype
         returnty = RustSimTypeInt(signed=False)
@@ -1300,6 +1305,9 @@ class RustFunctionCall(RustStatement, RustExpression):
 
         if self.callee_func is not None:
             func_name = normalize(self.callee_func.name, remove_polymorphism=True, concise=is_class_member_function)
+            yield func_name, self
+        elif isinstance(self.callee_target, str):
+            func_name = normalize(self.callee_target, remove_polymorphism=True, concise=is_class_member_function)
             yield func_name, self
         else:
             yield from RustExpression._try_c_repr_chunks(self.callee_target)
@@ -3300,6 +3308,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=stmt.tags,
             is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,
+            callsite_prototype=stmt.prototype,
             codegen=self,
         )
 

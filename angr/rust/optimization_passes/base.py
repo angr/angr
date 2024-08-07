@@ -4,12 +4,12 @@ from typing import Optional
 
 import archinfo
 from ailment import Block, Const
-from ailment.expression import StackBaseOffset, Register, BinaryOp
+from ailment.expression import StackBaseOffset, Register, BinaryOp, Convert
 from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Store
 
 from ...analyses.decompiler import Clinic
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ...rust.utils.library import demangle
+from ...rust.utils.library import demangle, normalize
 
 
 class SimpleSimulator:
@@ -60,19 +60,32 @@ class TransformationPass(OptimizationPass):
     def endian(self):
         return "big" if (self.project.arch.memory_endness == archinfo.Endness.BE) else "little"
 
-    def match_call(self, block_or_stmt, func_list, match_prefix=False):
+    def match_call(self, block_or_stmt, func_list):
         stmt = None
         if isinstance(block_or_stmt, Statement):
             stmt = block_or_stmt
         elif isinstance(block_or_stmt, Block) and block_or_stmt.statements:
             stmt = block_or_stmt.statements[-1]
+        if isinstance(stmt, Return) and len(stmt.ret_exprs):
+            stmt = stmt.ret_exprs[0]
+            if isinstance(stmt, Convert):
+                stmt = stmt.operand
         if isinstance(stmt, Call) and isinstance(stmt.target, Const) and stmt.target.value in self.kb.functions:
             func = self.kb.functions[stmt.target.value]
-            name = demangle(func.name)
-            if match_prefix:
-                return any(name.startswith(func_name) for func_name in func_list)
+            name = normalize(func.name, remove_polymorphism=True)
             return name in func_list
         return False
+
+    def replace_call_with_jump(self, block):
+        terminal = block.statements[-1]
+        if isinstance(terminal, Call) and self.num_successors(block) == 1:
+            succ = self.get_one_successor(block)
+            block.statements[-1] = Jump(
+                terminal.idx,
+                Const(0, None, succ.addr, self.project.arch.bits),
+                succ.idx,
+                ins_addr=terminal.ins_addr,
+            )
 
     def replace_jump_target(self, block, old_target: Optional[Block], new_target: Block):
         if not block.statements:
@@ -143,7 +156,7 @@ class TransformationPass(OptimizationPass):
     def num_successors(self, block):
         return len(list(self._graph.successors(block)))
 
-    def get_one_successor(self, block):
+    def get_one_successor(self, block) -> Block:
         return next(self._graph.successors(block))
 
     def get_two_successors(self, block):

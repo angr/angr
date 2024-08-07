@@ -40,8 +40,7 @@ prototypes = {
         is_class_member_function=True,
     ),
     "core::result::unwrap": RustSimTypeFunction(
-        args=[RustSimTypeReference(RustSimTypeInt(64))],
-        returnty=None,
+        args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
     ),
 }
 
