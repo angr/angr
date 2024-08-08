@@ -260,8 +260,14 @@ class FunctionHandler:
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def __init__(self, interfunction_level: int = 0):
+    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable["FunctionHandler"] | None = None):
         self.interfunction_level: int = interfunction_level
+
+        if extra_impls is not None:
+            for extra_handler in extra_impls:
+                for name, func in vars(extra_handler).items():
+                    if name.startswith("handle_impl_"):
+                        setattr(self, name, lambda *args, **kwargs: func(self, *args, **kwargs))
 
     def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
         """

@@ -20,12 +20,12 @@ class CodeLocation:
 
     def __init__(
         self,
-        block_addr: int,
+        block_addr: int | None,
         stmt_idx: int | None,
         sim_procedure=None,
         ins_addr: int | None = None,
         context: Any = None,
-        block_idx: int = None,
+        block_idx: int | None = None,
         **kwargs,
     ):
         """
@@ -41,12 +41,12 @@ class CodeLocation:
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
-        self.block_addr: int = block_addr
+        self.block_addr: int | None = block_addr
         self.stmt_idx: int | None = stmt_idx
         self.sim_procedure = sim_procedure
         self.ins_addr: int | None = ins_addr
         self.context: tuple[int] | None = context
-        self.block_idx = block_idx
+        self.block_idx: int | None = block_idx
         self._hash = None
 
         self.info: dict | None = None
