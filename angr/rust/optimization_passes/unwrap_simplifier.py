@@ -49,16 +49,17 @@ class UnwrapSimplifier(TransformationPass):
                     should_update = True
                 if should_update:
                     expr = self._extract_expr_from_condition(cond)
-                    last_stmt = block.statements[-1]
-                    new_stmt = Call(
-                        idx=last_stmt.idx,
-                        target="core::result::unwrap",
-                        prototype=self.librust.get_prototype("core::result::unwrap").with_arch(self.project.arch),
-                        args=[expr],
-                        ret_expr=None,
-                        **last_stmt.tags,
-                    )
-                    block.statements[-1] = new_stmt
+                    if expr:
+                        last_stmt = block.statements[-1]
+                        new_stmt = Call(
+                            idx=last_stmt.idx,
+                            target="core::result::unwrap",
+                            prototype=self.librust.get_prototype("core::result::unwrap").with_arch(self.project.arch),
+                            args=[expr],
+                            ret_expr=None,
+                            **last_stmt.tags,
+                        )
+                        block.statements[-1] = new_stmt
 
         for block in removed:
             self._graph.remove_node(block)

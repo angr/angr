@@ -1173,7 +1173,10 @@ class RustAssignment(RustStatement):
             yield " = ", self
             yield from RustExpression._try_c_repr_chunks(self.rhs, indent=indent)
         if not asexpr:
-            yield ";\n", self
+            yield ";", self
+            if "comment" in self.tags:
+                yield " // " + self.tags["comment"], self
+            yield "\n", self
 
 
 class RustVecInitialization(RustStatement):
