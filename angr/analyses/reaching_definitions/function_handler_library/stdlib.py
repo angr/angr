@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import random
 
-import archinfo
 import claripy
 
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
@@ -12,6 +11,7 @@ from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+
 
 class EnvironAtom(Atom):
     def __init__(self, name: str | None):
@@ -27,6 +27,7 @@ class EnvironAtom(Atom):
     def __repr__(self):
         return f'<EnvironAtom {self.name if self.name is not None else "(dynamic)"}>'
 
+
 class SystemAtom(Atom):
     def __init__(self):
         self.nonce = random.randint(0, 999999999999)
@@ -36,7 +37,7 @@ class SystemAtom(Atom):
         return (self.nonce,)
 
     def __repr__(self):
-        return f'<SystemAtom>'
+        return "<SystemAtom>"
 
 
 class ExecveAtom(Atom):
@@ -49,7 +50,7 @@ class ExecveAtom(Atom):
         return (self.nonce,)
 
     def __repr__(self):
-        return f'<ExecveAtom {self.idx}>'
+        return f"<ExecveAtom {self.idx}>"
 
 
 class LibcStdlibHandlers(FunctionHandler):
@@ -58,21 +59,29 @@ class LibcStdlibHandlers(FunctionHandler):
         buf_atoms = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
         buf_value = state.get_concrete_value(buf_atoms, cast_to=bytes)
         if buf_value is not None:
-            buf_value = int(buf_value.decode().strip('\0'))
+            buf_value = int(buf_value.decode().strip("\0"))
         data.depends(data.ret_atoms, buf_atoms, value=buf_value)
 
     @FunctionCallDataUnwrapped.decorate
-    def handle_impl_malloc(self, state: "ReachingDefinitionsState", data: FunctionCallDataUnwrapped):
+    def handle_impl_malloc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         malloc_size = state.get_concrete_value(data.args_atoms[0]) or 48
         heap_ptr = state.heap_allocator.allocate(malloc_size)
         data.depends(data.ret_atoms, value=state.heap_address(heap_ptr))
 
     @FunctionCallDataUnwrapped.decorate
-    def handle_impl_getenv(self, state: "ReachingDefinitionsState", data: FunctionCallDataUnwrapped):
+    def handle_impl_calloc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        nmemb = state.get_concrete_value(data.args_atoms[0]) or 48
+        size = state.get_concrete_value(data.args_atoms[0]) or 1
+        heap_ptr = state.heap_address(state.heap_allocator.allocate(nmemb * size))
+        data.depends(state.deref(heap_ptr, nmemb * size), value=0)
+        data.depends(data.ret_atoms, value=heap_ptr)
+
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_getenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         name_atom = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
         name_value = state.get_concrete_value(name_atom, cast_to=bytes)
         if name_value is not None:
-            name_value = name_value.strip(b'\0').decode()
+            name_value = name_value.strip(b"\0").decode()
         data.depends(None, name_atom)
 
         # store a buffer, registering it as an output of this function
@@ -80,66 +89,21 @@ class LibcStdlibHandlers(FunctionHandler):
         # but also it should be able to be picked up by NULL_TERMINATE reads
         heap_ptr = state.heap_allocator.allocate(2)
         heap_atom = state.deref(heap_ptr, 2)
-        heap_value = claripy.BVS('weh', 8).concat(claripy.BVV(0, 8))
+        heap_value = claripy.BVS("weh", 8).concat(claripy.BVV(0, 8))
         data.depends(heap_atom, EnvironAtom(name_value), value=heap_value)
         data.depends(data.ret_atoms, value=state.heap_address(heap_ptr))
 
     @FunctionCallDataUnwrapped.decorate
-    def handle_impl_strcpy(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+    def handle_impl_setenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        name_atom = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
+        name_value = state.get_concrete_value(name_atom, cast_to=bytes)
+        if name_value is not None:
+            name_value = name_value.strip(b"\0").decode()
+        data.depends(None, name_atom)
+
         src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
-        src_str = state.get_values(src_atom)
-        if src_str is not None:
-            dst_atom = state.deref(data.args_atoms[0], len(src_str) // 8)
-            data.depends(dst_atom, src_atom, value=src_str)
-        data.depends(data.ret_atoms, data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
-
-    @FunctionCallDataUnwrapped.decorate
-    def handle_impl_strncpy(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        n = state.get_concrete_value(data.args_atoms[1])
-        src_atom = state.deref(data.args_atoms[2], DerefSize.NULL_TERMINATE if n is None else n)
-        src_str = state.get_values(src_atom)
-        if src_str is not None:
-            dst_atom = state.deref(data.args_atoms[0], len(src_str) // 8)
-            data.depends(dst_atom, src_atom, value=src_str)
-        data.depends(data.ret_atoms, data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
-
-    @FunctionCallDataUnwrapped.decorate
-    def handle_impl_strdup(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
-        src_str = state.get_values(src_atom)
-        if src_str is not None:
-            malloc_size = len(src_str) // 8
-        else:
-            malloc_size = 1
-        heap_ptr = state.heap_allocator.allocate(malloc_size)
-        dst_atom = state.deref(heap_ptr, malloc_size)
-        data.depends(dst_atom, src_atom, value=src_str)
-        data.depends(data.ret_atoms, data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
-
-    @FunctionCallDataUnwrapped.decorate
-    def handle_impl_strcat(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        src0_atom = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
-        src1_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
-        src0_value = state.get_values(src0_atom)
-        src1_value = state.get_values(src1_atom)
-        if src0_value is not None and src1_value is not None:
-            src0_value = src0_value.extract(0, len(src0_value) // 8 - 1, archinfo.Endness.BE)
-            dest_value = src0_value.concat(src1_value)
-            dest_atom = state.deref(data.args_atoms[0], len(dest_value) // 8, endness=archinfo.Endness.BE)
-        else:
-            dest_value = None
-            dest_atom = src0_atom
-        data.depends(dest_atom, src0_atom, src1_atom, value=dest_value)
-        data.depends(data.ret_atoms, data.args_atoms[0], value=src0_value)
-
-    @FunctionCallDataUnwrapped.decorate
-    def handle_impl_strlen(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        src_atom = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
-        src_str = state.get_values(src_atom)
-        if src_str is not None:
-            data.depends(data.ret_atoms, src_atom, value=len(src_str) // 8 - 1)
-        else:
-            data.depends(data.ret_atoms, src_atom)
+        src_value = state.get_values(src_atom)
+        data.depends(EnvironAtom(name_value), src_atom, value=src_value)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_system(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
@@ -183,4 +147,3 @@ class LibcStdlibHandlers(FunctionHandler):
             # Increment by size of pointer for this arch
             argv_value += state.arch.bytes
             idx += 1
-

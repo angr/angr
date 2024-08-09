@@ -1,7 +1,7 @@
 import re
 import random
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 import archinfo
 import claripy
@@ -16,6 +16,20 @@ from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValu
 
 _l = logging.getLogger(__name__)
 
+
+class StdoutAtom(Atom):
+    def __init__(self, sink: str):
+        self.nonce = random.randint(0, 999999999999)
+        self.sink = sink
+        super().__init__(1)
+
+    def _identity(self):
+        return (self.nonce,)
+
+    def __repr__(self):
+        return f"<StdoutAtom {self.sink}>"
+
+
 class StdinAtom(Atom):
     def __init__(self, source: str):
         self.nonce = random.randint(0, 999999999999)
@@ -26,7 +40,8 @@ class StdinAtom(Atom):
         return (self.nonce,)
 
     def __repr__(self):
-        return f'<StdinAtom {self.source}>'
+        return f"<StdinAtom {self.source}>"
+
 
 def parse_format_string(format_string: str) -> tuple[list[str | int], list[SimType], list[str]]:
     result_pieces: list[str | int] = []
@@ -37,7 +52,7 @@ def parse_format_string(format_string: str) -> tuple[list[str | int], list[SimTy
     idx = 0
     for argspec in re.finditer(r"\%([0 #+-]?[0-9*]*\.?\d*([hl]{0,2}|[jztL])?[diuoxXeEfgGaAcpsSn%])", format_string):
         start, end = argspec.span()
-        if format_string[end-1] == '%':
+        if format_string[end - 1] == "%":
             continue
         if start != last_piece:
             result_pieces.append(format_string[last_piece:start])
@@ -50,7 +65,7 @@ def parse_format_string(format_string: str) -> tuple[list[str | int], list[SimTy
             arg = SimTypeInt(signed=True)
         elif fmt == "%u":
             arg = SimTypeInt(signed=False)
-        elif fmt == '%c':
+        elif fmt == "%c":
             arg = SimTypeChar(signed=True)
         else:
             arg = SimTypeBottom()
@@ -65,34 +80,22 @@ def parse_format_string(format_string: str) -> tuple[list[str | int], list[SimTy
 
 class LibcStdioHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
-    def handle_impl___isoc99_scanf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        format_str = state.get_concrete_value(state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE), cast_to=bytes)
-        if format_str is None:
-            print("Hmmm.... non-constant format string")
-            return
-        format_str = format_str.strip(b'\0').decode()
-        arg_pieces, arg_types, formats = parse_format_string(format_str)
-        data.reset_prototype(SimTypeFunction(data.prototype.args + tuple(arg_types), data.prototype.returnty), state)
+    def handle_impl_printf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        result, source_atoms = handle_printf(state, data, 0)
+        dst_atoms = StdoutAtom("printf")
+        data.depends(dst_atoms, source_atoms, value=result)
 
-        for piece in arg_pieces:
-            if isinstance(piece, str):
-                continue
-            atom = data.args_atoms[1 + piece]
-            fmt = formats[piece]
-            buf_data = None
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_dprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        result, source_atoms = handle_printf(state, data, 1)
+        dst_atoms = StdoutAtom("dprintf")
+        data.depends(dst_atoms, source_atoms, value=result)
 
-            if fmt == "%s":
-                buf_atom = state.deref(atom, 1)
-                buf_data = b'\0'
-            elif fmt == "%u":
-                buf_atom = state.deref(atom, 4, state.arch.memory_endness)
-            elif fmt == "%d":
-                buf_atom = state.deref(atom, 4, state.arch.memory_endness)
-            elif fmt == '%c':
-                buf_atom = state.deref(atom, 1, state.arch.memory_endness)
-            else:
-                raise NotImplementedError()
-            data.depends(buf_atom, StdinAtom("scanf"), value=buf_data)
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_fprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        result, source_atoms = handle_printf(state, data, 1)
+        dst_atoms = StdoutAtom("fprintf")
+        data.depends(dst_atoms, source_atoms, value=result)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_sprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
@@ -103,6 +106,19 @@ class LibcStdioHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_snprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         result, source_atoms = handle_printf(state, data, 2)
+        size = state.get_concrete_value(data.args_atoms[1]) or 2
+        dst_atoms = state.deref(data.args_atoms[0], size=size)
+        data.depends(dst_atoms, source_atoms, value=result)
+
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl___sprintf_chk(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        result, source_atoms = handle_printf(state, data, 3)
+        dst_atoms = state.deref(data.args_atoms[0], size=len(result) // 8 if result is not None else 1)
+        data.depends(dst_atoms, source_atoms, value=result)
+
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl___snprintf_chk(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        result, source_atoms = handle_printf(state, data, 4)
         size = state.get_concrete_value(data.args_atoms[1]) or 2
         dst_atoms = state.deref(data.args_atoms[0], size=size)
         data.depends(dst_atoms, source_atoms, value=result)
@@ -119,17 +135,50 @@ class LibcStdioHandlers(FunctionHandler):
 
     handle_impl___isoc99_sscanf = handle_impl_sscanf
 
-def handle_printf(state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped, fmt_idx: int) -> tuple[MultiValues | None, Iterable[Atom]]:
-    format_str = state.get_concrete_value(state.deref(data.args_atoms[fmt_idx], DerefSize.NULL_TERMINATE), cast_to=bytes)
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_fgets(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        size = state.get_concrete_value(data.args_atoms[1]) or 2
+        dst_atom = state.deref(data.args_atoms[0], size)
+        input_value = claripy.BVS("weh", 8).concat(claripy.BVV(0, 8))
+        data.depends(dst_atom, StdinAtom("fgets"), value=input_value)
+        data.depends(data.ret_atoms, data.args_atoms[0])
+
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_fgetc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        data.depends(data.ret_atoms, StdinAtom(data.function.name))
+
+    handle_impl_getchar = handle_impl_getc = handle_impl_fgetc
+
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_fread(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        size = state.get_concrete_value(data.args_atoms[1]) or 1
+        nmemb = state.get_concrete_value(data.args_atoms[1]) or 2
+        dst_atom = state.deref(data.args_atoms[0], size * nmemb)
+        data.depends(dst_atom, StdinAtom("fread"))
+
+    @FunctionCallDataUnwrapped.decorate
+    def handle_impl_fwrite(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
+        size = state.get_concrete_value(data.args_atoms[1]) or 1
+        nmemb = state.get_concrete_value(data.args_atoms[1]) or 2
+        src_atom = state.deref(data.args_atoms[0], size * nmemb)
+        data.depends(StdoutAtom("fwrite"), src_atom, value=state.get_values(src_atom))
+
+
+def handle_printf(
+    state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped, fmt_idx: int
+) -> tuple[MultiValues | None, Iterable[Atom]]:
+    format_str = state.get_concrete_value(
+        state.deref(data.args_atoms[fmt_idx], DerefSize.NULL_TERMINATE), cast_to=bytes
+    )
     if format_str is None:
         _l.info("Hmmm.... non-constant format string")
         return None, set()
 
-    format_str = format_str.strip(b'\0').decode()
+    format_str = format_str.strip(b"\0").decode()
     arg_pieces, arg_types, formats = parse_format_string(format_str)
     data.reset_prototype(SimTypeFunction(data.prototype.args + tuple(arg_types), data.prototype.returnty), state)
 
-    result = MultiValues(claripy.BVV(b''))
+    result = MultiValues(claripy.BVV(b""))
     source_atoms: set[Atom] = set()
     for piece in arg_pieces:
         if isinstance(piece, str):
@@ -156,13 +205,13 @@ def handle_printf(state: ReachingDefinitionsState, data: FunctionCallDataUnwrapp
                 if buf_data >= 2**31:
                     buf_data -= 2**32
                 buf_data = str(buf_data).encode()
-        elif fmt == '%c':
+        elif fmt == "%c":
             buf_atoms = atom
             buf_data = state.get_concrete_value(atom)
             if buf_data is not None:
                 buf_data = chr(buf_data).encode()
         else:
-            _l.warning(f"Unimplemented printf format string %s", fmt)
+            _l.warning("Unimplemented printf format string %s", fmt)
             buf_atoms = set()
             buf_data = None
         if result is not None:
@@ -170,16 +219,21 @@ def handle_printf(state: ReachingDefinitionsState, data: FunctionCallDataUnwrapp
                 result = result.concat(buf_data)
         source_atoms.update(buf_atoms)
     if result is not None:
-        result = result.concat(b'\0')
+        result = result.concat(b"\0")
 
     return result, source_atoms
 
-def handle_scanf(state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped, fmt_idx: int, source_atoms: Iterable[Atom]):
-    format_str = state.get_concrete_value(state.deref(data.args_atoms[fmt_idx], DerefSize.NULL_TERMINATE), cast_to=bytes)
+
+def handle_scanf(
+    state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped, fmt_idx: int, source_atoms: Iterable[Atom]
+):
+    format_str = state.get_concrete_value(
+        state.deref(data.args_atoms[fmt_idx], DerefSize.NULL_TERMINATE), cast_to=bytes
+    )
     if format_str is None:
         _l.info("Hmmm.... non-constant format string")
         return None, set()
-    format_str = format_str.strip(b'\0').decode()
+    format_str = format_str.strip(b"\0").decode()
     arg_pieces, arg_types, formats = parse_format_string(format_str)
     data.reset_prototype(SimTypeFunction(data.prototype.args + tuple(arg_types), data.prototype.returnty), state)
 
@@ -192,14 +246,14 @@ def handle_scanf(state: ReachingDefinitionsState, data: FunctionCallDataUnwrappe
 
         if fmt == "%s":
             buf_atom = state.deref(atom, 1)
-            buf_data = b'\0'
+            buf_data = b"\0"
         elif fmt == "%u":
             buf_atom = state.deref(atom, 4, state.arch.memory_endness)
         elif fmt == "%d":
             buf_atom = state.deref(atom, 4, state.arch.memory_endness)
-        elif fmt == '%c':
+        elif fmt == "%c":
             buf_atom = state.deref(atom, 1, state.arch.memory_endness)
         else:
-            _l.warning(f"Unimplemented scanf format string %s", fmt)
+            _l.warning("Unimplemented scanf format string %s", fmt)
             continue
         data.depends(buf_atom, source_atoms, value=buf_data)
