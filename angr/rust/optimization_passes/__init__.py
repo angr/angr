@@ -1,3 +1,4 @@
+from .calling_convention_recovery import CallingConventionRecovery
 from .error_handling_simplifier import ErrorHandlingSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
 from ...analyses.decompiler.optimization_passes import _all_optimization_passes
@@ -12,15 +13,18 @@ from .ownership_simplifier import OwnershipSimplifier
 
 _all_optimization_passes.extend(
     [
+        # Before type recovery
         (LibFunctionIdentifier, True),
-        (StructInstantiationSimplifier, True),
+        (CallingConventionRecovery, True),
+        (OwnershipSimplifier, True),
         (EpilogueSimplifier, True),
         (ErrorHandlingSimplifier, True),
+        (AllocSimplifier, True),
+        # After type recovery
+        (StructInstantiationSimplifier, True),
         (UnwrapSimplifier, True),
         (LifetimeSimplifier, True),
         # (StringSimplifier, True),
-        (AllocSimplifier, True),
         # (TypeCorrector, True),
-        (OwnershipSimplifier, True),
     ]
 )

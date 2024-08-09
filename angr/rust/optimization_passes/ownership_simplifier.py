@@ -17,55 +17,26 @@ class OwnershipSimplifier(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _is_potential_ownership_transfer(self, stmts):
-        if len(stmts) < 2:
-            return False
-        sorted_seq = sorted(stmts, key=lambda ele: ele.addr.offset)
-        last_addr_offset = sorted_seq[0].addr.offset
-        last_data_offset = sorted_seq[0].data.addr.offset
-        last_size = sorted_seq[0].data.size
-        for stmt in sorted_seq[1:]:
-            if (
-                last_addr_offset + last_size != stmt.addr.offset
-                or last_data_offset + last_size != stmt.data.addr.offset
-            ):
-                return False
-        return True
-
-    def _simplify_ownership_transfer_(self, stmts):
-        new_stmts = []
-        pending_stmts = []
-
-        for stmt in stmts:
-            if (
-                len(pending_stmts) >= 2
-                and self._is_potential_ownership_transfer(pending_stmts)
-                and not self._is_potential_ownership_transfer(pending_stmts + [stmt])
-            ):
-                # Do the simplification
-                pass
-            pending_stmts.append(stmt)
-
-        return new_stmts
-
     def _is_ownership_transfer(self, stmts):
         if len(stmts) < 2:
             return False
-        addr_offset = stmts[0].addr.offset
+        last_stmt = stmts[0]
         for stmt in stmts[1:]:
-            if stmt.addr.offset + stmt.data.size == addr_offset:
-                addr_offset = stmts[0].addr.offset
+            if (
+                last_stmt.addr.offset + last_stmt.data.size == stmt.addr.offset
+                and last_stmt.data.addr.offset + last_stmt.data.size == stmt.data.addr.offset
+            ):
+                last_stmt = stmt
             else:
                 return False
         return True
 
     def _merge_stores(self, stmts):
-        first_stmt = stmts[0]
-        last_stmt = stmts[-1].copy()
-        last_stmt.addr = first_stmt.addr
-        last_stmt.size = sum(stmt.size for stmt in stmts)
-        last_stmt.data.size = last_stmt.size
-        return last_stmt
+        stmt = stmts[0].copy()
+        stmt.size = sum(stmt.size for stmt in stmts)
+        stmt.data.size = stmt.size
+        stmt.tags["comment"] = f"Merged from {len(stmts)} statements (current size: {stmt.size})"
+        return stmt
 
     def _simplify_ownership_transfer(self, stmts):
         new_stmts = []
@@ -77,8 +48,8 @@ class OwnershipSimplifier(OptimizationPass):
                 pending_stmts = pending_stmts[1:]
             elif (
                 len(pending_stmts) >= 2
-                and self._is_potential_ownership_transfer(pending_stmts)
-                and not self._is_potential_ownership_transfer(pending_stmts + [stmt])
+                and self._is_ownership_transfer(pending_stmts)
+                and not self._is_ownership_transfer(pending_stmts + [stmt])
             ):
                 new_stmts.append(self._merge_stores(pending_stmts))
                 pending_stmts.clear()
