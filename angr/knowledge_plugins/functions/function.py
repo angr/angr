@@ -54,6 +54,7 @@ class Function(Serializable):
         "addr",
         "is_simprocedure",
         "_name",
+        "previous_names",
         "is_default_name",
         "from_signature",
         "binary_name",
@@ -222,6 +223,7 @@ class Function(Serializable):
         else:
             self.is_default_name = False
             self._name = name
+        self.previous_names = []
         self.from_signature = None
 
         # Determine the name the binary where this function is.
@@ -272,6 +274,7 @@ class Function(Serializable):
 
     @name.setter
     def name(self, v):
+        self.previous_names.append(self._name)
         self._name = v
         self._function_manager._kb.labels[self.addr] = v
 
@@ -1666,6 +1669,7 @@ class Function(Serializable):
         func._endpoints = self._endpoints.copy()
         func._call_sites = self._call_sites.copy()
         func._project = self._project
+        func.previous_names = list(self.previous_names)
         func.is_plt = self.is_plt
         func.is_simprocedure = self.is_simprocedure
         func.binary_name = self.binary_name
