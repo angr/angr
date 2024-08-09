@@ -326,7 +326,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return
 
         try:
-            concrete_addrs = self._interleave_ints(sorted(self.concretize_write_addr(addr)))
+            concrete_addrs = self._interleave_ints(sorted(self.concretize_write_addr(addr, condition=condition)))
         except SimMemoryError:
             if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
                 return  # not completed
