@@ -233,7 +233,7 @@ def handle_scanf(
     )
     if format_str is None:
         _l.info("Hmmm.... non-constant format string")
-        return None, set()
+        return
     format_str = format_str.strip(b"\0").decode()
     arg_pieces, arg_types, formats = parse_format_string(format_str)
     data.reset_prototype(SimTypeFunction(data.prototype.args + tuple(arg_types), data.prototype.returnty), state)
