@@ -4,6 +4,7 @@ from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
+
 class LibcUnistdHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_read(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):

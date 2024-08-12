@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
+
 class EnvironAtom(Atom):
     def __init__(self, name: str | None):
         self.name = name
