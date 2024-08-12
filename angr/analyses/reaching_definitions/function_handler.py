@@ -254,6 +254,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
         return inner
 
 
+def _mk_wrapper(func, iself):
+    return lambda *args, **kwargs: func(iself, *args, **kwargs)
+
 # pylint: disable=unused-argument, no-self-use
 class FunctionHandler:
     """
@@ -267,7 +270,7 @@ class FunctionHandler:
             for extra_handler in extra_impls:
                 for name, func in vars(extra_handler).items():
                     if name.startswith("handle_impl_"):
-                        setattr(self, name, lambda *args, **kwargs: func(self, *args, **kwargs))
+                        setattr(self, name, _mk_wrapper(func, self))
 
     def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
         """
