@@ -2,6 +2,7 @@ from angr.analyses.reaching_definitions.function_handler import FunctionCallData
 from angr.analyses.reaching_definitions.function_handler_library.stdio import StdinAtom, StdoutAtom
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
+# pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
 class LibcUnistdHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate

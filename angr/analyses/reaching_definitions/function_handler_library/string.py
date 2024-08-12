@@ -3,6 +3,7 @@ from angr.analyses.reaching_definitions.function_handler import FunctionCallData
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 
+# pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
 class LibcUnistdHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate

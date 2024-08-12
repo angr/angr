@@ -12,6 +12,7 @@ from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
+# pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
 class EnvironAtom(Atom):
     def __init__(self, name: str | None):

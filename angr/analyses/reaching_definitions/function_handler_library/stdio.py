@@ -13,6 +13,7 @@ from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 from angr.sim_type import SimType, SimTypeBottom, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
+# pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
 _l = logging.getLogger(__name__)
 
