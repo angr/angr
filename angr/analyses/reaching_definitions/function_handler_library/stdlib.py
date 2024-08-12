@@ -49,7 +49,7 @@ class ExecveAtom(Atom):
         super().__init__(size)
 
     def _identity(self):
-        return (self.nonce,)
+        return (self.nonce, self.idx)
 
     def __repr__(self):
         return f"<ExecveAtom {self.idx}>"
@@ -61,7 +61,10 @@ class LibcStdlibHandlers(FunctionHandler):
         buf_atoms = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
         buf_value = state.get_concrete_value(buf_atoms, cast_to=bytes)
         if buf_value is not None:
-            buf_value = int(buf_value.decode().strip("\0"))
+            try:
+                buf_value = int(buf_value.decode().strip("\0"))
+            except ValueError:
+                buf_value = 0
         data.depends(data.ret_atoms, buf_atoms, value=buf_value)
 
     @FunctionCallDataUnwrapped.decorate
@@ -131,12 +134,12 @@ class LibcStdlibHandlers(FunctionHandler):
                 # unknown if array continues
                 break
 
-            argv_deref_concrete = state.get_concrete_value(argv_deref_atom)
+            argv_deref_concrete = state.get_one_value(argv_deref_atom)
             if argv_deref_concrete is None:
                 # unknown if array continues
                 break
 
-            if argv_deref_concrete == 0:
+            if (argv_deref_concrete == 0).is_true():
                 # End of array
                 break
 
