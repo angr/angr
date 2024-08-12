@@ -49,7 +49,7 @@ class ExecveAtom(Atom):
         super().__init__(size)
 
     def _identity(self):
-        return (self.nonce,)
+        return (self.nonce, self.idx)
 
     def __repr__(self):
         return f"<ExecveAtom {self.idx}>"

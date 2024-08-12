@@ -6,7 +6,7 @@ from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
 
-class LibcUnistdHandlers(FunctionHandler):
+class LibcStringHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_strcat(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         src0_atom = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
