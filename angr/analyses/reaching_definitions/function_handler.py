@@ -257,6 +257,7 @@ class FunctionCallDataUnwrapped(FunctionCallData):
 def _mk_wrapper(func, iself):
     return lambda *args, **kwargs: func(iself, *args, **kwargs)
 
+
 # pylint: disable=unused-argument, no-self-use
 class FunctionHandler:
     """
