@@ -14,6 +14,7 @@ from angr.misc.ux import deprecated
 from angr.errors import SimMemoryMissingError, SimMemoryError
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.knowledge_plugins.key_definitions.definition import A
 from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
@@ -660,7 +661,7 @@ class LiveDefinitions:
             self.other_uses.add_use(definition, code_loc, expr)
 
     def get_definitions(
-        self, thing: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]] | MultiValues
+        self, thing: A | Definition[A] | Iterable[A] | Iterable[Definition[A]] | MultiValues
     ) -> set[Definition[Atom]]:
         if isinstance(thing, MultiValues):
             defs = set()
@@ -693,9 +694,9 @@ class LiveDefinitions:
             return self.get_tmp_definitions(thing.tmp_idx)
         else:
             defs = set()
-            for mvs in self.others.get(thing, {}).values():
-                for mv in mvs:
-                    defs |= self.get_definitions(mv)
+            mv = self.others.get(thing, None)
+            if mv is not None:
+                defs |= self.get_definitions(mv)
             return defs
 
     def get_tmp_definitions(self, tmp_idx: int) -> set[Definition]:
@@ -749,7 +750,7 @@ class LiveDefinitions:
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
     @deprecated("get_definitions")
-    def get_definitions_from_atoms(self, atoms: Iterable[Atom]) -> Iterable[Definition]:
+    def get_definitions_from_atoms(self, atoms: Iterable[A]) -> Iterable[Definition]:
         result = set()
         for atom in atoms:
             result |= self.get_definitions(atom)
@@ -813,9 +814,7 @@ class LiveDefinitions:
             return None
         return r.concrete_value
 
-    def get_values(
-        self, spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]]
-    ) -> MultiValues | None:
+    def get_values(self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]]) -> MultiValues | None:
         if isinstance(spec, Definition):
             atom = spec.atom
         elif isinstance(spec, Atom):
@@ -874,7 +873,7 @@ class LiveDefinitions:
 
     def get_one_value(
         self,
-        spec: Atom | Definition | Iterable[Atom] | Iterable[Definition[Atom]],
+        spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
         strip_annotations: bool = False,
     ) -> claripy.ast.bv.BV | None:
         r = self.get_values(spec)
@@ -884,19 +883,19 @@ class LiveDefinitions:
 
     @overload
     def get_concrete_value(
-        self, spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]], cast_to: type[int] = ...
+        self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], cast_to: type[int] = ...
     ) -> int | None: ...
 
     @overload
     def get_concrete_value(
         self,
-        spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
+        spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
         cast_to: type[bytes] = ...,
     ) -> bytes | None: ...
 
     def get_concrete_value(
         self,
-        spec: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
+        spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
         cast_to: type[int] | type[bytes] = int,
     ) -> int | bytes | None:
         r = self.get_one_value(spec, strip_annotations=True)
@@ -983,7 +982,7 @@ class LiveDefinitions:
     @overload
     def deref(
         self,
-        pointer: MultiValues | Atom | Definition | Iterable[Atom] | Iterable[Definition],
+        pointer: MultiValues | A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
         size: int | DerefSize,
         endness: archinfo.Endness = ...,
     ) -> set[MemoryLocation]: ...

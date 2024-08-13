@@ -731,6 +731,17 @@ class TestMemory(unittest.TestCase):
             mv = MultiValues(offset_to_values=data)
             state.memory.store(0x7FFEFF9C, mv)  # should not crash
 
+    def test_mv_crosspage_store_large_elements(self):
+        state = SimState(arch="amd64", mode="symbolic", plugins={"memory": MVPageMemory()})
+
+        data = {
+            0: {claripy.BVS("TOP", 4095 * 8)},
+            4095: {claripy.BVV(47, 8), claripy.BVV(85, 8)},
+            4096: {claripy.BVS("TOP", 4096 * 8)},
+        }
+        mv = MultiValues(offset_to_values=data)
+        state.memory.store(0x7FFEE1FF, mv)  # should not crash
+
     def test_crosspage_read(self):
         state = SimState(arch="ARM")
         state.regs.sp = 0x7FFF0008

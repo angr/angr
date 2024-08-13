@@ -213,6 +213,68 @@ class DepGraph:
 
             self.graph.add_edge(memory_location_definition, definition)
 
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: type[A],
+        **kwargs: Any,
+    ) -> list[Definition[A]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.REGISTER] = AtomKind.REGISTER,
+        **kwargs: Any,
+    ) -> list[Definition[Register]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.MEMORY] = AtomKind.MEMORY,
+        **kwargs: Any,
+    ) -> list[Definition[MemoryLocation]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.TMP] = AtomKind.TMP,
+        **kwargs: Any,
+    ) -> list[Definition[Tmp]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.CONSTANT] = AtomKind.CONSTANT,
+        **kwargs: Any,
+    ) -> list[Definition[ConstantSrc]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.GUARD] = AtomKind.GUARD,
+        **kwargs: Any,
+    ) -> list[Definition[GuardUse]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        reg_name: int | str = ...,
+        **kwargs: Any,
+    ) -> list[Definition[Register]]: ...
+
+    @overload
+    def find_definitions(self, *, stack_offset: int = ..., **kwargs: Any) -> list[Definition[MemoryLocation]]: ...
+
+    @overload
+    def find_definitions(self, *, const_val: int = ..., **kwargs: Any) -> list[Definition[ConstantSrc]]: ...
+
     def find_definitions(self, **kwargs) -> list[Definition]:
         """
         Filter the definitions present in the graph based on various criteria.
@@ -298,11 +360,6 @@ class DepGraph:
     def find_all_predecessors(
         self, starts: Definition[Atom] | Iterable[Definition[Atom]], *, const_val: int = ..., **kwargs: Any
     ) -> list[Definition[ConstantSrc]]: ...
-
-    @overload
-    def find_all_predecessors(
-        self, starts: Definition[Atom] | Iterable[Definition[Atom]], **kwargs: Any
-    ) -> list[Definition[Atom]]: ...
 
     def find_all_predecessors(self, starts, **kwargs):
         """
