@@ -61,7 +61,10 @@ class LibcStdlibHandlers(FunctionHandler):
         buf_atoms = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
         buf_value = state.get_concrete_value(buf_atoms, cast_to=bytes)
         if buf_value is not None:
-            buf_value = int(buf_value.decode().strip("\0"))
+            try:
+                buf_value = int(buf_value.decode().strip("\0"))
+            except ValueError:
+                buf_value = 0
         data.depends(data.ret_atoms, buf_atoms, value=buf_value)
 
     @FunctionCallDataUnwrapped.decorate
