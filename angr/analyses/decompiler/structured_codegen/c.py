@@ -1408,7 +1408,6 @@ class CUnsupportedStatement(CStatement):
 
 
 class CDirtyStatement(CExpression):
-
     __slots__ = ("dirty",)
 
     def __init__(self, dirty, **kwargs):
