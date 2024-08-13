@@ -131,12 +131,12 @@ class LibcStdlibHandlers(FunctionHandler):
                 # unknown if array continues
                 break
 
-            argv_deref_concrete = state.get_concrete_value(argv_deref_atom)
+            argv_deref_concrete = state.get_one_value(argv_deref_atom)
             if argv_deref_concrete is None:
                 # unknown if array continues
                 break
 
-            if argv_deref_concrete == 0:
+            if (argv_deref_concrete == 0).is_true():
                 # End of array
                 break
 
