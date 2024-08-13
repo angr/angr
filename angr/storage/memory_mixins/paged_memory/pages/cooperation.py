@@ -266,7 +266,8 @@ class MemoryObjectSetMixin(CooperationBase):
                 old_size = size
 
                 size = yield mos, first_mo.base, first_mo.length
-                cur_addr += min(first_mo.length, old_size)
+                delta = min(first_mo.length - (cur_addr - first_mo.base), old_size)
+                cur_addr += delta
                 if sorted_offsets[pos] + first_mo.length <= cur_addr - addr - page_addr:
                     pos += 1
 
