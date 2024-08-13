@@ -496,9 +496,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             #   * the number of occurrences
             #   * the repr of the type itself
             # TODO: The type selection should actually happen during variable unification
-            count = Counter([x[1] for x in cvar_and_vartypes])
+            vartypes = [x[1] for x in cvar_and_vartypes]
+            count = Counter(vartypes)
             vartypes = sorted(
-                count, key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+                vartypes, key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
             )
 
             for i, var_type in enumerate(vartypes):
@@ -2172,8 +2173,8 @@ class CConstant(CExpression):
                     v = refval.content.decode("utf-8")
                 else:
                     # it's a string
-                    assert isinstance(v, str)
                     v = refval
+                    assert isinstance(v, str)
                 yield CConstant.str_to_c_str(v), self
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                 refval = self.reference_values[self._type]
