@@ -108,6 +108,8 @@ class LibcStdioHandlers(FunctionHandler):
     def handle_impl_snprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         result, source_atoms = handle_printf(state, data, 2)
         size = state.get_concrete_value(data.args_atoms[1]) or 2
+        if result is not None:
+            size = min(size, len(result) // 8)
         dst_atoms = state.deref(data.args_atoms[0], size=size)
         data.depends(dst_atoms, source_atoms, value=result)
 
