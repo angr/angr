@@ -497,7 +497,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             #   * the repr of the type itself
             # TODO: The type selection should actually happen during variable unification
             count = Counter([x[1] for x in cvar_and_vartypes])
-            vartypes = sorted(count, key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x)))
+            vartypes = sorted(
+                count, key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+            )
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
