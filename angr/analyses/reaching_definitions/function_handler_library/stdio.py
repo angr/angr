@@ -19,10 +19,10 @@ _l = logging.getLogger(__name__)
 
 
 class StdoutAtom(Atom):
-    def __init__(self, sink: str):
+    def __init__(self, sink: str, size: int | None):
         self.nonce = random.randint(0, 999999999999)
         self.sink = sink
-        super().__init__(1)
+        super().__init__(size if size is not None else 1)
 
     def _identity(self):
         return (self.nonce,)
@@ -32,10 +32,10 @@ class StdoutAtom(Atom):
 
 
 class StdinAtom(Atom):
-    def __init__(self, source: str):
+    def __init__(self, source: str, size: int | None):
         self.nonce = random.randint(0, 999999999999)
         self.source = source
-        super().__init__(1)
+        super().__init__(size if size is not None else 1)
 
     def _identity(self):
         return (self.nonce,)
@@ -83,19 +83,19 @@ class LibcStdioHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_printf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         result, source_atoms = handle_printf(state, data, 0)
-        dst_atoms = StdoutAtom("printf")
+        dst_atoms = StdoutAtom("printf", len(result) if result is not None else None)
         data.depends(dst_atoms, source_atoms, value=result)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_dprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         result, source_atoms = handle_printf(state, data, 1)
-        dst_atoms = StdoutAtom("dprintf")
+        dst_atoms = StdoutAtom("dprintf", len(result) if result is not None else None)
         data.depends(dst_atoms, source_atoms, value=result)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_fprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         result, source_atoms = handle_printf(state, data, 1)
-        dst_atoms = StdoutAtom("fprintf")
+        dst_atoms = StdoutAtom("fprintf", len(result) if result is not None else None)
         data.depends(dst_atoms, source_atoms, value=result)
 
     @FunctionCallDataUnwrapped.decorate
@@ -108,6 +108,8 @@ class LibcStdioHandlers(FunctionHandler):
     def handle_impl_snprintf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         result, source_atoms = handle_printf(state, data, 2)
         size = state.get_concrete_value(data.args_atoms[1]) or 2
+        if result is not None:
+            size = min(size, len(result) // 8)
         dst_atoms = state.deref(data.args_atoms[0], size=size)
         data.depends(dst_atoms, source_atoms, value=result)
 
@@ -126,7 +128,7 @@ class LibcStdioHandlers(FunctionHandler):
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_scanf(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        handle_scanf(state, data, 0, {StdinAtom("scanf")})
+        handle_scanf(state, data, 0, {StdinAtom("scanf", None)})
 
     handle_impl___isoc99_scanf = handle_impl_scanf
 
@@ -141,12 +143,12 @@ class LibcStdioHandlers(FunctionHandler):
         size = state.get_concrete_value(data.args_atoms[1]) or 2
         dst_atom = state.deref(data.args_atoms[0], size)
         input_value = claripy.BVS("weh", 8).concat(claripy.BVV(0, 8))
-        data.depends(dst_atom, StdinAtom("fgets"), value=input_value)
+        data.depends(dst_atom, StdinAtom("fgets", size), value=input_value)
         data.depends(data.ret_atoms, data.args_atoms[0])
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_fgetc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        data.depends(data.ret_atoms, StdinAtom(data.function.name))
+        data.depends(data.ret_atoms, StdinAtom(data.function.name, 1))
 
     handle_impl_getchar = handle_impl_getc = handle_impl_fgetc
 
@@ -155,14 +157,14 @@ class LibcStdioHandlers(FunctionHandler):
         size = state.get_concrete_value(data.args_atoms[1]) or 1
         nmemb = state.get_concrete_value(data.args_atoms[1]) or 2
         dst_atom = state.deref(data.args_atoms[0], size * nmemb)
-        data.depends(dst_atom, StdinAtom("fread"))
+        data.depends(dst_atom, StdinAtom("fread", size * nmemb))
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_fwrite(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         size = state.get_concrete_value(data.args_atoms[1]) or 1
         nmemb = state.get_concrete_value(data.args_atoms[1]) or 2
         src_atom = state.deref(data.args_atoms[0], size * nmemb)
-        data.depends(StdoutAtom("fwrite"), src_atom, value=state.get_values(src_atom))
+        data.depends(StdoutAtom("fwrite", size * nmemb), src_atom, value=state.get_values(src_atom))
 
 
 def handle_printf(

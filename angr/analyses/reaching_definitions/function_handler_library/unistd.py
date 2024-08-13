@@ -10,7 +10,7 @@ class LibcUnistdHandlers(FunctionHandler):
     def handle_impl_read(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         size = state.get_concrete_value(data.args_atoms[2]) or 1
         dst_atom = state.deref(data.args_atoms[1], size)
-        data.depends(dst_atom, StdinAtom(data.function.name))
+        data.depends(dst_atom, StdinAtom(data.function.name, size))
 
     handle_impl_recv = handle_impl_recvfrom = handle_impl_read
 
@@ -18,6 +18,6 @@ class LibcUnistdHandlers(FunctionHandler):
     def handle_impl_write(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         size = state.get_concrete_value(data.args_atoms[2]) or 1
         src_atom = state.deref(data.args_atoms[1], size)
-        data.depends(StdoutAtom(data.function.name), src_atom, value=state.get_values(src_atom))
+        data.depends(StdoutAtom(data.function.name, size), src_atom, value=state.get_values(src_atom))
 
     handle_impl_send = handle_impl_write
