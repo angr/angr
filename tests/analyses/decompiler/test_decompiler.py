@@ -3647,6 +3647,23 @@ class TestDecompiler(unittest.TestCase):
             max_width_assigns = re.findall(rf"{indent*2}max_width = xdectoumax\(", text)
             assert len(max_width_assigns) == 1
 
+    def test_deterministic_sorting_c_variables(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "BitBlaster.exe")
+
+        first = None
+
+        for i in range(5):
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            function = cfg.functions[4203344]
+            function.normalize()
+            decomp = proj.analyses.Decompiler(func=function, cfg=cfg, options=[(PARAM_TO_OPTION["show_casts"], False)])
+            text = decomp.codegen.text
+            if first is None:
+                first = decomp.codegen.text
+            else:
+                assert first == decomp.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
