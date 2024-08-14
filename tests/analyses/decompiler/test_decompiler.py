@@ -3653,7 +3653,7 @@ class TestDecompiler(unittest.TestCase):
 
         first = None
 
-        for i in range(5):
+        for _ in range(5):
             proj = angr.Project(bin_path, auto_load_libs=False)
             cfg = proj.analyses.CFGFast(normalize=True)
             function = cfg.functions[4203344]
