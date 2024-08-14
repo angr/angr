@@ -3659,7 +3659,6 @@ class TestDecompiler(unittest.TestCase):
             function = cfg.functions[4203344]
             function.normalize()
             decomp = proj.analyses.Decompiler(func=function, cfg=cfg, options=[(PARAM_TO_OPTION["show_casts"], False)])
-            text = decomp.codegen.text
             if first is None:
                 first = decomp.codegen.text
             else:
