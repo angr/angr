@@ -3648,6 +3648,7 @@ class TestDecompiler(unittest.TestCase):
             assert len(max_width_assigns) == 1
 
     def test_deterministic_sorting_c_variables(self, decompiler_options=None):
+        # https://github.com/angr/angr/issues/4746
         bin_path = os.path.join(test_location, "x86_64", "BitBlaster.exe")
 
         first = None
