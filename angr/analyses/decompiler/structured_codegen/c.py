@@ -499,7 +499,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             vartypes = [x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
-                vartypes, key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+                count.copy(), key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
             )
 
             for i, var_type in enumerate(vartypes):
