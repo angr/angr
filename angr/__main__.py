@@ -42,7 +42,7 @@ def main():
         "--structurer",
         help="The structuring algorithm to use for decompilation.",
         choices=STRUCTURER_CLASSES.keys(),
-        default=DEFAULT_STRUCTURER,
+        default=DEFAULT_STRUCTURER.NAME,
     )
 
     args = parser.parse_args()
