@@ -413,7 +413,7 @@ class SimComboArg(SimFunctionArgument):
         vals = []
         for loc in reversed(self.locations):
             vals.append(loc.get_value(state, **kwargs))
-        return self.check_value_get(state.solver.Concat(*vals))
+        return self.check_value_get(claripy.Concat(*vals))
 
 
 class SimStructArg(SimFunctionArgument):

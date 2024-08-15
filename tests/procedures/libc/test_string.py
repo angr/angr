@@ -65,7 +65,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval(a_len) == 3
 
         log.info("concrete-terminated string")
-        b_str = s.solver.Concat(claripy.BVS("mystring", 24), claripy.BVV(0, 8))
+        b_str = claripy.Concat(claripy.BVS("mystring", 24), claripy.BVV(0, 8))
         b_addr = claripy.BVV(0x20, 64)
         s.memory.store(b_addr, b_str, endness="Iend_BE")
         b_len = strlen(s, arguments=[b_addr])
@@ -766,7 +766,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
         s.add_constraints(ln == 15)
         # readsize = 16
-        # both_strs = s.solver.Concat(
+        # both_strs = claripy.Concat(
         #     *[
         #         s.memory.load(dst_addr, readsize, endness="Iend_BE"),
         #         s.memory.load(src_addr, readsize, endness="Iend_BE"),

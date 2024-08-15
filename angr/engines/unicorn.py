@@ -376,7 +376,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                 if state.arch.memory_endness == archinfo.Endness.LE:
                     curr_value_bytes = reversed(curr_value_bytes)
 
-                curr_value = state.solver.Concat(*curr_value_bytes)
+                curr_value = claripy.Concat(*curr_value_bytes)
 
             state.inspect.mem_read_expr = curr_value
 

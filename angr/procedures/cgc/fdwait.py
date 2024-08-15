@@ -29,7 +29,7 @@ class fdwait(angr.SimProcedure):
                 total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
                 sym_newbits.append(sym_newbit)
             read_fds.extend(reversed(sym_newbits))
-        self.state.memory.store(readfds, self.state.solver.Concat(*read_fds), condition=readfds != 0)
+        self.state.memory.store(readfds, claripy.Concat(*read_fds), condition=readfds != 0)
 
         write_fds = []
         for fd_set in range(0, 32, 8):
@@ -47,7 +47,7 @@ class fdwait(angr.SimProcedure):
                 total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
                 sym_newbits.append(sym_newbit)
             write_fds.extend(reversed(sym_newbits))
-        self.state.memory.store(writefds, self.state.solver.Concat(*write_fds), condition=writefds != 0)
+        self.state.memory.store(writefds, claripy.Concat(*write_fds), condition=writefds != 0)
 
         self.state.memory.store(readyfds, total_ready, endness="Iend_LE", condition=readyfds != 0)
 
