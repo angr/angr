@@ -315,7 +315,6 @@ class TestMemory(unittest.TestCase):
             dict_memory_backer=initial_memory,
             add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY},
         )
-        se = s.solver
 
         def to_vs(region, offset):
             return claripy.VS(s.arch.bits, region, 0, offset)
@@ -396,7 +395,7 @@ class TestMemory(unittest.TestCase):
         c = a.merge(b)[0]
         expr = c.memory.load(to_vs("function_merge", 0x20), 4)
         assert claripy.backends.vsa.identical(
-            expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)
+            expr, claripy.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)
         )
         c_page = c.memory._regions["function_merge"]._pages[0]
         object_set = {

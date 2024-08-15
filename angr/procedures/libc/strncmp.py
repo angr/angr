@@ -154,7 +154,7 @@ class strncmp(angr.SimProcedure):
             return claripy.BVV(0, 32)
 
         if self.state.mode == "static":
-            ret_expr = self.state.solver.ESI(8)
+            ret_expr = claripy.ESI(8)
             for expr in return_values:
                 ret_expr = ret_expr.union(expr)
 

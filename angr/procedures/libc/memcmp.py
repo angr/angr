@@ -63,7 +63,7 @@ class memcmp(angr.SimProcedure):
 
             ret_expr = claripy.If(
                 definite_answer == 0,
-                self.state.solver.ite_dict(n - definite_size, conditional_rets, 2),
+                claripy.ite_dict(n - definite_size, conditional_rets, 2),
                 definite_answer,
             )
             self.state.add_constraints(claripy.Or(*[n - definite_size == c for c in conditional_rets]))

@@ -688,7 +688,10 @@ class SimState(PluginHub):
             merge_values = range(len(others) + 1)
             merge_conditions = [merge_flag == b for b in merge_values]
         else:
-            merge_conditions = [(claripy.true if len(mc) == 0 else claripy.And(*mc)) for mc in merge_conditions]
+            merge_conditions = [
+                (claripy.true if len(mc) == 0 else claripy.And(*[c.to_claripy() for c in mc]))
+                for mc in merge_conditions
+            ]
 
         if len({o.arch.name for o in others}) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
