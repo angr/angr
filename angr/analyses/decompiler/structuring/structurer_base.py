@@ -1,6 +1,5 @@
 # pylint:disable=unused-argument
 from typing import Optional, Any, TYPE_CHECKING
-from collections import OrderedDict as ODict
 from collections import defaultdict, OrderedDict
 import logging
 
@@ -739,8 +738,8 @@ class StructurerBase(Analysis):
     #
 
     def _reorganize_switch_cases(
-        self, cases: ODict[int | tuple[int, ...], SequenceNode]
-    ) -> ODict[int | tuple[int, ...], SequenceNode]:
+        self, cases: OrderedDict[int | tuple[int, ...], SequenceNode]
+    ) -> OrderedDict[int | tuple[int, ...], SequenceNode]:
         new_cases = OrderedDict()
 
         caseid2gotoaddrs = {}
