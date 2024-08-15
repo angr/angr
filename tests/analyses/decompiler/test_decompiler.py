@@ -3674,5 +3674,6 @@ class TestDecompiler(unittest.TestCase):
         function.normalize()
         proj.analyses.Decompiler(func=function, cfg=cfg)
 
+
 if __name__ == "__main__":
     unittest.main()
