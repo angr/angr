@@ -1,6 +1,5 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
 from typing import Optional, Any, TYPE_CHECKING
-from collections import OrderedDict as ODict
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -661,7 +660,7 @@ class DreamStructurer(StructurerBase):
         i,
         node,
         cmp_expr,
-        cases: ODict,
+        cases: OrderedDict,
         node_default,
         addr,
         addr2nodes,
@@ -909,7 +908,7 @@ class DreamStructurer(StructurerBase):
         head_node_idx: int,
         node_b_addr: int,
         addr2nodes: dict[int, set[CodeNode]],
-    ) -> tuple[ODict, Any, Any]:
+    ) -> tuple[OrderedDict, Any, Any]:
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
@@ -922,7 +921,7 @@ class DreamStructurer(StructurerBase):
         :return:                    A tuple of (dict of cases, the default node if exists, nodes to remove).
         """
 
-        cases: ODict[int | tuple[int, ...], SequenceNode] = OrderedDict()
+        cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
         node_default = addr2nodes.get(node_b_addr, None)
         if node_default is not None:
