@@ -1,7 +1,6 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 from typing import Any, DefaultDict, Optional, TYPE_CHECKING
-from collections import OrderedDict as ODict
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from enum import Enum
 import logging
 
@@ -1308,8 +1307,8 @@ class PhoenixStructurer(StructurerBase):
         node_b_addr,
         graph,
         full_graph,
-    ) -> tuple[ODict, Any, set[Any]]:
-        cases: ODict[int | tuple[int], SequenceNode] = ODict()
+    ) -> tuple[OrderedDict, Any, set[Any]]:
+        cases: OrderedDict[int | tuple[int], SequenceNode] = OrderedDict()
         to_remove = set()
 
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
@@ -1418,7 +1417,7 @@ class PhoenixStructurer(StructurerBase):
         self,
         head,
         cmp_expr,
-        cases: ODict,
+        cases: OrderedDict,
         node_default_addr: int,
         node_default,
         addr,
