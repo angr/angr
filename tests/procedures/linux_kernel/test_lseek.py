@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import unittest
 
+import claripy
+
 from angr import SIM_PROCEDURES
 from angr import SimState, SimPosixError, SimFile
 
@@ -149,7 +151,7 @@ class TestLseek(unittest.TestCase):
             # Create a file
             assert fd == state.posix.open(b"/tmp/qwer", 1)
 
-            whence = state.solver.BVS("whence", 64)
+            whence = claripy.BVS("whence", 64)
 
             # This should cause the exception
             lseek(state, [fd, 0, whence])
@@ -164,7 +166,7 @@ class TestLseek(unittest.TestCase):
         # Create a file
         assert fd == state.posix.open(b"/tmp/qwer", 1)
 
-        seek = state.solver.BVS("seek", 64)
+        seek = claripy.BVS("seek", 64)
 
         # This should NOT cause an exception
         lseek(state, [fd, seek, SEEK_SET])

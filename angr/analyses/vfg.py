@@ -1303,7 +1303,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         # TODO: the following code is totally untested other than X86 and AMD64. Don't freak out if you find bugs :)
         # TODO: Test it
 
-        ret_bvv = state.solver.BVV(ret_addr, self.project.arch.bits)
+        ret_bvv = claripy.BVV(ret_addr, self.project.arch.bits)
 
         if self.project.arch.name in ("X86", "AMD64"):
             state.stack_push(ret_bvv)
@@ -1524,13 +1524,13 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 successor_state.registers.store(arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
-                top_si = successor_state.solver.TSI(arch.bits)
+                top_si = claripy.TSI(arch.bits)
                 successor_state.registers.store(arch.ret_offset, top_si)
 
             if job.call_skipped:
                 # TODO: Make sure the return values make sense
                 # if self.project.arch.name == "X86":
-                #     successor_state.regs.eax = successor_state.solver.BVS(
+                #     successor_state.regs.eax = claripy.BVS(
                 #         "ret_val", 32, min=0, max=0xFFFFFFFF, stride=1
                 #     )
 
@@ -1564,7 +1564,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                     reg_sp_si = self._create_stack_region(successor_state, successor_addr)
 
                     # Save the new sp register
-                    new_reg_sp_expr = successor_state.solver.ValueSet(successor_state.arch.bits, "global", 0, reg_sp_si)
+                    new_reg_sp_expr = claripy.ValueSet(successor_state.arch.bits, "global", 0, reg_sp_si)
                     successor_state.regs.sp = new_reg_sp_expr
 
                 elif successor.history.jumpkind == "Ijk_Ret":

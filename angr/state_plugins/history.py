@@ -144,15 +144,15 @@ class SimStateHistory(SimStatePlugin):
             [c.ast for c in h.constraints_since(common_ancestor)] for h in itertools.chain([self], others)
         ]
         if sim_options.SIMPLIFY_MERGED_CONSTRAINTS in self.state.options:
-            combined_constraint = self.state.solver.Or(
+            combined_constraint = claripy.Or(
                 *[
-                    self.state.solver.simplify(self.state.solver.And(*history_constraints))
+                    self.state.solver.simplify(claripy.And(*history_constraints))
                     for history_constraints in recent_constraints
                 ]
             )
         else:
-            combined_constraint = self.state.solver.Or(
-                *[self.state.solver.And(*history_constraints) for history_constraints in recent_constraints]
+            combined_constraint = claripy.Or(
+                *[claripy.And(*history_constraints) for history_constraints in recent_constraints]
             )
         self.recent_events = [
             e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)

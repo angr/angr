@@ -1,3 +1,5 @@
+import claripy
+
 import angr
 
 
@@ -18,7 +20,7 @@ class getenv(angr.SimProcedure):
 
         p = self.state.posix.environ
         if p is None:
-            return self.state.solver.BVS(b"getenv__" + name, self.state.arch.bits, key=("api", "getenv", name.decode()))
+            return claripy.BVS(b"getenv__" + name, self.state.arch.bits, key=("api", "getenv", name.decode()))
 
         while True:
             m_line = self.state.memory.load(p, self.state.arch.bytes, endness=self.arch.memory_endness)

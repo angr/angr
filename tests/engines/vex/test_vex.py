@@ -20,8 +20,8 @@ class TestVex(unittest.TestCase):
 
         l.debug("Testing amd64_actions_ADD")
         l.debug("(8-bit) 1 + 1...")
-        arg_l = s.solver.BVV(1, 8)
-        arg_r = s.solver.BVV(1, 8)
+        arg_l = claripy.BVV(1, 8)
+        arg_r = claripy.BVV(1, 8)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADD(s, 8, arg_l, arg_r, 0, platform="AMD64")
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(pf == 0)
@@ -31,8 +31,8 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(of == 0)
 
         l.debug("(32-bit) (-1) + (-2)...")
-        arg_l = s.solver.BVV(-1, 32)
-        arg_r = s.solver.BVV(-1, 32)
+        arg_l = claripy.BVV(-1, 32)
+        arg_r = claripy.BVV(-1, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADD(s, 32, arg_l, arg_r, 0, platform="AMD64")
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(pf == 0)
@@ -45,8 +45,8 @@ class TestVex(unittest.TestCase):
         l.debug(
             "(8-bit) 1 - 1...",
         )
-        arg_l = s.solver.BVV(1, 8)
-        arg_r = s.solver.BVV(1, 8)
+        arg_l = claripy.BVV(1, 8)
+        arg_r = claripy.BVV(1, 8)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_SUB(s, 8, arg_l, arg_r, 0, platform="AMD64")
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(pf == 1)
@@ -56,8 +56,8 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(of == 0)
 
         l.debug("(32-bit) (-1) - (-2)...")
-        arg_l = s.solver.BVV(-1, 32)
-        arg_r = s.solver.BVV(-2, 32)
+        arg_l = claripy.BVV(-1, 32)
+        arg_r = claripy.BVV(-2, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_SUB(s, 32, arg_l, arg_r, 0, platform="AMD64")
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(pf == 0)
@@ -68,8 +68,8 @@ class TestVex(unittest.TestCase):
 
         l.debug("Testing pc_actions_ROL")
         l.debug("(8-bit) ROL 1 1...")
-        result = s.solver.BVV(2, 8)  # the result of rol(1, 1)
-        oldflags = s.solver.BVV(0, 8)
+        result = claripy.BVV(2, 8)  # the result of rol(1, 1)
+        oldflags = claripy.BVV(0, 8)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(s, 8, result, None, oldflags, platform="AMD64")
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(pf == 0)
@@ -79,8 +79,8 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(of == 0)
 
         l.debug("(32-bit) ROL (-1) (-2)... (shift out of range)")
-        result = s.solver.BVV(-1, 32)  # the result of rol(-1, 0xfe)
-        oldflags = s.solver.BVV(0, 32)
+        result = claripy.BVV(-1, 32)  # the result of rol(-1, 0xfe)
+        oldflags = claripy.BVV(0, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(s, 32, result, None, oldflags, platform="AMD64")
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(pf == 0)
@@ -91,8 +91,8 @@ class TestVex(unittest.TestCase):
 
         l.debug("Testing pc_actions_ROR")
         l.debug("(32-bit) ROR 2 1...")
-        result = s.solver.BVV(1, 32)  # the result of ror(2, 1)
-        oldflags = s.solver.BVV(0, 8)
+        result = claripy.BVV(1, 32)  # the result of ror(2, 1)
+        oldflags = claripy.BVV(0, 8)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(pf == 0)
@@ -103,8 +103,8 @@ class TestVex(unittest.TestCase):
 
         l.debug("Testing pc_actions_ROR")
         l.debug("(32-bit) ROR 1 1...")
-        result = s.solver.BVV(0x80000000, 32)  # the result of ror(1, 1)
-        oldflags = s.solver.BVV(0, 8)
+        result = claripy.BVV(0x80000000, 32)  # the result of ror(1, 1)
+        oldflags = claripy.BVV(0, 8)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(pf == 0)
@@ -115,8 +115,8 @@ class TestVex(unittest.TestCase):
 
         l.debug("Testing pc_actions_ROR")
         l.debug("(32-bit) ROR -1 1...")
-        result = s.solver.BVV(-1, 32)  # the result of ror(0xffffffff, 1)
-        oldflags = s.solver.BVV(0, 32)
+        result = claripy.BVV(-1, 32)  # the result of ror(0xffffffff, 1)
+        oldflags = claripy.BVV(0, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(pf == 0)
@@ -126,8 +126,8 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(of == 0)
 
         l.debug("(32-bit) ROR (-1) (-2)... (shift out of range)")
-        result = s.solver.BVV(-1, 32)  # the result of ror(0xffffffff, 0xfe)
-        oldflags = s.solver.BVV(0, 32)
+        result = claripy.BVV(-1, 32)  # the result of ror(0xffffffff, 0xfe)
+        oldflags = claripy.BVV(0, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(pf == 0)
@@ -138,8 +138,8 @@ class TestVex(unittest.TestCase):
 
         l.debug("Testing pc_actions_SHR")
         l.debug("(64-bit) SHR 0xffffffffffffffff 1")
-        result = s.solver.BVV(0x7FFFFFFFFFFFFFFF, 64)
-        subshifted_result = s.solver.BVV(0xFFFFFFFFFFFFFFFF, 64)
+        result = claripy.BVV(0x7FFFFFFFFFFFFFFF, 64)
+        subshifted_result = claripy.BVV(0xFFFFFFFFFFFFFFFF, 64)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_SHR(s, 64, result, subshifted_result, None, platform="AMD64")
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(pf == 1)
@@ -151,37 +151,37 @@ class TestVex(unittest.TestCase):
         l.debug("Testing amd64_actions_ADCX")
 
         l.debug("(ADCX, 32-bit) 0xffffffff + 1...")
-        arg_l = s.solver.BVV(0xFFFFFFFF, 32)
-        arg_r = s.solver.BVV(1, 32)
+        arg_l = claripy.BVV(0xFFFFFFFF, 32)
+        arg_r = claripy.BVV(1, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-            s, 32, arg_l, arg_r, s.solver.BVV(0, 32), True, platform="AMD64"
+            s, 32, arg_l, arg_r, claripy.BVV(0, 32), True, platform="AMD64"
         )
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(of == 0)
 
         l.debug("(ADOX, 32-bit) 0xffffffff + 1...")
-        arg_l = s.solver.BVV(0xFFFFFFFF, 32)
-        arg_r = s.solver.BVV(1, 32)
+        arg_l = claripy.BVV(0xFFFFFFFF, 32)
+        arg_r = claripy.BVV(1, 32)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-            s, 32, arg_l, arg_r, s.solver.BVV(0, 32), False, platform="AMD64"
+            s, 32, arg_l, arg_r, claripy.BVV(0, 32), False, platform="AMD64"
         )
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(of == 1)
 
         l.debug("(ADCX, 64-bit) 0xffffffffffffffff + 1...")
-        arg_l = s.solver.BVV(0xFFFFFFFFFFFFFFFF, 64)
-        arg_r = s.solver.BVV(1, 64)
+        arg_l = claripy.BVV(0xFFFFFFFFFFFFFFFF, 64)
+        arg_r = claripy.BVV(1, 64)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-            s, 64, arg_l, arg_r, s.solver.BVV(0, 64), True, platform="AMD64"
+            s, 64, arg_l, arg_r, claripy.BVV(0, 64), True, platform="AMD64"
         )
         assert s.solver.is_true(cf == 1)
         assert s.solver.is_true(of == 0)
 
         l.debug("(ADOX, 64-bit) 0xffffffffffffffff + 1...")
-        arg_l = s.solver.BVV(0xFFFFFFFFFFFFFFFF, 64)
-        arg_r = s.solver.BVV(1, 64)
+        arg_l = claripy.BVV(0xFFFFFFFFFFFFFFFF, 64)
+        arg_r = claripy.BVV(1, 64)
         cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-            s, 64, arg_l, arg_r, s.solver.BVV(0, 64), False, platform="AMD64"
+            s, 64, arg_l, arg_r, claripy.BVV(0, 64), False, platform="AMD64"
         )
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(of == 1)
@@ -190,14 +190,14 @@ class TestVex(unittest.TestCase):
         # GitHub issue #1238
         s = SimState(arch="AArch64")
 
-        x = s.solver.BVS("x", 32)
+        x = claripy.BVS("x", 32)
         # A normal operation
-        flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
+        flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, claripy.BVV(1, 32), 0)
         assert s.satisfiable(extra_constraints=(flag_z == 0,))
         assert s.satisfiable(extra_constraints=(flag_z == 1,))
         # What VEX does
         flag_z = s_ccall.arm64g_calculate_flag_z(
-            s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0
+            s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), claripy.BVV(1, 64), 0
         )
         assert s.satisfiable(extra_constraints=(flag_z == 0,))
         assert s.satisfiable(extra_constraints=(flag_z == 1,))
@@ -209,77 +209,77 @@ class TestVex(unittest.TestCase):
         def translate(state, op, args):  # pylint:disable=unused-argument
             return engine._perform_vex_expr_Op(op, args)
 
-        a = s.solver.BVV(0xFFFF0000000100020003000400050006, 128)
-        b = s.solver.BVV(0x00020002000200020002000200020002, 128)
+        a = claripy.BVV(0xFFFF0000000100020003000400050006, 128)
+        b = claripy.BVV(0x00020002000200020002000200020002, 128)
 
         calc_result = translate(s, "Iop_Sub16x8", (a, b))
-        correct_result = s.solver.BVV(0xFFFDFFFEFFFF00000001000200030004, 128)
+        correct_result = claripy.BVV(0xFFFDFFFEFFFF00000001000200030004, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_CmpEQ16x8", (a, b))
-        correct_result = s.solver.BVV(0x000000000000FFFF0000000000000000, 128)
+        correct_result = claripy.BVV(0x000000000000FFFF0000000000000000, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_CmpEQ8x16", (a, b))
-        correct_result = s.solver.BVV(0x0000FF00FF00FFFFFF00FF00FF00FF00, 128)
+        correct_result = claripy.BVV(0x0000FF00FF00FFFFFF00FF00FF00FF00, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_CmpGT16Sx8", (a, b))
-        correct_result = s.solver.BVV(0x0000000000000000FFFFFFFFFFFFFFFF, 128)
+        correct_result = claripy.BVV(0x0000000000000000FFFFFFFFFFFFFFFF, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_CmpGT16Ux8", (a, b))
-        correct_result = s.solver.BVV(0xFFFF000000000000FFFFFFFFFFFFFFFF, 128)
+        correct_result = claripy.BVV(0xFFFF000000000000FFFFFFFFFFFFFFFF, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_InterleaveLO16x8", (a, b))
-        correct_result = s.solver.BVV(0x00030002000400020005000200060002, 128)
+        correct_result = claripy.BVV(0x00030002000400020005000200060002, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_InterleaveLO8x16", (a, b))
-        correct_result = s.solver.BVV(0x00000302000004020000050200000602, 128)
+        correct_result = claripy.BVV(0x00000302000004020000050200000602, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_Min8Ux16", (a, b))
-        correct_result = s.solver.BVV(0x00020000000100020002000200020002, 128)
+        correct_result = claripy.BVV(0x00020000000100020002000200020002, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_Min8Sx16", (a, b))
-        correct_result = s.solver.BVV(0xFFFF0000000100020002000200020002, 128)
+        correct_result = claripy.BVV(0xFFFF0000000100020002000200020002, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_QNarrowBin16Sto8Ux16", (a, b))
-        correct_result = s.solver.BVV(0x00000102030405060202020202020202, 128)
+        correct_result = claripy.BVV(0x00000102030405060202020202020202, 128)
         assert s.solver.is_true(calc_result == correct_result)
 
-        c = s.solver.BVV(0xFF008877, 32)
-        d = s.solver.BVV(0x11111111, 32)
+        c = claripy.BVV(0xFF008877, 32)
+        d = claripy.BVV(0x11111111, 32)
 
         calc_result = translate(s, "Iop_HAdd8Sx4", (c, d))
-        correct_result = s.solver.BVV(0x0808CC44, 32)
+        correct_result = claripy.BVV(0x0808CC44, 32)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_QAdd8Sx4", (c, d))
-        correct_result = s.solver.BVV(0x1011997F, 32)
+        correct_result = claripy.BVV(0x1011997F, 32)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_QAdd8Ux4", (c, d))
-        correct_result = s.solver.BVV(0xFF119988, 32)
+        correct_result = claripy.BVV(0xFF119988, 32)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_QSub8Sx4", (c, d))
-        correct_result = s.solver.BVV(0xEEEF8066, 32)
+        correct_result = claripy.BVV(0xEEEF8066, 32)
         assert s.solver.is_true(calc_result == correct_result)
 
         calc_result = translate(s, "Iop_QSub8Ux4", (c, d))
-        correct_result = s.solver.BVV(0xEE007766, 32)
+        correct_result = claripy.BVV(0xEE007766, 32)
         assert s.solver.is_true(calc_result == correct_result)
 
-        e = s.solver.BVV(0xFF00887766554433, 64)
-        f = s.solver.BVV(0x0202000200020002, 64)
+        e = claripy.BVV(0xFF00887766554433, 64)
+        f = claripy.BVV(0x0202000200020002, 64)
 
         calc_result = translate(s, "Iop_QNarrowBin16Sto8Ux8", (e, f))
-        correct_result = s.solver.BVV(0x0000FFFFFF020202, 64)
+        correct_result = claripy.BVV(0x0000FFFFFF020202, 64)
         assert s.solver.is_true(calc_result == correct_result)
 
         gg = claripy.BVV(0x111111112222222233333333FFFFFFFF, 128)
@@ -483,9 +483,9 @@ class TestVex(unittest.TestCase):
 
     def test_store_simplification(self):
         state = SimState(arch="X86")
-        state.regs.esp = state.solver.BVS("stack_pointer", 32)
-        state.regs.ebp = state.solver.BVS("base_pointer", 32)
-        state.regs.eax = state.solver.BVS("base_eax", 32)
+        state.regs.esp = claripy.BVS("stack_pointer", 32)
+        state.regs.ebp = claripy.BVS("base_pointer", 32)
+        state.regs.eax = claripy.BVS("base_eax", 32)
 
         irsb = pyvex.IRSB(b"PT]\xc2\x10\x00", 0x4000, state.arch)
         sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
@@ -508,7 +508,7 @@ class TestVex(unittest.TestCase):
         tyenv = pyvex.IRTypeEnv(state.arch)
         tyenv.types = ["Ity_I32", "Ity_I32"]
         state.scratch.set_tyenv(tyenv)
-        state.scratch.temps[1] = state.solver.BVS("tmp_1", 32)
+        state.scratch.temps[1] = claripy.BVS("tmp_1", 32)
         engine.state = state
         engine._handle_vex_stmt(stmt)
 

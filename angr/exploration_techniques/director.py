@@ -330,7 +330,7 @@ class CallFunctionGoal(BaseGoal):
     def _compare_pointer_content(state, ptr, expected):
         if isinstance(expected, str):
             # convert it to an AST
-            expected = state.solver.BVV(expected)
+            expected = claripy.BVV(expected)
         length = expected.size() // 8
         real_string = state.memory.load(ptr, length, endness="Iend_BE")
 

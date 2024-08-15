@@ -1,6 +1,6 @@
 import logging
 
-from claripy import And
+import claripy
 
 from . import translate_value
 from ....errors import SimEngineError
@@ -38,7 +38,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
 
         :param function generator: Function that given the state, returns a
                                    default value for array elements, e.g.
-                                   `generator = lambda state: state.solver.BVV(0, 32)`
+                                   `generator = lambda state: claripy.BVV(0, 32)`
         """
         self._default_value_generator = generator
 
@@ -81,9 +81,9 @@ class SimSootValue_ArrayRef(SimSootValue):
     def check_array_bounds(idx, array, state):
         # a valid idx fullfills the constraint
         # 0 <= idx < length
-        zero = state.solver.BVV(0, 32)
+        zero = claripy.BVV(0, 32)
         length = array.size
-        bound_constraint = state.solver.And(
+        bound_constraint = claripy.And(
             length.SGT(idx),
             zero.SLE(idx),
         )
@@ -121,4 +121,4 @@ class SimSootValue_ArrayRef(SimSootValue):
                 idx,
                 length,
             )
-            state.solver.add(And(length.SGT(idx), zero.SLE(idx)))
+            state.solver.add(claripy.And(length.SGT(idx), zero.SLE(idx)))

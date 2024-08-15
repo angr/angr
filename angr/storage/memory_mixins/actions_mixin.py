@@ -1,3 +1,5 @@
+import claripy
+
 from ...state_plugins.sim_action import SimActionData, SimActionObject
 from ... import sim_options as o
 from . import MemoryMixin
@@ -43,12 +45,12 @@ class ActionsMixinHigh(MemoryMixin):
             self.state, region_type, kind, addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback
         )
 
-        action.added_constraints = self.state.solver.true
+        action.added_constraints = claripy.true
         return action
 
     def _add_constraints(self, c, action=None, **kwargs):
         if action is not None:
-            action.added_constraints = self.state.solver.And(action.added_constraints, c)
+            action.added_constraints = claripy.And(action.added_constraints, c)
         return super()._add_constraints(c, action=action, **kwargs)
 
 

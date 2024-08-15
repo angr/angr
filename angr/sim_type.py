@@ -335,7 +335,7 @@ class SimTypeReg(SimType):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
-            value = state.solver.BVV(value, self.size)
+            value = claripy.BVV(value, self.size)
         elif isinstance(value, bytes):
             store_endness = "Iend_BE"
         else:
@@ -527,7 +527,7 @@ class SimTypeChar(SimTypeReg):
             super().store(state, addr, value)
         except TypeError:
             if isinstance(value, bytes) and len(value) == 1:
-                value = state.solver.BVV(value[0], state.arch.byte_width)
+                value = claripy.BVV(value[0], state.arch.byte_width)
                 super().store(state, addr, value)
             else:
                 raise
@@ -580,7 +580,7 @@ class SimTypeWideChar(SimTypeReg):
             super().store(state, addr, value)
         except TypeError:
             if isinstance(value, bytes) and len(value) == 2:
-                value = state.solver.BVV(value[0], state.arch.byte_width)
+                value = claripy.BVV(value[0], state.arch.byte_width)
                 super().store(state, addr, value)
             else:
                 raise

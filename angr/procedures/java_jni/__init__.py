@@ -4,7 +4,7 @@ import logging
 import typing
 
 from archinfo import ArchSoot
-from claripy import BVV, StrSubstr
+import claripy
 
 from ...calling_conventions import default_cc
 from ...sim_procedure import SimProcedure
@@ -66,7 +66,7 @@ class JNISimProcedure(SimProcedure):
         if isinstance(data, int):
             if addr is None:
                 addr = self._allocate_native_memory(size=type_size // 8)
-            value = self.state.solver.BVV(data, type_size)
+            value = claripy.BVV(data, type_size)
             self.state.memory.store(addr, value, endness=native_memory_endness)
         # store array
         elif isinstance(data, list):
@@ -173,11 +173,11 @@ class JNISimProcedure(SimProcedure):
         # store chars one by one
         str_len = len(string) // 8
         for idx in range(str_len):
-            str_byte = StrSubstr(idx, 1, string)
+            str_byte = claripy.StrSubstr(idx, 1, string)
             self.state.memory.store(addr + idx, str_byte)
 
         # store terminating zero
-        self.state.memory.store(len(string), BVV(0, 8))
+        self.state.memory.store(len(string), claripy.BVV(0, 8))
 
         return addr
 

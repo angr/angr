@@ -1,9 +1,11 @@
 import logging
 
-l = logging.getLogger(name=__name__)
+import claripy
 
 from .plugin import SimStatePlugin
 from ..errors import SimUCManagerAllocationError
+
+l = logging.getLogger(name=__name__)
 
 
 class SimUCManager(SimStatePlugin):
@@ -45,7 +47,7 @@ class SimUCManager(SimStatePlugin):
             )
 
         abs_addr = self._region_base + self._pos
-        ptr = self.state.solver.BVV(abs_addr, self.state.arch.bits)
+        ptr = claripy.BVV(abs_addr, self.state.arch.bits)
         self._pos += self._region_size
 
         self._alloc_depth_map[(abs_addr - self._region_base) // self._region_size] = dst_addr_ast.uc_alloc_depth

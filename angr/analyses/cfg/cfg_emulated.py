@@ -1016,7 +1016,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             state = self._initial_state.copy()
             state.history.jumpkind = jumpkind
             self._reset_state_mode(state, "fastpath")
-            state._ip = state.solver.BVV(ip, self.project.arch.bits)
+            state._ip = claripy.BVV(ip, self.project.arch.bits)
 
         if jumpkind is not None:
             state.history.jumpkind = jumpkind
@@ -1095,7 +1095,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             f = self._pending_function_hints.pop()
             if f not in analyzed_addrs:
                 new_state = self.project.factory.entry_state(mode="fastpath")
-                new_state.ip = new_state.solver.BVV(f, self.project.arch.bits)
+                new_state.ip = claripy.BVV(f, self.project.arch.bits)
 
                 # TOOD: Specially for MIPS
                 if new_state.arch.name in ("MIPS32", "MIPS64"):
@@ -1783,7 +1783,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             if suc_jumpkind == "Ijk_Ret":
                 target_addr = job.call_stack.current_return_target
                 if target_addr is not None:
-                    new_state.ip = new_state.solver.BVV(target_addr, new_state.arch.bits)
+                    new_state.ip = claripy.BVV(target_addr, new_state.arch.bits)
 
         if target_addr is None:
             # Unlucky...
@@ -2445,7 +2445,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                             resolved = True
                             for t in targets:
                                 new_ex = suc.copy()
-                                new_ex.ip = suc.solver.BVV(t, suc.ip.size())
+                                new_ex.ip = claripy.BVV(t, suc.ip.size())
                                 all_successors.append(new_ex)
                         else:
                             break

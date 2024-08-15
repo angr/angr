@@ -1,6 +1,8 @@
-import angr
-
 import logging
+
+import claripy
+
+import angr
 
 l = logging.getLogger(name=__name__)
 
@@ -50,9 +52,9 @@ class strncmp(angr.SimProcedure):
                 maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
 
             match_constraints.append(
-                self.state.solver.Or(
+                claripy.Or(
                     a_len == b_len,
-                    self.state.solver.And(self.state.solver.UGE(a_len, limit), self.state.solver.UGE(b_len, limit)),
+                    claripy.And(claripy.UGE(a_len, limit), claripy.UGE(b_len, limit)),
                 )
             )
 
@@ -62,7 +64,7 @@ class strncmp(angr.SimProcedure):
             if self.state.solver.single_valued(limit) and self.state.solver.eval(limit) == 0:
                 # limit is 0
                 l.debug("returning equal for 0-limit")
-                return self.state.solver.BVV(0, 32)
+                return claripy.BVV(0, 32)
             elif (
                 self.state.solver.single_valued(a_len)
                 and self.state.solver.single_valued(b_len)
@@ -70,14 +72,14 @@ class strncmp(angr.SimProcedure):
             ):
                 # two empty strings
                 l.debug("returning equal for two empty strings")
-                return self.state.solver.BVV(0, 32)
+                return claripy.BVV(0, 32)
             else:
                 # all other cases fall into this branch
                 l.debug("returning non-equal for comparison of an empty string and a non-empty string")
                 if a_strlen.max_null_index == 0:
-                    return self.state.solver.BVV(-1, 32)
+                    return claripy.BVV(-1, 32)
                 else:
-                    return self.state.solver.BVV(1, 32)
+                    return claripy.BVV(1, 32)
 
         # the bytes
         max_byte_len = maxlen * char_size
@@ -111,9 +113,9 @@ class strncmp(angr.SimProcedure):
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                     if a_conc < b_conc:
-                        return self.state.solver.BVV(-1, 32)
+                        return claripy.BVV(-1, 32)
                     else:
-                        return self.state.solver.BVV(1, 32)
+                        return claripy.BVV(1, 32)
             else:
                 if self.state.mode == "static":
                     return_values.append(a_byte - b_byte)
@@ -122,17 +124,17 @@ class strncmp(angr.SimProcedure):
 
             if self.state.mode != "static":
                 if ignore_case:
-                    byte_constraint = self.state.solver.Or(
-                        self.state.solver.Or(
+                    byte_constraint = claripy.Or(
+                        claripy.Or(
                             a_byte == b_byte,
-                            self.state.solver.And(
+                            claripy.And(
                                 ord("A") <= a_byte,
                                 a_byte <= ord("Z"),
                                 ord("a") <= b_byte,
                                 b_byte <= ord("z"),
                                 b_byte - ord(" ") == a_byte,
                             ),
-                            self.state.solver.And(
+                            claripy.And(
                                 ord("A") <= b_byte,
                                 b_byte <= ord("Z"),
                                 ord("a") <= a_byte,
@@ -140,18 +142,16 @@ class strncmp(angr.SimProcedure):
                                 a_byte - ord(" ") == b_byte,
                             ),
                         ),
-                        self.state.solver.ULT(a_len, i),
-                        self.state.solver.ULE(limit, i),
+                        claripy.ULT(a_len, i),
+                        claripy.ULE(limit, i),
                     )
                 else:
-                    byte_constraint = self.state.solver.Or(
-                        a_byte == b_byte, self.state.solver.ULT(a_len, i), self.state.solver.ULE(limit, i)
-                    )
+                    byte_constraint = claripy.Or(a_byte == b_byte, claripy.ULT(a_len, i), claripy.ULE(limit, i))
                 match_constraints.append(byte_constraint)
 
         if concrete_run:
             l.debug("concrete run made it to the end!")
-            return self.state.solver.BVV(0, 32)
+            return claripy.BVV(0, 32)
 
         if self.state.mode == "static":
             ret_expr = self.state.solver.ESI(8)
@@ -164,17 +164,17 @@ class strncmp(angr.SimProcedure):
             # make the constraints
 
             l.debug("returning symbolic")
-            match_constraint = self.state.solver.And(*match_constraints)
-            nomatch_constraint = self.state.solver.Not(match_constraint)
+            match_constraint = claripy.And(*match_constraints)
+            nomatch_constraint = claripy.Not(match_constraint)
 
             # l.debug("match constraints: %s", match_constraint)
             # l.debug("nomatch constraints: %s", nomatch_constraint)
 
-            match_case = self.state.solver.And(limit != 0, match_constraint, ret_expr == 0)
-            nomatch_case = self.state.solver.And(limit != 0, nomatch_constraint, ret_expr == 1)
-            l0_case = self.state.solver.And(limit == 0, ret_expr == 0)
-            empty_case = self.state.solver.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
+            match_case = claripy.And(limit != 0, match_constraint, ret_expr == 0)
+            nomatch_case = claripy.And(limit != 0, nomatch_constraint, ret_expr == 1)
+            l0_case = claripy.And(limit == 0, ret_expr == 0)
+            empty_case = claripy.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
 
-            self.state.add_constraints(self.state.solver.Or(match_case, nomatch_case, l0_case, empty_case))
+            self.state.add_constraints(claripy.Or(match_case, nomatch_case, l0_case, empty_case))
 
         return ret_expr

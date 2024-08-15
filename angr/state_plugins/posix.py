@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 from .plugin import SimStatePlugin
 from .filesystem import SimMount, Stat
 from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
@@ -239,11 +241,11 @@ class SimSystemPosix(SimStatePlugin):
     def set_brk(self, new_brk):
         # arch word size is not available at init for some reason, fix that here
         if isinstance(self.brk, int):
-            self.brk = self.state.solver.BVV(self.brk, self.state.arch.bits)
+            self.brk = claripy.BVV(self.brk, self.state.arch.bits)
 
         if new_brk.symbolic:
             l.warning("Program is requesting a symbolic brk! This cannot be emulated cleanly!")
-            self.brk = self.state.solver.If(new_brk < self.brk, self.brk, new_brk)
+            self.brk = claripy.If(new_brk < self.brk, self.brk, new_brk)
 
         else:
             conc_start = self.state.solver.eval(self.brk)
@@ -342,7 +344,7 @@ class SimSystemPosix(SimStatePlugin):
             if not create_file:
                 if options.ALL_FILES_EXIST not in self.state.options:
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
-                        file_exists = self.state.solver.BoolS("file_exists_%s" % ident, explicit_name=True)
+                        file_exists = claripy.BoolS("file_exists_%s" % ident, explicit_name=True)
                     else:
                         return -1
                 else:
@@ -369,8 +371,8 @@ class SimSystemPosix(SimStatePlugin):
         if self.state.solver.is_true(simfd.file_exists):
             return fd
         else:
-            m1 = self.state.solver.BVV(-1, self.state.arch.sizeof["int"])
-            return self.state.solver.If(simfd.file_exists, fd, m1)
+            m1 = claripy.BVV(-1, self.state.arch.sizeof["int"])
+            return claripy.If(simfd.file_exists, fd, m1)
 
     def open_socket(self, ident):
         fd = self._pick_fd()
@@ -513,8 +515,8 @@ class SimSystemPosix(SimStatePlugin):
         else:
             if options.ALL_FILES_EXIST not in self.state.options:
                 if options.ANY_FILE_MIGHT_EXIST in self.state.options:
-                    m1 = self.state.solver.BVV(-1, self.state.arch.bits)
-                    result = self.state.solver.If(self.state.solver.BoolS("file_exists"), 0, m1)
+                    m1 = claripy.BVV(-1, self.state.arch.bits)
+                    result = claripy.If(claripy.BoolS("file_exists"), 0, m1)
                 else:
                     result = -1
             else:
@@ -536,7 +538,7 @@ class SimSystemPosix(SimStatePlugin):
                 mode = (
                     self.state.solver.BVS("st_mode", 32, key=("api", "fstat", "st_mode"))
                     if fd > 2
-                    else self.state.solver.BVV(0, 32)
+                    else claripy.BVV(0, 32)
                 )
             size = self.state.solver.BVS("st_size", 64, key=("api", "fstat", "st_size"))  # st_size
             ino = 0
@@ -544,22 +546,22 @@ class SimSystemPosix(SimStatePlugin):
         # return this weird bogus zero value to keep code paths in libc simple :\
         return (
             Stat(
-                self.state.solver.BVV(0, 64),  # st_dev
-                self.state.solver.BVV(ino, 64),  # st_ino
-                self.state.solver.BVV(0, 64),  # st_nlink
+                claripy.BVV(0, 64),  # st_dev
+                claripy.BVV(ino, 64),  # st_ino
+                claripy.BVV(0, 64),  # st_nlink
                 mode,  # st_mode
-                self.state.solver.BVV(0, 32),  # st_uid (lol root)
-                self.state.solver.BVV(0, 32),  # st_gid
-                self.state.solver.BVV(0, 64),  # st_rdev
+                claripy.BVV(0, 32),  # st_uid (lol root)
+                claripy.BVV(0, 32),  # st_gid
+                claripy.BVV(0, 64),  # st_rdev
                 size,  # st_size
-                self.state.solver.BVV(0x400, 64),  # st_blksize
-                self.state.solver.BVV(0, 64),  # st_blocks
-                self.state.solver.BVV(0, 64),  # st_atime
-                self.state.solver.BVV(0, 64),  # st_atimensec
-                self.state.solver.BVV(0, 64),  # st_mtime
-                self.state.solver.BVV(0, 64),  # st_mtimensec
-                self.state.solver.BVV(0, 64),  # st_ctime
-                self.state.solver.BVV(0, 64),  # st_ctimensec
+                claripy.BVV(0x400, 64),  # st_blksize
+                claripy.BVV(0, 64),  # st_blocks
+                claripy.BVV(0, 64),  # st_atime
+                claripy.BVV(0, 64),  # st_atimensec
+                claripy.BVV(0, 64),  # st_mtime
+                claripy.BVV(0, 64),  # st_mtimensec
+                claripy.BVV(0, 64),  # st_ctime
+                claripy.BVV(0, 64),  # st_ctimensec
             ),
             result,
         )
@@ -575,11 +577,11 @@ class SimSystemPosix(SimStatePlugin):
             if sigsetsize is not None:
                 sc = self.state.solver.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = self.state.solver.BVS(
+                self._sigmask = claripy.BVS(
                     "initial_sigmask", sc * self.state.arch.byte_width, key=("initial_sigmask",), eternal=True
                 )
             else:
-                self._sigmask = self.state.solver.BVS(
+                self._sigmask = claripy.BVS(
                     "initial_sigmask", self.sigmask_bits, key=("initial_sigmask",), eternal=True
                 )
         return self._sigmask
@@ -594,15 +596,15 @@ class SimSystemPosix(SimStatePlugin):
         :param valid_ptr: is set if the new_mask was not NULL
         """
         oldmask = self.sigmask(sigsetsize)
-        self._sigmask = self.state.solver.If(
+        self._sigmask = claripy.If(
             valid_ptr,
-            self.state.solver.If(
+            claripy.If(
                 how == self.SIG_BLOCK,
                 oldmask | new_mask,
-                self.state.solver.If(
+                claripy.If(
                     how == self.SIG_UNBLOCK,
                     oldmask & (~new_mask),
-                    self.state.solver.If(how == self.SIG_SETMASK, new_mask, oldmask),
+                    claripy.If(how == self.SIG_SETMASK, new_mask, oldmask),
                 ),
             ),
             oldmask,

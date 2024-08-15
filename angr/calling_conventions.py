@@ -1031,7 +1031,7 @@ class SimCC:
             if isinstance(ty, SimTypeFloat):
                 return SimCC._standardize_value(float(arg), ty, state, alloc)
 
-            val = state.solver.BVV(arg, ty.size)
+            val = claripy.BVV(arg, ty.size)
             return val
 
         elif isinstance(arg, float):

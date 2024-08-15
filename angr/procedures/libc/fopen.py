@@ -1,6 +1,7 @@
-import angr
-
+import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
+import angr
 
 
 def mode_to_flag(mode):
@@ -60,5 +61,5 @@ class fopen(angr.SimProcedure):
             return file_struct_ptr
         else:
             # still possible that open failed
-            null = self.state.solver.BVV(0, self.state.arch.bits)
-            return self.state.solver.If(fd == fd_concr, file_struct_ptr, null)
+            null = claripy.BVV(0, self.state.arch.bits)
+            return claripy.If(fd == fd_concr, file_struct_ptr, null)

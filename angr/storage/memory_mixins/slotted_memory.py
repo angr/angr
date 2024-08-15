@@ -38,7 +38,7 @@ class SlottedMemoryMixin(MemoryMixin):
                 addr,
                 0,
                 self.width,
-                self.state.solver.ite_cases(
+                claripy.ite_cases(
                     zip(merge_conditions[1:], (o._single_load(addr, 0, self.width) for o in others)),
                     self._single_load(addr, 0, self.width),
                 ),

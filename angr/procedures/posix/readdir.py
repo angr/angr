@@ -1,7 +1,10 @@
-import angr
+import logging
 from collections import namedtuple
 
-import logging
+import claripy
+
+import angr
+
 
 l = logging.getLogger(name=__name__)
 
@@ -23,7 +26,7 @@ class readdir(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
         pointer = self.inline_call(malloc, 19 + 256).ret_expr
         self._store_amd64(pointer)
-        return self.state.solver.If(self.condition, pointer, 0)
+        return claripy.If(self.condition, pointer, 0)
 
     def instrument(self):
         """
@@ -36,13 +39,13 @@ class readdir(angr.SimProcedure):
 
     def _build_amd64(self):
         self.struct = Dirent(
-            self.state.solver.BVV(0, 64),  # d_ino
-            self.state.solver.BVV(0, 64),  # d_off
-            self.state.solver.BVS("d_reclen", 16, key=("api", "readdir", "d_reclen")),  # d_reclen
-            self.state.solver.BVS("d_type", 8, key=("api", "readdir", "d_type")),  # d_type
-            self.state.solver.BVS("d_name", 255 * 8, key=("api", "readdir", "d_name")),
+            claripy.BVV(0, 64),  # d_ino
+            claripy.BVV(0, 64),  # d_off
+            claripy.BVS("d_reclen", 16, key=("api", "readdir", "d_reclen")),  # d_reclen
+            claripy.BVS("d_type", 8, key=("api", "readdir", "d_type")),  # d_type
+            claripy.BVS("d_name", 255 * 8, key=("api", "readdir", "d_name")),
         )  # d_name
-        self.condition = self.state.solver.BoolS("readdir_cond")  # TODO: variable key
+        self.condition = claripy.BoolS("readdir_cond")  # TODO: variable key
 
     def _store_amd64(self, ptr):
         def stores(offset, val):
@@ -56,4 +59,4 @@ class readdir(angr.SimProcedure):
         storei(16, self.struct.d_reclen)
         storei(18, self.struct.d_type)
         stores(19, self.struct.d_name)
-        stores(19 + 255, self.state.solver.BVV(0, 8))
+        stores(19 + 255, claripy.BVV(0, 8))

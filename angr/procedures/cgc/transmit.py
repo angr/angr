@@ -1,5 +1,6 @@
-import angr
+import claripy
 
+import angr
 from ... import sim_options as o
 
 
@@ -17,7 +18,7 @@ class transmit(angr.SimProcedure):
         if self.state.mode == "fastpath":
             # Special case for CFG generation
             self.state.memory.store(tx_bytes, count, endness="Iend_LE")
-            return self.state.solver.BVV(0, self.state.arch.bits)
+            return claripy.BVV(0, self.state.arch.bits)
 
         if o.ABSTRACT_MEMORY in self.state.options:
             simfd.write(buf, count)
@@ -54,10 +55,10 @@ class transmit(angr.SimProcedure):
             )
 
             if do_concrete_update and count.symbolic:
-                concrete_count = self.state.solver.BVV(self.state.solver.eval(count), 32)
+                concrete_count = claripy.BVV(self.state.solver.eval(count), 32)
                 self.state.memory.store(tx_bytes, concrete_count, endness="Iend_LE", condition=tx_bytes != 0)
 
             self.state.memory.store(tx_bytes, count, endness="Iend_LE", condition=tx_bytes != 0)
 
         # TODO: transmit failure
-        return self.state.solver.BVV(0, self.state.arch.bits)
+        return claripy.BVV(0, self.state.arch.bits)

@@ -176,7 +176,7 @@ class RegionedMemoryMixin(MemoryMixin):
             r, s, i = self._regions[region].find(si, data, max_search, **kwargs)
             # Post-process r so that it's still a ValueSet
             region_base_addr = self._region_base(region)
-            r = self.state.solver.ValueSet(r.size(), region, region_base_addr, claripy.backends.vsa.convert(r))
+            r = claripy.ValueSet(r.size(), region, region_base_addr, claripy.backends.vsa.convert(r))
             return r, s, i
 
     def set_state(self, state):
@@ -425,7 +425,7 @@ class RegionedMemoryMixin(MemoryMixin):
             return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, False, None)
 
     def _apply_condition_to_symbolic_addr(self, addr, condition):
-        _, converted = self.state.solver.constraint_to_si(condition)
+        _, converted = claripy.constraint_to_si(condition)
         for original_expr, constrained_expr in converted:
             addr = addr.replace(original_expr, constrained_expr)
         return addr

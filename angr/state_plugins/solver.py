@@ -470,6 +470,8 @@ class SimSolver(SimStatePlugin):
 
     def __getattr__(self, a):
         f = getattr(claripy._all_operations, a)
+        print("calling", a)
+        assert False
         if hasattr(f, "__call__"):
             ff = error_converter(ast_stripping_decorator(f))
             if _timing_enabled:
@@ -508,7 +510,7 @@ class SimSolver(SimStatePlugin):
 
     @error_converter
     def widen(self, others):
-        c = self.state.solver.BVS("random_widen_condition", 32)
+        c = claripy.BVS("random_widen_condition", 32)
         merge_conditions = [[c == i] for i in range(len(others) + 1)]
         merging_occurred = self.merge(others, merge_conditions)
         return merging_occurred

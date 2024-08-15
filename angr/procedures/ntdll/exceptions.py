@@ -1,3 +1,5 @@
+import claripy
+
 import angr
 
 
@@ -13,7 +15,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         if self.state.arch.name != "X86":
             raise angr.errors.SimUnsupportedError("KiUserDispatchException is only implemented for X86")
 
-        self.tib_ptr = self.state.regs._fs.concat(self.state.solver.BVV(0, 16))
+        self.tib_ptr = self.state.regs._fs.concat(claripy.BVV(0, 16))
         self.top_record = self.state.mem[self.tib_ptr].uint32_t.resolved
         self.cur_ptr = self.top_record
 

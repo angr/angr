@@ -36,9 +36,9 @@ class SimpleInterfaceMixin(MemoryMixin):
 
     def _translate_data(self, d, size):
         if type(d) in (bytes, bytearray):
-            return self.state.solver.BVV(d)
+            return claripy.BVV(d)
         elif type(d) is int:
-            return self.state.solver.BVV(d, size * self.state.arch.byte_width)
+            return claripy.BVV(d, size * self.state.arch.byte_width)
         elif isinstance(d, claripy.ast.Base):
             return d
         else:

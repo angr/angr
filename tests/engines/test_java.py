@@ -4,6 +4,7 @@ __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 import os
 import unittest
 
+import claripy
 from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (
     ArchSoot,
@@ -679,7 +680,7 @@ class TestJava(unittest.TestCase):
             stdout_packets = pp.posix.stdout.content
             read_byte, _ = stdout_packets[0]
             # a winning path is printing 'W'
-            pp.solver.add(read_byte == pp.solver.BVV(ord("W"), 8))
+            pp.solver.add(read_byte == claripy.BVV(ord("W"), 8))
             if pp.satisfiable():
                 winnning_paths.append(pp)
 

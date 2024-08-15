@@ -3,6 +3,7 @@ import functools
 import logging
 
 import archinfo
+import claripy
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
@@ -178,7 +179,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         self._instr_mem_write_addrs = set()  # pylint:disable=attribute-defined-outside-init
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
-            self.state.scratch.guard = self.state.solver.true
+            self.state.scratch.guard = claripy.true
             try:
                 if self.state.os_name == "CGC" and block_details["block_addr"] in {
                     self.state.unicorn.cgc_random_addr,
@@ -314,7 +315,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             mem_read_val += next_val["value"]
 
         assert state.inspect.mem_read_length == mem_read_size
-        state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
+        state.inspect.mem_read_address = claripy.BVV(mem_read_address, state.inspect.mem_read_address.size())
         if mem_read_taint_map.count(-1) != mem_read_size:
             # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
             self.state.inspect.b(
@@ -330,9 +331,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         if taint_map.count(0) == state.inspect.mem_read_length:
             # The value is completely concrete
             if state.arch.memory_endness == archinfo.Endness.LE:
-                state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
+                state.inspect.mem_read_expr = claripy.BVV(value[::-1])
             else:
-                state.inspect.mem_read_expr = state.solver.BVV(value)
+                state.inspect.mem_read_expr = claripy.BVV(value)
         else:
             # The value may be partially concrete. Set the symbolic bitmap to read correct value and restore it
             mem_read_addr = state.solver.eval(state.inspect.mem_read_address)
@@ -370,7 +371,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
                 for offset, expected_taint in enumerate(taint_map):
                     if expected_taint == 0:
-                        curr_value_bytes[offset] = state.solver.BVV(value[offset], 8)
+                        curr_value_bytes[offset] = claripy.BVV(value[offset], 8)
 
                 if state.arch.memory_endness == archinfo.Endness.LE:
                     curr_value_bytes = reversed(curr_value_bytes)
@@ -475,7 +476,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         if state.unicorn.jumpkind.startswith("Ijk_Sys"):
             state.ip = state.unicorn._syscall_pc
-        successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
+        successors.add_successor(state, state.ip, claripy.true, state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True

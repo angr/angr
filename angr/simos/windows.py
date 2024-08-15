@@ -170,7 +170,7 @@ class SimWindows(SimOS):
             state.mem[state.regs.sp].dword = return_addr
 
             # first argument appears to be PEB
-            tib_addr = state.regs.fs.concat(state.solver.BVV(0, 16))
+            tib_addr = state.regs.fs.concat(claripy.BVV(0, 16))
             peb_addr = state.mem[tib_addr + 0x30].dword.resolved
             state.mem[state.regs.sp + 4].dword = peb_addr
 
@@ -377,7 +377,7 @@ class SimWindows(SimOS):
 
         # first check that we actually have an exception handler
         # we check is_true since if it's symbolic this is exploitable maybe?
-        tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
+        tib_addr = exc_state.regs._fs.concat(claripy.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
             _l.debug("... no handlers registered")
             exception.args = ("Unhandled exception: %r" % exception,)
@@ -419,7 +419,7 @@ class SimWindows(SimOS):
 
         # let's go let's go!
         # we want to use a true guard here. if it's not true, then it's already been added in windup.
-        successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, "Ijk_Exception")
+        successors.add_successor(exc_state, self._exception_handler, claripy.true, "Ijk_Exception")
         successors.processed = True
 
     # these two methods load and store register state from a struct CONTEXT
@@ -433,8 +433,8 @@ class SimWindows(SimOS):
         state.mem[addr + 0].uint32_t = 0x07  # contextflags = control | integer | segments
         # dr0 - dr7 are at 0x4-0x18
         # fp state is at 0x1c: 8 ulongs plus a char[80] gives it size 0x70
-        state.mem[addr + 0x8C].uint32_t = state.regs.gs.concat(state.solver.BVV(0, 16))
-        state.mem[addr + 0x90].uint32_t = state.regs.fs.concat(state.solver.BVV(0, 16))
+        state.mem[addr + 0x8C].uint32_t = state.regs.gs.concat(claripy.BVV(0, 16))
+        state.mem[addr + 0x90].uint32_t = state.regs.fs.concat(claripy.BVV(0, 16))
         state.mem[addr + 0x94].uint32_t = 0  # es
         state.mem[addr + 0x98].uint32_t = 0  # ds
         state.mem[addr + 0x9C].uint32_t = state.regs.edi

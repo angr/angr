@@ -1,5 +1,8 @@
-import angr
 import time
+
+import claripy
+
+import angr
 
 # pylint: disable=arguments-differ,unused-argument
 
@@ -14,8 +17,8 @@ class gettimeofday(angr.SimProcedure):
             result = {"tv_sec": int(flt), "tv_usec": int(flt * 1000000)}
         else:
             result = {
-                "tv_sec": self.state.solver.BVS("tv_sec", self.arch.bits, key=("api", "gettimeofday", "tv_sec")),
-                "tv_usec": self.state.solver.BVS("tv_usec", self.arch.bits, key=("api", "gettimeofday", "tv_usec")),
+                "tv_sec": claripy.BVS("tv_sec", self.arch.bits, key=("api", "gettimeofday", "tv_sec")),
+                "tv_usec": claripy.BVS("tv_usec", self.arch.bits, key=("api", "gettimeofday", "tv_usec")),
             }
 
         self.state.mem[tv].struct.timeval = result
@@ -37,8 +40,8 @@ class clock_gettime(angr.SimProcedure):
             result = {"tv_sec": int(flt), "tv_nsec": int(flt * 1000000000)}
         else:
             result = {
-                "tv_sec": self.state.solver.BVS("tv_sec", self.arch.bits, key=("api", "clock_gettime", "tv_sec")),
-                "tv_nsec": self.state.solver.BVS("tv_nsec", self.arch.bits, key=("api", "clock_gettime", "tv_nsec")),
+                "tv_sec": claripy.BVS("tv_sec", self.arch.bits, key=("api", "clock_gettime", "tv_sec")),
+                "tv_nsec": claripy.BVS("tv_nsec", self.arch.bits, key=("api", "clock_gettime", "tv_nsec")),
             }
 
         self.state.mem[timespec_ptr].struct.timespec = result

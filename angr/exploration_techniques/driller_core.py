@@ -1,6 +1,8 @@
 import logging
 from itertools import islice
 
+import claripy
+
 from . import ExplorationTechnique
 
 
@@ -91,7 +93,7 @@ class DrillerCore(ExplorationTechnique):
     @staticmethod
     def _has_false(state):
         # Check if the state is unsat even if we remove preconstraints.
-        claripy_false = state.solver.false
+        claripy_false = claripy.false
         if state.scratch.guard.cache_key == claripy_false.cache_key:
             return True
 

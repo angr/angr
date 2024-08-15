@@ -634,7 +634,7 @@ class StoreHook:
             write_length = len(state.inspect.mem_write_expr)
         else:
             write_length = write_length * state.arch.byte_width
-        state.inspect.mem_write_expr = state.solver.BVS("instrumented_store", write_length)
+        state.inspect.mem_write_expr = claripy.BVS("instrumented_store", write_length)
 
 
 class LoadHook:
@@ -648,7 +648,7 @@ class LoadHook:
     def hook_before(self, state):
         addr = state.inspect.mem_read_address
         size = state.solver.eval(state.inspect.mem_read_length)
-        self._var = state.solver.BVS("instrumented_load", size * 8)
+        self._var = claripy.BVS("instrumented_load", size * 8)
         state.memory.store(addr, self._var, endness=state.arch.memory_endness)
 
     def hook_after(self, state):
@@ -662,7 +662,7 @@ class PutHook:
 
     @staticmethod
     def hook(state):
-        state.inspect.reg_write_expr = state.solver.BVS(
+        state.inspect.reg_write_expr = claripy.BVS(
             "instrumented_put", state.solver.eval(state.inspect.reg_write_length) * 8
         )
 
@@ -678,7 +678,7 @@ class RegisterInitializerHook:
         self.value = value
 
     def hook(self, state):
-        state.registers.store(self.reg_offset, state.solver.BVV(self.value, self.reg_bits))
+        state.registers.store(self.reg_offset, claripy.BVV(self.value, self.reg_bits))
 
 
 class BSSHook:
@@ -2106,7 +2106,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 read_length = claripy.backends.vsa.convert(read_length).upper_bound
             if read_length > 16:
                 return
-            new_read_addr = state.solver.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
+            new_read_addr = claripy.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
             UninitReadMeta.uninit_read_base += read_length
 
             # replace the expression in registers
@@ -2238,7 +2238,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 #  blx r0
                 # It's not a jump table, but we resolve it anyway
                 jump_target_addr = load_stmt.data.addr.con.value
-                return state.solver.BVV(jump_target_addr, state.arch.bits)
+                return claripy.BVV(jump_target_addr, state.arch.bits)
         elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
             if type(load_stmt.addr) is pyvex.IRExpr.RdTmp:
                 load_addr_tmp = load_stmt.addr.tmp
@@ -2254,7 +2254,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
                 # value of R3 is. Some intensive data-flow analysis is required in this case.
                 jump_target_addr = load_stmt.addr.con.value
-                return state.solver.BVV(jump_target_addr, state.arch.bits)
+                return claripy.BVV(jump_target_addr, state.arch.bits)
         else:
             raise TypeError("Unsupported address loading statement type %s." % type(load_stmt))
 

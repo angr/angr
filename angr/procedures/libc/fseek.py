@@ -1,6 +1,7 @@
-import angr
-
+import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
+import angr
 from ...errors import SimSolverError
 
 
@@ -26,7 +27,7 @@ class fseek(angr.SimProcedure):
         simfd = self.state.posix.get_fd(fd)
         if simfd is None:
             return -1
-        return self.state.solver.If(simfd.seek(offset, whence), self.state.solver.BVV(0, self.arch.sizeof["int"]), -1)
+        return claripy.If(simfd.seek(offset, whence), claripy.BVV(0, self.arch.sizeof["int"]), -1)
 
 
 fseeko = fseek

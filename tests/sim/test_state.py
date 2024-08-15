@@ -24,9 +24,9 @@ class TestState(unittest.TestCase):
         s.registers.store("sp", 0x7FFFFFFFFFF0000)
         assert s.solver.eval(s.registers.load("sp")) == 0x7FFFFFFFFFF0000
 
-        s.stack_push(s.solver.BVV(b"ABCDEFGH"))
+        s.stack_push(claripy.BVV(b"ABCDEFGH"))
         assert s.solver.eval(s.registers.load("sp")) == 0x7FFFFFFFFFEFFF8
-        s.stack_push(s.solver.BVV(b"IJKLMNOP"))
+        s.stack_push(claripy.BVV(b"IJKLMNOP"))
         assert s.solver.eval(s.registers.load("sp")) == 0x7FFFFFFFFFEFFF0
 
         a = s.stack_pop()
@@ -39,7 +39,7 @@ class TestState(unittest.TestCase):
 
     def test_state_merge(self):
         a = SimState(arch="AMD64", mode="symbolic")
-        a.memory.store(1, a.solver.BVV(42, 8))
+        a.memory.store(1, claripy.BVV(42, 8))
 
         b = a.copy()
         c = b.copy()
@@ -121,16 +121,16 @@ class TestState(unittest.TestCase):
         # Aligned memory merging
         a = SimState(arch="AMD64", mode="static")
 
-        addr = a.solver.ValueSet(32, "global", 0, 8)
-        a.memory.store(addr, a.solver.BVV(42, 32))
+        addr = claripy.ValueSet(32, "global", 0, 8)
+        a.memory.store(addr, claripy.BVV(42, 32))
         # Clear a_locs, so further writes will not try to merge with value 42
         a.memory._regions["global"]._alocs = {}
 
         b = a.copy()
         c = a.copy()
-        a.memory.store(addr, a.solver.BVV(50, 32), endness="Iend_LE")
-        b.memory.store(addr, a.solver.BVV(60, 32), endness="Iend_LE")
-        c.memory.store(addr, a.solver.BVV(70, 32), endness="Iend_LE")
+        a.memory.store(addr, claripy.BVV(50, 32), endness="Iend_LE")
+        b.memory.store(addr, claripy.BVV(60, 32), endness="Iend_LE")
+        c.memory.store(addr, claripy.BVV(70, 32), endness="Iend_LE")
 
         merged, _, _ = a.merge(b, c)
         actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4, endness="Iend_LE"))
@@ -141,14 +141,14 @@ class TestState(unittest.TestCase):
         a = SimState(arch="AMD64", mode="symbolic")
         b = a.copy()
         c = a.copy()
-        conds = [a.solver.BoolS("cond_0"), a.solver.BoolS("cond_1")]
+        conds = [claripy.BoolS("cond_0"), claripy.BoolS("cond_1")]
         a.add_constraints(conds[0])
-        b.add_constraints(a.solver.Not(conds[0]), conds[1])
-        c.add_constraints(a.solver.Not(conds[0]), a.solver.Not(conds[1]))
+        b.add_constraints(claripy.Not(conds[0]), conds[1])
+        c.add_constraints(claripy.Not(conds[0]), claripy.Not(conds[1]))
 
-        a.memory.store(0x400000, a.solver.BVV(8, 32))
-        b.memory.store(0x400000, b.solver.BVV(9, 32))
-        c.memory.store(0x400000, c.solver.BVV(10, 32))
+        a.memory.store(0x400000, claripy.BVV(8, 32))
+        b.memory.store(0x400000, claripy.BVV(9, 32))
+        c.memory.store(0x400000, claripy.BVV(10, 32))
 
         m, _, _ = a.merge(b)
         m, _, _ = m.merge(c)
@@ -202,7 +202,7 @@ class TestState(unittest.TestCase):
 
     def test_state_pickle(self):
         s = SimState(arch="AMD64")
-        s.memory.store(100, s.solver.BVV(0x4141414241414241424300, 88), endness="Iend_BE")
+        s.memory.store(100, claripy.BVV(0x4141414241414241424300, 88), endness="Iend_BE")
         s.regs.rax = 100
 
         sp = pickle.dumps(s)
@@ -226,17 +226,17 @@ class TestState(unittest.TestCase):
             s.regs.rax = 20
         assert s._global_condition is None
         assert old_rax is not s.regs.rax
-        assert s.solver.BVV(20, s.arch.bits) is s.regs.rax
+        assert claripy.BVV(20, s.arch.bits) is s.regs.rax
 
         with s.with_condition(s.regs.rbx != 0):
             s.regs.rax = 25
         assert s._global_condition is None
-        assert s.solver.BVV(25, s.arch.bits) is not s.regs.rax
+        assert claripy.BVV(25, s.arch.bits) is not s.regs.rax
 
         with s.with_condition(s.regs.rbx != 1):
             s.regs.rax = 30
         assert s._global_condition is None
-        assert s.solver.BVV(30, s.arch.bits) is not s.regs.rax
+        assert claripy.BVV(30, s.arch.bits) is not s.regs.rax
 
         with s.with_condition(s.regs.rbx == 0):
             assert s.solver.eval_upto(s.regs.rbx, 10) == [0]
@@ -279,8 +279,8 @@ class TestState(unittest.TestCase):
         )
 
         # destroy esp
-        state.regs._esp = state.solver.BVS("unknown_rsp", 32)
-        state.regs._ftop = state.solver.BVS("unknown_ftop", 32)
+        state.regs._esp = claripy.BVS("unknown_rsp", 32)
+        state.regs._ftop = claripy.BVS("unknown_ftop", 32)
 
         # there should be one errored state if we step the state further without BYPASS_ERRORED_IRSTMT
         simgr = proj.factory.simgr(state)

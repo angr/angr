@@ -16,10 +16,10 @@ class strlen(angr.SimProcedure):
 
     def run(self, s, wchar=False, maxlen=None):
         if wchar:
-            null_seq = self.state.solver.BVV(0, 16)
+            null_seq = claripy.BVV(0, 16)
             char_size = 2
         else:
-            null_seq = self.state.solver.BVV(0, 8)
+            null_seq = claripy.BVV(0, 8)
             char_size = 1
 
         max_symbolic_bytes = self.state.libc.buf_symbolic_bytes
@@ -38,7 +38,7 @@ class strlen(angr.SimProcedure):
             addr_desc: AbstractAddressDescriptor = self.state.memory._normalize_address(s)
 
             # size_t
-            length = self.state.solver.ESI(self.arch.bits)
+            length = claripy.ESI(self.arch.bits)
             for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
                 s_ptr = s_aw.to_valueset(self.state)
                 r, c, i = self.state.memory.find(

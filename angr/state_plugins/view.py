@@ -157,7 +157,7 @@ class SimMemView(SimStatePlugin):
 
         # Make sure self._addr is always an AST
         if isinstance(self._addr, int):
-            self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
+            self._addr = claripy.BVV(self._addr, self.state.arch.bits)
 
     def _deeper(self, **kwargs) -> "SimMemView":
         if "ty" not in kwargs:

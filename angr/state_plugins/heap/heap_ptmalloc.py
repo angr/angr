@@ -1,11 +1,12 @@
+import logging
+
+import claripy
+
 from ..plugin import SimStatePlugin
 from .heap_freelist import SimHeapFreelist, Chunk
 from .utils import concretize
-
 from ...errors import SimHeapError, SimMergeError, SimSolverError
 
-
-import logging
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
 sml = logging.getLogger("angr.state_plugins.symbolic_memory")
@@ -526,7 +527,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
         if addr == 0:
             return 0
         if size != 0:
-            z = self.state.solver.BVV(0, size * 8)
+            z = claripy.BVV(0, size * 8)
             self.state.memory.store(addr, z)
         return addr
 

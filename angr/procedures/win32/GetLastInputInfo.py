@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 import angr
 
 
@@ -29,9 +31,9 @@ class GetLastInputInfo(angr.SimProcedure):
         return 1
 
     def fill_symbolic(self):
-        self.cbSize = self.state.solver.BVS("tagLASTINPUTINFO_cbSize", 32, key=("api", "tagLASTINPUTINFO_cbSize"))
-        self.dwTime = self.state.solver.BVS("tagLASTINPUTINFO_dwTime", 32, key=("api", "tagLASTINPUTINFO_dwTime"))
+        self.cbSize = claripy.BVS("tagLASTINPUTINFO_cbSize", 32, key=("api", "tagLASTINPUTINFO_cbSize"))
+        self.dwTime = claripy.BVS("tagLASTINPUTINFO_dwTime", 32, key=("api", "tagLASTINPUTINFO_dwTime"))
 
     def fill_concrete(self):
-        self.cbSize = self.state.solver.BVV(3, 32)
-        self.dwTime = self.state.solver.BVV(3, 32)
+        self.cbSize = claripy.BVV(3, 32)
+        self.dwTime = claripy.BVV(3, 32)
