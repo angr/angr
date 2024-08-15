@@ -1,7 +1,7 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from typing import Optional, Any, TYPE_CHECKING
 from collections.abc import Callable
-from collections import defaultdict
+from collections import defaultdict, Counter
 import logging
 import struct
 
@@ -491,19 +491,16 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 name = str(variable)
 
-            # sort by number of occurrences, with a preference of non-basic types
+            # sort by the following:
+            #   * if it's a a non-basic type
+            #   * the number of occurrences
+            #   * the repr of the type itself
             # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
-            nonprimitive_vartypes = [
-                vt for vt in vartypes if not isinstance(vt, (SimTypeChar, SimTypeInt, SimTypeFloat))
-            ]
-            vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
-            if nonprimitive_vartypes:
-                nonprimitive_vartypes = list(
-                    dict.fromkeys(sorted(nonprimitive_vartypes, key=nonprimitive_vartypes.count, reverse=True))
-                )
-                vartypes.remove(nonprimitive_vartypes[0])
-                vartypes.insert(0, nonprimitive_vartypes[0])
+            count = Counter(vartypes)
+            vartypes = sorted(
+                count.copy(), key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+            )
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
@@ -2177,8 +2174,8 @@ class CConstant(CExpression):
                     v = refval.content.decode("utf-8")
                 else:
                     # it's a string
-                    assert isinstance(v, str)
                     v = refval
+                    assert isinstance(v, str)
                 yield CConstant.str_to_c_str(v), self
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                 refval = self.reference_values[self._type]

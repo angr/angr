@@ -3647,6 +3647,25 @@ class TestDecompiler(unittest.TestCase):
             max_width_assigns = re.findall(rf"{indent*2}max_width = xdectoumax\(", text)
             assert len(max_width_assigns) == 1
 
+    def test_deterministic_sorting_c_variables(self, decompiler_options=None):
+        # https://github.com/angr/angr/issues/4746
+        bin_path = os.path.join(test_location, "x86_64", "BitBlaster.exe")
+
+        first = None
+        for _ in range(5):
+            # TODO: the following lines (CFG creation) are supposed to be deterministic as well, but are not.
+            #  this should be fixed in another PR and moved out of the loop in this testcase.
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            function = cfg.functions[4203344]
+            function.normalize()
+            # re-create decompilation
+            decomp = proj.analyses.Decompiler(func=function, cfg=cfg, options=[(PARAM_TO_OPTION["show_casts"], False)])
+            if first is None:
+                first = decomp.codegen.text
+            else:
+                assert first == decomp.codegen.text, "Decompilation is not deterministic"
+
 
 if __name__ == "__main__":
     unittest.main()
