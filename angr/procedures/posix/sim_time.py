@@ -17,8 +17,8 @@ class gettimeofday(angr.SimProcedure):
             result = {"tv_sec": int(flt), "tv_usec": int(flt * 1000000)}
         else:
             result = {
-                "tv_sec": claripy.BVS("tv_sec", self.arch.bits, key=("api", "gettimeofday", "tv_sec")),
-                "tv_usec": claripy.BVS("tv_usec", self.arch.bits, key=("api", "gettimeofday", "tv_usec")),
+                "tv_sec": self.state.solver.BVS("tv_sec", self.arch.bits, key=("api", "gettimeofday", "tv_sec")),
+                "tv_usec": self.state.solver.BVS("tv_usec", self.arch.bits, key=("api", "gettimeofday", "tv_usec")),
             }
 
         self.state.mem[tv].struct.timeval = result

@@ -28,8 +28,8 @@ class GetProcessAffinityMask(angr.SimProcedure):
         return 1
 
     def fill_symbolic(self):
-        self.paffinity_mask = claripy.BVS("lpProcessAffinityMask", 32, key=("api", "lpProcessAffinityMask"))
-        self.saffinity_mask = claripy.BVS("lpSystemAffinityMask", 32, key=("api", "lpSystemAffinityMask"))
+        self.paffinity_mask = self.state.solver.BVS("lpProcessAffinityMask", 32, key=("api", "lpProcessAffinityMask"))
+        self.saffinity_mask = self.state.solver.BVS("lpSystemAffinityMask", 32, key=("api", "lpSystemAffinityMask"))
 
     def fill_concrete(self):
         self.paffinity_mask = claripy.BVV(3, 32)

@@ -41,9 +41,9 @@ class readdir(angr.SimProcedure):
         self.struct = Dirent(
             claripy.BVV(0, 64),  # d_ino
             claripy.BVV(0, 64),  # d_off
-            claripy.BVS("d_reclen", 16, key=("api", "readdir", "d_reclen")),  # d_reclen
-            claripy.BVS("d_type", 8, key=("api", "readdir", "d_type")),  # d_type
-            claripy.BVS("d_name", 255 * 8, key=("api", "readdir", "d_name")),
+            self.state.solver.BVS("d_reclen", 16, key=("api", "readdir", "d_reclen")),  # d_reclen
+            self.state.solver.BVS("d_type", 8, key=("api", "readdir", "d_type")),  # d_type
+            self.state.solver.BVS("d_name", 255 * 8, key=("api", "readdir", "d_name")),
         )  # d_name
         self.condition = claripy.BoolS("readdir_cond")  # TODO: variable key
 

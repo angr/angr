@@ -179,7 +179,7 @@ class SimOS:
             for reg in state.arch.default_symbolic_registers:
                 state.registers.store(
                     reg,
-                    claripy.BVS(
+                    self.state.solver.BVS(
                         initial_prefix + "_" + reg, state.arch.bits, explicit_name=True, key=("reg", reg), eternal=True
                     ),
                 )

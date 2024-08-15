@@ -577,11 +577,11 @@ class SimSystemPosix(SimStatePlugin):
             if sigsetsize is not None:
                 sc = self.state.solver.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = claripy.BVS(
+                self._sigmask = self.state.solver.BVS(
                     "initial_sigmask", sc * self.state.arch.byte_width, key=("initial_sigmask",), eternal=True
                 )
             else:
-                self._sigmask = claripy.BVS(
+                self._sigmask = self.state.solver.BVS(
                     "initial_sigmask", self.sigmask_bits, key=("initial_sigmask",), eternal=True
                 )
         return self._sigmask

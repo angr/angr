@@ -534,7 +534,7 @@ class SimPackets(SimFileBase):
 
         # if short reads are enabled, replace size with a symbol
         if short_reads is True or (short_reads is None and sim_options.SHORT_READS in self.state.options):
-            size = claripy.BVS(
+            size = self.state.solver.BVS(
                 "packetsize_%d_%s" % (len(self.content), self.ident),
                 self.state.arch.bits,
                 key=("file", self.ident, "packetsize", len(self.content)),
@@ -1172,7 +1172,7 @@ class SimPacketsSlots(SimFileBase):
             real_size = avail_size
             self.read_sizes.pop(0)
 
-        data = claripy.BVS(
+        data = self.state.solver.BVS(
             "packet_%d_%s" % (len(self.read_data), self.ident),
             real_size * self.state.arch.byte_width,
             key=("file", self.ident, "packet", len(self.read_data)),
