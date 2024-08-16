@@ -781,8 +781,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         next_node_addr = last_block.addr
 
         while next_node_addr is not None and next_node_addr in ca_others:
-            onode, value, target, target_idx, next_node_addr = ca_others[next_node_addr]
             onode: Block
+            onode, value, target, target_idx, next_node_addr = ca_others[next_node_addr]
 
             if first_nonlabel_statement(onode) is not onode.statements[-1]:
                 onode = onode.copy(statements=[onode.statements[-1]])

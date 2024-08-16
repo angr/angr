@@ -854,6 +854,7 @@ class SimpleSolver:
 
         # repeat ... until fixed point
         changed = True
+        node: ConstraintGraphNode
         while changed:
             changed = False
             for x, y, data in graph.edges(data=True):
@@ -871,7 +872,6 @@ class SimpleSolver:
                             graph.add_edge(z, y)
             v_contravariant = []
             for node in graph.nodes:
-                node: ConstraintGraphNode
                 if node.variance == Variance.CONTRAVARIANT:
                     v_contravariant.append(node)
             # lazily apply saturation rules corresponding to S-Pointer
@@ -900,9 +900,9 @@ class SimpleSolver:
         """
         Ensure that recall edges are not reachable after traversing a forget node.
         """
+        src: ConstraintGraphNode
+        dst: ConstraintGraphNode
         for src, dst, data in list(graph.edges(data=True)):
-            src: ConstraintGraphNode
-            dst: ConstraintGraphNode
             if "label" in data and data["label"][1] == "recall":
                 continue
             forget_src = ConstraintGraphNode(src.typevar, src.variance, src.tag, FORGOTTEN.POST_FORGOTTEN)
@@ -951,8 +951,8 @@ class SimpleSolver:
     ) -> set[TypeConstraint]:
         start_nodes = set()
         end_nodes = set()
+        node: ConstraintGraphNode
         for node in graph.nodes:
-            node: ConstraintGraphNode
             if (
                 self._typevar_inside_set(self._to_typevar_or_typeconst(node.typevar), starts)
                 and node.tag == ConstraintGraphTag.LEFT
@@ -1225,10 +1225,11 @@ class SimpleSolver:
             visited.add(curr_node)
 
             out_edges = sketch.graph.out_edges(curr_node, data=True)
+            succ: SketchNode | None
             for _, succ, data in out_edges:
                 if isinstance(succ, RecursiveRefNode):
                     ref = succ
-                    succ: SketchNode | None = sketch.lookup(succ.target)
+                    succ = sketch.lookup(succ.target)
                     if succ is None:
                         # failed to resolve...
                         _l.warning(
@@ -1242,7 +1243,6 @@ class SimpleSolver:
                 if isinstance(label, IsArray):
                     continue
                 new_labels = curr_labels + [label]
-                succ: SketchNode
                 if isinstance(succ.typevar, DerivedTypeVariable) and isinstance(succ.typevar.labels[-1], (Load, Store)):
                     queue.append((new_labels, succ))
                 else:

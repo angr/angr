@@ -16,6 +16,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp, **kwargs):
+        conv: Convert
         #
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             mask = expr.operands[1].value
@@ -24,7 +25,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
                 return None
 
             if isinstance(expr.operands[0], Convert):
-                conv: Convert = expr.operands[0]
+                conv = expr.operands[0]
                 atom = conv.operand
                 if conv.from_bits <= to_bits:
                     # this masking is useless
@@ -36,7 +37,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
                 and isinstance(expr.operands[0].operands[0], Convert)
             ):
                 binop_expr = expr.operands[0]
-                conv: Convert = expr.operands[0].operands[0]
+                conv = expr.operands[0].operands[0]
                 atom = conv.operand
                 if conv.from_bits <= to_bits:
                     # this masking is useless

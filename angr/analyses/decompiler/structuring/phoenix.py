@@ -1314,13 +1314,14 @@ class PhoenixStructurer(StructurerBase):
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
         # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
         # successor to node_a
+        node_default: BaseNode | None = None
         default_node_candidates = [nn for nn in graph.nodes if nn.addr == node_b_addr]
         if len(default_node_candidates) == 0:
-            node_default: BaseNode | None = None
+            node_default = None
         elif len(default_node_candidates) == 1:
-            node_default: BaseNode | None = default_node_candidates[0]
+            node_default = default_node_candidates[0]
         else:
-            node_default: BaseNode | None = next(
+            node_default = next(
                 iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
             )
 

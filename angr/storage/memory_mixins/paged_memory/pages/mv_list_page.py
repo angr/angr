@@ -320,7 +320,7 @@ class MVListPage(
 
         # slower path
         if candidates is None:
-            candidates: set[int] = set()
+            candidates = set()
             # resort to the slower solution
             if self.sinkhole is None:
                 candidates |= self.stored_offset

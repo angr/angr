@@ -285,7 +285,7 @@ class TypeVariable:
         if idx is None:
             self.idx: int = next(_typevariable_counter)
         else:
-            self.idx: int = idx
+            self.idx = idx
         self.name = name
 
     def pp_str(self, mapping: dict["TypeVariable", Any]) -> str:
@@ -340,9 +340,9 @@ class DerivedTypeVariable(TypeVariable):
             raise TypeError("You cannot specify both label and labels at the same time")
 
         if label is not None:
-            self.labels = existing_labels + (label,)
+            self.labels: tuple["BaseLabel"] = existing_labels + (label,)
         else:
-            self.labels: tuple["BaseLabel"] = existing_labels + tuple(labels)
+            self.labels = existing_labels + tuple(labels)
 
         if not self.labels:
             raise ValueError("A DerivedTypeVariable must have at least one label")

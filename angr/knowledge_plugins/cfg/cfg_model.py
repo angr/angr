@@ -773,11 +773,12 @@ class CFGModel(Serializable):
 
         pointer_size = self.project.arch.bytes
 
+        ref: XRef
         # who's using it?
         irsb_addr, stmt_idx = None, None
         if xrefs is not None and seg_list is not None:
             try:
-                ref: XRef = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
+                ref = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
                 irsb_addr = ref.block_addr
             except StopIteration:
                 pass
@@ -863,7 +864,7 @@ class CFGModel(Serializable):
         irsb_addr, stmt_idx = None, None
         if xrefs is not None and seg_list is not None:
             try:
-                ref: XRef = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
+                ref = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
                 irsb_addr = ref.block_addr
                 stmt_idx = ref.stmt_idx
             except StopIteration:

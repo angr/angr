@@ -168,13 +168,13 @@ class SimEngineVRBase(SimEngineLight):
             if existing_vars:
                 variable, _ = existing_vars[0]
 
-            vs = None
+            vs: MultiValues | None = None
             if stack_offset is not None:
                 stack_addr = self.state.stack_addr_from_offset(stack_offset)
                 if variable is None:
                     # TODO: how to determine the size for a lea?
                     try:
-                        vs: MultiValues | None = self.state.stack_region.load(stack_addr, size=1)
+                        vs = self.state.stack_region.load(stack_addr, size=1)
                     except SimMemoryMissingError:
                         vs = None
 
@@ -521,10 +521,10 @@ class SimEngineVRBase(SimEngineLight):
         codeloc = CodeLocation(
             self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
         )
-        values = None
+        values: MultiValues | None = None
         if abs_addr is not None:
             try:
-                values: MultiValues = self.state.global_region.load(
+                values = self.state.global_region.load(
                     abs_addr, size=size, endness=self.state.arch.memory_endness if stmt is None else stmt.endness
                 )
             except SimMemoryMissingError:

@@ -285,6 +285,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
     def _worker_routine(self, worker_id: int, initializer: Initializer):
         initializer.initialize()
         idx = 0
+        callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]
         while self._remaining_funcs.value > 0:
             try:
                 with self._func_queue_lock:
@@ -295,7 +296,6 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 continue
 
             if callee_info is not None:
-                callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]
                 for callee, (callee_cc, callee_proto, callee_proto_libname) in callee_info.items():
                     callee_func = self.kb.functions.get_by_addr(callee)
                     callee_func.calling_convention = callee_cc

@@ -91,14 +91,14 @@ class SimEngineVRAIL(
                 self._reference_spoffset = False
                 args.append(richr)
 
-        ret_expr = None
+        ret_expr: ailment.Expr.Register | SimRegArg | None = None
         ret_reg_offset = None
         ret_expr_bits = self.state.arch.bits
         ret_val = None  # stores the value that this method should return to its caller when this is a call expression.
         create_variable = True
         if not is_expr:
             # this is a call statement. we need to update the return value register later
-            ret_expr: ailment.Expr.Register | None = stmt.ret_expr
+            ret_expr = stmt.ret_expr
             if ret_expr is not None:
                 ret_reg_offset = ret_expr.reg_offset
                 ret_expr_bits = ret_expr.bits
@@ -107,12 +107,12 @@ class SimEngineVRAIL(
                 if stmt.calling_convention is not None:
                     # we only set the ret_expr if prototype must be guessed. otherwise ret_expr should just be None
                     if stmt.prototype is None:
-                        ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
+                        ret_expr = stmt.calling_convention.RETURN_VAL
                 else:
                     l.debug(
                         "Unknown calling convention for function %s. Fall back to default calling convention.", target
                     )
-                    ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
+                    ret_expr = self.project.factory.cc().RETURN_VAL
 
                 if ret_expr is not None:
                     ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]

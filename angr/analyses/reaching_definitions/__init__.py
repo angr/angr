@@ -45,9 +45,9 @@ __all__ = (
 def get_all_definitions(region: "MultiValuedMemory") -> set["Definition"]:
     all_defs: set["Definition"] = set()
 
+    page: "MVListPage"
     # MultiValuedMemory only uses ListPage internally
     for page in region._pages.values():
-        page: "MVListPage"
 
         for idx in page.stored_offset:
             cnt_set: Union["SimMemoryObject", set["SimMemoryObject"]] | None = page.content[idx]

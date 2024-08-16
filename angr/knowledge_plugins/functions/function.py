@@ -253,9 +253,9 @@ class Function(Serializable):
                         arch.name, platform=self.project.simos.name if self.project.simos is not None else None
                     )(arch)
 
-            self.calling_convention: SimCC | None = cc
+            self.calling_convention = cc
         else:
-            self.calling_convention: SimCC | None = None
+            self.calling_convention = None
 
     @property
     @deprecated(".is_alignment")

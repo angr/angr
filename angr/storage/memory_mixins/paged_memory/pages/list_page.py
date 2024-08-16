@@ -241,9 +241,9 @@ class ListPage(MemoryObjectMixin, PageBase):
         return merged_offsets
 
     def changed_bytes(self, other: "ListPage", page_addr: int = None):
-        candidates = super().changed_bytes(other)
+        candidates: set[int] | None = super().changed_bytes(other)
         if candidates is None:
-            candidates: set[int] = set()
+            candidates = set()
             if self.sinkhole is None:
                 candidates |= self.stored_offset
             else:
@@ -338,6 +338,8 @@ class ListPage(MemoryObjectMixin, PageBase):
         return start, end
 
     def _get_object(self, start: int, page_addr: int) -> SimMemoryObject | None:
+        if self.content is None:
+            return None
         mo = self.content[start]
         if mo is None:
             return None

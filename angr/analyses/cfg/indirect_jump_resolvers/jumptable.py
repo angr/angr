@@ -917,6 +917,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :return:          A bool indicating whether the indirect jump is resolved successfully, and a list of
                           resolved targets.
         """
+        
+        ij: IndirectJump
 
         project = self.project  # short-hand
         func_addr = func.addr
@@ -1135,7 +1137,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 )
 
                 # write to the IndirectJump object in CFG
-                ij: IndirectJump = cfg.indirect_jumps.get(addr, None)
+                ij = cfg.indirect_jumps.get(addr, None)
                 if ij is not None:
                     if len(all_targets) > 1:
                         # It can be considered a jump table only if there are more than one jump target

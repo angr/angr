@@ -2831,6 +2831,7 @@ class CFGBase(Analysis):
 
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
+        ij: IndirectJump
         if addr not in self.indirect_jumps:
             if self.project.arch.branch_delay_slot:
                 if len(cfg_node.instruction_addrs) < 2:
@@ -2848,7 +2849,7 @@ class CFGBase(Analysis):
             self.indirect_jumps[addr] = ij
             resolved = False
         else:
-            ij: IndirectJump = self.indirect_jumps[addr]
+            ij = self.indirect_jumps[addr]
             resolved = len(ij.resolved_targets) > 0
 
         return resolved, ij.resolved_targets, ij

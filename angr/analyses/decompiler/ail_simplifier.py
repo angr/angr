@@ -602,6 +602,7 @@ class AILSimplifier(Analysis):
         """
 
         simplified = False
+        stmt: Statement
 
         prop = self._compute_propagation()
         if not prop.model.equivalence:
@@ -666,6 +667,7 @@ class AILSimplifier(Analysis):
 
             # find the definition of this register
             rd = self._compute_reaching_definitions()
+            def_: Definition
             if to_replace_is_def:
                 # find defs
                 defs = []
@@ -690,7 +692,6 @@ class AILSimplifier(Analysis):
                     # there are multiple defs for this register - we do not support replacing all of them
                     continue
                 for def_ in defs:
-                    def_: Definition
                     if isinstance(def_.atom, atoms.Register) and def_.atom.reg_offset == to_replace.reg_offset:
                         # found it!
                         the_def = def_
@@ -915,7 +916,7 @@ class AILSimplifier(Analysis):
 
                 # if there is an updated block, use it
                 the_block = self.blocks.get(old_block, old_block)
-                stmt: Statement = the_block.statements[u.stmt_idx]
+                stmt = the_block.statements[u.stmt_idx]
 
                 replace_with_copy = replace_with.copy()
                 if used_expr.size != replace_with_copy.size:

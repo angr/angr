@@ -116,8 +116,8 @@ class FlirtAnalysis(Analysis):
         self._suggestions = {}
         with open(sig.sig_path, "rb") as sigfile:
             flirt = nampa.parse_flirt_file(sigfile)
+            func: "Function"
             for func in self.project.kb.functions.values():
-                func: "Function"
                 if func.is_simprocedure or func.is_plt:
                     continue
                 if not func.is_default_name:

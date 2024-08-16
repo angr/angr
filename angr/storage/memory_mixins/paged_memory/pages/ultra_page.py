@@ -158,7 +158,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         byte_width = memory.state.arch.byte_width
 
-        if type(data) is not int:
+        if not isinstance(data, int):
             if data.object.op == "BVV" and not data.object.annotations:
                 # trim the unnecessary leading bytes if there are any
                 full_bits = len(data.object)
@@ -177,7 +177,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     )
                     data = int.from_bytes(concrete_data, "big")
 
-        if type(data) is int or (data.object.op == "BVV" and not data.object.annotations):
+        if isinstance(data, int) or (data.object.op == "BVV" and not data.object.annotations):
             # mark range as not symbolic
             self.symbolic_bitmap[addr : addr + size] = b"\0" * size
 

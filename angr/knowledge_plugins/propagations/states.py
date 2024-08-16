@@ -792,8 +792,8 @@ class PropagatorAILState(PropagatorState):
         return False
 
     def merge(self, *others) -> tuple["PropagatorAILState", bool]:
-        state, merge_occurred = super().merge(*others)
         state: "PropagatorAILState"
+        state, merge_occurred = super().merge(*others)
 
         merge_occurred |= state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)

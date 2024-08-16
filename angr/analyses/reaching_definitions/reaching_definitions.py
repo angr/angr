@@ -286,17 +286,17 @@ class ReachingDefinitionsAnalysis(
         :param node_idx:    ID of the node. Used in AIL to differentiate blocks with the same address.
         """
 
-        key = None
+        key: ObservationPoint | None = None
 
         observe = False
 
         if self._observe_all:
             observe = True
-            key: ObservationPoint = (
+            key = (
                 ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
             )
         elif self._observation_points is not None:
-            key: ObservationPoint = (
+            key = (
                 ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
             )
             if key in self._observation_points:
@@ -304,7 +304,7 @@ class ReachingDefinitionsAnalysis(
         elif self._observe_callback is not None:
             observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type, node_idx=node_idx)
             if observe:
-                key: ObservationPoint = (
+                key = (
                     ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
                 )
 
@@ -327,14 +327,14 @@ class ReachingDefinitionsAnalysis(
         :param op_type:     Type of the observation point. Must be one of the following: OP_BEORE, OP_AFTER.
         """
 
-        key = None
+        key: ObservationPoint | None = None
         observe = False
 
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ("insn", insn_addr, op_type)
+            key = ("insn", insn_addr, op_type)
         elif self._observation_points is not None:
-            key: ObservationPoint = ("insn", insn_addr, op_type)
+            key = ("insn", insn_addr, op_type)
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
@@ -342,7 +342,7 @@ class ReachingDefinitionsAnalysis(
                 "insn", addr=insn_addr, stmt=stmt, block=block, state=state, op_type=op_type
             )
             if observe:
-                key: ObservationPoint = ("insn", insn_addr, op_type)
+                key = ("insn", insn_addr, op_type)
 
         if not observe:
             return
@@ -380,15 +380,15 @@ class ReachingDefinitionsAnalysis(
         :return:
         """
 
-        key = None
+        key: ObservationPoint | None = None
         observe = False
 
         block_idx = block.idx if isinstance(block, ailment.Block) else None
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
+            key = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
         elif self._observation_points is not None:
-            key: ObservationPoint = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
+            key = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
@@ -396,7 +396,7 @@ class ReachingDefinitionsAnalysis(
                 "stmt", stmt_idx=stmt_idx, stmt=stmt, block=block, state=state, op_type=op_type
             )
             if observe:
-                key: ObservationPoint = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
+                key = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
 
         if not observe:
             return

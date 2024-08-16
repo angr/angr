@@ -124,11 +124,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             cache_used = True
 
-        graph_visitor: visitors.SingleNodeGraphVisitor | visitors.FunctionGraphVisitor
+        graph_visitor: visitors.SingleNodeGraphVisitor | visitors.FunctionGraphVisitor | None
         if self.flavor == "block":
             graph_visitor = None
             if self._cache_results:
-                graph_visitor: visitors.SingleNodeGraphVisitor | None = self.model.graph_visitor
+                graph_visitor = self.model.graph_visitor
 
             if graph_visitor is None:
                 graph_visitor = visitors.SingleNodeGraphVisitor(block)
@@ -136,7 +136,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         elif self.flavor == "function":
             graph_visitor = None
             if self._cache_results:
-                graph_visitor: visitors.FunctionGraphVisitor | None = self.model.graph_visitor
+                graph_visitor = self.model.graph_visitor
                 if graph_visitor is not None:
                     # resume
                     resumed = graph_visitor.resume_with_new_graph(func_graph if func_graph is not None else func.graph)
@@ -332,7 +332,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             if isinstance(input_state, PropagatorAILState):
                 key = node.addr, successor.addr
                 if key in self.model.block_initial_reg_values:
-                    input_state: PropagatorAILState = input_state.copy()
+                    input_state = input_state.copy()
                     for reg_atom, reg_value in self.model.block_initial_reg_values[key]:
                         input_state.store_register(
                             reg_atom,
@@ -345,7 +345,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             elif isinstance(input_state, PropagatorVEXState):
                 key = node.addr, successor.addr
                 if key in self.model.block_initial_reg_values:
-                    input_state: PropagatorVEXState = input_state.copy()
+                    input_state = input_state.copy()
                     for reg_offset, reg_size, value in self.model.block_initial_reg_values[key]:
                         input_state.store_register(reg_offset, reg_size, claripy.BVV(value, reg_size * 8))
         return input_state

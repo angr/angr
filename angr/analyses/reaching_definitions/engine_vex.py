@@ -438,6 +438,7 @@ class SimEngineRDVEX(
         # at different locations). only load them once.
         loaded_stack_offsets = set()
 
+        vs: MultiValues
         for addr in addrs:
             if self.state.is_top(addr):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
@@ -448,7 +449,7 @@ class SimEngineRDVEX(
                     loaded_stack_offsets.add(stack_offset)
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack.load(stack_addr, size=size, endness=endness)
+                        vs = self.state.stack.load(stack_addr, size=size, endness=endness)
                         # extract definitions
                         defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
@@ -462,7 +463,7 @@ class SimEngineRDVEX(
                 heap_offset = self.state.get_heap_offset(addr)
                 if heap_offset is not None:
                     try:
-                        vs: MultiValues = self.state.heap.load(heap_offset, size=size, endness=endness)
+                        vs = self.state.heap.load(heap_offset, size=size, endness=endness)
                         defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
                         continue
@@ -475,7 +476,7 @@ class SimEngineRDVEX(
 
                 # Load data from a global region
                 try:
-                    vs: MultiValues = self.state.memory.load(addr_v, size=size, endness=endness)
+                    vs = self.state.memory.load(addr_v, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     try:

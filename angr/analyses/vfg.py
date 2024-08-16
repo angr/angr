@@ -346,7 +346,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         # Related CFG.
         # We can still perform analysis if you don't specify a CFG. But providing a CFG may give you better result.
-        self._cfg = cfg
+        self._cfg: CFGEmulated | None = cfg
 
         # Where to start the analysis
         self._start: int = start if start is not None else self.project.entry
@@ -526,7 +526,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             l.debug("Generating a CFG, since none was given...")
             # TODO: can we use a fast CFG instead? note that fast CFG does not care of context sensitivity at all, but
             # TODO: for state merging, we also don't really care about context sensitivity.
-            self._cfg: CFGEmulated = self.project.analyses[CFGEmulated].prep()(
+            self._cfg = self.project.analyses[CFGEmulated].prep()(
                 context_sensitivity_level=self._context_sensitivity_level, starts=(self._start,)
             )
 
