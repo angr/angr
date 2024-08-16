@@ -292,21 +292,15 @@ class ReachingDefinitionsAnalysis(
 
         if self._observe_all:
             observe = True
-            key = (
-                ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
-            )
+            key = ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
         elif self._observation_points is not None:
-            key = (
-                ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
-            )
+            key = ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
             observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type, node_idx=node_idx)
             if observe:
-                key = (
-                    ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
-                )
+                key = ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
 
         if observe:
             self.observed_results[key] = state.live_definitions

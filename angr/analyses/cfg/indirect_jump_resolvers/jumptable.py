@@ -917,7 +917,7 @@ class JumpTableResolver(IndirectJumpResolver):
         :return:          A bool indicating whether the indirect jump is resolved successfully, and a list of
                           resolved targets.
         """
-        
+
         ij: IndirectJump
 
         project = self.project  # short-hand

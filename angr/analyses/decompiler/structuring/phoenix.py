@@ -1321,9 +1321,7 @@ class PhoenixStructurer(StructurerBase):
         elif len(default_node_candidates) == 1:
             node_default = default_node_candidates[0]
         else:
-            node_default = next(
-                iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
-            )
+            node_default = next(iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None)
 
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
