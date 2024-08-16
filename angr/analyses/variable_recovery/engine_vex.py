@@ -563,15 +563,6 @@ class SimEngineVRVEX(
             return RichR(self.state.top(expr_0.data.size()))
         return RichR(self.state.top(expr_0.data.size()))
 
-    def _handle_Ctz(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        if self.state.is_top(expr_0.data):
-            return RichR(self.state.top(expr_0.data.size()))
-        return RichR(self.state.top(expr_0.data.size()))
-
     _handle_CmpEQ_v = _handle_Cmp_v
     _handle_CmpNE_v = _handle_Cmp_v
     _handle_CmpLE_v = _handle_Cmp_v
