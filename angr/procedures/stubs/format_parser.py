@@ -4,6 +4,7 @@ import logging
 import math
 import claripy
 
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from ... import sim_type
 from ...sim_procedure import SimProcedure
 from ...storage.file import SimPackets
@@ -161,7 +162,7 @@ class FormatString:
                         base = 10
 
                     # here's the variable representing the result of the parsing
-                    target_variable = self.state.solver.BVS(
+                    target_variable = claripy.BVS(
                         "scanf_" + component.string.decode(), bits, key=("api", "scanf", num_args, component.string)
                     )
                     negative = claripy.SLT(target_variable, 0)
@@ -296,7 +297,7 @@ class FormatString:
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
-                    i = self.parser.state.solver.Extract(fmt_spec.size * 8 - 1, 0, i)
+                    i = claripy.Extract(fmt_spec.size * 8 - 1, 0, i)
                     self.parser.state.memory.store(
                         dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness
                     )
@@ -670,6 +671,3 @@ class ScanfFormatParser(FormatParser):
             FormatParser._MOD_SPEC = mod_spec
 
         return FormatParser._MOD_SPEC
-
-
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
