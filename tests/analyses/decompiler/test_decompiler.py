@@ -3666,6 +3666,14 @@ class TestDecompiler(unittest.TestCase):
             else:
                 assert first == decomp.codegen.text, "Decompilation is not deterministic"
 
+    def test_stop_iteration_in_canary_init_stmt(self):
+        bin_path = os.path.join(test_location, "x86_64", "hello_gcc9_reassembler")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        function = cfg.functions[4198577]
+        function.normalize()
+        proj.analyses.Decompiler(func=function, cfg=cfg)
+
 
 if __name__ == "__main__":
     unittest.main()
