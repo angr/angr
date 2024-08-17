@@ -1167,12 +1167,13 @@ class Clinic(Analysis):
             arg_vars: list[SimVariable] = []
             if args:
                 arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]
+                arg_count = 0
                 for idx, arg in enumerate(args):
                     if isinstance(arg, SimRegArg):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
-                            ident="arg_%d" % idx,
+                            ident="arg_%d" % arg_count,
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
@@ -1181,11 +1182,36 @@ class Clinic(Analysis):
                             arg.stack_offset,
                             arg.size,
                             base="bp",
-                            ident="arg_%d" % idx,
+                            ident="arg_%d" % arg_count,
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStructArg):
+                        if self.project.arch.name in {"ARMEL"}:
+                            for struct_idx, sim_arg in enumerate(arg.get_footprint()):
+                                if isinstance(sim_arg, SimRegArg):
+                                    argvar = SimRegisterVariable(
+                                        self.project.arch.registers[sim_arg.reg_name][0],
+                                        sim_arg.size,
+                                        ident="arg_%d" % arg_count,
+                                        name=arg_names[idx] + "_%d" % struct_idx,
+                                        region=self.function.addr,
+                                    )
+                                elif isinstance(sim_arg, SimStackArg):
+                                    argvar = SimStackVariable(
+                                        sim_arg.stack_offset,
+                                        sim_arg.size,
+                                        base="bp",
+                                        ident="arg_%d" % arg_count,
+                                        name=arg_names[idx] + "_%d" % struct_idx,
+                                        region=self.function.addr,
+                                    )
+                                else:
+                                    raise TypeError("Unsupported function argument type %s." % type(arg))
+                                arg_count += 1
+                                arg_vars.append(argvar)
+                            continue
+
                         argvar = SimVariable(
                             ident="arg_%d" % idx,
                             name=arg_names[idx],
@@ -1195,6 +1221,7 @@ class Clinic(Analysis):
                     else:
                         raise TypeError("Unsupported function argument type %s." % type(arg))
                     arg_vars.append(argvar)
+                    arg_count += 1
             return arg_vars
         return []
 
