@@ -735,21 +735,16 @@ def calls_in_graph(graph: networkx.DiGraph) -> int:
 
 
 def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
-    if insn_addr:
-
-        def _get_addr(b):
-            return b.statements[0].ins_addr
-
-    else:
-
-        def _get_addr(b):
-            return b.addr
-
     for block in graph.nodes():
-        if _get_addr(block) == addr:
-            return block
+        if insn_addr:
+            for stmt in block.statements:
+                if "ins_addr" in stmt.tags and stmt.ins_addr == addr:
+                    return block
+        else:
+            if block.addr == addr:
+                return block
 
-    raise Exception("The block is not in the graph!")
+    raise ValueError("The block is not in the graph!")
 
 
 def sequence_to_blocks(seq: BaseNode) -> list[ailment.Block]:

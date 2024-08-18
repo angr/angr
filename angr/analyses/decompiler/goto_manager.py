@@ -1,5 +1,9 @@
 from __future__ import annotations
 import ailment
+from ailment.block import Block
+import networkx
+
+from .utils import find_block_by_addr
 
 
 class Goto:
@@ -72,3 +76,38 @@ class GotoManager:
                     return True
 
         return False
+
+    def find_goto_edges(self, graph: networkx.DiGraph) -> list[tuple[Block, Block]]:
+        """
+        This function finds all edges that are _potential_ gotos in the graph.
+        The gotos are not guaranteed to be correct, but they are an approximation based on how the Phoenix
+        structuring algorithm will select edges from the graph to be gotos in structuring.
+        """
+        # first collect all simple destinations known by the goto managers
+        dst_blocks = set()
+        goto_edges = []
+        for goto in self.gotos:
+            try:
+                dst_block = find_block_by_addr(graph, goto.dst_addr)
+            except ValueError:
+                continue
+
+            try:
+                src_block = find_block_by_addr(graph, goto.src_addr)
+            except ValueError:
+                src_block = None
+
+            if src_block is None:
+                # try the instruction addrs in the block to find the goto
+                try:
+                    src_block = find_block_by_addr(graph, goto.src_ins_addr, insn_addr=True)
+                except ValueError:
+                    src_block = None
+
+            if src_block is not None and dst_block is not None:
+                # if you found the source, we dont need to try later things on this dst
+                goto_edges.append((src_block, dst_block))
+            elif dst_block is not None:
+                dst_blocks.add(dst_block)
+
+        return goto_edges

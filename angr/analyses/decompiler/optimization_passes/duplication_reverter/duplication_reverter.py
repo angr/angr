@@ -3,6 +3,7 @@ import logging
 from itertools import combinations
 import itertools
 
+import networkx
 import networkx as nx
 
 import ailment
@@ -1091,90 +1092,147 @@ class DuplicationReverter(StructuringOptimizationPass):
         else:
             return False
 
-    def _find_initial_candidates(self) -> list[tuple[Block, Block]]:
-        initial_candidates = []
-        for b0, b1 in combinations(self.read_graph.nodes, 2):
-            # TODO: find a better fix for this! Some duplicated nodes need destruction!
-            # skip purposefully duplicated nodes
-            # if any(isinstance(b.idx, int) and b.idx > 0 for b in [b0, b1]):
-            #   continue
+    def _is_valid_candidate(self, b0, b1):
+        # TODO: find a better fix for this! Some duplicated nodes need destruction!
+        # skip purposefully duplicated nodes
+        # if any(isinstance(b.idx, int) and b.idx > 0 for b in [b0, b1]):
+        #   continue
 
-            # if all([b.addr in [0x40cc9a, 0x40cdb5] for b in (b0, b1)]):
-            #    do a breakpoint
+        # if all([b.addr in [0x40cc9a, 0x40cdb5] for b in (b0, b1)]):
+        #    do a breakpoint
 
-            # blocks must have statements
-            if not b0.statements or not b1.statements:
+        # blocks must have statements
+        if not b0.statements or not b1.statements:
+            return False
+
+        # blocks must share a region
+        if not self._share_subregion([b0, b1]):
+            return False
+
+        # must share a common dominator
+        if not shared_common_conditional_dom([b0, b1], self.read_graph):
+            return False
+
+        # special case: when we only have a single stmt
+        if len(b0.statements) == len(b1.statements) == 1:
+            # Case 1:
+            # [if(a)] == [if(b)]
+            #
+            # we must use the more expensive `similar` function to tell on the graph if they are
+            # stmts that result in the same successors
+            try:
+                stmt_is_similar = is_similar(b0, b1, graph=self.read_graph)
+            except Exception:
+                return False
+
+            # Case 2:
+            # [if(a)] == [if(a)]
+            # and at least one child for the correct target type matches
+            if not stmt_is_similar:
+                # TODO: fix this and add it back
+                # is_similar = self.similar_conditional_when_single_corrected(b0, b1, self.write_graph)
+                pass
+
+            if stmt_is_similar:
+                return True
+
+        # check if these nodes share any stmt in common
+        stmt_in_common = False
+        for stmt0 in b0.statements:
+            # jumps don't count
+            if isinstance(stmt0, Jump):
                 continue
 
-            # blocks must share a region
-            if not self._share_subregion([b0, b1]):
-                continue
-
-            # must share a common dominator
-            if not shared_common_conditional_dom([b0, b1], self.read_graph):
-                continue
-
-            # special case: when we only have a single stmt
-            if len(b0.statements) == len(b1.statements) == 1:
-                # Case 1:
-                # [if(a)] == [if(b)]
-                #
-                # we must use the more expensive `similar` function to tell on the graph if they are
-                # stmts that result in the same successors
-                try:
-                    stmt_is_similar = is_similar(b0, b1, graph=self.read_graph)
-                except Exception:
+            # Most Assignments don't count just by themselves:
+            # register = register
+            # TOP = const | register
+            if isinstance(stmt0, Assignment):
+                src = stmt0.src.operand if isinstance(stmt0.dst, Convert) else stmt0.src
+                if isinstance(src, Register) or (isinstance(src, Const) and src.bits > 2):
                     continue
 
-                # Case 2:
-                # [if(a)] == [if(a)]
-                # and at least one child for the correct target type matches
-                if not stmt_is_similar:
-                    # TODO: fix this and add it back
-                    # is_similar = self.similar_conditional_when_single_corrected(b0, b1, self.write_graph)
-                    pass
-
-                if stmt_is_similar:
-                    initial_candidates.append((b0, b1))
-                    continue
-
-            # check if these nodes share any stmt in common
-            stmt_in_common = False
-            for stmt0 in b0.statements:
-                # jumps don't count
-                if isinstance(stmt0, Jump):
-                    continue
-
-                # Most Assignments don't count just by themselves:
-                # register = register
-                # TOP = const | register
-                if isinstance(stmt0, Assignment):
-                    src = stmt0.src.operand if isinstance(stmt0.dst, Convert) else stmt0.src
-                    if isinstance(src, Register) or (isinstance(src, Const) and src.bits > 2):
-                        continue
-                    """
-                    elif isinstance(src, Const) and self.project.loader.proj.find_object_containing(src.value) is None:
-                        continue
-                    """
-
-                for stmt1 in b1.statements:
-                    # XXX: used to be just likes()
-                    if is_similar(stmt0, stmt1, graph=self.write_graph):
-                        stmt_in_common = True
-                        break
-
-                if stmt_in_common:
-                    pair = (b0, b1)
-                    # only append pairs that share a dominator
-                    if shared_common_conditional_dom(pair, self.write_graph) is not None:
-                        initial_candidates.append(pair)
-
+            for stmt1 in b1.statements:
+                if is_similar(stmt0, stmt1, graph=self.write_graph):
+                    stmt_in_common = True
                     break
 
-        initial_candidates = list(set(initial_candidates))
-        initial_candidates.sort(key=lambda x: x[0].addr + x[1].addr)
+            if stmt_in_common:
+                pair = (b0, b1)
+                # only append pairs that share a dominator
+                if shared_common_conditional_dom(pair, self.write_graph) is not None:
+                    return True
 
-        return initial_candidates
+                break
+
+    def _construct_goto_related_subgraph(self, base: Block, graph: networkx.DiGraph, max_ancestors=5):
+        """
+        Creates a subgraph of the large graph starting from the base block and working upwards (predecessors)
+        for max_ancestors amount of nodes
+        """
+        blocks = [base]
+        level_blocks = [base]
+        block_lvls = {base: 0}
+        new_level_blocks = []
+        for lvl in range(max_ancestors):
+            new_level_blocks = []
+            for lblock in level_blocks:
+                block_lvls[lblock] = lvl + 1
+                new_level_blocks += list(graph.predecessors(lblock))
+
+            blocks += new_level_blocks
+            level_blocks = new_level_blocks
+
+        # collect last level blocks
+        if new_level_blocks:
+            for new_block in new_level_blocks:
+                if new_block in block_lvls:
+                    continue
+
+                block_lvls[new_block] = max_ancestors + 1
+
+        # construct the final subgraph
+        g = nx.subgraph(graph, blocks)
+        return g, block_lvls
+
+    def _find_initial_candidates(self) -> list[tuple[Block, Block]]:
+        """
+        Here is how
+        """
+        # first, find all the goto edges, since these locations will always be the base of the merge
+        # graph we create; therefore, we only need search around gotos
+        goto_edges = self._goto_manager.find_goto_edges(self.read_graph)
+
+        candidates = []
+        for goto_src, goto_dst in goto_edges:
+            candidate_subgraph, dist_by_block = self._construct_goto_related_subgraph(goto_dst, self.read_graph)
+            goto_candidates = []
+            for b0, b1 in combinations(candidate_subgraph, 2):
+                if self._is_valid_candidate(b0, b1):
+                    goto_candidates.append((b0, b1))
+
+            # eliminate any that are already blacklisted
+            goto_candidates = [c for c in goto_candidates if c not in self.candidate_blacklist]
+
+            # choose only a single candidate for this goto, make it the one nearest to the head
+            best = None
+            best_dist = None
+            for b0, b1 in goto_candidates:
+                if best is None:
+                    best = (b0, b1)
+                    best_dist = dist_by_block[b0] + dist_by_block[b1]
+                    continue
+
+                total_dist = dist_by_block[b0] + dist_by_block[b1]
+                if total_dist > best_dist:
+                    best = (b0, b1)
+
+            if best is not None:
+                candidates.append(best)
+
+        candidates = list(set(candidates))
+        candidates.sort(key=lambda x: x[0].addr + x[1].addr)
+
+        return candidates
 
     def _filter_candidates(self, candidates, merge_candidates=True):
         """
@@ -1195,167 +1253,65 @@ class DuplicationReverter(StructuringOptimizationPass):
                 filted_candidates.append(candidate)
         candidates = filted_candidates
 
-        #
-        # First locate all the pairs that may actually be in a merge-graph of one of the already existent
-        # pairs. This will look like a graph diff having a block existent in its list of nodes.
-        #
+        # when enabled, attempts to merge candidates
+        if merge_candidates:
+            #
+            # Now, merge pairs that may actually be n-pairs. This will look like multiple pairs having a single
+            # block in common, and have one or more statements in common.
+            #
 
-        blk_descendants = {
-            (b0, b1): set(nx.descendants(self.read_graph, b0)).union(
-                set(nx.descendants(self.read_graph, b1)).union({b0, b1})
-            )
-            for b0, b1 in candidates
-        }
+            not_fixed = True
+            while not_fixed:
+                not_fixed = False
+                queued = set()
+                merged_candidates = []
 
-        while True:
-            removal_queue = []
-            for candidate in candidates:
-                if candidate in removal_queue:
-                    continue
-
-                stop = False
-                for candidate2 in candidates:
-                    if candidate2 == candidate or candidate2 not in blk_descendants:
-                        continue
-
-                    descendants = blk_descendants[candidate2]
-                    if all(c in descendants for c in candidate):
-                        removal_queue.append(candidate)
-                        del blk_descendants[candidate]
-                        stop = True
-                        break
-
-                if stop:
+                # no merging needs to be done, there is only one candidate left
+                if len(candidates) == 1:
                     break
 
-            if len(removal_queue) == 0:
-                break
-
-            l.debug(f"Removing descendant pair in candidate search: {removal_queue}")
-            for pair in set(removal_queue):
-                candidates.remove(pair)
-
-        if not merge_candidates:
-            return candidates
-
-        #
-        # Now, merge pairs that may actually be n-pairs. This will look like multiple pairs having a single
-        # block in common, and have one or more statements in common.
-        #
-
-        not_fixed = True
-        while not_fixed:
-            not_fixed = False
-            queued = set()
-            merged_candidates = []
-
-            # no merging needs to be done, there is only one candidate left
-            if len(candidates) == 1:
-                break
-
-            for can0 in candidates:
-                # skip candidates being merged
-                if can0 in queued:
-                    continue
-
-                for can1 in candidates:
-                    if can0 == can1 or can1 in queued:
+                for can0 in candidates:
+                    # skip candidates being merged
+                    if can0 in queued:
                         continue
 
-                    # only try a merge if candidates share a node in common
-                    if not set(can0).intersection(set(can1)):
-                        continue
+                    for can1 in candidates:
+                        if can0 == can1 or can1 in queued:
+                            continue
 
-                    lcs, _ = longest_ail_subseq([b.statements for b in set(can0 + can1)])
-                    if not lcs:
-                        continue
+                        # only try a merge if candidates share a node in common
+                        if not set(can0).intersection(set(can1)):
+                            continue
 
-                    merged_candidates.append(tuple(set(can0 + can1)))
-                    queued.add(can0)
-                    queued.add(can1)
-                    not_fixed |= True
-                    break
+                        lcs, _ = longest_ail_subseq([b.statements for b in set(can0 + can1)])
+                        if not lcs:
+                            continue
 
-            remaining_candidates = []
-            for can in candidates:
-                for m_can in merged_candidates:
-                    if not all(blk not in m_can for blk in can):
+                        merged_candidates.append(tuple(set(can0 + can1)))
+                        queued.add(can0)
+                        queued.add(can1)
+                        not_fixed |= True
                         break
-                else:
-                    remaining_candidates.append(can)
 
-            candidates = merged_candidates + remaining_candidates
+                remaining_candidates = []
+                for can in candidates:
+                    for m_can in merged_candidates:
+                        if not all(blk not in m_can for blk in can):
+                            break
+                    else:
+                        remaining_candidates.append(can)
 
-        candidates = list(set(candidates))
-        candidates = [tuple(sorted(candidate, key=lambda x: x.addr)) for candidate in candidates]
-        candidates = sorted(candidates, key=lambda x: sum([c.addr for c in x]))
+                candidates = merged_candidates + remaining_candidates
+
+            candidates = list(set(candidates))
+            candidates = [tuple(sorted(candidate, key=lambda x: x.addr)) for candidate in candidates]
+            candidates = sorted(candidates, key=lambda x: sum([c.addr for c in x]))
 
         return candidates
 
     #
     # Simple Optimizations (for cleanup)
     #
-
-    def remove_simple_similar_blocks(self, graph: nx.DiGraph):
-        """
-        Removes blocks that have all statements that are similar and the same successors
-        @param graph:
-        @return:
-        """
-        change = False
-        not_fixed = True
-        while not_fixed:
-            not_fixed = False
-            nodes = list(graph.nodes())
-            remove_queue = []
-
-            for b0, b1 in itertools.combinations(nodes, 2):
-                if not self._share_subregion([b0, b1]):
-                    continue
-
-                b0_suc, b1_suc = set(graph.successors(b0)), set(graph.successors(b1))
-
-                # blocks should have the same successors
-                if b0_suc != b1_suc:
-                    continue
-
-                # special case: when we only have a single stmt
-                if len(b0.statements) == len(b1.statements) == 1:
-                    try:
-                        stmt_is_similar = is_similar(b0, b1, graph=graph)
-                    except Exception:
-                        continue
-
-                    if not stmt_is_similar:
-                        continue
-
-                elif not b0.likes(b1):
-                    continue
-
-                remove_queue.append((b0, b1))
-                break
-
-            if not remove_queue:
-                break
-
-            l.debug(f"REMOVING IN SIMPLE_DUP: {remove_queue}")
-            for b0, b1 in remove_queue:
-                if not (graph.has_node(b0) or graph.has_node(b1)):
-                    continue
-
-                for suc in graph.successors(b1):
-                    graph.add_edge(b0, suc)
-
-                for pred in graph.predecessors(b1):
-                    last_statement = pred.statements[-1]
-                    pred.statements[-1] = correct_jump_targets(last_statement, {b1.addr: b0.addr})
-                    graph.add_edge(pred, b0)
-
-                graph.remove_node(b1)
-                not_fixed = True
-                change |= True
-
-        return graph, change
 
     @staticmethod
     def remove_redundant_jumps(graph: nx.DiGraph):
