@@ -3284,7 +3284,7 @@ class TestDecompiler(unittest.TestCase):
         null_if_cases = re.findall(r"if \(!*v\d\)", text)
         assert len(null_if_cases) == 1
 
-    @structuring_algo("phoenix")
+    @structuring_algo("sailr")
     def test_decompiling_tr_O2_parse_str(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr_O2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
