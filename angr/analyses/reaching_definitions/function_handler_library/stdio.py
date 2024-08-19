@@ -142,7 +142,7 @@ class LibcStdioHandlers(FunctionHandler):
     def handle_impl_fgets(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         size = state.get_concrete_value(data.args_atoms[1]) or 2
         dst_atom = state.deref(data.args_atoms[0], size)
-        input_value = claripy.BVS("weh", 8).concat(claripy.BVV(0, 8))
+        input_value = claripy.BVS("weh", (size - 1) * 8).concat(claripy.BVV(0, 8))
         data.depends(dst_atom, StdinAtom("fgets", size), value=input_value)
         data.depends(data.ret_atoms, data.args_atoms[0])
 
