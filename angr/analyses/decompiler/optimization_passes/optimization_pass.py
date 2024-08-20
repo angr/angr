@@ -369,6 +369,7 @@ class StructuringOptimizationPass(OptimizationPass):
         return self._goto_manager.gotos
 
     def _fixed_point_analyze(self, cache=None):
+        had_any_changes = False
         for _ in range(self._max_opt_iters):
             if self._require_gotos and not self._goto_manager.gotos:
                 break
@@ -382,6 +383,7 @@ class StructuringOptimizationPass(OptimizationPass):
             if not changes:
                 break
 
+            had_any_changes = True
             # check if the graph is structurable
             if not self._graph_is_structurable(self.out_graph, readd_labels=self._readd_labels):
                 if self._recover_structure_fails:
@@ -389,6 +391,9 @@ class StructuringOptimizationPass(OptimizationPass):
                 else:
                     self.out_graph = None
                     break
+
+        if not had_any_changes:
+            self.out_graph = None
 
     def _graph_is_structurable(self, graph, readd_labels=False, initial=False) -> bool:
         """
