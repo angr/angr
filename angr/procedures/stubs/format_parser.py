@@ -162,7 +162,7 @@ class FormatString:
                         base = 10
 
                     # here's the variable representing the result of the parsing
-                    target_variable = claripy.BVS(
+                    target_variable = self.state.solver.BVS(
                         "scanf_" + component.string.decode(), bits, key=("api", "scanf", num_args, component.string)
                     )
                     negative = claripy.SLT(target_variable, 0)
