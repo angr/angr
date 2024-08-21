@@ -220,6 +220,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         self.out_graph = graph_copy
         node_to_heads = defaultdict(set)
 
+        potential_switches = (
+            sum([1 for var, caselists in variablehash_to_cases.items() if var and caselists])
+            + self._switches_present_in_code
+        )
+        could_cluster = (potential_switches - 1) > 0
         for _, caselists in variablehash_to_cases.items():
             for cases, redundant_nodes in caselists:
                 real_cases = [case for case in cases if case.value != "default"]
@@ -243,14 +248,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # cluster split off a non-continuous cluster. In this case, we should still convert it to a switch-case
                 # iff a switch-case construct is present in the code.
                 is_all_continuous = max_continuous_cases == len(real_cases)
-                if is_all_continuous and self._switches_present_in_code == 0:
+                if is_all_continuous and not could_cluster:
                     _l.debug("Skipping switch-case conversion due to all cases being continuous for %s", real_cases[0])
                     continue
 
                 # RULE 3: It is not a real cluster if there are not enough distinct cases.
                 # A distinct case is a case that has a different body of code.
                 distinct_cases = self._count_distinct_cases(real_cases)
-                if distinct_cases < self._min_distinct_cases and self._switches_present_in_code == 0:
+                if distinct_cases < self._min_distinct_cases and not could_cluster:
                     _l.debug("Skipping switch-case conversion due to too few distinct cases for %s", real_cases[0])
                     continue
 
