@@ -22,7 +22,6 @@ _all_optimization_passes.extend(
         # (CallingConventionRecovery, True),
         (OwnershipSimplifier, True),
         (AllocSimplifier, True),
-        (ReturnDuplicatorLow, True),
         # After type recovery
         (StructInstantiationSimplifier, True),
         (UnwrapSimplifier, True),
