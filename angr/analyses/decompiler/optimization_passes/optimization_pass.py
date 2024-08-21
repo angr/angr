@@ -300,6 +300,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._must_improve_rel_quality = must_improve_rel_quality
         self._readd_labels = readd_labels
 
+        self._initial_gotos = None
         self._goto_manager: GotoManager | None = None
         self._prev_graph: networkx.DiGraph | None = None
 
@@ -317,8 +318,8 @@ class StructuringOptimizationPass(OptimizationPass):
         if not self._graph_is_structurable(self._graph, initial=True):
             return
 
-        initial_gotos = self._goto_manager.gotos.copy()
-        if self._require_gotos and not initial_gotos:
+        self._initial_gotos = self._goto_manager.gotos.copy()
+        if self._require_gotos and not self._initial_gotos:
             return
 
         # replace the normal check in OptimizationPass.analyze()
@@ -353,7 +354,7 @@ class StructuringOptimizationPass(OptimizationPass):
             self.out_graph = self._simplify_graph(self.out_graph)
 
         if self._prevent_new_gotos:
-            prev_gotos = len(initial_gotos)
+            prev_gotos = len(self._initial_gotos)
             new_gotos = len(self._get_new_gotos())
             if (self._strictly_less_gotos and (new_gotos >= prev_gotos)) or (
                 not self._strictly_less_gotos and (new_gotos > prev_gotos)
@@ -462,8 +463,6 @@ class StructuringOptimizationPass(OptimizationPass):
         """
         Checks if the new structured output improves (or maintains) the relative quality of the control flow structures
         present in the function.
-
-        For now, this only involves loops
         """
         if self._initial_structure_counter is None or self._current_structure_counter is None:
             _l.warning("Relative quality check failed due to missing structure counters")
@@ -483,4 +482,48 @@ class StructuringOptimizationPass(OptimizationPass):
         # Note: this check is only for _trading_, meaning the total number of loops must be the same.
         #
         # 1. We traded to remove a for-loop
-        return not (curr_floops < prev_floops and total_curr_loops == total_prev_loops)
+        if curr_floops < prev_floops and total_curr_loops == total_prev_loops:
+            return False
+
+        # Gotos play an important part in readability and control flow structure. We already count gotos in other parts
+        # of the analysis, so we don't need to count them here. However, some gotos are worse than others. Much
+        # like loops, trading gotos (keeping the same total, but getting worse types), is bad for decompilation.
+        #
+        # 1. We trade for a goto that occurs higher in the program (much like a back edge goto), these are bad
+        if len(self._initial_gotos) == len(self._goto_manager.gotos) != 0:
+            prev_labels = self._initial_structure_counter.goto_targets
+            curr_labels = self._current_structure_counter.goto_targets
+            # labels occur in the order they would occur in the text
+            ordered_prev_labels = self._initial_structure_counter.ordered_labels
+            ordered_curr_labels = self._current_structure_counter.ordered_labels
+            for addr, curr_cnt in curr_labels.items():
+                prev_cnt = prev_labels.get(addr, None)
+                if prev_cnt is None:
+                    continue
+
+                # some label increased in gotos, check everything to the right in ordered labels, if it went down,
+                # then we fail
+                if curr_cnt > prev_cnt:
+                    right_labels = ordered_curr_labels[ordered_curr_labels.index(addr) + 1 :]
+                    for right_label in right_labels:
+                        if right_label not in ordered_prev_labels:
+                            continue
+
+                        right_curr_label_cnt = curr_labels[right_label]
+                        right_prev_label_cnt = prev_labels[right_label]
+                        if right_curr_label_cnt < right_prev_label_cnt:
+                            return False
+
+                # some label decreased in gotos, check everything to the left, if something went up, then we fail
+                elif curr_cnt < prev_cnt:
+                    left_labels = ordered_curr_labels[: ordered_curr_labels.index(addr)]
+                    for left_label in left_labels:
+                        if left_label not in ordered_prev_labels:
+                            continue
+
+                        left_curr_label_cnt = curr_labels[left_label]
+                        left_prev_label_cnt = prev_labels[left_label]
+                        if left_curr_label_cnt > left_prev_label_cnt:
+                            return False
+
+        return True

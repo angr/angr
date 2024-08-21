@@ -1,6 +1,10 @@
 from __future__ import annotations
+from collections import defaultdict
+
+import ailment
+
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode, LoopNode
+from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
 
 
 class ControlFlowStructureCounter(SequenceWalker):
@@ -12,14 +16,38 @@ class ControlFlowStructureCounter(SequenceWalker):
     def __init__(self, node):
         handlers = {
             LoopNode: self._handle_Loop,
+            ailment.Block: self._handle_Block,
         }
         super().__init__(handlers)
 
         self.while_loops = 0
         self.do_while_loops = 0
         self.for_loops = 0
+        self.ordered_labels = []
+        self.goto_targets = defaultdict(int)
 
         self.walk(node)
+
+        # eliminate gotos without labels
+        self.goto_targets = {k: v for k, v in self.goto_targets.items() if k in self.ordered_labels}
+
+    def _handle_Block(self, node: ailment.Block, parent=None, **kwargs):
+        if not node.statements:
+            return
+
+        for stmt in node.statements:
+            # labels found in the block at this point will be labels in the output
+            if isinstance(stmt, ailment.statement.Label):
+                label_addr = stmt.ins_addr
+                if label_addr is not None:
+                    self.ordered_labels.append(label_addr)
+
+            # goto targets found in the block at this point will be goto targets in the output
+            if isinstance(stmt, ailment.statement.Jump):
+                target = stmt.target
+                target_value = target.value if target is not None else None
+                if target_value is not None:
+                    self.goto_targets[target_value] += 1
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
         if node.sort == "while":
@@ -30,9 +58,3 @@ class ControlFlowStructureCounter(SequenceWalker):
             self.for_loops += 1
 
         return super()._handle_Loop(node, **kwargs)
-
-    def _handle_Condition(self, node, parent=None, **kwargs):
-        return super()._handle_Condition(node, parent=parent, **kwargs)
-
-    def _handle_SwitchCase(self, node: SwitchCaseNode, parent=None, **kwargs):
-        return super()._handle_SwitchCase(node, parent=parent, **kwargs)

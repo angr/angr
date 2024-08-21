@@ -51,7 +51,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             strictly_less_gotos=False,
             # TODO: this should be False, but there is a bug in true_a
             recover_structure_fails=True,
-            must_improve_rel_quality=False,
+            must_improve_rel_quality=True,
             max_opt_iters=30,
             simplify_ail=True,
             require_gotos=True,
@@ -76,119 +76,6 @@ class DuplicationReverter(StructuringOptimizationPass):
 
     def _check(self):
         return True, {}
-
-    #
-    # Main Optimization Pass (after search)
-    #
-
-    """
-    def _analyze(self, cache=None, stop_if_more_goto=True):
-        try:
-            self.deduplication_analysis(max_fix_attempts=30)
-        except StructuringError:
-            l.critical(f"Structuring failed! This function {self.target_name} is dead in the water!")
-
-        if self.out_graph is not None:
-            output_graph = True
-            # if structuring failed
-            if self._goto_manager is None:
-                self.out_graph = self.prev_graph
-                self.write_graph = self.prev_graph
-                if not self._structure_graph():
-                    output_graph = False
-
-            if stop_if_more_goto and output_graph:
-                future_irreducible_gotos = self._find_future_irreducible_gotos()
-                targetable_goto_cnt = len(self._goto_manager.gotos) - len(future_irreducible_gotos)
-                if targetable_goto_cnt > self._starting_goto_count:
-                    l.info(
-                        f"{self.__class__.__name__} generated >= gotos then it started with "
-                        f"{self._starting_goto_count} -> {targetable_goto_cnt}. Reverting..."
-                    )
-                    output_graph = False
-
-            self.out_graph = add_labels(self.remove_broken_jumps(self.out_graph)) if output_graph else None
-
-    def deduplication_analysis(self, max_fix_attempts=30, max_guarding_conditions=10):
-        max_fix_attempts = self._max_op
-        self.write_graph = remove_labels(to_ail_supergraph(copy_graph_and_nodes(self._graph)))
-
-        updates = True
-        while self._round <= max_fix_attempts:
-            self._round += 1
-
-            if updates:
-                no_gotos = self._pre_deduplication_round()
-                if no_gotos:
-                    l.info(f"There are no gotos in this function {self.target_name}")
-                    return
-
-            l.info(f"Running analysis round: {self._round} on {self.target_name}")
-            try:
-                fake_duplication, updates = self._deduplication_round(max_guarding_conditions=max_guarding_conditions)
-            except SAILRSemanticError as e:
-                l.info(f"Skipping this round because of {e}...")
-                continue
-
-            if fake_duplication:
-                continue
-
-            if not updates:
-                return
-
-            l.info(f"Round {self._round} successful on {self.target_name}. Writing to graph now...")
-            self._post_deduplication_round()
-        else:
-            raise Exception(f"Max fix attempts of {max_fix_attempts} done on function {self.target_name}")
-
-    def _structure_graph(self):
-        # reset gotos
-        self._goto_manager = None
-
-        # do structuring
-        self.write_graph = add_labels(self.write_graph)
-        self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
-            self._func,
-            graph=self.write_graph,
-            cond_proc=self._ri.cond_proc,
-            force_loop_single_exit=False,
-            complete_successors=True,
-        )
-        rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            deepcopy(self._ri.region), cond_proc=self._ri.cond_proc, func=self._func, structurer_cls=PhoenixStructurer
-        )
-        self.write_graph = remove_labels(self.write_graph)
-        if not rs.result.nodes:
-            l.critical(f"Failed to redo structuring on {self.target_name}")
-            return False
-
-        rs = self.project.analyses.RegionSimplifier(self._func, rs.result, kb=self.kb, variable_kb=self._variable_kb)
-        self._goto_manager = rs._goto_manager
-
-        return True
-
-    def _pre_deduplication_round(self):
-        success = self._structure_graph()
-
-        # collect gotos
-        if self._starting_goto_count is None:
-            self._starting_goto_count = len(self._goto_manager.gotos)
-
-        if not success:
-            if not _DEBUG:
-                # revert graph when not in DEBUG mode
-                if self.prev_graph is not None:
-                    self.out_graph = self.prev_graph
-
-            raise StructuringError
-
-        if not self._goto_manager:
-            return True
-
-        # optimize the graph?
-        self.write_graph = self.simple_optimize_graph(self.write_graph)
-        return False
-    """
 
     def _analyze(self, cache=None) -> bool:
         # pre-deduplication
@@ -1093,14 +980,6 @@ class DuplicationReverter(StructuringOptimizationPass):
             return False
 
     def _is_valid_candidate(self, b0, b1):
-        # TODO: find a better fix for this! Some duplicated nodes need destruction!
-        # skip purposefully duplicated nodes
-        # if any(isinstance(b.idx, int) and b.idx > 0 for b in [b0, b1]):
-        #   continue
-
-        # if all([b.addr in [0x40cc9a, 0x40cdb5] for b in (b0, b1)]):
-        #    do a breakpoint
-
         # blocks must have statements
         if not b0.statements or not b1.statements:
             return False
@@ -1157,12 +1036,13 @@ class DuplicationReverter(StructuringOptimizationPass):
                     break
 
             if stmt_in_common:
-                pair = (b0, b1)
-                # only append pairs that share a dominator
-                if shared_common_conditional_dom(pair, self.write_graph) is not None:
-                    return True
-
                 break
+
+        if stmt_in_common:
+            if shared_common_conditional_dom((b0, b1), self.write_graph) is not None:
+                return True
+
+        return False
 
     def _construct_goto_related_subgraph(self, base: Block, graph: networkx.DiGraph, max_ancestors=5):
         """
