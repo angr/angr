@@ -184,6 +184,8 @@ class AllocSimplifier(TransformationPass):
                 # Identify variable (with base and offset)
                 # Variable can be a stack base offset or register
                 if data.likes(ret_expr):
+                    if isinstance(addr, BinaryOp) and addr.op == "Add":
+                        addr = addr.operands[0]
                     if isinstance(addr, StackBaseOffset):
                         alloc_var = addr
                         alloc_base = addr.base
@@ -212,6 +214,9 @@ class AllocSimplifier(TransformationPass):
                     if isinstance(addr, StackBaseOffset):
                         base = addr.base
                         offset = addr.offset
+                    elif isinstance(addr, Register):
+                        base = addr.reg_offset
+                        offset = 0
                     elif (
                         isinstance(addr, BinaryOp)
                         and addr.op == "Add"
