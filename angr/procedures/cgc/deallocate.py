@@ -12,7 +12,10 @@ l.addFilter(UniqueLogFilter())
 class deallocate(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
-    def run(self, addr, length):  # pylint:disable=unused-argument
+    def run(self, addr, length):
+        addr = addr.ast
+        length = length.ast
+
         # return code (see deallocate() docs)
         r = claripy.ite_cases(
             (
