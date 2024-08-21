@@ -465,26 +465,6 @@ class SimSolver(SimStatePlugin):
         return r
 
     #
-    # Operation passthroughs to claripy
-    #
-
-    def __getattr__(self, a):
-        f = getattr(claripy._all_operations, a)
-        print("calling", a)
-        assert False
-        if hasattr(f, "__call__"):
-            ff = error_converter(ast_stripping_decorator(f))
-            if _timing_enabled:
-                ff = functools.partial(timed_function(ff), the_solver=self)
-            ff.__doc__ = f.__doc__
-            return ff
-        else:
-            return f
-
-    def __dir__(self):
-        return sorted(set(dir(super()) + dir(claripy._all_operations) + dir(self.__class__)))
-
-    #
     # Branching stuff
     #
 
