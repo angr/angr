@@ -45,7 +45,7 @@ class ControlFlowStructureCounter(SequenceWalker):
             # goto targets found in the block at this point will be goto targets in the output
             if isinstance(stmt, ailment.statement.Jump):
                 target = stmt.target
-                target_value = target.value if target is not None else None
+                target_value = target.value if target is not None and isinstance(target, ailment.Expr.Const) else None
                 if target_value is not None:
                     self.goto_targets[target_value] += 1
 
