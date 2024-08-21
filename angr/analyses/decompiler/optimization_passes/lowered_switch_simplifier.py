@@ -152,7 +152,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         "algorithm is in use."
     )
 
-    def __init__(self, func, min_distinct_cases=3, **kwargs):
+    def __init__(self, func, min_distinct_cases=2, **kwargs):
         super().__init__(
             func,
             require_gotos=False,
