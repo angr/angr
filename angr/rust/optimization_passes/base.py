@@ -1,60 +1,16 @@
-from collections import defaultdict
-from pprint import pformat
-from typing import Optional
+from typing import Optional, List
 
 import archinfo
 from ailment import Block, Const
-from ailment.expression import StackBaseOffset, Register, BinaryOp, Convert
-from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Store
-
-from ...analyses.decompiler import Clinic
+from ailment.expression import Convert
+from ailment.statement import Call, Statement, Jump, ConditionalJump, Return
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ...rust.utils.library import demangle, normalize
-
-
-class SimpleSimulator:
-    def __init__(self):
-        self.stack = defaultdict(dict)
-        self.regs = defaultdict(dict)
-
-    def __str__(self):
-        return pformat(self)
-
-    def __repr__(self):
-        return str(self)
-
-    def simulate(self, block):
-        for stmt in block.statemets:
-            if isinstance(stmt, Store):
-                if isinstance(stmt.addr, StackBaseOffset):
-                    self.stack[stmt.addr.base][stmt.addr.offset] = stmt
-                elif isinstance(stmt.addr, Register):
-                    self.stack[stmt.addr.reg_offset][0] = stmt
-                elif isinstance(stmt.addr, BinaryOp):
-                    op0, op1 = stmt.addr.operands
-                    if isinstance(op0, Register) and isinstance(op1, Const):
-                        self.stack[op0.reg_offset][op1.value] = stmt
-
-    def match_consecutive_memory(self, size, condition):
-        for base, data in self.stack.items():
-            offsets = sorted(data.keys())
-            for offset in offsets:
-                stmt = data[offset]
+from ...rust.utils.library import normalize
 
 
 class TransformationPass(OptimizationPass):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
-
-    #     self._old_graph = None
-    #
-    # def shadow_graph(self):
-    #     self._old_graph = self._graph
-    #     self._graph = Clinic._copy_graph(self._graph)
-    #
-    # def recover_graph(self):
-    #     self._graph = self._old_graph
-    #     self.out_graph = self._graph
 
     @property
     def endian(self):
@@ -199,15 +155,3 @@ class TransformationPass(OptimizationPass):
 
             return block
         return block0
-
-    def simulate_stores(self, block):
-        result = {"stack": {}, "regs": {}}
-        for stmt in block.statemets:
-            if isinstance(stmt, Store):
-                if isinstance(stmt.addr, StackBaseOffset):
-                    pass
-                elif isinstance(stmt.addr, Register):
-                    pass
-                elif isinstance(stmt.addr, BinaryOp):
-                    pass
-        return result
