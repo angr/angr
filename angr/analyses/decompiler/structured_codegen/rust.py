@@ -1353,7 +1353,7 @@ class RustReturn(RustStatement):
         else:
             yield indent_str, None
             yield "return ", self
-            yield from self.retval.c_repr_chunks()
+            yield from self.retval.c_repr_chunks(indent=indent if isinstance(self.retval, RustStruct) else 0)
             yield ";\n", self
 
 
@@ -1478,7 +1478,12 @@ class RustStruct(RustExpression):
             yield field_indent_str, None
             yield name, self
             yield ": ", self
-            yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.fields[offset]))
+            try:
+                yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.fields[offset]))
+            except Exception as e:
+                import ipdb
+
+                ipdb.set_trace()
             yield "\n", None
         yield indent_str, None
         yield "}", brace

@@ -1,7 +1,8 @@
 from .calling_convention_recovery import CallingConventionRecovery
 from .error_handling_simplifier import ErrorHandlingSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
-from ...analyses.decompiler.optimization_passes import _all_optimization_passes
+from .ret_site_simplifier import RetSiteSimplifier
+from ...analyses.decompiler.optimization_passes import _all_optimization_passes, ReturnDuplicatorLow
 from .unwrap_simplifier import UnwrapSimplifier
 from .lib_function_identifier import LibFunctionIdentifier
 from .string_simplifier import StringSimplifier
@@ -15,11 +16,13 @@ _all_optimization_passes.extend(
     [
         # Before type recovery
         (LibFunctionIdentifier, True),
-        (CallingConventionRecovery, True),
-        (OwnershipSimplifier, True),
         (EpilogueSimplifier, True),
         (ErrorHandlingSimplifier, True),
+        (RetSiteSimplifier, True),
+        # (CallingConventionRecovery, True),
+        (OwnershipSimplifier, True),
         (AllocSimplifier, True),
+        (ReturnDuplicatorLow, True),
         # After type recovery
         (StructInstantiationSimplifier, True),
         (UnwrapSimplifier, True),
