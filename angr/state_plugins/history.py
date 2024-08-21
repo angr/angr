@@ -140,7 +140,9 @@ class SimStateHistory(SimStatePlugin):
         self.parent = common_ancestor if common_ancestor is not None else self.parent
 
         # rebuild recent constraints
-        recent_constraints = [h.constraints_since(common_ancestor) for h in itertools.chain([self], others)]
+        recent_constraints = [
+            [c.ast for c in h.constraints_since(common_ancestor)] for h in itertools.chain([self], others)
+        ]
         if sim_options.SIMPLIFY_MERGED_CONSTRAINTS in self.state.options:
             combined_constraint = self.state.solver.Or(
                 *[
