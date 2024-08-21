@@ -68,7 +68,7 @@ If you're performing lots of concrete or partially-concrete execution
   Should be safe for mostly concrete access though. NOTE: not compatible with
   concretization strategies.
 * *Concretize your input ahead of time*. This is the approach taken by `driller
-  <https://www.internetsociety.org/sites/default/files/blogs-media/driller-augmenting-fuzzing-through-selective-symbolic-execution.pdf>`_.
+  <https://sites.cs.ucsb.edu/~vigna/publications/2016_NDSS_Driller.pdf>`_.
   When creating a state with ``entry_state`` or the like, you can create a
   SimFile filled with symbolic data, pass it to the initialization function as
   an argument ``entry_state(..., stdin=my_simfile)``, and then constrain the

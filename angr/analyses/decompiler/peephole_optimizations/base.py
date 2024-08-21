@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from ailment.expression import BinaryOp, UnaryOp, Expression
 from ailment.statement import Statement, Assignment
 from ailment import Block
@@ -17,15 +15,15 @@ class PeepholeOptimizationStmtBase:
         "kb",
         "func_addr",
     )
-    project: Optional[Project]
-    kb: Optional[KnowledgeBase]
-    func_addr: Optional[int]
+    project: Project | None
+    kb: KnowledgeBase | None
+    func_addr: int | None
 
     NAME = "Peephole Optimization - Statement"
     DESCRIPTION = "Peephole Optimization - Statement"
     stmt_classes = None
 
-    def __init__(self, project: Optional[Project], kb: Optional[KnowledgeBase], func_addr: Optional[int] = None):
+    def __init__(self, project: Project | None, kb: KnowledgeBase | None, func_addr: int | None = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
@@ -44,20 +42,20 @@ class PeepholeOptimizationMultiStmtBase:
         "kb",
         "func_addr",
     )
-    project: Optional[Project]
-    kb: Optional[KnowledgeBase]
-    func_addr: Optional[int]
+    project: Project | None
+    kb: KnowledgeBase | None
+    func_addr: int | None
 
     NAME = "Peephole Optimization - Multi-statement"
     DESCRIPTION = "Peephole Optimization - Multi-statement"
     stmt_classes = None
 
-    def __init__(self, project: Optional[Project], kb: Optional[KnowledgeBase], func_addr: Optional[int] = None):
+    def __init__(self, project: Project | None, kb: KnowledgeBase | None, func_addr: int | None = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
 
-    def optimize(self, stmts: List[Statement], stmt_idx: Optional[int] = None, block=None, **kwargs):
+    def optimize(self, stmts: list[Statement], stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
 
 
@@ -71,15 +69,15 @@ class PeepholeOptimizationExprBase:
         "kb",
         "func_addr",
     )
-    project: Optional[Project]
-    kb: Optional[KnowledgeBase]
-    func_addr: Optional[int]
+    project: Project | None
+    kb: KnowledgeBase | None
+    func_addr: int | None
 
     NAME = "Peephole Optimization - Expression"
     DESCRIPTION = "Peephole Optimization - Expression"
     expr_classes = None
 
-    def __init__(self, project: Optional[Project], kb: Optional[KnowledgeBase], func_addr: Optional[int] = None):
+    def __init__(self, project: Project | None, kb: KnowledgeBase | None, func_addr: int | None = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr

@@ -1,6 +1,6 @@
 from math import gcd
 
-from ailment.expression import BinaryOp, UnaryOp, Const, Convert
+from ailment.expression import BinaryOp, UnaryOp, Const, Convert, StackBaseOffset
 
 from .base import PeepholeOptimizationExprBase
 
@@ -59,6 +59,22 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.signed,
                         **expr.tags,
                     )
+            if (
+                isinstance(expr.operands[0], BinaryOp)
+                and expr.operands[0].op == "Mul"
+                and isinstance(expr.operands[0].operands[1], Const)
+                and expr.operands[0].operands[0].likes(expr.operands[1])
+            ):
+                # A * x + x => (A + 1) * x
+                coeff_expr = expr.operands[0].operands[1]
+                new_coeff = coeff_expr.value + 1
+                return BinaryOp(
+                    expr.idx,
+                    "Mul",
+                    [Const(coeff_expr.idx, None, new_coeff, coeff_expr.bits), expr.operands[1]],
+                    expr.signed,
+                    **expr.tags,
+                )
         elif expr.op == "Sub":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
                 mask = (1 << expr.bits) - 1
@@ -92,6 +108,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     )
             if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
                 return UnaryOp(expr.idx, "Neg", expr.operands[1], **expr.tags)
+
+            if isinstance(expr.operands[0], StackBaseOffset) and isinstance(expr.operands[1], StackBaseOffset):
+                return Const(expr.idx, None, expr.operands[0].offset - expr.operands[1].offset, expr.bits, **expr.tags)
 
         elif expr.op == "And":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
@@ -197,7 +216,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
     @staticmethod
     def _optimize_convert(expr: Convert):
-        if isinstance(expr.operand, Const):
+        if isinstance(expr.operand, Const) and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT:
             if expr.from_bits > expr.to_bits:
                 # truncation
                 mask = (1 << expr.to_bits) - 1

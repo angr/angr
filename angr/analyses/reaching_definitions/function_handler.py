@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable, cast, Literal
+from typing import TYPE_CHECKING, cast, Literal
+from collections.abc import Iterable, Callable
 from dataclasses import dataclass, field
 import logging
 from functools import wraps
@@ -7,7 +8,7 @@ from cle.backends import ELF
 import claripy
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, dereference_simtype
 from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, SpOffset
 from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.calling_conventions import SimCC
@@ -17,6 +18,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 
 if TYPE_CHECKING:
@@ -51,12 +53,12 @@ class FunctionEffect:
     `FunctionCallData.depends` instead.
     """
 
-    dest: Optional[Atom]
-    sources: Set[Atom]
-    value: Optional[MultiValues] = None
-    sources_defns: Optional[Set[Definition]] = None
+    dest: Atom | None
+    sources: set[Atom]
+    value: MultiValues | None = None
+    sources_defns: set[Definition] | None = None
     apply_at_callsite: bool = False
-    tags: Optional[Set[Tag]] = None
+    tags: set[Tag] | None = None
 
 
 @dataclass
@@ -83,21 +85,21 @@ class FunctionCallData:
 
     callsite_codeloc: CodeLocation
     function_codeloc: CodeLocation
-    address_multi: Optional[MultiValues]
-    address: Optional[int] = None
-    symbol: Optional[Symbol] = None
-    function: Optional[Function] = None
-    name: Optional[str] = None
-    cc: Optional[SimCC] = None
-    prototype: Optional[SimTypeFunction] = None
-    args_atoms: Optional[List[Set[Atom]]] = None
-    args_values: Optional[List[MultiValues]] = None
-    ret_atoms: Optional[Set[Atom]] = None
+    address_multi: MultiValues | None
+    address: int | None = None
+    symbol: Symbol | None = None
+    function: Function | None = None
+    name: str | None = None
+    cc: SimCC | None = None
+    prototype: SimTypeFunction | None = None
+    args_atoms: list[set[Atom]] | None = None
+    args_values: list[MultiValues] | None = None
+    ret_atoms: set[Atom] | None = None
     redefine_locals: bool = True
-    visited_blocks: Optional[Set[int]] = None
-    effects: List[FunctionEffect] = field(default_factory=lambda: [])
-    ret_values: Optional[MultiValues] = None
-    ret_values_deps: Optional[Set[Definition]] = None
+    visited_blocks: set[int] | None = None
+    effects: list[FunctionEffect] = field(default_factory=lambda: [])
+    ret_values: MultiValues | None = None
+    ret_values_deps: set[Definition] | None = None
     caller_will_handle_single_ret: bool = False
     guessed_cc: bool = False
     guessed_prototype: bool = False
@@ -135,11 +137,11 @@ class FunctionCallData:
 
     def depends(
         self,
-        dest: Union[Atom, Iterable[Atom], None],
-        *sources: Union[Atom, Iterable[Atom]],
-        value: Union[MultiValues, claripy.ast.BV, bytes, int, None] = None,
+        dest: Atom | Iterable[Atom] | None,
+        *sources: Atom | Iterable[Atom],
+        value: MultiValues | claripy.ast.BV | bytes | int | None = None,
         apply_at_callsite: bool = False,
-        tags: Optional[Set[Tag]] = None,
+        tags: set[Tag] | None = None,
     ):
         """
         Mark a single effect of the current function, including the atom being modified, the input atoms on which that
@@ -186,7 +188,7 @@ class FunctionCallData:
 
     def reset_prototype(
         self, prototype: SimTypeFunction, state: "ReachingDefinitionsState", soft_reset: bool = False
-    ) -> Set[Atom]:
+    ) -> set[Atom]:
         self.prototype = prototype.with_arch(state.arch)
         if not soft_reset:
             self.args_atoms = self.args_values = self.ret_atoms = None
@@ -222,9 +224,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     name: str
     cc: SimCC
     prototype: SimTypeFunction
-    args_atoms: List[Set[Atom]]
-    args_values: List[MultiValues]
-    ret_atoms: Set[Atom]
+    args_atoms: list[set[Atom]]
+    args_values: list[MultiValues]
+    ret_atoms: set[Atom]
 
     def __init__(self, inner: FunctionCallData):
         d = dict(inner.__dict__)
@@ -252,14 +254,24 @@ class FunctionCallDataUnwrapped(FunctionCallData):
         return inner
 
 
+def _mk_wrapper(func, iself):
+    return lambda *args, **kwargs: func(iself, *args, **kwargs)
+
+
 # pylint: disable=unused-argument, no-self-use
 class FunctionHandler:
     """
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def __init__(self, interfunction_level: int = 0):
+    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable["FunctionHandler"] | None = None):
         self.interfunction_level: int = interfunction_level
+
+        if extra_impls is not None:
+            for extra_handler in extra_impls:
+                for name, func in vars(extra_handler).items():
+                    if name.startswith("handle_impl_"):
+                        setattr(self, name, _mk_wrapper(func, self))
 
     def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
         """
@@ -268,7 +280,7 @@ class FunctionHandler:
         return self
 
     def make_function_codeloc(
-        self, target: Union[None, int, MultiValues], callsite: CodeLocation, callsite_func_addr: Optional[int]
+        self, target: None | int | MultiValues, callsite: CodeLocation, callsite_func_addr: int | None
     ):
         """
         The RDA engine will call this function to transform a callsite CodeLocation into a callee CodeLocation.
@@ -329,6 +341,7 @@ class FunctionHandler:
             data.cc = data.function.calling_convention
         if data.prototype is None and data.function is not None:
             data.prototype = data.function.prototype
+        hook_libname = None
         if data.address is not None and (data.cc is None or data.prototype is None):
             hook = (
                 None
@@ -348,6 +361,7 @@ class FunctionHandler:
             if data.prototype is None and hook is not None:
                 data.prototype = hook.prototype.with_arch(state.arch)
                 data.guessed_prototype = hook.guessed_prototype
+                hook_libname = hook.library_name
 
         # fallback to the default calling convention and prototype
         if data.cc is None:
@@ -356,6 +370,19 @@ class FunctionHandler:
         if data.prototype is None:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
+
+        if data.prototype is not None and data.function is not None:
+            # make sure the function prototype is resolved.
+            # TODO: Cache resolved function prototypes globally
+            prototype_libname = data.function.prototype_libname or hook_libname
+            type_collections = []
+            if prototype_libname is not None:
+                prototype_lib = SIM_LIBRARIES[prototype_libname]
+                if prototype_lib.type_collection_names:
+                    for typelib_name in prototype_lib.type_collection_names:
+                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+            if type_collections:
+                data.prototype = dereference_simtype(data.prototype, type_collections).with_arch(state.arch)
 
         args_atoms_from_values = data.reset_prototype(data.prototype, state, soft_reset=True)
 
@@ -512,7 +539,7 @@ class FunctionHandler:
         # get_exit_livedefinitions is currently only using ret_sites, but an argument could be made that it should
         # include jumpout sites as well. In the CFG generation tail call sites seem to be treated as return sites
         # and not as jumpout sites, so we are following that convention here.
-        return_observation_points: List[ObservationPoint] = [
+        return_observation_points: list[ObservationPoint] = [
             (
                 cast(Literal["node"], "node"),  # pycharm doesn't treat a literal string, as Literal[] by default...
                 block.addr,
@@ -540,7 +567,7 @@ class FunctionHandler:
         data.retaddr_popped = True
 
     @staticmethod
-    def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
+    def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> list[set[Atom]]:
         if not prototype.variadic:
             sp_value = state.get_one_value(Register(state.arch.sp_offset, state.arch.bytes), strip_annotations=True)
             sp = state.get_stack_offset(sp_value) if sp_value is not None else None
@@ -563,7 +590,7 @@ class FunctionHandler:
         return [{Register(*state.arch.registers[arg_name], arch=state.arch)} for arg_name in cc.ARG_REGS]
 
     @staticmethod
-    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> Set[Atom]:
+    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
             retval = cc.return_val(prototype.returnty)
             if retval is not None:
@@ -574,7 +601,7 @@ class FunctionHandler:
         return set()
 
     @staticmethod
-    def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> Set[Register]:
+    def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> set[Register]:
         return (
             {Register(*state.arch.registers[reg], arch=state.arch) for reg in cc.CALLER_SAVED_REGS}
             if cc.CALLER_SAVED_REGS is not None

@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional, Union, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import logging
 
 import claripy
@@ -34,12 +34,12 @@ class SimEnginePropagatorAIL(
 
     state: "PropagatorAILState"
 
-    def _is_top(self, expr: Union[claripy.ast.Base, Expr.StackBaseOffset]) -> bool:
+    def _is_top(self, expr: claripy.ast.Base | Expr.StackBaseOffset) -> bool:
         if isinstance(expr, Expr.StackBaseOffset):
             return False
         return super()._is_top(expr)
 
-    def extract_offset_to_sp(self, expr: Union[claripy.ast.Base, Expr.StackBaseOffset]) -> Optional[int]:
+    def extract_offset_to_sp(self, expr: claripy.ast.Base | Expr.StackBaseOffset) -> int | None:
         if isinstance(expr, Expr.StackBaseOffset):
             return expr.offset
         elif isinstance(expr, Expr.Expression):
@@ -288,7 +288,7 @@ class SimEnginePropagatorAIL(
     #
 
     # this method exists so that I can annotate the return type
-    def _expr(self, expr) -> Optional[PropValue]:  # pylint:disable=useless-super-delegation
+    def _expr(self, expr) -> PropValue | None:  # pylint:disable=useless-super-delegation
         return super()._expr(expr)
 
     def _ail_handle_Tmp(self, expr: Expr.Tmp) -> PropValue:
@@ -361,7 +361,7 @@ class SimEnginePropagatorAIL(
 
         return PropValue(self.state.top(expr.size * self.arch.byte_width))
 
-    def _ail_handle_Register(self, expr: Expr.Register) -> Optional[PropValue]:
+    def _ail_handle_Register(self, expr: Expr.Register) -> PropValue | None:
         self.state: "PropagatorAILState"
 
         # Special handling for SP and BP
@@ -527,19 +527,19 @@ class SimEnginePropagatorAIL(
                             bp_as_gpr=self.bp_as_gpr,
                         )
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
-                # if the expression has been replaced before, we should remove previous replacements
-                reg_defs = self._reaching_definitions.get_defs(
-                    Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
-                )
-                if len(reg_defs) == 1:
-                    reg_def = next(iter(reg_defs))
-                else:
-                    reg_def = None
-                updated_codelocs = self.state.revert_past_replacements(
-                    all_subexprs[0], to_replace=expr, to_replace_def=reg_def
-                )
-                # scan through the code locations and recursively remove assignment replacements
                 if self._reaching_definitions is not None:
+                    # if the expression has been replaced before, we should remove previous replacements
+                    reg_defs = self._reaching_definitions.get_defs(
+                        Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
+                    )
+                    if len(reg_defs) == 1:
+                        reg_def = next(iter(reg_defs))
+                    else:
+                        reg_def = None
+                    updated_codelocs = self.state.revert_past_replacements(
+                        all_subexprs[0], to_replace=expr, to_replace_def=reg_def
+                    )
+                    # scan through the code locations and recursively remove assignment replacements
                     while updated_codelocs:
                         new_updated_codelocs = set()
                         for u_codeloc in updated_codelocs:
@@ -576,7 +576,7 @@ class SimEnginePropagatorAIL(
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
-    def _ail_handle_Load(self, expr: Expr.Load) -> Optional[PropValue]:
+    def _ail_handle_Load(self, expr: Expr.Load) -> PropValue | None:
         self.state: "PropagatorAILState"
 
         addr = self._expr(expr.addr)
@@ -632,6 +632,11 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Convert(self, expr: Expr.Convert) -> PropValue:
         o_value = self._expr(expr.operand)
+
+        if not (expr.from_type == Expr.Convert.TYPE_INT and expr.to_type == Expr.Convert.TYPE_INT):
+            # we do not support floating-point conversions
+            new_value = self.state.top(expr.to_bits)
+            return PropValue.from_value_and_details(new_value, expr.size, expr, self._codeloc())
 
         if o_value is None or self.state.is_top(o_value.value):
             new_value = self.state.top(expr.to_bits)
@@ -739,16 +744,14 @@ class SimEnginePropagatorAIL(
             v = claripy.BVV(expr.value, expr.bits)
         return PropValue.from_value_and_details(v, expr.size, expr, self._codeloc())
 
-    def _ail_handle_DirtyExpression(
-        self, expr: Expr.DirtyExpression
-    ) -> Optional[PropValue]:  # pylint:disable=no-self-use
+    def _ail_handle_DirtyExpression(self, expr: Expr.DirtyExpression) -> PropValue | None:  # pylint:disable=no-self-use
         if isinstance(expr.dirty_expr, Expr.VEXCCallExpression):
             for operand in expr.dirty_expr.operands:
                 _ = self._expr(operand)
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
-    def _ail_handle_ITE(self, expr: Expr.ITE) -> Optional[PropValue]:
+    def _ail_handle_ITE(self, expr: Expr.ITE) -> PropValue | None:
         # pylint:disable=unused-variable
         self._expr(expr.cond)  # cond
         self._expr(expr.iftrue)  # iftrue
@@ -756,7 +759,7 @@ class SimEnginePropagatorAIL(
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
-    def _ail_handle_Reinterpret(self, expr: Expr.Reinterpret) -> Optional[PropValue]:
+    def _ail_handle_Reinterpret(self, expr: Expr.Reinterpret) -> PropValue | None:
         arg = self._expr(expr.operand)
 
         if self.state.is_top(arg.value):
@@ -768,7 +771,7 @@ class SimEnginePropagatorAIL(
 
         return PropValue.from_value_and_details(arg.value, expr.size, expr, self._codeloc())
 
-    def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call) -> Optional[PropValue]:
+    def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call) -> PropValue | None:
         if isinstance(expr_stmt.target, Expr.Expression):
             _ = self._expr(expr_stmt.target)
 
@@ -847,6 +850,7 @@ class SimEnginePropagatorAIL(
     _ail_handle_CmpGTs = _ail_handle_Cmp
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
+    _ail_handle_CmpORD = _ail_handle_Cmp
 
     def _ail_handle_Add(self, expr: Expr.BinaryOp) -> PropValue:
         o0_value = self._expr(expr.operands[0])
@@ -1148,6 +1152,9 @@ class SimEnginePropagatorAIL(
             )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
+    _ail_handle_AddV = _ail_handle_Add
+    _ail_handle_MulV = _ail_handle_Mul
+
     def _ail_handle_Mull(self, expr):
         o0_value = self._expr(expr.operands[0])
         o1_value = self._expr(expr.operands[1])
@@ -1218,6 +1225,8 @@ class SimEnginePropagatorAIL(
                 bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
+                from_bits=expr.from_bits,
+                to_bits=expr.to_bits,
                 **expr.tags,
             )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
@@ -1440,6 +1449,44 @@ class SimEnginePropagatorAIL(
             )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
+    def _ail_handle_ExpCmpNE(self, expr):
+        o0_value = self._expr(expr.operands[0])
+        o1_value = self._expr(expr.operands[1])
+
+        value = self.state.top(expr.bits)
+        if o0_value is None or o1_value is None:
+            new_expr = expr
+        else:
+            o0_expr = o0_value.one_expr
+            o1_expr = o1_value.one_expr
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "ExpCmpNE",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                **expr.tags,
+            )
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
+    def _ail_handle_Clz(self, expr):
+        o0_value = self._expr(expr.operand)
+
+        value = self.state.top(expr.bits)
+        if o0_value is None:
+            new_expr = expr
+        else:
+            o0_expr = o0_value.one_expr
+            new_expr = Expr.UnaryOp(
+                expr.idx,
+                "Clz",
+                o0_expr if o0_expr is not None else expr.operand,
+                **expr.tags,
+            )
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
     #
     # Util methods
     #
@@ -1449,8 +1496,8 @@ class SimEnginePropagatorAIL(
         expr: Expr.Expression,
         expr_defat: Optional["CodeLocation"],
         current_loc: "CodeLocation",
-        avoid: Optional[Expr.Expression] = None,
-    ) -> Tuple[bool, bool]:
+        avoid: Expr.Expression | None = None,
+    ) -> tuple[bool, bool]:
         if self._reaching_definitions is None:
             l.warning(
                 "Reaching definition information is not provided to propagator. Assume the definition is out-dated."

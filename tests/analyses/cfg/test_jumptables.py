@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Sequence, Mapping
 import logging
 import unittest
 import os
@@ -24,7 +25,7 @@ l = logging.getLogger("angr.tests.test_jumptables")
 
 
 def compile_c_to_angr_project(
-    c_code: str, cflags: Optional[Sequence[str]] = None, project_kwargs: Optional[Mapping[str, Any]] = None
+    c_code: str, cflags: Sequence[str] | None = None, project_kwargs: Mapping[str, Any] | None = None
 ):
     # pylint:disable=consider-using-with
     """
@@ -2873,6 +2874,188 @@ class TestJumpTableResolver(unittest.TestCase):
             0x401AD8,
         ]
 
+    def test_amd64_win_jumptable_with_secondary_redirections(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "windows", "WinDivert.sys"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()()
+
+        assert 0x17C5C in cfg.model.jump_tables
+        assert len(cfg.model.jump_tables[0x17C5C].jumptable_entries) == 85
+        assert cfg.model.jump_tables[0x17C5C].jumptable_entries == [
+            0x17C7A,
+            0x17C86,
+            0x17C86,
+            0x17D95,
+            0x17D95,
+            0x17C9E,
+            0x17C9E,
+            0x17C9E,
+            0x17C9E,
+            0x17C9E,
+            0x17C9E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E0E,
+            0x17E2D,
+            0x17E2D,
+            0x17E2D,
+            0x17E2D,
+            0x17E2D,
+            0x17E2D,
+            0x17E2D,
+            0x17E43,
+            0x17E43,
+            0x17E43,
+            0x17E43,
+            0x17E6F,
+            0x17E6F,
+            0x17E6F,
+            0x17E6F,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17EA2,
+            0x17EA2,
+            0x17EA2,
+            0x17EA2,
+            0x17EA2,
+            0x17C9E,
+            0x17C9E,
+            0x17DD0,
+            0x17DAF,
+            0x17DAF,
+            0x17DAF,
+            0x17DAF,
+            0x17DAF,
+            0x17DF0,
+            0x17DF0,
+            0x17DFE,
+            0x17DFE,
+            0x17C7A,
+            0x17D95,
+            0x17D95,
+            0x17D95,
+            0x17E8C,
+            0x17E8C,
+            0x17E8C,
+            0x17EA2,
+            0x17EA2,
+            0x17EA2,
+            0x17D95,
+            0x17C7A,
+            0x17CAE,
+            0x17CAE,
+            0x17CAE,
+        ]
+        assert 0x18D89 in cfg.model.jump_tables
+        assert len(cfg.model.jump_tables[0x18D89].jumptable_entries) == 84
+        assert cfg.model.jump_tables[0x18D89].jumptable_entries == [
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18EB6,
+            0x18EB6,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18E3C,
+            0x18E46,
+            0x18E5A,
+            0x18E5A,
+            0x18DA7,
+            0x18DA7,
+            0x18E50,
+            0x18E46,
+            0x18E46,
+            0x18E5A,
+            0x18E80,
+            0x18E80,
+            0x18E46,
+            0x18E76,
+            0x18E5A,
+            0x18E46,
+            0x18E46,
+            0x18EA7,
+            0x18EA7,
+            0x18E46,
+            0x18E46,
+            0x18E5A,
+            0x18EB6,
+            0x18E46,
+            0x18E46,
+            0x18E5A,
+            0x18EB6,
+            0x18E5A,
+            0x18E5A,
+            0x18EB6,
+            0x18EB6,
+            0x18E3C,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18DA7,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18E5A,
+            0x18EB6,
+            0x18EB6,
+            0x18EB6,
+            0x18EA7,
+            0x18EA7,
+            0x18E5A,
+            0x18E5A,
+            0x18E46,
+            0x18EB1,
+            0x18EB1,
+            0x18DB1,
+            0x18DBE,
+            0x18DD6,
+            0x18E46,
+            0x18E5A,
+            0x18EB6,
+            0x18E46,
+            0x18E5A,
+            0x18EB6,
+            0x18E46,
+            0x18E5A,
+            0x18EB6,
+            0x18E64,
+            0x18E92,
+            0x18E46,
+            0x18E5A,
+        ]
+
 
 @skip_if_not_linux
 class TestJumpTableResolverCallTables(unittest.TestCase):
@@ -2881,13 +3064,13 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
     """
 
     @staticmethod
-    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: Set[str]):
+    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: set[str]):
         """
         Create set of edges {src->dsts : for d in dsts} by name
         """
         return {(proj.kb.labels.lookup(src), proj.kb.labels.lookup(dst), 0) for dst in dsts}
 
-    def _run_calltable_test(self, c_code: str, src: str, dsts: Set[str], cflags: Optional[Sequence[str]] = None):
+    def _run_calltable_test(self, c_code: str, src: str, dsts: set[str], cflags: Sequence[str] | None = None):
         """
         Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
         """

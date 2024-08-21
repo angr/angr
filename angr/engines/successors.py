@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
 
 from archinfo.arch_soot import ArchSoot
+
+if TYPE_CHECKING:
+    from angr import SimState
 
 
 l = logging.getLogger(name=__name__)
@@ -35,21 +39,21 @@ class SimSuccessors:
     https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
-    def __init__(self, addr, initial_state):
+    def __init__(self, addr: int | None, initial_state):
         self.addr = addr
-        self.initial_state = initial_state
+        self.initial_state: "SimState" = initial_state
 
-        self.successors = []
-        self.all_successors = []
-        self.flat_successors = []
-        self.unsat_successors = []
-        self.unconstrained_successors = []
+        self.successors: list["SimState"] = []
+        self.all_successors: list["SimState"] = []
+        self.flat_successors: list["SimState"] = []
+        self.unsat_successors: list["SimState"] = []
+        self.unconstrained_successors: list["SimState"] = []
 
         # the engine that should process or did process this request
         self.engine = None
         self.processed = False
         self.description = "SimSuccessors"
-        self.sort = None
+        self.sort: str | None = None
         self.artifacts = {}
 
     @classmethod
@@ -271,6 +275,12 @@ class SimSuccessors:
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
             self.unconstrained_successors.append(state)
+        elif o.CALLLESS in state.options and state.history.jumpkind == "Ijk_Call" and state.solver.symbolic(target):
+            # If CALLESS is set, even a symbolic call target is allowed, because we don't want to resolve the target
+            # anyway
+            # The actual state will be fixed up later during `VEXMixin.process_successors`
+            self.successors.append(state)
+            self.flat_successors.append(state)
         elif not state.solver.symbolic(target) and not state.history.jumpkind.startswith("Ijk_Sys"):
             # a successor with a concrete IP, and it's not a syscall
             self.successors.append(state)

@@ -1,7 +1,7 @@
 # pylint: disable=wildcard-import
 # pylint: disable=wrong-import-position
 
-__version__ = "9.2.93.dev0"
+__version__ = "9.2.117.dev0"
 
 if bytes is str:
     raise Exception(
@@ -35,12 +35,6 @@ from .misc.loggers import Loggers
 loggers = Loggers()
 del Loggers
 del logging
-
-# import hook: pkg_resources is too slow to import, but it is used by some other packages that angr depends on. while
-# we upstream our fixes, we replace it with a light-weight solution.
-from .misc.import_hooks import import_fake_pkg_resources
-
-import_fake_pkg_resources(force=False)
 
 # this must happen first, prior to initializing analyses
 from .sim_procedure import SimProcedure

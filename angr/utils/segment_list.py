@@ -1,8 +1,7 @@
 # pylint:disable=no-else-break
 import logging
-from typing import Optional, Tuple, List
 
-from angr.errors import AngrCFGError
+from angr.errors import AngrCFGError, AngrRuntimeError
 
 
 l = logging.getLogger(name=__name__)
@@ -60,7 +59,7 @@ class SegmentList:
     __slots__ = ["_list", "_bytes_occupied"]
 
     def __init__(self):
-        self._list: List[Segment] = []
+        self._list: list[Segment] = []
         self._bytes_occupied = 0
 
     #
@@ -268,7 +267,7 @@ class SegmentList:
                     # done
                     break
                 else:
-                    raise RuntimeError("Unreachable reached")
+                    raise AngrRuntimeError("Unreachable reached")
             else:  # if segment.start > address
                 if address + size <= segment.start:
                     #                      |--- segment ---|
@@ -294,7 +293,7 @@ class SegmentList:
                     address = new_address
                     idx = self.search(address)
                 else:
-                    raise RuntimeError("Unreachable reached")
+                    raise AngrRuntimeError("Unreachable reached")
 
     def _dbg_output(self):
         """
@@ -438,7 +437,7 @@ class SegmentList:
             return True
         return False
 
-    def occupied_by_sort(self, address: int) -> Optional[str]:
+    def occupied_by_sort(self, address: int) -> str | None:
         """
         Check if an address belongs to any segment, and if yes, returns the sort of the segment
 
@@ -456,7 +455,7 @@ class SegmentList:
             return self._list[idx - 1].sort
         return None
 
-    def occupied_by(self, address: int) -> Optional[Tuple[int, int, str]]:
+    def occupied_by(self, address: int) -> tuple[int, int, str] | None:
         """
         Check if an address belongs to any segment, and if yes, returns the beginning, the size, and the sort of the
         segment.

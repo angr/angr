@@ -6,6 +6,9 @@ import os
 import tempfile
 import shutil
 import unittest
+import sys
+
+import cle
 
 import angr
 from angr.angrdb import AngrDB
@@ -183,7 +186,13 @@ class TestDb(unittest.TestCase):
             # raising exceptions.
 
             proj = AngrDB().load(db_file)
-            os.remove(db_file)
+            try:
+                os.remove(db_file)
+            except PermissionError:
+                if sys.platform != "win32":
+                    # for some reason removing this file on the nightly CI (Windows) raises a permission error, but
+                    # I cannot reproduce it locally
+                    raise
 
             db_file_new = os.path.join(td, "proj_new.adb")
             AngrDB(proj).dump(db_file_new)
@@ -191,6 +200,62 @@ class TestDb(unittest.TestCase):
             # we should be able to load it back!
             proj_new = AngrDB().load(db_file_new)
             assert os.path.basename(proj_new.loader.main_object.binary) == "fauxware"
+
+    def test_angrdb_cart_file(self):
+        bin_path = os.path.join(test_location, "x86_64", "1after909.cart")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            with tempfile.TemporaryDirectory() as td0:
+                tmp_path = os.path.join(td0, os.path.basename(bin_path))
+                shutil.copy(bin_path, tmp_path)
+                proj = angr.Project(
+                    tmp_path,
+                    auto_load_libs=False,
+                    main_opts={"arc4_key": b"\x02\xf53asdf\x00\x00\x00\x00\x00\x00\x00\x00\x00"},
+                )
+                assert proj.loader._main_binary_path.endswith("1after909.cart")
+
+                # let's build a CFG and then save it as well
+                assert len(proj.kb.functions) == 0
+                proj.analyses.CFG(normalize=True)
+                func_count = len(proj.kb.functions)
+                assert func_count > 0
+
+                assert isinstance(proj.loader.all_objects[0], cle.backends.CARTFile)
+                assert "arc4_key" in proj.loader.all_objects[0].load_args
+                assert proj.loader._main_binary_path.endswith("1after909.cart")
+                assert proj.loader.main_object.binary is None
+
+                AngrDB(proj).dump(db_file)
+
+                del proj
+                os.remove(tmp_path)
+
+            # now that the binary file no longer exists, we should be able to open the angr DB and save it without
+            # raising exceptions.
+
+            proj = AngrDB().load(db_file)
+            assert proj.loader._main_binary_path.endswith("1after909.cart")
+            assert proj.loader.main_object.binary is None
+            assert len(proj.kb.functions) == func_count
+            try:
+                os.remove(db_file)
+            except PermissionError:
+                if sys.platform != "win32":
+                    # for some reason removing this file on the nightly CI (Windows) raises a permission error, but
+                    # I cannot reproduce it locally
+                    raise
+
+            db_file_new = os.path.join(td, "proj_new.adb")
+            AngrDB(proj).dump(db_file_new)
+
+            # we should be able to load it back!
+            proj_new = AngrDB().load(db_file_new)
+            assert proj.loader._main_binary_path.endswith("1after909.cart")
+            assert proj_new.loader.main_object.binary is None
+            assert len(proj.kb.functions) == func_count
 
 
 if __name__ == "__main__":

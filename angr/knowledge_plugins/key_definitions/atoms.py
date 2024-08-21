@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Union
 from enum import Enum, auto
 
 import claripy
@@ -65,13 +65,13 @@ class Atom:
 
     @staticmethod
     def from_argument(
-        argument: SimFunctionArgument, arch: Arch, full_reg=False, sp: Optional[int] = None
+        argument: SimFunctionArgument, arch: Arch, full_reg=False, sp: int | None = None
     ) -> Union["Register", "MemoryLocation"]:
         """
         Instanciate an `Atom` from a given argument.
 
         :param argument: The argument to create a new atom from.
-        :param registers: A mapping representing the registers of a given architecture.
+        :param arch: The argument representing archinfo architecture for argument.
         :param full_reg: Whether to return an atom indicating the entire register if the argument only specifies a
                         slice of the register.
         :param sp:      The current stack offset. Optional. Only used when argument is a SimStackArg.
@@ -84,12 +84,14 @@ class Atom:
         elif isinstance(argument, SimStackArg):
             if sp is None:
                 raise ValueError("You must provide a stack pointer to translate a SimStackArg")
-            return MemoryLocation(SpOffset(arch.bits, argument.stack_offset + sp), argument.size)
+            return MemoryLocation(
+                SpOffset(arch.bits, argument.stack_offset + sp), argument.size, endness=arch.memory_endness
+            )
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
     @staticmethod
-    def reg(thing: Union[str, RegisterOffset], size: Optional[int] = None, arch: Optional[Arch] = None) -> "Register":
+    def reg(thing: str | RegisterOffset, size: int | None = None, arch: Arch | None = None) -> "Register":
         """
         Create a Register atom.
 
@@ -124,7 +126,7 @@ class Atom:
     register = reg
 
     @staticmethod
-    def mem(addr: Union[SpOffset, HeapAddress, int], size: int, endness: Optional[str] = None) -> "MemoryLocation":
+    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None) -> "MemoryLocation":
         """
         Create a MemoryLocation atom,
 
@@ -221,7 +223,7 @@ class Register(Atom):
         "arch",
     )
 
-    def __init__(self, reg_offset: RegisterOffset, size: int, arch: Optional[Arch] = None):
+    def __init__(self, reg_offset: RegisterOffset, size: int, arch: Arch | None = None):
         super().__init__(size)
 
         self.reg_offset = reg_offset
@@ -252,14 +254,14 @@ class MemoryLocation(Atom):
         "endness",
     )
 
-    def __init__(self, addr: Union[SpOffset, HeapAddress, int], size: int, endness: Optional[str] = None):
+    def __init__(self, addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None):
         """
         :param int addr: The address of the beginning memory location slice.
         :param int size: The size of the represented memory location, in bytes.
         """
         super().__init__(size)
 
-        self.addr: Union[SpOffset, int, claripy.ast.BV] = addr
+        self.addr: SpOffset | int | claripy.ast.BV = addr
         self.endness = endness
 
     def __repr__(self):

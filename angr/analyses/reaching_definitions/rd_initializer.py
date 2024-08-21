@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import claripy
 from archinfo import Arch
@@ -38,7 +38,7 @@ class RDAStateInitializer:
         self.project = project
 
     def initialize_function_state(
-        self, state: "ReachingDefinitionsState", cc: Optional[SimCC], func_addr: int, rtoc_value: Optional[int] = None
+        self, state: "ReachingDefinitionsState", cc: SimCC | None, func_addr: int, rtoc_value: int | None = None
     ) -> None:
         """
         This is the entry point to the state initialization logic.
@@ -71,8 +71,8 @@ class RDAStateInitializer:
         state: "ReachingDefinitionsState",
         func_addr: int,
         ex_loc: ExternalCodeLocation,
-        cc: Optional[SimCC],
-        prototype: Optional[SimTypeFunction],
+        cc: SimCC | None,
+        prototype: SimTypeFunction | None,
     ) -> None:
         """
         This method handles the setup for _all_ arguments of a function.
@@ -96,7 +96,7 @@ class RDAStateInitializer:
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         argument_location: SimFunctionArgument,
-        argument_type: Optional[SimType] = None,
+        argument_type: SimType | None = None,
     ) -> None:
         """
         This method handles the setup for _one_ argument of a function.
@@ -133,7 +133,7 @@ class RDAStateInitializer:
         state: "ReachingDefinitionsState",
         func_addr: int,
         ex_loc: ExternalCodeLocation,
-        rtoc_value: Optional[int] = None,
+        rtoc_value: int | None = None,
     ) -> None:
         """
         Some architectures require initialization that is specific to that architecture.
@@ -191,7 +191,7 @@ class RDAStateInitializer:
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         arg: SimRegArg,
-        value: Optional[claripy.ast.Base] = None,
+        value: claripy.ast.Base | None = None,
     ):
         # FIXME: implement reg_offset handling in SimRegArg
         reg_offset = self.arch.registers[arg.reg_name][0]
@@ -218,7 +218,7 @@ class RDAStateInitializer:
         state.stack.store(stack_address, ml, endness=self.arch.memory_endness)
 
     @staticmethod
-    def _generate_call_string(subject: Subject, current_address: int) -> Optional[Tuple[int, ...]]:
+    def _generate_call_string(subject: Subject, current_address: int) -> tuple[int, ...] | None:
         if isinstance(subject.content, Function):
             return (subject.content.addr,)
         elif isinstance(subject.content, CallTrace):

@@ -5,13 +5,13 @@ repos:
 #
 
 -   repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.16
+    rev: v0.19
     hooks:
     - id: validate-pyproject
       fail_fast: true
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
     # General
     -   id: check-merge-conflict
@@ -33,7 +33,7 @@ repos:
         fail_fast: true
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
     -   id: check-ast
         fail_fast: true
@@ -49,7 +49,7 @@ repos:
         args: ["--include-version-classifiers"]
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
     -   id: mixed-line-ending
     -   id: trailing-whitespace
@@ -60,20 +60,20 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.1
+    rev: v3.17.0
     hooks:
     -   id: pyupgrade
-        args: [--py38-plus]
+        args: [--py310-plus]
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.2.2
+    rev: v0.6.1
     hooks:
     - id: ruff
       args: [--fix, --exit-non-zero-on-fix]
 
 # Last modifier: Coding Standard
 -   repo: https://github.com/psf/black
-    rev: 24.2.0
+    rev: 24.8.0
     hooks:
     -   id: black
 
@@ -93,7 +93,7 @@ repos:
     -   id: rst-inline-touching-normal
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
     -   id: debug-statements
     -   id: check-builtin-literals

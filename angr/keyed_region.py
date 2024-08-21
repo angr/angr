@@ -1,6 +1,6 @@
 import logging
 import weakref
-from typing import Union, Optional, Tuple, TYPE_CHECKING
+from typing import Union, TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
@@ -133,7 +133,7 @@ class KeyedRegion:
         self._storage, om, self._phi_node_contains = s
         self._object_mapping = weakref.WeakValueDictionary(om)
 
-    def _get_container(self, offset) -> Tuple[int, Optional[RegionObject]]:
+    def _get_container(self, offset) -> tuple[int, RegionObject | None]:
         try:
             base_offset = next(self._storage.irange(maximum=offset, reverse=True))
         except StopIteration:

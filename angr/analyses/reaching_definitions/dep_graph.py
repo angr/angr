@@ -1,18 +1,11 @@
 from typing import (
     Optional,
-    Dict,
-    Set,
-    Iterable,
-    Type,
-    Union,
-    List,
     TYPE_CHECKING,
-    Tuple,
     overload,
     Literal,
     Any,
-    Iterator,
 )
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 import networkx
@@ -45,11 +38,11 @@ def _is_definition(node):
 @dataclass
 class FunctionCallRelationships:  # TODO this doesn't belong in this file anymore
     callsite: CodeLocation
-    target: Optional[int]
-    args_defns: List[Set[Definition]]
-    other_input_defns: Set[Definition]
-    ret_defns: Set[Definition]
-    other_output_defns: Set[Definition]
+    target: int | None
+    args_defns: list[set[Definition]]
+    other_input_defns: set[Definition]
+    ret_defns: set[Definition]
+    other_output_defns: set[Definition]
 
 
 class DepGraph:
@@ -64,7 +57,7 @@ class DepGraph:
         :param graph: A graph where nodes are definitions, and edges represent uses.
         """
         # Used for memoization of the `transitive_closure` method.
-        self._transitive_closures: Dict = {}
+        self._transitive_closures: dict = {}
 
         if graph and not all(map(_is_definition, graph.nodes)):
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
@@ -115,7 +108,7 @@ class DepGraph:
             def_: Definition[Atom],
             graph: "networkx.DiGraph[Definition[Atom]]",
             result: "networkx.DiGraph[Definition[Atom]]",
-            visited: Optional[Set[Definition[Atom]]] = None,
+            visited: set[Definition[Atom]] | None = None,
         ):
             """
             Returns a joint graph that comprises the transitive closure of all defs that `def_` depends on and the
@@ -157,7 +150,7 @@ class DepGraph:
         return any(map(lambda definition: definition.atom == atom, self.nodes()))
 
     def add_dependencies_for_concrete_pointers_of(
-        self, values: Iterable[Union[claripy.ast.Base, int]], definition: Definition, cfg: CFGModel, loader: Loader
+        self, values: Iterable[claripy.ast.Base | int], definition: Definition, cfg: CFGModel, loader: Loader
     ):
         """
         When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in
@@ -170,7 +163,7 @@ class DepGraph:
         """
         assert definition in self.nodes(), "The given Definition must be present in the given graph."
 
-        known_predecessor_addresses: List[Union[int, claripy.ast.Base]] = list(
+        known_predecessor_addresses: list[int | claripy.ast.Base] = list(
             # Needs https://github.com/python/mypy/issues/6847
             map(
                 lambda definition: definition.atom.addr,  # type: ignore
@@ -187,7 +180,7 @@ class DepGraph:
             else:
                 concrete_known_pred_addresses.append(address)
 
-        unknown_concrete_addresses: Set[int] = set()
+        unknown_concrete_addresses: set[int] = set()
         for v in values:
             if isinstance(v, claripy.ast.Base) and v.concrete:
                 v = v.concrete_value
@@ -220,7 +213,69 @@ class DepGraph:
 
             self.graph.add_edge(memory_location_definition, definition)
 
-    def find_definitions(self, **kwargs) -> List[Definition]:
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: type[A],
+        **kwargs: Any,
+    ) -> list[Definition[A]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.REGISTER] = AtomKind.REGISTER,
+        **kwargs: Any,
+    ) -> list[Definition[Register]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.MEMORY] = AtomKind.MEMORY,
+        **kwargs: Any,
+    ) -> list[Definition[MemoryLocation]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.TMP] = AtomKind.TMP,
+        **kwargs: Any,
+    ) -> list[Definition[Tmp]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.CONSTANT] = AtomKind.CONSTANT,
+        **kwargs: Any,
+    ) -> list[Definition[ConstantSrc]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        kind: Literal[AtomKind.GUARD] = AtomKind.GUARD,
+        **kwargs: Any,
+    ) -> list[Definition[GuardUse]]: ...
+
+    @overload
+    def find_definitions(
+        self,
+        *,
+        reg_name: int | str = ...,
+        **kwargs: Any,
+    ) -> list[Definition[Register]]: ...
+
+    @overload
+    def find_definitions(self, *, stack_offset: int = ..., **kwargs: Any) -> list[Definition[MemoryLocation]]: ...
+
+    @overload
+    def find_definitions(self, *, const_val: int = ..., **kwargs: Any) -> list[Definition[ConstantSrc]]: ...
+
+    def find_definitions(self, **kwargs) -> list[Definition]:
         """
         Filter the definitions present in the graph based on various criteria.
         Parameters can be any valid keyword args to `DefinitionMatchPredicate`
@@ -236,80 +291,75 @@ class DepGraph:
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
-        kind: Type[A],
+        kind: type[A],
         **kwargs: Any,
-    ) -> List[Definition[A]]: ...
+    ) -> list[Definition[A]]: ...
 
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
         kind: Literal[AtomKind.REGISTER] = AtomKind.REGISTER,
         **kwargs: Any,
-    ) -> List[Definition[Register]]: ...
+    ) -> list[Definition[Register]]: ...
 
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
         kind: Literal[AtomKind.MEMORY] = AtomKind.MEMORY,
         **kwargs: Any,
-    ) -> List[Definition[MemoryLocation]]: ...
+    ) -> list[Definition[MemoryLocation]]: ...
 
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
         kind: Literal[AtomKind.TMP] = AtomKind.TMP,
         **kwargs: Any,
-    ) -> List[Definition[Tmp]]: ...
+    ) -> list[Definition[Tmp]]: ...
 
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
         kind: Literal[AtomKind.CONSTANT] = AtomKind.CONSTANT,
         **kwargs: Any,
-    ) -> List[Definition[ConstantSrc]]: ...
+    ) -> list[Definition[ConstantSrc]]: ...
 
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
         kind: Literal[AtomKind.GUARD] = AtomKind.GUARD,
         **kwargs: Any,
-    ) -> List[Definition[GuardUse]]: ...
+    ) -> list[Definition[GuardUse]]: ...
 
     @overload
     def find_all_predecessors(
         self,
-        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        starts: Definition[Atom] | Iterable[Definition[Atom]],
         *,
-        reg_name: Union[int, str] = ...,
+        reg_name: int | str = ...,
         **kwargs: Any,
-    ) -> List[Definition[Register]]: ...
+    ) -> list[Definition[Register]]: ...
 
     @overload
     def find_all_predecessors(
-        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], *, stack_offset: int = ..., **kwargs: Any
-    ) -> List[Definition[MemoryLocation]]: ...
+        self, starts: Definition[Atom] | Iterable[Definition[Atom]], *, stack_offset: int = ..., **kwargs: Any
+    ) -> list[Definition[MemoryLocation]]: ...
 
     @overload
     def find_all_predecessors(
-        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], *, const_val: int = ..., **kwargs: Any
-    ) -> List[Definition[ConstantSrc]]: ...
-
-    @overload
-    def find_all_predecessors(
-        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], **kwargs: Any
-    ) -> List[Definition[Atom]]: ...
+        self, starts: Definition[Atom] | Iterable[Definition[Atom]], *, const_val: int = ..., **kwargs: Any
+    ) -> list[Definition[ConstantSrc]]: ...
 
     def find_all_predecessors(self, starts, **kwargs):
         """
@@ -335,7 +385,7 @@ class DepGraph:
                     result.append(pred)
         return result
 
-    def find_all_successors(self, starts: Union[Definition, Iterable[Definition]], **kwargs) -> List[Definition]:
+    def find_all_successors(self, starts: Definition | Iterable[Definition], **kwargs) -> list[Definition]:
         """
         Filter the descendents of the given start node or nodes that match various criteria.
         Parameters can be any valid keyword args to `DefinitionMatchPredicate`
@@ -356,8 +406,8 @@ class DepGraph:
         return result
 
     def find_path(
-        self, starts: Union[Definition, Iterable[Definition]], ends: Union[Definition, Iterable[Definition]], **kwargs
-    ) -> Optional[Tuple[Definition, ...]]:
+        self, starts: Definition | Iterable[Definition], ends: Definition | Iterable[Definition], **kwargs
+    ) -> tuple[Definition, ...] | None:
         """
         Find a path between the given start node or nodes and the given end node or nodes.
         All the intermediate steps in the path must match the criteria given in kwargs.
@@ -369,8 +419,8 @@ class DepGraph:
         return next(self.find_paths(starts, ends, **kwargs), None)
 
     def find_paths(
-        self, starts: Union[Definition, Iterable[Definition]], ends: Union[Definition, Iterable[Definition]], **kwargs
-    ) -> Iterator[Tuple[Definition, ...]]:
+        self, starts: Definition | Iterable[Definition], ends: Definition | Iterable[Definition], **kwargs
+    ) -> Iterator[tuple[Definition, ...]]:
         """
         Find all non-overlapping simple paths between the given start node or nodes and the given end node or nodes.
         All the intermediate steps in the path must match the criteria given in kwargs.
@@ -381,10 +431,10 @@ class DepGraph:
         """
         predicate = DefinitionMatchPredicate.construct(**kwargs)
         ends = {ends} if isinstance(ends, Definition) else set(ends)
-        queue: List[Tuple[Definition, ...]] = (
+        queue: list[tuple[Definition, ...]] = (
             [(starts,)] if isinstance(starts, Definition) else [(start,) for start in starts]
         )
-        seen: Set[Definition] = {starts} if isinstance(starts, Definition) else set(starts)
+        seen: set[Definition] = {starts} if isinstance(starts, Definition) else set(starts)
         while queue:
             path = queue.pop()
             for succ in self.graph.succ[path[-1]]:

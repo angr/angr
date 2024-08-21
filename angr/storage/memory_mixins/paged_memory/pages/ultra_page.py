@@ -1,6 +1,7 @@
 # pylint:disable=arguments-differ
 import logging
-from typing import List, Set, Optional, Tuple, Union, Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 from sortedcontainers import SortedDict
 
@@ -83,30 +84,50 @@ class UltraPage(MemoryObjectMixin, PageBase):
             self.symbolic_data[global_start_addr - page_addr] = new_item
             result[-1] = (global_start_addr, new_item)
 
-        for subaddr in range(addr, addr + size):
+        subaddr = addr
+        end = addr + size
+        while subaddr < end:
             realaddr = subaddr + page_addr
             if self.symbolic_bitmap[subaddr]:
                 cur_val = self._get_object(subaddr, page_addr, memory=memory)
-                if cur_val is last_run and last_run is symbolic_run:
-                    pass
+                # it must be a different object
+                cycle(realaddr)
+                next_addr = subaddr + 1
+
+                # figure out how long the current object is (limit end of page)
+                if cur_val is None:
+                    obj_end = end
                 else:
-                    cycle(realaddr)
-                    last_run = symbolic_run = cur_val
-                    result.append((realaddr, cur_val))
+                    obj_end = subaddr + cur_val.length
+                    obj_end = min(end, obj_end)
+
+                # determine how many bytes come from this object
+                # loop until: end of object or not symbolic or until next object
+                next_place = None
+                while next_addr < obj_end and self.symbolic_bitmap[next_addr]:
+                    if next_addr == subaddr + 1:  # first loop
+                        next_place = self._get_next_place(next_addr)
+                    if next_place is not None and next_place <= next_addr:
+                        break
+                    next_addr += 1
+
+                subaddr = next_addr
+                last_run = symbolic_run = cur_val
+                result.append((realaddr, cur_val))
+
             else:
-                cur_val = self.concrete_data[subaddr]
-                if last_run is concrete_run:
-                    if endness == "Iend_LE":
-                        last_run = concrete_run = concrete_run | (
-                            cur_val << (memory.state.arch.byte_width * (realaddr - result[-1][0]))
-                        )
-                    else:
-                        last_run = concrete_run = (concrete_run << memory.state.arch.byte_width) | cur_val
-                    result[-1] = (result[-1][0], concrete_run)
+                max_concrete_read = subaddr
+                while max_concrete_read < end and not self.symbolic_bitmap[max_concrete_read]:
+                    max_concrete_read += 1
+                cur_val = self.concrete_data[subaddr:max_concrete_read]
+                subaddr = max_concrete_read
+                # we know the last run was not a concrete one
+                cycle(realaddr)
+                if endness == "Iend_LE":
+                    last_run = concrete_run = cur_val[::-1]
                 else:
-                    cycle(realaddr)
                     last_run = concrete_run = cur_val
-                    result.append((realaddr, cur_val))
+                result.append((realaddr, cur_val))
 
         cycle(page_addr + addr + size)
         if not cooperate:
@@ -116,7 +137,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def store(
         self,
         addr,
-        data: Union[int, SimMemoryObject],
+        data: int | SimMemoryObject,
         size: int = None,
         endness=None,
         memory=None,
@@ -133,8 +154,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 addr, data, size, endness, page_addr=page_addr, memory=memory, **kwargs
             )
 
-        if size >= memory.page_size - addr:
-            size = memory.page_size - addr
+        size = min(size, memory.page_size - addr)
 
         byte_width = memory.state.arch.byte_width
 
@@ -197,12 +217,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: List["UltraPage"],
+        others: list["UltraPage"],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,  # pylint: disable=arguments-differ
         memory=None,
-        changed_offsets: Optional[Set[int]] = None,
+        changed_offsets: set[int] | None = None,
     ):
         all_pages = [self] + others
         merged_to = None
@@ -220,10 +240,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects: List[Tuple[SimMemoryObject, Any]] = []
-            concretes: List[Tuple[int, Any]] = []
-            unconstrained_in: List[Tuple["UltraPage", Any]] = []
-            our_mo: Optional[SimMemoryObject] = None
+            memory_objects: list[tuple[SimMemoryObject, Any]] = []
+            concretes: list[tuple[int, Any]] = []
+            unconstrained_in: list[tuple["UltraPage", Any]] = []
+            our_mo: SimMemoryObject | None = None
 
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
@@ -335,12 +355,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
         else:
             return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
 
-    def changed_bytes(self, other, page_addr=None) -> Set[int]:
+    def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
         if changed_candidates is None:
             changed_candidates = range(len(self.symbolic_bitmap))
 
-        changes: Set[int] = set()
+        changes: set[int] = set()
 
         for addr in changed_candidates:
             if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
@@ -395,7 +415,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # symbolic data or does not exist
             return self._get_object(start, page_addr) is not None
 
-    def _get_object(self, start: int, page_addr: int, memory=None) -> Optional[SimMemoryObject]:
+    def _get_object(self, start: int, page_addr: int, memory=None) -> SimMemoryObject | None:
         try:
             place = next(self.symbolic_data.irange(maximum=start, reverse=True))
         except StopIteration:
@@ -408,6 +428,14 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 return obj
             else:
                 return None
+
+    def _get_next_place(self, start):
+        try:
+            place = next(self.symbolic_data.irange(minimum=start, reverse=False))
+        except StopIteration:
+            return None
+        else:
+            return place
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
         memory_objects = set()

@@ -1,6 +1,6 @@
 import argparse
 
-from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
+from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
 from angr.analyses.decompiler.utils import decompile_functions
 
 
@@ -42,7 +42,7 @@ def main():
         "--structurer",
         help="The structuring algorithm to use for decompilation.",
         choices=STRUCTURER_CLASSES.keys(),
-        default="phoenix",
+        default=DEFAULT_STRUCTURER.NAME,
     )
 
     args = parser.parse_args()

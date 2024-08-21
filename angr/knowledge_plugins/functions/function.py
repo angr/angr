@@ -3,8 +3,7 @@ import logging
 import networkx
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set
-from typing import Type
+from collections.abc import Iterable
 
 from itanium_demangler import parse
 
@@ -90,9 +89,9 @@ class Function(Serializable):
         addr,
         name=None,
         syscall=None,
-        is_simprocedure: Optional[bool] = None,
+        is_simprocedure: bool | None = None,
         binary_name=None,
-        is_plt: Optional[bool] = None,
+        is_plt: bool | None = None,
         returning=None,
         alignment=False,
     ):
@@ -117,13 +116,13 @@ class Function(Serializable):
         self.normalized = False
 
         # block nodes at whose ends the function returns
-        self._ret_sites: Set[BlockNode] = set()
+        self._ret_sites: set[BlockNode] = set()
         # block nodes at whose ends the function jumps out to another function (jumps outside)
-        self._jumpout_sites: Set[BlockNode] = set()
+        self._jumpout_sites: set[BlockNode] = set()
         # block nodes at whose ends the function calls out to another non-returning function
-        self._callout_sites: Set[BlockNode] = set()
+        self._callout_sites: set[BlockNode] = set()
         # block nodes that ends the function by returning out to another function (returns outside). This is rare.
-        self._retout_sites: Set[BlockNode] = set()
+        self._retout_sites: set[BlockNode] = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = defaultdict(set)
@@ -142,10 +141,10 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention: Optional[SimCC] = None
+        self.calling_convention: SimCC | None = None
         # Function prototype
-        self.prototype: Optional[SimTypeFunction] = None
-        self.prototype_libname: Optional[str] = None
+        self.prototype: SimTypeFunction | None = None
+        self.prototype_libname: str | None = None
         self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -173,7 +172,7 @@ class Function(Serializable):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
-        self._project: Optional[Project] = None  # will be initialized upon the first access to self.project
+        self._project: Project | None = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
@@ -254,9 +253,9 @@ class Function(Serializable):
                         arch.name, platform=self.project.simos.name if self.project.simos is not None else None
                     )(arch)
 
-            self.calling_convention: Optional[SimCC] = cc
+            self.calling_convention: SimCC | None = cc
         else:
-            self.calling_convention: Optional[SimCC] = None
+            self.calling_convention: SimCC | None = None
 
     @property
     @deprecated(".is_alignment")
@@ -281,7 +280,7 @@ class Function(Serializable):
         if self._project is None:
             # try to set it from function manager
             if self._function_manager is not None:
-                self._project: Optional[Project] = self._function_manager._kb._project
+                self._project: Project | None = self._function_manager._kb._project
         return self._project
 
     @property
@@ -365,7 +364,7 @@ class Function(Serializable):
 
         return self._local_block_addrs
 
-    def get_block(self, addr: int, size: Optional[int] = None, byte_string: Optional[bytes] = None):
+    def get_block(self, addr: int, size: int | None = None, byte_string: bytes | None = None):
         """
         Getting a block out of the current function.
 
@@ -396,7 +395,7 @@ class Function(Serializable):
     # compatibility
     _get_block = get_block
 
-    def get_block_size(self, addr: int) -> Optional[int]:
+    def get_block_size(self, addr: int) -> int | None:
         return self._block_sizes.get(addr, None)
 
     @property
@@ -587,7 +586,7 @@ class Function(Serializable):
             return False
 
     def __str__(self):
-        s = f"Function {self.name} [{self.addr}]\n"
+        s = f"Function {self.name} [{self.addr:#x}]\n"
         s += "  Syscall: %s\n" % self.is_syscall
         s += "  SP difference: %d\n" % self.sp_delta
         s += "  Has return: %s\n" % self.has_return
@@ -664,7 +663,7 @@ class Function(Serializable):
         return self.addr - self.binary.mapped_base
 
     @property
-    def symbol(self) -> Union[None, Symbol]:
+    def symbol(self) -> None | Symbol:
         """
         :return: the function's Symbol, if any
         """
@@ -744,7 +743,7 @@ class Function(Serializable):
 
         return name
 
-    def _get_initial_binary_name(self):
+    def _get_initial_binary_name(self) -> str | None:
         """
         Determine the name of the binary where this function is.
 
@@ -1535,6 +1534,10 @@ class Function(Serializable):
 
         for library in libraries:
             for name in name_variants:
+                if isinstance(library, SimSyscallLibrary):
+                    # FIXME: we don't support getting declaration from a syscall library yet. we don't have the concept
+                    # of abi at this point.
+                    continue
                 if not library.has_prototype(name):
                     continue
 
@@ -1582,7 +1585,7 @@ class Function(Serializable):
                 return ast.__str__()
         return self.name
 
-    def get_unambiguous_name(self, display_name: Optional[str] = None) -> str:
+    def get_unambiguous_name(self, display_name: str | None = None) -> str:
         """
         Get a disambiguated function name.
 
@@ -1610,7 +1613,7 @@ class Function(Serializable):
             n += self.binary_name + separator
         return n + (display_name or self.name)
 
-    def apply_definition(self, definition: str, calling_convention: Optional[Union[SimCC, Type[SimCC]]] = None) -> None:
+    def apply_definition(self, definition: str, calling_convention: SimCC | type[SimCC] | None = None) -> None:
         if not definition.endswith(";"):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
@@ -1638,7 +1641,7 @@ class Function(Serializable):
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
 
-    def functions_called(self) -> Set["Function"]:
+    def functions_reachable(self) -> set["Function"]:
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """

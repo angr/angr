@@ -1,6 +1,5 @@
 # pylint:disable=unused-argument,arguments-differ
 from collections import defaultdict
-from typing import Dict, List
 
 import ailment
 
@@ -36,7 +35,7 @@ class LoopSimplifier(SequenceWalker):
 
         super().__init__(handlers)
         self.functions = functions
-        self.continue_preludes: Dict[LoopNode, List[ailment.Block]] = defaultdict(list)
+        self.continue_preludes: dict[LoopNode, list[ailment.Block]] = defaultdict(list)
         self.walk(node)
 
     @staticmethod

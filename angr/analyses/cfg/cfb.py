@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Callable, Optional, Set
+from typing import Any
+from collections.abc import Callable
 
 import cle
 from cle.backends.externs import KernelObject, ExternObject
@@ -95,8 +96,8 @@ class CFBlanket(Analysis):
 
     def __init__(
         self,
-        exclude_region_types: Optional[Set[str]] = None,
-        on_object_added: Optional[Callable[[int, Any], None]] = None,
+        exclude_region_types: set[str] | None = None,
+        on_object_added: Callable[[int, Any], None] | None = None,
     ):
         """
         :param on_object_added: Callable with parameters (addr, obj) called after an object is added to the blanket.

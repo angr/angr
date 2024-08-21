@@ -1,6 +1,6 @@
 # pylint: disable=missing-class-docstring
 import glob
-import importlib
+import importlib.resources
 import os
 import platform
 import shutil
@@ -9,7 +9,6 @@ import sys
 from distutils.command.build import build as st_build
 from distutils.util import get_platform
 
-import pkg_resources
 from setuptools import Command, setup
 from setuptools.command.develop import develop as st_develop
 from setuptools.errors import LibError
@@ -43,10 +42,10 @@ def _build_native():
         ("PYVEX_LIB_FILE", "pyvex", "lib\\pyvex.lib"),
     )
     for var, pkg, fnm in env_data:
-        try:
-            env[var] = pkg_resources.resource_filename(pkg, fnm)
-        except KeyError:
-            pass
+        base = importlib.resources.files(pkg)
+        for child in fnm.split("\\"):
+            base = base.joinpath(child)
+        env[var] = str(base)
 
     if sys.platform == "win32":
         cmd = ["nmake", "/f", "Makefile-win"]

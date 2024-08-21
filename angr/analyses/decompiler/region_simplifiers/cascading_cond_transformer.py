@@ -1,11 +1,11 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional
 
 import ailment
 import claripy
 
 from ..structuring.structurer_nodes import ConditionNode, CascadingConditionNode
 from ..sequence_walker import SequenceWalker
+from ....errors import AngrRuntimeError
 
 
 class CascadingConditionTransformer(SequenceWalker):
@@ -19,7 +19,7 @@ class CascadingConditionTransformer(SequenceWalker):
             ConditionNode: self._handle_Condition,
         }
         super().__init__(handlers)
-        self.cascading_if_node: Optional[CascadingConditionNode] = None
+        self.cascading_if_node: CascadingConditionNode | None = None
 
         self.walk(node)
 
@@ -89,6 +89,6 @@ class CascadingConditionTransformer(SequenceWalker):
 
         else:
             # unexpected!
-            raise RuntimeError("Impossible happened")
+            raise AngrRuntimeError("Impossible happened")
 
         return CascadingConditionNode(cond_node.addr, cond_and_nodes, else_node=else_node)

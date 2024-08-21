@@ -1,15 +1,16 @@
-# pylint:disable=wrong-import-position
+# pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
 import pathlib
 import copy
-from typing import Optional, Tuple, Any, Union, List, Iterable
+from typing import Any, Union
+from collections.abc import Iterable
 import logging
 
 import networkx
-
 import ailment
 
 import angr
 from .call_counter import AILBlockCallCounter
+from .seq_to_blocks import SequenceToBlocks
 
 _l = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ def extract_jump_targets(stmt):
     return targets
 
 
-def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Optional[Tuple[Any, int, int]]:
+def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> tuple[Any, int, int] | None:
     """
     Check the last statement of the switch-case header node, and extract lower+upper bounds for the comparison.
 
@@ -161,7 +162,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int, Tuple[int]]], label=None):
+def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] | None, label=None):
     if insert_location not in {"before", "after"}:
         raise ValueError('"insert_location" must be either "before" or "after"')
 
@@ -251,6 +252,8 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     in_edges = list(graph.in_edges(node_a, data=True))
     out_edges = list(graph.out_edges(node_b, data=True))
 
+    a_ogs = graph.nodes[node_a].get("original_nodes", set())
+    b_ogs = graph.nodes[node_b].get("original_nodes", set())
     new_node = node_a.copy() if node_a.addr <= node_b.addr else node_b.copy()
     old_node = node_b if new_node == node_a else node_a
     # remove jumps in the middle of nodes when merging
@@ -263,8 +266,7 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     graph.remove_node(node_b)
 
     if new_node is not None:
-        graph.add_node(new_node)
-
+        graph.add_node(new_node, original_nodes=a_ogs.union(b_ogs))
         for src, _, data in in_edges:
             if src is node_b:
                 src = new_node
@@ -289,6 +291,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
     """
     # make a copy of the graph
     transition_graph = networkx.DiGraph(transition_graph)
+    networkx.set_node_attributes(transition_graph, {node: {node} for node in transition_graph.nodes}, "original_nodes")
 
     while True:
         for src, dst, data in transition_graph.edges(data=True):
@@ -334,7 +337,7 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> Optional[ailment.Stmt.Statement]:
+def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
             stmt = first_nonlabel_statement(n)
@@ -348,14 +351,14 @@ def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> Option
     return None
 
 
-def last_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
+def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | None:
     for stmt in reversed(block.statements):
         if not isinstance(stmt, ailment.Stmt.Label):
             return stmt
     return None
 
 
-def first_nonlabel_node(seq: "SequenceNode") -> Optional[Union["BaseNode", ailment.Block]]:
+def first_nonlabel_node(seq: "SequenceNode") -> Union["BaseNode", ailment.Block] | None:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
             inner_node = node.node
@@ -406,7 +409,9 @@ def update_labels(graph: networkx.DiGraph):
     return add_labels(remove_labels(graph))
 
 
-def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
+def structured_node_is_simple_return(
+    node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph, use_packed_successors=False
+) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
     if (cond) {
@@ -419,7 +424,7 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     Returns true on any block ending in linear statements and a return.
     """
 
-    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
+    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> list[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 
@@ -449,6 +454,9 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     if valid_last_stmt and last_block.statements:
         valid_last_stmt = not isinstance(last_block.statements[-1], (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump))
 
+    if use_packed_successors:
+        last_block = node
+
     return valid_last_stmt and last_block in graph and not list(graph.successors(last_block))
 
 
@@ -475,8 +483,8 @@ def peephole_optimize_exprs(block, expr_opts):
         v = False
 
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: Optional[ailment.Stmt.Statement], block
-    ) -> Optional[ailment.Expr.Expression]:
+        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    ) -> ailment.Expr.Expression | None:
         old_expr = expr
 
         redo = True
@@ -508,8 +516,8 @@ def peephole_optimize_exprs(block, expr_opts):
 
 def peephole_optimize_expr(expr, expr_opts):
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: Optional[ailment.Stmt.Statement], block
-    ) -> Optional[ailment.Expr.Expression]:
+        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    ) -> ailment.Expr.Expression | None:
         old_expr = expr
 
         redo = True
@@ -567,7 +575,10 @@ def peephole_optimize_stmts(block, stmt_opts):
     statements = []
 
     # run statement optimizers
-    for stmt_idx, stmt in enumerate(block.statements):
+    # note that an optimizer may optionally edit or remove statements whose statement IDs are greater than stmt_idx
+    stmt_idx = 0
+    while stmt_idx < len(block.statements):
+        stmt = block.statements[stmt_idx]
         old_stmt = stmt
         redo = True
         while redo:
@@ -585,11 +596,12 @@ def peephole_optimize_stmts(block, stmt_opts):
             any_update = True
         else:
             statements.append(old_stmt)
+        stmt_idx += 1
 
     return statements, any_update
 
 
-def match_stmt_classes(all_stmts: List, idx: int, stmt_class_seq: Iterable[type]) -> bool:
+def match_stmt_classes(all_stmts: list, idx: int, stmt_class_seq: Iterable[type]) -> bool:
     for i, cls in enumerate(stmt_class_seq):
         if idx + i >= len(all_stmts):
             return False
@@ -633,7 +645,7 @@ def peephole_optimize_multistmts(block, stmt_opts):
     return statements, any_update
 
 
-def decompile_functions(path, functions=None, structurer=None, catch_errors=False) -> Optional[str]:
+def decompile_functions(path, functions=None, structurer=None, catch_errors=False) -> str | None:
     """
     Decompile a binary into a set of functions.
 
@@ -654,13 +666,16 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
 
     # collect all functions when None are provided
     if functions is None:
-        functions = cfg.functions.values()
+        functions = list(sorted(cfg.kb.functions))
 
     # normalize the functions that could be ints as names
-    normalized_functions = []
+    normalized_functions: list[int | str] = []
     for func in functions:
         try:
-            normalized_name = int(func, 0)
+            if isinstance(func, str):
+                normalized_name = int(func, 0)
+            else:
+                normalized_name = func
         except ValueError:
             normalized_name = func
         normalized_functions.append(normalized_name)
@@ -682,7 +697,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     ]
     for func in functions:
         f = cfg.functions[func]
-        if f is None or f.is_plt:
+        if f is None or f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure:
             continue
 
         exception_string = ""
@@ -699,14 +714,14 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
         # do sanity checks on decompilation, skip checks if we already errored
         if not exception_string:
             if dec is None or not dec.codegen or not dec.codegen.text:
-                exception_string = "Decompilation had no code output (failed in Dec)"
+                exception_string = "Decompilation had no code output (failed in decompilation)"
             elif "{\n}" in dec.codegen.text:
                 exception_string = "Decompilation outputted an empty function (failed in structuring)"
             elif structurer in ["dream", "combing"] and "goto" in dec.codegen.text:
                 exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
 
         if exception_string:
-            _l.critical("Failed to decompile %s because %s", str(func), exception_string)
+            _l.critical("Failed to decompile %s because %s", repr(f), exception_string)
             decompilation += f"// [error: {func} | {exception_string}]\n"
         else:
             decompilation += dec.codegen.text + "\n"
@@ -723,6 +738,45 @@ def calls_in_graph(graph: networkx.DiGraph) -> int:
         counter.walk(node)
 
     return counter.calls
+
+
+def find_block_by_addr(graph: networkx.DiGraph, addr: int):
+    for block in graph.nodes():
+        if block.addr == addr:
+            return block
+
+    raise KeyError("The block is not in the graph!")
+
+
+def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
+    """
+    Converts a sequence node (BaseNode) to a list of ailment blocks contained in it and all its children.
+    """
+    walker = SequenceToBlocks()
+    walker.walk(seq)
+    return walker.blocks
+
+
+def sequence_to_statements(
+    seq: "BaseNode", exclude=(ailment.statement.Jump, ailment.statement.Jump)
+) -> list[ailment.statement.Statement]:
+    """
+    Converts a sequence node (BaseNode) to a list of ailment Statements contained in it and all its children.
+    May exclude certain types of statements.
+    """
+    statements = []
+    blocks = sequence_to_blocks(seq)
+    block: ailment.Block
+    for block in blocks:
+        if not block.statements:
+            continue
+
+        for stmt in block.statements:
+            if isinstance(stmt, exclude):
+                continue
+            statements.append(stmt)
+
+    return statements
 
 
 # delayed import

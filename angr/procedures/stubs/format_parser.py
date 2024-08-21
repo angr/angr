@@ -1,4 +1,4 @@
-from typing import List, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
 import math
@@ -253,18 +253,16 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    _, _, match_indices = region.find(
-                        position, self.parser.state.solver.BVV(b"\n"), max_str_len, max_symbolic_bytes=max_sym_bytes
+                    result, _, _ = region.find(
+                        position,
+                        self.parser.state.solver.BVV(b"\n"),
+                        max_str_len,
+                        max_symbolic_bytes=max_sym_bytes,
+                        default=self.parser.state.solver.BVV(position + max_str_len, 64),
                     )
 
-                    if not match_indices:
-                        # if no newline is found, mm is position + max_strlen
-                        mm = position + max_str_len
-                        # we're just going to concretize the length, load will do this anyways
-                        length = self.parser.state.solver.max_int(mm - position)
-                    else:
-                        # a newline is found, or a max length is specified with the specifier
-                        length = max(match_indices)
+                    # concretize the length
+                    length = self.parser.state.solver.max_int(result - position)
                     src_str = region.load(position, length)
 
                     # TODO all of these should be delimiters we search for above
@@ -434,7 +432,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self) -> Dict[bytes, "SimType"]:
+    def _all_spec(self) -> dict[bytes, "SimType"]:
         """
         All specifiers and their lengths.
         """
@@ -506,7 +504,7 @@ class FormatParser(SimProcedure):
 
         return None
 
-    def extract_components(self, fmt: List) -> List:
+    def extract_components(self, fmt: list) -> list:
         """
         Extract the actual formats from the format string `fmt`.
 

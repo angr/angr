@@ -1,4 +1,3 @@
-from typing import List, Tuple
 import logging
 
 import networkx
@@ -74,7 +73,7 @@ class FunctionGraphVisitor(GraphVisitor):
 
         return sorted_nodes
 
-    def back_edges(self) -> List[Tuple[NodeType, NodeType]]:
+    def back_edges(self) -> list[tuple[NodeType, NodeType]]:
         start_nodes = [node for node in self.graph if node.addr == self.function.addr]
         if not start_nodes:
             start_nodes = [node for node in self.graph if self.graph.in_degree(node) == 0]

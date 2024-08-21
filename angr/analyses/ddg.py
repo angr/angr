@@ -1,6 +1,5 @@
 import logging
 from collections import defaultdict
-from typing import List
 
 import networkx
 import pyvex
@@ -425,7 +424,7 @@ class DDGViewInstruction:
             return DDGViewItem(self._ddg, pv, simplified=self._simplified)
 
     @property
-    def definitions(self) -> List[DDGViewItem]:
+    def definitions(self) -> list[DDGViewItem]:
         """
         Get all definitions located at the current instruction address.
 

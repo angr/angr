@@ -1,5 +1,3 @@
-from typing import Dict, Tuple, Union, Set
-
 import claripy
 
 from .undefined import Undefined, UNDEFINED
@@ -14,10 +12,12 @@ class Environment:
     **Note**: The <Environment> object does not store the values associated with variables themselves.
     """
 
-    def __init__(self, environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = None):
-        self._environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = environment or {}
+    __slots__ = ("_environment",)
 
-    def get(self, names: Set[str]) -> Tuple[Set[claripy.ast.Base], bool]:
+    def __init__(self, environment: dict[str | Undefined, set[claripy.ast.Base]] = None):
+        self._environment: dict[str | Undefined, set[claripy.ast.Base]] = environment or {}
+
+    def get(self, names: set[str]) -> tuple[set[claripy.ast.Base], bool]:
         """
         :param names: Potential values for the name of the environment variable to get the pointers of.
         :return:
@@ -38,7 +38,7 @@ class Environment:
 
         return pointers, has_unknown
 
-    def set(self, name: Union[str, Undefined], pointers: Set[claripy.ast.Base]):
+    def set(self, name: str | Undefined, pointers: set[claripy.ast.Base]):
         """
         :param name: Name of the environment variable to which we will associate the pointers.
         :param pointers: New addresses where the new values of the environment variable are located.
@@ -57,7 +57,7 @@ class Environment:
         assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
         return self._environment == other._environment
 
-    def merge(self, *others: "Environment") -> Tuple["Environment", bool]:
+    def merge(self, *others: "Environment") -> tuple["Environment", bool]:
         new_env = self._environment
 
         for other in others:
@@ -81,3 +81,12 @@ class Environment:
 
         merge_occurred = new_env != self._environment
         return Environment(environment=new_env), merge_occurred
+
+    def compare(self, other: "Environment") -> bool:
+        for k in set(self._environment.keys()).union(set(other._environment.keys())):
+            if k not in self._environment:
+                return False
+            if k in self._environment and k in other._environment:
+                if not self._environment[k].issuperset(other._environment[k]):
+                    return False
+        return True

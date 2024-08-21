@@ -1,4 +1,3 @@
-from typing import Optional, Tuple
 from ailment.expression import Convert, BinaryOp, Const, ITE, Expression, Register
 
 from .base import PeepholeOptimizationExprBase
@@ -75,7 +74,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
         return None
 
     @staticmethod
-    def _check_signedness(expr) -> Optional[Tuple[bool, int, Expression]]:
+    def _check_signedness(expr) -> tuple[bool, int, Expression] | None:
         # return a tuple of ( is_signed (False for is_unsigned), bits of the expression to test for signedness, and the
         # expression itself ).
         if isinstance(expr, BinaryOp):

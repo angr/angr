@@ -1,4 +1,3 @@
-from typing import Set, Dict
 import logging
 from collections import defaultdict
 
@@ -13,11 +12,10 @@ l = logging.getLogger(name=__name__)
 
 class XRefManager(KnowledgeBasePlugin, Serializable):
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb=kb)
 
-        self.xrefs_by_ins_addr: Dict[int, Set[XRef]] = defaultdict(set)
-        self.xrefs_by_dst: Dict[int, Set[XRef]] = defaultdict(set)
+        self.xrefs_by_ins_addr: dict[int, set[XRef]] = defaultdict(set)
+        self.xrefs_by_dst: dict[int, set[XRef]] = defaultdict(set)
 
     def copy(self):
         xm = XRefManager(self._kb)
@@ -71,7 +69,7 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
             refs = refs.union(self.xrefs_by_dst[addr])
         return refs
 
-    def get_xrefs_by_ins_addr_region(self, start, end) -> Set[XRef]:
+    def get_xrefs_by_ins_addr_region(self, start, end) -> set[XRef]:
         """
         Get a set of XRef objects that originate at a given address region
         bounded by start and end.  Useful for finding references from a basic block or function.

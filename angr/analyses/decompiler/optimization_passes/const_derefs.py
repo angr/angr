@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 from ailment import Block, AILBlockWalker
@@ -20,7 +20,7 @@ class BlockWalker(AILBlockWalker):
     def __init__(self, project: "Project"):
         super().__init__()
         self._project = project
-        self._new_block: Optional[Block] = None  # output
+        self._new_block: Block | None = None  # output
 
     def walk(self, block: Block):
         self._new_block = None
@@ -68,7 +68,7 @@ class BlockWalker(AILBlockWalker):
             return new_stmt
         return None
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block]):
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         new_target = self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
 
         new_args = None
@@ -136,7 +136,8 @@ class BlockWalker(AILBlockWalker):
         if isinstance(expr.addr, Const):
             # *(const_addr)
             # does it belong to a read-only section/segment?
-            if self._addr_belongs_to_got(expr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.value):
+            is_got = self._addr_belongs_to_got(expr.addr.value)
+            if is_got or self._addr_belongs_to_ro_region(expr.addr.value):
                 try:
                     w = self._project.loader.memory.unpack_word(
                         expr.addr.value,
@@ -147,8 +148,9 @@ class BlockWalker(AILBlockWalker):
                     # we don't have enough bytes to read out
                     w = None
                 if w is not None:
-                    # nice! replace it with the actual value
-                    return Const(None, None, w, expr.bits, **expr.tags)
+                    if not (is_got and w == 0):
+                        # nice! replace it with the actual value
+                        return Const(None, None, w, expr.bits, **expr.tags)
         elif isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
             if isinstance(expr.addr.addr, Const):
                 # *(*(const_addr))
@@ -258,6 +260,6 @@ class ConstantDereferencesSimplifier(OptimizationPass):
         walker = AILGraphWalker(self._graph, handler=self._walk_block, replace_nodes=True)
         walker.walk()
 
-    def _walk_block(self, block: Block) -> Optional[Block]:
+    def _walk_block(self, block: Block) -> Block | None:
         new_block = self._block_walker.walk(block)
         return new_block

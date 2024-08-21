@@ -1,4 +1,4 @@
-from typing import Optional, Generator
+from collections.abc import Generator
 
 import claripy
 
@@ -95,7 +95,7 @@ class RegionedAddressConcretizationMixin(MemoryMixin):
         desc: AbstractAddressDescriptor,
         original_addr: claripy.ast.Bits,
         is_write: bool = False,
-        target_region: Optional[str] = None,
+        target_region: str | None = None,
     ) -> Generator[AddressWrapper, None, None]:
         strategies = self.write_strategies if is_write else self.read_strategies
         targets_limit = self._write_targets_limit if is_write else self._read_targets_limit
@@ -113,6 +113,6 @@ class RegionedAddressConcretizationMixin(MemoryMixin):
                 yield self._normalize_address_core(region, c, target_region=target_region)
 
     def _normalize_address_core(
-        self, region_id: str, relative_address: int, target_region: Optional[str] = None
+        self, region_id: str, relative_address: int, target_region: str | None = None
     ) -> AddressWrapper:
         return super()._normalize_address_core(region_id, relative_address, target_region)

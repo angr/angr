@@ -1,4 +1,6 @@
-from typing import Tuple, Optional, Callable, Iterable, Dict, Set, TYPE_CHECKING
+# pylint:disable=import-outside-toplevel
+from typing import Optional, TYPE_CHECKING
+from collections.abc import Callable, Iterable
 import queue
 import threading
 import time
@@ -10,6 +12,7 @@ import networkx
 import claripy
 
 from angr.utils.graph import GraphUtils
+from angr.simos import SimWindows
 from ..utils.mp import mp_context, Initializer
 from ..knowledge_plugins.cfg import CFGModel
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
@@ -38,17 +41,17 @@ class CompleteCallingConventionsAnalysis(Analysis):
         recover_variables=False,
         low_priority=False,
         force=False,
-        cfg: Optional[CFGModel] = None,
+        cfg: CFGModel | None = None,
         analyze_callsites: bool = False,
         skip_signature_matched_functions: bool = False,
-        max_function_blocks: Optional[int] = None,
-        max_function_size: Optional[int] = None,
+        max_function_blocks: int | None = None,
+        max_function_size: int | None = None,
         workers: int = 0,
-        cc_callback: Optional[Callable] = None,
-        prioritize_func_addrs: Optional[Iterable[int]] = None,
+        cc_callback: Callable | None = None,
+        prioritize_func_addrs: Iterable[int] | None = None,
         skip_other_funcs: bool = False,
         auto_start: bool = True,
-        func_graphs: Optional[Dict[int, "networkx.DiGraph"]] = None,
+        func_graphs: dict[int, "networkx.DiGraph"] | None = None,
     ):
         """
 
@@ -82,17 +85,19 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._auto_start = auto_start
         self._total_funcs = None
         self._func_graphs = {} if not func_graphs else func_graphs
-        self.prototype_libnames: Set[str] = set()
+        self.prototype_libnames: set[str] = set()
 
         self._func_addrs = []  # a list that holds addresses of all functions to be analyzed
         self._results = []
         if workers > 0:
             self._remaining_funcs = _mp_context.Value("i", 0)
-            self._func_queue = _mp_context.Queue()
             self._results = _mp_context.Queue()
+            self._results_lock = _mp_context.Lock()
+            self._func_queue = _mp_context.Queue()
             self._func_queue_lock = _mp_context.Lock()
         else:
             self._remaining_funcs = None  # not needed
+            self._results_lock = None  # not needed
             self._func_queue = None  # not needed
             self._func_queue_lock = threading.Lock()
 
@@ -156,7 +161,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._prioritize_func_addrs = None  # no longer useful
 
     def _set_function_prototype(
-        self, func: "Function", prototype: Optional["SimTypeFunction"], prototype_libname: Optional[str]
+        self, func: "Function", prototype: Optional["SimTypeFunction"], prototype_libname: str | None
     ) -> None:
         if func.prototype is None or func.is_prototype_guessed or self._force:
             func.is_prototype_guessed = True
@@ -205,9 +210,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         dependents[callee].add(func_addr)
 
             # enqueue all leaf functions
-            for func_addr in list(
-                k for k in depends_on if not depends_on[k]
-            ):  # pylint:disable=consider-using-dict-items
+            for func_addr in [k for k in depends_on if not depends_on[k]]:  # pylint:disable=consider-using-dict-items
                 self._func_queue.put((func_addr, None))
                 del depends_on[func_addr]
 
@@ -215,11 +218,17 @@ class CompleteCallingConventionsAnalysis(Analysis):
             cc_callback = self._cc_callback
             self._cc_callback = None
 
+            if self.project.simos is not None and isinstance(self.project.simos, SimWindows):
+                # delayed import
+                from angr.procedures.definitions import load_win32api_definitions
+
+                Initializer.get().register(load_win32api_definitions)
+
             # spawn workers to perform the analysis
             with self._func_queue_lock:
                 procs = [
-                    _mp_context.Process(target=self._worker_routine, args=(Initializer.get(),), daemon=True)
-                    for _ in range(self._workers)
+                    _mp_context.Process(target=self._worker_routine, args=(worker_id, Initializer.get()), daemon=True)
+                    for worker_id in range(self._workers)
                 ]
                 for proc_idx, proc in enumerate(procs):
                     self._update_progress(0, text=f"Spawning worker {proc_idx}...")
@@ -231,7 +240,13 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self._update_progress(0)
             idx = 0
             while idx < total_funcs:
-                func_addr, cc, proto, proto_libname, varman = self._results.get(True)
+                try:
+                    with self._results_lock:
+                        func_addr, cc, proto, proto_libname, varman = self._results.get(True, timeout=0.01)
+                except queue.Empty:
+                    time.sleep(0.1)
+                    continue
+
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
                     func.calling_convention = cc
@@ -260,13 +275,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         depends_on[dependent].discard(func_addr)
                         if not depends_on[dependent]:
                             callee_prototypes = self._get_callees_cc_prototypes(dependent)
-                            self._func_queue.put((dependent, callee_prototypes))
+                            with self._func_queue_lock:
+                                self._func_queue.put((dependent, callee_prototypes))
                             del depends_on[dependent]
 
             for proc in procs:
                 proc.join()
 
-    def _worker_routine(self, initializer: Initializer):
+    def _worker_routine(self, worker_id: int, initializer: Initializer):
         initializer.initialize()
         idx = 0
         while self._remaining_funcs.value > 0:
@@ -279,7 +295,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 continue
 
             if callee_info is not None:
-                callee_info: Dict[int, Tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional[str]]]
+                callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]
                 for callee, (callee_cc, callee_proto, callee_proto_libname) in callee_info.items():
                     callee_func = self.kb.functions.get_by_addr(callee)
                     callee_func.calling_convention = callee_cc
@@ -293,13 +309,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
             try:
                 cc, proto, proto_libname, varman = self._analyze_core(func_addr)
             except Exception:  # pylint:disable=broad-except
-                _l.error("Exception occurred during _analyze_core().", exc_info=True)
+                _l.error("Worker %d: Exception occurred during _analyze_core().", worker_id, exc_info=True)
                 cc, proto, proto_libname, varman = None, None, None, None
-            self._results.put((func_addr, cc, proto, proto_libname, varman))
+            with self._results_lock:
+                self._results.put((func_addr, cc, proto, proto_libname, varman))
 
     def _analyze_core(
         self, func_addr: int
-    ) -> Tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional["str"], Optional["VariableManagerInternal"]]:
+    ) -> tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional["str"], Optional["VariableManagerInternal"]]:
         func = self.kb.functions.get_by_addr(func_addr)
         if func.ran_cca:
             return (
@@ -368,12 +385,12 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def _get_callees_cc_prototypes(
         self, caller_func_addr: int
-    ) -> Dict[int, Tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional[str]]]:
+    ) -> dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]:
         d = {}
         for callee in self.kb.functions.callgraph.successors(caller_func_addr):
             if callee != caller_func_addr and callee not in d:
                 func = self.kb.functions.get_by_addr(callee)
-                tpl = func.calling_convention, func.prototype, func.prototype.name
+                tpl = func.calling_convention, func.prototype, func.prototype_libname
                 d[callee] = tpl
         return d
 

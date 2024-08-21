@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import sys
 import itertools
 import types
 from collections import defaultdict
-from typing import List, Tuple, DefaultDict
 import logging
+from types import TracebackType
 
 import claripy
 import mulpyplexer
@@ -65,7 +67,7 @@ class SimulationManager:
     ALL = "_ALL"
     DROP = "_DROP"
 
-    _integral_stashes: Tuple[str] = ("active", "stashed", "pruned", "unsat", "errored", "deadended", "unconstrained")
+    _integral_stashes: tuple[str] = ("active", "stashed", "pruned", "unsat", "errored", "deadended", "unconstrained")
 
     def __init__(
         self,
@@ -91,7 +93,7 @@ class SimulationManager:
 
         if stashes is None:
             stashes = self._create_integral_stashes()
-        self._stashes: DefaultDict[str, List["SimState"]] = stashes
+        self._stashes: defaultdict[str, list[SimState]] = stashes
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {
@@ -164,13 +166,13 @@ class SimulationManager:
         except AttributeError:
             return SimulationManager._fetch_states(self, stash=item)
 
-    active: List[SimState]
-    stashed: List[SimState]
-    pruned: List[SimState]
-    unsat: List[SimState]
-    deadended: List[SimState]
-    unconstrained: List[SimState]
-    found: List[SimState]
+    active: list[SimState]
+    stashed: list[SimState]
+    pruned: list[SimState]
+    unsat: list[SimState]
+    deadended: list[SimState]
+    unconstrained: list[SimState]
+    found: list[SimState]
     one_active: SimState
     one_stashed: SimState
     one_pruned: SimState
@@ -189,11 +191,11 @@ class SimulationManager:
         )
 
     @property
-    def errored(self):
+    def errored(self) -> list[ErrorRecord]:
         return self._errored
 
     @property
-    def stashes(self) -> DefaultDict[str, List["SimState"]]:
+    def stashes(self) -> defaultdict[str, list[SimState]]:
         return self._stashes
 
     def mulpyplex(self, *stashes):
@@ -394,7 +396,7 @@ class SimulationManager:
 
         :param stash:           The name of the stash to step (default: 'active')
         :param target_stash:    The name of the stash to put the results in (default: same as ``stash``)
-        :param error_list:      The list to put ErroredState objects in (default: ``self.errored``)
+        :param error_list:      The list to put ErrorRecord objects in (default: ``self.errored``)
         :param selector_func:   If provided, should be a function that takes a state and returns a
                                 boolean. If True, the state will be stepped. Otherwise, it will be
                                 kept as-is.
@@ -928,7 +930,7 @@ class SimulationManager:
     #   ...
     #
 
-    def _create_integral_stashes(self) -> DefaultDict[str, List["SimState"]]:
+    def _create_integral_stashes(self) -> defaultdict[str, list[SimState]]:
         stashes = defaultdict(list)
         stashes.update({name: [] for name in self._integral_stashes})
         return stashes
@@ -979,9 +981,9 @@ class ErrorRecord:
     """
 
     def __init__(self, state, error, traceback):
-        self.state = state
-        self.error = error
-        self.traceback = traceback
+        self.state: SimState = state
+        self.error: Exception = error
+        self.traceback: TracebackType = traceback
 
     def debug(self):
         """

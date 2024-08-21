@@ -1,12 +1,13 @@
-from typing import List
-
 from .plugin import KnowledgeBasePlugin
 
 
 class IndirectJumps(KnowledgeBasePlugin, dict):
+    """
+    This plugin tracks the targets of indirect jumps
+    """
+
     def __init__(self, kb):
-        super().__init__()
-        self._kb = kb
+        super().__init__(kb=kb)
         self.unresolved = set()
 
         # dict format: {indirect_address: [resolved_addresses]}
@@ -19,7 +20,7 @@ class IndirectJumps(KnowledgeBasePlugin, dict):
         for k, v in self.resolved.items():
             o.resolved[k] = v
 
-    def update_resolved_addrs(self, indirect_address: int, resolved_addresses: List[int]):
+    def update_resolved_addrs(self, indirect_address: int, resolved_addresses: list[int]):
         # sanity check on usage
         if indirect_address is None:
             return

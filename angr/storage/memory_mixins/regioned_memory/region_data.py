@@ -1,4 +1,3 @@
-from typing import Optional
 from sortedcontainers import SortedDict
 
 from ....errors import SimRegionMapError
@@ -19,7 +18,7 @@ class AddressWrapper:
         "function_address",
     )
 
-    def __init__(self, region: str, region_base_addr: int, address, is_on_stack: bool, function_address: Optional[int]):
+    def __init__(self, region: str, region_base_addr: int, address, is_on_stack: bool, function_address: int | None):
         """
         Constructor for the class AddressWrapper.
 

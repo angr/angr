@@ -1,7 +1,9 @@
 import itertools
-from typing import Optional, Type, Dict, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
+import logging
 
 import networkx
+
 from ... import Analysis, register_analysis
 from ..condition_processor import ConditionProcessor
 from ..graph_region import GraphRegion
@@ -9,12 +11,16 @@ from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..empty_node_remover import EmptyNodeRemover
 from ..jump_target_collector import JumpTargetCollector
 from ..redundant_label_remover import RedundantLabelRemover
+from .structurer_nodes import BaseNode
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
 
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+
+
+_l = logging.getLogger(__name__)
 
 
 class RecursiveStructurer(Analysis):
@@ -27,24 +33,24 @@ class RecursiveStructurer(Analysis):
         region,
         cond_proc=None,
         func: Optional["Function"] = None,
-        structurer_cls: Optional[Type] = None,
-        improve_structurer=True,
+        structurer_cls: type | None = None,
         **kwargs,
     ):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
-        self.improve_structurer = improve_structurer
         self.structurer_options = kwargs
 
         self.result = None
+        self.result_incomplete: bool = False
 
         self._analyze()
 
     def _analyze(self):
         region = self._region.recursive_copy()
-        self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
+        self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
+        self.result_incomplete = False
 
         # visit the region in post-order DFS
         parent_map = {}
@@ -83,13 +89,21 @@ class RecursiveStructurer(Analysis):
                     case_entry_to_switch_head=self._case_entry_to_switch_head,
                     func=self.function,
                     parent_region=parent_region,
-                    improve_structurer=self.improve_structurer,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
-                    self.result = st.result
+                    if st.result is None:
+                        # take the partial result out of the graph
+                        _l.warning(
+                            "Structuring failed to complete (most likely due to bugs in structuring). The "
+                            "output will miss code blocks."
+                        )
+                        self.result = self._pick_incomplete_result_from_region(st._region)
+                        self.result_incomplete = True
+                    else:
+                        self.result = st.result
                     break
 
                 if st.result is None:
@@ -132,7 +146,7 @@ class RecursiveStructurer(Analysis):
     def _replace_region_with_region(parent_region, sub_region, new_region):
         parent_region.replace_region_with_region(sub_region, new_region)
 
-    def _get_switch_case_entries(self) -> Dict[int, int]:
+    def _get_switch_case_entries(self) -> dict[int, int]:
         if self.function is None:
             return {}
 
@@ -147,6 +161,23 @@ class RecursiveStructurer(Analysis):
                 entries[entry_addr] = jump_table_head_addr
 
         return entries
+
+    def _pick_incomplete_result_from_region(self, region):
+        """
+        Parse the region graph and get (a) the node with address equal to the function address, or (b) the node with
+        the lowest address.
+        """
+
+        min_node = None
+        for node in region.graph.nodes:
+            if not isinstance(node, BaseNode):
+                continue
+            if node.addr == self.function.addr:
+                return node
+            if min_node is None or min_node.addr < node.addr:
+                min_node = node
+
+        return min_node
 
 
 register_analysis(RecursiveStructurer, "RecursiveStructurer")

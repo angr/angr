@@ -1,5 +1,5 @@
 import operator
-from typing import Callable, Iterable, Tuple
+from collections.abc import Callable, Iterable
 
 import claripy
 from claripy.ast.bv import BV
@@ -14,7 +14,7 @@ except ImportError:
 # pylint:disable=abstract-method
 
 
-def make_bv_sizes_equal(bv1: BV, bv2: BV) -> Tuple[BV, BV]:
+def make_bv_sizes_equal(bv1: BV, bv2: BV) -> tuple[BV, BV]:
     """
     Makes two BVs equal in length through sign extension.
     """
@@ -886,6 +886,23 @@ class OpBehaviorPopcount(OpBehavior):
         return expr
 
 
+class OpBehaviorLzcount(OpBehavior):
+    """
+    Behavior for the LZCOUNT operation.
+    """
+
+    def __init__(self):
+        super().__init__(OpCode.LZCOUNT, True)
+
+    def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
+        expr = claripy.BVV(len(in1), size_out * 8)
+        for pos in range(len(in1)):
+            expr = claripy.If(
+                claripy.Extract(pos, pos, in1) == claripy.BVV(1, 1), claripy.BVV(len(in1) - pos - 1, size_out * 8), expr
+            )
+        return expr
+
+
 class BehaviorFactory:
     """
     Returns the behavior object for a given opcode.
@@ -973,5 +990,6 @@ class BehaviorFactory:
                 OpCode.INSERT: OpBehavior(OpCode.INSERT, False, True),
                 OpCode.EXTRACT: OpBehavior(OpCode.EXTRACT, False, True),
                 OpCode.POPCOUNT: OpBehaviorPopcount(),
+                OpCode.LZCOUNT: OpBehaviorLzcount(),
             }
         )

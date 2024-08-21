@@ -1,5 +1,6 @@
 import logging
-from typing import Optional, DefaultDict, Dict, Tuple, Set, Any, Union, TYPE_CHECKING, Iterable
+from typing import Optional, DefaultDict, Any, Union, TYPE_CHECKING
+from collections.abc import Iterable
 from collections import defaultdict
 
 import ailment
@@ -28,8 +29,8 @@ from .dep_graph import DepGraph
 if TYPE_CHECKING:
     from typing import Literal
 
-    ObservationPoint = Tuple[
-        Literal["insn", "node", "stmt", "exit"], Union[int, Tuple[int, int], Tuple[int, int, int]], ObservationPointType
+    ObservationPoint = tuple[
+        Literal["insn", "node", "stmt", "exit"], Union[int, tuple[int, int], tuple[int, int, int]], ObservationPointType
     ]
 
 l = logging.getLogger(name=__name__)
@@ -53,9 +54,9 @@ class ReachingDefinitionsAnalysis(
 
     def __init__(
         self,
-        subject: Union[Subject, ailment.Block, Block, Function, str] = None,
+        subject: Subject | ailment.Block | Block | Function | str = None,
         func_graph=None,
-        max_iterations=3,
+        max_iterations=30,
         track_tmps=False,
         track_consts=True,
         observation_points: "Iterable[ObservationPoint]" = None,
@@ -66,14 +67,16 @@ class ReachingDefinitionsAnalysis(
         function_handler: "Optional[FunctionHandler]" = None,
         observe_all=False,
         visited_blocks=None,
-        dep_graph: Union[DepGraph, bool, None] = True,
+        dep_graph: DepGraph | bool | None = True,
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
         interfunction_level: int = 0,
         track_liveness: bool = True,
-        func_addr: Optional[int] = None,
+        func_addr: int | None = None,
+        element_limit: int = 5,
+        merge_into_tops: bool = True,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -108,6 +111,10 @@ class ReachingDefinitionsAnalysis(
         :param track_liveness:                  Whether to track liveness information. This can consume
                                                 sizeable amounts of RAM on large functions. (e.g. ~15GB for a function
                                                 with 4k nodes)
+        :param merge_into_tops:                 Merge known values into TOP if TOP is present.
+                                                If True: {TOP} V {0xabc} = {TOP}
+                                                If False: {TOP} V {0xabc} = {TOP, 0xabc}
+
 
         """
 
@@ -131,6 +138,8 @@ class ReachingDefinitionsAnalysis(
         self._canonical_size = canonical_size
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
+        self._element_limit = element_limit
+        self._merge_into_tops = merge_into_tops
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
@@ -196,13 +205,13 @@ class ReachingDefinitionsAnalysis(
             bp_as_gpr=bp_as_gpr,
         )
 
-        self._visited_blocks: Set[Any] = visited_blocks or set()
-        self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
+        self._visited_blocks: set[Any] = visited_blocks or set()
+        self.function_calls: dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
 
     @property
-    def observed_results(self) -> Dict[Tuple[str, int, int], LiveDefinitions]:
+    def observed_results(self) -> dict[tuple[str, int, int], LiveDefinitions]:
         return self.model.observed_results
 
     @property
@@ -268,7 +277,7 @@ class ReachingDefinitionsAnalysis(
         node_addr: int,
         state: ReachingDefinitionsState,
         op_type: ObservationPointType,
-        node_idx: Optional[int] = None,
+        node_idx: int | None = None,
     ) -> None:
         """
         :param node_addr:   Address of the node.
@@ -305,8 +314,8 @@ class ReachingDefinitionsAnalysis(
     def insn_observe(
         self,
         insn_addr: int,
-        stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
-        block: Union[Block, ailment.Block],
+        stmt: ailment.Stmt.Statement | pyvex.stmt.IRStmt,
+        block: Block | ailment.Block,
         state: ReachingDefinitionsState,
         op_type: ObservationPointType,
     ) -> None:
@@ -356,8 +365,8 @@ class ReachingDefinitionsAnalysis(
     def stmt_observe(
         self,
         stmt_idx: int,
-        stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
-        block: Union[Block, ailment.Block],
+        stmt: ailment.Stmt.Statement | pyvex.stmt.IRStmt,
+        block: Block | ailment.Block,
         state: ReachingDefinitionsState,
         op_type: ObservationPointType,
     ) -> None:
@@ -403,9 +412,9 @@ class ReachingDefinitionsAnalysis(
         self,
         node_addr: int,
         exit_stmt_idx: int,
-        block: Union[Block, ailment.Block],
+        block: Block | ailment.Block,
         state: ReachingDefinitionsState,
-        node_idx: Optional[int] = None,
+        node_idx: int | None = None,
     ):
         observe = False
         key = None
@@ -469,12 +478,28 @@ class ReachingDefinitionsAnalysis(
                 analysis=self,
                 canonical_size=self._canonical_size,
                 initializer=self._state_initializer,
+                element_limit=self._element_limit,
+                merge_into_tops=self._merge_into_tops,
             )
 
     # pylint: disable=no-self-use,arguments-differ
     def _merge_states(self, _node, *states: ReachingDefinitionsState):
+        assert len(states) >= 2
         merged_state, merge_occurred = states[0].merge(*states[1:])
         return merged_state, not merge_occurred
+
+    def _compare_states(self, node, old_state: ReachingDefinitionsState, new_state: ReachingDefinitionsState) -> bool:
+        """
+        Return True if new_state >= old_state in the lattice.
+
+        :param node:
+        :param old_state:
+        :param new_state:
+        :return:
+        """
+
+        reached_fixedpoint = new_state.compare(old_state)
+        return reached_fixedpoint
 
     def _run_on_node(self, node, state: ReachingDefinitionsState):
         """
@@ -539,11 +564,18 @@ class ReachingDefinitionsAnalysis(
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
 
+        if self._track_tmps:
+            # merge tmp uses to all_uses
+            for tmp_idx, locs in state.tmp_uses.items():
+                tmp_def = next(iter(state.tmps[tmp_idx]))
+                for loc in locs:
+                    self.all_uses.add_use(tmp_def, loc)
+
         # drop definitions and uses because we will not need them anymore
         state.downsize()
 
         if self._node_iterations[block_key] < self._max_iterations:
-            return True, state
+            return None, state
         else:
             return False, state
 
@@ -553,7 +585,7 @@ class ReachingDefinitionsAnalysis(
     def _post_analysis(self):
         pass
 
-    def callsites_to(self, target: Union[int, str, Function]) -> Iterable[FunctionCallRelationships]:
+    def callsites_to(self, target: int | str | Function) -> Iterable[FunctionCallRelationships]:
         if isinstance(target, (str, int)):
             try:
                 func_addr = self.project.kb.functions[target].addr

@@ -10,6 +10,7 @@ from ...calling_conventions import (
     register_default_cc,
     SimCCUnknown,
     default_cc,
+    SimCCO32,
 )
 
 
@@ -43,7 +44,7 @@ class SimCCSPARC(SimCC):
     Default CC for SPARC
     """
 
-    ARG_REGS = ["o0", "o1"]
+    ARG_REGS = ["o0", "o1", "o2", "o3", "o4", "o5"]
     RETURN_VAL = SimRegArg("o0", 8)
     RETURN_ADDR = SimRegArg("o7", 8)
 
@@ -96,6 +97,8 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
         # we have a bunch of manually specified mappings
         manual_cc_mapping = {
             "68000:BE:32:default": SimCCM68k,
+            "RISCV:LE:32:RV32G": SimCCRISCV,
+            "RISCV:LE:32:RV32GC": SimCCRISCV,
             "RISCV:LE:64:RV64G": SimCCRISCV,
             "RISCV:LE:64:RV64GC": SimCCRISCV,
             "sparc:BE:32:default": SimCCSPARC,
@@ -105,6 +108,7 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
             "PowerPC:BE:32:e200": SimCCPowerPC,
             "PowerPC:BE:32:MPC8270": SimCCPowerPC,
             "Xtensa:LE:32:default": SimCCXtensa,
+            "MIPS:LE:32:default": SimCCO32,
         }
         if arch.name in manual_cc_mapping:
             # first attempt: manually specified mappings

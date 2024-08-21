@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Any, Set, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 import copy
 import logging
 
@@ -7,10 +7,11 @@ from ailment import Stmt, Expr
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.errors import SimMemoryMissingError
-from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
+from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, dereference_simtype
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
+from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -35,7 +36,7 @@ class CallSiteMaker(Analysis):
         self._ail_manager = ail_manager
 
         self.result_block = None
-        self.stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None  # ins_addr, stack_offset
+        self.stack_arg_offsets: set[tuple[int, int]] | None = None  # ins_addr, stack_offset
 
         self._analyze()
 
@@ -49,10 +50,15 @@ class CallSiteMaker(Analysis):
             self.result_block = self.block
             return
 
+        if isinstance(last_stmt.target, str):
+            # custom function calls
+            self.result_block = self.block
+            return
+
         cc = None
         prototype = None
         func = None
-        stack_arg_locs: List[SimStackArg] = []
+        stack_arg_locs: list[SimStackArg] = []
         stackarg_sp_diff = 0
 
         # priority:
@@ -83,6 +89,20 @@ class CallSiteMaker(Analysis):
         if (cc is None or prototype is None) and has_callsite_prototype:
             cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
             prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
+
+        # ensure the prototype has been resolved
+        if prototype is not None and func is not None:
+            # make sure the function prototype is resolved.
+            # TODO: Cache resolved function prototypes globally
+            prototype_libname = func.prototype_libname
+            type_collections = []
+            if prototype_libname is not None:
+                prototype_lib = SIM_LIBRARIES[prototype_libname]
+                if prototype_lib.type_collection_names:
+                    for typelib_name in prototype_lib.type_collection_names:
+                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+            if type_collections:
+                prototype = dereference_simtype(prototype, type_collections).with_arch(self.project.arch)
 
         args = []
         arg_defs = []
@@ -230,7 +250,7 @@ class CallSiteMaker(Analysis):
             l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
             return None
 
-    def _resolve_register_argument(self, call_stmt, arg_loc) -> Set[Tuple[Optional[int], "Definition"]]:
+    def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, "Definition"]]:
         size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
@@ -260,7 +280,7 @@ class CallSiteMaker(Analysis):
 
         return set()
 
-    def _resolve_stack_argument(self, call_stmt, arg_loc) -> Tuple[Any, Any]:  # pylint:disable=unused-argument
+    def _resolve_stack_argument(self, call_stmt, arg_loc) -> tuple[Any, Any]:  # pylint:disable=unused-argument
         size = arg_loc.size
         offset = arg_loc.stack_offset
         if self.project.arch.call_pushes_ret:
@@ -310,12 +330,12 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Optional["Function"], cc: SimCC, call_stmt) -> Optional[int]:
+    def _determine_variadic_arguments(self, func: Optional["Function"], cc: SimCC, call_stmt) -> int | None:
         if func is not None and "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> Optional[int]:
+    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> int | None:
         proto = func.prototype
         if proto is None:
             # TODO: Support cases where prototypes are not available
@@ -325,7 +345,7 @@ class CallSiteMaker(Analysis):
         # get the format string
         #
 
-        potential_fmt_args: List[int] = []
+        potential_fmt_args: list[int] = []
         for idx, arg in enumerate(proto.args):
             if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeChar):
                 # find a char*
@@ -376,7 +396,7 @@ class CallSiteMaker(Analysis):
             return None
         return len(specifiers)
 
-    def _atom_idx(self) -> Optional[int]:
+    def _atom_idx(self) -> int | None:
         return self._ail_manager.next_atom() if self._ail_manager is not None else None
 
 

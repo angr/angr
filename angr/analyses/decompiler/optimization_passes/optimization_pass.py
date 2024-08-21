@@ -1,17 +1,23 @@
 # pylint:disable=unused-argument
-from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING
+from collections.abc import Generator
 from enum import Enum
 
 import networkx  # pylint:disable=unused-import
 import ailment
 
 from angr.analyses.decompiler import RegionIdentifier
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import GotoManager
-from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
+from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import add_labels
+from angr.analyses.decompiler.seq_cf_structure_counter import ControlFlowStructureCounter
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+
+_l = logging.getLogger(__name__)
 
 
 class MultipleBlocksException(Exception):
@@ -52,9 +58,7 @@ class BaseOptimizationPass:
     ARCHES = []  # strings of supported architectures
     PLATFORMS = []  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
-    STRUCTURING: Optional[str] = (
-        None  # specifies if this optimization pass is specific to a certain structuring algorithm
-    )
+    STRUCTURING: str | None = None  # specifies if this optimization pass is specific to a certain structuring algorithm
     NAME = "N/A"
     DESCRIPTION = "N/A"
 
@@ -93,6 +97,26 @@ class BaseOptimizationPass:
         """
         raise NotImplementedError()
 
+    def _simplify_graph(self, graph):
+        simp = self.project.analyses.AILSimplifier(
+            self._func,
+            func_graph=graph,
+            use_callee_saved_regs_at_return=False,
+            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+        )
+        return simp.func_graph if simp.simplified else graph
+
+    def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
+        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+            self._func,
+            graph=graph,
+            cond_proc=condition_processor or ConditionProcessor(self.project.arch),
+            update_graph=update_graph,
+            # TODO: find a way to pass Phoenix/DREAM options here (see decompiler.py for correct use)
+            force_loop_single_exit=True,
+            complete_successors=False,
+        )
+
 
 class OptimizationPass(BaseOptimizationPass):
     """
@@ -112,23 +136,23 @@ class OptimizationPass(BaseOptimizationPass):
     ):
         super().__init__(func)
         # self._blocks is just a cache
-        self._blocks_by_addr: Dict[int, Set[ailment.Block]] = blocks_by_addr
-        self._blocks_by_addr_and_idx: Dict[Tuple[int, Optional[int]], ailment.Block] = blocks_by_addr_and_idx
-        self._graph: Optional[networkx.DiGraph] = graph
+        self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr
+        self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx
+        self._graph: networkx.DiGraph | None = graph
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
         self._new_block_addrs = set()
 
         # output
-        self.out_graph: Optional[networkx.DiGraph] = None
+        self.out_graph: networkx.DiGraph | None = None
 
     @property
-    def blocks_by_addr(self) -> Dict[int, Set[ailment.Block]]:
+    def blocks_by_addr(self) -> dict[int, set[ailment.Block]]:
         return self._blocks_by_addr
 
     @property
-    def blocks_by_addr_and_idx(self) -> Dict[Tuple[int, Optional[int]], ailment.Block]:
+    def blocks_by_addr_and_idx(self) -> dict[tuple[int, int | None], ailment.Block]:
         return self._blocks_by_addr_and_idx
 
     #
@@ -148,7 +172,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._new_block_addrs.add(new_addr)
         return new_addr
 
-    def _get_block(self, addr, idx=None) -> Optional[ailment.Block]:
+    def _get_block(self, addr, idx=None) -> ailment.Block | None:
         if not self._blocks_by_addr:
             return None
         else:
@@ -242,10 +266,17 @@ class StructuringOptimizationPass(OptimizationPass):
     The base class for any optimization pass that requires structuring. Optimization passes that inherit from this class
     should directly depend on structuring artifacts, such as regions and gotos. Otherwise, they should use
     OptimizationPass. This is the heaviest (computation time) optimization pass class.
+
+    By default this type of optimization should work:
+    - on any architecture
+    - on any platform
+    - during region identification (to have iterative structuring)
+    - only with the SAILR structuring algorithm
     """
 
     ARCHES = None
     PLATFORMS = None
+    STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
     def __init__(
@@ -254,8 +285,10 @@ class StructuringOptimizationPass(OptimizationPass):
         prevent_new_gotos=True,
         strictly_less_gotos=False,
         recover_structure_fails=True,
+        must_improve_rel_quality=True,
         max_opt_iters=1,
         simplify_ail=True,
+        require_gotos=True,
         **kwargs,
     ):
         super().__init__(func, **kwargs)
@@ -264,9 +297,15 @@ class StructuringOptimizationPass(OptimizationPass):
         self._recover_structure_fails = recover_structure_fails
         self._max_opt_iters = max_opt_iters
         self._simplify_ail = simplify_ail
+        self._require_gotos = require_gotos
+        self._must_improve_rel_quality = must_improve_rel_quality
 
-        self._goto_manager: Optional[GotoManager] = None
-        self._prev_graph: Optional[networkx.DiGraph] = None
+        self._goto_manager: GotoManager | None = None
+        self._prev_graph: networkx.DiGraph | None = None
+
+        # relative quality metrics (excludes gotos)
+        self._initial_structure_counter = None
+        self._current_structure_counter = None
 
     def _analyze(self, cache=None) -> bool:
         raise NotImplementedError()
@@ -275,10 +314,13 @@ class StructuringOptimizationPass(OptimizationPass):
         """
         Wrapper for _analyze() that verifies the graph is structurable before and after the optimization.
         """
-        if not self._graph_is_structurable(self._graph):
+        if not self._graph_is_structurable(self._graph, initial=True):
             return
 
         initial_gotos = self._goto_manager.gotos.copy()
+        if self._require_gotos and not initial_gotos:
+            return
+
         # replace the normal check in OptimizationPass.analyze()
         ret, cache = self._check()
         if not ret:
@@ -304,7 +346,7 @@ class StructuringOptimizationPass(OptimizationPass):
         # simplify the AIL graph
         if self._simplify_ail:
             # this should not (TM) change the structure of the graph but is needed for later optimizations
-            self.out_graph = self._simplify_ail_graph(self.out_graph)
+            self.out_graph = self._simplify_graph(self.out_graph)
 
         if self._prevent_new_gotos:
             prev_gotos = len(initial_gotos)
@@ -315,8 +357,15 @@ class StructuringOptimizationPass(OptimizationPass):
                 self.out_graph = None
                 return
 
+        if self._must_improve_rel_quality and not self._improves_relative_quality():
+            self.out_graph = None
+            return
+
     def _fixed_point_analyze(self, cache=None):
         for _ in range(self._max_opt_iters):
+            if self._require_gotos and not self._goto_manager.gotos:
+                break
+
             # backup the graph before the optimization
             if self._recover_structure_fails and self.out_graph is not None:
                 self._prev_graph = networkx.DiGraph(self.out_graph)
@@ -331,15 +380,7 @@ class StructuringOptimizationPass(OptimizationPass):
                 self.out_graph = self._prev_graph if self._recover_structure_fails else None
                 break
 
-    def _simplify_ail_graph(self, graph):
-        simp = self.project.analyses.AILSimplifier(
-            self._func,
-            func_graph=graph,
-            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
-        )
-        return simp.func_graph if simp.simplified else graph
-
-    def _graph_is_structurable(self, graph, readd_labels=False) -> bool:
+    def _graph_is_structurable(self, graph, readd_labels=False, initial=False) -> bool:
         """
         Checks weather the input graph is structurable under the Phoenix schema-matching structuring algorithm.
         As a side effect, this will also update the region identifier and goto manager of this optimization pass.
@@ -360,18 +401,74 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._ri is None:
             return False
 
-        rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            self._ri.region,
-            cond_proc=self._ri.cond_proc,
-            func=self._func,
-            structurer_cls=PhoenixStructurer,
-        )
-        if not rs or not rs.result or not rs.result.nodes:
+        # we should try-catch structuring here because we can often pass completely invalid graphs
+        # that break the assumptions of the structuring algorithm
+        try:
+            rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
+                self._ri.region,
+                cond_proc=self._ri.cond_proc,
+                func=self._func,
+                structurer_cls=SAILRStructurer,
+            )
+        # pylint:disable=broad-except
+        except Exception:
+            _l.warning("Internal structuring failed for OptimizationPass on %s", self._func.name)
+            rs = None
+
+        if not rs or not rs.result or not rs.result.nodes or rs.result_incomplete:
             return False
 
         rs = self.project.analyses.RegionSimplifier(self._func, rs.result, kb=self.kb, variable_kb=self._variable_kb)
-        if not rs or rs.goto_manager is None:
+        if not rs or rs.goto_manager is None or rs.result is None:
             return False
 
+        self._analyze_simplified_region(rs.result, initial=initial)
         self._goto_manager = rs.goto_manager
+        return True
+
+    # pylint:disable=no-self-use
+    def _analyze_simplified_region(self, region, initial=False):
+        """
+        Analyze the simplified regions after a successful structuring pass.
+        This should be overridden by the subclass if it needs to do anything with the simplified regions for making
+        optimizations decisions.
+        """
+        if region is None:
+            return
+
+        # record quality metrics
+        if self._must_improve_rel_quality:
+            if initial:
+                self._initial_structure_counter = ControlFlowStructureCounter(region)
+            else:
+                self._current_structure_counter = ControlFlowStructureCounter(region)
+
+    def _improves_relative_quality(self) -> bool:
+        """
+        Checks if the new structured output improves (or maintains) the relative quality of the control flow structures
+        present in the function.
+
+        For now, this only involves loops
+        """
+        if self._initial_structure_counter is None or self._current_structure_counter is None:
+            _l.warning("Relative quality check failed due to missing structure counters")
+            return True
+
+        prev_wloops = self._initial_structure_counter.while_loops
+        curr_wloops = self._current_structure_counter.while_loops
+        prev_dloops = self._initial_structure_counter.do_while_loops
+        curr_dloops = self._current_structure_counter.do_while_loops
+        prev_floops = self._initial_structure_counter.for_loops
+        curr_floops = self._current_structure_counter.for_loops
+        total_prev_loops = prev_wloops + prev_dloops + prev_floops
+        total_curr_loops = curr_wloops + curr_dloops + curr_floops
+
+        # Sometimes, if we mess up structuring you can easily tell because we traded "good" loops for "bad" loops.
+        # Generally, loops are ordered good -> bad as follows: for, while, do-while.
+        # Note: this check is only for _trading_, meaning the total number of loops must be the same.
+        #
+        # 1. We traded to remove a for-loop
+        if curr_floops < prev_floops and total_curr_loops == total_prev_loops:
+            return False
+
         return True

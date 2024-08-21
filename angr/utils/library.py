@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ..sim_type import (
     parse_file,
@@ -72,7 +72,7 @@ def register_kernel_types():
     )
 
 
-def convert_cproto_to_py(c_decl) -> Tuple[str, "SimTypeFunction", str]:
+def convert_cproto_to_py(c_decl) -> tuple[str, "SimTypeFunction", str]:
     """
     Convert a C-style function declaration string to its corresponding SimTypes-based Python representation.
 
@@ -110,7 +110,7 @@ def convert_cproto_to_py(c_decl) -> Tuple[str, "SimTypeFunction", str]:
 
 def convert_cppproto_to_py(
     cpp_decl: str, with_param_names: bool = False
-) -> Tuple[Optional[str], Optional[SimTypeCppFunction], Optional[str]]:
+) -> tuple[str | None, SimTypeCppFunction | None, str | None]:
     """
     Pre-process a C++-style function declaration string to its corresponding SimTypes-based Python representation.
 
@@ -145,7 +145,7 @@ def convert_cppproto_to_py(
 
 
 def parsedcprotos2py(
-    parsed_cprotos: List[Tuple[str, "SimTypeFunction", str]], fd_spots=frozenset(), remove_sys_prefix=False
+    parsed_cprotos: list[tuple[str, "SimTypeFunction", str]], fd_spots=frozenset(), remove_sys_prefix=False
 ) -> str:
     """
     Parse a list of C function declarations and output to Python code that can be embedded into
@@ -170,13 +170,13 @@ def parsedcprotos2py(
                 if (func_name, i) in fd_spots:
                     proto_.args[i] = SimTypeFd(label=arg.label)
 
-        line1 = " " * 8 + "# " + decl + "\n"
+        line1 = " " * 8 + "#" + ((" " + decl) if decl else "") + "\n"
         line2 = " " * 8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + "," + "\n"
         s += line1 + line2
     return s
 
 
-def cprotos2py(cprotos: List[str], fd_spots=frozenset(), remove_sys_prefix=False) -> str:
+def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False) -> str:
     """
     Parse a list of C function declarations and output to Python code that can be embedded into
     angr.procedures.definitions.
@@ -205,7 +205,7 @@ def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
     if not qualified:
         # remove leading namespaces
         chunks = name.split("::")
-        name = "::".join(chunks[-2:])
+        name = "::".join(chunks[2:])
 
     # remove arguments
     if "(" in name:

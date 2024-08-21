@@ -1,6 +1,7 @@
-# pylint:disable=abstract-method,arguments-differ
+# pylint:disable=abstract-method,arguments-differ,assignment-from-no-return
 import logging
-from typing import Optional, List, Set, Tuple, Union, Callable
+from typing import Union, Any
+from collections.abc import Callable
 
 from angr.utils.dynamic_dictlist import DynamicDictList
 from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
@@ -28,19 +29,19 @@ class MVListPage(
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: DynamicDictList[Optional[Union[_MOTYPE, Set[_MOTYPE]]]] = (
+        self.content: DynamicDictList[_MOTYPE | set[_MOTYPE] | None] = (
             DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
         )
         self.stored_offset = set()
-        self._mo_cmp: Optional[Callable] = mo_cmp
+        self._mo_cmp: Callable | None = mo_cmp
 
         if self.content is None:
             if memory is not None:
-                self.content: DynamicDictList[Optional[Union[_MOTYPE, Set[_MOTYPE]]]] = DynamicDictList(
+                self.content: DynamicDictList[_MOTYPE | set[_MOTYPE] | None] = DynamicDictList(
                     max_size=memory.page_size
                 )
 
-        self.sinkhole: Optional[_MOTYPE] = sinkhole
+        self.sinkhole: _MOTYPE | None = sinkhole
 
     def copy(self, memo) -> "MVListPage":
         o = super().copy(memo)
@@ -52,7 +53,7 @@ class MVListPage(
 
     def load(
         self, addr, size=None, endness=None, page_addr=None, memory=None, cooperate=False, **kwargs
-    ) -> List[Tuple[int, _MOTYPE]]:
+    ) -> list[tuple[int, _MOTYPE]]:
         result = []
         last_seen = ...  # ;)
 
@@ -111,7 +112,7 @@ class MVListPage(
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
 
-        data: Set[_MOTYPE]
+        data: set[_MOTYPE]
 
         if size == len(self.content) and addr == 0 and len(data) == 1:
             self.sinkhole = next(iter(data))
@@ -141,19 +142,19 @@ class MVListPage(
 
     def merge(
         self,
-        others: List["MVListPage"],
+        others: list["MVListPage"],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,
         memory=None,
-        changed_offsets: Optional[Set[int]] = None,
+        changed_offsets: set[int] | None = None,
     ):
         if changed_offsets is None:
             changed_offsets = set()
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: List["MVListPage"] = [self] + others
+        all_pages: list["MVListPage"] = [self] + others
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -166,40 +167,58 @@ class MVListPage(
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects = []
+            memory_object_sets: set[tuple[frozenset[SimMemoryObject], Any]] = set()
             unconstrained_in = []
 
-            # first get a list of all memory objects at that location, and
-            # all memories that don't have those bytes
+            # first get a list of all memory objects at that location, and all memories that don't have those bytes
+            self_has_memory_object_set = False
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
                     l.info("... present in %s", fv)
+                    memory_objects = set()
                     for mo in sm.content_gen(b):
                         if mo.includes(page_addr + b):
-                            memory_objects.append((mo, fv))
+                            memory_objects.add(mo)
+                    memory_object_sets.add((frozenset(memory_objects), fv))
+                    if sm is self:
+                        self_has_memory_object_set = True
                 else:
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            if not memory_objects:
+            if not memory_object_sets:
+                continue
+            if self_has_memory_object_set and len(memory_object_sets) == 1:
                 continue
 
-            mos = {mo for mo, _ in memory_objects}
-            mo_bases = {mo.base for mo, _ in memory_objects}
-            mo_lengths = {mo.length for mo, _ in memory_objects}
-            endnesses = {mo.endness for mo in mos}
+            mo_sets = {mo_set for mo_set, _ in memory_object_sets}
+            mo_bases = set()
+            mo_lengths = set()
+            endnesses = set()
+            for mo_set in mo_sets:
+                for mo in mo_set:
+                    mo_bases.add(mo.base)
+                    mo_lengths.add(mo.length)
+                    endnesses.add(mo.endness)
 
-            if not unconstrained_in and not (mos - merged_objects):  # pylint:disable=superfluous-parens
+            if not unconstrained_in and not (mo_sets - merged_objects):  # pylint:disable=superfluous-parens
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
             if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in and len(endnesses) == 1:
+                if len(memory_object_sets) == 1:
+                    # nothing to merge!
+                    continue
+
                 the_endness = next(iter(endnesses))
-                to_merge = [(mo.object, fv) for mo, fv in memory_objects]
+                to_merge = []
+                for mo_set, fv in memory_object_sets:
+                    for mo in mo_set:
+                        to_merge.append((mo.object, fv))
 
                 # Update `merged_to`
                 mo_base = list(mo_bases)[0]
-                mo_length = memory_objects[0][0].length
+                mo_length = next(iter(mo_lengths))
                 size = min(mo_length - (page_addr + b - mo_base), len(self.content) - b)
                 merged_to = b + size
 
@@ -212,25 +231,19 @@ class MVListPage(
                 # TODO: Implement in-place replacement instead of calling store()
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
-                first_value = True
-                for v in merged_val:
-                    self.store(
-                        b,
-                        {SimMemoryObject(v, mo_base, endness=the_endness)},
-                        size=size,
-                        cooperate=True,
-                        weak=not first_value,
-                    )
-                    first_value = False
+                new_mos = {SimMemoryObject(v, mo_base, endness=the_endness) for v in merged_val}
+                self.store(b, new_mos, size=size, cooperate=True, weak=False)
 
                 merged_offsets.add(b)
 
             else:
-                # get the size that we can merge easily. This is the minimum of
-                # the size of all memory objects and unallocated spaces.
-                min_size = min(
-                    [mo.length - (b + page_addr - mo.base) for mo, _ in memory_objects] + [len(self.content) - b]
-                )
+                # get the size that we can merge easily. This is the minimum of the size of all memory objects and
+                # unallocated spaces.
+                min_size = len(self.content) - b
+                mask = (1 << memory.state.arch.bits) - 1
+                for mo_set in mo_sets:
+                    for mo in mo_set:
+                        min_size = min(min_size, mo.length - ((b + page_addr - mo.base) & mask))
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):
@@ -241,9 +254,11 @@ class MVListPage(
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = (
-                    [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
-                )
+                extracted = []
+                if min_size != 0:
+                    for mo_set, fv in memory_object_sets:
+                        for mo in mo_set:
+                            extracted.append((mo.bytes_at(page_addr + b, min_size), fv))
                 if not memory.skip_missing_values_during_merging:
                     created = [
                         (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory), fv)
@@ -257,31 +272,55 @@ class MVListPage(
                 if merged_val is None:
                     continue
 
-                first_value = True
-                for v in merged_val:
-                    self.store(
-                        b,
-                        {SimMemoryObject(v, page_addr + b, endness="Iend_BE")},
-                        size=min_size,
-                        endness="Iend_BE",
-                        cooperate=True,
-                        weak=not first_value,
-                    )  # do not convert endianness again
-                    first_value = False
+                new_mos = {SimMemoryObject(v, page_addr + b, endness="Iend_BE") for v in merged_val}
+                self.store(b, new_mos, size=min_size, cooperate=True, weak=False)
                 merged_offsets.add(b)
 
         self.stored_offset |= merged_offsets
         return merged_offsets
 
+    def compare(
+        self, other: "MVListPage", page_addr: int = None, memory=None, changed_offsets=None
+    ) -> bool:  # pylint: disable=unused-argument
+        compared_to = None
+        for b in sorted(changed_offsets):
+            if compared_to is not None and not b >= compared_to:
+                continue
+
+            unconstrained_in = []
+            self_has_memory_object_set = False
+            memory_object_sets: set[frozenset[SimMemoryObject]] = set()
+            for sm in [self, other]:
+                if sm._contains(b, page_addr):
+                    memory_objects = set()
+                    for mo in sm.content_gen(b):
+                        if mo.includes(page_addr + b):
+                            memory_objects.add(mo)
+                    memory_object_sets.add(frozenset(memory_objects))
+                    if sm is self:
+                        self_has_memory_object_set = True
+                else:
+                    unconstrained_in.append(sm)
+
+            if not memory_object_sets:
+                continue
+            if self_has_memory_object_set and len(memory_object_sets) == 1:
+                continue
+
+            # TODO: compare_values even more?
+            return False
+
+        return True
+
     def changed_bytes(self, other: "MVListPage", page_addr: int = None):
-        candidates: Set[int] = super().changed_bytes(other)
+        candidates: set[int] = super().changed_bytes(other)
         if candidates is not None:
             # using the result from the history tracking mixin as an approximation
             return candidates
 
         # slower path
         if candidates is None:
-            candidates: Set[int] = set()
+            candidates: set[int] = set()
             # resort to the slower solution
             if self.sinkhole is None:
                 candidates |= self.stored_offset
@@ -298,7 +337,7 @@ class MVListPage(
                         candidates.add(i)
 
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
-        differences: Set[int] = set()
+        differences: set[int] = set()
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
@@ -372,14 +411,14 @@ class MVListPage(
         return new_mo
 
     @staticmethod
-    def _resolve_range(mo: SimMemoryObject, page_addr: int, page_size) -> Tuple[int, int]:
+    def _resolve_range(mo: SimMemoryObject, page_addr: int, page_size) -> tuple[int, int]:
         start = max(mo.base, page_addr)
         end = min(mo.last_addr + 1, page_addr + page_size)
         if end <= start:
             l.warning("Nothing left of the memory object to store in SimPage.")
         return start, end
 
-    def _get_objects(self, start: int, page_addr: int) -> Optional[List[SimMemoryObject]]:
+    def _get_objects(self, start: int, page_addr: int) -> list[SimMemoryObject] | None:
         mos = self.content[start]
         if mos is None:
             return None

@@ -163,6 +163,9 @@ class SimEnginePropagatorVEX(
             self.state.store_register(stmt.offset, size, data)
             self.state.add_replacement(self._codeloc(block_only=False), VEXReg(stmt.offset, size), data)
 
+    def _handle_PutI(self, stmt):
+        self._expr(stmt.data)
+
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
         if isinstance(addr, claripy.ast.Base):
@@ -260,6 +263,9 @@ class SimEnginePropagatorVEX(
         size = expr.result_size(self.tyenv) // self.arch.byte_width
         return self.state.load_register(expr.offset, size)
 
+    def _handle_GetI(self, expr):
+        return self.state.top(expr.result_size(self.tyenv))
+
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         if addr is None or type(addr) in (Top, Bottom):
@@ -276,6 +282,13 @@ class SimEnginePropagatorVEX(
 
         r = super()._handle_Binop(expr)
         # print(expr.op, r)
+        return r
+
+    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
+        if not self.state.do_binops:
+            return self.state.top(expr.result_size(self.tyenv))
+
+        r = super()._handle_Triop(expr)
         return r
 
     def _handle_Conversion(self, expr):
@@ -311,3 +324,5 @@ class SimEnginePropagatorVEX(
                             self.state.block_initial_reg_values[self.block.addr, dst.concrete_value].append(v)
 
         super()._handle_Exit(stmt)
+
+    _handle_CmpF = _handle_CmpEQ

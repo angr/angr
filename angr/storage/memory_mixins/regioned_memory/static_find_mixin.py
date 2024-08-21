@@ -53,8 +53,8 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
         return r_union, [], match_indices
 
     def _find_compare(self, element, target, **kwargs):
-        elem_si = element._model_vsa  # pylint:disable=protected-access
-        target_si = target._model_vsa  # pylint:disable=protected-access
+        elem_si = claripy.backends.vsa.convert(element)
+        target_si = claripy.backends.vsa.convert(target)
 
         comparison, concrete_comparison = False, False
 
@@ -67,4 +67,4 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
 
     def _find_are_bytes_symbolic(self, b):
         # we only support strided intervals
-        return not isinstance(b._model_vsa, claripy.vsa.StridedInterval)  # pylint:disable=protected-access
+        return not isinstance(claripy.backends.vsa.convert(b), claripy.vsa.StridedInterval)

@@ -1,5 +1,4 @@
 # pylint:disable=no-self-use,unused-argument
-from typing import Set, Dict
 
 import pyvex
 
@@ -17,10 +16,10 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
 
         # the following variables are for narrowing argument-passing register on 64-bit architectures. they are
         # initialized before processing each block.
-        self.tmps_with_64bit_regs: Set[int] = set()  # tmps that store 64-bit register values
-        self.tmps_converted_to_32bit: Set[int] = set()  # tmps that store the 64-to-32-bit converted values
-        self.tmps_assignment_stmtidx: Dict[int, int] = {}  # statement IDs for the assignment of each tmp
-        self.stmts_to_lower: Set[int] = set()
+        self.tmps_with_64bit_regs: set[int] = set()  # tmps that store 64-bit register values
+        self.tmps_converted_to_32bit: set[int] = set()  # tmps that store the 64-to-32-bit converted values
+        self.tmps_assignment_stmtidx: dict[int, int] = {}  # statement IDs for the assignment of each tmp
+        self.stmts_to_lower: set[int] = set()
 
         # the following variables are for recognizing redundant argument register reads in gcc(?) -O0 binaries.
         # e.g.,
@@ -28,10 +27,16 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         #    mov rdi, rax
         #
         # we will not create a variable for the register read in the first instruction (read from r9) in this case.
-        self.tmp_with_reg_as_value: Dict[int, int] = {}
-        self.reg_with_reg_as_value: Dict[int, int] = {}
-        self.reg_read_stmt_id: Dict[int, int] = {}
-        self.reg_read_stmts_to_ignore: Set[int] = set()
+        self.tmp_with_reg_as_value: dict[int, int] = {}
+        self.reg_with_reg_as_value: dict[int, int] = {}
+        self.reg_read_stmt_id: dict[int, int] = {}
+        self.reg_read_stmts_to_ignore: set[int] = set()
+
+    def _top(self, size: int):
+        return None
+
+    def _is_top(self, expr) -> bool:
+        return True
 
     def _process_Stmt(self, whitelist=None):
         self.tmps_with_64bit_regs = set()
@@ -54,6 +59,9 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
                 old_reg_offset = self.reg_with_reg_as_value[stmt.offset]
                 self.reg_read_stmts_to_ignore.add(self.reg_read_stmt_id[old_reg_offset])
             self.reg_with_reg_as_value[stmt.offset] = self.tmp_with_reg_as_value[stmt.data.tmp]
+
+    def _handle_PutI(self, stmt):
+        pass
 
     def _handle_Load(self, expr):
         pass
@@ -84,6 +92,9 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         self.reg_read_stmt_id[expr.offset] = self.stmt_idx
         if expr.offset in self.reg_with_reg_as_value:
             del self.reg_with_reg_as_value[expr.offset]
+
+    def _handle_GetI(self, expr):
+        pass
 
     def _handle_RdTmp(self, expr):
         if expr.tmp in self.tmps_converted_to_32bit:

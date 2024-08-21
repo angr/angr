@@ -1,4 +1,3 @@
-from typing import Dict, Optional
 import logging
 
 import claripy
@@ -74,7 +73,7 @@ class CCallMultivaluedException(Exception):
 ### x86* data ###
 ##################
 
-data: Dict[str, Dict[str, Dict[str, Optional[int]]]] = {
+data: dict[str, dict[str, dict[str, int | None]]] = {
     "AMD64": {
         "CondTypes": {},
         "CondBitOffsets": {},

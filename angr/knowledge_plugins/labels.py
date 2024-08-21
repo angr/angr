@@ -6,7 +6,7 @@ from .plugin import KnowledgeBasePlugin
 
 class Labels(KnowledgeBasePlugin):
     def __init__(self, kb):
-        self._kb = kb
+        super().__init__(kb=kb)
         self._labels = {}
         self._reverse_labels = {}
 

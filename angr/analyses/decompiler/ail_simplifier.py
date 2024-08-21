@@ -1,4 +1,5 @@
-from typing import Set, Dict, List, Tuple, Any, Optional, TYPE_CHECKING
+# pylint:disable=too-many-boolean-expressions
+from typing import Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -23,8 +24,10 @@ from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
+from ...knowledge_plugins.key_definitions.atoms import Register as RegisterAtom
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
+from ...errors import AngrRuntimeError
 from .. import Analysis, AnalysesHub
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
@@ -72,14 +75,15 @@ class AILSimplifier(Analysis):
         func,
         func_graph=None,
         remove_dead_memdefs=False,
-        stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
+        stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
         ail_manager: Optional["Manager"] = None,
-        gp: Optional[int] = None,
+        gp: int | None = None,
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
         use_callee_saved_regs_at_return=True,
+        rewrite_ccalls=True,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -95,9 +99,10 @@ class AILSimplifier(Analysis):
         self._only_consts = only_consts
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._should_rewrite_ccalls = rewrite_ccalls
 
-        self._calls_to_remove: Set[CodeLocation] = set()
-        self._assignments_to_remove: Set[CodeLocation] = set()
+        self._calls_to_remove: set[CodeLocation] = set()
+        self._assignments_to_remove: set[CodeLocation] = set()
         self.blocks = {}  # Mapping nodes to simplified blocks
 
         self.simplified: bool = False
@@ -125,13 +130,14 @@ class AILSimplifier(Analysis):
         if self._only_consts:
             return
 
-        _l.debug("Rewriting ccalls")
-        ccalls_rewritten = self._rewrite_ccalls()
-        self.simplified |= ccalls_rewritten
-        if ccalls_rewritten:
-            _l.debug("... ccalls rewritten")
-            self._rebuild_func_graph()
-            self._clear_cache()
+        if self._should_rewrite_ccalls:
+            _l.debug("Rewriting ccalls")
+            ccalls_rewritten = self._rewrite_ccalls()
+            self.simplified |= ccalls_rewritten
+            if ccalls_rewritten:
+                _l.debug("... ccalls rewritten")
+                self._rebuild_func_graph()
+                self._clear_cache()
 
         if self._unify_vars:
             _l.debug("Removing dead assignments")
@@ -182,6 +188,7 @@ class AILSimplifier(Analysis):
             observe_all=False,
             use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
             track_tmps=True,
+            element_limit=1,
         ).model
         self._reaching_definitions = rd
         return rd
@@ -224,7 +231,7 @@ class AILSimplifier(Analysis):
 
         narrowed = False
 
-        addr_and_idx_to_block: Dict[Tuple[int, int], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -232,6 +239,16 @@ class AILSimplifier(Analysis):
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
             if isinstance(def_.atom, atoms.Register):
+                # only do this for general purpose register
+                skip_def = False
+                for reg in self.project.arch.register_list:
+                    if not reg.artificial and reg.vex_offset == def_.atom.reg_offset and not reg.general_purpose:
+                        skip_def = True
+                        break
+
+                if skip_def:
+                    continue
+
                 needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
                 if needs_narrowing:
                     # replace the definition
@@ -444,13 +461,13 @@ class AILSimplifier(Analysis):
 
     def _narrowing_needed(
         self, def_, rd, addr_and_idx_to_block
-    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[str, Tuple[Expression, ...]]]]]]:
+    ) -> tuple[bool, int | None, list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] | None]:
         def_size = def_.size
         # find its uses
         use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
 
         all_used_sizes = set()
-        used_by: List[Tuple[CodeLocation, Tuple[str, Tuple[Expression, ...]]]] = []
+        used_by: list[tuple[CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
 
         for loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
@@ -479,7 +496,7 @@ class AILSimplifier(Analysis):
 
     def _extract_expression_effective_size(
         self, statement, expr
-    ) -> Tuple[Optional[int], Optional[Tuple[str, Tuple[Expression, ...]]]]:
+    ) -> tuple[int | None, tuple[str, tuple[Expression, ...]] | None]:
         """
         Determine the effective size of an expression when it's used.
         """
@@ -493,7 +510,9 @@ class AILSimplifier(Analysis):
 
         first_op = walker.operations[0]
         if isinstance(first_op, Convert):
-            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
+            if first_op.to_bits >= self.project.arch.byte_width:
+                # we need at least one byte!
+                return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
             if len(walker.operations) >= 2:
@@ -515,6 +534,7 @@ class AILSimplifier(Analysis):
                 and first_op.op not in {"Shr", "Sar"}
                 and isinstance(second_op, Convert)
                 and second_op.from_bits == expr.bits
+                and second_op.to_bits >= self.project.arch.byte_width  # we need at least one byte!
             ):
                 return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
                     "binop-convert",
@@ -587,11 +607,11 @@ class AILSimplifier(Analysis):
         if not prop.model.equivalence:
             return simplified
 
-        addr_and_idx_to_block: Dict[Tuple[int, int], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
-        equivalences: Dict[Any, Set[Equivalence]] = defaultdict(set)
+        equivalences: dict[Any, set[Equivalence]] = defaultdict(set)
         atom_by_loc = set()
         for eq in prop.model.equivalence:
             equivalences[eq.atom1].add(eq)
@@ -710,16 +730,16 @@ class AILSimplifier(Analysis):
                             ):
                                 continue
 
-                            # Make sure the register is never updated across this function
-                            if any(
-                                (def_ != the_def and def_.atom == the_def.atom)
-                                for def_ in rd.all_definitions
-                                if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
-                            ):
-                                continue
+                        # Make sure the register is never updated across this function
+                        if any(
+                            (def_ != the_def and def_.atom == the_def.atom)
+                            for def_ in rd.all_definitions
+                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
+                        ):
+                            continue
 
                         # find all its uses
-                        all_arg_copy_var_uses: Set[Tuple[CodeLocation, Any]] = set(
+                        all_arg_copy_var_uses: set[tuple[CodeLocation, Any]] = set(
                             rd.all_uses.get_uses_with_expr(arg_copy_def)
                         )
                         all_uses_with_def = set()
@@ -792,15 +812,15 @@ class AILSimplifier(Analysis):
                         else:
                             replace_with = eq.atom0
                     else:
-                        raise RuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
+                        raise AngrRuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
                 else:
-                    raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
+                    raise AngrRuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
 
                 to_replace_def = the_def
 
                 # find all uses of this definition
                 # we make a copy of the set since we may touch the set (uses) when replacing expressions
-                all_uses: Set[Tuple[CodeLocation, Any]] = set(rd.all_uses.get_uses_with_expr(to_replace_def))
+                all_uses: set[tuple[CodeLocation, Any]] = set(rd.all_uses.get_uses_with_expr(to_replace_def))
                 # make sure none of these uses are phi nodes (depends on more than one def)
                 all_uses_with_unique_def = set()
                 for use_and_expr in all_uses:
@@ -856,6 +876,25 @@ class AILSimplifier(Analysis):
             all_uses_replaced = True
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
+
+                use_expr_defns = []
+                for d in rd.all_uses.get_uses_by_location(u):
+                    if (
+                        isinstance(d.atom, RegisterAtom)
+                        and isinstance(def_.atom, RegisterAtom)
+                        and d.atom.reg_offset == def_.atom.reg_offset
+                    ):
+                        use_expr_defns.append(d)
+                    elif d.atom == def_.atom:
+                        use_expr_defns.append(d)
+                # you can never replace a use with dependencies from outside the checked defn
+                if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
+                    if not use_expr_defns:
+                        _l.warning("There was no use_expr_defns for %s, this is likely a bug", u)
+                    # TODO: can you have multiple definitions which can all be eliminated?
+                    all_uses_replaced = False
+                    continue
+
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
@@ -908,7 +947,7 @@ class AILSimplifier(Analysis):
         return simplified
 
     @staticmethod
-    def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
+    def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Definition | None:
         if isinstance(atom, Register):
             defs = rd.get_defs(atom, codeloc, OP_BEFORE)
             return next(iter(defs)) if len(defs) == 1 else None
@@ -972,18 +1011,18 @@ class AILSimplifier(Analysis):
         if not prop.model.equivalence:
             return simplified
 
-        addr_and_idx_to_block: Dict[Tuple[int, int], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
-        def_locations_to_remove: Set[CodeLocation] = set()
-        updated_use_locations: Set[CodeLocation] = set()
+        def_locations_to_remove: set[CodeLocation] = set()
+        updated_use_locations: set[CodeLocation] = set()
 
         eq: Equivalence
         for eq in prop.model.equivalence:
             # register variable == Call
             if isinstance(eq.atom0, Register):
-                call_addr: Optional[int]
+                call_addr: int | None
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1
@@ -1017,7 +1056,7 @@ class AILSimplifier(Analysis):
                 the_def: Definition = defs[0]
 
                 # find all uses of this definition
-                all_uses: Set[Tuple[CodeLocation, Any]] = set(rd.all_uses.get_uses_with_expr(the_def))
+                all_uses: set[tuple[CodeLocation, Any]] = set(rd.all_uses.get_uses_with_expr(the_def))
 
                 if len(all_uses) != 1:
                     continue
@@ -1121,8 +1160,8 @@ class AILSimplifier(Analysis):
         # no need to clear the cache at the end of this method
         return simplified
 
-    def _get_super_node_blocks(self, start_node: Block) -> List[Block]:
-        lst: List[Block] = [start_node]
+    def _get_super_node_blocks(self, start_node: Block) -> list[Block]:
+        lst: list[Block] = [start_node]
         while True:
             b = lst[-1]
             successors = list(self.func_graph.successors(b))
@@ -1143,7 +1182,7 @@ class AILSimplifier(Analysis):
 
     def _replace_expr_and_update_block(
         self, block, stmt_idx, stmt, the_def, codeloc, src_expr, dst_expr
-    ) -> Tuple[bool, Optional[Block]]:
+    ) -> tuple[bool, Block | None]:
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()
@@ -1158,7 +1197,7 @@ class AILSimplifier(Analysis):
         return False, None
 
     def _remove_dead_assignments(self) -> bool:
-        stmts_to_remove_per_block: Dict[Tuple[int, int], Set[int]] = defaultdict(set)
+        stmts_to_remove_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
 
         # Find all statements that should be removed
         mask = (1 << self.project.arch.bits) - 1
@@ -1184,6 +1223,13 @@ class AILSimplifier(Analysis):
                         continue
 
             uses = rd.all_uses.get_uses(def_)
+            if (
+                isinstance(def_.atom, atoms.Register)
+                and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+            ):
+                if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
+                    # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                    uses = set()
 
             if not uses:
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
@@ -1283,9 +1329,7 @@ class AILSimplifier(Analysis):
 
             v = False
 
-        def _handle_expr(
-            expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block
-        ) -> Optional[Expression]:
+        def _handle_expr(expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> Expression | None:
             if isinstance(expr, DirtyExpression) and isinstance(expr.dirty_expr, VEXCCallExpression):
                 rewriter = rewriter_cls(expr.dirty_expr, self.project.arch)
                 if rewriter.result is not None:
@@ -1341,7 +1385,7 @@ class AILSimplifier(Analysis):
         return False
 
     @staticmethod
-    def _count_calls_in_supernodeblocks(blocks: List[Block], start: CodeLocation, end: CodeLocation) -> int:
+    def _count_calls_in_supernodeblocks(blocks: list[Block], start: CodeLocation, end: CodeLocation) -> int:
         """
         Count the number of call statements in a list of blocks for a single super block between two given code
         locations (exclusive).

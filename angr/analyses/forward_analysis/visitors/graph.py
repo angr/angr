@@ -1,4 +1,5 @@
-from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict, Tuple
+from typing import TypeVar, Generic
+from collections.abc import Collection, Iterator
 from collections import defaultdict
 
 from ....misc.ux import deprecated
@@ -25,21 +26,21 @@ class GraphVisitor(Generic[NodeType]):
     )
 
     def __init__(self):
-        self._sorted_nodes: List[NodeType] = []  # a list of sorted nodes. do not change until we get a new graph
-        self._worklist: List[NodeType] = []  # a list of nodes that the analysis should work on and finally exhaust
-        self._nodes_set: Set[NodeType] = set()
-        self._node_to_index: Dict[NodeType, int] = {}
-        self._reached_fixedpoint: Set[NodeType] = set()
-        self._back_edges_by_src: Optional[Dict[NodeType, Set[NodeType]]] = None
-        self._back_edges_by_dst: Optional[Dict[NodeType, Set[NodeType]]] = None
+        self._sorted_nodes: list[NodeType] = []  # a list of sorted nodes. do not change until we get a new graph
+        self._worklist: list[NodeType] = []  # a list of nodes that the analysis should work on and finally exhaust
+        self._nodes_set: set[NodeType] = set()
+        self._node_to_index: dict[NodeType, int] = {}
+        self._reached_fixedpoint: set[NodeType] = set()
+        self._back_edges_by_src: dict[NodeType, set[NodeType]] | None = None
+        self._back_edges_by_dst: dict[NodeType, set[NodeType]] | None = None
 
-        self._pending_nodes: Dict[NodeType, Set[NodeType]] = defaultdict(set)
+        self._pending_nodes: dict[NodeType, set[NodeType]] = defaultdict(set)
 
     #
     # Interfaces
     #
 
-    def successors(self, node: NodeType) -> List[NodeType]:
+    def successors(self, node: NodeType) -> list[NodeType]:
         """
         Get successors of a node. The node should be in the graph.
 
@@ -50,7 +51,7 @@ class GraphVisitor(Generic[NodeType]):
 
         raise NotImplementedError()
 
-    def predecessors(self, node: NodeType) -> List[NodeType]:
+    def predecessors(self, node: NodeType) -> list[NodeType]:
         """
         Get predecessors of a node. The node should be in the graph.
 
@@ -60,7 +61,7 @@ class GraphVisitor(Generic[NodeType]):
 
         raise NotImplementedError()
 
-    def sort_nodes(self, nodes: Optional[Collection[NodeType]] = None) -> List[NodeType]:
+    def sort_nodes(self, nodes: Collection[NodeType] | None = None) -> list[NodeType]:
         """
         Get a list of all nodes sorted in an optimal traversal order.
 
@@ -70,7 +71,7 @@ class GraphVisitor(Generic[NodeType]):
 
         raise NotImplementedError()
 
-    def back_edges(self) -> List[Tuple[NodeType, NodeType]]:
+    def back_edges(self) -> list[tuple[NodeType, NodeType]]:
         """
         Get a list of back edges. This function is optional. If not overriden, the traverser cannot achieve an optimal
         graph traversal order.
@@ -122,7 +123,7 @@ class GraphVisitor(Generic[NodeType]):
 
         self._populate_back_edges()
 
-    def next_node(self) -> Optional[NodeType]:
+    def next_node(self) -> NodeType | None:
         """
         Get the next node to visit.
 
@@ -167,7 +168,7 @@ class GraphVisitor(Generic[NodeType]):
 
         return node
 
-    def all_successors(self, node: NodeType, skip_reached_fixedpoint=False) -> Set[NodeType]:
+    def all_successors(self, node: NodeType, skip_reached_fixedpoint=False) -> set[NodeType]:
         """
         Returns all successors to the specific node.
 

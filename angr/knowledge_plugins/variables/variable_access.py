@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ,no-member
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ...code_location import CodeLocation
 from ...serializable import Serializable
@@ -36,8 +36,8 @@ class VariableAccess(Serializable):
         self.variable: "SimVariable" = variable
         self.access_type: int = access_type
         self.location: CodeLocation = location
-        self.offset: Optional[int] = offset
-        self.atom_hash: Optional[int] = atom_hash
+        self.offset: int | None = offset
+        self.atom_hash: int | None = atom_hash
 
     def __repr__(self):
         access_type = {
@@ -90,7 +90,7 @@ class VariableAccess(Serializable):
 
     @classmethod
     def parse_from_cmessage(
-        cls, cmsg, variable_by_ident: Optional[Dict[str, "SimVariable"]] = None, **kwargs
+        cls, cmsg, variable_by_ident: dict[str, "SimVariable"] | None = None, **kwargs
     ) -> "VariableAccess":
         assert variable_by_ident is not None
 

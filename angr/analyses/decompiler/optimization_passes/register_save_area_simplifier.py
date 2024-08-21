@@ -1,4 +1,4 @@
-from typing import List, Tuple, Iterable, Dict
+from collections.abc import Iterable
 import logging
 
 import archinfo
@@ -50,29 +50,33 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         return bool(info), {"info": info}
 
+    @staticmethod
+    def _modify_statement(
+        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int = None
+    ):  # pylint:disable=unused-argument
+        if old_block not in updated_blocks_:
+            block = old_block.copy()
+            updated_blocks_[old_block] = block
+        else:
+            block = updated_blocks_[old_block]
+        block.statements[stmt_idx_] = None
+
     def _analyze(self, cache=None):
-        def _remove_statement(old_block, stmt_idx_: int, updated_blocks_):
-            if old_block not in updated_blocks_:
-                block = old_block.copy()
-                updated_blocks[old_block] = block
-            else:
-                block = updated_blocks[old_block]
-            block.statements[stmt_idx_] = None
 
         if cache is None:
             return
 
-        info: Dict[int, Dict[str, List[Tuple[int, CodeLocation]]]] = cache["info"]
+        info: dict[int, dict[str, list[tuple[int, CodeLocation]]]] = cache["info"]
         updated_blocks = {}
 
         for data in info.values():
             # remove storing statements
-            for _, codeloc in data["stored"]:
+            for stack_offset, codeloc in data["stored"]:
                 old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
-                _remove_statement(old_block, codeloc.stmt_idx, updated_blocks)
-            for _, codeloc in data["restored"]:
+                self._modify_statement(old_block, codeloc.stmt_idx, updated_blocks, stack_offset=stack_offset)
+            for stack_offset, codeloc in data["restored"]:
                 old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
-                _remove_statement(old_block, codeloc.stmt_idx, updated_blocks)
+                self._modify_statement(old_block, codeloc.stmt_idx, updated_blocks, stack_offset=stack_offset)
 
         for old_block, new_block in updated_blocks.items():
             # remove all statements that are None
@@ -80,7 +84,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             # update it
             self._update_block(old_block, new_block)
 
-    def _find_registers_stored_on_stack(self) -> List[Tuple[int, int, CodeLocation]]:
+    def _find_registers_stored_on_stack(self) -> list[tuple[int, int, CodeLocation]]:
         first_block = self._get_block(self._func.addr)
         if first_block is None:
             return []
@@ -101,7 +105,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         return results
 
-    def _find_registers_restored_from_stack(self) -> List[List[Tuple[int, int, CodeLocation]]]:
+    def _find_registers_restored_from_stack(self) -> list[list[tuple[int, int, CodeLocation]]]:
         all_results = []
         for ret_site in self._func.ret_sites + self._func.jumpout_sites:
             for block in self._get_blocks(ret_site.addr):
@@ -125,10 +129,10 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
     def _intersect_register_info(
         self,
-        stored: List[Tuple[int, int, CodeLocation]],
-        restored: Iterable[List[Tuple[int, int, CodeLocation]]],
-    ) -> Dict[int, Dict[str, List[Tuple[int, CodeLocation]]]]:
-        def _collect(info: List[Tuple[int, int, CodeLocation]], output, keystr: str):
+        stored: list[tuple[int, int, CodeLocation]],
+        restored: Iterable[list[tuple[int, int, CodeLocation]]],
+    ) -> dict[int, dict[str, list[tuple[int, CodeLocation]]]]:
+        def _collect(info: list[tuple[int, int, CodeLocation]], output, keystr: str):
             for reg_offset, stack_offset, codeloc in info:
                 if reg_offset not in output:
                     output[reg_offset] = {}
@@ -136,7 +140,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                     output[reg_offset][keystr] = []
                 output[reg_offset][keystr].append((stack_offset, codeloc))
 
-        result: Dict[int, Dict[str, List[Tuple[int, CodeLocation]]]] = {}
+        result: dict[int, dict[str, list[tuple[int, CodeLocation]]]] = {}
         _collect(stored, result, "stored")
         for item in restored:
             _collect(item, result, "restored")
@@ -158,7 +162,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             lr_reg_offset = self.project.arch.registers["lr"][0]
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
             lr_reg_offset = self.project.arch.registers["ra"][0]
-        elif self.project.arch.name in {"PPC32", "PPC64"}:
+        elif self.project.arch.name in {"PPC32", "PPC64"} or self.project.arch.name.startswith("PowerPC:"):
             lr_reg_offset = self.project.arch.registers["lr"][0]
         else:
             lr_reg_offset = None

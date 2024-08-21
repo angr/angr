@@ -1,5 +1,5 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
-from typing import Optional, Any, Tuple, Union, Set, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 import logging
 import time
 
@@ -53,7 +53,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         block=None,
         func_graph=None,
         base_state=None,
-        max_iterations=3,
+        max_iterations=30,
         load_callback=None,
         stack_pointer_tracker=None,
         only_consts=False,
@@ -61,10 +61,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         do_binops=True,
         store_tops=True,
         vex_cross_insn_opt=False,
-        func_addr: Optional[int] = None,
-        gp: Optional[int] = None,
+        func_addr: int | None = None,
+        gp: int | None = None,
         cache_results: bool = False,
-        key_prefix: Optional[str] = None,
+        key_prefix: str | None = None,
         reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
         immediate_stmt_removal: bool = False,
         profiling: bool = False,
@@ -79,7 +79,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise ValueError("Unsupported analysis target.")
 
-        start = time.perf_counter_ns() / 1000000
+        if profiling:
+            start = time.perf_counter_ns() / 1000000
+        else:
+            start = 0
 
         self._base_state = base_state
         self._function = func
@@ -100,7 +103,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._cache_results = cache_results
         self._reaching_definitions = reaching_definitions
         self._initial_codeloc: CodeLocation
-        self.stmts_to_remove: Set[CodeLocation] = set()
+        self.stmts_to_remove: set[CodeLocation] = set()
         if self.flavor == "function":
             self._initial_codeloc = CodeLocation(self._func_addr, stmt_idx=0, ins_addr=self._func_addr)
         else:  # flavor == "block"
@@ -121,11 +124,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             cache_used = True
 
-        graph_visitor: Union[visitors.SingleNodeGraphVisitor, visitors.FunctionGraphVisitor]
+        graph_visitor: visitors.SingleNodeGraphVisitor | visitors.FunctionGraphVisitor
         if self.flavor == "block":
             graph_visitor = None
             if self._cache_results:
-                graph_visitor: Optional[visitors.SingleNodeGraphVisitor] = self.model.graph_visitor
+                graph_visitor: visitors.SingleNodeGraphVisitor | None = self.model.graph_visitor
 
             if graph_visitor is None:
                 graph_visitor = visitors.SingleNodeGraphVisitor(block)
@@ -133,7 +136,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         elif self.flavor == "function":
             graph_visitor = None
             if self._cache_results:
-                graph_visitor: Optional[visitors.FunctionGraphVisitor] = self.model.graph_visitor
+                graph_visitor: visitors.FunctionGraphVisitor | None = self.model.graph_visitor
                 if graph_visitor is not None:
                     # resume
                     resumed = graph_visitor.resume_with_new_graph(func_graph if func_graph is not None else func.graph)
@@ -206,7 +209,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             _l.warning("  Analyzed statements: %d", self._analyzed_statements)
 
     @property
-    def prop_key(self) -> Tuple[Optional[str], str, int, bool, bool, bool]:
+    def prop_key(self) -> tuple[str | None, str, int, bool, bool, bool]:
         """
         Gets a key that represents the function and the "flavor" of the propagation result.
         """
@@ -225,7 +228,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     # Main analysis routines
     #
 
-    def _node_key(self, node: Union[ailment.Block, pyvex.IRSB]) -> Any:
+    def _node_key(self, node: ailment.Block | pyvex.IRSB) -> Any:
         if type(node) is ailment.Block:
             return node.addr, node.idx
         elif type(node) is pyvex.IRSB:
@@ -320,13 +323,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # TODO: Clear registers according to calling conventions
 
         if self.model.node_iterations[block_key] < self._max_iterations:
-            return True, state
+            return None, state
         else:
             return False, state
 
-    def _process_input_state_for_successor(
-        self, node, successor, input_state: Union[PropagatorAILState, PropagatorVEXState]
-    ):
+    def _process_input_state_for_successor(self, node, successor, input_state: PropagatorAILState | PropagatorVEXState):
         if self._only_consts:
             if isinstance(input_state, PropagatorAILState):
                 key = node.addr, successor.addr

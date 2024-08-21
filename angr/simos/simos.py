@@ -1,6 +1,5 @@
 import logging
 import struct
-from typing import Optional
 
 import angr  # for types
 
@@ -277,6 +276,8 @@ class SimOS:
 
         if state.arch.name == "PPC64" and toc is not None:
             state.regs.r2 = toc
+        elif state.arch.name in ("MIPS32", "MIPS64"):
+            state.regs.t9 = addr
 
         return state
 
@@ -342,7 +343,7 @@ class SimOS:
     def syscall_abi(self, state) -> str:
         return None
 
-    def syscall_cc(self, state) -> Optional[angr.calling_conventions.SimCCSyscall]:
+    def syscall_cc(self, state) -> angr.calling_conventions.SimCCSyscall | None:
         raise NotImplementedError()
 
     def is_syscall_addr(self, addr):

@@ -1,5 +1,4 @@
 # pylint:disable=no-member
-from typing import Optional
 from ...protos import cfg_pb2
 from ...serializable import Serializable
 
@@ -57,20 +56,20 @@ class MemoryData(Serializable):
         self,
         address: int,
         size: int,
-        sort: Optional[str],  # temporary type
-        pointer_addr: Optional[int] = None,
-        max_size: Optional[int] = None,
-        reference_size: Optional[int] = None,
+        sort: str | None,  # temporary type
+        pointer_addr: int | None = None,
+        max_size: int | None = None,
+        reference_size: int | None = None,
     ):
         self.addr: int = address
         self.size: int = size
         self.reference_size: int = reference_size
-        self.sort: Optional[str] = sort
+        self.sort: str | None = sort
 
-        self.max_size: Optional[int] = max_size
-        self.pointer_addr: Optional[int] = pointer_addr
+        self.max_size: int | None = max_size
+        self.pointer_addr: int | None = pointer_addr
 
-        self.content: Optional[bytes] = None  # temporary annotation
+        self.content: bytes | None = None  # temporary annotation
 
     def __eq__(self, other: "MemoryData"):
         return (

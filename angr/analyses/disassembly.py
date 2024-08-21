@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
-from typing import Union, Optional, Sequence, Tuple, Any
+from typing import Union, Any
+from collections.abc import Sequence
 
 import pyvex
 import archinfo
@@ -8,6 +9,7 @@ from angr.knowledge_plugins import Function
 
 from . import Analysis
 
+from ..errors import AngrTypeError
 from ..utils.library import get_cpp_function_name
 from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
@@ -962,11 +964,11 @@ class Disassembly(Analysis):
 
     def __init__(
         self,
-        function: Optional[Function] = None,
-        ranges: Optional[Sequence[Tuple[int, int]]] = None,
+        function: Function | None = None,
+        ranges: Sequence[tuple[int, int]] | None = None,
         thumb: bool = False,
         include_ir: bool = False,
-        block_bytes: Optional[bytes] = None,
+        block_bytes: bytes | None = None,
     ):
         self.raw_result = []
         self.raw_result_map = {
@@ -1141,7 +1143,9 @@ class Disassembly(Analysis):
                 self.raw_result_map["instructions"][stmt.addr] = stmt
                 self.block_to_insn_addrs[block.addr].append(stmt.addr)
         else:
-            raise TypeError("")
+            raise AngrTypeError(
+                f"Cannot disassemble block with architecture {self.project.arch} for block type {type(block)}"
+            )
 
         if self._include_ir:
             b = self.project.factory.block(block.addr, size=block.size)
@@ -1153,7 +1157,7 @@ class Disassembly(Analysis):
         show_edges: bool = True,
         show_addresses: bool = True,
         show_bytes: bool = False,
-        ascii_only: Optional[bool] = None,
+        ascii_only: bool | None = None,
         color: bool = True,
     ) -> str:
         """
@@ -1185,7 +1189,7 @@ class Disassembly(Analysis):
                 "format_callback": lambda item, s: ansi_color(s, formatting["colors"].get(type(item), None)),
             }
 
-        def col(item: Any) -> Optional[str]:
+        def col(item: Any) -> str | None:
             try:
                 return formatting["colors"][item]
             except KeyError:

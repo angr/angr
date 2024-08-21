@@ -1,8 +1,12 @@
 import functools
 import time
 import logging
-from typing import List, Type, TypeVar, overload, Optional, Union
+import os
+from typing import TypeVar, overload
 
+from angr import sim_options as o
+from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+import claripy
 from claripy import backend_manager
 
 from .plugin import SimStatePlugin
@@ -71,8 +75,6 @@ def disable_timing():
     global _timing_enabled
     _timing_enabled = False
 
-
-import os
 
 if os.environ.get("SOLVER_TIMING", False):
     enable_timing()
@@ -191,8 +193,6 @@ def concrete_path_list(f):
 # The main event
 #
 
-import claripy
-
 
 class SimSolver(SimStatePlugin):
     """
@@ -299,23 +299,11 @@ class SimSolver(SimStatePlugin):
         approximate_first = o.APPROXIMATE_FIRST in self.state.options
 
         if o.STRINGS_ANALYSIS in self.state.options:
-            if "smtlib_cvc4" in backend_manager.backends._backends_by_name:
-                our_backend = backend_manager.backends.smtlib_cvc4
-            elif "smtlib_z3" in backend_manager.backends._backends_by_name:
-                our_backend = backend_manager.backends.smtlib_z3
-            elif "smtlib_abc" in backend_manager.backends._backends_by_name:
-                our_backend = backend_manager.backends.smtlib_abc
-            else:
-                l.error(
-                    "Cannot find a suitable string solver. Please ensure you have installed a string solver that "
-                    "angr supports, and have imported the corresponding solver backend in claripy. You can try "
-                    'adding "from claripy.backends.backend_smtlib_solvers import *" at the beginning of your '
-                    "script."
-                )
-                raise ValueError("Cannot find a suitable string solver")
             if o.COMPOSITE_SOLVER in self.state.options:
                 self._stored_solver = claripy.SolverComposite(
-                    template_solver_string=claripy.SolverCompositeChild(backend=our_backend, track=track)
+                    template_solver_string=claripy.SolverCompositeChild(
+                        backend=backend_manager.backends.z3, track=track
+                    )
                 )
         elif o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
@@ -774,9 +762,9 @@ class SimSolver(SimStatePlugin):
 
     @staticmethod
     def _cast_to(
-        e: Union[claripy.ast.Bool, claripy.ast.BV, claripy.ast.FP],
-        solution: Union[bool, float, int],
-        cast_to: Optional[Type[CastType]],
+        e: claripy.ast.Bool | claripy.ast.BV | claripy.ast.FP,
+        solution: bool | float | int,
+        cast_to: type[CastType] | None,
     ) -> CastType:
         """
         Casts a solution for the given expression to type `cast_to`.
@@ -813,22 +801,22 @@ class SimSolver(SimStatePlugin):
         return solution
 
     @overload
-    def eval_upto(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]: ...
+    def eval_upto(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
 
     @overload
-    def eval_upto(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_upto(self, e: claripy.ast.BV, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_upto(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]: ...
+    def eval_upto(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> list[bool]: ...
 
     @overload
-    def eval_upto(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_upto(self, e: claripy.ast.Bool, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]: ...
+    def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> list[float]: ...
 
     @overload
-    def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     def eval_upto(self, e, n, cast_to=None, **kwargs):
         """
@@ -856,19 +844,19 @@ class SimSolver(SimStatePlugin):
     def eval(self, e: claripy.ast.BV, cast_to: None = ..., **kwargs) -> int: ...
 
     @overload
-    def eval(self, e: claripy.ast.BV, cast_to: Type[CastType], **kwargs) -> CastType: ...
+    def eval(self, e: claripy.ast.BV, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     @overload
     def eval(self, e: claripy.ast.Bool, cast_to: None = ..., **kwargs) -> bool: ...
 
     @overload
-    def eval(self, e: claripy.ast.Bool, cast_to: Type[CastType], **kwargs) -> CastType: ...
+    def eval(self, e: claripy.ast.Bool, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     @overload
     def eval(self, e: claripy.ast.FP, cast_to: None = ..., **kwargs) -> float: ...
 
     @overload
-    def eval(self, e: claripy.ast.FP, cast_to: Type[CastType], **kwargs) -> CastType: ...
+    def eval(self, e: claripy.ast.FP, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     def eval(self, e, cast_to=None, **kwargs):
         """
@@ -893,19 +881,19 @@ class SimSolver(SimStatePlugin):
     def eval_one(self, e: claripy.ast.BV, cast_to: None = ..., **kwargs) -> int: ...
 
     @overload
-    def eval_one(self, e: claripy.ast.BV, cast_to: Type[CastType], **kwargs) -> CastType: ...
+    def eval_one(self, e: claripy.ast.BV, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     @overload
     def eval_one(self, e: claripy.ast.Bool, cast_to: None = ..., **kwargs) -> bool: ...
 
     @overload
-    def eval_one(self, e: claripy.ast.Bool, cast_to: Type[CastType], **kwargs) -> CastType: ...
+    def eval_one(self, e: claripy.ast.Bool, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     @overload
     def eval_one(self, e: claripy.ast.FP, cast_to: None = ..., **kwargs) -> float: ...
 
     @overload
-    def eval_one(self, e: claripy.ast.FP, cast_to: Type[CastType], **kwargs) -> CastType: ...
+    def eval_one(self, e: claripy.ast.FP, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     def eval_one(self, e, cast_to=None, **kwargs):
         """
@@ -928,22 +916,22 @@ class SimSolver(SimStatePlugin):
             raise
 
     @overload
-    def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]: ...
+    def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
 
     @overload
-    def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_atmost(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]: ...
+    def eval_atmost(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> list[bool]: ...
 
     @overload
-    def eval_atmost(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_atmost(self, e: claripy.ast.Bool, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]: ...
+    def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> list[float]: ...
 
     @overload
-    def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     def eval_atmost(self, e, n, cast_to=None, **kwargs):
         """
@@ -964,22 +952,22 @@ class SimSolver(SimStatePlugin):
         return r
 
     @overload
-    def eval_atleast(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]: ...
+    def eval_atleast(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
 
     @overload
-    def eval_atleast(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_atleast(self, e: claripy.ast.BV, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_atleast(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]: ...
+    def eval_atleast(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> list[bool]: ...
 
     @overload
-    def eval_atleast(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_atleast(self, e: claripy.ast.Bool, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]: ...
+    def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> list[float]: ...
 
     @overload
-    def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     def eval_atleast(self, e, n, cast_to=None, **kwargs):
         """
@@ -999,22 +987,22 @@ class SimSolver(SimStatePlugin):
         return r
 
     @overload
-    def eval_exact(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]: ...
+    def eval_exact(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
 
     @overload
-    def eval_exact(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_exact(self, e: claripy.ast.BV, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_exact(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]: ...
+    def eval_exact(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> list[bool]: ...
 
     @overload
-    def eval_exact(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_exact(self, e: claripy.ast.Bool, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     @overload
-    def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]: ...
+    def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> list[float]: ...
 
     @overload
-    def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]: ...
+    def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     def eval_exact(self, e, n, cast_to=None, **kwargs):
         """
@@ -1124,6 +1112,4 @@ from angr.sim_state import SimState
 
 SimState.register_default("solver", SimSolver)
 
-from .. import sim_options as o
 from .inspect import BP_AFTER
-from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

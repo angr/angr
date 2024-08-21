@@ -2181,7 +2181,7 @@ class Reassembler(Analysis):
                 )
             all_assembly_lines.append(data.assembly(comments=comments, symbolized=symbolized))
 
-        s = "\n".join(all_assembly_lines)
+        s += "\n".join(all_assembly_lines)
 
         return s
 

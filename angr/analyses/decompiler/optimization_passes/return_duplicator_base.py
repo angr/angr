@@ -1,8 +1,7 @@
-from typing import Any, Tuple, Dict, List
+from typing import Any
 from itertools import count
 import copy
 import logging
-import inspect
 
 import ailment.expression
 import networkx
@@ -11,139 +10,88 @@ from ailment import Block
 from ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
 from ailment.expression import Const
 
-from .optimization_pass import StructuringOptimizationPass
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from ..graph_region import GraphRegion
 from ..utils import remove_labels, to_ail_supergraph, calls_in_graph
-from ..structuring.structurer_nodes import MultiNode
+from ..structuring.structurer_nodes import MultiNode, ConditionNode
+from ..region_identifier import RegionIdentifier
 
 _l = logging.getLogger(name=__name__)
 
 
-class ReturnDuplicator(StructuringOptimizationPass):
+class ReturnDuplicatorBase:
     """
-    An optimization pass that reverts a subset of Irreducible Statement Condensing (ISC) optimizations, as described
-    in the USENIX 2024 paper SAILR.
-
-    Some compilers, including GCC, Clang, and MSVC, apply various optimizations to reduce the number of statements in
-    code. These optimizations will take equivalent statements, or a subset of them, and replace them with a single
-    copy that is jumped to by gotos -- optimizing for space and sometimes speed.
-
-    This optimization pass will revert those gotos by re-duplicating the condensed blocks. Since Return statements
-    are the most common, we use this optimization pass to revert only gotos to return statements. Additionally, we
-    perform some additional readability fixups, like not re-duplicating returns to shared components.
-
-    Args:
-        func: The function to optimize.
-        node_idx_start: The index to start at when creating new nodes. This is used by Clinic to ensure that
-            node indices are unique across multiple passes.
-        max_opt_iters: The maximum number of optimization iterations to perform.
-        max_calls_in_regions: The maximum number of calls that can be in a region. This is used to prevent
-            duplicating too much code.
-        prevent_new_gotos: If True, this optimization pass will prevent new gotos from being created.
-        minimize_copies_for_regions: If True, this optimization pass will minimize the number of copies by doing only
-            a single copy for connected in_edges that form a region.
+    The base class for implementing Return Duplication as described in the SAILR paper.
+    This base class describes the general algorithm for duplicating return regions in a graph.
     """
 
-    ARCHES = None
-    PLATFORMS = None
-    NAME = "Duplicate return blocks to reduce goto statements"
-    DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index("Args:")])  # pylint:disable=unsubscriptable-object
-
+    # pylint:disable=unused-argument
     def __init__(
         self,
         func,
-        # internal parameters that should be used by Clinic
         node_idx_start: int = 0,
-        # settings
-        max_opt_iters: int = 10,
         max_calls_in_regions: int = 2,
-        prevent_new_gotos: bool = True,
         minimize_copies_for_regions: bool = True,
+        ri: RegionIdentifier | None = None,
         **kwargs,
     ):
-        super().__init__(func, max_opt_iters=max_opt_iters, prevent_new_gotos=prevent_new_gotos, **kwargs)
+        self.node_idx = count(start=node_idx_start)
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
+        self._supergraph = None
 
-        self.node_idx = count(start=node_idx_start)
-        self.analyze()
+        # this should also be set by the optimization passes initer
+        self._func = func
+        self._ri: RegionIdentifier | None = ri
+
+    #
+    # must implement these methods
+    #
+
+    def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False) -> bool:
+        raise NotImplementedError()
+
+    #
+    # main analysis
+    #
 
     def _check(self):
         # does this function have end points?
         return bool(self._func.endpoints), None
 
-    def _analyze(self, cache=None):
+    def _analyze_core(self, graph: networkx.DiGraph) -> bool:
         """
-        This analysis is run in a loop in analyze() for a maximum of max_opt_iters times.
+        This function does the core checks and duplications to the graph passed.
+        The return value is True if the graph was changed.
         """
         graph_changed = False
-        endnode_regions = self._find_endnode_regions(self.out_graph)
+        endnode_regions = self._find_endnode_regions(graph)
 
         if self._minimize_copies_for_regions:
             # perform a second pass to minimize the number of copies by doing only a single copy
             # for connected in_edges that form a region
-            endnode_regions = self._copy_connected_edge_components(endnode_regions, self.out_graph)
+            endnode_regions = self._copy_connected_edge_components(endnode_regions, graph)
 
+        # refresh the supergraph
+        self._supergraph = to_ail_supergraph(graph)
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
             for in_edge in in_edges:
                 pred_node = in_edge[0]
                 if self._should_duplicate_dst(
-                    pred_node, region_head, self.out_graph, dst_is_const_ret=is_single_const_ret_region
+                    pred_node, region_head, graph, dst_is_const_ret=is_single_const_ret_region
                 ):
                     # every eligible pred gets a new region copy
-                    self._copy_region([pred_node], region_head, region, self.out_graph)
+                    self._copy_region([pred_node], region_head, region, graph)
 
-            if region_head in self.out_graph and self.out_graph.in_degree(region_head) == 0:
-                self.out_graph.remove_nodes_from(region)
+            if region_head in graph and graph.in_degree(region_head) == 0:
+                graph.remove_nodes_from(region)
 
             graph_changed = True
 
         return graph_changed
 
-    def _is_goto_edge(
-        self,
-        src: Block,
-        dst: Block,
-        graph: networkx.DiGraph = None,
-        check_for_ifstmts=True,
-        max_level_check=1,
-    ):
-        """
-        TODO: correct how goto edge addressing works
-        This function only exists because a long-standing bug that sometimes reports the if-stmt addr
-        above a goto edge as the goto src. Because of this, we need to check for predecessors above the goto and
-        see if they are a goto. This needs to include Jump to deal with loops.
-        """
-        if check_for_ifstmts and graph is not None:
-            blocks = [src]
-            level_blocks = [src]
-            for _ in range(max_level_check):
-                new_level_blocks = []
-                for lblock in level_blocks:
-                    new_level_blocks += list(graph.predecessors(lblock))
-
-                blocks += new_level_blocks
-                level_blocks = new_level_blocks
-
-            src_direct_parents = list(graph.predecessors(src))
-            for block in blocks:
-                if not block or not block.statements:
-                    continue
-
-                # special case if-stmts that are next to each other
-                if block in src_direct_parents and isinstance(block.statements[-1], ConditionalJump):
-                    continue
-
-                if self._goto_manager.is_goto_edge(block, dst):
-                    return True
-        else:
-            return self._goto_manager.is_goto_edge(src, dst)
-
-        return False
-
-    def _find_endnode_regions(self, graph) -> Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]]:
+    def _find_endnode_regions(self, graph) -> dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]]:
         """
         Find all the regions that contain a node with no successors. These are the "end nodes" of the graph.
         """
@@ -152,7 +100,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
         # to_update is keyed by the region head.
         # this is because different end nodes may lead to the same region head: consider the case of the typical "fork"
         # region where stack canary is checked in x86-64 binaries.
-        end_node_regions: Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]] = {}
+        end_node_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]] = {}
 
         for end_node in endnodes:
             in_edges = list(graph.in_edges(end_node))
@@ -194,14 +142,6 @@ class ReturnDuplicator(StructuringOptimizationPass):
 
         return end_node_regions
 
-    def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False):
-        # returns that are only returning a constant should be duplicated always;
-        if dst_is_const_ret:
-            return True
-
-        # check above
-        return self._is_goto_edge(src, dst, graph=graph, check_for_ifstmts=True)
-
     def _copy_region(self, pred_nodes, region_head, region, graph):
         # copy the entire return region
         copies = {}
@@ -213,6 +153,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
             else:
                 node_copy = copy.deepcopy(node)
                 node_copy.idx = next(self.node_idx)
+                self._fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 
             # modify Jump.target_idx and ConditionalJump.{true,false}_target_idx accordingly
@@ -238,7 +179,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
             graph.remove_edge(pred_node, region_head)
 
     def _copy_connected_edge_components(
-        self, endnode_regions: Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
+        self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
         updated_regions = endnode_regions.copy()
         all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
@@ -295,8 +236,14 @@ class ReturnDuplicator(StructuringOptimizationPass):
     @staticmethod
     def _is_simple_return_graph(graph: networkx.DiGraph, max_assigns=1):
         """
-        Checks if the graph is a single block, or a series of simple assignments, that ends
-        in a return statement. This is used to know when we MUST duplicate the return block.
+        Checks if the provided graph is a graph that ONLY contains a "simple" return.
+        If there were absolutely no bugs in angr, we could just check that a single return block exists.
+        However, due to some propagation bugs, these cases can all happen and are all valid:
+        1. [Jmp] -> [Jmp] -> [Ret]
+        2. [Jmp] -> [Jmp, x=0] -> [Ret x]
+        3. [Jmp] -> [Jmp, x=rdi] -> [Ret x]
+
+        To deal with this, we need to do the sketchy checks we do below.
         """
         labeless_graph = to_ail_supergraph(remove_labels(graph))
         nodes = list(labeless_graph.nodes())
@@ -369,7 +316,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
         return valid_assignment
 
     @staticmethod
-    def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:
+    def _single_entry_region(graph, end_node) -> tuple[networkx.DiGraph, Any]:
         """
         Back track on the graph from `end_node` and find the longest chain of nodes where each node has only one
         predecessor and one successor (the second-to-last node may have two successors to account for the typical
@@ -466,14 +413,20 @@ class ReturnDuplicator(StructuringOptimizationPass):
 
     @staticmethod
     def _find_block_sets_in_all_regions(top_region: GraphRegion):
+        def _unpack_block_type_to_addrs(node):
+            if isinstance(node, Block):
+                return {node.addr}
+            elif isinstance(node, MultiNode):
+                return {n.addr for n in node.nodes}
+            elif isinstance(node, ConditionNode):
+                return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
+            return set()
+
         def _unpack_region_to_block_addrs(region: GraphRegion):
             region_addrs = set()
             for node in region.graph.nodes:
-                if isinstance(node, Block):
-                    region_addrs.add(node.addr)
-                elif isinstance(node, MultiNode):
-                    for _node in node.nodes:
-                        region_addrs.add(_node.addr)
+                if isinstance(node, (Block, MultiNode, ConditionNode)):
+                    region_addrs |= _unpack_block_type_to_addrs(node)
                 elif isinstance(node, GraphRegion):
                     region_addrs |= _unpack_region_to_block_addrs(node)
 
@@ -487,6 +440,9 @@ class ReturnDuplicator(StructuringOptimizationPass):
                 elif isinstance(node, MultiNode):
                     for _node in node.nodes:
                         addrs_by_region[region].add(_node.addr)
+                elif isinstance(node, ConditionNode):
+                    addrs_by_region[region] |= _unpack_block_type_to_addrs(node.true_node)
+                    addrs_by_region[region] |= _unpack_block_type_to_addrs(node.false_node)
                 else:
                     addrs_by_region[region] |= _unpack_region_to_block_addrs(node)
                     _unpack_every_region(node, addrs_by_region)
@@ -494,3 +450,20 @@ class ReturnDuplicator(StructuringOptimizationPass):
         all_region_block_sets = {}
         _unpack_every_region(top_region, all_region_block_sets)
         return all_region_block_sets
+
+    @staticmethod
+    def _fix_copied_node_labels(block: Block):
+        for i in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
+            stmt = block.statements[i]
+            if isinstance(stmt, Label):
+                # fix the default name by suffixing it with the new block ID
+                new_name = stmt.name if stmt.name else f"Label_{stmt.ins_addr:x}"
+                if stmt.block_idx is not None:
+                    suffix = f"__{stmt.block_idx}"
+                    if new_name.endswith(suffix):
+                        new_name = new_name[: -len(suffix)]
+                else:
+                    new_name = stmt.name
+                new_name += f"__{block.idx}"
+
+                block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)

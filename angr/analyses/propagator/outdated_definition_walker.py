@@ -1,5 +1,6 @@
 # pylint:disable=consider-using-in
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 from ailment import Block, Stmt, Expr, AILBlockWalker
 
@@ -25,7 +26,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         current_loc: CodeLocation,
         state: "PropagatorAILState",
         arch: "Arch",
-        avoid: Optional[Expr.Expression] = None,
+        avoid: Expr.Expression | None = None,
         extract_offset_to_sp: Callable = None,
         rda: "ReachingDefinitionsModel" = None,
     ):
@@ -46,13 +47,13 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.rda = rda
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
+    def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Block | None):
         if self.avoid is not None and expr.likes(self.avoid):
             self.has_avoid = True
 
     # pylint:disable=unused-argument
     def _handle_Register(
-        self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
+        self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Block | None
     ):
         if (
             self.avoid is not None
@@ -70,7 +71,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         if not (codelocs_defat and codelocs_currentloc and codelocs_defat == codelocs_currentloc):
             self.out_dated = True
 
-    def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
+    def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Block | None):
         if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
             self.has_avoid = True
 
@@ -131,7 +132,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                     self.out_dated = True
 
     def _handle_VEXCCallExpression(
-        self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]
+        self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int, stmt: Stmt.Statement, block: Block | None
     ):
         if self.avoid is not None:
             if any(op == self.avoid for op in expr.operands):
@@ -148,7 +149,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         return False
 
     @staticmethod
-    def _check_store_precedes_load(store_defat: Optional[CodeLocation], load_defat: Optional[CodeLocation]) -> bool:
+    def _check_store_precedes_load(store_defat: CodeLocation | None, load_defat: CodeLocation | None) -> bool:
         """
         Check if store precedes load based on their AIL statement IDs.
         """

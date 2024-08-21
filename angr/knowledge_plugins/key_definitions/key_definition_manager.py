@@ -1,4 +1,5 @@
-from typing import Dict, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
 from .. import KnowledgeBasePlugin
 from .rd_model import ReachingDefinitionsModel
@@ -38,17 +39,17 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb: "KnowledgeBase"):
-        self.kb = kb
-        self.model_by_funcaddr: Dict[int, ReachingDefinitionsModel] = {}
+        super().__init__(kb=kb)
+        self.model_by_funcaddr: dict[int, ReachingDefinitionsModel] = {}
 
     def has_model(self, func_addr: int):
         return func_addr in self.model_by_funcaddr
 
     def get_model(self, func_addr: int):
         if func_addr not in self.model_by_funcaddr:
-            if not self.kb.functions.contains_addr(func_addr):
+            if not self._kb.functions.contains_addr(func_addr):
                 return None
-            func = self.kb.functions[func_addr]
+            func = self._kb.functions[func_addr]
             if func.is_simprocedure or func.is_plt or func.alignment:
                 return None
             callsites = list(func.get_call_sites())
@@ -64,15 +65,15 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
                 call_insn_addr = block.instruction_addrs[-1]
                 call_insn_addrs.add(call_insn_addr)
             observer = RDAObserverControl(func_addr, callsites, call_insn_addrs)
-            rda = self.kb._project.analyses.ReachingDefinitions(
-                subject=self.kb.functions[func_addr], observe_callback=observer.rda_observe_callback
+            rda = self._kb._project.analyses.ReachingDefinitions(
+                subject=self._kb.functions[func_addr], observe_callback=observer.rda_observe_callback
             )
             self.model_by_funcaddr[func_addr] = rda.model
 
         return self.model_by_funcaddr[func_addr]
 
     def copy(self) -> "KeyDefinitionManager":
-        dm = KeyDefinitionManager(self.kb)
+        dm = KeyDefinitionManager(self._kb)
         dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()), self.model_by_funcaddr.items()))
         return dm
 

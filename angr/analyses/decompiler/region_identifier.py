@@ -1,7 +1,6 @@
 from itertools import count
 from collections import defaultdict
 import logging
-from typing import List, Optional, Union
 
 import networkx
 
@@ -12,6 +11,7 @@ from ailment.expression import Const
 
 from angr.utils.graph import GraphUtils
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
+from ...errors import AngrRuntimeError
 from .. import Analysis, register_analysis
 from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
@@ -59,7 +59,7 @@ class RegionIdentifier(Analysis):
 
         self.region = None
         self._start_node = None
-        self._loop_headers: Optional[List] = None
+        self._loop_headers: list | None = None
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
@@ -102,7 +102,7 @@ class RegionIdentifier(Analysis):
         # make regions into block address lists
         self.regions_by_block_addrs = self._make_regions_by_block_addrs()
 
-    def _make_regions_by_block_addrs(self) -> List[List[int]]:
+    def _make_regions_by_block_addrs(self) -> list[list[int]]:
         """
         Creates a list of addr lists representing each region without recursion. A single region is defined
         as a set of only blocks, no Graphs containing nested regions. The list contains the address of each
@@ -147,7 +147,7 @@ class RegionIdentifier(Analysis):
         try:
             return next(n for n in graph.nodes() if n.addr == self.function.addr)
         except StopIteration as ex:
-            raise RuntimeError("Cannot find the start node from the graph!") from ex
+            raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
 
     def _test_reducibility(self):
         # make a copy of the graph
@@ -190,7 +190,7 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
-    def _find_loop_headers(self, graph: networkx.DiGraph) -> List:
+    def _find_loop_headers(self, graph: networkx.DiGraph) -> list:
         heads = {t for _, t in dfs_back_edges(graph, self._start_node)}
         return GraphUtils.quasi_topological_sort_nodes(graph, heads)
 
@@ -718,6 +718,13 @@ class RegionIdentifier(Analysis):
                                                 region.graph_with_successors.add_edge(nn, succ)
                                                 region.successors.add(succ)
 
+                                # add edges between successors
+                                for succ_0 in region.successors:
+                                    for succ_1 in region.successors:
+                                        if succ_0 is not succ_1:
+                                            if secondary_graph.has_edge(succ_0, succ_1):
+                                                region.graph_with_successors.add_edge(succ_0, succ_1)
+
                             # l.debug("Walked back %d levels in postdom tree.", levels)
                             l.debug("Node %r, frontier %r.", node, frontier)
                             # l.debug("Identified an acyclic region %s.", self._dbg_block_list(region.graph.nodes()))
@@ -929,6 +936,12 @@ class RegionIdentifier(Analysis):
             region.successors = []
         region.successors += list(abnormal_exit_nodes)
 
+        for succ_0 in region.successors:
+            for succ_1 in region.successors:
+                if succ_0 is not succ_1:
+                    if graph.has_edge(succ_0, succ_1):
+                        region.graph_with_successors.add_edge(succ_0, succ_1)
+
         for node in loop_nodes:
             graph.remove_node(node)
 
@@ -1048,7 +1061,7 @@ class RegionIdentifier(Analysis):
         assert node_mommy not in graph
         assert node_kiddie not in graph
 
-    def _ensure_jump_at_loop_exit_ends(self, node: Union[Block, MultiNode]) -> None:
+    def _ensure_jump_at_loop_exit_ends(self, node: Block | MultiNode) -> None:
         if isinstance(node, Block):
             if not node.statements:
                 node.statements.append(

@@ -1,18 +1,17 @@
 # pylint:disable=import-outside-toplevel
-from typing import Dict, Any, Union, TYPE_CHECKING
+from typing import Any, Union, TYPE_CHECKING
 
 from .. import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
-    from angr.knowledge_base import KnowledgeBase
     from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
     from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 
 
 class StructuredCodeManager(KnowledgeBasePlugin):
     def __init__(self, kb):
-        self._kb: KnowledgeBase = kb
-        self.cached: Dict[Any, "DecompilationCache"] = {}
+        super().__init__(kb=kb)
+        self.cached: dict[Any, "DecompilationCache"] = {}
 
     def _normalize_key(self, item):
         if type(item) is not tuple:

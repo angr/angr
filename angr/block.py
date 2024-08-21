@@ -1,6 +1,5 @@
 # pylint:disable=wrong-import-position,arguments-differ
 import logging
-from typing import List, Optional, Tuple
 
 import pyvex
 from pyvex import IRSB
@@ -151,6 +150,7 @@ class Block(Serializable):
         project=None,
         arch=None,
         size=None,
+        max_size=None,
         byte_string=None,
         vex=None,
         thumb=False,
@@ -164,6 +164,7 @@ class Block(Serializable):
         cross_insn_opt=True,
         load_from_ro_regions=False,
         initial_regs=None,
+        skip_stmts=False,
     ):
         # set up arch
         if project is not None:
@@ -189,7 +190,7 @@ class Block(Serializable):
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
-        self._initial_regs: Optional[List[Tuple[int, int, int]]] = initial_regs if collect_data_refs else None
+        self._initial_regs: list[tuple[int, int, int]] | None = initial_regs if collect_data_refs else None
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -207,6 +208,7 @@ class Block(Serializable):
                     state=backup_state,
                     insn_bytes=byte_string,
                     addr=addr,
+                    size=max_size,
                     thumb=thumb,
                     extra_stop_points=extra_stop_points,
                     opt_level=opt_level,
@@ -216,13 +218,18 @@ class Block(Serializable):
                     collect_data_refs=collect_data_refs,
                     load_from_ro_regions=load_from_ro_regions,
                     cross_insn_opt=cross_insn_opt,
+                    skip_stmts=skip_stmts,
                 )
                 if self._initial_regs:
                     self.reset_initial_regs()
                 size = vex.size
 
-        self._vex = vex
-        self._vex_nostmt = None
+        if skip_stmts:
+            self._vex = None
+            self._vex_nostmt = vex
+        else:
+            self._vex = vex
+            self._vex_nostmt = None
         self._disassembly = None
         self._capstone = None
         self.size = size
@@ -232,9 +239,12 @@ class Block(Serializable):
         self._load_from_ro_regions = load_from_ro_regions
 
         self._instructions = num_inst
-        self._instruction_addrs: List[int] = []
+        self._instruction_addrs: list[int] = []
 
-        self._parse_vex_info(self._vex)
+        if skip_stmts:
+            self._parse_vex_info(self._vex_nostmt)
+        else:
+            self._parse_vex_info(self._vex)
 
         if byte_string is None:
             if backup_state is not None:
@@ -409,7 +419,7 @@ class Block(Serializable):
         return BlockNode(self.addr, self.size, bytestr=self.bytes, thumb=self.thumb)
 
     @property
-    def bytes(self):
+    def bytes(self) -> bytes:
         if self._bytes is None:
             addr = self.addr
             if self.thumb:

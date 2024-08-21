@@ -5,7 +5,7 @@ from cle.backends.elf.variable import Variable
 from cle.backends.elf.variable_type import VariableType, PointerType, ArrayType, StructType, TypedefType
 
 from angr.sim_state import SimState
-from angr.sim_type import ALL_TYPES, SimTypeReg
+from angr.sim_type import ALL_TYPES, SimTypeNum
 
 from .plugin import SimStatePlugin
 
@@ -56,7 +56,7 @@ class SimDebugVariable:
         else:
             # FIXME A lot more types are supported by angr that are not in ALL_TYPES (structs, arrays, pointers)
             # Use a fallback type
-            sim_type = SimTypeReg(size, label=name)
+            sim_type = SimTypeNum(size, signed=False, label=name)
         return self.mem_untyped.with_type(sim_type)
 
     # methods and properties equivalent to SimMemView

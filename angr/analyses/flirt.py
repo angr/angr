@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, Tuple, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from functools import partial
 from collections import defaultdict
 import logging
@@ -7,6 +7,7 @@ import nampa
 from archinfo.arch_arm import is_arm_arch
 
 from ..analyses import AnalysesHub
+from ..errors import AngrRuntimeError
 from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
 
@@ -30,11 +31,11 @@ class FlirtAnalysis(Analysis):
       current binary, and then match all possible signatures for the architecture.
     """
 
-    def __init__(self, sig: Optional[Union[FlirtSignature, str]] = None):
+    def __init__(self, sig: FlirtSignature | str | None = None):
         self._is_arm = is_arm_arch(self.project.arch)
-        self._all_suggestions: Dict[str, Dict[str, Dict[int, str]]] = {}
-        self._suggestions: Dict[int, str] = {}
-        self.matched_suggestions: Dict[str, Tuple[FlirtSignature, Dict[int, str]]] = {}
+        self._all_suggestions: dict[str, dict[str, dict[int, str]]] = {}
+        self._suggestions: dict[int, str] = {}
+        self.matched_suggestions: dict[str, tuple[FlirtSignature, dict[int, str]]] = {}
         self._temporary_sig = False
 
         if sig:
@@ -49,7 +50,7 @@ class FlirtAnalysis(Analysis):
 
         else:
             if not FLIRT_SIGNATURES_BY_ARCH:
-                raise RuntimeError(
+                raise AngrRuntimeError(
                     "No FLIRT signatures exist. Please load FLIRT signatures by calling "
                     "load_signatures() before running FlirtAnalysis."
                 )
@@ -64,7 +65,7 @@ class FlirtAnalysis(Analysis):
             self.signatures = list(self._find_hits_by_strings(mem_regions))
             _l.debug("Identified %d signatures to apply.", len(self.signatures))
 
-        path_to_sig: Dict[str, FlirtSignature] = {}
+        path_to_sig: dict[str, FlirtSignature] = {}
         for sig_ in self.signatures:
             self._match_all_against_one_signature(sig_)
             if sig_.sig_name not in self._all_suggestions:
@@ -90,8 +91,8 @@ class FlirtAnalysis(Analysis):
                 )
                 self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
-    def _find_hits_by_strings(self, regions: List[bytes]) -> List[FlirtSignature]:
-        library_hits: Dict[str, int] = defaultdict(int)
+    def _find_hits_by_strings(self, regions: list[bytes]) -> list[FlirtSignature]:
+        library_hits: dict[str, int] = defaultdict(int)
         for s, libs in STRING_TO_LIBRARIES.items():
             for region in regions:
                 if s.encode("ascii") in region:
@@ -173,7 +174,7 @@ class FlirtAnalysis(Analysis):
                 func_name = f"unknown_function_{func.addr:x}"
             self._suggestions[func.addr] = func_name
 
-    def _apply_changes(self, library_name: Optional[str], suggestion: Dict[int, str]) -> None:
+    def _apply_changes(self, library_name: str | None, suggestion: dict[int, str]) -> None:
         for func_addr, suggested_name in suggestion.items():
             func = self.kb.functions.get_by_addr(func_addr)
             func.name = suggested_name

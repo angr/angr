@@ -4,7 +4,7 @@ import logging
 import math
 import re
 import string
-from typing import DefaultDict, List, Set, Dict, Optional, Tuple
+from typing import DefaultDict
 from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 
@@ -153,7 +153,7 @@ class PendingJobs:
 
     __nonzero__ = __bool__
 
-    def _pop_job(self, func_addr: Optional[int]):
+    def _pop_job(self, func_addr: int | None):
         jobs = self._jobs[func_addr]
         j = jobs.pop(-1)
         if not jobs:
@@ -457,16 +457,16 @@ class CFGJob:
         addr: int,
         func_addr: int,
         jumpkind: str,
-        ret_target: Optional[int] = None,
-        last_addr: Optional[int] = None,
-        src_node: Optional[CFGNode] = None,
-        src_ins_addr: Optional[int] = None,
-        src_stmt_idx: Optional[int] = None,
+        ret_target: int | None = None,
+        last_addr: int | None = None,
+        src_node: CFGNode | None = None,
+        src_ins_addr: int | None = None,
+        src_stmt_idx: int | None = None,
         returning_source=None,
         syscall: bool = False,
-        func_edges: Optional[List] = None,
+        func_edges: list | None = None,
         job_type: CFGJobType = CFGJobType.NORMAL,
-        gp: Optional[int] = None,
+        gp: int | None = None,
     ):
         self.addr = addr
         self.func_addr = func_addr
@@ -615,8 +615,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         nodecode_window_size=512,
         nodecode_threshold=0.3,
         nodecode_step=16483,
-        indirect_calls_always_return: Optional[bool] = None,
-        jumptable_resolver_resolves_calls: Optional[bool] = None,
+        indirect_calls_always_return: bool | None = None,
+        jumptable_resolver_resolves_calls: bool | None = None,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -808,7 +808,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._known_thunks = {}
 
         self._initial_state = None
-        self._next_addr: Optional[int] = None
+        self._next_addr: int | None = None
 
         # Create the segment list
         self._seg_list = SegmentList()
@@ -828,10 +828,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._traced_addresses = None
         self._function_returns = None
         self._function_exits = None
-        self._gp_value: Optional[int] = None
-        self._ro_region_cdata_cache: Optional[List] = None
+        self._gp_value: int | None = None
+        self._ro_region_cdata_cache: list | None = None
         self._job_ctr = 0
-        self._decoding_assumptions: Dict[int, DecodingAssumption] = {}
+        self._decoding_assumptions: dict[int, DecodingAssumption] = {}
         self._decoding_assumption_relations = None
 
         # A mapping between address and the actual data in memory
@@ -1174,7 +1174,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         return nodecode_bytes / total_bytes
 
-    def _next_code_addr_smart(self) -> Optional[int]:
+    def _next_code_addr_smart(self) -> int | None:
         # in the smart scanning mode, if there are more than N consecutive no-decode cases, we skip an entire window of
         # bytes.
         nodecode_bytes_ratio = (
@@ -1215,7 +1215,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         # Initialize variables used during analysis
         self._pending_jobs: PendingJobs = PendingJobs(self.functions, self._deregister_analysis_job)
-        self._traced_addresses: Set[int] = {a for a, n in self._nodes_by_addr.items() if n}
+        self._traced_addresses: set[int] = {a for a, n in self._nodes_by_addr.items() if n}
         self._function_returns = defaultdict(set)
 
         # Populate known objects in segment tracker
@@ -1230,7 +1230,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # should record all exits from a single function, and then add
         # necessary calling edges in our call map during the post-processing
         # phase.
-        self._function_exits: DefaultDict[int, Set[int]] = defaultdict(set)
+        self._function_exits: DefaultDict[int, set[int]] = defaultdict(set)
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(
@@ -1245,7 +1245,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self._use_exceptions:
             self._preprocess_exception_handlings()
 
-        starting_points: Set[int] = set()
+        starting_points: set[int] = set()
 
         if self._use_symbols:
             starting_points |= self._function_addresses_from_symbols
@@ -1257,7 +1257,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             starting_points |= set(self._extra_function_starts)
 
         # Sort it
-        sorted_starting_points: List[int] = sorted(list(starting_points), reverse=False)
+        sorted_starting_points: list[int] = sorted(list(starting_points), reverse=False)
 
         if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry):
             if self.project.entry not in starting_points:
@@ -1281,7 +1281,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             self._remaining_function_prologue_addrs = sorted(self._func_addrs_from_prologues())
 
         # assumption management
-        self._decoding_assumptions: Dict[int, DecodingAssumption] = {}
+        self._decoding_assumptions: dict[int, DecodingAssumption] = {}
         self._decoding_assumption_relations = networkx.DiGraph()
 
         # register read-only regions to PyVEX
@@ -1329,7 +1329,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     def _intra_analysis(self):
         pass
 
-    def _get_successors(self, job: CFGJob) -> List[CFGJob]:  # type: ignore[override] # pylint:disable=arguments-differ
+    def _get_successors(self, job: CFGJob) -> list[CFGJob]:  # type: ignore[override] # pylint:disable=arguments-differ
         # current_function_addr = job.func_addr
         # addr = job.addr
 
@@ -1412,7 +1412,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             func = self.kb.functions.get_by_addr(func_addr)
             if func.is_plt or func.is_simprocedure or func.is_syscall:
                 return
-            if not (1 <= len(func.block_addrs_set) < 15):
+            if not (9 <= len(func.block_addrs_set) < 12):
                 return
 
             from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=wrong-import-position
@@ -1759,7 +1759,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         UPDATE_RATIO = 0.5
 
         all_memory_data = sorted(list(self.model.memory_data.items()), key=lambda x: x[0])  # sorted by addr
-        to_update: Dict[int, bytes] = {}
+        to_update: dict[int, bytes] = {}
         total_string_refs: int = 0
         for i, (addr, md) in enumerate(all_memory_data):
             if not md.sort == MemoryDataSort.String:
@@ -1862,7 +1862,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     # Basic block scanning
 
-    def _scan_block(self, cfg_job: CFGJob) -> List[CFGJob]:
+    def _scan_block(self, cfg_job: CFGJob) -> list[CFGJob]:
         """
         Scan a basic block starting at a specific address
 
@@ -1889,7 +1889,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         return entries
 
-    def _scan_procedure(self, cfg_job, current_func_addr) -> List[CFGJob]:
+    def _scan_procedure(self, cfg_job, current_func_addr) -> list[CFGJob]:
         """
         Checks the hooking procedure for this address searching for new static
         exit points to add to successors (generating entries for them)
@@ -1945,7 +1945,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Mark the address as traced
             self._traced_addresses.add(addr)
 
-        entries: List[CFGJob] = []
+        entries: list[CFGJob] = []
 
         if (
             cfg_job.src_node is not None
@@ -2020,7 +2020,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         return entries
 
-    def _scan_irsb(self, cfg_job, current_func_addr) -> List[CFGJob]:
+    def _scan_irsb(self, cfg_job, current_func_addr) -> list[CFGJob]:
         """
         Generate a list of successors (generating them each as entries) to IRSB.
         Updates previous CFG nodes with edges.
@@ -2077,8 +2077,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Mark the address as traced
             self._traced_addresses.add(real_addr)
 
-        # irsb cannot be None here
-        # assert irsb is not None
+        # irsb cannot be None here, but we add a check for resilience
+        if irsb is None:
+            return []
 
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
@@ -2160,7 +2161,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     def _create_jobs(
         self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx
-    ) -> List[CFGJob]:
+    ) -> list[CFGJob]:
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -2175,7 +2176,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :param int stmt_idx:        ID of the source statement.
         :return:                    a list of CFGJobs
         """
-        target_addr: Optional[int]
+        target_addr: int | None
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
         elif type(target) in (
@@ -2200,7 +2201,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             else:
                 raise AngrCFGError("This shouldn't be possible")
 
-        jobs: List[CFGJob] = []
+        jobs: list[CFGJob] = []
         is_syscall = jumpkind.startswith("Ijk_Sys")
 
         # Special handling:
@@ -2409,10 +2410,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         stmt_idx: int,
         ins_addr: int,
         current_function_addr: int,
-        target_addr: Optional[int],
+        target_addr: int | None,
         jumpkind: str,
         is_syscall: bool = False,
-    ) -> List[CFGJob]:
+    ) -> list[CFGJob]:
         """
         Generate a CFGJob for target address, also adding to _pending_entries
         if returning to succeeding position (if irsb arg is populated)
@@ -2429,7 +2430,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:                A list of CFGJobs
         """
 
-        jobs: List[CFGJob] = []
+        jobs: list[CFGJob] = []
 
         if is_syscall:
             # Fix the target_addr for syscalls
@@ -2530,7 +2531,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if callee_might_return:
             func_edges = []
             if return_site is not None:
-                call_returning: Optional[bool]
+                call_returning: bool | None
                 if callee_function is not None:
                     call_returning = self._is_call_returning(cfg_node, callee_function.addr)
                 else:
@@ -2898,8 +2899,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         stmt_idx: int,
         insn_addr: int,
         data_addr: int,
-        data_size: Optional[int] = None,
-        data_type: Optional[MemoryDataSort] = None,
+        data_size: int | None = None,
+        data_type: MemoryDataSort | None = None,
     ) -> None:
         """
         Checks addresses are in the correct segments and creates or updates
@@ -2980,7 +2981,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         simsucc = self.project.factory.default_engine.process(self._initial_state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
-            if ip._model_concrete is not ip:
+            if claripy.backends.concrete.convert(ip) is not ip:
                 target_addr = ip.concrete_value
                 obj = self.project.loader.find_object_containing(target_addr, membership_check=False)
                 if (obj is not None and obj is not self.project.loader.main_object) or self.project.is_hooked(
@@ -2994,7 +2995,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         return False
 
-    def _indirect_jump_resolved(self, jump: IndirectJump, jump_addr, resolved_by, targets: List[int]):
+    def _indirect_jump_resolved(self, jump: IndirectJump, jump_addr, resolved_by, targets: list[int]):
         """
         Called when an indirect jump is successfully resolved.
 
@@ -3286,7 +3287,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         removed_nodes = set()
 
-        a = None  # it always hold the very recent non-removed node
+        a = None  # it always holds the very recent non-removed node
         is_arm = is_arm_arch(self.project.arch)
 
         for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
@@ -3340,7 +3341,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 # but somehow we thought b is the beginning
                 if a.addr + a.size == b.addr + b.size:
                     in_edges = len([_ for _, _, data in self.graph.in_edges([b], data=True)])
-                    if in_edges == 0:
+                    if in_edges == 0 and b in self.graph:
                         # we use node a to replace node b
                         # link all successors of b to a
                         for _, dst, data in self.graph.out_edges([b], data=True):
@@ -3545,7 +3546,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                     del self._function_returns[nonreturning_function.addr]
 
-    def _pop_pending_job(self, returning=True) -> Optional[CFGJob]:
+    def _pop_pending_job(self, returning=True) -> CFGJob | None:
         while self._pending_jobs:
             job = self._pending_jobs.pop_job(returning=returning)
             if job is not None and job.job_type == CFGJobType.DATAREF_HINTS and self._seg_list.is_occupied(job.addr):
@@ -3561,14 +3562,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     # Graph utils
     #
 
-    def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_ins_addr, src_stmt_idx):
+    def _graph_add_edge(
+        self, cfg_node: CFGNode, src_node: CFGNode | None, src_jumpkind: str, src_ins_addr: int, src_stmt_idx: int
+    ):
         """
         Add edge between nodes, or add node if entry point
 
-        :param CFGNode cfg_node: node which is jumped to
-        :param CFGNode src_node: node which is jumped from none if entry point
-        :param str src_jumpkind: what type of jump the edge takes
-        :param int or str src_stmt_idx: source statements ID
+        :param cfg_node: node which is jumped to
+        :param src_node: node which is jumped from none if entry point
+        :param src_jumpkind: what type of jump the edge takes
+        :param src_stmt_idx: source statements ID
         :return: None
         """
 
@@ -4058,7 +4061,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     # Initial registers
     #
 
-    def _get_initial_registers(self, addr, cfg_job, current_function_addr) -> Optional[List[Tuple[int, int, int]]]:
+    def _get_initial_registers(self, addr, cfg_job, current_function_addr) -> list[tuple[int, int, int]] | None:
         initial_regs = None
         if self.project.arch.name in {"MIPS64", "MIPS32"}:
             initial_regs = [
@@ -4497,10 +4500,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         self._seg_list.occupy(real_addr, irsb_size, "code")
                         self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
-                    return None, None, None, None
+                    if irsb_size == 0:
+                        return None, None, None, None
 
-                else:
-                    self._seg_list.occupy(real_addr, irsb_size, "code")
+                self._seg_list.occupy(real_addr, irsb_size, "code")
+                if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
             # Occupy the block in segment list
@@ -4529,7 +4533,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             return None, None, None, None
 
     def _process_block_arch_specific(
-        self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int, caller_gp: Optional[int] = None
+        self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int, caller_gp: int | None = None
     ) -> None:  # pylint: disable=unused-argument
         """
         According to arch types ['ARMEL', 'ARMHF', 'MIPS32', 'X86'] does different
@@ -4700,7 +4704,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 func = self.kb.functions.get_by_addr(func_addr)
                 func.info["bp_as_gpr"] = rbp_as_gpr
 
-    def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> Set[int]:
+    def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> set[int]:
         to_remove = {addr}
         queue = [addr]
         while queue:
@@ -4802,23 +4806,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
             try:
-                existing_node = self._nodes[assumption_addr]
-                self._model.remove_node(assumption_addr, existing_node)
+                existing_node_arm = self._nodes[assumption_addr]
+                self._model.remove_node(assumption_addr, existing_node_arm)
             except KeyError:
-                existing_node = None
-            if existing_node is None:
+                existing_node_arm = None
+            existing_node_thumb = None
+            if existing_node_arm is None:
                 try:
-                    existing_node = self._nodes[assumption_addr + 1]
-                    self._model.remove_node(assumption_addr + 1, existing_node)
+                    existing_node_thumb = self._nodes[assumption_addr + 1]
+                    self._model.remove_node(assumption_addr + 1, existing_node_thumb)
                 except KeyError:
-                    existing_node = None
+                    existing_node_thumb = None
 
-            if existing_node is not None:
+            for existing_node in [existing_node_arm, existing_node_thumb]:
+                if existing_node is None:
+                    continue
                 # remove the node from the graph
                 if existing_node in self.graph:
                     self.graph.remove_node(existing_node)
                 # remove the function (if exists)
-                if existing_node.addr in self.functions:
+                if self.functions.contains_addr(existing_node.addr):
                     del self.functions[existing_node.addr]
 
                 # update indirect_jumps_to_resolve
@@ -4828,10 +4835,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                 self._remove_jobs_by_source_node_addr(existing_node.addr)
 
-                # remove traced addresses
+            if assumption_addr not in self._nodes and assumption_addr + 1 not in self._nodes:
+                # remove the address (the real address) from the traced addresses set. only remove this address if both
+                # the ARM node and the THUMB node no longer exist.
                 self._traced_addresses.discard(assumption.addr)
 
-    def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> Optional[int]:
+    def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> int | None:
         # check if gp is being written to
         last_gp_setting_insn_id = None
         insn_ctr = 0
@@ -4891,7 +4900,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         return result
 
-    def _x86_gcc_pie_find_pc_register_adjustment(self, addr: int, reg_offset: int) -> Optional[int]:
+    def _x86_gcc_pie_find_pc_register_adjustment(self, addr: int, reg_offset: int) -> int | None:
         """
         Match against a single instruction that adds or subtracts a constant from a specified register.
 
@@ -4949,7 +4958,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         return stmt2.data.args[1].con.value
         return None
 
-    def _is_call_returning(self, callsite_cfgnode: CFGNode, callee_func_addr: int) -> Optional[bool]:
+    def _is_call_returning(self, callsite_cfgnode: CFGNode, callee_func_addr: int) -> bool | None:
         """
         Determine if a function call is returning or not, with a special care for DYNAMIC_RET functions.
 

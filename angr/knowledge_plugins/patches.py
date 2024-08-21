@@ -1,5 +1,3 @@
-from typing import Optional, List, Dict
-
 from cle.address_translator import AddressTranslator
 from sortedcontainers import SortedDict
 
@@ -8,7 +6,7 @@ from .plugin import KnowledgeBasePlugin
 
 # TODO: Serializable
 class Patch:
-    def __init__(self, addr, new_bytes, comment: Optional[str] = None):
+    def __init__(self, addr, new_bytes, comment: str | None = None):
         self.addr = addr
         self.new_bytes = new_bytes
         self.comment = comment
@@ -27,13 +25,12 @@ class PatchManager(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-        super().__init__()
+        super().__init__(kb=kb)
 
-        self._patches: Dict[int, Patch] = SortedDict()
-        self._kb = kb
+        self._patches: dict[int, Patch] = SortedDict()
         self._patched_entry_state = None
 
-    def add_patch(self, addr, new_bytes, comment: Optional[str] = None):
+    def add_patch(self, addr, new_bytes, comment: str | None = None):
         self._patches[addr] = Patch(addr, new_bytes, comment=comment)
         self._patched_entry_state = None
 
@@ -94,9 +91,7 @@ class PatchManager(KnowledgeBasePlugin):
     def overlap(a0, a1, b0, b1):
         return a0 <= b0 < a1 or a0 <= b1 < a1 or b0 <= a0 < b1
 
-    def apply_patches_to_binary(
-        self, binary_bytes: Optional[bytes] = None, patches: Optional[List[Patch]] = None
-    ) -> bytes:
+    def apply_patches_to_binary(self, binary_bytes: bytes | None = None, patches: list[Patch] | None = None) -> bytes:
         if patches is None:
             patches = sorted(list(self._patches.values()), key=lambda x: x.addr)
 

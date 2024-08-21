@@ -1,5 +1,6 @@
 import weakref
-from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Generator, Iterable
 import logging
 from collections import defaultdict
 
@@ -11,6 +12,7 @@ from ailment.expression import BinaryOp, StackBaseOffset
 from ...utils.cowdict import DefaultChainMapCOW
 from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
+from ...errors import AngrRuntimeError
 from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
 from ..typehoon.typevars import TypeVariables, TypeVariable
@@ -51,7 +53,7 @@ def parse_stack_pointer(sp):
 class VariableAnnotation(Annotation):
     __slots__ = ("addr_and_variables",)
 
-    def __init__(self, addr_and_variables: List[Tuple[int, SimVariable]]):
+    def __init__(self, addr_and_variables: list[tuple[int, SimVariable]]):
         self.addr_and_variables = addr_and_variables
 
     @property
@@ -87,7 +89,7 @@ class VariableRecoveryBase(Analysis):
         self._store_live_variables = store_live_variables
 
         self._outstates = {}
-        self._instates: Dict[Any, VariableRecoveryStateBase] = {}
+        self._instates: dict[Any, VariableRecoveryStateBase] = {}
         self._dominance_frontiers = None
 
     #
@@ -175,6 +177,7 @@ class VariableRecoveryStateBase:
             self.stack_region: MultiValuedMemory = MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 phi_maker=self._make_phi_variable,
                 skip_missing_values_during_merging=True,
                 page_kwargs={"mo_cmp": self._mo_cmp},
@@ -188,6 +191,7 @@ class VariableRecoveryStateBase:
             self.register_region: MultiValuedMemory = MultiValuedMemory(
                 memory_id="reg",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 phi_maker=self._make_phi_variable,
                 skip_missing_values_during_merging=True,
                 page_kwargs={"mo_cmp": self._mo_cmp},
@@ -201,6 +205,7 @@ class VariableRecoveryStateBase:
             self.global_region: MultiValuedMemory = MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
+                is_top_func=self.is_top,
                 phi_maker=self._make_phi_variable,
                 skip_missing_values_during_merging=True,
                 page_kwargs={"mo_cmp": self._mo_cmp},
@@ -208,18 +213,18 @@ class VariableRecoveryStateBase:
         self.global_region.set_state(self)
 
         # Used during merging
-        self.successor_block_addr: Optional[int] = None
-        self.phi_variables: Dict[SimVariable, SimVariable] = {}
+        self.successor_block_addr: int | None = None
+        self.phi_variables: dict[SimVariable, SimVariable] = {}
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = defaultdict(set) if type_constraints is None else type_constraints
         self.func_typevar = func_typevar
         self.delayed_type_constraints = (
-            DefaultChainMapCOW(set, collapse_threshold=25)
+            DefaultChainMapCOW(default_factory=set, collapse_threshold=25)
             if delayed_type_constraints is None
             else delayed_type_constraints
         )
-        self.stack_offset_typevars: Dict[int, TypeVariable] = (
+        self.stack_offset_typevars: dict[int, TypeVariable] = (
             {} if stack_offset_typevars is None else stack_offset_typevars
         )
 
@@ -241,14 +246,14 @@ class VariableRecoveryStateBase:
         return False
 
     @staticmethod
-    def extract_variables(expr: claripy.ast.Base) -> Generator[Tuple[int, Union[SimVariable, SpOffset]], None, None]:
+    def extract_variables(expr: claripy.ast.Base) -> Generator[tuple[int, SimVariable | SpOffset], None, None]:
         for anno in expr.annotations:
             if isinstance(anno, VariableAnnotation):
                 yield from anno.addr_and_variables
 
     @staticmethod
     def annotate_with_variables(
-        expr: claripy.ast.Base, addr_and_variables: Iterable[Tuple[int, Union[SimVariable, SpOffset]]]
+        expr: claripy.ast.Base, addr_and_variables: Iterable[tuple[int, SimVariable | SpOffset]]
     ) -> claripy.ast.Base:
         expr = expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
         return expr
@@ -273,7 +278,7 @@ class VariableRecoveryStateBase:
         return False
 
     @staticmethod
-    def extract_stack_offset_from_addr(addr: claripy.ast.Base) -> Optional[claripy.ast.Base]:
+    def extract_stack_offset_from_addr(addr: claripy.ast.Base) -> claripy.ast.Base | None:
         r = None
         if addr.op == "BVS":
             if addr.args[0] == "stack_base":
@@ -297,7 +302,7 @@ class VariableRecoveryStateBase:
             r = r1 - r2
         return r
 
-    def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
+    def get_stack_offset(self, addr: claripy.ast.Base) -> int | None:
         if "stack_base" in addr.variables:
             r = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr)
             if r is None:
@@ -324,7 +329,7 @@ class VariableRecoveryStateBase:
             base = 0x7F_FFFF_FFFE_0000
             mask = 0xFFFF_FFFF_FFFF_FFFF
         else:
-            raise RuntimeError("Unsupported bits %d" % self.arch.bits)
+            raise AngrRuntimeError("Unsupported bits %d" % self.arch.bits)
         return (offset + base) & mask
 
     @property
@@ -403,17 +408,17 @@ class VariableRecoveryStateBase:
 
     @staticmethod
     def _mo_cmp(
-        mos_self: Set["SimMemoryObject"], mos_other: Set["SimMemoryObject"], addr: int, size: int
+        mos_self: set["SimMemoryObject"], mos_other: set["SimMemoryObject"], addr: int, size: int
     ):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
         return mos_self == mos_other
 
-    def _make_phi_variable(self, values: Set[claripy.ast.Base]) -> Optional[claripy.ast.Base]:
+    def _make_phi_variable(self, values: set[claripy.ast.Base]) -> claripy.ast.Base | None:
         # we only create a new phi variable if the there is at least one variable involved
         variables = set()
-        bits: Optional[int] = None
+        bits: int | None = None
         for v in values:
             bits = v.size()
             for _, var in self.extract_variables(v):

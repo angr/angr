@@ -1,5 +1,3 @@
-from typing import Optional
-
 from ailment import Expr, Stmt
 
 from angr.calling_conventions import SimCCUsercall
@@ -20,7 +18,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
 
     __slots__ = ()
 
-    def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Optional[Expr.Expression]:
+    def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
         if ccall.cee_name == "amd64g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
@@ -151,14 +149,14 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                 **ccall.tags,
                             )
                             return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
-                elif cond_v == AMD64_CondTypes["CondZ"]:
+                elif cond_v in {AMD64_CondTypes["CondZ"], AMD64_CondTypes["CondNZ"]}:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
                         AMD64_OpTypes["G_CC_OP_SUBW"],
                         AMD64_OpTypes["G_CC_OP_SUBL"],
                         AMD64_OpTypes["G_CC_OP_SUBQ"],
                     }:
-                        # dep_1 - dep_2 == 0
+                        # dep_1 - dep_2 == 0 or dep_1 - dep_2 != 0
 
                         dep_1 = self._fix_size(
                             dep_1,
@@ -176,8 +174,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             AMD64_OpTypes["G_CC_OP_SUBL"],
                             ccall.tags,
                         )
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
-                        r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, dep_2), False, **ccall.tags)
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                     elif op_v in {
                         AMD64_OpTypes["G_CC_OP_LOGICB"],
@@ -185,7 +184,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         AMD64_OpTypes["G_CC_OP_LOGICL"],
                         AMD64_OpTypes["G_CC_OP_LOGICQ"],
                     }:
-                        # dep_1 == 0
+                        # dep_1 == 0 or dep_1 != 0
 
                         dep_1 = self._fix_size(
                             dep_1,
@@ -195,9 +194,10 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             AMD64_OpTypes["G_CC_OP_LOGICL"],
                             ccall.tags,
                         )
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
                         r = Expr.BinaryOp(
-                            ccall.idx, "CmpEQ", (dep_1, Expr.Const(None, None, 0, dep_1.bits)), False, **ccall.tags
+                            ccall.idx, expr_op, (dep_1, Expr.Const(None, None, 0, dep_1.bits)), False, **ccall.tags
                         )
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                     elif op_v in {
@@ -206,7 +206,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         AMD64_OpTypes["G_CC_OP_SHRL"],
                         AMD64_OpTypes["G_CC_OP_SHRQ"],
                     }:
-                        # dep_1 == 0
+                        # dep_1 == 0 or dep_1 != 0
 
                         dep_1 = self._fix_size(
                             dep_1,
@@ -216,9 +216,20 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             AMD64_OpTypes["G_CC_OP_SHRL"],
                             ccall.tags,
                         )
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
                         zero = Expr.Const(None, None, 0, dep_1.bits)
-                        r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, zero), False, **ccall.tags)
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    elif op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
+                        # dep_1 & G_CC_MASK_Z == 0 or dep_1 & G_CC_MASK_Z != 0
+
+                        flag = Expr.Const(None, None, AMD64_CondBitMasks["G_CC_MASK_Z"], dep_1.bits)
+                        masked_dep = Expr.BinaryOp(None, "And", [dep_1, flag], False, **ccall.tags)
+                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
+
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondL"]:
                     if op_v in {

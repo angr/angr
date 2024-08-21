@@ -1,11 +1,14 @@
+from __future__ import annotations
 import copy
 from collections import defaultdict, namedtuple
 import logging
 import enum
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, NamedTuple, TYPE_CHECKING
+from typing import Any, NamedTuple, TYPE_CHECKING
+from collections.abc import Iterable
 
 import networkx
+import capstone
 
 import ailment
 
@@ -25,6 +28,7 @@ from ...sim_type import (
     SimTypeFloat,
     SimTypePointer,
 )
+from ..stack_pointer_tracker import Register, OffsetVal
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
@@ -32,8 +36,17 @@ from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from ..reaching_definitions import ReachingDefinitionsAnalysis
+from .return_maker import ReturnMaker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
-from .optimization_passes import get_default_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
+from .optimization_passes import (
+    get_default_optimization_passes,
+    OptimizationPassStage,
+    RegisterSaveAreaSimplifier,
+    StackCanarySimplifier,
+    SpilledRegisterFinder,
+    DUPLICATING_OPTS,
+    CONDENSING_OPTS,
+)
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -84,15 +97,19 @@ class Clinic(Analysis):
         insert_labels=True,
         optimization_passes=None,
         cfg=None,
-        peephole_optimizations: Optional[
-            Iterable[Union[Type["PeepholeOptimizationStmtBase"], Type["PeepholeOptimizationExprBase"]]]
-        ] = None,  # pylint:disable=line-too-long
-        must_struct: Optional[Set[str]] = None,
+        peephole_optimizations: None | (
+            Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
+        ) = None,  # pylint:disable=line-too-long
+        must_struct: set[str] | None = None,
         variable_kb=None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
-        cache: Optional["DecompilationCache"] = None,
+        cache: DecompilationCache | None = None,
         mode: ClinicMode = ClinicMode.DECOMPILE,
+        sp_shift: int = 0,
+        inline_functions: set[Function] | None = frozenset(),
+        inlined_counts: dict[int, int] | None = None,
+        inlining_parents: set[int] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -100,13 +117,14 @@ class Clinic(Analysis):
         self.function = func
 
         self.graph = None
-        self.cc_graph: Optional[networkx.DiGraph] = None
+        self.cc_graph: networkx.DiGraph | None = None
+        self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
         self.variable_kb = variable_kb
-        self.externs: Set[SimMemoryVariable] = set()
-        self.data_refs: Dict[int, int] = {}  # data address to instruction address
+        self.externs: set[SimMemoryVariable] = set()
+        self.data_refs: dict[int, int] = {}  # data address to instruction address
 
-        self._func_graph: Optional[networkx.DiGraph] = None
+        self._func_graph: networkx.DiGraph | None = None
         self._ail_manager = None
         self._blocks_by_addr_and_size = {}
 
@@ -115,14 +133,21 @@ class Clinic(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
-        self._cfg: Optional["CFGModel"] = cfg
+        self._cfg: CFGModel | None = cfg
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
-        self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
+        self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
+
+        # inlining help
+        self._sp_shift = sp_shift
+        self._max_stack_depth = 0
+        self._inline_functions = inline_functions
+        self._inlined_counts = {} if inlined_counts is None else inlined_counts
+        self._inlining_parents = inlining_parents or ()
 
         self._register_save_areas_removed: bool = False
 
@@ -181,6 +206,18 @@ class Clinic(Analysis):
     #
 
     def _analyze_for_decompiling(self):
+        if not (ail_graph := self._decompilation_graph_recovery()):
+            return
+        ail_graph = self._decompilation_fixups(ail_graph)
+
+        if self._inline_functions:
+            self._max_stack_depth += self.calculate_stack_depth()
+            ail_graph = self._inline_child_functions(ail_graph)
+
+        ail_graph = self._decompilation_simplifications(ail_graph)
+        self.graph = ail_graph
+
+    def _decompilation_graph_recovery(self):
         is_pcode_arch = ":" in self.project.arch.name
 
         # Set up the function graph according to configurations
@@ -193,7 +230,7 @@ class Clinic(Analysis):
 
         # if the graph is empty, don't continue
         if not self._func_graph:
-            return
+            return None
 
         # Make sure calling conventions of all functions that the current function calls have been recovered
         if not is_pcode_arch:
@@ -203,16 +240,16 @@ class Clinic(Analysis):
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
 
-        # Track stack pointers
-        self._update_progress(15.0, text="Tracking stack pointers")
-        spt = self._track_stack_pointers()
-
         # Convert VEX blocks to AIL blocks and then simplify them
 
         self._update_progress(20.0, text="Converting VEX to AIL")
         self._convert_all()
 
-        ail_graph = self._make_ailgraph()
+        return self._make_ailgraph()
+
+    def _decompilation_fixups(self, ail_graph):
+        is_pcode_arch = ":" in self.project.arch.name
+
         if self._rewrite_ites_to_diamonds:
             self._rewrite_ite_expressions(ail_graph)
         self._remove_redundant_jump_blocks(ail_graph)
@@ -235,6 +272,127 @@ class Clinic(Analysis):
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
             self._recover_calling_conventions(func_graph=ail_graph)
 
+        return ail_graph
+
+    def _inline_child_functions(self, ail_graph):
+        for blk in ail_graph.nodes():
+            for idx, stmt in enumerate(blk.statements):
+                if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+                    callee = self.function._function_manager.function(stmt.target.value)
+                    if (
+                        callee.addr == self.function.addr
+                        or callee.addr in self._inlining_parents
+                        or callee not in self._inline_functions
+                        or callee.is_plt
+                        or callee.is_simprocedure
+                    ):
+                        continue
+
+                    ail_graph = self._inline_call(ail_graph, blk, idx, callee)
+        return ail_graph
+
+    def _inline_call(self, ail_graph, caller_block, call_idx, callee):
+        callee_clinic = self.project.analyses.Clinic(
+            callee,
+            mode=ClinicMode.DECOMPILE,
+            inline_functions=self._inline_functions,
+            inlining_parents=self._inlining_parents + (self.function.addr,),
+            inlined_counts=self._inlined_counts,
+            optimization_passes=[StackCanarySimplifier, SpilledRegisterFinder],
+            sp_shift=self._max_stack_depth,
+        )
+        self._max_stack_depth = callee_clinic._max_stack_depth
+        callee_graph = callee_clinic.copy_graph()
+
+        # uniquely mark all the blocks in case of duplicates (e.g., foo(); foo();)
+        self._inlined_counts.setdefault(callee.addr, 0)
+        for blk in callee_graph.nodes():
+            blk.idx = self._inlined_counts[callee.addr]
+        self._inlined_counts[callee.addr] += 1
+
+        # figure out where the callee should start at and return to
+        callee_start = next(n for n in callee_graph if n.addr == callee.addr)
+        caller_successors = list(ail_graph.out_edges(caller_block, data=True))
+        assert len(caller_successors) == 1
+        caller_successor = caller_successors[0][1]
+        ail_graph.remove_edge(caller_block, caller_successor)
+
+        # update all callee return nodes with caller successor
+        # and rewrite pseudoreg-tagged spills to actually use pseudoregs
+        ail_graph = networkx.union(ail_graph, callee_graph)
+        for blk in callee_graph.nodes():
+            for idx, stmt in enumerate(list(blk.statements)):
+                if isinstance(stmt, ailment.Stmt.Return):
+                    blk.statements[idx] = ailment.Stmt.Jump(
+                        None,
+                        ailment.Expr.Const(None, None, caller_successor.addr, self.project.arch.bits),
+                        caller_successor.idx,
+                        **blk.statements[idx].tags,
+                    )
+                    blk.statements.pop(idx)
+                    ail_graph.add_edge(blk, caller_successor)
+                    break
+                if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Store):
+                    new_stmt = ailment.Stmt.Assignment(
+                        stmt.idx, ailment.Expr.Register(None, None, stmt.pseudoreg, stmt.size * 8), stmt.data
+                    )
+                    new_stmt.tags.update(stmt.tags)
+                    new_stmt.tags.pop("pseudoreg")
+                    blk.statements[idx] = new_stmt
+                if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Assignment):
+                    new_stmt = ailment.Stmt.Assignment(
+                        stmt.idx, stmt.dst, ailment.Expr.Register(None, None, stmt.pseudoreg, stmt.src.size * 8)
+                    )
+                    new_stmt.tags.update(stmt.tags)
+                    new_stmt.tags.pop("pseudoreg")
+                    blk.statements[idx] = new_stmt
+
+        # update the call edge
+        caller_block.statements[call_idx] = ailment.Stmt.Jump(
+            None,
+            ailment.Expr.Const(None, None, callee.addr, self.project.arch.bits),
+            callee_start.idx,
+            **caller_block.statements[call_idx].tags,
+        )
+        if (
+            isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
+            and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
+        ):
+            # don't push the return address
+            caller_block.statements.pop(call_idx - 5)  # t6 = rsp<8>
+            caller_block.statements.pop(call_idx - 5)  # t5 = (t6 - 0x8<64>)
+            caller_block.statements.pop(call_idx - 5)  # rsp<8> = t5
+            caller_block.statements.pop(
+                call_idx - 5
+            )  # STORE(addr=t5, data=0x40121b<64>, size=8, endness=Iend_LE, guard=None)
+            caller_block.statements.pop(call_idx - 5)  # t7 = (t5 - 0x80<64>) <- wtf is this??
+        elif (
+            isinstance(caller_block.statements[call_idx - 1], ailment.Stmt.Store)
+            and caller_block.statements[call_idx - 1].addr.base == "stack_base"
+            and caller_block.statements[call_idx - 1].data.value == caller_successor.addr
+        ):
+            caller_block.statements.pop(call_idx - 1)  # s_10 =L 0x401225<64><8>
+        ail_graph.add_edge(caller_block, callee_start)
+
+        return ail_graph
+
+    def calculate_stack_depth(self):
+        # we need to reserve space for our own stack
+        spt = self._track_stack_pointers()
+        stack_offsets = spt.offsets_for(self.project.arch.sp_offset)
+        if max(stack_offsets) > 2 ** (self.project.arch.bits - 1):
+            # why is this unsigned...
+            depth = min(s for s in stack_offsets if s > 2 ** (self.project.arch.bits - 1)) - 2**self.project.arch.bits
+        else:
+            depth = min(stack_offsets)
+
+        if spt.inconsistent_for(self.project.arch.sp_offset):
+            l.warning("Inconsistency found during stack pointer tracking. Stack depth may be incorrect.")
+            depth -= 0x1000
+
+        return depth
+
+    def _decompilation_simplifications(self, ail_graph):
         # Make returns
         self._update_progress(30.0, text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
@@ -253,7 +411,11 @@ class Clinic(Analysis):
         )
 
         # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = {}
+        block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
+
+        # Track stack pointers
+        self._update_progress(15.0, text="Tracking stack pointers")
+        spt = self._track_stack_pointers()
 
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
@@ -262,6 +424,7 @@ class Clinic(Analysis):
         ail_graph = self._simplify_blocks(
             ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
         )
+        self._rewrite_alloca(ail_graph)
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
@@ -295,7 +458,7 @@ class Clinic(Analysis):
         _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Run simplification passes
-        self._update_progress(65.0, text="Running simplifications 2")
+        self._update_progress(53.0, text="Running simplifications 2")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES)
 
         # Simplify the entire function for the second time
@@ -363,11 +526,11 @@ class Clinic(Analysis):
         # remove empty nodes from the graph
         ail_graph = self.remove_empty_nodes(ail_graph)
 
-        self.graph = ail_graph
         self.arg_list = arg_list
         self.variable_kb = variable_kb
-        self.cc_graph = self.copy_graph()
+        self.cc_graph = self.copy_graph(ail_graph)
         self.externs = self._collect_externs(ail_graph, variable_kb)
+        return ail_graph
 
     def _analyze_for_data_refs(self):
         # Set up the function graph according to configurations
@@ -394,6 +557,20 @@ class Clinic(Analysis):
         self._update_progress(20.0, text="Converting VEX to AIL")
         self._convert_all()
 
+        # there must be at least one Load or one Store
+        found_load_or_store = False
+        for ail_block in self._blocks_by_addr_and_size.values():
+            for stmt in ail_block.statements:
+                if isinstance(stmt, ailment.Stmt.Store):
+                    found_load_or_store = True
+                    break
+                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Load):
+                    found_load_or_store = True
+                    break
+        if not found_load_or_store:
+            self.data_refs = {}
+            return
+
         ail_graph = self._make_ailgraph()
         self._remove_redundant_jump_blocks(ail_graph)
 
@@ -410,7 +587,7 @@ class Clinic(Analysis):
         )
 
         # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = {}
+        block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
 
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
@@ -428,6 +605,8 @@ class Clinic(Analysis):
             unify_variables=False,
             narrow_expressions=False,
             fold_callexprs_into_conditions=False,
+            rewrite_ccalls=False,
+            max_iterations=1,
         )
 
         # clear _blocks_by_addr_and_size so no one can use it again
@@ -439,9 +618,10 @@ class Clinic(Analysis):
         self.variable_kb = None
         self.cc_graph = None
         self.externs = None
-        self.data_refs: Dict[int, List[DataRefDesc]] = self._collect_data_refs(ail_graph)
+        self.data_refs: dict[int, list[DataRefDesc]] = self._collect_data_refs(ail_graph)
 
-    def copy_graph(self) -> networkx.DiGraph:
+    @staticmethod
+    def _copy_graph(graph: networkx.DiGraph) -> networkx.DiGraph:
         """
         Copy AIL Graph.
 
@@ -450,7 +630,7 @@ class Clinic(Analysis):
         graph_copy = networkx.DiGraph()
         block_mapping = {}
         # copy all blocks
-        for block in self.graph.nodes():
+        for block in graph.nodes():
             new_block = copy.copy(block)
             new_stmts = copy.copy(block.statements)
             new_block.statements = new_stmts
@@ -458,11 +638,14 @@ class Clinic(Analysis):
             graph_copy.add_node(new_block)
 
         # copy all edges
-        for src, dst, data in self.graph.edges(data=True):
+        for src, dst, data in graph.edges(data=True):
             new_src = block_mapping[src]
             new_dst = block_mapping[dst]
             graph_copy.add_edge(new_src, new_dst, **data)
         return graph_copy
+
+    def copy_graph(self, graph=None) -> networkx.DiGraph:
+        return self._copy_graph(graph or self.graph)
 
     @timethis
     def _set_function_graph(self):
@@ -604,9 +787,27 @@ class Clinic(Analysis):
         """
 
         regs = {self.project.arch.sp_offset}
+        initial_reg_values = {
+            self.project.arch.sp_offset: OffsetVal(
+                Register(self.project.arch.sp_offset, self.project.arch.bits), self._sp_shift
+            )
+        }
         if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
             regs.add(self.project.arch.bp_offset)
-        spt = self.project.analyses.StackPointerTracker(self.function, regs, track_memory=self._sp_tracker_track_memory)
+            initial_reg_values[self.project.arch.bp_offset] = OffsetVal(
+                Register(self.project.arch.bp_offset, self.project.arch.bits), self._sp_shift
+            )
+
+        regs |= self._find_regs_compared_against_sp(self._func_graph)
+
+        spt = self.project.analyses.StackPointerTracker(
+            self.function,
+            regs,
+            track_memory=self._sp_tracker_track_memory,
+            cross_insn_opt=False,
+            initial_reg_values=initial_reg_values,
+        )
+
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
@@ -623,6 +824,18 @@ class Clinic(Analysis):
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
+                # remove constant pc assignments
+                ail_block.statements = [
+                    stmt
+                    for stmt in ail_block.statements
+                    if not (
+                        isinstance(stmt, ailment.Stmt.Assignment)
+                        and isinstance(stmt.dst, ailment.Expr.Register)
+                        and stmt.dst.reg_offset == self.project.arch.ip_offset
+                        and isinstance(stmt.src, ailment.Expr.Const)
+                    )
+                ]
+
                 self._blocks_by_addr_and_size[(block_node.addr, block_node.size)] = ail_block
 
     def _convert(self, block_node):
@@ -761,7 +974,7 @@ class Clinic(Analysis):
         ail_graph: networkx.DiGraph,
         remove_dead_memdefs=False,
         stack_pointer_tracker=None,
-        cache: Optional[Dict[ailment.Block, NamedTuple]] = None,
+        cache: dict[ailment.Block, NamedTuple] | None = None,
     ):
         """
         Simplify all blocks in self._blocks.
@@ -773,7 +986,7 @@ class Clinic(Analysis):
         :return:                        None
         """
 
-        blocks_by_addr_and_idx: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
+        blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = {}
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
@@ -841,6 +1054,7 @@ class Clinic(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        rewrite_ccalls=True,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -856,6 +1070,7 @@ class Clinic(Analysis):
                 narrow_expressions=narrow_expressions and idx == 0,
                 only_consts=only_consts,
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
+                rewrite_ccalls=rewrite_ccalls,
             )
             if not simplified:
                 break
@@ -870,6 +1085,7 @@ class Clinic(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        rewrite_ccalls=True,
     ):
         """
         Simplify the entire function once.
@@ -889,6 +1105,7 @@ class Clinic(Analysis):
             only_consts=only_consts,
             fold_callexprs_into_conditions=fold_callexprs_into_conditions,
             use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+            rewrite_ccalls=rewrite_ccalls,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -904,8 +1121,8 @@ class Clinic(Analysis):
         variable_kb=None,
         **kwargs,
     ):
-        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
-        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
@@ -918,6 +1135,11 @@ class Clinic(Analysis):
         for pass_ in self._optimization_passes:
             if pass_.STAGE != stage:
                 continue
+
+            if pass_ in DUPLICATING_OPTS + CONDENSING_OPTS and self.unoptimized_graph is None:
+                # we should save a copy at the first time any optimization that could alter the structure
+                # of the graph is applied
+                self.unoptimized_graph = self._copy_graph(ail_graph)
 
             a = pass_(
                 self.function,
@@ -939,10 +1161,10 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _make_argument_list(self) -> List[SimVariable]:
+    def _make_argument_list(self) -> list[SimVariable]:
         if self.function.calling_convention is not None and self.function.prototype is not None:
-            args: List[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
-            arg_vars: List[SimVariable] = []
+            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
+            arg_vars: list[SimVariable] = []
             if args:
                 arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]
                 for idx, arg in enumerate(args):
@@ -1017,7 +1239,9 @@ class Clinic(Analysis):
                     return simp.result_block
             return None
 
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
+        # rewriting call-sites at this point, pre-inlining, causes issues with incorrect call signatures
+        if not self._inlining_parents:
+            AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
         return ail_graph, TempClass.stack_arg_offsets
 
@@ -1026,56 +1250,21 @@ class Clinic(Analysis):
         """
         Work on each return statement and fill in its return expressions.
         """
+        if self._inlining_parents:
+            # for inlining, we want to keep the return statement separate from the return value, so that
+            # the former can be removed while preserving the latter
+            return ail_graph
 
         if self.function.calling_convention is None:
             # unknown calling convention. cannot do much about return expressions.
             return ail_graph
 
-        # Block walker
-
-        def _handle_Return(
-            stmt_idx: int, stmt: ailment.Stmt.Return, block: Optional[ailment.Block]
-        ):  # pylint:disable=unused-argument
-            if (
-                block is not None
-                and not stmt.ret_exprs
-                and self.function.prototype is not None
-                and self.function.prototype.returnty is not None
-                and type(self.function.prototype.returnty) is not SimTypeBottom
-            ):
-                new_stmt = stmt.copy()
-                ret_val = self.function.calling_convention.return_val(self.function.prototype.returnty)
-                if isinstance(ret_val, SimRegArg):
-                    reg = self.project.arch.registers[ret_val.reg_name]
-                    new_stmt.ret_exprs.append(
-                        ailment.Expr.Register(
-                            self._next_atom(),
-                            None,
-                            reg[0],
-                            ret_val.size * self.project.arch.byte_width,
-                            reg_name=self.project.arch.translate_register_name(reg[0], ret_val.size),
-                        )
-                    )
-                else:
-                    l.warning("Unsupported type of return expression %s.", type(ret_val))
-                block.statements[stmt_idx] = new_stmt
-
-        def _handler(block):
-            walker = ailment.AILBlockWalker()
-            # we don't need to handle any statement besides Returns
-            walker.stmt_handlers.clear()
-            walker.expr_handlers.clear()
-            walker.stmt_handlers[ailment.Stmt.Return] = _handle_Return
-            walker.walk(block)
-
-        # Graph walker
-
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
+        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph)
 
         return ail_graph
 
     @timethis
-    def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
+    def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb):
         if self.function.prototype is not None:
             if not self.function.is_prototype_guessed:
                 # do not overwrite an existing function prototype
@@ -1199,11 +1388,24 @@ class Clinic(Analysis):
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
 
+        # Link struct member info to Store statements
+        for block in ail_graph.nodes():
+            self._link_struct_member_info_on_block(block, tmp_kb)
+
         if self._cache is not None:
             self._cache.type_constraints = vr.type_constraints
+            self._cache.func_typevar = vr.func_typevar
             self._cache.var_to_typevar = vr.var_to_typevars
 
         return tmp_kb
+
+    def _link_struct_member_info_on_block(self, block, kb):
+        variable_manager = kb.variables[self.function.addr]
+        for stmt in block.statements:
+            if isinstance(stmt, ailment.Stmt.Store) and isinstance((var := stmt.variable), SimStackVariable):
+                offset = var.offset
+                if offset in variable_manager.stack_offset_to_struct_member_info:
+                    stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
 
     def _link_variables_on_block(self, block, kb):
         """
@@ -1581,7 +1783,7 @@ class Clinic(Analysis):
 
     @staticmethod
     def _remove_redundant_jump_blocks(ail_graph):
-        def first_conditional_jump(block: ailment.Block) -> Optional[ailment.Stmt.ConditionalJump]:
+        def first_conditional_jump(block: ailment.Block) -> ailment.Stmt.ConditionalJump | None:
             for stmt in block.statements:
                 if isinstance(stmt, ailment.Stmt.ConditionalJump):
                     return stmt
@@ -1647,7 +1849,7 @@ class Clinic(Analysis):
             expr: ailment.expression.Expression,
             stmt_idx: int,
             stmt: ailment.statement.Statement,
-            block: Optional[ailment.Block],
+            block: ailment.Block | None,
         ):
             if expr is None:
                 return None
@@ -1659,7 +1861,7 @@ class Clinic(Analysis):
                     variables.add(v)
             return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
-        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: Optional[ailment.Block]):
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
             if stmt.variable and stmt.variable in global_vars:
                 variables.add(stmt.variable)
             return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
@@ -1670,17 +1872,17 @@ class Clinic(Analysis):
         return variables
 
     @staticmethod
-    def _collect_data_refs(ail_graph) -> Dict[int, List[DataRefDesc]]:
+    def _collect_data_refs(ail_graph) -> dict[int, list[DataRefDesc]]:
         # pylint:disable=unused-argument
         walker = ailment.AILBlockWalker()
-        data_refs: Dict[int, List[DataRefDesc]] = defaultdict(list)
+        data_refs: dict[int, list[DataRefDesc]] = defaultdict(list)
 
         def handle_Const(
             expr_idx: int,
             expr: ailment.expression.Const,
             stmt_idx: int,
             stmt: ailment.statement.Statement,
-            block: Optional[ailment.Block],
+            block: ailment.Block | None,
         ):
             if isinstance(expr.value, int) and hasattr(expr, "ins_addr"):
                 data_refs[block.addr].append(
@@ -1698,7 +1900,7 @@ class Clinic(Analysis):
             expr: ailment.expression.Load,
             stmt_idx: int,
             stmt: ailment.statement.Statement,
-            block: Optional[ailment.Block],
+            block: ailment.Block | None,
         ):
             if isinstance(expr.addr, ailment.expression.Const):
                 addr = expr.addr
@@ -1728,7 +1930,7 @@ class Clinic(Analysis):
 
             return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
 
-        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: Optional[ailment.Block]):
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
             if isinstance(stmt.addr, ailment.expression.Const):
                 addr = stmt.addr
                 if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
@@ -1774,7 +1976,7 @@ class Clinic(Analysis):
         op_type = kwargs.pop("op_type")
         return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
 
-    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> Optional[Tuple[Any, Any]]:
+    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any] | None:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0
         if isinstance(addr, ailment.Expr.BinaryOp):
@@ -1876,6 +2078,100 @@ class Clinic(Analysis):
 
         AILGraphWalker(graph, handle_node, replace_nodes=True).walk()
         return graph
+
+    def _find_regs_compared_against_sp(self, func_graph):
+        # TODO: Implement this function for architectures beyond amd64
+        extra_regs = set()
+        if self.project.arch.name == "AMD64":
+            for node in func_graph.nodes:
+                block = self.project.factory.block(node.addr, size=node.size).capstone
+                for insn in block.insns:
+                    if insn.mnemonic == "cmp":
+                        capstone_reg_offset = None
+                        if (
+                            insn.operands[0].type == capstone.x86.X86_OP_REG
+                            and insn.operands[0].reg == capstone.x86.X86_REG_RSP
+                            and insn.operands[1].type == capstone.x86.X86_OP_REG
+                        ):
+                            capstone_reg_offset = insn.operands[1].reg
+                        elif (
+                            insn.operands[1].type == capstone.x86.X86_OP_REG
+                            and insn.operands[1].reg == capstone.x86.X86_REG_RSP
+                            and insn.operands[0].type == capstone.x86.X86_OP_REG
+                        ):
+                            capstone_reg_offset = insn.operands[0].reg
+
+                        if capstone_reg_offset is not None:
+                            reg_name = insn.reg_name(capstone_reg_offset)
+                            extra_regs.add(self.project.arch.registers[reg_name][0])
+
+        return extra_regs
+
+    def _rewrite_alloca(self, ail_graph):
+        # pylint:disable=too-many-boolean-expressions
+        alloca_node = None
+        sp_equal_to = None
+
+        for node in ail_graph:
+            if ail_graph.in_degree[node] == 2 and ail_graph.out_degree[node] == 2:
+                succs = ail_graph.successors(node)
+                if node in succs:
+                    # self loop!
+                    if len(node.statements) >= 6:
+                        stmt0 = node.statements[1]  # skip the LABEL statement
+                        stmt1 = node.statements[2]
+                        last_stmt = node.statements[-1]
+                        if (
+                            isinstance(stmt0, ailment.Stmt.Assignment)
+                            and isinstance(stmt0.dst, ailment.Expr.Register)
+                            and isinstance(stmt0.src, ailment.Expr.StackBaseOffset)
+                            and stmt0.src.offset == -0x1000
+                        ):
+                            if (
+                                isinstance(stmt1, ailment.Stmt.Store)
+                                and isinstance(stmt1.addr, ailment.Expr.StackBaseOffset)
+                                and stmt1.addr.offset == -0x1000
+                                and isinstance(stmt1.data, ailment.Expr.Load)
+                                and isinstance(stmt1.data.addr, ailment.Expr.StackBaseOffset)
+                                and stmt1.data.addr.offset == -0x1000
+                            ):
+                                if (
+                                    isinstance(last_stmt, ailment.Stmt.ConditionalJump)
+                                    and isinstance(last_stmt.condition, ailment.Expr.BinaryOp)
+                                    and last_stmt.condition.op == "CmpEQ"
+                                    and isinstance(last_stmt.condition.operands[0], ailment.Expr.StackBaseOffset)
+                                    and last_stmt.condition.operands[0].offset == -0x1000
+                                    and isinstance(last_stmt.condition.operands[1], ailment.Expr.Register)
+                                    and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                                    and last_stmt.false_target.value == node.addr
+                                ):
+                                    # found it!
+                                    alloca_node = node
+                                    sp_equal_to = ailment.Expr.BinaryOp(
+                                        None,
+                                        "Sub",
+                                        [
+                                            ailment.Expr.Register(
+                                                None, None, self.project.arch.sp_offset, self.project.arch.bits
+                                            ),
+                                            last_stmt.condition.operands[1],
+                                        ],
+                                        False,
+                                    )
+                                    break
+
+        if alloca_node is not None:
+            stmt0 = alloca_node.statements[1]
+            statements = [ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)]
+            new_node = ailment.Block(alloca_node.addr, alloca_node.original_size, statements=statements)
+            # replace the node
+            preds = [pred for pred in ail_graph.predecessors(alloca_node) if pred is not alloca_node]
+            succs = [succ for succ in ail_graph.successors(alloca_node) if succ is not alloca_node]
+            ail_graph.remove_node(alloca_node)
+            for pred in preds:
+                ail_graph.add_edge(pred, new_node)
+            for succ in succs:
+                ail_graph.add_edge(new_node, succ)
 
 
 register_analysis(Clinic, "Clinic")

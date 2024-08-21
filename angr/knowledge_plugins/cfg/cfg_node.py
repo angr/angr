@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import traceback
 import logging
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
@@ -11,10 +13,14 @@ from angr.serializable import Serializable
 from angr.protos import cfg_pb2
 
 if TYPE_CHECKING:
+    from angr.block import Block, SootBlock
     from .cfg_model import CFGModel
     import angr
 
 _l = logging.getLogger(__name__)
+
+
+AddressType = int | SootAddressDescriptor
 
 
 class CFGNodeCreationFailure:
@@ -87,15 +93,15 @@ class CFGNode(Serializable):
         __repr__.
         """
 
-        self.addr = addr
+        self.addr: AddressType = addr
         self.size = size
         self.simprocedure_name = simprocedure_name
         self.no_ret = no_ret
-        self._cfg_model: "CFGModel" = cfg
+        self._cfg_model: CFGModel = cfg
         self.function_address = function_address
-        self.block_id: Union["angr.analyses.cfg.cfg_job_base.BlockID", int] = block_id
+        self.block_id: angr.analyses.cfg.cfg_job_base.BlockID | int = block_id
         self.thumb = thumb
-        self.byte_string: Optional[bytes] = byte_string
+        self.byte_string: bytes | None = byte_string
 
         self._name = None
         if name is not None:
@@ -353,7 +359,7 @@ class CFGNode(Serializable):
         return BlockNode(self.addr, self.size, thumb=self.thumb)
 
     @property
-    def block(self):
+    def block(self) -> Block | SootBlock | None:
         if self.is_simprocedure or self.is_syscall:
             return None
         project = self._cfg_model.project  # everything in angr is connected with everything...

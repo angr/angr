@@ -21,11 +21,8 @@ class CrossJumpReverter(StructuringOptimizationPass):
     a max of max_opt_iters times. Second, it will not duplicate a block with too many calls.
     """
 
-    ARCHES = None
-    PLATFORMS = None
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Duplicate linear blocks with gotos"
-    STRUCTURING = ["phoenix"]
     DESCRIPTION = inspect.cleandoc(__doc__).strip()
 
     def __init__(

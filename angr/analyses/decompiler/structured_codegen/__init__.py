@@ -5,6 +5,6 @@ from .base import (
     PositionMappingElement,
     PositionMapping,
 )
-from .c import CStructuredCodeGenerator
+from .c import CStructuredCodeGenerator, CStructuredCodeWalker
 from .dwarf_import import ImportSourceCode
 from .dummy import DummyStructuredCodeGenerator

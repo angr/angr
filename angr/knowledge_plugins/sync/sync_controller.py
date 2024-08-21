@@ -1,18 +1,17 @@
 # pylint:disable=import-outside-toplevel
 from functools import wraps
-from typing import Optional, List
+from typing import Optional
+
+from ... import knowledge_plugins
+from ...knowledge_plugins.plugin import KnowledgeBasePlugin
+from ...sim_variable import SimStackVariable
+from ..variables.variable_manager import VariableManagerInternal
 
 binsync_available = None
 binsync = None
 Client = None
 StackVariable = None
 StackOffsetType = None
-
-
-from ... import knowledge_plugins
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
-from ...sim_variable import SimStackVariable
-from ..variables.variable_manager import VariableManagerInternal
 
 
 def import_binsync():
@@ -90,9 +89,8 @@ class SyncController(KnowledgeBasePlugin):
         # import binsync upon the first use of this class
         import_binsync()
 
-        super().__init__()
+        super().__init__(kb=kb)
 
-        self._kb: KnowledgeBasePlugin = kb
         self.client: Optional["binsync.client.Client"] = None
 
     #
@@ -174,7 +172,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     # pylint:disable=unused-argument,no-self-use
-    def push_comments(self, comments: List["binsync.data.Comment"], user=None, state=None):
+    def push_comments(self, comments: list["binsync.data.Comment"], user=None, state=None):
         """
         Push a bunch of comments upwards.
 
@@ -191,7 +189,7 @@ class SyncController(KnowledgeBasePlugin):
     @make_state
     # pylint:disable=unused-argument,no-self-use
     def push_stack_variables(
-        self, stack_variables: List[SimStackVariable], var_manager: VariableManagerInternal, user=None, state=None
+        self, stack_variables: list[SimStackVariable], var_manager: VariableManagerInternal, user=None, state=None
     ):
         """
 
