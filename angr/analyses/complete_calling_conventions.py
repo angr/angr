@@ -285,7 +285,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
     def _worker_routine(self, worker_id: int, initializer: Initializer):
         initializer.initialize()
         idx = 0
-        callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]
+        callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]] | None
         while self._remaining_funcs.value > 0:
             try:
                 with self._func_queue_lock:
