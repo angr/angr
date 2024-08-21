@@ -2162,11 +2162,12 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["build_spec_list"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
+        # Interestingly, this case needs the DuplicationReverter to be disabled because it creates code that is in
+        # many ways better than the source code, but divergent from it.
+        # See testcase test_tr_build_spec_list_deduplication for more information.
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", disable_opts=[DuplicationReverter]
         )
-        # lowered-switch simplifier cannot be enabled. otherwise we will have an extra goto that goes into the fake
-        # switch-case.
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -3815,6 +3816,31 @@ class TestDecompiler(unittest.TestCase):
         assign_var = assign_vars[0]
 
         assert text.count(f"digest_length = {assign_var};") >= 3
+
+    @structuring_algo("sailr")
+    def test_tr_build_spec_list_deduplication(self, decompiler_options=None):
+        # This is a special testcase for deduplication that creates decompilation that is actually divergent from
+        # the original source code, but in many ways makes the code better. So we test it still works.
+        #
+        # The original source can be found here:
+        # https://github.com/coreutils/coreutils/blob/725bb111bda62d8446a0beed366bd9d2c06c8eff/src/tr.c#L854
+        #
+        # There is programmer written duplicated code on 900-909 and 918-928, the only difference is a single string
+        # which can be factored out into a variable. ReturnDuplicator will merge these two, making the code look
+        # much cleaner, contain no gotos, and be less lines of code.
+        # TODO: this case is flakey, fix before merging
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["build_spec_list"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("goto ") == 0
+        assert d.codegen.text.count("star_digits_closebracket") == 1
 
 
 if __name__ == "__main__":
