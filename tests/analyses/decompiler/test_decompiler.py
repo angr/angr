@@ -25,6 +25,7 @@ from angr.analyses import (
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.optimization_passes import (
     DUPLICATING_OPTS,
+    CONDENSING_OPTS,
     LoweredSwitchSimplifier,
     CrossJumpReverter,
     InlinedStringTransformationSimplifier,
@@ -438,9 +439,11 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable duplicating code
+        # since this is a case we know where DuplicationReverter eliminates some bad code, we should
+        # disable it for this since we want to test the decompiler's ability to handle this case when it has
+        # these messed up loops
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS + [DuplicationReverter]
         )
 
         f = cfg.functions[0x404410]
@@ -1682,18 +1685,16 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("sailr")
     def test_cascading_boolean_and(self, decompiler_options=None):
-        # test binary contributed by zion
+        # test binary derived from SAILR project
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_cascading_boolean_and")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True)
 
-        # disable eager returns simplifier
+        # disable deoptimizations based on optimizations (it's a non-optimized simple binary)
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS + CONDENSING_OPTS
         )
-        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
-
         dec = proj.analyses.Decompiler(
             proj.kb.functions["foo"], cfg=cfg, options=decompiler_options, optimization_passes=all_optimization_passes
         )

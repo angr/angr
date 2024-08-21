@@ -64,7 +64,7 @@ _all_optimization_passes = [
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicatorLow, ReturnDuplicatorHigh, CrossJumpReverter]
 # these passes may destroy blocks by merging them into semantically equivalent blocks
-CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator]
+CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator, DuplicationReverter]
 
 
 def get_optimization_passes(arch, platform):
