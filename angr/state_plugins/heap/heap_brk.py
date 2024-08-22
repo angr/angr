@@ -1,8 +1,10 @@
+import logging
+
+import claripy
+
 from angr.errors import SimSolverError
 from ..plugin import SimStatePlugin
 from . import SimHeapBase
-
-import logging
 
 l = logging.getLogger(__name__)
 
@@ -92,7 +94,7 @@ class SimHeapBrk(SimHeapBase):
                 final_size = plugin.max_variable_size
 
         addr = self.state.heap.allocate(final_size)
-        v = self.state.solver.BVV(0, final_size * 8)
+        v = claripy.BVV(0, final_size * 8)
         self.state.memory.store(addr, v)
         return addr
 

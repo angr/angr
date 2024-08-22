@@ -1,6 +1,8 @@
+import claripy
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
 import angr
 
-from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 # Reference for implementation: glibc-2.25/libio/iofdopen.c
 
@@ -65,7 +67,7 @@ class fdopen(angr.SimProcedure):
             file_struct_ptr = self.inline_call(malloc, io_file_data["size"]).ret_expr
 
             # Write the fd
-            fd_bvv = self.state.solver.BVV(fd_concr, 4 * 8)  # int
+            fd_bvv = claripy.BVV(fd_concr, 4 * 8)  # int
             self.state.memory.store(
                 file_struct_ptr + io_file_data["fd"], fd_bvv, endness=self.state.arch.memory_endness
             )
@@ -73,5 +75,5 @@ class fdopen(angr.SimProcedure):
             if self.state.solver.is_true(fd_int == fd_concr):
                 return file_struct_ptr
             else:
-                null = self.state.solver.BVV(0, self.state.arch.bits)
-                return self.state.solver.If(fd_int == fd_concr, file_struct_ptr, null)
+                null = claripy.BVV(0, self.state.arch.bits)
+                return claripy.If(fd_int == fd_concr, file_struct_ptr, null)

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 import logging
 import cle
 
+import claripy
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 from . import ExplorationTechnique
@@ -53,7 +54,7 @@ class RepHook:
 
     @staticmethod
     def _inline_call(state, procedure, *arguments, **kwargs):
-        e_args = [state.solver.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
+        e_args = [claripy.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
         p = procedure(project=state.project, **kwargs)
         return p.execute(state, None, arguments=e_args)
 

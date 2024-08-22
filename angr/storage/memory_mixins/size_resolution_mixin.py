@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 from . import MemoryMixin
 from ...errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
 
@@ -133,7 +135,7 @@ class SizeConcretizationMixin(MemoryMixin):
             conc_sizes = [min(cs, self._max_symbolic_size) for cs in conc_sizes]
 
         if condition is None:
-            condition = self.state.solver.true
+            condition = claripy.true
         for conc_size in conc_sizes:
             if conc_size == 0:
                 continue

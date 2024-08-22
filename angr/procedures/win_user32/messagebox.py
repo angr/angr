@@ -1,3 +1,5 @@
+import claripy
+
 import angr
 
 
@@ -9,7 +11,7 @@ class MessageBoxA(angr.SimProcedure):
         else:
             caption = "Error"
 
-        result = self.state.solver.If(
+        result = claripy.If(
             uType & 0xF == 0, 1, self.state.solver.BVS("messagebox_button", 32, key=("api", "messagebox", "button"))
         )
         self.state.history.add_event("message_box", text=text, caption=caption, result=result)

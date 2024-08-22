@@ -1,7 +1,10 @@
-import angr
+import logging
+
+import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-import logging
+import angr
+
 
 l = logging.getLogger(name=__name__)
 
@@ -72,10 +75,10 @@ class __getdelim(angr.SimProcedure):
 
             for i, byte in enumerate(data.chop(8)):
                 self.state.add_constraints(
-                    self.state.solver.If(
+                    claripy.If(
                         i + 1 != real_size,
                         byte != delim_byte,  # if not last byte returned, not newline
-                        self.state.solver.Or(  # otherwise one of the following must be true:
+                        claripy.Or(  # otherwise one of the following must be true:
                             i + 2 == size,  # - we ran out of space, or
                             simfd.eof(),  # - the file is at EOF, or
                             byte == delim_byte,  # - it is a newline

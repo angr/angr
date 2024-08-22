@@ -1,5 +1,6 @@
-import angr
+import claripy
 
+import angr
 from ...sim_options import ALLOW_SEND_FAILURES
 
 
@@ -14,9 +15,9 @@ class send(angr.SimProcedure):
         send_succeeded = simfd.write(src, length)  # if send succeeds
 
         if ALLOW_SEND_FAILURES in self.state.options:
-            retval = self.state.solver.BVS("send_ret", self.arch.bits)
+            retval = claripy.BVS("send_ret", self.arch.bits)
             send_failed = -1
-            self.state.add_constraints(self.state.solver.Or(retval == send_succeeded, retval == send_failed))
+            self.state.add_constraints(claripy.Or(retval == send_succeeded, retval == send_failed))
             return retval
         else:
             return send_succeeded

@@ -1,4 +1,5 @@
 import logging
+
 import claripy
 
 from .plugin import SimStatePlugin
@@ -52,7 +53,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         :param variable:    The BVS to preconstrain.
         """
         if not isinstance(value, claripy.ast.Base):
-            value = self.state.solver.BVV(value, len(variable))
+            value = claripy.BVV(value, len(variable))
         elif value.op != "BVV":
             raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
 

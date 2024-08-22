@@ -1,6 +1,8 @@
-import os
 import binascii
 import logging
+import os
+
+import claripy
 
 from .... import concretization_strategies
 from ....errors import SimUnsatError, SimMemoryAddressError
@@ -188,7 +190,7 @@ class JavaVmMemoryMixin(MemoryMixin):
                     )
 
             # constraint start_idx, s.t. it evals to one of the concretized indexes
-            constraint_on_start_idx = self.state.solver.Or(*start_idx_options)
+            constraint_on_start_idx = claripy.Or(*start_idx_options)
             self.state.add_constraints(constraint_on_start_idx)
 
     def _store_array_element_on_heap(self, array, idx, value, value_type, store_condition=None):
@@ -197,7 +199,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         if store_condition is not None:
             current_value = self._load_array_element_from_heap(array, idx)
             new_value = value
-            value = self.state.solver.If(store_condition, new_value, current_value)
+            value = claripy.If(store_condition, new_value, current_value)
         self.heap.store(heap_elem_id, value, value_type)
 
     #
@@ -256,11 +258,11 @@ class JavaVmMemoryMixin(MemoryMixin):
                     # => if concrete_start_idx == start_idx
                     #    then use new value
                     #    else use the current value
-                    load_values[i] = self.state.solver.If(concrete_start_idx == start_idx, value, load_values[i])
+                    load_values[i] = claripy.If(concrete_start_idx == start_idx, value, load_values[i])
                 start_idx_options.append(start_idx == concrete_start_idx)
 
             # constraint start_idx, s.t. it evals to one of the concretized indexes
-            constraint_on_start_idx = self.state.solver.Or(*start_idx_options)
+            constraint_on_start_idx = claripy.Or(*start_idx_options)
             self.state.add_constraints(constraint_on_start_idx)
 
         return load_values

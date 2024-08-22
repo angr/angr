@@ -1,8 +1,8 @@
+import claripy
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
 import angr
 from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
-
-
-from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 
 class fgets(angr.SimProcedure):
@@ -47,10 +47,10 @@ class fgets(angr.SimProcedure):
 
             for i, byte in enumerate(data.chop(8)):
                 self.state.add_constraints(
-                    self.state.solver.If(
+                    claripy.If(
                         i + 1 != real_size,
                         byte != b"\n",  # if not last byte returned, not newline
-                        self.state.solver.Or(  # otherwise one of the following must be true:
+                        claripy.Or(  # otherwise one of the following must be true:
                             i + 2 == size,  # - we ran out of space, or
                             simfd.eof(),  # - the file is at EOF, or
                             byte == b"\n",  # - it is a newline

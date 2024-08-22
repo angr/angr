@@ -1,6 +1,8 @@
-import angr
-
 import logging
+
+import claripy
+
+import angr
 
 l = logging.getLogger(name=__name__)
 
@@ -36,4 +38,4 @@ class lseek(angr.SimProcedure):
         success = simfd.seek(seek, whence_str)
         if self.state.solver.is_false(success):
             return -1
-        return self.state.solver.If(success, simfd.tell(), -1)
+        return claripy.If(success, simfd.tell(), -1)

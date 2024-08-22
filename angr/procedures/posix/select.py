@@ -1,3 +1,5 @@
+import claripy
+
 import angr
 
 
@@ -34,7 +36,7 @@ class select(angr.SimProcedure):
                 # set this bit to symbolic
                 long_array[long_pos] = (
                     long_array[long_pos][arch_bits - 1 : bit_offset + 1]
-                    .concat(self.state.solver.BVS("fd_state", 1))
+                    .concat(claripy.BVS("fd_state", 1))
                     .concat(long_array[long_pos][bit_offset - 1 :])
                 )
 
@@ -42,5 +44,5 @@ class select(angr.SimProcedure):
         for offset in range(0, long_array_size):
             self.state.memory.store(readfds + offset * arch_bytes, long_array[offset], endness=self.arch.memory_endness)
 
-        retval = self.state.solver.BVV(0, 1).concat(self.state.solver.BVS("select_ret", 31))
+        retval = claripy.BVV(0, 1).concat(claripy.BVS("select_ret", 31))
         return retval

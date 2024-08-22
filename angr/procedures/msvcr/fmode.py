@@ -1,3 +1,5 @@
+import claripy
+
 import angr
 
 
@@ -17,7 +19,7 @@ class _get_fmode(angr.SimProcedure):
 
 class _set_fmode(angr.SimProcedure):
     def run(self, val):
-        if not self.state.solver.is_true(self.state.solver.Or(val == 0x4000, val == 0x8000)):
+        if not self.state.solver.is_true(claripy.Or(val == 0x4000, val == 0x8000)):
             return 22
         self.state.mem[self.project.simos.fmode_ptr].int = val
         return 0

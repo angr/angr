@@ -10,9 +10,10 @@ import re
 import sys
 import unittest
 
+import claripy
+
 import angr
 from angr import options as so
-
 from ..common import bin_location, broken, slow_test
 
 test_location = os.path.join(bin_location, "tests")
@@ -181,8 +182,8 @@ class TestUnicorn(unittest.TestCase):
         pg.explore()
         s = pg.deadended[0]
         (first, _), (second, _) = s.posix.stdin.content
-        s.add_constraints(first == s.solver.BVV(b"A" * 9))
-        s.add_constraints(second == s.solver.BVV(b"B" * 9))
+        s.add_constraints(first == claripy.BVV(b"A" * 9))
+        s.add_constraints(second == claripy.BVV(b"B" * 9))
         assert s.posix.dumps(1) == b"You entered AAAAAAAAA and BBBBBBBBB!\n"
 
     def test_longinit_i386(self):
@@ -250,10 +251,10 @@ class TestUnicorn(unittest.TestCase):
         # Do not treat as uninitialized memory as symbolic. Prevents introducing undesired symbolic taint
         init_state = p.factory.full_init_state(add_options=so.unicorn | {so.ZERO_FILL_UNCONSTRAINED_MEMORY})
         global_var_val = [
-            init_state.solver.BVV(0x41414141, 32),
-            init_state.solver.BVV(0x42424242, 32),
-            init_state.solver.BVS("symb_val_0", 32),
-            init_state.solver.BVS("symb_val_1", 32),
+            claripy.BVV(0x41414141, 32),
+            claripy.BVV(0x42424242, 32),
+            claripy.BVS("symb_val_0", 32),
+            claripy.BVS("symb_val_1", 32),
         ]
         global_var_symb = p.loader.find_symbol("global_var")
         # Store every byte separately so that entire variable is not treated as symbolic

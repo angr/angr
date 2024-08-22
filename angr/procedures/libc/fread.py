@@ -1,6 +1,7 @@
-import angr
-
+import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
+import angr
 
 
 class fread(angr.SimProcedure):
@@ -16,7 +17,7 @@ class fread(angr.SimProcedure):
             return -1
 
         ret = simfd.read(dst, size * nm)
-        return self.state.solver.If(self.state.solver.Or(size == 0, nm == 0), 0, ret // size)
+        return claripy.If(claripy.Or(size == 0, nm == 0), 0, ret // size)
 
 
 fread_unlocked = fread

@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 import angr
 
 
@@ -30,5 +32,5 @@ class GetProcessAffinityMask(angr.SimProcedure):
         self.saffinity_mask = self.state.solver.BVS("lpSystemAffinityMask", 32, key=("api", "lpSystemAffinityMask"))
 
     def fill_concrete(self):
-        self.paffinity_mask = self.state.solver.BVV(3, 32)
-        self.saffinity_mask = self.state.solver.BVV(3, 32)
+        self.paffinity_mask = claripy.BVV(3, 32)
+        self.saffinity_mask = claripy.BVV(3, 32)

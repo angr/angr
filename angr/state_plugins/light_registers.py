@@ -118,7 +118,7 @@ class SimLightRegisters(SimStatePlugin):
                 raise SimFastMemoryError("Invalid register store value") from None
 
         if type(value) is int:
-            value = self.state.solver.BVV(value, xsize)
+            value = claripy.BVV(value, xsize)
 
         if endness is not None and endness != self.state.arch.register_endness:
             # ???????
@@ -142,7 +142,7 @@ class SimLightRegisters(SimStatePlugin):
     def _fill(self, name, size):
         size_bits = size * self.state.arch.byte_width
         if options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
-            value = self.state.solver.BVV(0, size_bits)
+            value = claripy.BVV(0, size_bits)
         else:
             if options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options:
                 if once("mem_fill_warning"):

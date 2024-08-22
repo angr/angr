@@ -98,8 +98,8 @@ class SimStatePlugin:
         ``state.solver.union(values)``.
         TODO: fish please make this less bullshit
 
-        There is a utility ``state.solver.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
-        Use it like ``self.bar = self.state.solver.ite_cases(zip(conditions[1:], [o.bar for o in others]), self.bar)``
+        There is a utility ``claripy.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
+        Use it like ``self.bar = claripy.ite_cases(zip(conditions[1:], [o.bar for o in others]), self.bar)``
 
         :param others: the other state plugins to merge with
         :param merge_conditions: a symbolic condition for each of the plugins

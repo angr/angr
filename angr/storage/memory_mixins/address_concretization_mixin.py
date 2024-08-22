@@ -255,7 +255,7 @@ class AddressConcretizationMixin(MemoryMixin):
         if read_value is None:
             return sub_value
         else:
-            return self.state.solver.If(addr == concrete_addr, sub_value, read_value)
+            return claripy.If(addr == concrete_addr, sub_value, read_value)
 
     def load(self, addr, size=None, condition=None, **kwargs):
         if type(size) is not int:
@@ -285,7 +285,7 @@ class AddressConcretizationMixin(MemoryMixin):
         if not trivial:
             # apply the concretization results to the state
             constraint_options = [addr == concrete_addr for concrete_addr in concrete_addrs]
-            conditional_constraint = self.state.solver.Or(*constraint_options)
+            conditional_constraint = claripy.Or(*constraint_options)
             self._add_constraints(conditional_constraint, condition=condition, **kwargs)
 
         # quick optimization to not introduce the DUMMY value if there's only one loop
@@ -338,7 +338,7 @@ class AddressConcretizationMixin(MemoryMixin):
         if not trivial:
             # apply the concretization results to the state
             constraint_options = [addr == concrete_addr for concrete_addr in concrete_addrs]
-            conditional_constraint = self.state.solver.Or(*constraint_options)
+            conditional_constraint = claripy.Or(*constraint_options)
             self._add_constraints(conditional_constraint, condition=condition, **kwargs)
 
             if len(concrete_addrs) == 1:

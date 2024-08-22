@@ -74,7 +74,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
             aloc_id = bbl_addr
 
         if aloc_id not in self.alocs:
-            self.alocs[aloc_id] = self.state.solver.AbstractLocation(
+            self.alocs[aloc_id] = AbstractLocation(
                 bbl_addr, stmt_id, self.id, region_offset=addr, size=len(data) // self.state.arch.byte_width
             )
             return super().store(addr, data, endness=endness, **kwargs)

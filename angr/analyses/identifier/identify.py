@@ -1,10 +1,10 @@
+import logging
 from collections import defaultdict
 from itertools import chain
-import logging
 
-from networkx import NetworkXError
-
+import claripy
 from cle.backends.cgc import CGC
+from networkx import NetworkXError
 
 from .errors import IdentifierException
 from .functions import Functions
@@ -75,9 +75,7 @@ class Identifier(Analysis):
 
         self.base_symbolic_state = self.make_symbolic_state(self.project, self._reg_list)
         self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
-        self.base_symbolic_state.regs.bp = self.base_symbolic_state.solver.BVS(
-            "sreg_" + "ebp" + "-", self.project.arch.bits
-        )
+        self.base_symbolic_state.regs.bp = claripy.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
         for f in self._cfg.functions.values():
             if f.is_syscall:
@@ -308,7 +306,7 @@ class Identifier(Analysis):
 
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
         for i in range(func_info.frame_size // self.project.arch.bytes + 5):
-            s.stack_push(s.solver.BVS("var_" + hex(i), self.project.arch.bits))
+            s.stack_push(claripy.BVS("var_" + hex(i), self.project.arch.bits))
 
         if func_info.bp_based:
             s.regs.bp = s.regs.sp + func_info.bp_sp_diff
@@ -322,7 +320,7 @@ class Identifier(Analysis):
             for ss in simgr.active:
                 # todo could write symbolic data to pointers passed to functions
                 if ss.history.jumpkind == "Ijk_Call":
-                    ss.regs.eax = ss.solver.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
+                    ss.regs.eax = claripy.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
                     ss.regs.ip = ss.stack_pop()
                     ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
@@ -333,7 +331,7 @@ class Identifier(Analysis):
                 if len(simgr.unconstrained) > 0:
                     s = simgr.unconstrained[0]
                     if s.history.jumpkind == "Ijk_Call":
-                        s.regs.eax = s.solver.BVS("unconstrained_ret", s.arch.bits)
+                        s.regs.eax = claripy.BVS("unconstrained_ret", s.arch.bits)
                         s.regs.ip = s.stack_pop()
                         s.history.jumpkind = "Ijk_Ret"
                     s.regs.ip = addr_trace[0]
@@ -437,7 +435,7 @@ class Identifier(Analysis):
         state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            state.registers.store(reg, state.solver.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
+            state.registers.store(reg, claripy.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
         # restore sp
         state.regs.sp = input_state.regs.sp
         # restore bp
@@ -600,11 +598,11 @@ class Identifier(Analysis):
         for bl_addr in func.block_addrs:
             all_addrs.update(set(self._cfg.model.get_any_node(bl_addr).instruction_addrs))
 
-        sp = main_state.solver.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
+        sp = claripy.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
         main_state.regs.sp = sp
         bp = None
         if bp_based:
-            bp = main_state.solver.BVS("sym_bp", self.project.arch.bits, explicit_name=True)
+            bp = claripy.BVS("sym_bp", self.project.arch.bits, explicit_name=True)
             main_state.regs.bp = bp
 
         stack_vars = set()
@@ -731,7 +729,7 @@ class Identifier(Analysis):
     def _sets_ebp_from_esp(self, state, addr):
         state = state.copy()
         state.regs.ip = addr
-        state.regs.sp = state.solver.BVS("sym_sp", 32, explicit_name=True)
+        state.regs.sp = claripy.BVS("sym_sp", 32, explicit_name=True)
         succ = self.project.factory.successors(state).all_successors[0]
 
         diff = state.regs.sp - succ.regs.bp
@@ -818,7 +816,7 @@ class Identifier(Analysis):
                 options.TRACK_CONSTRAINT_ACTIONS,
             }
         )
-        symbolic_stack = initial_state.solver.BVS("symbolic_stack", project.arch.bits * stack_length)
+        symbolic_stack = claripy.BVS("symbolic_stack", project.arch.bits * stack_length)
         initial_state.memory.store(initial_state.regs.sp, symbolic_stack)
         if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
             initial_state.regs.bp = initial_state.regs.sp + 20 * initial_state.arch.bytes
@@ -835,7 +833,7 @@ class Identifier(Analysis):
         symbolic_state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            symbolic_state.registers.store(reg, symbolic_state.solver.BVS("sreg_" + reg + "-", project.arch.bits))
+            symbolic_state.registers.store(reg, claripy.BVS("sreg_" + reg + "-", project.arch.bits))
         # restore sp
         symbolic_state.regs.sp = input_state.regs.sp
         # restore bp

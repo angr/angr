@@ -35,7 +35,7 @@ class AbstractMergerMixin(MemoryMixin):
         # if should_reverse:
         #     merged_val = merged_val.reversed
 
-        if not values[0][0].uninitialized and self.state.solver.backends.vsa.identical(merged_val, values[0][0]):
+        if not values[0][0].uninitialized and claripy.backends.vsa.identical(merged_val, values[0][0]):
             return None
 
         return merged_val

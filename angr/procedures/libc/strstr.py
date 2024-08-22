@@ -1,7 +1,10 @@
+import logging
+
+import claripy
+
 import angr
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
-import logging
 
 l = logging.getLogger(name=__name__)
 
@@ -27,7 +30,7 @@ class strstr(angr.SimProcedure):
             return haystack_addr
         elif haystack_maxlen == 0:
             l.debug("... zero-length haystack.")
-            return self.state.solver.BVV(0, self.state.arch.bits)
+            return claripy.BVV(0, self.state.arch.bits)
 
         if self.state.solver.symbolic(needle_strlen.ret_expr):
             cases = [[needle_strlen.ret_expr == 0, haystack_addr]]
@@ -49,9 +52,9 @@ class strstr(angr.SimProcedure):
                     b_len=needle_strlen,
                 )
 
-                c = self.state.solver.And(
+                c = claripy.And(
                     *(
-                        [self.state.solver.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0]
+                        [claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0]
                         + not_terminated_yet_constraints
                         + exclusions
                     )
@@ -69,10 +72,10 @@ class strstr(angr.SimProcedure):
                     l.debug("... exhausted remaining symbolic checks.")
                     break
 
-            cases.append([self.state.solver.And(*exclusions), self.state.solver.BVV(0, self.state.arch.bits)])
+            cases.append([claripy.And(*exclusions), claripy.BVV(0, self.state.arch.bits)])
             l.debug("... created %d cases", len(cases))
-            r = self.state.solver.ite_cases(cases, 0)
-            c = [self.state.solver.Or(*[c for c, _ in cases])]
+            r = claripy.ite_cases(cases, 0)
+            c = [claripy.Or(*[c for c, _ in cases])]
         else:
             needle_length = self.state.solver.eval(needle_strlen.ret_expr)
             needle_str = self.state.memory.load(needle_addr, needle_length)

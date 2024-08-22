@@ -49,9 +49,9 @@ class strtol(angr.SimProcedure):
             possible_num_bytes.append(num_bytes)
 
         # only one of the cases needed to match
-        result = state.solver.ite_cases(cases[:-1], cases[-1][1])
-        expression = state.solver.Or(*conditions)
-        num_bytes = state.solver.ite_cases(zip(conditions, possible_num_bytes), 0)
+        result = claripy.ite_cases(cases[:-1], cases[-1][1])
+        expression = claripy.Or(*conditions)
+        num_bytes = claripy.ite_cases(zip(conditions, possible_num_bytes), 0)
         return expression, result, num_bytes
 
     @staticmethod
@@ -66,12 +66,12 @@ class strtol(angr.SimProcedure):
         # the prefix must match
         if len(prefix) > 0:
             loaded_prefix = region.load(addr, length)
-            condition = state.solver.And(loaded_prefix == state.solver.BVV(prefix), condition)
+            condition = claripy.And(loaded_prefix == claripy.BVV(prefix), condition)
         total_num_bytes = num_bytes + length
 
         # negatives
         if prefix.startswith(b"-"):
-            value = state.solver.BVV(0, state.arch.bits) - value
+            value = claripy.BVV(0, state.arch.bits) - value
         return condition, value, total_num_bytes
 
     @staticmethod
@@ -92,8 +92,8 @@ class strtol(angr.SimProcedure):
 
         # to detect overflows we keep it in a larger bv and extract it at the end
         num_bits = min(state.arch.bits * 2, 128)
-        current_val = state.solver.BVV(0, num_bits)
-        num_bytes = state.solver.BVS("num_bytes", state.arch.bits)
+        current_val = claripy.BVV(0, num_bits)
+        num_bytes = claripy.BVS("num_bytes", state.arch.bits)
         # constarints_num_bytes: a series of constraints of the form:
         # AND(<constraint on the string guaranteeing that the number of digits is n>, num_bytes == n)
         # these will be combined via OR and added to the state together num_bytes and the string
@@ -115,8 +115,8 @@ class strtol(angr.SimProcedure):
             # identify the constraints necessary to set num_bytes to the current value
             # the current char (i.e. the terminator if this is satisfied) should not be a char,
             # so `condition` should be false, plus all the previous conditions should be satisfied
-            case_constraints = conditions + [state.solver.Not(condition), num_bytes == i]
-            constraints_num_bytes.append(state.solver.And(*case_constraints))
+            case_constraints = conditions + [claripy.Not(condition), num_bytes == i]
+            constraints_num_bytes.append(claripy.And(*case_constraints))
 
             # break the loop early if no value past this is viable
             if condition.is_false():
@@ -136,13 +136,13 @@ class strtol(angr.SimProcedure):
                 # a digit in order for this case to generate correct models
                 char = region.load(s + length, 1)
                 condition, _ = strtol._char_to_val(char, base)
-                case_constraints.append(state.solver.Not(condition))
-            constraints_num_bytes.append(state.solver.And(*case_constraints))
+                case_constraints.append(claripy.Not(condition))
+            constraints_num_bytes.append(claripy.And(*case_constraints))
 
         # only one of the constraints need to hold
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
 
-        final_constraint = state.solver.Or(*constraints_num_bytes)
+        final_constraint = claripy.Or(*constraints_num_bytes)
         if (
             final_constraint.op == "__eq__"
             and final_constraint.args[0] is num_bytes
@@ -154,15 +154,15 @@ class strtol(angr.SimProcedure):
         else:
             # symbolic case
             state.add_constraints(final_constraint)
-            result = state.solver.ite_cases(cases, 0)
+            result = claripy.ite_cases(cases, 0)
 
         # overflow check
         max_bits = state.arch.bits - 1 if signed else state.arch.bits
         max_val = 2**max_bits - 1
-        result = state.solver.If(
+        result = claripy.If(
             result < max_val,
-            state.solver.Extract(state.arch.bits - 1, 0, result),
-            state.solver.BVV(max_val, state.arch.bits),
+            claripy.Extract(state.arch.bits - 1, 0, result),
+            claripy.BVV(max_val, state.arch.bits),
         )
 
         return expression, result, num_bytes
@@ -215,22 +215,20 @@ class strtol(angr.SimProcedure):
         if base == 0:
             # in this case the base is 16 if it starts with 0x, 8 if it starts with 0, 10 otherwise
             # here's the possibilities
-            base_16_pred = self.state.solver.Or(
-                self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"0x"),
-                self.state.memory.load(nptr, 3) == self.state.solver.BVV(b"+0x"),
-                self.state.memory.load(nptr, 3) == self.state.solver.BVV(b"-0x"),
+            base_16_pred = claripy.Or(
+                self.state.memory.load(nptr, 2) == claripy.BVV(b"0x"),
+                self.state.memory.load(nptr, 3) == claripy.BVV(b"+0x"),
+                self.state.memory.load(nptr, 3) == claripy.BVV(b"-0x"),
             )
-            base_8_pred = self.state.solver.And(
-                self.state.solver.Or(
-                    self.state.memory.load(nptr, 1) == self.state.solver.BVV(b"0"),
-                    self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"+0"),
-                    self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"-0"),
+            base_8_pred = claripy.And(
+                claripy.Or(
+                    self.state.memory.load(nptr, 1) == claripy.BVV(b"0"),
+                    self.state.memory.load(nptr, 2) == claripy.BVV(b"+0"),
+                    self.state.memory.load(nptr, 2) == claripy.BVV(b"-0"),
                 ),
-                self.state.solver.Not(base_16_pred),
+                claripy.Not(base_16_pred),
             )
-            base_10_pred = self.state.solver.And(
-                self.state.solver.Not(base_16_pred), self.state.solver.Not(base_8_pred)
-            )
+            base_10_pred = claripy.And(claripy.Not(base_16_pred), claripy.Not(base_8_pred))
             expressions = []
             values = []
             num_bytes_arr = []
@@ -239,15 +237,15 @@ class strtol(angr.SimProcedure):
             pred_base = zip([base_16_pred, base_10_pred, base_8_pred], [16, 10, 8])
             for pred, sub_base in pred_base:
                 expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, sub_base, True)
-                expressions.append(self.state.solver.And(expression, pred))
+                expressions.append(claripy.And(expression, pred))
                 values.append(value)
                 num_bytes_arr.append(num_bytes)
 
             # we would return the Or(expressions) as the indicator whether or not it succeeded, but it's not needed
             # for strtol
-            # expression = self.state.solver.Or(expressions)
-            value = self.state.solver.ite_cases(zip(expressions, values), 0)
-            num_bytes = self.state.solver.ite_cases(zip(expressions, num_bytes_arr), 0)
+            # expression = claripy.Or(expressions)
+            value = claripy.ite_cases(zip(expressions, values), 0)
+            num_bytes = claripy.ite_cases(zip(expressions, num_bytes_arr), 0)
 
             self.state.memory.store(
                 endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
@@ -260,4 +258,4 @@ class strtol(angr.SimProcedure):
             self.state.memory.store(
                 endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
             )
-            return self.state.solver.If(expression, value, 0)
+            return claripy.If(expression, value, 0)

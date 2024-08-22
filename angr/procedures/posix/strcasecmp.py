@@ -1,3 +1,5 @@
+import claripy
+
 import angr
 
 
@@ -9,7 +11,7 @@ class strcasecmp(angr.SimProcedure):
 
         a_strlen = self.inline_call(strlen, a_addr)
         b_strlen = self.inline_call(strlen, b_addr)
-        maxlen = self.state.solver.BVV(max(a_strlen.max_null_index, b_strlen.max_null_index), self.state.arch.bits)
+        maxlen = claripy.BVV(max(a_strlen.max_null_index, b_strlen.max_null_index), self.state.arch.bits)
 
         strncmp = self.inline_call(
             angr.SIM_PROCEDURES["libc"]["strncmp"],

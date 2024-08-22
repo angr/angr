@@ -1,6 +1,9 @@
 import itertools
 
+import claripy
+
 import angr
+from angr.state_plugins.sim_action_object import SimActionObject
 
 rand_count = itertools.count()
 
@@ -9,6 +12,9 @@ class random(angr.SimProcedure):
     # pylint:disable=arguments-differ,missing-class-docstring
 
     def run(self, buf, count, rnd_bytes, concrete_data=None):
+        if isinstance(rnd_bytes, SimActionObject):
+            rnd_bytes = rnd_bytes.ast
+
         if self.state.mode == "fastpath":
             # Special case for CFG
             if (
@@ -28,15 +34,15 @@ class random(angr.SimProcedure):
                     self.state.memory.store(rnd_bytes, count, endness="Iend_LE")
 
             # We always return something in fastpath mode
-            return self.state.solver.BVV(0, self.state.arch.bits)
+            return claripy.BVV(0, self.state.arch.bits)
 
         # return code
-        r = self.state.solver.ite_cases(
+        r = claripy.ite_cases(
             (
                 (self.state.cgc.addr_invalid(buf), self.state.cgc.EFAULT),
-                (self.state.solver.And(rnd_bytes != 0, self.state.cgc.addr_invalid(rnd_bytes)), self.state.cgc.EFAULT),
+                (claripy.And(rnd_bytes != 0, self.state.cgc.addr_invalid(rnd_bytes)), self.state.cgc.EFAULT),
             ),
-            self.state.solver.BVV(0, self.state.arch.bits),
+            claripy.BVV(0, self.state.arch.bits),
         )
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
@@ -46,7 +52,7 @@ class random(angr.SimProcedure):
             )
 
             if concrete_data:
-                value = self.state.solver.BVS(f"random_{next(rand_count)}", max_size)
+                value = claripy.BVS(f"random_{next(rand_count)}", max_size)
                 self.state.preconstrainer.preconstrain(concrete_data, value)
             else:
                 value = self.state.solver.Unconstrained(
