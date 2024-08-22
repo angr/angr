@@ -40,7 +40,7 @@ class random(angr.SimProcedure):
         r = claripy.ite_cases(
             (
                 (self.state.cgc.addr_invalid(buf), self.state.cgc.EFAULT),
-                (claripy.And(rnd_bytes.ast != 0, self.state.cgc.addr_invalid(rnd_bytes)), self.state.cgc.EFAULT),
+                (claripy.And(rnd_bytes != 0, self.state.cgc.addr_invalid(rnd_bytes)), self.state.cgc.EFAULT),
             ),
             claripy.BVV(0, self.state.arch.bits),
         )
