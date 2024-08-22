@@ -1,5 +1,8 @@
+import time as py_time
+
+import claripy
+
 import angr
-import time as _time
 
 
 class time(angr.SimProcedure):
@@ -17,10 +20,10 @@ class time(angr.SimProcedure):
     def run(self, pointer):
         # TODO lord have mercy. how big is time_t?
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
-            ts = int(_time.time())
-            result = self.state.solver.BVV(ts, self.state.arch.bits)
+            ts = int(py_time.time())
+            result = claripy.BVV(ts, self.state.arch.bits)
         else:
-            result = self.state.solver.BVS("sys_time", self.state.arch.bits, key=("api", "time"))
+            result = claripy.BVS("sys_time", self.state.arch.bits, key=("api", "time"))
             if self.last_time is not None:
                 self.state.add_constraints(result.SGE(self.last_time))
             else:

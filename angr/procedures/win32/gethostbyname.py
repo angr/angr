@@ -1,5 +1,7 @@
-import angr
 import logging
+
+
+import angr
 
 l = logging.getLogger("angr.procedures.win32.gethostbyname")
 

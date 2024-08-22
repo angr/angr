@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 from ..cgc.receive import receive as orig_receive
 
 
@@ -16,6 +18,6 @@ class receive(orig_receive):
         if len(self.state.solver.eval_upto(fd, 2)) < 2:
             if self.state.solver.eval(fd) == 1:
                 l.debug("Fixed receive call's fd.")
-                fd = self.state.solver.BVV(0, self.state.arch.bits)
+                fd = claripy.BVV(0, self.state.arch.bits)
 
         return super().run(fd, buf, count, rx_bytes)

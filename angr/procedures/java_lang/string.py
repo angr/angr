@@ -26,7 +26,7 @@ class StringEquals(JavaSimProcedure):
     def run(self, str_ref_1, str_ref_2):  # pylint: disable=unused-argument
         str_1 = self.state.memory.load(str_ref_1)
         str_2 = self.state.memory.load(str_ref_2)
-        return self.state.solver.If(str_1 == str_2, self.state.solver.BVV(1, 32), self.state.solver.BVV(0, 32))
+        return claripy.If(str_1 == str_2, claripy.BVV(1, 32), claripy.BVV(0, 32))
 
 
 class StringSplit(JavaSimProcedure):

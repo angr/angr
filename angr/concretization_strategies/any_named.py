@@ -1,3 +1,5 @@
+import claripy
+
 from . import SimConcretizationStrategy
 
 
@@ -24,7 +26,7 @@ class SimConcretizationStrategyAnyNamed(SimConcretizationStrategy):
         target = self._any(memory, addr, extra_constraints=child_constraints, **kwargs)
         # Create new BVS
         old_name = " ".join(repr(addr)[:-1].split(" ")[1:])
-        new_BVS = memory.state.solver.BVS(f"[{old_name}]", memory.state.arch.bits, explicit_name=True)
+        new_BVS = claripy.BVS(f"[{old_name}]", memory.state.arch.bits, explicit_name=True)
         memory.store(target, new_BVS, endness=memory.state.arch.memory_endness)
         # Enforce the address
         memory.state.solver.add(addr == target)

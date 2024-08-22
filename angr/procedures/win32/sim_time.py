@@ -1,6 +1,9 @@
-import angr
 import datetime
 import time
+
+import claripy
+
+import angr
 
 
 class GetSystemTimeAsFileTime(angr.SimProcedure):
@@ -110,7 +113,7 @@ class QueryPerformanceCounter(angr.SimProcedure):
             val = int(time.clock() * 1000000) + 12345678
             self.state.mem[ptr].qword = val
         else:
-            self.state.mem[ptr].qword = self.state.solver.BVS(
+            self.state.mem[ptr].qword = claripy.BVS(
                 "QueryPerformanceCounter_result", 64, key=("api", "QueryPerformanceCounter")
             )
         return 1
@@ -121,7 +124,7 @@ class GetTickCount(angr.SimProcedure):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             return int(time.clock() * 1000) + 12345
         else:
-            val = self.state.solver.BVS("GetTickCount_result", 32, key=("api", "GetTickCount"))
+            val = claripy.BVS("GetTickCount_result", 32, key=("api", "GetTickCount"))
             return val
 
 
@@ -132,4 +135,4 @@ class GetTickCount64(angr.SimProcedure):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             return int(time.clock() * 1000) + 12345
         else:
-            return self.state.solver.BVS("GetTickCount64_result", 64, key=("api", "GetTickCount64"))
+            return claripy.BVS("GetTickCount64_result", 64, key=("api", "GetTickCount64"))

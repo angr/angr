@@ -2,8 +2,9 @@
 from typing import TYPE_CHECKING
 import logging
 
-import pyvex
 import archinfo
+import claripy
+import pyvex
 
 
 from .... import options, BP_BEFORE
@@ -45,7 +46,7 @@ class OverwriteTmpValueCallback:
         self.gp_value = gp_value
 
     def overwrite_tmp_value(self, state):
-        state.inspect.tmp_write_expr = state.solver.BVV(self.gp_value, state.arch.bits)
+        state.inspect.tmp_write_expr = claripy.BVV(self.gp_value, state.arch.bits)
 
 
 class MipsElfFastResolver(IndirectJumpResolver):

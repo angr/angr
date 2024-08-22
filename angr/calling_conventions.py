@@ -413,7 +413,7 @@ class SimComboArg(SimFunctionArgument):
         vals = []
         for loc in reversed(self.locations):
             vals.append(loc.get_value(state, **kwargs))
-        return self.check_value_get(state.solver.Concat(*vals))
+        return self.check_value_get(claripy.Concat(*vals))
 
 
 class SimStructArg(SimFunctionArgument):
@@ -1031,7 +1031,7 @@ class SimCC:
             if isinstance(ty, SimTypeFloat):
                 return SimCC._standardize_value(float(arg), ty, state, alloc)
 
-            val = state.solver.BVV(arg, ty.size)
+            val = claripy.BVV(arg, ty.size)
             return val
 
         elif isinstance(arg, float):

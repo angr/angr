@@ -1,5 +1,7 @@
 from itertools import count
 
+import claripy
+
 import angr
 
 from ... import sim_options as o
@@ -30,7 +32,7 @@ class receive(angr.SimProcedure):
                 count = self.state.solver.Unconstrained("receive_length", self.state.arch.bits)
             self.state.memory.store(rx_bytes, count, endness="Iend_LE")
 
-            return self.state.solver.BVV(0, self.state.arch.bits)
+            return claripy.BVV(0, self.state.arch.bits)
 
         # check invalid memory accesses
         # rules for invalid: greater than 0xc0 or wraps around
@@ -56,7 +58,7 @@ class receive(angr.SimProcedure):
             )
             read_length = simfd.read(buf, count, short_reads=False, do_concrete_update=do_concrete_update)
             if type(read_length) is int:
-                read_length = self.state.solver.BVV(read_length, 32)
+                read_length = claripy.BVV(read_length, 32)
             self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness="Iend_LE")
             self.size = read_length
 
@@ -86,6 +88,6 @@ class receive(angr.SimProcedure):
 
             self.size = read_length
             if type(read_length) is int:
-                read_length = self.state.solver.BVV(read_length, 32)
+                read_length = claripy.BVV(read_length, 32)
             self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness="Iend_LE")
             return 0

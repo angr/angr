@@ -1791,7 +1791,7 @@ class Unicorn(SimStatePlugin):
         # some architecture-specific register fixups
         if state.arch.name in {"X86", "AMD64"}:
             # update the eflags
-            state.regs.eflags = state.solver.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), state.arch.bits)
+            state.regs.eflags = claripy.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), state.arch.bits)
 
             # sync the fp clerical data
             status = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPSW)

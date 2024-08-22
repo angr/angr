@@ -203,7 +203,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 exit_state.registers.store(
                     exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
                 )
-                exit_state.scratch.target = exit_state.solver.BVV(successors.addr + irsb.size, exit_state.arch.bits)
+                exit_state.scratch.target = claripy.BVV(successors.addr + irsb.size, exit_state.arch.bits)
                 exit_state.history.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target
                 if exit_state.arch.call_pushes_ret:
@@ -215,12 +215,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = (
-                    ret_state.solver.true
-                    if o.TRUE_RET_EMULATION_GUARD in self.state.options
-                    else ret_state.solver.false
-                )
-                ret_target = ret_state.solver.BVV(successors.addr + irsb.size, ret_state.arch.bits)
+                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                ret_target = claripy.BVV(successors.addr + irsb.size, ret_state.arch.bits)
                 ret_state.registers.store(
                     ret_state.arch.ret_offset, ret_state.solver.Unconstrained("fake_ret_value", ret_state.arch.bits)
                 )
@@ -340,7 +336,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             result = self.state.solver.simplify(result)
 
         if self.state.solver.symbolic(result) and o.CONCRETIZE in self.state.options:
-            concrete_value = self.state.solver.BVV(self.state.solver.eval(result), len(result))
+            concrete_value = claripy.BVV(self.state.solver.eval(result), len(result))
             self.state.add_constraints(result == concrete_value)
             result = concrete_value
 

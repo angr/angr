@@ -5,6 +5,8 @@ __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 import os
 import unittest
 
+import claripy
+
 import angr
 
 from ..common import bin_location
@@ -31,7 +33,7 @@ class TestHook(unittest.TestCase):
             output.append(2)
             num = state.solver.eval(state.regs.a1)
             string = b"%d " % num
-            state.posix.get_fd(1).write_data(state.solver.BVV(string))
+            state.posix.get_fd(1).write_data(claripy.BVV(string))
 
         # a manual hook
         p.hook(OUTER_LOOP, hook2, length=0x14)

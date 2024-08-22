@@ -1,5 +1,7 @@
 from sortedcontainers import SortedDict
 
+import claripy
+
 from ....errors import SimRegionMapError
 from ....state_plugins import SimStatePlugin
 
@@ -50,7 +52,7 @@ class AddressWrapper:
         :param state: A state
         :return: The converted ValueSet instance
         """
-        return state.solver.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
+        return claripy.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
 
 
 class RegionDescriptor:

@@ -1,6 +1,7 @@
-import claripy
 import logging
 import itertools
+
+import claripy
 
 from .memory_mixins import DefaultMemory
 from ..state_plugins.plugin import SimStatePlugin
@@ -291,19 +292,19 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         # If it's not possible to EOF (because there's no EOF), this is very simple!
         if not self.has_end:
             # bump the storage size as we read
-            self._size = self.state.solver.If(size + pos > self._size, size + pos, self._size)
+            self._size = claripy.If(size + pos > self._size, size + pos, self._size)
             return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
 
         # Step 2.2: check harder for the possibility of EOFs
         # This is the size if we're reading to the end of the file
         distance_to_eof = self._size - pos
-        distance_to_eof = self.state.solver.If(self.state.solver.SLE(distance_to_eof, 0), 0, distance_to_eof)
+        distance_to_eof = claripy.If(claripy.SLE(distance_to_eof, 0), 0, distance_to_eof)
 
         # try to frontload some constraint solving to see if it's impossible for this read to EOF
         if self.state.solver.satisfiable(extra_constraints=(size > distance_to_eof,)):
             # it's possible to EOF
             # final size = min(passed_size, max(distance_to_eof, 0))
-            real_size = self.state.solver.If(size >= distance_to_eof, distance_to_eof, size)
+            real_size = claripy.If(size >= distance_to_eof, distance_to_eof, size)
 
             return (
                 self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect),
@@ -327,7 +328,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         # \(_^^)/
         self.store(pos, data, size=size)
         new_end = _deps_unpack(pos + size)[0]  # decline to store SAO
-        self._size = self.state.solver.If(new_end > self._size, new_end, self._size)
+        self._size = claripy.If(new_end > self._size, new_end, self._size)
         return new_end
 
     @SimStatePlugin.memo
@@ -349,7 +350,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         if any(o.has_end != self.has_end for o in others):
             raise SimMergeError("Cannot merge files where some have ends and some don't")
 
-        self._size = self.state.solver.ite_cases(zip(merge_conditions[1:], (o._size for o in others)), self._size)
+        self._size = claripy.ite_cases(zip(merge_conditions[1:], (o._size for o in others)), self._size)
 
         return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
@@ -378,7 +379,7 @@ class SimFileStream(SimFile):
     def set_state(self, state):
         super().set_state(state)
         if type(self.pos) is int:
-            self.pos = state.solver.BVV(self.pos, state.arch.bits)
+            self.pos = claripy.BVV(self.pos, state.arch.bits)
         elif len(self.pos) != state.arch.bits:
             raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
 
@@ -402,7 +403,7 @@ class SimFileStream(SimFile):
         return c
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-        self.pos = self.state.solver.ite_cases(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
+        self.pos = claripy.ite_cases(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
         return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
 
@@ -525,7 +526,7 @@ class SimPackets(SimFileBase):
 
         # Type check
         if type(size) is int:
-            size = self.state.solver.BVV(size, self.state.arch.bits)
+            size = claripy.BVV(size, self.state.arch.bits)
 
         # The read is on the frontier. let's generate a new packet.
         orig_size = size
@@ -596,7 +597,7 @@ class SimPackets(SimFileBase):
         if size is None:
             size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
         if type(size) is int:
-            size = self.state.solver.BVV(size, self.state.arch.bits)
+            size = claripy.BVV(size, self.state.arch.bits)
 
         # sanity check on packet number and determine if data is already present
         if pos is None:
@@ -641,16 +642,14 @@ class SimPackets(SimFileBase):
 
         for i, default in enumerate(self.content):
             max_data_length = max(len(default[0]), max(len(o.content[i][0]) for o in others))
-            merged_data = self.state.solver.ite_cases(
+            merged_data = claripy.ite_cases(
                 zip(
                     merge_conditions[1:],
                     (o.content[i][0].concat(claripy.BVV(0, max_data_length - len(o.content[i][0]))) for o in others),
                 ),
                 default[0],
             )
-            merged_size = self.state.solver.ite_cases(
-                zip(merge_conditions[1:], (o.content[i][1] for o in others)), default[1]
-            )
+            merged_size = claripy.ite_cases(zip(merge_conditions[1:], (o.content[i][1] for o in others)), default[1])
             self.content[i] = (merged_data, merged_size)
 
         return True
@@ -917,7 +916,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
             return claripy.false
 
         if type(offset) is int:
-            offset = self.state.solver.BVV(offset, self.state.arch.bits)
+            offset = claripy.BVV(offset, self.state.arch.bits)
 
         if whence == "start":
             new_pos = offset
@@ -926,10 +925,8 @@ class SimFileDescriptor(SimFileDescriptorBase):
         elif whence == "end":
             new_pos = self.file.size + offset
 
-        success_condition = self.state.solver.And(
-            self.state.solver.SGE(new_pos, 0), self.state.solver.SLE(new_pos, self.file.size)
-        )
-        self._pos = _deps_unpack(self.state.solver.If(success_condition, new_pos, self._pos))[0]
+        success_condition = claripy.And(claripy.SGE(new_pos, 0), claripy.SLE(new_pos, self.file.size))
+        self._pos = _deps_unpack(claripy.If(success_condition, new_pos, self._pos))[0]
         return success_condition
 
     def eof(self):
@@ -1006,7 +1003,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
         elif self._pos is None or any(o._pos is None for o in others):
             raise SimMergeError("Cannot merge SimFileDescriptors with inconsistent None-position - please report this!")
         else:
-            self._pos = self.state.solver.ite_cases(zip(merge_conditions[1:], (o._pos for o in others)), self._pos)
+            self._pos = claripy.ite_cases(zip(merge_conditions[1:], (o._pos for o in others)), self._pos)
 
         return True
 
@@ -1113,9 +1110,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
         elif self._read_pos is None or any(o._read_pos is None for o in others):
             raise SimMergeError("Cannot merge SimFileDescriptors with inconsistent None-position - please report this!")
         else:
-            self._read_pos = self.state.solver.ite_cases(
-                zip(merge_conditions[1:], (o._read_pos for o in others)), self._read_pos
-            )
+            self._read_pos = claripy.ite_cases(zip(merge_conditions[1:], (o._read_pos for o in others)), self._read_pos)
 
         if type(self._write_pos) is int and all(type(o._write_pos) is int for o in others):
             if any(o._write_pos != self._write_pos for o in others):
@@ -1125,7 +1120,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
         elif self._write_pos is None or any(o._write_pos is None for o in others):
             raise SimMergeError("Cannot merge SimFileDescriptors with inconsistent None-position - please report this!")
         else:
-            self._write_pos = self.state.solver.ite_cases(
+            self._write_pos = claripy.ite_cases(
                 zip(merge_conditions[1:], (o._write_pos for o in others)), self._write_pos
             )
 
@@ -1159,7 +1154,7 @@ class SimPacketsSlots(SimFileBase):
 
     def read(self, pos, size, **kwargs):
         if not self.read_sizes:
-            return self.state.solver.BVV(0, 0), 0, None
+            return claripy.BVV(0, 0), 0, None
 
         try:
             req_size = self.state.solver.eval_one(size)
@@ -1206,7 +1201,7 @@ class SimPacketsSlots(SimFileBase):
             raise SimMergeError("Can't merge SimPacketsSlots with disparate reads")
 
         for i, default_var in self.read_data:
-            self.read_data[i] = self.state.solver.ite_cases(
+            self.read_data[i] = claripy.ite_cases(
                 zip(merge_conditions[1:], [o.read_data[i] for o in others]), default_var
             )
 

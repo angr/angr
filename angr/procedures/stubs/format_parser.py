@@ -4,6 +4,7 @@ import logging
 import math
 import claripy
 
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from ... import sim_type
 from ...sim_procedure import SimProcedure
 from ...storage.file import SimPackets
@@ -70,7 +71,7 @@ class FormatString:
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, bytes):
-                string = self._add_to_string(string, self.parser.state.solver.BVV(component))
+                string = self._add_to_string(string, claripy.BVV(component))
             elif isinstance(component, str):
                 raise Exception("this branch should be impossible?")
             elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
@@ -113,7 +114,7 @@ class FormatString:
                     if isinstance(fmt_spec.length_spec, int):
                         s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
-                    string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
+                    string = self._add_to_string(string, claripy.BVV(s_val.encode()))
 
         return string
 
@@ -182,9 +183,9 @@ class FormatString:
                     # constrain target variable range explicitly if it can't take on all possible values
                     if not_enough_bits:
                         self.state.add_constraints(
-                            self.state.solver.And(
-                                self.state.solver.SLE(target_variable, (base**digits) - 1),
-                                self.state.solver.SGE(target_variable, -(base ** (digits - 1) - 1)),
+                            claripy.And(
+                                claripy.SLE(target_variable, (base**digits) - 1),
+                                claripy.SGE(target_variable, -(base ** (digits - 1) - 1)),
                             )
                         )
 
@@ -229,7 +230,7 @@ class FormatString:
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.solver.BVV(0, 32)
+        failed = claripy.BVV(0, 32)
         position = addr
         for component in self.components:
             if isinstance(component, bytes):
@@ -255,10 +256,10 @@ class FormatString:
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
                     result, _, _ = region.find(
                         position,
-                        self.parser.state.solver.BVV(b"\n"),
+                        claripy.BVV(b"\n"),
                         max_str_len,
                         max_symbolic_bytes=max_sym_bytes,
-                        default=self.parser.state.solver.BVV(position + max_str_len, 64),
+                        default=claripy.BVV(position + max_str_len, 64),
                     )
 
                     # concretize the length
@@ -268,14 +269,14 @@ class FormatString:
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
                     for delimiter in set(FormatString.SCANF_DELIMITERS):
-                        delim_bvv = self.parser.state.solver.BVV(delimiter)
+                        delim_bvv = claripy.BVV(delimiter)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
 
                     # write it out to the pointer
                     self.parser.state.memory.store(dest, src_str)
                     # store the terminating null byte
-                    self.parser.state.memory.store(dest + length, self.parser.state.solver.BVV(0, 8))
+                    self.parser.state.memory.store(dest + length, claripy.BVV(0, 8))
 
                     position += length
 
@@ -287,7 +288,7 @@ class FormatString:
                             position, region, base=base, read_length=fmt_spec.length_spec
                         )
                         # increase failed count if we were unable to parse it
-                        failed = self.parser.state.solver.If(status, failed, failed + 1)
+                        failed = claripy.If(status, failed, failed + 1)
                         position += num_bytes
                     elif fmt_spec.spec_type == b"c":
                         i = region.load(position, 1)
@@ -296,7 +297,7 @@ class FormatString:
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
-                    i = self.parser.state.solver.Extract(fmt_spec.size * 8 - 1, 0, i)
+                    i = claripy.Extract(fmt_spec.size * 8 - 1, 0, i)
                     self.parser.state.memory.store(
                         dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness
                     )
@@ -670,6 +671,3 @@ class ScanfFormatParser(FormatParser):
             FormatParser._MOD_SPEC = mod_spec
 
         return FormatParser._MOD_SPEC
-
-
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError

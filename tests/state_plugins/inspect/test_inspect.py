@@ -76,7 +76,7 @@ class TestInspect(unittest.TestCase):
 
         s.inspect.b("mem_write", when=BP_AFTER, action=act_mem_write)
         assert counts.mem_write == 0
-        s.memory.store(100, s.solver.BVV(10, 32))
+        s.memory.store(100, claripy.BVV(10, 32))
         assert counts.mem_write == 1
 
         s.inspect.b("mem_read", when=BP_AFTER, action=act_mem_read)
@@ -95,7 +95,7 @@ class TestInspect(unittest.TestCase):
 
         s.inspect.b("reg_write", when=BP_AFTER, action=act_reg_write)
         assert counts.reg_write == 0
-        s.registers.store(16, s.solver.BVV(10, 32))
+        s.registers.store(16, claripy.BVV(10, 32))
         assert counts.reg_write == 1
         assert counts.mem_write == 1
         assert counts.mem_read == 4

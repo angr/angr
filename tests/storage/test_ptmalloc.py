@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import unittest
 
+import claripy
+
 from angr import SimState, SimHeapPTMalloc
 
 
@@ -28,7 +30,7 @@ class TestPtmalloc(unittest.TestCase):
     def _run_malloc_maximizes_sym_arg(self, arch):
         s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
         sc = s.copy()
-        x = s.solver.BVS("x", 32)
+        x = claripy.BVS("x", 32)
         s.solver.add(x.UGE(0))
         s.solver.add(x.ULE(self.max_sym_var_val(s)))
         s.heap.malloc(x)
@@ -45,7 +47,7 @@ class TestPtmalloc(unittest.TestCase):
         s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
         p = s.heap.malloc(50)
         sc = s.copy()
-        x = s.solver.BVS("x", 32)
+        x = claripy.BVS("x", 32)
         s.solver.add(x.UGE(0))
         s.solver.add(x.ULE(p))
         s.heap.free(x)
@@ -61,10 +63,10 @@ class TestPtmalloc(unittest.TestCase):
     def _run_calloc_maximizes_sym_arg(self, arch):
         s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
         sc = s.copy()
-        x = s.solver.BVS("x", 32)
+        x = claripy.BVS("x", 32)
         s.solver.add(x.UGE(0))
         s.solver.add(x.ULE(20))
-        y = s.solver.BVS("y", 32)
+        y = claripy.BVS("y", 32)
         s.solver.add(y.UGE(0))
         s.solver.add(y.ULE(6))
         s.heap.calloc(x, y)
@@ -81,10 +83,10 @@ class TestPtmalloc(unittest.TestCase):
         s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
         p = s.heap.malloc(50)
         sc = s.copy()
-        x = s.solver.BVS("x", 32)
+        x = claripy.BVS("x", 32)
         s.solver.add(x.UGE(0))
         s.solver.add(x.ULE(p))
-        y = s.solver.BVS("y", 32)
+        y = claripy.BVS("y", 32)
         s.solver.add(y.UGE(0))
         s.solver.add(y.ULE(self.max_sym_var_val(s)))
         s.heap.realloc(x, y)
@@ -271,7 +273,7 @@ class TestPtmalloc(unittest.TestCase):
 
     def _run_calloc_clears(self, arch):
         s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
-        s.memory.store(0xD0000000 + 2 * s.heap._chunk_size_t_size, s.solver.BVV(-1, 100 * 8))
+        s.memory.store(0xD0000000 + 2 * s.heap._chunk_size_t_size, claripy.BVV(-1, 100 * 8))
         sc = s.copy()
         p1 = s.heap.calloc(6, 5)
         p2 = sc.heap.malloc(30)

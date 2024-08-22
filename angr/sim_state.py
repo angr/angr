@@ -538,7 +538,7 @@ class SimState(PluginHub):
                 # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
                 # then replace each original SI the intersection of original SI and the constrained one.
 
-                _, converted = self.solver.constraint_to_si(arg)
+                _, converted = claripy.constraint_to_si(arg)
 
                 for original_expr, constrained_si in converted:
                     if not original_expr.variables:
@@ -684,11 +684,14 @@ class SimState(PluginHub):
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-            merge_flag = self.solver.BVS("state_merge_%d" % next(merge_counter), 16)
+            merge_flag = claripy.BVS("state_merge_%d" % next(merge_counter), 16)
             merge_values = range(len(others) + 1)
             merge_conditions = [merge_flag == b for b in merge_values]
         else:
-            merge_conditions = [(self.solver.true if len(mc) == 0 else self.solver.And(*mc)) for mc in merge_conditions]
+            merge_conditions = [
+                (claripy.true if len(mc) == 0 else claripy.And(*[c.to_claripy() for c in mc]))
+                for mc in merge_conditions
+            ]
 
         if len({o.arch.name for o in others}) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
@@ -738,7 +741,7 @@ class SimState(PluginHub):
                 l.debug("Merging occurred in %s", p)
                 merging_occurred = True
 
-        merged.add_constraints(merged.solver.Or(*merge_conditions))
+        merged.add_constraints(claripy.Or(*merge_conditions))
         return merged, merge_conditions, merging_occurred
 
     def widen(self, *others):
@@ -956,7 +959,7 @@ class SimState(PluginHub):
         def ctx(c):
             old_condition = self._global_condition
             try:
-                new_condition = c if old_condition is None else self.solver.And(old_condition, c)
+                new_condition = c if old_condition is None else claripy.And(old_condition, c)
                 self._global_condition = new_condition
                 yield
             finally:
@@ -970,7 +973,7 @@ class SimState(PluginHub):
         elif c is None:
             return self._global_condition
         else:
-            return self.solver.And(self._global_condition, c)
+            return claripy.And(self._global_condition, c)
 
     def _adjust_condition_list(self, conditions):
         if self._global_condition is None:
@@ -978,7 +981,7 @@ class SimState(PluginHub):
         elif len(conditions) == 0:
             return conditions.__class__((self._global_condition,))
         else:
-            return conditions.__class__((self._adjust_condition(self.solver.And(*conditions)),))
+            return conditions.__class__((self._adjust_condition(claripy.And(*conditions)),))
 
 
 default_state_plugin_preset = PluginPreset()

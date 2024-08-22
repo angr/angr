@@ -57,13 +57,13 @@ def concretize_cmpf64(state, args):
     fp_arg0 = state.solver.eval(args[0])
     fp_arg1 = state.solver.eval(args[1])
     if fp_arg0 < fp_arg1:
-        return state.solver.BVV(1, 32)
+        return claripy.BVV(1, 32)
     if fp_arg0 > fp_arg1:
-        return state.solver.BVV(0, 32)
+        return claripy.BVV(0, 32)
     if fp_arg0 == fp_arg1:
-        return state.solver.BVV(0x40, 32)
+        return claripy.BVV(0x40, 32)
 
-    return state.solver.BVV(0x45, 32)
+    return claripy.BVV(0x45, 32)
 
 
 def concretize_divf64(state, args):
@@ -113,13 +113,13 @@ def concretize_float64_to_int64s(state, args):
 
 
 def concretize_int32s_to_float64(state, args):
-    arg = state.solver.BVV(state.solver.eval(args[0]), args[0].size())
+    arg = claripy.BVV(state.solver.eval(args[0]), args[0].size())
     return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=fp_rm_map[0])
 
 
 def concretize_int64s_to_float64(state, args):
     rm = translate_rm(args[0])
-    arg = state.solver.BVV(state.solver.eval(args[1]), args[1].size())
+    arg = claripy.BVV(state.solver.eval(args[1]), args[1].size())
     return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=rm)
 
 

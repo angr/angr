@@ -5,6 +5,8 @@ import os
 import sys
 import unittest
 
+import claripy
+
 import angr
 
 from ...common import bin_location
@@ -37,9 +39,9 @@ class Test0Div(unittest.TestCase):
     def test_symbolic_0div(self):
         p = angr.load_shellcode(b"X", arch="amd64")
         s = p.factory.blank_state()
-        s.regs.rax = s.solver.BVS("rax", 64)
-        s.regs.rcx = s.solver.BVS("rcx", 64)
-        s.regs.rdx = s.solver.BVS("rdx", 64)
+        s.regs.rax = claripy.BVS("rax", 64)
+        s.regs.rcx = claripy.BVS("rcx", 64)
+        s.regs.rdx = claripy.BVS("rdx", 64)
 
         s.options.add(angr.options.PRODUCE_ZERODIV_SUCCESSORS)
         successors = s.step(insn_bytes=b"\x48\xf7\xf1")  # div rcx

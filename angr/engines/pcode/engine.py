@@ -224,7 +224,7 @@ class HeavyPcodeMixin(
                             "return value in Call-less mode.",
                             exit_state.arch.name,
                         )
-                exit_state.scratch.target = exit_state.solver.BVV(
+                exit_state.scratch.target = claripy.BVV(
                     successors.addr + self.state.scratch.irsb.size, exit_state.arch.bits
                 )
                 exit_state.history.jumpkind = "Ijk_Ret"
@@ -238,12 +238,8 @@ class HeavyPcodeMixin(
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = (
-                    ret_state.solver.true
-                    if o.TRUE_RET_EMULATION_GUARD in self.state.options
-                    else ret_state.solver.false
-                )
-                ret_target = ret_state.solver.BVV(successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits)
+                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                ret_target = claripy.BVV(successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith("Ijk_Sys"):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(

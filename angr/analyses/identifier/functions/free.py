@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 from ..func import Func, TestData
 from ..errors import IdentifierException
 
@@ -52,7 +54,7 @@ class free(Func):
             test_input = [malloc_vals[-1]]
             test_output = [None]
             return_val = None
-            state.memory.store(malloc_vals[-1], state.solver.BVS("some_data", 0x80 * 8))
+            state.memory.store(malloc_vals[-1], claripy.BVS("some_data", 0x80 * 8))
             free_test = TestData(test_input, test_output, return_val, max_steps)
             state = runner.get_out_state(func, free_test, initial_state=state)
             if state is None:

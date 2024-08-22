@@ -51,7 +51,7 @@ class SimCGC(SimUserland):
         if flag_page is None:
             flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=("flag", i), eternal=True) for i in range(0x1000)]
         elif type(flag_page) is bytes:
-            flag_page = [s.solver.BVV(c, 8) for c in flag_page]
+            flag_page = [claripy.BVV(c, 8) for c in flag_page]
         elif type(flag_page) is list:
             pass
         else:
@@ -93,7 +93,7 @@ class SimCGC(SimUserland):
             for size in writes_backer:
                 if size == 0:
                     continue
-                str_to_write = state.solver.BVS("file_write", size * 8)
+                str_to_write = claripy.BVS("file_write", size * 8)
                 a = SimActionData(
                     state, "file_1_0", "write", addr=claripy.BVV(pos, state.arch.bits), data=str_to_write, size=size
                 )

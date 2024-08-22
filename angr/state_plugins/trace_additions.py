@@ -196,7 +196,7 @@ def end_info_hook(state):
     if pending_info.get_type() == "StrToInt":
         # mark the input
         input_val = state.mem[pending_info.input_val].string.resolved
-        result = state.solver.BVV(state.solver.eval(state.regs.eax, cast_to=bytes))
+        result = claripy.BVV(state.solver.eval(state.regs.eax, cast_to=bytes))
         real_len = chall_resp_plugin.get_real_len(
             input_val, pending_info.input_base, result, pending_info.allows_negative
         )
@@ -207,7 +207,7 @@ def end_info_hook(state):
             return
 
         # result constraint
-        new_var = state.solver.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", 32)
+        new_var = claripy.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", 32)
         constraint = new_var == result
         chall_resp_plugin.replacement_pairs.append((new_var, state.regs.eax))
         state.regs.eax = new_var
@@ -215,7 +215,7 @@ def end_info_hook(state):
         # finish marking the input
         input_val = state.memory.load(pending_info.input_val, real_len)
         l.debug("string len was %d, value was %d", real_len, state.solver.eval(result))
-        input_bvs = state.solver.BVS(
+        input_bvs = claripy.BVS(
             pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", input_val.size()
         )
         chall_resp_plugin.str_to_int_pairs.append((input_bvs, new_var))
@@ -224,23 +224,19 @@ def end_info_hook(state):
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
     elif pending_info.get_type() == "IntToStr":
         # result constraint
-        result = state.solver.BVV(
-            state.solver.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes)
-        )
+        result = claripy.BVV(state.solver.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes))
         if result is None or result.size() == 0:
             l.warning("zero len string")
             chall_resp_plugin.pop_from_backup()
             return
-        new_var = state.solver.BVS(
-            pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", result.size()
-        )
+        new_var = claripy.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", result.size())
         chall_resp_plugin.replacement_pairs.append((new_var, state.mem[pending_info.str_dst_addr].string.resolved))
         state.memory.store(pending_info.str_dst_addr, new_var)
         constraint = new_var == result
 
         # mark the input
         input_val = pending_info.input_val
-        input_bvs = state.solver.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", 32)
+        input_bvs = claripy.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", 32)
         chall_resp_plugin.int_to_str_pairs.append((input_bvs, new_var))
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
         # here we need the constraint that the input was equal to the StrToInt_input
@@ -298,8 +294,8 @@ def syscall_hook(state):
         num_bytes = state.solver.eval(state.regs.ecx)
         buf = state.solver.eval(state.regs.ebx)
         if num_bytes != 0:
-            rand_bytes = state.solver.BVS("random", num_bytes * 8)
-            concrete_val = state.solver.BVV("A" * num_bytes)
+            rand_bytes = claripy.BVS("random", num_bytes * 8)
+            concrete_val = claripy.BVV("A" * num_bytes)
             state.solver._solver.add_replacement(rand_bytes, concrete_val, invalidate_cache=False)
             state.memory.store(buf, rand_bytes)
 
@@ -509,7 +505,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
             solns = solns[0]
 
             # now make the real stdin
-            stdin = state.solver.eval(state.solver.BVV(solns[0], pos * 8), cast_to=bytes)
+            stdin = state.solver.eval(claripy.BVV(solns[0], pos * 8), cast_to=bytes)
 
             stdin_replacements = []
             for soln, (_, int_var) in zip(solns[1:], chall_resp_plugin.str_to_int_pairs):

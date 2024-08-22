@@ -1,3 +1,5 @@
+import claripy
+
 from . import SimConcretizationStrategy
 
 
@@ -21,4 +23,4 @@ class SimConcretizationStrategySignedAdd(SimConcretizationStrategy):
                     new_arg = (1 << addr.args[1].size()) - memory.state.solver.eval(addr.args[1])
                     if new_arg < self._substraction_limit:
                         addr.op = "__sub__"
-                        addr.args = (addr.args[0], memory.state.solver.BVV(new_arg, addr.args[1].size()))
+                        addr.args = (addr.args[0], claripy.BVV(new_arg, addr.args[1].size()))

@@ -1,5 +1,7 @@
 import logging
 
+import claripy
+
 from . import MemoryMixin
 from ... import sim_options as options
 from ...misc.ux import once
@@ -15,7 +17,7 @@ class DefaultFillerMixin(MemoryMixin):
         if self.state.project and self.state.project.concrete_target:
             mem = self.state.project.concrete_target.read_memory(addr, size)
             endness = kwargs["endness"]
-            bvv = self.state.solver.BVV(mem)
+            bvv = claripy.BVV(mem)
             return bvv if endness == "Iend_BE" else bvv.reversed
 
         if fill_missing is False:
@@ -25,13 +27,13 @@ class DefaultFillerMixin(MemoryMixin):
 
         if type(addr) is int:
             if self.category == "mem" and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
-                return self.state.solver.BVV(0, bits)
+                return claripy.BVV(0, bits)
             elif self.category == "reg" and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
-                return self.state.solver.BVV(0, bits)
+                return claripy.BVV(0, bits)
 
         if self.category == "reg" and type(addr) is int and addr == self.state.arch.ip_offset:
             # short-circuit this pathological case
-            return self.state.solver.BVV(0, self.state.arch.bits)
+            return claripy.BVV(0, self.state.arch.bits)
 
         is_mem = (
             self.category == "mem"

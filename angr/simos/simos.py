@@ -1,11 +1,10 @@
 import logging
 import struct
 
-import angr  # for types
-
-import claripy
 from archinfo import ArchMIPS32, ArchS390X
+import claripy
 
+import angr
 from ..errors import (
     AngrCallableError,
     AngrCallableMultistateError,
@@ -179,7 +178,7 @@ class SimOS:
             for reg in state.arch.default_symbolic_registers:
                 state.registers.store(
                     reg,
-                    state.solver.BVS(
+                    claripy.BVS(
                         initial_prefix + "_" + reg, state.arch.bits, explicit_name=True, key=("reg", reg), eternal=True
                     ),
                 )
@@ -437,6 +436,8 @@ class SimOS:
 
 
 class GlobalDescriptorTable:
+    """GlobalDescriptorTable object to store the GDT table and the segment registers values"""
+
     def __init__(self, addr, limit, table, gdt_sel, cs_sel, ds_sel, es_sel, ss_sel, fs_sel, gs_sel):
         self.addr = addr
         self.limit = limit
