@@ -461,8 +461,9 @@ class StructuringOptimizationPass(OptimizationPass):
 
     def _improves_relative_quality(self) -> bool:
         """
-        Checks if the new structured output improves (or maintains) the relative quality of the control flow structures
-        present in the function.
+        Welcome to the unprincipled land of mahaloz. This function is a heuristic that tries to determine if the
+        optimization pass improved the relative quality of the control flow structures in the function. These heuristics
+        are based on mahaloz's observations of what bad code looks like.
         """
         if self._initial_structure_counter is None or self._current_structure_counter is None:
             _l.warning("Relative quality check failed due to missing structure counters")
@@ -488,29 +489,26 @@ class StructuringOptimizationPass(OptimizationPass):
         # Gotos play an important part in readability and control flow structure. We already count gotos in other parts
         # of the analysis, so we don't need to count them here. However, some gotos are worse than others. Much
         # like loops, trading gotos (keeping the same total, but getting worse types), is bad for decompilation.
-        #
-        # 1. We trade for a goto that occurs higher in the program (much like a back edge goto), these are bad
         if len(self._initial_gotos) == len(self._goto_manager.gotos) != 0:
             prev_labels = self._initial_structure_counter.goto_targets
             curr_labels = self._current_structure_counter.goto_targets
-            # labels occur in the order they would occur in the text
-            ordered_prev_labels = self._initial_structure_counter.ordered_labels
-            ordered_curr_labels = self._current_structure_counter.ordered_labels
-            for addr, curr_cnt in curr_labels.items():
-                prev_cnt = prev_labels.get(addr, None)
-                if prev_cnt is None:
-                    continue
 
+            # 1. We traded gotos, but we increased the number of labels, which is generally worse
+            if len(curr_labels) > len(prev_labels):
+                return False
+
+            ordered_curr_labels = self._current_structure_counter.ordered_labels
+
+            # 2. We trade for a goto that occurs higher in the program (much like a back edge goto), these are bad
+            for addr, curr_cnt in curr_labels.items():
+                prev_cnt = prev_labels.get(addr, 0)
                 # some label increased in gotos, check everything to the right in ordered labels, if it went down,
                 # then we fail
                 if curr_cnt > prev_cnt:
                     right_labels = ordered_curr_labels[ordered_curr_labels.index(addr) + 1 :]
                     for right_label in right_labels:
-                        if right_label not in ordered_prev_labels:
-                            continue
-
                         right_curr_label_cnt = curr_labels[right_label]
-                        right_prev_label_cnt = prev_labels[right_label]
+                        right_prev_label_cnt = prev_labels.get(right_label, 0)
                         if right_curr_label_cnt < right_prev_label_cnt:
                             return False
 
@@ -518,11 +516,8 @@ class StructuringOptimizationPass(OptimizationPass):
                 elif curr_cnt < prev_cnt:
                     left_labels = ordered_curr_labels[: ordered_curr_labels.index(addr)]
                     for left_label in left_labels:
-                        if left_label not in ordered_prev_labels:
-                            continue
-
                         left_curr_label_cnt = curr_labels[left_label]
-                        left_prev_label_cnt = prev_labels[left_label]
+                        left_prev_label_cnt = prev_labels.get(left_label, 0)
                         if left_curr_label_cnt > left_prev_label_cnt:
                             return False
 
