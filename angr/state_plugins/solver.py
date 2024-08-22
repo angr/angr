@@ -4,11 +4,12 @@ import logging
 import os
 from typing import TypeVar, overload
 
-from angr import sim_options as o
-from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
 import claripy
 from claripy import backend_manager
 
+from angr import sim_options as o
+from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+from angr.sim_state import SimState
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
 
@@ -234,13 +235,16 @@ class SimSolver(SimStatePlugin):
         [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>)]
 
         >>> list(s.solver.get_variables('file'))
-        [(('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+        [(('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>),
+            (('file', 2, 0), <BV8 file_2_0_8_8>)]
 
         >>> list(s.solver.get_variables('file', 2))
         [(('file', 2, 0), <BV8 file_2_0_8_8>)]
 
         >>> list(s.solver.get_variables())
-        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>), (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>),
+            (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>),
+            (('file', 2, 0), <BV8 file_2_0_8_8>)]
         """
         for k, v in self.eternal_tracked_variables.items():
             if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
@@ -520,7 +524,7 @@ class SimSolver(SimStatePlugin):
             l.critical("PLEASE REPORT THIS MESSAGE, AND WHAT YOU WERE DOING, TO YAN")
             return self.state._global_condition
         else:
-            return self.Or(self.Not(self.state._global_condition), c)
+            return claripy.Or(claripy.Not(self.state._global_condition), c)
 
     def _adjust_constraint_list(self, constraints):
         if self.state._global_condition is None:
@@ -528,7 +532,7 @@ class SimSolver(SimStatePlugin):
         if len(constraints) == 0:
             return constraints.__class__((self.state._global_condition,))
         else:
-            return constraints.__class__((self._adjust_constraint(self.And(*constraints)),))
+            return constraints.__class__((self._adjust_constraint(claripy.And(*constraints)),))
 
     @timed_function
     @ast_stripping_decorator
@@ -1089,8 +1093,6 @@ class SimSolver(SimStatePlugin):
         """
         return e.variables
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("solver", SimSolver)
 

@@ -1,11 +1,10 @@
 import logging
 import struct
 
-import angr  # for types
-
-import claripy
 from archinfo import ArchMIPS32, ArchS390X
+import claripy
 
+import angr
 from ..errors import (
     AngrCallableError,
     AngrCallableMultistateError,

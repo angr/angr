@@ -58,7 +58,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         if regioned_memory_cls is None:
             # delayed import
-            from .. import RegionedMemory
+            from .. import RegionedMemory  # pylint:disable=import-outside-toplevel
 
             regioned_memory_cls = RegionedMemory
 
@@ -424,7 +424,8 @@ class RegionedMemoryMixin(MemoryMixin):
 
             return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, False, None)
 
-    def _apply_condition_to_symbolic_addr(self, addr, condition):
+    @staticmethod
+    def _apply_condition_to_symbolic_addr(addr, condition):
         _, converted = claripy.constraint_to_si(condition)
         for original_expr, constrained_expr in converted:
             addr = addr.replace(original_expr, constrained_expr)
