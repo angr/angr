@@ -2300,6 +2300,8 @@ def default_cc(  # pylint:disable=unused-argument
     if alias not in cc_map or platform not in cc_map[alias]:
         if default is not ...:
             return default
+        else:
+            return None
     return cc_map[alias][platform]
 
 
