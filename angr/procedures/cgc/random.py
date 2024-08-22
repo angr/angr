@@ -3,6 +3,7 @@ import itertools
 import claripy
 
 import angr
+from angr.state_plugins.sim_action_object import SimActionObject
 
 rand_count = itertools.count()
 
@@ -11,6 +12,9 @@ class random(angr.SimProcedure):
     # pylint:disable=arguments-differ,missing-class-docstring
 
     def run(self, buf, count, rnd_bytes, concrete_data=None):
+        if isinstance(rnd_bytes, SimActionObject):
+            rnd_bytes = rnd_bytes.ast
+
         if self.state.mode == "fastpath":
             # Special case for CFG
             if (

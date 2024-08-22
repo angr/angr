@@ -4,6 +4,7 @@ import claripy
 from unique_log_filter import UniqueLogFilter
 
 import angr
+from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -13,8 +14,10 @@ class deallocate(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
     def run(self, addr, length):
-        addr = addr.ast
-        length = length.ast
+        if isinstance(addr, SimActionObject):
+            addr = addr.ast
+        if isinstance(length, SimActionObject):
+            length = length.ast
 
         # return code (see deallocate() docs)
         r = claripy.ite_cases(
