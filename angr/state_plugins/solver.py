@@ -5,7 +5,6 @@ import os
 from typing import TypeVar, overload
 
 import claripy
-from claripy import backend_manager
 
 from angr import sim_options as o
 from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
@@ -305,9 +304,7 @@ class SimSolver(SimStatePlugin):
         if o.STRINGS_ANALYSIS in self.state.options:
             if o.COMPOSITE_SOLVER in self.state.options:
                 self._stored_solver = claripy.SolverComposite(
-                    template_solver_string=claripy.SolverCompositeChild(
-                        backend=backend_manager.backends.z3, track=track
-                    )
+                    template_solver_string=claripy.SolverCompositeChild(track=track)
                 )
         elif o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
