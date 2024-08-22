@@ -3828,7 +3828,6 @@ class TestDecompiler(unittest.TestCase):
         # There is programmer written duplicated code on 900-909 and 918-928, the only difference is a single string
         # which can be factored out into a variable. ReturnDuplicator will merge these two, making the code look
         # much cleaner, contain no gotos, and be less lines of code.
-        # TODO: this case is flakey, fix before merging
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
 

@@ -1081,6 +1081,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         # first, find all the goto edges, since these locations will always be the base of the merge
         # graph we create; therefore, we only need search around gotos
         goto_edges = self._goto_manager.find_goto_edges(self.read_graph)
+        goto_edges = sorted(goto_edges, key=lambda x: x[0].addr + x[1].addr)
 
         candidates = []
         for goto_src, goto_dst in goto_edges:
@@ -1088,10 +1089,13 @@ class DuplicationReverter(StructuringOptimizationPass):
             goto_candidates = []
             for b0, b1 in combinations(candidate_subgraph, 2):
                 if self._is_valid_candidate(b0, b1):
-                    goto_candidates.append((b0, b1))
+                    pair = tuple(sorted([b0, b1], key=lambda x: x.addr))
+                    goto_candidates.append(pair)
 
             # eliminate any that are already blacklisted
             goto_candidates = [c for c in goto_candidates if c not in self.candidate_blacklist]
+            # re-sort candidates by address (for tiebreakers)
+            goto_candidates = sorted(goto_candidates, key=lambda x: x[0].addr + x[1].addr, reverse=True)
 
             # choose only a single candidate for this goto, make it the one nearest to the head
             best = None
@@ -1107,11 +1111,14 @@ class DuplicationReverter(StructuringOptimizationPass):
                     best = (b0, b1)
 
             if best is not None:
+                if best == (goto_src, goto_dst)[::-1]:
+                    # just flip it to normalize
+                    best = best[::-1]
+
                 candidates.append(best)
 
         candidates = list(set(candidates))
         candidates.sort(key=lambda x: x[0].addr + x[1].addr)
-
         return candidates
 
     def _filter_candidates(self, candidates, merge_candidates=True):
