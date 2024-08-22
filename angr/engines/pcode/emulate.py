@@ -187,7 +187,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         elif space.name == "unique":
             self._pcode_tmps[varnode.offset] = value
 
-        elif space.name in ("ram", "mem"):
+        elif space.name.lower() in ("ram", "mem"):
             l.debug("Storing %s to offset %s", value, varnode.offset)
             self.state.memory.store(varnode.offset, value, endness=self.project.arch.memory_endness)
 
@@ -225,7 +225,7 @@ class PcodeEmulatorMixin(SimEngineBase):
                 self._pcode_tmps[varnode.offset] = claripy.BVV(0, size * 8)
             return self._pcode_tmps[varnode.offset]
 
-        elif space_name in ("ram", "mem"):
+        elif space_name.lower() in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
             l.debug("Loaded %s from offset %s", val, varnode.offset)
             return val
@@ -285,7 +285,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         space = self._current_op.inputs[0].getSpaceFromConst()
         offset = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        if space.name in ("ram", "mem"):
+        if space.name.lower() in ("ram", "mem"):
             res = self.state.memory.load(offset, out.size, endness=self.project.arch.memory_endness)
         elif space.name in "register":
             res = self.state.registers.load(offset, size=out.size, endness=self.project.arch.register_endness)
@@ -304,7 +304,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         offset = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
         l.debug("Storing %s at offset %s", data, offset)
-        if space.name in ("ram", "mem"):
+        if space.name.lower() in ("ram", "mem"):
             self.state.memory.store(offset, data, endness=self.project.arch.memory_endness)
         elif space.name == "register":
             self.state.registers.store(offset, data, endness=self.project.arch.register_endness)
