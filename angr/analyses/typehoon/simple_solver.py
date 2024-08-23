@@ -1,4 +1,5 @@
 # pylint:disable=missing-class-docstring
+from __future__ import annotations
 from typing import DefaultDict
 import enum
 from collections import defaultdict
@@ -169,7 +170,7 @@ class Sketch:
         "solver",
     )
 
-    def __init__(self, solver: "SimpleSolver", root: TypeVariable):
+    def __init__(self, solver: SimpleSolver, root: TypeVariable):
         self.root: SketchNode = SketchNode(root)
         self.graph = networkx.DiGraph()
         self.node_mapping: dict[TypeVariable | DerivedTypeVariable, SketchNodeBase] = {}
@@ -298,7 +299,7 @@ class ConstraintGraphNode:
     def __hash__(self):
         return hash((ConstraintGraphNode, self.typevar, self.variance, self.tag, self.forgotten))
 
-    def forget_last_label(self) -> tuple["ConstraintGraphNode", BaseLabel] | None:
+    def forget_last_label(self) -> tuple[ConstraintGraphNode, BaseLabel] | None:
         if isinstance(self.typevar, DerivedTypeVariable) and self.typevar.labels:
             last_label = self.typevar.labels[-1]
             if len(self.typevar.labels) == 1:
@@ -315,7 +316,7 @@ class ConstraintGraphNode:
             )
         return None
 
-    def recall(self, label: BaseLabel) -> "ConstraintGraphNode":
+    def recall(self, label: BaseLabel) -> ConstraintGraphNode:
         if isinstance(self.typevar, DerivedTypeVariable):
             labels = self.typevar.labels + (label,)
             typevar = self.typevar.type_var
@@ -337,7 +338,7 @@ class ConstraintGraphNode:
             var = DerivedTypeVariable(typevar, None, labels=labels)
         return ConstraintGraphNode(var, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN)
 
-    def inverse(self) -> "ConstraintGraphNode":
+    def inverse(self) -> ConstraintGraphNode:
         if self.tag == ConstraintGraphTag.LEFT:
             tag = ConstraintGraphTag.RIGHT
         elif self.tag == ConstraintGraphTag.RIGHT:
@@ -352,7 +353,7 @@ class ConstraintGraphNode:
 
         return ConstraintGraphNode(self.typevar, variance, tag, self.forgotten)
 
-    def inverse_wo_tag(self) -> "ConstraintGraphNode":
+    def inverse_wo_tag(self) -> ConstraintGraphNode:
         """
         Invert the variance only.
         """

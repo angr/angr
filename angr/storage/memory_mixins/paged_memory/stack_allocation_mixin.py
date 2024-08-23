@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from .paged_memory_mixin import PagedMemoryMixin

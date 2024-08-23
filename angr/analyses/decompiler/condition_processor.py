@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict, OrderedDict
 from typing import Any
 from collections.abc import Generator
@@ -1037,7 +1038,7 @@ class ConditionProcessor:
         return None
 
     @staticmethod
-    def _extract_terms(ast: claripy.ast.Bool) -> Generator[claripy.ast.Bool, None, None]:
+    def _extract_terms(ast: claripy.ast.Bool) -> Generator[claripy.ast.Bool]:
         if ast.op == "And":
             for arg in ast.args:
                 yield from ConditionProcessor._extract_terms(arg)

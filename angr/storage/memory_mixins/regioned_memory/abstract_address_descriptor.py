@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Generator
 
 from claripy.vsa import StridedInterval
@@ -18,7 +19,7 @@ class AbstractAddressDescriptor:
         # this may raise an OverflowError if self.cardinality is greater than sys.maxint
         return self.cardinality
 
-    def __iter__(self) -> Generator[tuple[str, StridedInterval], None, None]:
+    def __iter__(self) -> Generator[tuple[str, StridedInterval]]:
         yield from self._regioned_addrs
 
     @property

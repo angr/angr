@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..cgc.random import random as orig_random
 
 

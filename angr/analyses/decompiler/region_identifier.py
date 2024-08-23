@@ -1,3 +1,4 @@
+from __future__ import annotations
 from itertools import count
 from collections import defaultdict
 import logging

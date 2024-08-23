@@ -1,6 +1,7 @@
 # pylint:disable=abstract-method,ungrouped-imports
+from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import re
 import logging
 from collections import defaultdict
@@ -315,7 +316,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self,
         func: Function | None,
         reg_offsets: set[int],
-        block: Optional["Block"] = None,
+        block: Block | None = None,
         track_memory=True,
         cross_insn_opt=True,
         initial_reg_values=None,
@@ -707,11 +708,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         return curr_stmt_start_addr
 
-    def _process_pcode_irsb(self, node, pcode_irsb: "pcode.lifter.IRSB", state: StackPointerTrackerState) -> int:
+    def _process_pcode_irsb(self, node, pcode_irsb: pcode.lifter.IRSB, state: StackPointerTrackerState) -> int:
         unique = {}
         curr_stmt_start_addr = None
 
-        def _resolve_expr(varnode: "pypcode.Varnode"):
+        def _resolve_expr(varnode: pypcode.Varnode):
             if varnode.space.name == "register":
                 return state.get(varnode.offset)
             elif varnode.space.name == "unique":
@@ -724,13 +725,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException()
 
-        def resolve_expr(varnode: "pypcode.Varnode"):
+        def resolve_expr(varnode: pypcode.Varnode):
             try:
                 return _resolve_expr(varnode)
             except CouldNotResolveException:
                 return TOP
 
-        def resolve_op(op: "pypcode.PcodeOp"):
+        def resolve_op(op: pypcode.PcodeOp):
             if op.opcode == pypcode.OpCode.INT_ADD and len(op.inputs) == 2:
                 input0, input1 = op.inputs
                 input0_v = resolve_expr(input0)

@@ -1,5 +1,5 @@
+from __future__ import annotations
 from typing import (
-    Optional,
     TYPE_CHECKING,
     overload,
     Literal,
@@ -52,7 +52,7 @@ class DepGraph:
     Mostly a wrapper around a <networkx.DiGraph>.
     """
 
-    def __init__(self, graph: Optional["networkx.DiGraph[Definition]"] = None):
+    def __init__(self, graph: networkx.DiGraph[Definition] | None = None):
         """
         :param graph: A graph where nodes are definitions, and edges represent uses.
         """
@@ -62,10 +62,10 @@ class DepGraph:
         if graph and not all(map(_is_definition, graph.nodes)):
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
-        self._graph: "networkx.DiGraph[Definition]" = graph if graph is not None else networkx.DiGraph()
+        self._graph: networkx.DiGraph[Definition] = graph if graph is not None else networkx.DiGraph()
 
     @property
-    def graph(self) -> "networkx.DiGraph[Definition]":
+    def graph(self) -> networkx.DiGraph[Definition]:
         return self._graph
 
     def add_node(self, node: Definition) -> None:
@@ -84,7 +84,7 @@ class DepGraph:
         """
         self._graph.add_edge(source, destination, **labels)
 
-    def nodes(self) -> "networkx.classes.reportviews.NodeView[Definition]":
+    def nodes(self) -> networkx.classes.reportviews.NodeView[Definition]:
         return self._graph.nodes()
 
     def predecessors(self, node: Definition) -> Iterator[Definition]:
@@ -93,7 +93,7 @@ class DepGraph:
         """
         return self._graph.predecessors(node)
 
-    def transitive_closure(self, definition: Definition[Atom]) -> "networkx.DiGraph[Definition[Atom]]":
+    def transitive_closure(self, definition: Definition[Atom]) -> networkx.DiGraph[Definition[Atom]]:
         """
         Compute the "transitive closure" of a given definition.
         Obtained by transitively aggregating the ancestors of this definition in the graph.
@@ -106,8 +106,8 @@ class DepGraph:
 
         def _transitive_closure(
             def_: Definition[Atom],
-            graph: "networkx.DiGraph[Definition[Atom]]",
-            result: "networkx.DiGraph[Definition[Atom]]",
+            graph: networkx.DiGraph[Definition[Atom]],
+            result: networkx.DiGraph[Definition[Atom]],
             visited: set[Definition[Atom]] | None = None,
         ):
             """

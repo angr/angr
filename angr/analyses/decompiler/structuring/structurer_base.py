@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 import logging
 
@@ -49,12 +50,12 @@ class StructurerBase(Analysis):
         region,
         parent_map=None,
         condition_processor=None,
-        func: Optional["Function"] = None,
+        func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         **kwargs,
     ):
-        self._region: "GraphRegion" = region
+        self._region: GraphRegion = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head

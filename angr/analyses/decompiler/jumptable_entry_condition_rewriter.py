@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from .structuring.structurer_nodes import ConditionNode, CodeNode

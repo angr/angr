@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Optional, Union, Any, TYPE_CHECKING
@@ -49,7 +50,7 @@ class Decompiler(Analysis):
     def __init__(
         self,
         func: Function | str | int,
-        cfg: Union["CFGFast", "CFGModel"] | None = None,
+        cfg: CFGFast | CFGModel | None = None,
         options=None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
@@ -92,10 +93,10 @@ class Decompiler(Analysis):
         self._inline_functions = inline_functions
 
         self.clinic = None  # mostly for debugging purposes
-        self.codegen: Optional["CStructuredCodeGenerator"] = None
+        self.codegen: CStructuredCodeGenerator | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
-        self.seq_node: Optional["SequenceNode"] = None
+        self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
 
@@ -499,7 +500,7 @@ class Decompiler(Analysis):
 
         return codegen
 
-    def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
+    def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument

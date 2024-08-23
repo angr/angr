@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 import ailment
@@ -67,14 +68,14 @@ class SimEngineVRBase(SimEngineLight):
     and storing data.
     """
 
-    state: "VariableRecoveryStateBase"
+    state: VariableRecoveryStateBase
 
     def __init__(self, project, kb):
         super().__init__()
 
         self.project = project
         self.kb = kb
-        self.variable_manager: Optional["VariableManager"] = None
+        self.variable_manager: VariableManager | None = None
 
     @property
     def func_addr(self):

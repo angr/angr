@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import DefaultDict, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 import logging
@@ -119,14 +120,14 @@ class StableVarExprHasher(AILBlockWalkerBase):
         self._hash_lst.append(expr.op)
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt, block: Block | None):
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.op)
         super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append((expr.value, expr.bits))
 
-    def _handle_Convert(self, expr_idx: int, expr: "Convert", stmt_idx: int, stmt, block: Block | None):
+    def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.to_bits)
         super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 

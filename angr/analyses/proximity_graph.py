@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 import networkx
@@ -163,10 +164,10 @@ class ProximityGraphAnalysis(Analysis):
 
     def __init__(
         self,
-        func: "Function",
-        cfg_model: "CFGModel",
-        xrefs: "XRefManager",
-        decompilation: Optional["Decompiler"] = None,
+        func: Function,
+        cfg_model: CFGModel,
+        xrefs: XRefManager,
+        decompilation: Decompiler | None = None,
         expand_funcs: set[int] | None = None,
     ):
         self._function = func
@@ -240,7 +241,7 @@ class ProximityGraphAnalysis(Analysis):
         # condense blank nodes after the graph has been constructed
         self._condense_blank_nodes(self.graph)
 
-    def _endnode_connector(self, func: "Function", subgraph: networkx.DiGraph):
+    def _endnode_connector(self, func: Function, subgraph: networkx.DiGraph):
         """
         Properly connect expanded function call's to proximity graph.
         """
@@ -268,7 +269,7 @@ class ProximityGraphAnalysis(Analysis):
                     subgraph.add_edge(end_node, succ)
 
     def _process_function(
-        self, func: "Function", graph: networkx.DiGraph, func_proxi_node: FunctionProxiNode | None = None
+        self, func: Function, graph: networkx.DiGraph, func_proxi_node: FunctionProxiNode | None = None
     ) -> list[FunctionProxiNode]:
         to_expand: list[FunctionProxiNode] = []
         found_blocks: dict[BlockNode:BaseProxiNode] = {}
@@ -346,7 +347,7 @@ class ProximityGraphAnalysis(Analysis):
             args.append(UnknownProxiNode("_"))
 
     def _process_decompilation(
-        self, graph: networkx.DiGraph, decompilation: "Decompiler", func_proxi_node: FunctionProxiNode | None = None
+        self, graph: networkx.DiGraph, decompilation: Decompiler, func_proxi_node: FunctionProxiNode | None = None
     ) -> list[FunctionProxiNode]:
         to_expand: list[FunctionProxiNode] = []
 

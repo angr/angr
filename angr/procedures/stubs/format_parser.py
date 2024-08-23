@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
@@ -433,7 +434,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self) -> dict[bytes, "SimType"]:
+    def _all_spec(self) -> dict[bytes, SimType]:
         """
         All specifiers and their lengths.
         """
@@ -496,7 +497,7 @@ class FormatParser(SimProcedure):
                 # this is gross coz sim_type is gross..
                 nugget = nugget[: len(spec)]
                 original_nugget = original_nugget[: (length_spec_str_len + len(spec))]
-                nugtype: "SimType" = all_spec[nugget]
+                nugtype: SimType = all_spec[nugget]
                 try:
                     typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
                 except Exception:

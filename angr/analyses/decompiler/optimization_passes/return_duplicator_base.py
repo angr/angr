@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any
 from itertools import count
 import copy
@@ -388,7 +389,7 @@ class ReturnDuplicatorBase:
         return region, region_head
 
     @staticmethod
-    def _is_indirect_jump_ailblock(block: "Block") -> bool:
+    def _is_indirect_jump_ailblock(block: Block) -> bool:
         if block.statements and isinstance(block.statements[-1], Jump):
             last_stmt = block.statements[-1]
             if not isinstance(last_stmt.target, Const):

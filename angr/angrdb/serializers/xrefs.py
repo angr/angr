@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 from ..models import DbXRefs
 from ...knowledge_plugins.xrefs import XRefManager
 

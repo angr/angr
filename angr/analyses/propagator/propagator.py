@@ -1,5 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 import logging
 import time
 
@@ -65,7 +66,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         gp: int | None = None,
         cache_results: bool = False,
         key_prefix: str | None = None,
-        reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
+        reaching_definitions: ReachingDefinitionsModel | None = None,
         immediate_stmt_removal: bool = False,
         profiling: bool = False,
     ):

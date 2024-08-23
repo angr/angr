@@ -1,4 +1,5 @@
-from typing import Any, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable, Generator
 
 import claripy
@@ -18,7 +19,7 @@ class Detail:
 
     __slots__ = ("size", "expr", "def_at")
 
-    def __init__(self, size: int, expr: ailment.Expression | None, def_at: Optional["CodeLocation"]):
+    def __init__(self, size: int, expr: ailment.Expression | None, def_at: CodeLocation | None):
         self.size = size
         self.expr = expr
         self.def_at = def_at
@@ -62,7 +63,7 @@ class PropValue:
         return None
 
     @property
-    def one_defat(self) -> Optional["CodeLocation"]:
+    def one_defat(self) -> CodeLocation | None:
         """
         Get the definition location of the expression that starts at offset 0 and covers the entire PropValue. Returns
         None if there are no expressions or multiple expressions.
@@ -77,16 +78,16 @@ class PropValue:
     def to_label(self):
         raise NotImplementedError()
 
-    def with_details(self, size: int, expr: ailment.Expression, def_at: "CodeLocation") -> "PropValue":
+    def with_details(self, size: int, expr: ailment.Expression, def_at: CodeLocation) -> PropValue:
         return PropValue(self.value, offset_and_details={0: Detail(size, expr, def_at)})
 
-    def all_exprs(self) -> Generator[ailment.Expression, None, None]:
+    def all_exprs(self) -> Generator[ailment.Expression]:
         if not self.offset_and_details:
             return
         for detail in self.offset_and_details.values():
             yield detail.expr
 
-    def non_zero_exprs(self) -> Generator[ailment.Expression, None, None]:
+    def non_zero_exprs(self) -> Generator[ailment.Expression]:
         if not self.offset_and_details:
             return
         for detail in self.offset_and_details.values():
@@ -110,7 +111,7 @@ class PropValue:
             value = claripy.fpToIEEEBV(value)
         return value[chop_start:chop_end]
 
-    def value_and_labels(self) -> Generator[tuple[int, claripy.ast.Bits, int, dict | None], None, None]:
+    def value_and_labels(self) -> Generator[tuple[int, claripy.ast.Bits, int, dict | None]]:
         if not self.offset_and_details:
             return
         keys = list(sorted(self.offset_and_details.keys()))
@@ -142,7 +143,7 @@ class PropValue:
     @staticmethod
     def from_value_and_labels(
         value: claripy.ast.Bits, labels: Iterable[tuple[int, int, int, dict[str, Any]]]
-    ) -> "PropValue":
+    ) -> PropValue:
         if not labels:
             return PropValue(value)
         offset_and_details = {}
@@ -159,7 +160,7 @@ class PropValue:
         return PropValue(value, offset_and_details=offset_and_details)
 
     @staticmethod
-    def from_value_and_details(value: claripy.ast.Bits, size: int, expr: ailment.Expression, def_at: "CodeLocation"):
+    def from_value_and_details(value: claripy.ast.Bits, size: int, expr: ailment.Expression, def_at: CodeLocation):
         d = Detail(size, expr, def_at)
         return PropValue(value, offset_and_details={0: d})
 

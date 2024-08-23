@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Literal, TYPE_CHECKING
 import logging
 from collections import defaultdict
@@ -70,7 +71,7 @@ class VariableManagerInternal(Serializable):
     """
 
     def __init__(self, manager, func_addr=None):
-        self.manager: "VariableManager" = manager
+        self.manager: VariableManager = manager
 
         self.func_addr = func_addr
 
@@ -154,7 +155,7 @@ class VariableManagerInternal(Serializable):
         d["types"].kb = None
         return d
 
-    def set_manager(self, manager: "VariableManager"):
+    def set_manager(self, manager: VariableManager):
         self.manager = manager
         self.types.kb = manager._kb
 
@@ -261,7 +262,7 @@ class VariableManagerInternal(Serializable):
     @classmethod
     def parse_from_cmessage(
         cls, cmsg, variable_manager=None, func_addr=None, **kwargs
-    ) -> "VariableManagerInternal":  # pylint:disable=arguments-differ
+    ) -> VariableManagerInternal:  # pylint:disable=arguments-differ
         model = VariableManagerInternal(variable_manager, func_addr=func_addr)
 
         variable_by_ident = {}
@@ -448,7 +449,7 @@ class VariableManagerInternal(Serializable):
         sort: int,
         variable,
         offset,
-        location: "CodeLocation",
+        location: CodeLocation,
         overwrite=False,
         atom=None,
     ):
@@ -461,7 +462,7 @@ class VariableManagerInternal(Serializable):
         if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
             self._variables_without_writes.discard(variable)
 
-    def record_variable(self, location: "CodeLocation", variable, offset, overwrite=False, atom=None):
+    def record_variable(self, location: CodeLocation, variable, offset, overwrite=False, atom=None):
         if variable.ident not in self._ident_to_variable:
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
@@ -485,7 +486,7 @@ class VariableManagerInternal(Serializable):
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash].add(var_and_offset)
 
-    def remove_variable_by_atom(self, location: "CodeLocation", variable: SimVariable, atom):
+    def remove_variable_by_atom(self, location: CodeLocation, variable: SimVariable, atom):
         key = (
             (location.block_addr, location.stmt_idx)
             if location.block_idx is None

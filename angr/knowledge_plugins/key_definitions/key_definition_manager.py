@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from collections.abc import Iterable
 
@@ -38,7 +39,7 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
     - After returning from each call: ('node', address of the block that ends with a call, OP_AFTER)
     """
 
-    def __init__(self, kb: "KnowledgeBase"):
+    def __init__(self, kb: KnowledgeBase):
         super().__init__(kb=kb)
         self.model_by_funcaddr: dict[int, ReachingDefinitionsModel] = {}
 
@@ -72,7 +73,7 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
 
         return self.model_by_funcaddr[func_addr]
 
-    def copy(self) -> "KeyDefinitionManager":
+    def copy(self) -> KeyDefinitionManager:
         dm = KeyDefinitionManager(self._kb)
         dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()), self.model_by_funcaddr.items()))
         return dm

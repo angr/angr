@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
+from __future__ import annotations
 import unittest
 import networkx as nx
 from angr.utils.graph import Dominators, TemporaryNode

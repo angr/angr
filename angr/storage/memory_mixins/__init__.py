@@ -1,4 +1,5 @@
 # pylint:disable=abstract-method,wrong-import-position,unused-argument,missing-class-docstring,arguments-differ
+from __future__ import annotations
 from typing import Tuple, Dict, Any, Optional
 from collections.abc import Iterable
 

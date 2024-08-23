@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument,arguments-differ
+from __future__ import annotations
 
 from ..sequence_walker import SequenceWalker
 from ..structuring.structurer_nodes import (

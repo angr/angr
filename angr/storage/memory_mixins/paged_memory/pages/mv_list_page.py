@@ -1,4 +1,5 @@
 # pylint:disable=abstract-method,arguments-differ,assignment-from-no-return
+from __future__ import annotations
 import logging
 from typing import Union, Any
 from collections.abc import Callable
@@ -43,7 +44,7 @@ class MVListPage(
 
         self.sinkhole: _MOTYPE | None = sinkhole
 
-    def copy(self, memo) -> "MVListPage":
+    def copy(self, memo) -> MVListPage:
         o = super().copy(memo)
         o.content = DynamicDictList(max_size=self.content.max_size, content=self.content)
         o.sinkhole = self.sinkhole
@@ -142,7 +143,7 @@ class MVListPage(
 
     def merge(
         self,
-        others: list["MVListPage"],
+        others: list[MVListPage],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,
@@ -154,7 +155,7 @@ class MVListPage(
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: list["MVListPage"] = [self] + others
+        all_pages: list[MVListPage] = [self] + others
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -280,7 +281,7 @@ class MVListPage(
         return merged_offsets
 
     def compare(
-        self, other: "MVListPage", page_addr: int = None, memory=None, changed_offsets=None
+        self, other: MVListPage, page_addr: int = None, memory=None, changed_offsets=None
     ) -> bool:  # pylint: disable=unused-argument
         compared_to = None
         for b in sorted(changed_offsets):
@@ -312,7 +313,7 @@ class MVListPage(
 
         return True
 
-    def changed_bytes(self, other: "MVListPage", page_addr: int = None):
+    def changed_bytes(self, other: MVListPage, page_addr: int = None):
         candidates: set[int] = super().changed_bytes(other)
         if candidates is not None:
             # using the result from the history tracking mixin as an approximation

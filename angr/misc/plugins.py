@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TypeVar, Generic
 
 from angr.errors import AngrNoPluginError

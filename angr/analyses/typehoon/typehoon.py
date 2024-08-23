@@ -1,4 +1,5 @@
 # pylint:disable=bad-builtin
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
@@ -34,8 +35,8 @@ class Typehoon(Analysis):
         constraints,
         func_var,
         ground_truth=None,
-        var_mapping: dict["SimVariable", set["TypeVariable"]] | None = None,
-        must_struct: set["TypeVariable"] | None = None,
+        var_mapping: dict[SimVariable, set[TypeVariable]] | None = None,
+        must_struct: set[TypeVariable] | None = None,
     ):
         """
 
@@ -46,9 +47,9 @@ class Typehoon(Analysis):
         :param must_struct:
         """
 
-        self.func_var: "TypeVariable" = func_var
-        self._constraints: dict["TypeVariable", set["TypeConstraint"]] = constraints
-        self._ground_truth: dict["TypeVariable", "SimType"] | None = ground_truth
+        self.func_var: TypeVariable = func_var
+        self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
+        self._ground_truth: dict[TypeVariable, SimType] | None = ground_truth
         self._var_mapping = var_mapping
         self._must_struct = must_struct
 

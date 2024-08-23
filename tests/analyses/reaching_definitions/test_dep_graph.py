@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=no-self-use
+from __future__ import annotations
 from random import randrange
 from unittest import main, mock, TestCase
 import networkx

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class CFGArchOptions:
     """
     Stores architecture-specific options and settings, as well as the detailed explanation of those options and

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 def truncate_bits(value: int, nbits: int) -> int:
     """
     Truncate `value` to `nbits`.

@@ -1,4 +1,4 @@
-from typing import Union
+from __future__ import annotations
 from enum import Enum, auto
 
 import claripy
@@ -54,7 +54,7 @@ class Atom:
         self.size = v
 
     @staticmethod
-    def from_ail_expr(expr: ailment.Expr.Expression, arch: Arch, full_reg: bool = False) -> "Register":
+    def from_ail_expr(expr: ailment.Expr.Expression, arch: Arch, full_reg: bool = False) -> Register:
         if isinstance(expr, ailment.Expr.Register):
             if full_reg:
                 reg_name = arch.translate_register_name(expr.reg_offset)
@@ -66,7 +66,7 @@ class Atom:
     @staticmethod
     def from_argument(
         argument: SimFunctionArgument, arch: Arch, full_reg=False, sp: int | None = None
-    ) -> Union["Register", "MemoryLocation"]:
+    ) -> Register | MemoryLocation:
         """
         Instanciate an `Atom` from a given argument.
 
@@ -91,7 +91,7 @@ class Atom:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
     @staticmethod
-    def reg(thing: str | RegisterOffset, size: int | None = None, arch: Arch | None = None) -> "Register":
+    def reg(thing: str | RegisterOffset, size: int | None = None, arch: Arch | None = None) -> Register:
         """
         Create a Register atom.
 
@@ -126,7 +126,7 @@ class Atom:
     register = reg
 
     @staticmethod
-    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None) -> "MemoryLocation":
+    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None) -> MemoryLocation:
         """
         Create a MemoryLocation atom,
 

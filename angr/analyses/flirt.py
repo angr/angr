@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from functools import partial
 from collections import defaultdict
@@ -117,7 +118,7 @@ class FlirtAnalysis(Analysis):
         with open(sig.sig_path, "rb") as sigfile:
             flirt = nampa.parse_flirt_file(sigfile)
             for func in self.project.kb.functions.values():
-                func: "Function"
+                func: Function
                 if func.is_simprocedure or func.is_plt:
                     continue
                 if not func.is_default_name:
@@ -140,7 +141,7 @@ class FlirtAnalysis(Analysis):
                 _callback = partial(self._on_func_matched, func)
                 nampa.match_function(flirt, func_bytes, start, _callback)
 
-    def _on_func_matched(self, func: "Function", base_addr: int, flirt_func: "nampa.FlirtFunction"):
+    def _on_func_matched(self, func: Function, base_addr: int, flirt_func: nampa.FlirtFunction):
         func_addr = base_addr + flirt_func.offset
         _l.debug(
             "_on_func_matched() is called with func_addr %#x with a suggested name %s.", func_addr, flirt_func.name

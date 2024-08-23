@@ -1,4 +1,5 @@
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 import copy
 import logging
 
@@ -230,7 +231,7 @@ class CallSiteMaker(Analysis):
 
         self.result_block = new_block
 
-    def _find_variable_from_definition(self, def_: "Definition"):
+    def _find_variable_from_definition(self, def_: Definition):
         """
 
         :param Definition def_: The reaching definition of a variable.
@@ -250,7 +251,7 @@ class CallSiteMaker(Analysis):
             l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
             return None
 
-    def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, "Definition"]]:
+    def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, Definition]]:
         size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
@@ -258,12 +259,12 @@ class CallSiteMaker(Analysis):
             # Find its definition
             ins_addr = call_stmt.tags["ins_addr"]
             try:
-                rd: "LiveDefinitions" = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
+                rd: LiveDefinitions = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
             except KeyError:
                 return set()
 
             try:
-                vs: "MultiValues" = rd.registers.load(offset, size=size)
+                vs: MultiValues = rd.registers.load(offset, size=size)
             except SimMemoryMissingError:
                 return set()
             values_and_defs_ = set()
@@ -330,7 +331,7 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Optional["Function"], cc: SimCC, call_stmt) -> int | None:
+    def _determine_variadic_arguments(self, func: Function | None, cc: SimCC, call_stmt) -> int | None:
         if func is not None and "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None

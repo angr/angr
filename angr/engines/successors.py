@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -41,13 +42,13 @@ class SimSuccessors:
 
     def __init__(self, addr: int | None, initial_state):
         self.addr = addr
-        self.initial_state: "SimState" = initial_state
+        self.initial_state: SimState = initial_state
 
-        self.successors: list["SimState"] = []
-        self.all_successors: list["SimState"] = []
-        self.flat_successors: list["SimState"] = []
-        self.unsat_successors: list["SimState"] = []
-        self.unconstrained_successors: list["SimState"] = []
+        self.successors: list[SimState] = []
+        self.all_successors: list[SimState] = []
+        self.flat_successors: list[SimState] = []
+        self.unsat_successors: list[SimState] = []
+        self.unconstrained_successors: list[SimState] = []
 
         # the engine that should process or did process this request
         self.engine = None

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import overload
 import logging
 import archinfo
@@ -174,7 +175,7 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(self, thing: list[SimState] | SimState | None = None, **kwargs) -> "SimulationManager":
+    def simulation_manager(self, thing: list[SimState] | SimState | None = None, **kwargs) -> SimulationManager:
         """
         Constructs a new simulation manager.
 
@@ -291,7 +292,7 @@ class AngrObjectFactory:
         load_from_ro_regions=False,
         initial_regs=None,
         skip_stmts=False,
-    ) -> "Block": ...
+    ) -> Block: ...
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -314,7 +315,7 @@ class AngrObjectFactory:
         collect_data_refs=False,
         cross_insn_opt=True,
         skip_stmts=False,
-    ) -> "SootBlock": ...
+    ) -> SootBlock: ...
 
     def block(
         self,

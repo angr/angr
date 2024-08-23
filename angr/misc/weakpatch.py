@@ -1,3 +1,4 @@
+from __future__ import annotations
 from weakref import WeakValueDictionary, WeakKeyDictionary, _IterationGuard
 
 

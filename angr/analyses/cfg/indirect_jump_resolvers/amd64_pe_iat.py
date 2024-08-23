@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from capstone.x86_const import X86_OP_MEM, X86_REG_RIP

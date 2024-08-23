@@ -1,4 +1,5 @@
 # pylint:disable=no-member,raise-missing-from
+from __future__ import annotations
 import logging
 import pickle
 

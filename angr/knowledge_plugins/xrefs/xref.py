@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...serializable import Serializable
 from ...protos import primitives_pb2
 from .xref_types import XRefType

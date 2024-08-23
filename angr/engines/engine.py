@@ -1,4 +1,5 @@
 # pylint: disable=no-self-use,unused-private-member
+from __future__ import annotations
 
 import abc
 import logging

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pyvex
 
 from ..utils import looks_like_sql

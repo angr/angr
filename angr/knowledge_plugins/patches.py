@@ -1,3 +1,4 @@
+from __future__ import annotations
 from cle.address_translator import AddressTranslator
 from sortedcontainers import SortedDict
 

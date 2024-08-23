@@ -1,3 +1,4 @@
+from __future__ import annotations
 import inspect
 import copy
 import itertools
@@ -99,7 +100,7 @@ class SimProcedure:
 
     """
 
-    state: "SimState"
+    state: SimState
 
     def __init__(
         self,

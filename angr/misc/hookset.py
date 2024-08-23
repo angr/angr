@@ -4,6 +4,8 @@ This process is formalized as a "hooking" of a python method - each exploration 
 the same name on the simulation manager class.
 """
 
+from __future__ import annotations
+
 
 class HookSet:
     """

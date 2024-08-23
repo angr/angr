@@ -1,4 +1,5 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
+from __future__ import annotations
 
 import logging
 

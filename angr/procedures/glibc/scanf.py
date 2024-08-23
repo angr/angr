@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..libc.scanf import scanf
 from ..libc.fscanf import fscanf
 

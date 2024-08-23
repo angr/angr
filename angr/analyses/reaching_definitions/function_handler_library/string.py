@@ -1,3 +1,4 @@
+from __future__ import annotations
 import archinfo
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState

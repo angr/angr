@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from ..calling_conventions import SYSCALL_CC, SimCCSyscall

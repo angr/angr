@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
 
@@ -89,7 +90,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             )
             concrete_state.inspect.add_breakpoint("mem_write", BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, others: tuple["VariableRecoveryState"], successor=None) -> tuple["VariableRecoveryState", bool]:
+    def merge(self, others: tuple[VariableRecoveryState], successor=None) -> tuple[VariableRecoveryState, bool]:
         """
         Merge two abstract states.
 

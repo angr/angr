@@ -1,4 +1,5 @@
 # pylint:disable=unnecessary-pass
+from __future__ import annotations
 import logging
 
 from ailment.statement import ConditionalJump, Assignment, Jump

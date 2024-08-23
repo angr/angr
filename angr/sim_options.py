@@ -1,5 +1,6 @@
 # This module contains the analysis options.
 # All variables with names of all caps will be registered as a state option to SimStateOptions.
+from __future__ import annotations
 
 import string
 from .sim_state_options import SimStateOptions

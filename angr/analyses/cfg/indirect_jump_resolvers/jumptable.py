@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
+from __future__ import annotations
 import enum
 from typing import TYPE_CHECKING
 from collections.abc import Sequence
@@ -143,14 +144,14 @@ class ConstantValueManager:
         "mapping",
     )
 
-    def __init__(self, project, kb, func: "Function"):
+    def __init__(self, project, kb, func: Function):
         self.project = project
         self.kb = kb
         self.func = func
 
         self.mapping = None
 
-    def reg_read_callback(self, state: "SimState"):
+    def reg_read_callback(self, state: SimState):
         if not self.mapping:
             self._build_mapping()
 
@@ -837,7 +838,7 @@ class JumpTableResolver(IndirectJumpResolver):
             # the function must exist in the KB
             return False, None
 
-        func: "Function" = cfg.kb.functions[func_addr]
+        func: Function = cfg.kb.functions[func_addr]
         self._max_targets = cfg._indirect_jump_target_limit
 
         # this is an indirect call if (1) the instruction is a call, or (2) the instruction is a tail jump (we detect
@@ -901,7 +902,7 @@ class JumpTableResolver(IndirectJumpResolver):
         self,
         cfg,
         addr: int,
-        func: "Function",
+        func: Function,
         b: Blade,
         cv_manager: ConstantValueManager | None,
         potential_call_table: bool = False,
