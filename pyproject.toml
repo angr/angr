@@ -20,12 +20,15 @@ exclude = [
 
 [tool.ruff.lint]
 extend-select = [
+	"B",
 	"I002",
 	"RUF",
 	"SIM",
 	"UP",
 ]
 extend-ignore = [
+	"B007", # Unused loop control variable
+	"B011", # Asserts
 	"E402", # Bottom imports
 	"E721", # Type comparisons
 	"E741", # Variable names

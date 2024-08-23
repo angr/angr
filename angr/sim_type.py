@@ -1529,7 +1529,7 @@ class SimStructValue:
         for name in self._struct.fields:
             value = self._values[name]
             try:
-                f = getattr(value, "__indented_repr__")
+                f = value.__indented_repr__
                 s = f(indent=indent + 2)
             except AttributeError:
                 s = repr(value)
@@ -1662,7 +1662,7 @@ class SimUnionValue:
         fields = []
         for name, value in self._values.items():
             try:
-                f = getattr(value, "__indented_repr__")
+                f = value.__indented_repr__
                 s = f(indent=indent + 2)
             except AttributeError:
                 s = repr(value)
@@ -1760,7 +1760,7 @@ class SimCppClassValue(SimStructValue):
         for name in self._class.fields:
             value = self._values[name]
             try:
-                f = getattr(value, "__indented_repr__")
+                f = value.__indented_repr__
                 s = f(indent=indent + 2)
             except AttributeError:
                 s = repr(value)
@@ -3127,7 +3127,7 @@ def _accepts_scope_stack():
         self._last_yielded_token = None
         return self.cparser.parse(input=text, lexer=self.clex, debug=debug)
 
-    setattr(pycparser.CParser, "parse", parse)
+    pycparser.CParser.parse = parse
 
 
 def _decl_to_type(

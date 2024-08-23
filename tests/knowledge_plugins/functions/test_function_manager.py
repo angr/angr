@@ -57,7 +57,7 @@ class TestFunctionManager(unittest.TestCase):
             0x4007D3,
         }
         expected_callsites = {0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9}
-        expected_callsite_targets = {4195600, 4195632, 4195632, 4195600, 4195632, 4195632, 4195940, 4196077, 4196093}
+        expected_callsite_targets = {4195600, 4195632, 4195940, 4196077, 4196093}
         expected_callsite_returns = {
             0x40073E,
             0x400754,

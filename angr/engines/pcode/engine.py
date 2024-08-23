@@ -168,7 +168,7 @@ class HeavyPcodeMixin(
         except errors.SimReliftException as e:
             self.state = e.state
             if self._insn_bytes is not None:
-                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
+                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!") from e
             new_ip = self.state.scratch.ins_addr
             if self._size is not None:
                 self._size -= new_ip - self._addr

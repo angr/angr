@@ -45,7 +45,7 @@ def condition_to_lambda(condition, default=False):
             except (AngrError, SimError):
                 return False
 
-    elif hasattr(condition, "__call__"):
+    elif callable(condition):
         condition_function = condition
         static_addrs = None
     else:

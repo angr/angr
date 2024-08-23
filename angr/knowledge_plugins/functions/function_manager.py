@@ -57,14 +57,14 @@ class FunctionDict(SortedDict):
     def floor_addr(self, addr):
         try:
             return next(self.irange(maximum=addr, reverse=True))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def ceiling_addr(self, addr):
         try:
             return next(self.irange(minimum=addr, reverse=False))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def __setstate__(self, state):
         for v, k in state.items():

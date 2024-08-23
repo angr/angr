@@ -29,8 +29,8 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         if self.call_ret_expr is not None:
             try:
                 disposition = self.state.solver.eval_one(self.call_ret_expr)
-            except angr.errors.SimSolverError:
-                raise angr.errors.SimError(f"Exception handler returned symbolic value {self.call_ret_expr}")
+            except angr.errors.SimSolverError as err:
+                raise angr.errors.SimError(f"Exception handler returned symbolic value {self.call_ret_expr}") from err
             if disposition == 0:  # Handled!!!
                 self.project.simos._load_regs(self.state, context)
                 # TODO: re-set the exception handler somehow?

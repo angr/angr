@@ -214,7 +214,7 @@ class MemoryObjectSetMixin(CooperationBase):
         offset = 0
         start_offset = 0
         prev_value = ...
-        for i, value_set in enumerate(elements):
+        for value_set in elements:
             if len(value_set) == 1:
                 if prev_value is ...:
                     prev_value = next(iter(value_set))

@@ -13,8 +13,8 @@ class select(angr.SimProcedure):
             # readfds_v = self.state.solver.eval_one(readfds)
             writefds_v = self.state.solver.eval_one(writefds)
             exceptfds_v = self.state.solver.eval_one(exceptfds)
-        except angr.errors.SimSolverError:
-            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic select arguments")
+        except angr.errors.SimSolverError as err:
+            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic select arguments") from err
 
         if writefds_v != 0 or exceptfds_v != 0:
             raise angr.errors.SimProcedureError("Can't handle write or exception events in select")

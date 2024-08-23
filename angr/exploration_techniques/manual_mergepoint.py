@@ -72,7 +72,7 @@ class ManualMergepoint(ExplorationTechnique):
         while len(simgr.stashes[self.stash]):
             num_unique += 1
             exemplar_callstack = simgr.stashes[self.stash][0].callstack
-            simgr.move(self.stash, "merge_tmp", lambda s: s.callstack == exemplar_callstack)
+            simgr.move(self.stash, "merge_tmp", lambda s, ec=exemplar_callstack: s.callstack == ec)
             l.debug("...%d with unique callstack #%d", len(simgr.merge_tmp), num_unique)
             if len(simgr.merge_tmp) > 1:
                 simgr = simgr.merge(stash="merge_tmp", prune=self.prune)

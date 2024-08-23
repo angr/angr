@@ -711,8 +711,8 @@ class SimCC:
         except StopIteration:
             try:
                 arg = next(session.both_iter)
-            except StopIteration:
-                raise TypeError("Accessed too many arguments - exhausted all positions?")
+            except StopIteration as err:
+                raise TypeError("Accessed too many arguments - exhausted all positions?") from err
 
         if size > arg.size:
             if isinstance(arg, SimStackArg):

@@ -50,7 +50,7 @@ class realloc(Func):
             return False
         returned_locs.append(state.solver.eval(state.regs.eax))
 
-        for i in range(10):  # pylint disable=unused-variable
+        for _i in range(10):  # pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False
@@ -88,7 +88,7 @@ class realloc(Func):
             return False
         returned_locs2.append(state.solver.eval(state.regs.eax))
 
-        for i in range(10):
+        for _i in range(10):
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False

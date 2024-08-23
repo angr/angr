@@ -75,8 +75,8 @@ class PluginHub(Generic[P]):
     def __getattr__(self, name: str) -> P:
         try:
             return self.get_plugin(name)
-        except AngrNoPluginError:
-            raise AttributeError(name)
+        except AngrNoPluginError as err:
+            raise AttributeError(name) from err
 
     def __dir__(self):
         out = set(self.__dict__)
@@ -121,8 +121,8 @@ class PluginHub(Generic[P]):
         if isinstance(preset, str):
             try:
                 preset = self._presets[preset]
-            except (AttributeError, KeyError):
-                raise AngrNoPluginError(f"There is no preset named {preset}")
+            except (AttributeError, KeyError) as err:
+                raise AngrNoPluginError(f"There is no preset named {preset}") from err
 
         elif not isinstance(preset, PluginPreset):
             raise ValueError(f"Argument must be an instance of PluginPreset: {preset}")
@@ -251,8 +251,8 @@ class PluginPreset:
         """
         try:
             return self._default_plugins[name]
-        except KeyError:
-            raise AngrNoPluginError(f"There is no plugin named {name}")
+        except KeyError as err:
+            raise AngrNoPluginError(f"There is no plugin named {name}") from err
 
     def copy(self):
         """

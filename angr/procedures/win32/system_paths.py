@@ -9,8 +9,8 @@ class GetTempPathA(angr.SimProcedure):
     def run(self, nBufferLength, lpBuffer):
         try:
             length = self.state.solver.eval_one(nBufferLength)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimProcedureError("Can't handle symbolic nBufferLength in GetTempPath")
+        except angr.errors.SimValueError as err:
+            raise angr.errors.SimProcedureError("Can't handle symbolic nBufferLength in GetTempPath") from err
 
         copy_len = min(self.RESULT.length // 8, length - 1)
         self.state.memory.store(
@@ -25,8 +25,8 @@ class GetWindowsDirectoryA(angr.SimProcedure):
     def run(self, lpBuffer, uSize):
         try:
             length = self.state.solver.eval_one(uSize)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimProcedureError("Can't handle symbolic uSize in GetWindowsDirectory")
+        except angr.errors.SimValueError as err:
+            raise angr.errors.SimProcedureError("Can't handle symbolic uSize in GetWindowsDirectory") from err
 
         copy_len = min(self.RESULT.length // 8, length - 1)
         self.state.memory.store(

@@ -158,7 +158,7 @@ class BackwardSlice(Analysis):
             # exits
             targets = self.chosen_exits[run_addr]
             addr_strs = []
-            for exit_stmt_id, target_addr in targets:
+            for _exit_stmt_id, target_addr in targets:
                 if target_addr is None:
                     addr_strs.append("default")
                 else:
@@ -572,8 +572,8 @@ class BackwardSlice(Analysis):
         new_exit_statements_per_run = defaultdict(list)
 
         while len(exit_statements_per_run):
-            for block_address, exits in exit_statements_per_run.items():
-                for stmt_idx, exit_target in exits:
+            for exits in exit_statements_per_run.values():
+                for _stmt_idx, exit_target in exits:
                     if exit_target not in self.chosen_exits:
                         # Oh we found one!
                         # The default exit should be taken no matter where it leads to
