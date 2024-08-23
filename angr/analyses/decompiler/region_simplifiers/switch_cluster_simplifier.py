@@ -1,7 +1,7 @@
 # pylint:disable=no-self-use,arguments-renamed
 from __future__ import annotations
 import enum
-from typing import DefaultDict, Any
+from typing import Any
 from collections import OrderedDict, defaultdict
 
 import ailment
@@ -83,8 +83,8 @@ class SwitchClusterFinder(SequenceWalker):
         }
         super().__init__(handlers)
 
-        self.var2condnodes: DefaultDict[Any, list[ConditionalRegion]] = defaultdict(list)
-        self.var2switches: DefaultDict[Any, list[SwitchCaseRegion]] = defaultdict(list)
+        self.var2condnodes: defaultdict[Any, list[ConditionalRegion]] = defaultdict(list)
+        self.var2switches: defaultdict[Any, list[SwitchCaseRegion]] = defaultdict(list)
 
         self.walk(node)
 

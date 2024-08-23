@@ -195,7 +195,7 @@ class SimLinux(SimUserland):
         elif jk == "Ijk_Sys_syscall":
             return "amd64"
         else:
-            raise AngrSyscallError("Unknown syscall jumpkind %s" % jk)
+            raise AngrSyscallError(f"Unknown syscall jumpkind {jk}")
 
     # pylint: disable=arguments-differ
     def state_blank(
@@ -241,7 +241,7 @@ class SimLinux(SimUserland):
             if isinstance(fs[name], claripy.Bits):
                 fs[name] = SimFile(name, content=fs[name])
             if not isinstance(fs[name], SimFileBase):
-                raise TypeError("Provided fs initializer with unusable type %r" % type(fs[name]))
+                raise TypeError(f"Provided fs initializer with unusable type {type(fs[name])!r}")
 
         mounts = {}
         if concrete_fs:

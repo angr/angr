@@ -345,7 +345,7 @@ class SimSystemPosix(SimStatePlugin):
             if not create_file:
                 if options.ALL_FILES_EXIST not in self.state.options:
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
-                        file_exists = claripy.BoolS("file_exists_%s" % ident, explicit_name=True)
+                        file_exists = claripy.BoolS(f"file_exists_{ident}", explicit_name=True)
                     else:
                         return -1
                 else:
@@ -357,7 +357,7 @@ class SimSystemPosix(SimStatePlugin):
                     name,
                     ident=ident,
                     size=self.state.solver.BVS(
-                        "filesize_%s" % ident, self.state.arch.bits, key=("file", ident, "filesize"), eternal=True
+                        f"filesize_{ident}", self.state.arch.bits, key=("file", ident, "filesize"), eternal=True
                     ),
                     file_exists=file_exists,
                 )
@@ -399,8 +399,8 @@ class SimSystemPosix(SimStatePlugin):
                     sockpair = sockpair[0].copy(memo), sockpair[1].copy(memo)
 
             if sockpair is None:
-                read_file = SimPacketsStream("socket %s read" % str(ident))
-                write_file = SimPacketsStream("socket %s write" % str(ident))
+                read_file = SimPacketsStream(f"socket {str(ident)} read")
+                write_file = SimPacketsStream(f"socket {str(ident)} write")
                 sockpair = (read_file, write_file)
 
             self.sockets[ident] = sockpair

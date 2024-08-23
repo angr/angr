@@ -65,13 +65,13 @@ class SootBlockProcessor:
 
     def process(self):
         if not isinstance(self.block, SootBlockNode):
-            raise AngrLoopAnalysisError("Got an unexpected type of block %s." % type(self.block))
+            raise AngrLoopAnalysisError(f"Got an unexpected type of block {type(self.block)}.")
 
         if not self.block.stmts:
             return None
 
         for stmt in self.block.stmts:
-            func_name = "_handle_%s" % (stmt.__class__.__name__)
+            func_name = f"_handle_{stmt.__class__.__name__}"
 
             if hasattr(self, func_name):
                 getattr(self, func_name)(stmt)
@@ -94,7 +94,7 @@ class SootBlockProcessor:
         return False
 
     def _expr(self, expr):
-        func_name = "_handle_%s" % (expr.__class__.__name__)
+        func_name = f"_handle_{expr.__class__.__name__}"
 
         if hasattr(self, func_name):
             return getattr(self, func_name)(expr)
@@ -201,7 +201,7 @@ class LoopAnalysisState:
         self.loop_exit_stmts = set()
 
     def __repr__(self):
-        return "<LoopAnalysisState %s>" % self.block.addr
+        return f"<LoopAnalysisState {self.block.addr}>"
 
     def copy(self):
         state = LoopAnalysisState(block=self.block)

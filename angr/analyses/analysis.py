@@ -89,7 +89,7 @@ class AnalysisLogEntry:
                 msg_str = msg_str[:66] + "..."
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
-            return "<AnalysisLogEntry %s>" % msg_str
+            return f"<AnalysisLogEntry {msg_str}>"
         else:
             msg_str = repr(self.message)
             if len(msg_str) > 40:

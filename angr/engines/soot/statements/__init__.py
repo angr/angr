@@ -9,7 +9,7 @@ def translate_stmt(stmt, state):
     if stmt_name.endswith("Stmt"):
         stmt_name = stmt_name[:-4]
 
-    stmt_cls_name = "SimSootStmt_%s" % stmt_name
+    stmt_cls_name = f"SimSootStmt_{stmt_name}"
     if stmt_cls_name in globals():
         stmt_class = globals()[stmt_cls_name]
         s = stmt_class(stmt, state)

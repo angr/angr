@@ -79,7 +79,7 @@ class RepHook:
                 val = state.regs.rax
                 multiplier = 8
             else:
-                raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+                raise NotImplementedError(f"Unsupported mnemonic {self.mnemonic}")
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
@@ -106,7 +106,7 @@ class RepHook:
             elif self.mnemonic == "movsq":
                 multiplier = 8
             else:
-                raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+                raise NotImplementedError(f"Unsupported mnemonic {self.mnemonic}")
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
@@ -123,7 +123,7 @@ class RepHook:
                 state.regs.rcx = 0
 
         else:
-            raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+            raise NotImplementedError(f"Unsupported mnemonic {self.mnemonic}")
 
 
 class Tracer(ExplorationTechnique):
@@ -255,15 +255,15 @@ class Tracer(ExplorationTechnique):
 
                 if len(possibilities) == 0:
                     raise AngrTracerError(
-                        "Trace does not seem to contain object initializers for %s. "
-                        "Do you want to have a Tracer(aslr=False)?" % obj
+                        f"Trace does not seem to contain object initializers for {obj}. "
+                        "Do you want to have a Tracer(aslr=False)?"
                     )
                 if len(possibilities) == 1:
                     self._aslr_slides[obj] = next(iter(possibilities))
                 else:
                     raise AngrTracerError(
-                        "Trace seems ambiguous with respect to what the ASLR slides are for %s. "
-                        "This is surmountable, please open an issue." % obj
+                        f"Trace seems ambiguous with respect to what the ASLR slides are for {obj}. "
+                        "This is surmountable, please open an issue."
                     )
         else:
             # if we know there is no slides, just trust the address in the loader
@@ -590,8 +590,8 @@ class Tracer(ExplorationTechnique):
                 state.globals["sync_timer"] = timer
             else:
                 raise Exception(
-                    "Trace failed to synchronize! We expected it to hit %#x (trace addr), "
-                    "but it failed to do this within a timeout" % self._trace[sync]
+                    f"Trace failed to synchronize! We expected it to hit {self._trace[sync]:#x} (trace addr), "
+                    "but it failed to do this within a timeout"
                 )
 
         elif state.history.jumpkind.startswith("Ijk_Exit"):
@@ -703,11 +703,11 @@ class Tracer(ExplorationTechnique):
         # error handling
         elif current_bin:
             raise AngrTracerError(
-                "Trace desynced on jumping into %s. "
-                "Did you load the right version of this library?" % current_bin.provides
+                f"Trace desynced on jumping into {current_bin.provides}. "
+                "Did you load the right version of this library?"
             )
         else:
-            raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
+            raise AngrTracerError(f"Trace desynced on jumping into {state_addr:#x}, where no library is mapped!")
 
     def _check_qemu_block_in_unicorn_block(self, state: SimState, trace_curr_idx, state_desync_block_idx):
         """
@@ -961,8 +961,7 @@ class Tracer(ExplorationTechnique):
                 state.globals["is_desync"] = True
                 return
             raise AngrTracerError(
-                "Trace failed to synchronize during fast forward? You might want to unhook %s."
-                % (self.project.hooked_by(state.history.addr).display_name)
+                f"Trace failed to synchronize during fast forward? You might want to unhook {self.project.hooked_by(state.history.addr).display_name}."
             ) from e
         else:
             state.globals["trace_idx"] = target_idx

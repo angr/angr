@@ -681,7 +681,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         if starting_node not in self.graph:
             raise AngrCFGError(
-                'get_subgraph(): the specified "starting_node" %s does not exist in the current CFG.' % starting_node
+                f'get_subgraph(): the specified "starting_node" {starting_node} does not exist in the current CFG.'
             )
 
         addr_set = set(block_addresses)
@@ -876,7 +876,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             for item in self._starts:
                 if isinstance(item, tuple):
                     if len(item) != 2:
-                        raise AngrCFGError('Unsupported item in "starts": %s' % str(item))
+                        raise AngrCFGError(f'Unsupported item in "starts": {str(item)}')
 
                     new_starts.append(item)
                 elif isinstance(item, int):
@@ -886,7 +886,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     new_starts.append(item)
 
                 else:
-                    raise AngrCFGError('Unsupported item type in "starts": %s' % type(item))
+                    raise AngrCFGError(f'Unsupported item type in "starts": {type(item)}')
 
             self._starts = new_starts
 
@@ -949,7 +949,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 self._reset_state_mode(state, "fastpath")
 
             else:
-                raise AngrCFGError("Unsupported CFG start type: %s." % str(type(item)))
+                raise AngrCFGError(f"Unsupported CFG start type: {str(type(item))}.")
 
             self._symbolic_function_initial_state[ip] = state
             path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack)
@@ -1584,7 +1584,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         module_name = obj.provides if obj is not None else None
 
         node = self.model.get_node(job.block_id)
-        depth_str = "(D:%s)" % node.depth if node.depth is not None else ""
+        depth_str = f"(D:{node.depth})" if node.depth is not None else ""
 
         l.debug(
             "%s [%#x%s | %s]",
@@ -1828,7 +1828,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             if job.extra_info["skip_fakeret"]:
                 l.debug("... skipping a fake return exit since the function it's calling doesn't return")
-                job.successor_status[state] = "Skipped - non-returning function 0x%x" % job.extra_info["call_target"]
+                job.successor_status[state] = "Skipped - non-returning function 0x{:x}".format(
+                    job.extra_info["call_target"]
+                )
                 return []
 
         # TODO: Make it optional
@@ -2874,7 +2876,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         function_hints.append(const)
 
         l.debug(
-            "Got %d possible exits, including: %s", len(function_hints), ", ".join(["0x%x" % f for f in function_hints])
+            "Got %d possible exits, including: %s", len(function_hints), ", ".join([f"0x{f:x}" for f in function_hints])
         )
 
         return function_hints
@@ -3354,7 +3356,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             target_graph = self.graph
 
         if node not in target_graph:
-            raise AngrCFGError("Target node %s is not in graph." % node)
+            raise AngrCFGError(f"Target node {node} is not in graph.")
 
         graph = networkx.DiGraph(target_graph)
         if reverse_graph:

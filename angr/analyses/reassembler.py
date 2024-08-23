@@ -188,7 +188,7 @@ class Label:
     @property
     def operand_str(self):
         if self.base_addr is None:
-            return ".%s" % self.name
+            return f".{self.name}"
         else:
             offset = self.offset
             sign = "+" if offset >= 0 else "-"
@@ -233,7 +233,7 @@ class DataLabel(Label):
         # if self.var_size is not None:
         #    s = ".comm {name},{size},{size}".format(name=self.name, size=self.var_size)
         # else:
-        s = "%s:" % (self.name)
+        s = f"{self.name}:"
         return s
 
 
@@ -378,12 +378,12 @@ class SymbolManager:
                         name = None
                     label = Label.new_label(self.binary, name=name, original_addr=addr)
                 else:
-                    raise Exception("Unsupported symbol type %s. Bug Fish about it!" % symbol.type)
+                    raise Exception(f"Unsupported symbol type {symbol.type}. Bug Fish about it!")
 
             else:
                 raise Exception(
-                    "the symbol %s is not owned by the main object. Try reload the project with"
-                    '"auto_load_libs=False". If that does not solve the issue, please report to GitHub.' % symbol.name
+                    f"the symbol {symbol.name} is not owned by the main object. Try reload the project with"
+                    '"auto_load_libs=False". If that does not solve the issue, please report to GitHub.'
                 )
 
         elif (addr is not None and addr in self.cfg.functions) or is_function:
@@ -505,7 +505,7 @@ class Operand:
 
             if self.syntax == "at&t":
                 # displacement(base, index, scale)
-                base = "%%%s" % base if base else ""
+                base = f"%{base}" if base else ""
 
                 if "*" in self.operand_str and disp:
                     # absolute memory address
@@ -548,19 +548,19 @@ class Operand:
 
                 # we need to specify the size here
                 if self.size == 16:
-                    asm = "xmmword ptr [%s]" % asm
+                    asm = f"xmmword ptr [{asm}]"
                 elif self.size == 10:
-                    asm = "xword ptr [%s]" % asm
+                    asm = f"xword ptr [{asm}]"
                 elif self.size == 8:
-                    asm = "qword ptr [%s]" % asm
+                    asm = f"qword ptr [{asm}]"
                 elif self.size == 4:
-                    asm = "dword ptr [%s]" % asm
+                    asm = f"dword ptr [{asm}]"
                 elif self.size == 2:
-                    asm = "word ptr [%s]" % asm
+                    asm = f"word ptr [{asm}]"
                 elif self.size == 1:
-                    asm = "byte ptr [%s]" % asm
+                    asm = f"byte ptr [{asm}]"
                 else:
-                    raise BinaryError('Unsupported memory operand size for operand "%s"' % self.operand_str)
+                    raise BinaryError(f'Unsupported memory operand size for operand "{self.operand_str}"')
 
                 return asm
 
@@ -919,7 +919,7 @@ class BasicBlock:
         return self.assembly(symbolized=False)
 
     def __repr__(self):
-        return "<BasicBlock %#08x>" % self.addr
+        return f"<BasicBlock {self.addr:#08x}>"
 
     #
     # Public methods
@@ -1113,14 +1113,12 @@ class Procedure:
 
         assembly = []
 
-        header = "\t.section\t{section}\n\t.align\t{alignment}\n".format(
-            section=self.section, alignment=self.binary.section_alignment(self.section)
-        )
+        header = f"\t.section\t{self.section}\n\t.align\t{self.binary.section_alignment(self.section)}\n"
         if self.addr is not None:
-            procedure_name = "%#x" % self.addr
+            procedure_name = f"{self.addr:#x}"
         else:
             procedure_name = self._name
-        header += "\t#Procedure %s\n" % procedure_name
+        header += f"\t#Procedure {procedure_name}\n"
 
         if self._output_function_label:
             if self.addr:
@@ -1356,9 +1354,9 @@ class Data:
 
         if comments:
             if self.addr is not None:
-                s += "\t# data @ %#08x\n" % self.addr
+                s += f"\t# data @ {self.addr:#08x}\n"
             else:
-                s += "\t# data (%s)\n" % self.name
+                s += f"\t# data ({self.name})\n"
 
         if self.skip:
             return s
@@ -1383,24 +1381,14 @@ class Data:
                         directive = ".ascii"
 
                     if string_piece:
-                        ss.append(
-                            '\t{directive} "{str}"'.format(
-                                str=string_escape(string_piece),
-                                directive=directive,
-                            )
-                        )
-                    ss.append("%s" % str(lbl))
+                        ss.append(f'\t{directive} "{string_escape(string_piece)}"')
+                    ss.append(f"{str(lbl)}")
 
                 if last_pos <= self.size - 1:
                     string_piece = self.content[0][last_pos:]
                     directive = ".ascii" if self.null_terminated is False else ".asciz"
 
-                    ss.append(
-                        '\t{directive} "{str}"'.format(
-                            str=string_escape(string_piece),
-                            directive=directive,
-                        )
-                    )
+                    ss.append(f'\t{directive} "{string_escape(string_piece)}"')
 
                 s += "\n".join(ss)
             else:
@@ -1428,15 +1416,15 @@ class Data:
 
                 i = 0
                 if self.name is not None:
-                    s += "%s:\n" % self.name
+                    s += f"{self.name}:\n"
                 for symbolized_label in self.content:
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
-                            s += "%s\n" % str(label)
+                            s += f"{str(label)}\n"
                     elif self.addr is not None and (self.addr + i) in self.binary.symbol_manager.addr_to_label:
                         labels = self.binary.symbol_manager.addr_to_label[self.addr + i]
                         for label in labels:
-                            s += "%s\n" % str(label)
+                            s += f"{str(label)}\n"
                     i += self.project.arch.bytes
 
                     if isinstance(symbolized_label, int):
@@ -1451,7 +1439,7 @@ class Data:
         elif self.sort == MemoryDataSort.SegmentBoundary:
             if symbolized:
                 for _, label in self.labels:
-                    s += "\t%s\n" % str(label)
+                    s += f"\t{str(label)}\n"
 
         elif self.sort == MemoryDataSort.Integer:
             # display it as bytes only when there are references pointing to the middle
@@ -1494,13 +1482,13 @@ class Data:
                     # nice, we should display it as an integer
                     if addr_to_labels:
                         for label in next(iter(addr_to_labels.values())):
-                            content += ["%s" % str(label)]
+                            content += [f"{str(label)}"]
 
                     integer = struct.unpack(fmt_str, self.content[0])[0]
                     content += [
                         "\t{directive} {integer}".format(
                             directive=directive,
-                            integer="%#x" % integer,
+                            integer=f"{integer:#x}",
                         )
                     ]
 
@@ -1511,7 +1499,7 @@ class Data:
                         for c in piece:
                             if addr in addr_to_labels:
                                 for label in addr_to_labels[addr]:
-                                    content += ["%s" % str(label)]
+                                    content += [f"{str(label)}"]
                             addr += 1
 
                             content += ["\t.byte %d" % c]
@@ -1521,7 +1509,7 @@ class Data:
                 content += [
                     "\t{directive} {integer}".format(
                         directive=directive,
-                        integer="%#x" % integer,
+                        integer=f"{integer:#x}",
                     )
                 ]
 
@@ -1545,7 +1533,7 @@ class Data:
                     for c in piece:
                         if addr in addr_to_labels:
                             for label in addr_to_labels[addr]:
-                                content += ["%s" % str(label)]
+                                content += [f"{str(label)}"]
                         addr += 1
 
                         content += ["\t.byte %d" % c]
@@ -1571,7 +1559,7 @@ class Data:
                     for c in piece:
                         if addr in addr_to_labels:
                             for label in addr_to_labels[addr]:
-                                content += ["%s" % str(label)]
+                                content += [f"{str(label)}"]
                         addr += 1
 
                         content += ["\t.byte %d" % c]
@@ -1584,7 +1572,7 @@ class Data:
 
         if self.end_labels:
             for label in self.end_labels:
-                s += "%s\n" % label
+                s += f"{label}\n"
 
         return s.strip("\n")
 
@@ -1647,7 +1635,7 @@ class Data:
                 self._content = []
 
             else:
-                raise BinaryError('Unsupported data sort "%s"' % self.sort)
+                raise BinaryError(f'Unsupported data sort "{self.sort}"')
 
         else:
             self.addr = self.memory_data.address

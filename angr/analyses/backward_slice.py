@@ -78,7 +78,7 @@ class BackwardSlice(Analysis):
                 elif type(t) is tuple:
                     self._targets.append(t)
                 else:
-                    raise AngrBackwardSlicingError("Unsupported type of target %s" % t)
+                    raise AngrBackwardSlicingError(f"Unsupported type of target {t}")
 
         # Save a list of taints to begin with at the beginning of each SimRun
         self.initial_taints_per_run = None
@@ -97,7 +97,7 @@ class BackwardSlice(Analysis):
     #
 
     def __repr__(self):
-        s = "BackwardSlice (to %s)" % self._targets
+        s = f"BackwardSlice (to {self._targets})"
         return s
 
     def dbg_repr(self, max_display=10):
@@ -138,10 +138,10 @@ class BackwardSlice(Analysis):
         """
 
         if self.project.is_hooked(run_addr):
-            ss = "%#x Hooked\n" % run_addr
+            ss = f"{run_addr:#x} Hooked\n"
 
         else:
-            ss = "%#x\n" % run_addr
+            ss = f"{run_addr:#x}\n"
 
             # statements
             chosen_statements = self.chosen_statements[run_addr]
@@ -165,7 +165,7 @@ class BackwardSlice(Analysis):
                 if target_addr is None:
                     addr_strs.append("default")
                 else:
-                    addr_strs.append("%#x" % target_addr)
+                    addr_strs.append(f"{target_addr:#x}")
 
             ss += "Chosen exits: " + ", ".join(addr_strs)
 
@@ -372,7 +372,7 @@ class BackwardSlice(Analysis):
 
         for cfg_node, stmt_idx in targets:
             if cfg_node not in self._cfg.graph:
-                raise AngrBackwardSlicingError("Target CFGNode %s is not in the CFG." % cfg_node)
+                raise AngrBackwardSlicingError(f"Target CFGNode {cfg_node} is not in the CFG.")
 
             if stmt_idx == -1:
                 new_taints = self._handle_control_dependence(cfg_node)
@@ -607,9 +607,9 @@ class BackwardSlice(Analysis):
 
         # Sanity check
         if not isinstance(block_address, int):
-            raise AngrBackwardSlicingError("Invalid block address %s." % block_address)
+            raise AngrBackwardSlicingError(f"Invalid block address {block_address}.")
         if not isinstance(stmt_idx, int):
-            raise AngrBackwardSlicingError("Invalid statement ID %s." % stmt_idx)
+            raise AngrBackwardSlicingError(f"Invalid statement ID {stmt_idx}.")
 
         self.chosen_statements[block_address].add(stmt_idx)
 
@@ -665,7 +665,7 @@ class BackwardSlice(Analysis):
             vex_block = self.project.factory.block(block_addr).vex
             return len(vex_block.statements)
 
-        raise AngrBackwardSlicingError('Unsupported statement ID "%s"' % stmt_idx)
+        raise AngrBackwardSlicingError(f'Unsupported statement ID "{stmt_idx}"')
 
     @staticmethod
     def _last_branching_statement(statements):

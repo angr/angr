@@ -41,7 +41,7 @@ class DisassemblerBlock:
         return "\n".join(map(str, self.insns))
 
     def __repr__(self):
-        return "<DisassemblerBlock for %#x>" % self.addr
+        return f"<DisassemblerBlock for {self.addr:#x}>"
 
 
 class DisassemblerInsn:

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import DefaultDict, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from collections import defaultdict
 from itertools import chain
@@ -31,11 +31,11 @@ class Liveness:
         self.curr_loc: LocationType | None = None
         self.curr_block: BlockAddrType | None = None
         self.curr_stmt_idx: int | None = None
-        self.blockstart_to_defs: DefaultDict[BlockAddrType, set[Definition]] = defaultdict(set)
-        self.blockend_to_defs: DefaultDict[BlockAddrType, set[Definition]] = defaultdict(set)
-        self.loc_to_killed_defs: DefaultDict[BlockAddrType, dict[int, set[Definition]]] = defaultdict(dict)
-        self.loc_to_added_defs: DefaultDict[BlockAddrType, dict[int, set[Definition]]] = defaultdict(dict)
-        self._node_max_stmt_id: DefaultDict[BlockAddrType, int] = defaultdict(int)
+        self.blockstart_to_defs: defaultdict[BlockAddrType, set[Definition]] = defaultdict(set)
+        self.blockend_to_defs: defaultdict[BlockAddrType, set[Definition]] = defaultdict(set)
+        self.loc_to_killed_defs: defaultdict[BlockAddrType, dict[int, set[Definition]]] = defaultdict(dict)
+        self.loc_to_added_defs: defaultdict[BlockAddrType, dict[int, set[Definition]]] = defaultdict(dict)
+        self._node_max_stmt_id: defaultdict[BlockAddrType, int] = defaultdict(int)
 
     def add_def(self, d: Definition) -> None:
         self.curr_live_defs.add(d)

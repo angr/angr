@@ -588,22 +588,20 @@ class Function(Serializable):
 
     def __str__(self):
         s = f"Function {self.name} [{self.addr:#x}]\n"
-        s += "  Syscall: %s\n" % self.is_syscall
+        s += f"  Syscall: {self.is_syscall}\n"
         s += "  SP difference: %d\n" % self.sp_delta
-        s += "  Has return: %s\n" % self.has_return
+        s += f"  Has return: {self.has_return}\n"
         s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
-        s += "  Alignment: %s\n" % (self.alignment)
+        s += f"  Alignment: {self.alignment}\n"
         s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
-        s += "  Blocks: [%s]\n" % ", ".join(["%#x" % i for i in self.block_addrs])
-        s += "  Cyclomatic Complexity: %s\n" % self.cyclomatic_complexity
-        s += "  Calling convention: %s" % self.calling_convention
+        s += "  Blocks: [{}]\n".format(", ".join([f"{i:#x}" for i in self.block_addrs]))
+        s += f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
+        s += f"  Calling convention: {self.calling_convention}"
         return s
 
     def __repr__(self):
         if self.is_syscall:
-            return "<Syscall function {} ({})>".format(
-                self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr
-            )
+            return f"<Syscall function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
         return f"<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
 
     def __setstate__(self, state):
@@ -740,7 +738,7 @@ class Function(Serializable):
         # generate an IDA-style sub_X name
         if name is None:
             self.is_default_name = True
-            name = "sub_%x" % addr
+            name = f"sub_{addr:x}"
 
         return name
 
@@ -1284,7 +1282,7 @@ class Function(Serializable):
         """
         Returns a representation of the list of basic blocks in this function.
         """
-        return "[%s]" % (", ".join(("%#08x" % n.addr) for n in self.transition_graph.nodes()))
+        return "[{}]".format(", ".join((f"{n.addr:#08x}") for n in self.transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         """
@@ -1295,8 +1293,8 @@ class Function(Serializable):
 
         tmp_graph = networkx.classes.digraph.DiGraph()
         for from_block, to_block in self.transition_graph.edges():
-            node_a = "%#08x" % from_block.addr
-            node_b = "%#08x" % to_block.addr
+            node_a = f"{from_block.addr:#08x}"
+            node_b = f"{to_block.addr:#08x}"
             if node_b in self._ret_sites:
                 node_b += "[Ret]"
             if node_a in self._call_sites:
@@ -1619,7 +1617,7 @@ class Function(Serializable):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
         if len(func_def.keys()) > 1:
-            raise Exception("Too many definitions: %s " % list(func_def.keys()))
+            raise Exception(f"Too many definitions: {list(func_def.keys())} ")
 
         name: str
         ty: SimTypeFunction

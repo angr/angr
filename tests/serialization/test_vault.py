@@ -29,7 +29,7 @@ class TestVault(unittest.TestCase):
         c.n = 2
 
         aid = v.store(a)
-        assert len(v.keys()) == 1, "Current keys: %s" % v.keys()
+        assert len(v.keys()) == 1, f"Current keys: {v.keys()}"
         bid = v.store(b)
         assert len(v.keys()) == 2
         cid = v.store(c)
@@ -63,7 +63,7 @@ class TestVault(unittest.TestCase):
         c.n = 2
 
         aid = v.store(a)
-        assert len(v.keys()) == 1, "Current keys: %s" % v.keys()
+        assert len(v.keys()) == 1, f"Current keys: {v.keys()}"
         bid = v.store(b)
         assert len(v.keys()) == 2
         cid = v.store(c)

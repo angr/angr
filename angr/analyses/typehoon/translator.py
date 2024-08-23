@@ -112,7 +112,7 @@ class TypeTranslator:
             if offset > next_offset:
                 # we need padding!
                 padding_size = offset - next_offset
-                s.fields["padding_%x" % next_offset] = sim_type.SimTypeFixedSizeArray(
+                s.fields[f"padding_{next_offset:x}"] = sim_type.SimTypeFixedSizeArray(
                     sim_type.SimTypeChar(signed=False).with_arch(self.arch), padding_size
                 ).with_arch(self.arch)
 

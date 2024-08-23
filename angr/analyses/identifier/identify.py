@@ -321,7 +321,7 @@ class Identifier(Analysis):
             for ss in simgr.active:
                 # todo could write symbolic data to pointers passed to functions
                 if ss.history.jumpkind == "Ijk_Call":
-                    ss.regs.eax = claripy.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
+                    ss.regs.eax = claripy.BVS(f"unconstrained_ret_{ss.addr:#x}", ss.arch.bits)
                     ss.regs.ip = ss.stack_pop()
                     ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
@@ -539,7 +539,7 @@ class Identifier(Analysis):
         initial_sp = initial_state.solver.eval(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
-            raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
+            raise IdentifierException(f"preamble checks failed for {func.startpoint.addr:#x}")
 
         bp_based = bool(len(succ.solver.eval_upto((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
 

@@ -147,7 +147,7 @@ class SimUserland(SimOS):
 
         if self.syscall_library is None:
             if not allow_unsupported:
-                raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented" % self.name)
+                raise AngrUnsupportedSyscallError(f"{self.name} does not have a library of syscalls implemented")
             proc = P["stubs"]["syscall"]()
         elif not allow_unsupported and not self.syscall_library.has_implementation(number, self.arch, abilist):
             raise AngrUnsupportedSyscallError("No implementation for syscall %d" % number)

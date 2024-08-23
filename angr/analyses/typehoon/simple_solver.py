@@ -1,6 +1,5 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from typing import DefaultDict
 import enum
 from collections import defaultdict
 import logging
@@ -845,7 +844,7 @@ class SimpleSolver:
         """
         The saturation algorithm D.2 as described in Appendix of the retypd paper.
         """
-        R: DefaultDict[ConstraintGraphNode, set[tuple[BaseLabel, ConstraintGraphNode]]] = defaultdict(set)
+        R: defaultdict[ConstraintGraphNode, set[tuple[BaseLabel, ConstraintGraphNode]]] = defaultdict(set)
 
         # initialize the reaching-push sets R(x)
         for x, y, data in graph.edges(data=True):

@@ -418,7 +418,7 @@ class StructurerBase(Analysis):
                         elif label == "default":
                             parent.default_node.remove_node(node)
                         else:
-                            raise TypeError("Unsupported label %s." % label)
+                            raise TypeError(f"Unsupported label {label}.")
                     else:
                         # previous nodes
                         if stmt_idx > last_nonjump_stmt_idx:

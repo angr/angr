@@ -369,7 +369,7 @@ class VSA_DDG(Analysis):
                 elif isinstance(variable, SimRegisterVariable):
                     type_ = "reg"
                 else:
-                    raise AngrDDGError("Unknown variable type %s" % type(variable))
+                    raise AngrDDGError(f"Unknown variable type {type(variable)}")
 
                 if self.keep_data is True:
                     data = variable

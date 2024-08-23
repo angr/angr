@@ -80,7 +80,7 @@ class Blade:
             raise AngrBladeError('"cfg" must be specified.')
 
         if not self._in_graph(self._dst_run):
-            raise AngrBladeError("The specified SimRun %s doesn't exist in graph." % self._dst_run)
+            raise AngrBladeError(f"The specified SimRun {self._dst_run} doesn't exist in graph.")
 
         self._ignored_regs = set()
         if ignored_regs:
@@ -99,7 +99,7 @@ class Blade:
         elif direction == "forward":
             raise AngrBladeError("Forward slicing is not implemented yet")
         else:
-            raise AngrBladeError("Unknown slicing direction %s" % direction)
+            raise AngrBladeError(f"Unknown slicing direction {direction}")
 
     #
     # Properties
@@ -122,7 +122,7 @@ class Blade:
         block_addrs = {a for a, _ in self.slice.nodes()}
 
         for block_addr in block_addrs:
-            block_str = "       IRSB %#x\n" % block_addr
+            block_str = f"       IRSB {block_addr:#x}\n"
 
             block = self.project.factory.block(
                 block_addr, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
@@ -148,11 +148,11 @@ class Blade:
 
             block_str += " + " if default_exit_included else "   "
             if isinstance(block.next, pyvex.IRExpr.Const):
-                block_str += "Next: %#x\n" % block.next.con.value
+                block_str += f"Next: {block.next.con.value:#x}\n"
             elif isinstance(block.next, pyvex.IRExpr.RdTmp):
                 block_str += "Next: t%d\n" % block.next.tmp
             else:
-                block_str += "Next: %s\n" % str(block.next)
+                block_str += f"Next: {str(block.next)}\n"
 
             s += block_str
             s += "\n"
@@ -192,7 +192,7 @@ class Blade:
                 raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
         else:
-            raise AngrBladeError("Unsupported SimRun argument type %s" % type(v))
+            raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _get_cfgnode(self, thing):
         """
@@ -219,7 +219,7 @@ class Blade:
         elif type(v) is int:
             return v
         else:
-            raise AngrBladeError("Unsupported SimRun argument type %s" % type(v))
+            raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _in_graph(self, v):
         return self._get_cfgnode(v) in self._graph
@@ -280,7 +280,7 @@ class Blade:
                 # A const doesn't rely on anything else!
                 pass
             else:
-                raise AngrBladeError("Unsupported type for irsb.next: %s" % type(next_expr))
+                raise AngrBladeError(f"Unsupported type for irsb.next: {type(next_expr)}")
 
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1

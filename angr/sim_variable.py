@@ -184,7 +184,7 @@ class SimRegisterVariable(SimVariable):
         return self.size * 8
 
     def __repr__(self):
-        ident_str = "[%s]" % self.ident if self.ident else ""
+        ident_str = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
         s = f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
@@ -257,7 +257,7 @@ class SimMemoryVariable(SimVariable):
         if type(self.size) is int:
             size = "%d" % self.size
         else:
-            size = "%s" % self.size
+            size = f"{self.size}"
 
         if type(self.addr) is int:
             s = f"<{self.name}: {self.region}-Mem {self.addr:#x} {size}>"
@@ -344,17 +344,17 @@ class SimStackVariable(SimMemoryVariable):
         if type(self.size) is int:
             size = "%d" % self.size
         else:
-            size = "%s" % self.size
+            size = f"{self.size}"
 
-        prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
-        ident = "[%s]" % self.ident if self.ident else ""
+        prefix = f"{self.name}(stack)" if self.name is not None else "Stack"
+        ident = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
         if type(self.offset) is int:
             if self.offset < 0:
-                offset = "%#x" % self.offset
+                offset = f"{self.offset:#x}"
             elif self.offset > 0:
-                offset = "+%#x" % self.offset
+                offset = f"+{self.offset:#x}"
             else:
                 offset = ""
 

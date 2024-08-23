@@ -497,16 +497,16 @@ class SootStatement(DisassemblyPiece):
         return self.addr.stmt_idx
 
     def _parse(self):
-        func = "_parse_%s" % self.raw_stmt.__class__.__name__
+        func = f"_parse_{self.raw_stmt.__class__.__name__}"
 
         if hasattr(self, func):
             getattr(self, func)()
         else:
             # print func
-            self.components += ["NotImplemented: %s" % func]
+            self.components += [f"NotImplemented: {func}"]
 
     def _expr(self, expr):
-        func = "_handle_%s" % expr.__class__.__name__
+        func = f"_handle_{expr.__class__.__name__}"
 
         if hasattr(self, func):
             return getattr(self, func)(expr)
@@ -642,7 +642,7 @@ class Operand(DisassemblyPiece):
 
         cls = MAPPING.get(operand_type, None)
         if cls is None:
-            raise ValueError("Unknown capstone operand type %s." % operand_type)
+            raise ValueError(f"Unknown capstone operand type {operand_type}.")
 
         operand = cls(op_num, children, parentinsn)
 
@@ -890,9 +890,9 @@ class Value(OperandPiece):
                 style = formatting["int_styles"][self.ident]
                 if style[0] == "hex":
                     if self.render_with_sign:
-                        return ["%#+x" % self.val]
+                        return [f"{self.val:+#x}"]
                     else:
-                        return ["%#x" % self.val]
+                        return [f"{self.val:#x}"]
                 elif style[0] == "dec":
                     if self.render_with_sign:
                         return ["%+d" % self.val]
@@ -932,9 +932,9 @@ class Value(OperandPiece):
             return [func.demangled_name]
         else:
             if self.render_with_sign:
-                return ["%#+x" % self.val]
+                return [f"{self.val:+#x}"]
             else:
-                return ["%#x" % self.val]
+                return [f"{self.val:#x}"]
 
 
 class Comment(DisassemblyPiece):

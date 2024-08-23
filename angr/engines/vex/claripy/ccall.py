@@ -54,8 +54,7 @@ def op_concretize(op):
             raise CCallMultivaluedException(cases, op)
     if op.op != "BVV":
         raise SimError(
-            "Hit a symbolic conditional operation (need If or BVV, got %s). " % op.op
-            + "Something has gone wildly wrong."
+            f"Hit a symbolic conditional operation (need If or BVV, got {op.op}). " + "Something has gone wildly wrong."
         )
     return op.args[0]
 
@@ -935,8 +934,8 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     if funcname in globals():
         r = globals()[funcname](state, cc_dep1_nbits, cc_dep2_nbits, cc_ndep)
     else:
-        op_funcname = "pc_actions_op_%s" % op
-        cond_funcname = "pc_actions_cond_%s" % cond
+        op_funcname = f"pc_actions_op_{op}"
+        cond_funcname = f"pc_actions_cond_{cond}"
         if op_funcname in globals() and cond_funcname in globals():
             cc_expr = globals()[op_funcname](cc_dep1_nbits, cc_dep2_nbits, cc_ndep)
             r = globals()[cond_funcname](state, cc_expr)
@@ -1320,7 +1319,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
         r_AL = ((r_AH * 10) + r_AL) & 0xFF
         r_AH = claripy.BVV(0, 32)
     else:
-        raise SimCCallError("Unknown opcode %#x in AAD/AAM ccall" % opcode)
+        raise SimCCallError(f"Unknown opcode {opcode:#x} in AAD/AAM ccall")
 
     r_O = claripy.BVV(0, 32)
     r_C = claripy.BVV(0, 32)
@@ -1552,7 +1551,7 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     if flag is not None:
         return flag
     l.error("Unknown cc_op %s (armg_calculate_flag_n)", cc_op)
-    raise SimCCallError("Unknown cc_op %s" % cc_op)
+    raise SimCCallError(f"Unknown cc_op {cc_op}")
 
 
 def arm_zerobit(state, x):
@@ -1588,7 +1587,7 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_z)", concrete_op)
-    raise SimCCallError("Unknown cc_op %s" % concrete_op)
+    raise SimCCallError(f"Unknown cc_op {concrete_op}")
 
 
 def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1624,7 +1623,7 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_c)", cc_op)
-    raise SimCCallError("Unknown cc_op %s" % cc_op)
+    raise SimCCallError(f"Unknown cc_op {cc_op}")
 
 
 def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1660,7 +1659,7 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_v)", cc_op)
-    raise SimCCallError("Unknown cc_op %s" % cc_op)
+    raise SimCCallError(f"Unknown cc_op {cc_op}")
 
 
 def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1809,7 +1808,7 @@ def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
             flag = flag.zero_extend(32)
         return flag
     l.error("Unknown cc_op %s (arm64g_calculate_flag_n)", cc_op)
-    raise SimCCallError("Unknown cc_op %s" % cc_op)
+    raise SimCCallError(f"Unknown cc_op {cc_op}")
 
 
 def arm64_zerobit(state, x):
@@ -1863,7 +1862,7 @@ def arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_z)", concrete_op)
-    raise SimCCallError("Unknown cc_op %s" % concrete_op)
+    raise SimCCallError(f"Unknown cc_op {concrete_op}")
 
 
 def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1897,7 +1896,7 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_c)", cc_op)
-    raise SimCCallError("Unknown cc_op %s" % cc_op)
+    raise SimCCallError(f"Unknown cc_op {cc_op}")
 
 
 def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1955,7 +1954,7 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_v)", cc_op)
-    raise SimCCallError("Unknown cc_op %s" % cc_op)
+    raise SimCCallError(f"Unknown cc_op {cc_op}")
 
 
 def arm64g_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):

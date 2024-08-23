@@ -48,7 +48,7 @@ def parse_stack_pointer(sp):
         elif sp.op == "Add":
             return off0 + off1
 
-    raise NotImplementedError("Unsupported stack pointer representation type %s." % type(sp))
+    raise NotImplementedError(f"Unsupported stack pointer representation type {type(sp)}.")
 
 
 class VariableAnnotation(Annotation):

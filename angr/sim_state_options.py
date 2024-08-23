@@ -51,7 +51,7 @@ class StateOption:
 
     def __repr__(self):
         if self.description is not None:
-            desc = ": %s" % self.description
+            desc = f": {self.description}"
         else:
             desc = ""
         if self.one_type() is not None:
@@ -102,7 +102,7 @@ class SimStateOptions:
             ops = thing
             self._options = ops._options.copy()
         else:
-            raise SimStateOptionsError("Unsupported constructor argument type '%s'." % type(thing))
+            raise SimStateOptionsError(f"Unsupported constructor argument type '{type(thing)}'.")
 
     def _get_option_desc(self, key):
         """
@@ -116,7 +116,7 @@ class SimStateOptions:
         try:
             return self.OPTIONS[key]
         except KeyError:
-            raise SimStateOptionsError("The state option '%s' does not exist." % key)
+            raise SimStateOptionsError(f"The state option '{key}' does not exist.")
 
     def __repr__(self):
         s = "<SimStateOptions>"
@@ -167,8 +167,8 @@ class SimStateOptions:
 
         if type(value) not in o.types:
             raise SimStateOptionsError(
-                "The value '%s' does not have an acceptable type for state option '%s'. "
-                "Accepted types are: %s." % (value, key, str(o.types))
+                f"The value '{value}' does not have an acceptable type for state option '{key}'. "
+                f"Accepted types are: {str(o.types)}."
             )
 
         self._options[o.name] = value

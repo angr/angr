@@ -5,7 +5,6 @@ import logging
 import math
 import re
 import string
-from typing import DefaultDict
 from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 
@@ -1231,7 +1230,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # should record all exits from a single function, and then add
         # necessary calling edges in our call map during the post-processing
         # phase.
-        self._function_exits: DefaultDict[int, set[int]] = defaultdict(set)
+        self._function_exits: defaultdict[int, set[int]] = defaultdict(set)
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(
@@ -5032,7 +5031,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         return n
 
     def output(self):
-        s = "%s" % self._graph.edges(data=True)
+        s = f"{self._graph.edges(data=True)}"
 
         return s
 

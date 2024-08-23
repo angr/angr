@@ -61,7 +61,7 @@ class IndirectJump(Serializable):
             else:
                 status = "jumptable"
             if self.jumptable_addr is not None:
-                status += "@%#08x" % self.jumptable_addr
+                status += f"@{self.jumptable_addr:#08x}"
             if self.jumptable_entries is not None:
                 status += " with %d entries" % len(self.jumptable_entries)
 

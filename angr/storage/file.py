@@ -215,7 +215,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
                 concrete = True
             pass
         else:
-            raise TypeError("Can't handle SimFile content of type %s" % type(content))
+            raise TypeError(f"Can't handle SimFile content of type {type(content)}")
 
         if concrete is None:
             concrete = False

@@ -21,7 +21,7 @@ def deprecated(replacement=None):
         def inner(*args, **kwargs):
             if func not in already_complained:
                 if replacement is None:
-                    warnings.warn("Don't use %s" % (func.__name__), DeprecationWarning)
+                    warnings.warn(f"Don't use {func.__name__}", DeprecationWarning)
                 else:
                     warnings.warn(f"Use {replacement} instead of {func.__name__}", DeprecationWarning)
                 already_complained.add(func)

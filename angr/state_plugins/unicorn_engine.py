@@ -840,7 +840,7 @@ class Unicorn(SimStatePlugin):
 
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
-            raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
+            raise SimUnicornUnsupport(f"unsupported architecture {self.state.arch!r}")
 
     def set_last_block_details(self, details):
         _UC_NATIVE.set_last_block_details(self._uc_state, details["addr"], details["curr_count"], details["tot_count"])
@@ -1034,7 +1034,7 @@ class Unicorn(SimStatePlugin):
                 if pageno >= needed_pages:
                     break
                 if options.UNICORN_ZEROPAGE_GUARD in self.state.options:
-                    self.error = "accessing zero page (%#x)" % access
+                    self.error = f"accessing zero page ({access:#x})"
                     l.warning(self.error)
 
                     _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)

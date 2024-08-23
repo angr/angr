@@ -31,7 +31,7 @@ class XRef(Serializable):
         xref_type=None,
     ):
         if dst is not None and not isinstance(dst, int):
-            raise TypeError("XRefs must be pointing to a constant target. Target %r is not supported." % dst)
+            raise TypeError(f"XRefs must be pointing to a constant target. Target {dst!r} is not supported.")
 
         # src
         self.ins_addr: int | None = ins_addr
@@ -63,7 +63,7 @@ class XRef(Serializable):
             dst_str = "unknown"
         return "<XRef {}: {}->{}>".format(
             self.type_string,
-            "%#x" % self.ins_addr if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
+            f"{self.ins_addr:#x}" if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
             dst_str,
         )
 

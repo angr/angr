@@ -321,7 +321,7 @@ class PagedMemoryMixin(MemoryMixin):
         try:
             page = self._get_page(pageno, permissions is not None, allow_default=False, **kwargs)
         except SimMemoryError as e:
-            raise SimMemoryError("%#x is not mapped" % addr) from e
+            raise SimMemoryError(f"{addr:#x} is not mapped") from e
 
         if type(permissions) is int:
             permissions = claripy.BVV(permissions, 3)

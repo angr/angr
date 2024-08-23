@@ -67,7 +67,7 @@ class SequenceWalker:
         if handler is not None:
             return handler(node, **kwargs)
         if self._exception_on_unsupported:
-            raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
+            raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
         return None
 
     def _handle_Code(self, node: CodeNode, **kwargs):

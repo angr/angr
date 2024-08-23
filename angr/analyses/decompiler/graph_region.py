@@ -66,7 +66,7 @@ class GraphRegion:
         s = ""
         if self.graph is None:
             # only head is available
-            return "<GraphRegion %r>" % self.head
+            return f"<GraphRegion {self.head!r}>"
 
         for node in self.graph.nodes():
             if hasattr(node, "addr"):

@@ -80,7 +80,7 @@ class AnnotatedCFG:
         elif type(run) is int:
             return run
         else:
-            raise AngrAnnotatedCFGError("Unknown type '%s' of the 'run' argument" % type(run))
+            raise AngrAnnotatedCFGError(f"Unknown type '{type(run)}' of the 'run' argument")
 
     def add_block_to_whitelist(self, block):
         addr = self.get_addr(block)
@@ -202,13 +202,13 @@ class AnnotatedCFG:
         for addr, stmts in self._run_statement_whitelist.items():
             if addr is None:
                 continue
-            ret_str += "Address 0x%08x:\n" % addr
+            ret_str += f"Address 0x{addr:08x}:\n"
             l.debug(stmts)
         l.debug("Loops: ")
         for loop in self._loops:
             s = ""
             for addr in loop:
-                s += "0x%08x -> " % addr
+                s += f"0x{addr:08x} -> "
             ret_str += s + "\n"
 
         return ret_str
@@ -317,5 +317,5 @@ class AnnotatedCFG:
             l.debug("A loop is found. %d", ctr)
             ctr += 1
             loop = tuple(x[-1] for x in loop_lst)
-            print(" => ".join(["0x%08x" % x for x in loop]))
+            print(" => ".join([f"0x{x:08x}" for x in loop]))
             self.add_loop(loop)

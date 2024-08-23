@@ -381,12 +381,12 @@ class SimWindows(SimOS):
         tib_addr = exc_state.regs._fs.concat(claripy.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
             _l.debug("... no handlers registered")
-            exception.args = ("Unhandled exception: %r" % exception,)
+            exception.args = (f"Unhandled exception: {exception!r}",)
             raise exception
         # catch nested exceptions here with magic value
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
             _l.debug("... nested exception")
-            exception.args = ("Unhandled exception: %r" % exception,)
+            exception.args = (f"Unhandled exception: {exception!r}",)
             raise exception
 
         # serialize the thread context and set up the exception record...

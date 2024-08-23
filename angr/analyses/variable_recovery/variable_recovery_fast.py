@@ -1,6 +1,6 @@
 # pylint:disable=wrong-import-position,wrong-import-order
 from __future__ import annotations
-from typing import DefaultDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -256,7 +256,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         # Make sure the function is not empty
         if not func.block_addrs_set or func.startpoint is None:
-            raise AngrVariableRecoveryError("Function %s is empty." % repr(func))
+            raise AngrVariableRecoveryError(f"Function {repr(func)} is empty.")
 
         VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
         ForwardAnalysis.__init__(
@@ -275,7 +275,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._node_iterations = defaultdict(int)
 
         self._node_to_cc = {}
-        self.var_to_typevars: DefaultDict[SimVariable, set[TypeVariable]] = defaultdict(set)
+        self.var_to_typevars: defaultdict[SimVariable, set[TypeVariable]] = defaultdict(set)
         self.typevars = None
         self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
         self.func_typevar = TypeVariable(name=func.name)
@@ -393,7 +393,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                     )
                     internal_manager.add_variable("stack", arg.offset, arg)
                 else:
-                    raise TypeError("Unsupported function argument type %s." % type(arg))
+                    raise TypeError(f"Unsupported function argument type {type(arg)}.")
 
         return state
 

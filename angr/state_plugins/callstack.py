@@ -122,9 +122,11 @@ class CallStack(SimStatePlugin):
         return "<CallStack (depth %d)>" % len(self)
 
     def __str__(self):
-        return "Backtrace:\n%s" % "\n".join(
-            "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr)
-            for i, f in enumerate(self)
+        return "Backtrace:\n{}".format(
+            "\n".join(
+                "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr)
+                for i, f in enumerate(self)
+            )
         )
 
     def __eq__(self, other):
@@ -202,7 +204,7 @@ class CallStack(SimStatePlugin):
         :return: A string representation
         :rtype: str
         """
-        s = "[" + ",".join([("0x%x" % i) if i is not None else "Unspecified" for i in stack_suffix]) + "]"
+        s = "[" + ",".join([(f"0x{i:x}") if i is not None else "Unspecified" for i in stack_suffix]) + "]"
         return s
 
     @staticmethod
@@ -219,7 +221,7 @@ class CallStack(SimStatePlugin):
         try:
             return dropwhile(lambda x: lst[x] != item, next(reversed(range(len(lst)))))
         except Exception as e:
-            raise ValueError("%s not in the list" % item) from e
+            raise ValueError(f"{item} not in the list") from e
 
     @property
     def top(self):
@@ -320,9 +322,9 @@ class CallStack(SimStatePlugin):
         for i, frame in enumerate(self):
             s = "%d | %s -> %s, returning to %s" % (
                 i,
-                "None" if frame.call_site_addr is None else "%#x" % frame.call_site_addr,
-                "None" if frame.func_addr is None else "%#x" % frame.func_addr,
-                "None" if frame.current_return_target is None else "%#x" % frame.current_return_target,
+                "None" if frame.call_site_addr is None else f"{frame.call_site_addr:#x}",
+                "None" if frame.func_addr is None else f"{frame.func_addr:#x}",
+                "None" if frame.current_return_target is None else f"{frame.current_return_target:#x}",
             )
             stack.append(s)
 
@@ -381,7 +383,7 @@ class CallStackAction:
         self.action = action
 
         if action not in ("push", "pop"):
-            raise AngrError('Unsupported action string "%s".' % action)
+            raise AngrError(f'Unsupported action string "{action}".')
 
         self.callframe = callframe
         self.ret_site_addr = ret_site_addr
@@ -394,9 +396,9 @@ class CallStackAction:
 
     def __repr__(self):
         if self.action == "push":
-            return "<CallStackAction push with %s>" % self.callframe
+            return f"<CallStackAction push with {self.callframe}>"
         else:  # pop
-            return "<CallStackAction pop, ret site %#x>" % self.ret_site_addr
+            return f"<CallStackAction pop, ret site {self.ret_site_addr:#x}>"
 
 
 from angr.sim_state import SimState

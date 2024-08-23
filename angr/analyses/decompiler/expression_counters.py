@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, DefaultDict, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
 
@@ -38,7 +38,7 @@ class RegisterExpressionCounter(AILBlockWalkerBase):
 
     def __init__(self, expr_or_stmt: Expression | Statement):
         super().__init__()
-        self.counts: DefaultDict[tuple[int, int], int] = defaultdict(int)
+        self.counts: defaultdict[tuple[int, int], int] = defaultdict(int)
         if isinstance(expr_or_stmt, Expression):
             self.walk_expression(expr_or_stmt)
         elif isinstance(expr_or_stmt, Statement):

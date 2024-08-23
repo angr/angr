@@ -96,7 +96,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
         elif isinstance(backer, list):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
-        raise TypeError("Unsupported backer type %s." % type(backer))
+        raise TypeError(f"Unsupported backer type {type(backer)}.")
 
     def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> tuple[int, int, int]:
         # lord help me. why do I keep having to write code that looks like this

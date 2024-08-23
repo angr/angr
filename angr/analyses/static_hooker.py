@@ -22,7 +22,7 @@ class StaticHooker(Analysis):
         try:
             lib = SIM_LIBRARIES[library]
         except KeyError:
-            raise AngrValueError("No such library %s" % library)
+            raise AngrValueError(f"No such library {library}")
 
         if binary is None:
             binary = self.project.loader.main_object

@@ -165,7 +165,7 @@ class SimLightRegisters(SimStatePlugin):
                         "to suppress these messages."
                     )
                 l.warning("Filling register %s with %d unconstrained bytes", name, size)
-            return self.state.solver.Unconstrained("reg_%s" % name, size_bits, key=("reg", name), eternal=True)  # :)
+            return self.state.solver.Unconstrained(f"reg_{name}", size_bits, key=("reg", name), eternal=True)  # :)
 
         self.registers[name] = value
         return value

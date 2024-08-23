@@ -55,7 +55,7 @@ class TypeLifter:
             return Pointer32(self.lift(ty.pts_to))
         elif self.bits == 64:
             return Pointer64(self.lift(ty.pts_to))
-        raise ValueError("Unsupported bits %s." % self.bits)
+        raise ValueError(f"Unsupported bits {self.bits}.")
 
     def _lift_SimStruct(self, ty: SimStruct) -> TypeConstant | BottomType:
         if ty in self.memo:

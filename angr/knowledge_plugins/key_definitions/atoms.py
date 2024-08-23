@@ -88,7 +88,7 @@ class Atom:
                 SpOffset(arch.bits, argument.stack_offset + sp), argument.size, endness=arch.memory_endness
             )
         else:
-            raise TypeError("Argument type %s is not yet supported." % type(argument))
+            raise TypeError(f"Argument type {type(argument)} is not yet supported.")
 
     @staticmethod
     def reg(thing: str | RegisterOffset, size: int | None = None, arch: Arch | None = None) -> Register:
@@ -164,7 +164,7 @@ class GuardUse(Atom):
         self.target = target
 
     def __repr__(self):
-        return "<Guard %#x>" % self.target
+        return f"<Guard {self.target:#x}>"
 
     def _identity(self):
         return (self.target,)
