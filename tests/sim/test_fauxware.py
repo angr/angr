@@ -62,7 +62,7 @@ class TestFauxware(unittest.TestCase):
 
         # test the divergence detection
         ancestor = results.found[0].history.closest_common_ancestor((results.avoid + results.active)[0].history)
-        divergent_point = list(HistoryIter(results.found[0].history, end=ancestor))[0]
+        divergent_point = next(iter(HistoryIter(results.found[0].history, end=ancestor)))
         # p.factory.block(divergent_point.addr).pp()
         assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
 

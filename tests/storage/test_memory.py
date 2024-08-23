@@ -931,8 +931,8 @@ class TestMemory(unittest.TestCase):
         a = state.memory.load(0x120, size=8)
         assert len(a.keys()) == 1
         assert 0 in a
-        assert len(list(a.values())[0]) == 2
-        assert {state.solver.eval_exact(item, 1)[0] for item in list(a.values())[0]} == {0x40, 0x85868788}
+        assert len(next(iter(a.values()))) == 2
+        assert {state.solver.eval_exact(item, 1)[0] for item in next(iter(a.values()))} == {0x40, 0x85868788}
 
         # weak updates with symbolic values
         A = claripy.BVS("a", 64)
@@ -942,7 +942,7 @@ class TestMemory(unittest.TestCase):
         assert len(a.keys()) == 2
         assert 0 in a
         assert 1 in a
-        assert len(list(a.values())[0]) == 1
+        assert len(next(iter(a.values()))) == 1
         assert next(iter(a[0])) is A[7:0]
         assert len(a[1]) == 2
 

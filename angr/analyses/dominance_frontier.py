@@ -28,7 +28,7 @@ class DominanceFrontier(Analysis):
         # Compute the dominator tree
         if self.function.startpoint is None:
             # The function might be empty or is corrupted (maybe the object is created manually)
-            raise TypeError(f"Startpoint of function {repr(self.function)} is None. Is this function empty?")
+            raise TypeError(f"Startpoint of function {self.function!r} is None. Is this function empty?")
         doms = Dominators(g, self.function.startpoint)
 
         # Compute the dominance frontier

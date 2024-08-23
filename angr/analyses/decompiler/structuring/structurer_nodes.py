@@ -154,7 +154,7 @@ class CodeNode(BaseNode):
                 return f"<CodeNode {self.addr:#x}.{self.idx}>"
             return f"<CodeNode {self.addr:#x}>"
         else:
-            return f"<CodeNode {repr(self.node)}>"
+            return f"<CodeNode {self.node!r}>"
 
     @property
     def addr(self):
@@ -400,7 +400,7 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
         return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"
 
     def __str__(self):
-        return f"switch ({str(self.switch_variable)}): {len(self.case_addrs)} cases"
+        return f"switch ({self.switch_variable!s}): {len(self.case_addrs)} cases"
 
     __hash__ = ailment.statement.TaggedObject.__hash__
 

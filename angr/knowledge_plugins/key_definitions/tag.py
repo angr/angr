@@ -29,7 +29,7 @@ class FunctionTag(Tag):
     A tag for a definition created (or used) in the context of a function.
     """
 
-    def __init__(self, function: int = None, metadata: object = None):
+    def __init__(self, function: int | None = None, metadata: object = None):
         super().__init__(metadata)
         self.function = function
 

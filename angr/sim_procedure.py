@@ -275,7 +275,7 @@ class SimProcedure:
                     inst.arg_session = 0
 
             # run it
-            l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
+            l.debug("Executing %s%s%s%s%s with %s, %s", *((*inst._describe_me(), sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         state._inspect(

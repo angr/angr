@@ -363,7 +363,7 @@ class ReachingDefinitionsState:
         atom: Atom,
         data: MultiValues,
         dummy=False,
-        tags: set[Tag] = None,
+        tags: set[Tag] | None = None,
         endness=None,  # XXX destroy
         annotated: bool = False,
         uses: set[Definition[A]] | None = None,

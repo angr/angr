@@ -290,7 +290,7 @@ class ContainerNode:
         return hash(("CN", self._obj))
 
     def __repr__(self):
-        return f"CN[{repr(self._obj)}]"
+        return f"CN[{self._obj!r}]"
 
 
 class Dominators:

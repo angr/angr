@@ -437,7 +437,7 @@ class DepGraph:
         while queue:
             path = queue.pop()
             for succ in self.graph.succ[path[-1]]:
-                newpath = path + (succ,)
+                newpath = (*path, succ)
                 if succ in ends:
                     yield newpath
                 elif succ in seen:

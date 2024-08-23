@@ -15,7 +15,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
     NAME = "ROL/ROR rewriter"
     stmt_classes = (Assignment,)
 
-    def optimize(self, stmt: Assignment, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: Assignment, stmt_idx: int | None = None, block=None, **kwargs):
         # Rol example:
         #    61 | t304 = Shr32(t301,0x19)
         #    62 | t306 = Shl32(t301,0x07)

@@ -1372,7 +1372,7 @@ class Data:
 
                     if string_piece:
                         ss.append(f'\t{directive} "{string_escape(string_piece)}"')
-                    ss.append(f"{str(lbl)}")
+                    ss.append(f"{lbl!s}")
 
                 if last_pos <= self.size - 1:
                     string_piece = self.content[0][last_pos:]
@@ -1407,11 +1407,11 @@ class Data:
                 for symbolized_label in self.content:
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
-                            s += f"{str(label)}\n"
+                            s += f"{label!s}\n"
                     elif self.addr is not None and (self.addr + i) in self.binary.symbol_manager.addr_to_label:
                         labels = self.binary.symbol_manager.addr_to_label[self.addr + i]
                         for label in labels:
-                            s += f"{str(label)}\n"
+                            s += f"{label!s}\n"
                     i += self.project.arch.bytes
 
                     if isinstance(symbolized_label, int):
@@ -1426,7 +1426,7 @@ class Data:
         elif self.sort == MemoryDataSort.SegmentBoundary:
             if symbolized:
                 for _, label in self.labels:
-                    s += f"\t{str(label)}\n"
+                    s += f"\t{label!s}\n"
 
         elif self.sort == MemoryDataSort.Integer:
             # display it as bytes only when there are references pointing to the middle
@@ -1470,7 +1470,7 @@ class Data:
                     # nice, we should display it as an integer
                     if addr_to_labels:
                         for label in next(iter(addr_to_labels.values())):
-                            content += [f"{str(label)}"]
+                            content += [f"{label!s}"]
 
                     integer = struct.unpack(fmt_str, self.content[0])[0]
                     content += [
@@ -1487,7 +1487,7 @@ class Data:
                         for c in piece:
                             if addr in addr_to_labels:
                                 for label in addr_to_labels[addr]:
-                                    content += [f"{str(label)}"]
+                                    content += [f"{label!s}"]
                             addr += 1
 
                             content += ["\t.byte %d" % c]
@@ -1521,7 +1521,7 @@ class Data:
                     for c in piece:
                         if addr in addr_to_labels:
                             for label in addr_to_labels[addr]:
-                                content += [f"{str(label)}"]
+                                content += [f"{label!s}"]
                         addr += 1
 
                         content += ["\t.byte %d" % c]
@@ -1547,7 +1547,7 @@ class Data:
                     for c in piece:
                         if addr in addr_to_labels:
                             for label in addr_to_labels[addr]:
-                                content += [f"{str(label)}"]
+                                content += [f"{label!s}"]
                         addr += 1
 
                         content += ["\t.byte %d" % c]

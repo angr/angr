@@ -42,7 +42,7 @@ class SAILRStructurer(PhoenixStructurer):
 
         # TODO: the graph we have here is not an accurate graph and can have no "entry node". We need a better graph.
         try:
-            entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+            entry_node = next(node for node in graph.nodes if graph.in_degree(node) == 0)
         except IndexError:
             entry_node = None
 

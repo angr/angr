@@ -130,10 +130,10 @@ class ITEExprConverter(OptimizationPass):
         #
 
         # find their regions
-        block_0 = [b for b in blocks if b.addr == defs[0].codeloc.block_addr][0]
+        block_0 = next(b for b in blocks if b.addr == defs[0].codeloc.block_addr)
         region_0 = self._locate_block(block_0)
 
-        block_1 = [b for b in blocks if b.addr == defs[1].codeloc.block_addr][0]
+        block_1 = next(b for b in blocks if b.addr == defs[1].codeloc.block_addr)
         region_1 = self._locate_block(block_1)
 
         if region_0 is None or region_1 is None or region_0 != region_1:

@@ -44,7 +44,7 @@ class BlockID:
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type))
+            self._hash = hash((self.callsite_tuples, self.addr, self.jump_type))
         return self._hash
 
     def __eq__(self, other):
@@ -105,7 +105,7 @@ class FunctionKey:
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples,) + (self.addr,))
+            self._hash = hash((self.callsite_tuples, self.addr))
         return self._hash
 
     def __eq__(self, other):

@@ -331,7 +331,7 @@ class CFGModel(Serializable):
 
         return None
 
-    def get_all_nodes(self, addr: int, is_syscall: bool = None, anyaddr: bool = False) -> list[CFGNode]:
+    def get_all_nodes(self, addr: int, is_syscall: bool | None = None, anyaddr: bool = False) -> list[CFGNode]:
         """
         Get all CFGNodes whose address is the specified one.
 

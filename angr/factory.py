@@ -201,7 +201,7 @@ class AngrObjectFactory:
         elif isinstance(thing, SimState):
             thing = [thing]
         else:
-            raise AngrError(f"BadType to initialze SimulationManager: {repr(thing)}")
+            raise AngrError(f"BadType to initialze SimulationManager: {thing!r}")
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 

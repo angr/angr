@@ -265,7 +265,7 @@ class VFGNode:
         )
 
     def __repr__(self):
-        s = f"VFGNode[{self.addr:#x}] <{repr(self.key)}>"
+        s = f"VFGNode[{self.addr:#x}] <{self.key!r}>"
         return s
 
     def append_state(self, s, is_widened_state=False):
@@ -770,8 +770,8 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 retn_target = job.call_stack.current_return_target
                 if retn_target is not None:
                     new_call_stack = job.call_stack_copy()
-                    exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
-                    self._exit_targets[job.call_stack_suffix + (addr,)].append((exit_target_tpl, "Ijk_Ret"))
+                    exit_target_tpl = (*new_call_stack.stack_suffix(self._context_sensitivity_level), retn_target)
+                    self._exit_targets[(*job.call_stack_suffix, addr)].append((exit_target_tpl, "Ijk_Ret"))
             else:
                 # This is intentional. We shall remove all the pending returns generated before along this path.
                 self._remove_pending_return(job, self._pending_returns)
@@ -923,7 +923,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             assert not job.is_call_jump
 
             # Record this return
-            self._return_target_sources[successor_addr].append(job.call_stack_suffix + (addr,))
+            self._return_target_sources[successor_addr].append((*job.call_stack_suffix, addr))
 
             # Check if this return is inside our pending returns list
             if new_block_id in self._pending_returns:
@@ -1627,7 +1627,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             new_target = (new_block_id, jumpkind)
         else:
             new_target = (new_block_id, "Ijk_FakeRet")  # This is the fake return!
-        self._exit_targets[job.call_stack_suffix + (job.addr,)].append(new_target)
+        self._exit_targets[(*job.call_stack_suffix, job.addr)].append(new_target)
 
         return new_jobs
 
@@ -1644,7 +1644,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             # Remove the current call stack frame
             call_stack_copy = call_stack_copy.ret(ret_target)
             call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
-            tpl = call_stack_suffix + (ret_target,)
+            tpl = (*call_stack_suffix, ret_target)
             tpls_to_remove.append(tpl)
 
         # Remove those tuples from the dict

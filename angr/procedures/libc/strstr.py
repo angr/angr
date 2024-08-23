@@ -55,9 +55,12 @@ class strstr(angr.SimProcedure):
 
                 c = claripy.And(
                     *(
-                        [claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0]
-                        + not_terminated_yet_constraints
-                        + exclusions
+                        [
+                            claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr),
+                            cmp_res.ret_expr == 0,
+                            *not_terminated_yet_constraints,
+                            *exclusions,
+                        ]
                     )
                 )
 

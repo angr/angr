@@ -450,7 +450,7 @@ class IRSB:
 
     def _set_attributes(
         self: IRSB,
-        statements: Iterable = None,
+        statements: Iterable | None = None,
         nxt: int | None = None,
         tyenv=None,  # Unused, kept for compatibility
         jumpkind: str | None = None,
@@ -458,8 +458,8 @@ class IRSB:
         size: int | None = None,
         ops: Sequence[pypcode.PcodeOp] | None = None,
         instruction_addresses: Iterable[int] | None = None,
-        exit_statements: Sequence[tuple[int, int, ExitStatement]] = None,
-        default_exit_target: Optional = None,
+        exit_statements: Sequence[tuple[int, int, ExitStatement]] | None = None,
+        default_exit_target: Optional | None = None,
     ) -> None:
         # pylint: disable=unused-argument
         self._statements = statements if statements is not None else []

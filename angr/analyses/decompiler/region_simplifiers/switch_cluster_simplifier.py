@@ -257,7 +257,7 @@ def update_switch_case_list(
             new_key = (case_ids, new_case_id)
         elif isinstance(case_ids, tuple):
             match = old_case_id == case_ids or old_case_id in case_ids
-            new_key = case_ids + (new_case_id,)
+            new_key = (*case_ids, new_case_id)
         else:
             raise TypeError(f"Unsupported case_ids type {type(case_ids)}")
         if match:

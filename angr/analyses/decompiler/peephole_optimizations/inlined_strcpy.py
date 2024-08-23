@@ -25,7 +25,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     NAME = "Simplifying inlined strcpy"
     stmt_classes = (Store,)
 
-    def optimize(self, stmt: Store, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: Store, stmt_idx: int | None = None, block=None, **kwargs):
         if isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
             r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.data.size, stmt.endness)
             if r:

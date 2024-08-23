@@ -535,7 +535,7 @@ class JumpTableProcessor(
                 #
                 # Instead of writing 1 to [rbp+var_54], we want to write a symbolic variable there instead. Otherwise
                 # we will only recover the second jump target instead of all 7 targets.
-                self.state.stmts_to_instrument.append(("mem_write",) + arg1_src)
+                self.state.stmts_to_instrument.append(("mem_write", *arg1_src))
             elif isinstance(arg1_src_stmt, pyvex.IRStmt.WrTmp) and isinstance(arg1_src_stmt.data, pyvex.IRExpr.Load):
                 # Loading a constant/variable from memory (and later the value is stored in a register)
                 # Same as above, we will need to overwrite it when executing the slice to guarantee the full recovery
@@ -550,7 +550,7 @@ class JumpTableProcessor(
                 #     mov rax, qword [rax*8+0x220741]
                 #     jmp rax
                 #
-                self.state.stmts_to_instrument.append(("mem_read",) + arg1_src)
+                self.state.stmts_to_instrument.append(("mem_read", *arg1_src))
             elif isinstance(arg1_src_stmt, pyvex.IRStmt.Put):
                 # Storing a constant/variable in register
                 # Same as above...
@@ -564,7 +564,7 @@ class JumpTableProcessor(
                 #     mov   eax, eax
                 #     mov   rax, qword [rax*8+0x2231ae]
                 #
-                self.state.stmts_to_instrument.append(("reg_write",) + arg1_src)
+                self.state.stmts_to_instrument.append(("reg_write", *arg1_src))
 
     def _do_load(self, addr, size):
         src = (self.block.addr, self.stmt_idx)
@@ -594,7 +594,7 @@ class JumpTableProcessor(
                 try:
                     source = next(iter(src for src in self.state._registers[reg_offset.reg][0] if src != "const"))
                     assert isinstance(source, tuple)
-                    self.state.regs_to_initialize.append(source + (reg_offset.reg, reg_offset.bits))
+                    self.state.regs_to_initialize.append((*source, reg_offset.reg, reg_offset.bits))
                 except StopIteration:
                     # we don't need to initialize this register
                     # it might be caused by an incorrect analysis result
@@ -964,7 +964,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 if len(pred_succs) == 2:
                     non_node_succ = next(iter(pred_succ for pred_succ in pred_succs if pred_succ is not curr_node))
                     while func.graph.out_degree[non_node_succ] == 1:
-                        non_node_succ = list(func.graph.successors(non_node_succ))[0]
+                        non_node_succ = next(iter(func.graph.successors(non_node_succ)))
                         if non_node_succ == curr_node:
                             is_diamond = True
                             break

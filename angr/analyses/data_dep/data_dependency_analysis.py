@@ -144,7 +144,7 @@ class DataDependencyGraphAnalysis(Analysis):
         elif isinstance(node, ConstantDepNode):
             self._constant_nodes[node.value] = node
         else:
-            raise TypeError(f"{str(node)} is node a DepNode")
+            raise TypeError(f"{node!s} is node a DepNode")
 
     def _get_active_node(self, node: BaseDepNode) -> BaseDepNode | None:
         """
@@ -166,7 +166,7 @@ class DataDependencyGraphAnalysis(Analysis):
         elif isinstance(node, ConstantDepNode):
             ret_node = self._constant_nodes.get(node.value, None)
         else:
-            raise TypeError(f"{str(node)} is node a DepNode")
+            raise TypeError(f"{node!s} is node a DepNode")
         return ret_node
 
     def _get_or_create_graph_node(
@@ -361,7 +361,7 @@ class DataDependencyGraphAnalysis(Analysis):
                 self._graph.add_edge(val_node, write_node)
             elif len(read_nodes) == 1:
                 # Some calculation must have been performed on the value of the single read
-                stmt_read_nodes = list(read_nodes.values())[0]
+                stmt_read_nodes = next(iter(read_nodes.values()))
 
                 for stmt_read_node in stmt_read_nodes:
                     # diff = list(read_nodes.keys())[0] - write_node.value

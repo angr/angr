@@ -403,7 +403,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             ref = SootArgument(class_, "Class")
 
         # add to args
-        final_args = [jni_env, ref] + args
+        final_args = [jni_env, ref, *args]
 
         # Step 3: generate C prototype from java_method
         voidp = parse_type("void*")

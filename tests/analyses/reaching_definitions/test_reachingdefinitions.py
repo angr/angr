@@ -284,12 +284,12 @@ class TestReachingDefinitions(TestCase):
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_func, track_tmps=False, track_consts=False, dep_graph=True
         )
-        guard_use = list(
+        guard_use = next(
             filter(
                 lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main_func.addr,
                 rda.dep_graph._graph.nodes(),
             )
-        )[0]
+        )
         preds = list(rda.dep_graph._graph.pred[guard_use])
         self.assertEqual(len(preds), 1)
         self.assertIsInstance(preds[0].atom, Register)
@@ -302,16 +302,16 @@ class TestReachingDefinitions(TestCase):
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_func, track_tmps=True, dep_graph=DepGraph()
         )
-        tmp_7 = list(
+        tmp_7 = next(
             filter(
                 lambda def_: type(def_.atom) is Tmp
                 and def_.atom.tmp_idx == 7
                 and def_.codeloc.block_addr == main_func.addr,
                 rda.dep_graph._graph.nodes(),
             )
-        )[0]
+        )
         self.assertEqual(len(rda.dep_graph._graph.succ[tmp_7]), 1)
-        self.assertEqual(type(list(rda.dep_graph._graph.succ[tmp_7])[0].atom), GuardUse)
+        self.assertEqual(type(next(iter(rda.dep_graph._graph.succ[tmp_7])).atom), GuardUse)
 
     def test_dep_graph_stack_variables(self):
         bin_path = _binary_path("fauxware")

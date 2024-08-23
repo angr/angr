@@ -141,7 +141,7 @@ class LoopFinder(Analysis):
                 )
                 subg = next(filter(lambda g: entry_node in g.nodes(), _subgraphs))
         me = Loop(entry_node, entry_edges, break_edges, continue_edges, loop_body_nodes, subg, tops[:])
-        return me, [me] + alls
+        return me, [me, *alls]
 
     def _parse_loops_from_graph(self, graph: networkx.DiGraph):
         """
@@ -157,7 +157,7 @@ class LoopFinder(Analysis):
         for subg in (
             networkx.induced_subgraph(graph, nodes).copy() for nodes in networkx.strongly_connected_components(graph)
         ):
-            if len(subg.nodes()) == 1 and len(list(subg.successors(list(subg.nodes())[0]))) == 0:
+            if len(subg.nodes()) == 1 and len(list(subg.successors(next(iter(subg.nodes()))))) == 0:
                 continue
             thisloop, allloops = self._parse_loop_graph(subg, graph)
             if thisloop is not None:
