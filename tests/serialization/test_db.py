@@ -49,9 +49,9 @@ class TestDb(unittest.TestCase):
             assert func.normalized == new_func.normalized
 
             assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
-            assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(
-                map(lambda x: x.addr, new_func.transition_graph.nodes())
-            )
+            assert {x.addr for x in func.transition_graph.nodes()} == {
+                x.addr for x in new_func.transition_graph.nodes()
+            }
             assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
         # compare call graph
@@ -127,9 +127,9 @@ class TestDb(unittest.TestCase):
                 assert func.normalized == new_func.normalized
 
                 assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
-                assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(
-                    map(lambda x: x.addr, new_func.transition_graph.nodes())
-                )
+                assert {x.addr for x in func.transition_graph.nodes()} == {
+                    x.addr for x in new_func.transition_graph.nodes()
+                }
                 assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
     def test_angrdb_save_multiple_times(self):

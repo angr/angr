@@ -70,7 +70,7 @@ class CFGSliceToSink:
 
         :return List[int]: The list of entrypoints addresses.
         """
-        return sorted(list(self._origins - self._destinations))
+        return sorted(self._origins - self._destinations)
 
     def add_transitions(self, transitions):
         """
@@ -115,4 +115,4 @@ class CFGSliceToSink:
         if destination in direct_successors:
             return True
         else:
-            return any(map(lambda s: self.path_between(s, destination, _visited), direct_successors))
+            return any(self.path_between(s, destination, _visited) for s in direct_successors)

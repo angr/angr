@@ -3076,7 +3076,7 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         """
         Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
         """
-        proj = compile_c_to_angr_project(c_code, cflags, dict(auto_load_libs=False))
+        proj = compile_c_to_angr_project(c_code, cflags, {"auto_load_libs": False})
 
         # Run initial CFG, without attempting indirect jump resolve
         cfg = proj.analyses.CFGFast(resolve_indirect_jumps=False)

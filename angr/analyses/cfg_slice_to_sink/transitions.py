@@ -22,6 +22,6 @@ def merge_transitions(transitions, existing_transitions):
             values = list(set(values))
         existing_transitions.update({address: values})
 
-    list(map(lambda x: _add_to_existing(x[0], x[1]), transitions.items()))
+    [_add_to_existing(x[0], x[1]) for x in transitions.items()]
 
     return existing_transitions

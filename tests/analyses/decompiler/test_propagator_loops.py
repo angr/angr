@@ -23,7 +23,7 @@ class TestPropagatorLoops(unittest.TestCase):
         p.analyses.CFGFast(normalize=True)
         f = p.kb.functions[0]
         banner("Raw AIL Nodes")
-        nodes = sorted(list(f.nodes), key=lambda n: n.addr)
+        nodes = sorted(f.nodes, key=lambda n: n.addr)
         am = ailment.Manager(arch=p.arch)
         for n in nodes:
             b = p.factory.block(n.addr, n.size)
@@ -32,7 +32,7 @@ class TestPropagatorLoops(unittest.TestCase):
         print("")
         banner("Optimized AIL Nodes")
         a = p.analyses.Clinic(f)
-        nodes = sorted(list(a.graph.nodes), key=lambda n: n.addr)
+        nodes = sorted(a.graph.nodes, key=lambda n: n.addr)
         assert len(nodes) == 3
         for n in nodes:
             print(n)

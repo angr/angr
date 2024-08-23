@@ -147,7 +147,7 @@ class DepGraph:
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
 
     def contains_atom(self, atom: Atom) -> bool:
-        return any(map(lambda definition: definition.atom == atom, self.nodes()))
+        return any(definition.atom == atom for definition in self.nodes())
 
     def add_dependencies_for_concrete_pointers_of(
         self, values: Iterable[claripy.ast.Base | int], definition: Definition, cfg: CFGModel, loader: Loader
@@ -163,13 +163,10 @@ class DepGraph:
         """
         assert definition in self.nodes(), "The given Definition must be present in the given graph."
 
-        known_predecessor_addresses: list[int | claripy.ast.Base] = list(
-            # Needs https://github.com/python/mypy/issues/6847
-            map(
-                lambda definition: definition.atom.addr,  # type: ignore
-                filter(lambda p: isinstance(p.atom, MemoryLocation), self.predecessors(definition)),
-            )
-        )
+        known_predecessor_addresses: list[int | claripy.ast.Base] = [
+            definition.atom.addr
+            for definition in filter(lambda p: isinstance(p.atom, MemoryLocation), self.predecessors(definition))
+        ]
 
         # concretize addresses where possible
         concrete_known_pred_addresses = []

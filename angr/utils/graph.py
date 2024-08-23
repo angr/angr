@@ -697,7 +697,7 @@ class GraphUtils:
             return src_addr + dst_addr
 
         # collapse all strongly connected components
-        edges = sorted(list(graph.edges()), key=_sort_edge)
+        edges = sorted(graph.edges(), key=_sort_edge)
         for src, dst in edges:
             scc_index = GraphUtils._components_index_node(sccs, src)
             if scc_index is not None:

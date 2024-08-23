@@ -342,7 +342,7 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
                 and local.variable == the_iterator
             )
 
-        if not any([check_1(local) for local in self.locals.values()]):
+        if not any(check_1(local) for local in self.locals.values()):
             return None
 
         return True

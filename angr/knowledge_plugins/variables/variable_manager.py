@@ -608,15 +608,15 @@ class VariableManagerInternal(Serializable):
             return []
 
         if sort == "memory":
-            var_and_offsets = list(
+            var_and_offsets = [
                 (var, offset)
                 for var, offset in self._stmt_to_variable[key]
                 if isinstance(var, (SimStackVariable, SimMemoryVariable))
-            )
+            ]
         elif sort == "register":
-            var_and_offsets = list(
+            var_and_offsets = [
                 (var, offset) for var, offset in self._stmt_to_variable[key] if isinstance(var, SimRegisterVariable)
-            )
+            ]
         else:
             l.error('find_variables_by_stmt(): Unsupported variable sort "%s".', sort)
             return []
@@ -1045,7 +1045,7 @@ class VariableManagerInternal(Serializable):
             if len(nodes) <= 1:
                 continue
             # side effect of sorting: arg_x variables are always in the front of the list
-            nodes = list(sorted(nodes, key=lambda x: x.ident))
+            nodes = sorted(nodes, key=lambda x: x.ident)
             unified = nodes[0].copy()
             for v in nodes:
                 self.set_unified_variable(v, unified)

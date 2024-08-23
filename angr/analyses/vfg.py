@@ -588,7 +588,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         MAX_BLOCKS_PER_FUNCTION = 1000000
 
         task_functions = list(
-            reversed(list(task.function_address for task in self._task_stack if isinstance(task, FunctionAnalysis)))
+            reversed([task.function_address for task in self._task_stack if isinstance(task, FunctionAnalysis)])
         )
         try:
             function_pos = task_functions.index(job.func_addr)
@@ -779,7 +779,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         # If this is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
-        job.is_call_jump = any([self._is_call_jumpkind(i.history.jumpkind) for i in all_successors])
+        job.is_call_jump = any(self._is_call_jumpkind(i.history.jumpkind) for i in all_successors)
         call_targets = []
         for succ in all_successors:
             if self._is_call_jumpkind(succ.history.jumpkind):

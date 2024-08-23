@@ -113,7 +113,7 @@ class Concrete(SimStatePlugin):
             # before let's sync all the subregisters of the current register.
             # sometimes this can be helpful ( i.e. ymmm0 e xmm0 )
             if register.subregisters:
-                subregisters_names = map(lambda x: x[0], register.subregisters)
+                subregisters_names = (x[0] for x in register.subregisters)
                 self._sync_registers(subregisters_names, target)
 
             # finally let's synchronize the whole register

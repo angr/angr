@@ -798,7 +798,7 @@ class Instruction:
         if not symbolized:
             asm = not_symbolized
 
-        elif not any([(operand.symbolized or operand.type == OP_TYPE_RAW) for operand in self.operands]):
+        elif not any((operand.symbolized or operand.type == OP_TYPE_RAW) for operand in self.operands):
             # No label is involved
             asm = not_symbolized
 
@@ -2652,7 +2652,7 @@ class Reassembler(Analysis):
         data = self.fast_memory_load(addr, size, bytes)
         if data is None:
             return False
-        ints = [i for i in data]
+        ints = list(data)
         if len({(i - j) for i, j in zip(ints, ints[1:])}) == 1:
             # arithmetic progression
             # backoff: it should not be ending with a pointer

@@ -26,7 +26,7 @@ class Environment:
             And a boolean value telling whether all the names were known of the internal representation (i.e. will be
             False if one of the queried variable was not found).
         """
-        has_unknown = not all(map(lambda name: name in self._environment, names))
+        has_unknown = not all(name in self._environment for name in names)
 
         def _get(name):
             if not isinstance(name, (str, Undefined)):
@@ -78,7 +78,7 @@ class Environment:
                     return v
                 return v | w
 
-            new_env = dict(map(lambda k: (k, _dataset_from_key(k, new_env, other._environment)), keys))
+            new_env = {k: _dataset_from_key(k, new_env, other._environment) for k in keys}
 
         merge_occurred = new_env != self._environment
         return Environment(environment=new_env), merge_occurred

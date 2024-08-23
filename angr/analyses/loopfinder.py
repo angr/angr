@@ -18,7 +18,7 @@ class Loop:
         self.graph = graph
         self.subloops = subloops
 
-        self.has_calls = any(map(lambda loop: loop.has_calls, subloops))
+        self.has_calls = any(loop.has_calls for loop in subloops)
 
         if not self.has_calls:
             for _, _, data in self.graph.edges(data=True):

@@ -162,7 +162,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             except StopIteration:
                 break
 
-        data = claripy.Concat(*map(lambda v: claripy.BVV(v, self.state.arch.byte_width), page_data))
+        data = claripy.Concat(*(claripy.BVV(v, self.state.arch.byte_width) for v in page_data))
         return data
 
     def _cle_permissions_lookup(self, addr):

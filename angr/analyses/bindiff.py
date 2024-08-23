@@ -657,7 +657,7 @@ class FunctionDiff:
         to_process = deque(initial_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = {(x, y) for (x, y) in initial_matches}
+        processed_matches = set(initial_matches)
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -725,7 +725,7 @@ class FunctionDiff:
                         to_process.appendleft((x, y))
 
         # reformat matches into a set of pairs
-        self._block_matches = {(x, y) for (x, y) in matched_a.items()}
+        self._block_matches = set(matched_a.items())
 
         # get the unmatched blocks
         self._unmatched_blocks_from_a = {x for x in self._function_a.graph.nodes() if x not in matched_a}
@@ -772,12 +772,12 @@ class FunctionDiff:
         """
         # get the attributes that are in the sets
         if filter_set_a is None:
-            filtered_attributes_a = {k: v for k, v in attributes_a.items()}
+            filtered_attributes_a = dict(attributes_a.items())
         else:
             filtered_attributes_a = {k: v for k, v in attributes_a.items() if k in filter_set_a}
 
         if filter_set_b is None:
-            filtered_attributes_b = {k: v for k, v in attributes_b.items()}
+            filtered_attributes_b = dict(attributes_b.items())
         else:
             filtered_attributes_b = {k: v for k, v in attributes_b.items() if k in filter_set_b}
 
@@ -1123,7 +1123,7 @@ class BinDiff(Analysis):
         to_process = deque(initial_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = {(x, y) for (x, y) in initial_matches}
+        processed_matches = set(initial_matches)
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -1220,12 +1220,12 @@ class BinDiff(Analysis):
         """
         # get the attributes that are in the sets
         if filter_set_a is None:
-            filtered_attributes_a = {k: v for k, v in attributes_a.items()}
+            filtered_attributes_a = dict(attributes_a.items())
         else:
             filtered_attributes_a = {k: v for k, v in attributes_a.items() if k in filter_set_a}
 
         if filter_set_b is None:
-            filtered_attributes_b = {k: v for k, v in attributes_b.items()}
+            filtered_attributes_b = dict(attributes_b.items())
         else:
             filtered_attributes_b = {k: v for k, v in attributes_b.items() if k in filter_set_b}
 

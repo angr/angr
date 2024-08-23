@@ -2019,8 +2019,8 @@ class Clinic(Analysis):
     def remove_empty_nodes(graph: networkx.DiGraph) -> networkx.DiGraph:
         def handle_node(node: ailment.Block):
             if not node.statements:
-                preds = list(pred for pred in graph.predecessors(node) if pred is not node)
-                succs = list(succ for succ in graph.successors(node) if succ is not node)
+                preds = [pred for pred in graph.predecessors(node) if pred is not node]
+                succs = [succ for succ in graph.successors(node) if succ is not node]
                 if len(preds) == 1 and len(succs) == 1:
                     pred = preds[0]
                     succ = succs[0]

@@ -277,7 +277,7 @@ class TestCfgemulate(unittest.TestCase):
         binary_path = test_location + "/i386/bios.bin.elf"
         proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1, auto_load_libs=False)
         proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
-        assert {f for f in proj.kb.functions} >= set(function_addresses)
+        assert set(proj.kb.functions) >= set(function_addresses)
         o.modes["fastpath"] ^= {o.DO_CCALLS}
 
     def test_fauxware(self):
