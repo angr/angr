@@ -22,7 +22,7 @@ class BaseGoal:
         self.sort = sort
 
     def __repr__(self):
-        return "<TargetCondition %s>" % self.sort
+        return f"<TargetCondition {self.sort}>"
 
     #
     # Public methods
@@ -122,7 +122,7 @@ class ExecuteAddressGoal(BaseGoal):
         self.addr = addr
 
     def __repr__(self):
-        return "<ExecuteAddressCondition targeting %#x>" % self.addr
+        return f"<ExecuteAddressCondition targeting {self.addr:#x}>"
 
     def check(self, cfg, state, peek_blocks):
         """
@@ -201,7 +201,7 @@ class CallFunctionGoal(BaseGoal):
         # TODO: allow user to provide an optional argument processor to process arguments
 
     def __repr__(self):
-        return "<FunctionCallCondition over %s>" % self.function
+        return f"<FunctionCallCondition over {self.function}>"
 
     def check(self, cfg, state, peek_blocks):
         """

@@ -62,7 +62,7 @@ class Existence(TypeConstraint):
         return f"V {self.type_.pp_str(mapping)}"
 
     def __repr__(self):
-        return "V %s" % self.type_
+        return f"V {self.type_}"
 
     def __eq__(self, other):
         return type(other) is Existence and self.type_ == other.type_
@@ -149,11 +149,7 @@ class Add(TypeConstraint):
         self.type_r = type_r
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
-        return "{} == {} + {}".format(
-            self.type_r.pp_str(mapping),
-            self.type_0.pp_str(mapping),
-            self.type_1.pp_str(mapping),
-        )
+        return f"{self.type_r.pp_str(mapping)} == {self.type_0.pp_str(mapping)} + {self.type_1.pp_str(mapping)}"
 
     def __repr__(self):
         return f"{self.type_r!r} == {self.type_0!r} + {self.type_1!r}"
@@ -221,11 +217,7 @@ class Sub(TypeConstraint):
         self.type_r = type_r
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
-        return "{} == {} - {}".format(
-            self.type_r.pp_str(mapping),
-            self.type_0.pp_str(mapping),
-            self.type_1.pp_str(mapping),
-        )
+        return f"{self.type_r.pp_str(mapping)} == {self.type_0.pp_str(mapping)} - {self.type_1.pp_str(mapping)}"
 
     def __repr__(self):
         return f"{self.type_r!r} == {self.type_0!r} - {self.type_1!r}"
@@ -470,7 +462,7 @@ class FuncIn(BaseLabel):
         self.loc = loc
 
     def __repr__(self):
-        return "in<%s>" % self.loc
+        return f"in<{self.loc}>"
 
 
 class FuncOut(BaseLabel):
@@ -480,7 +472,7 @@ class FuncOut(BaseLabel):
         self.loc = loc
 
     def __repr__(self):
-        return "out<%s>" % self.loc
+        return f"out<{self.loc}>"
 
 
 class Load(BaseLabel):

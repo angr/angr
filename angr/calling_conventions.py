@@ -167,7 +167,7 @@ def refine_locs_with_struct_type(
             if member.size == arg_type.size:
                 return refine_locs_with_struct_type(arch, locs, member, offset)
 
-    raise TypeError("I don't know how to lay out a %s" % arg_type)
+    raise TypeError(f"I don't know how to lay out a {arg_type}")
 
 
 class SerializableIterator:
@@ -294,7 +294,7 @@ class SimRegArg(SimFunctionArgument):
         yield self
 
     def __repr__(self):
-        return "<%s>" % self.reg_name
+        return f"<{self.reg_name}>"
 
     def __eq__(self, other):
         return type(other) is SimRegArg and self.reg_name == other.reg_name and self.reg_offset == other.reg_offset
@@ -350,7 +350,7 @@ class SimStackArg(SimFunctionArgument):
         yield self
 
     def __repr__(self):
-        return "[%#x]" % self.stack_offset
+        return f"[{self.stack_offset:#x}]"
 
     def __eq__(self, other):
         return type(other) is SimStackArg and self.stack_offset == other.stack_offset
@@ -397,7 +397,7 @@ class SimComboArg(SimFunctionArgument):
             yield from x.get_footprint()
 
     def __repr__(self):
-        return "SimComboArg(%s)" % repr(self.locations)
+        return f"SimComboArg({repr(self.locations)})"
 
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
@@ -782,7 +782,7 @@ class SimCC:
                 else:
                     raise TypeError("WHAT kind of floating point is this")
             else:
-                raise TypeError("Cannot guess FFI type for %s" % type(arg))
+                raise TypeError(f"Cannot guess FFI type for {type(arg)}")
 
         return result
 
@@ -954,7 +954,7 @@ class SimCC:
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
             if not isinstance(ty, (SimTypePointer, SimTypeReference)):
-                raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty)
+                raise TypeError(f"Type mismatch: expected {ty}, got pointer-wrapper")
 
             if arg.buffer:
                 if isinstance(arg.value, claripy.Bits):
@@ -995,7 +995,7 @@ class SimCC:
                     raise TypeError(f"String {repr(arg)} is too long for {ty}")
                 arg = arg.ljust(ty.length + 1, b"\0")
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
+                raise TypeError(f"Type mismatch: Expected {ty}, got char*")
             val = SimCC._standardize_value(list(arg), SimTypeArray(SimTypeChar(), len(arg)), state, alloc)
             return val
 
@@ -1010,7 +1010,7 @@ class SimCC:
                     if len(arg) != ty.length:
                         raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
+                raise TypeError(f"Type mismatch: Expected {ty}, got char*")
 
             val = [SimCC._standardize_value(sarg, subty, state, alloc) for sarg in arg]
             if ref:
@@ -1041,7 +1041,7 @@ class SimCC:
             elif isinstance(ty, SimTypeFloat):
                 sort = claripy.FSORT_FLOAT
             else:
-                raise TypeError("Type mismatch: expected %s, got float" % ty)
+                raise TypeError(f"Type mismatch: expected {ty}, got float")
 
             return claripy.FPV(arg, sort)
 
@@ -1064,10 +1064,10 @@ class SimCC:
                     "It's unclear how to coerce a bitvector to %s. "
                     "Do you want .raw_to_fp or .val_to_fp, and signed or unsigned?"
                 )
-            raise TypeError("Type mismatch: expected %s, got bitvector" % ty)
+            raise TypeError(f"Type mismatch: expected {ty}, got bitvector")
 
         else:
-            raise TypeError("I don't know how to serialize %s." % repr(arg))
+            raise TypeError(f"I don't know how to serialize {repr(arg)}.")
 
     def __repr__(self):
         return f"<{self.__class__.__name__}>"

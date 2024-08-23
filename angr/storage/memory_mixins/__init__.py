@@ -40,7 +40,7 @@ class MemoryMixin(SimStatePlugin):
             return self.id.split("_")[0]
 
         else:
-            raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
+            raise SimMemoryError(f'Unknown SimMemory category for memory_id "{self.id}"')
 
     @property
     def variable_key_prefix(self):

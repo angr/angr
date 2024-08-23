@@ -30,7 +30,7 @@ class Environment:
 
         def _get(name):
             if not isinstance(name, (str, Undefined)):
-                raise TypeError("get(): Expected str, or Undefined, got %s" % type(name).__name__)
+                raise TypeError(f"get(): Expected str, or Undefined, got {type(name).__name__}")
             return self._environment.get(name, {UNDEFINED})
 
         pointers = set()
@@ -45,17 +45,17 @@ class Environment:
         :param pointers: New addresses where the new values of the environment variable are located.
         """
         if not isinstance(name, (str, Undefined)):
-            raise TypeError("set(): Expected str, or Undefined, got %s" % type(name).__name__)
+            raise TypeError(f"set(): Expected str, or Undefined, got {type(name).__name__}")
         self._environment[name] = pointers
 
     def __str__(self):
-        return "Environment: %s" % self._environment
+        return f"Environment: {self._environment}"
 
     def __repr__(self):
-        return "Environment: %s" % self._environment
+        return f"Environment: {self._environment}"
 
     def __eq__(self, other: object) -> bool:
-        assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
+        assert isinstance(other, Environment), f"Cannot compare Environment with {type(other).__name__}"
         return self._environment == other._environment
 
     def merge(self, *others: Environment) -> tuple[Environment, bool]:
@@ -63,7 +63,7 @@ class Environment:
 
         for other in others:
             if not isinstance(other, Environment):
-                raise TypeError("Cannot merge Environment with %s" % type(other).__name__)
+                raise TypeError(f"Cannot merge Environment with {type(other).__name__}")
 
             keys = set(new_env.keys())
             keys |= other._environment.keys()

@@ -543,10 +543,7 @@ class TestCfgemulate(unittest.TestCase):
             for src, dst in edges[arch]:
                 src_node = cfg.get_any_node(src)
                 dst_node = cfg.get_any_node(dst)
-                assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
-                    src_node,
-                    dst_node,
-                )
+                assert dst_node in src_node.successors, f"CFG edge {src_node}-{dst_node} is not found."
 
     class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
         """
@@ -612,16 +609,13 @@ class TestCfgemulate(unittest.TestCase):
         for src, dst in edges:
             src_node = target_function_cfg_emulated.get_any_node(src)
             dst_node = target_function_cfg_emulated.get_any_node(dst)
-            assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
-                src_node,
-                dst_node,
-            )
+            assert dst_node in src_node.successors, f"CFG edge {src_node}-{dst_node} is not found."
 
         for node_addr, final_states_number in final_states_info.items():
             node = target_function_cfg_emulated.get_any_node(node_addr)
-            assert final_states_number == len(node.final_states), (
-                "CFG node 0x%x has incorrect final states." % node_addr
-            )
+            assert final_states_number == len(
+                node.final_states
+            ), f"CFG node 0x{node_addr:x} has incorrect final states."
 
 
 if __name__ == "__main__":

@@ -229,7 +229,7 @@ def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] |
             elif insert_location == "before":
                 new_nodes = [node, parent.default_node]
             else:
-                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+                raise TypeError(f"Unsupported 'insert_location' value {insert_location!r}.")
             seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.default_node = seq
         else:

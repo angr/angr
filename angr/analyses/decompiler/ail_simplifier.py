@@ -813,9 +813,9 @@ class AILSimplifier(Analysis):
                         else:
                             replace_with = eq.atom0
                     else:
-                        raise AngrRuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
+                        raise AngrRuntimeError(f"Unsupported atom1 type {type(eq.atom1)}.")
                 else:
-                    raise AngrRuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
+                    raise AngrRuntimeError(f"Unsupported atom0 type {type(eq.atom0)}.")
 
                 to_replace_def = the_def
 

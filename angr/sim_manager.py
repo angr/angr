@@ -841,7 +841,7 @@ class SimulationManager:
         elif stash.startswith("one_"):
             return self._stashes.get(stash[4:], [None])[0]
         else:
-            raise AttributeError("No such stash: %s" % stash)
+            raise AttributeError(f"No such stash: {stash}")
 
     def _filter_states(self, filter_func, states):  # pylint:disable=no-self-use
         match, nomatch = [], []
@@ -964,7 +964,7 @@ class ErrorRecord:
         raise self.error.with_traceback(self.traceback)
 
     def __repr__(self):
-        return '<State errored with "%s">' % self.error
+        return f'<State errored with "{self.error}">'
 
     def __eq__(self, other):
         return self is other or self.state is other

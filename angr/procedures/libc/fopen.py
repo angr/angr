@@ -21,7 +21,7 @@ def mode_to_flag(mode):
         b"a+": angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
     }
     if mode not in all_modes:
-        raise angr.SimProcedureError("unsupported file open mode %s" % mode)
+        raise angr.SimProcedureError(f"unsupported file open mode {mode}")
 
     return all_modes[mode]
 

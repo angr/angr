@@ -60,7 +60,7 @@ class DepGraph:
         self._transitive_closures: dict = {}
 
         if graph and not all(map(_is_definition, graph.nodes)):
-            raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
+            raise TypeError(f"In a DepGraph, nodes need to be <{Definition.__name__}>s.")
 
         self._graph: networkx.DiGraph[Definition] = graph if graph is not None else networkx.DiGraph()
 

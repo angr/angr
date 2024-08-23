@@ -300,7 +300,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             if idxes:
                 return idxes
 
-        raise SimMemoryAddressError("Unable to concretize index %s" % idx)
+        raise SimMemoryAddressError(f"Unable to concretize index {idx}")
 
     def concretize_store_idx(self, idx, strategies=None):
         """

@@ -27,21 +27,21 @@ class ArithmeticExpression:
 
     def __repr__(self):
         if self.op == ArithmeticExpression.Add:
-            return "%s + %s" % self.operands
+            return "{} + {}".format(*self.operands)
         elif self.op == ArithmeticExpression.Sub:
-            return "%s - %s" % self.operands
+            return "{} - {}".format(*self.operands)
         elif self.op == ArithmeticExpression.And:
-            return "%s & %s" % self.operands
+            return "{} & {}".format(*self.operands)
         elif self.op == ArithmeticExpression.Or:
-            return "%s | %s" % self.operands
+            return "{} | {}".format(*self.operands)
         elif self.op == ArithmeticExpression.RShift:
-            return "%s >> %s" % self.operands
+            return "{} >> {}".format(*self.operands)
         elif self.op == ArithmeticExpression.LShift:
-            return "%s << %s" % self.operands
+            return "{} << {}".format(*self.operands)
         elif self.op == ArithmeticExpression.Mul:
-            return "%s * %s" % self.operands
+            return "{} * {}".format(*self.operands)
         else:
-            return "Unsupported op %s" % self.op
+            return f"Unsupported op {self.op}"
 
     def __add__(self, other):
         if type(other) in ArithmeticExpression.CONST_TYPES:
@@ -320,7 +320,7 @@ class ArithmeticExpression:
             return expr
         elif type(expr) is ailment.expression.Const:
             return expr.value
-        raise NotImplementedError("Unsupported const expression type %s." % type(expr))
+        raise NotImplementedError(f"Unsupported const expression type {type(expr)}.")
 
     @staticmethod
     def try_unpack_const(expr):
@@ -352,7 +352,7 @@ class RegisterOffset:
 
     def __repr__(self):
         if type(self.offset) is int:
-            offset_str = "" if self.offset == 0 else "%+x" % self.offset
+            offset_str = "" if self.offset == 0 else f"{self.offset:+x}"
         else:
             offset_str = str(self.offset)
         return f"{self.reg}{offset_str}"
@@ -630,7 +630,7 @@ class SpOffset(RegisterOffset):
 
     def __repr__(self):
         if type(self.offset) is int:
-            offset_str = "" if self.offset == 0 else "%+#x" % self.offset
+            offset_str = "" if self.offset == 0 else f"{self.offset:+#x}"
         else:
             offset_str = str(self.offset)
         return "{}{}".format("BP" if self.is_base else "SP", offset_str)

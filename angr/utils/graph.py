@@ -257,7 +257,7 @@ class TemporaryNode:
         self._label = label
 
     def __repr__(self):
-        return "TN[%s]" % self._label
+        return f"TN[{self._label}]"
 
     def __eq__(self, other):
         if isinstance(other, TemporaryNode) and other._label == self._label:
@@ -295,7 +295,7 @@ class ContainerNode:
         return hash(("CN", self._obj))
 
     def __repr__(self):
-        return "CN[%s]" % repr(self._obj)
+        return f"CN[{repr(self._obj)}]"
 
 
 class Dominators:

@@ -85,7 +85,7 @@ def convert_cproto_to_py(c_decl) -> tuple[str, SimTypeFunction, str]:
     s = []
 
     try:
-        s.append("# %s" % c_decl)  # comment string
+        s.append(f"# {c_decl}")  # comment string
 
         parsed = parse_file(c_decl)
         parsed_decl = parsed[0]
@@ -101,7 +101,7 @@ def convert_cproto_to_py(c_decl) -> tuple[str, SimTypeFunction, str]:
         try:
             func_name = get_function_name(c_decl)
             func_proto = None
-            s.append('"%s": None,' % func_name)
+            s.append(f'"{func_name}": None,')
         except ValueError:
             # Failed to extract the function name. Is it a function declaration?
             func_name, func_proto = None, None
@@ -122,7 +122,7 @@ def convert_cppproto_to_py(
 
     s = []
     try:
-        s.append("# %s" % cpp_decl)
+        s.append(f"# {cpp_decl}")
 
         parsed = parse_cpp_file(cpp_decl, with_param_names=with_param_names)
         parsed_decl = parsed[0]
@@ -137,7 +137,7 @@ def convert_cppproto_to_py(
         try:
             func_name = get_function_name(cpp_decl)
             func_proto = None
-            s.append('"%s": None,' % func_name)
+            s.append(f'"{func_name}": None,')
         except ValueError:
             # Failed to extract the function name. Is it a function declaration?
             func_name, func_proto = None, None

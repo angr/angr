@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import DefaultDict, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import weakref
 
@@ -85,9 +85,9 @@ class PropagatorState:
         arch: Arch,
         project: Project | None = None,
         rda=None,
-        replacements: DefaultDict[CodeLocation, dict] | None = None,
+        replacements: defaultdict[CodeLocation, dict] | None = None,
         only_consts: bool = False,
-        expr_used_locs: DefaultDict[Any, set[CodeLocation]] | None = None,
+        expr_used_locs: defaultdict[Any, set[CodeLocation]] | None = None,
         equivalence: set[Equivalence] | None = None,
         store_tops: bool = True,
         gp: int | None = None,
@@ -637,7 +637,7 @@ class PropagatorAILState(PropagatorState):
         self._tmps = {}
         self.temp_expressions = {}
         self.register_expressions = {}
-        self.block_initial_reg_values: DefaultDict[
+        self.block_initial_reg_values: defaultdict[
             tuple[int, int], list[tuple[ailment.Expr.Register, ailment.Expr.Const]]
         ] = (defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values)
         self._sp_adjusted: bool = sp_adjusted

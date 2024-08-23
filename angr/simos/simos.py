@@ -198,7 +198,7 @@ class SimOS:
                     # Backward compatibility
                     region_base = 0
                 else:
-                    raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
+                    raise AngrSimOSError(f'You must specify the base address for memory region "{mem_region}". ')
 
             # special case for stack_end overriding sp default
             if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:

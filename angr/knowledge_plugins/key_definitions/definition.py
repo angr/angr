@@ -199,7 +199,7 @@ class Definition(Generic[A]):
             else:
                 return self.atom.addr
         else:
-            raise ValueError("Unsupported operation offset on %s." % type(self.atom))
+            raise ValueError(f"Unsupported operation offset on {type(self.atom)}.")
 
     @property
     def size(self) -> int:
@@ -208,7 +208,7 @@ class Definition(Generic[A]):
         elif isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
         else:
-            raise ValueError("Unsupported operation size on %s." % type(self.atom))
+            raise ValueError(f"Unsupported operation size on {type(self.atom)}.")
 
     def matches(self, **kwargs) -> bool:
         """

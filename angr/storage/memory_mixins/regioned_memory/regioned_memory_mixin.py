@@ -230,7 +230,7 @@ class RegionedMemoryMixin(MemoryMixin):
         :param function_address: Address of the function.
         :return:                ID of the new memory region.
         """
-        region_id = "stack_%#x" % function_address
+        region_id = f"stack_{function_address:#x}"
 
         # deduplication
         region_ids = self._stack_region_map.region_ids
@@ -241,7 +241,7 @@ class RegionedMemoryMixin(MemoryMixin):
                 new_region_id = region_id + "_%d" % i
                 if new_region_id not in region_ids:
                     return new_region_id
-            raise SimMemoryError("Cannot allocate region ID for function %#08x - recursion too deep" % function_address)
+            raise SimMemoryError(f"Cannot allocate region ID for function {function_address:#08x} - recursion too deep")
 
     def set_stack_size(self, size: int):
         self._stack_size = size
@@ -461,4 +461,4 @@ class RegionedMemoryMixin(MemoryMixin):
             else:
                 raise SimAbstractMemoryError("Cannot parse address as a VSA ValueSet")
         else:
-            raise SimAbstractMemoryError("Unsupported address type %s" % type(addr_e))
+            raise SimAbstractMemoryError(f"Unsupported address type {type(addr_e)}")

@@ -151,7 +151,7 @@ class SimMemoryObject:
         return not self == other
 
     def __repr__(self):
-        return "MO(%s)" % self.object
+        return f"MO({self.object})"
 
 
 class SimLabeledMemoryObject(SimMemoryObject):

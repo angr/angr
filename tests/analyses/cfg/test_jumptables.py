@@ -65,11 +65,11 @@ class TestJumpTableResolver(unittest.TestCase):
     @staticmethod
     def _compare(jump_tables, groundtruth):
         for j in groundtruth:
-            assert j.block_addr in jump_tables, "Jump table @ block %#x is not found in CFG." % j.block_addr
+            assert j.block_addr in jump_tables, f"Jump table @ block {j.block_addr:#x} is not found in CFG."
             jumptable_addr = jump_tables[j.block_addr].jumptable_addr
             assert j.table_addr == jumptable_addr, "Mismatch jump table addresses (expecting {}, got {}).".format(
-                ("%#x" % j.table_addr) if j.table_addr is not None else "None",
-                ("%#x" % jumptable_addr) if jumptable_addr is not None else "None",
+                (f"{j.table_addr:#x}") if j.table_addr is not None else "None",
+                (f"{jumptable_addr:#x}") if jumptable_addr is not None else "None",
             )
             expected = set(j.entries)
             recovered = set(jump_tables[j.block_addr].jumptable_entries)

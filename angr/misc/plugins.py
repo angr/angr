@@ -122,10 +122,10 @@ class PluginHub(Generic[P]):
             try:
                 preset = self._presets[preset]
             except (AttributeError, KeyError):
-                raise AngrNoPluginError("There is no preset named %s" % preset)
+                raise AngrNoPluginError(f"There is no preset named {preset}")
 
         elif not isinstance(preset, PluginPreset):
-            raise ValueError("Argument must be an instance of PluginPreset: %s" % preset)
+            raise ValueError(f"Argument must be an instance of PluginPreset: {preset}")
 
         if self._active_preset:
             l.warning("Overriding active preset %s with %s", self._active_preset, preset)
@@ -168,7 +168,7 @@ class PluginHub(Generic[P]):
             return plugin
 
         else:
-            raise AngrNoPluginError("No such plugin: %s" % name)
+            raise AngrNoPluginError(f"No such plugin: {name}")
 
     def _init_plugin(self, plugin_cls: type[P]) -> P:  # pylint: disable=no-self-use
         """
@@ -252,7 +252,7 @@ class PluginPreset:
         try:
             return self._default_plugins[name]
         except KeyError:
-            raise AngrNoPluginError("There is no plugin named %s" % name)
+            raise AngrNoPluginError(f"There is no plugin named {name}")
 
     def copy(self):
         """

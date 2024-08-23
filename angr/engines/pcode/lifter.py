@@ -296,12 +296,7 @@ class IRSB:
         print(self._pp_str())
 
     def __repr__(self) -> str:
-        return "IRSB <0x{:x} bytes, {} ins., {}> at 0x{:x}".format(
-            self.size,
-            self.instructions,
-            self.arch,
-            self.addr,
-        )
+        return f"IRSB <0x{self.size:x} bytes, {self.instructions} ins., {self.arch}> at 0x{self.addr:x}"
 
     def __str__(self) -> str:
         return self._pp_str()
@@ -441,7 +436,7 @@ class IRSB:
                 sa.append(f"   {i:02d} | {pypcode.PcodePrettyPrinter.fmt_op(op)}")
 
         if isinstance(self.next, int):
-            next_str = "%x" % self.next
+            next_str = f"{self.next:x}"
         else:
             next_str = str(self.next)
         sa.append(f"   NEXT: {next_str}; {self.jumpkind}")
@@ -981,7 +976,7 @@ class PcodeLifter(Lifter):
 
         if self.irsb.size == 0:
             l.debug("raising lifting exception")
-            raise LiftingException("pypcode: could not decode any instructions @ 0x%x" % self.addr)
+            raise LiftingException(f"pypcode: could not decode any instructions @ 0x{self.addr:x}")
 
 
 class PcodeLifterEngineMixin(SimEngineBase):
@@ -1250,7 +1245,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
             buff, size, _ = self._load_bytes(addr, size, state, clemory)
 
         if not buff or size == 0:
-            raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
+            raise SimEngineError(f"No bytes in memory for block starting at {addr:#x}.")
 
         # phase 5: lift to pcode
         l.debug("Creating pcode.IRSB of arch %s at %#x", arch.name, addr)
@@ -1334,7 +1329,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
                                 "to, open an issue."
                             )
                         else:
-                            raise TypeError("Unsupported backer type %s." % type(backer))
+                            raise TypeError(f"Unsupported backer type {type(backer)}.")
             elif state:
                 if state.memory.SUPPORTS_CONCRETE_LOAD:
                     buff = state.memory.concrete_load(addr, max_size)

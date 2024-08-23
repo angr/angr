@@ -14,7 +14,7 @@ class ManualMergepoint(ExplorationTechnique):
         self.prune = prune
         self.wait_counter = 0
         self.stash = f"merge_waiting_{self.address:#x}_{id(self):x}"
-        self.filter_marker = "skip_next_filter_%#x" % self.address
+        self.filter_marker = f"skip_next_filter_{self.address:#x}"
 
     def setup(self, simgr):
         simgr.stashes[self.stash] = []

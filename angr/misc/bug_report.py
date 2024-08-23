@@ -35,7 +35,7 @@ def get_venv():
 
 def print_versions():
     for m in angr_modules:
-        print("######## %s #########" % m)
+        print(f"######## {m} #########")
         try:
             python_filename = importlib.util.find_spec(m).origin
         except ImportError:
@@ -43,11 +43,11 @@ def print_versions():
             continue
         except Exception as e:  # pylint: disable=broad-except
             print(f"An error occurred importing {m}: {e}")
-        print("Python found it in %s" % (python_filename))
+        print(f"Python found it in {python_filename}")
         try:
             pip_package = python_packages.get(m, m)
             pip_version = importlib.metadata.version(pip_package)
-            print("Pip version %s" % pip_version)
+            print(f"Pip version {pip_version}")
         except Exception:  # pylint: disable-broad-except
             print("Pip version not found!")
         print_git_info(python_filename)
@@ -73,7 +73,7 @@ def print_git_info(dirname):
             remote_url = repo.remotes[remote_name].url
             print(f"\tChecked out from remote {remote_name}: {remote_url}")
         else:
-            print("Tracking local branch %s" % cur_tb.name)
+            print(f"Tracking local branch {cur_tb.name}")
     except Exception:  # pylint: disable=broad-except
         print("Could not resolve tracking branch or remote info!")
 

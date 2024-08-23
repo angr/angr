@@ -147,7 +147,7 @@ class AngrDB:
         return version == self.VERSION
 
     def dump(self, db_path, kbs: list[KnowledgeBase] | None = None, extra_info: dict[str, Any] | None = None):
-        db_str = "sqlite:///%s" % db_path
+        db_str = f"sqlite:///{db_path}"
 
         with self.open_db(db_str) as Session:
             with self.session_scope(Session) as session:
@@ -171,7 +171,7 @@ class AngrDB:
         other_kbs: dict[str, KnowledgeBase] | None = None,
         extra_info: dict[str, Any] | None = None,
     ):
-        db_str = "sqlite:///%s" % db_path
+        db_str = f"sqlite:///{db_path}"
 
         with self.open_db(db_str) as Session:
             with self.session_scope(Session) as session:
@@ -179,7 +179,9 @@ class AngrDB:
                 dbinfo = self.get_dbinfo(session, extra_info=extra_info)
                 if not self.db_compatible(dbinfo.get("version", None)):
                     raise AngrIncompatibleDBError(
-                        "Version %s is incompatible with the current version of angr." % dbinfo.get("version", None)
+                        "Version {} is incompatible with the current version of angr.".format(
+                            dbinfo.get("version", None)
+                        )
                     )
 
                 # Load the loader

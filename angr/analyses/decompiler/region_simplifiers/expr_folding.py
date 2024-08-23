@@ -1,7 +1,7 @@
 # pylint:disable=missing-class-docstring,unused-argument
 from __future__ import annotations
 from collections import defaultdict
-from typing import Any, DefaultDict, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 
 import ailment
@@ -176,7 +176,7 @@ class ExpressionUseFinder(AILBlockWalker):
 
     def __init__(self):
         super().__init__()
-        self.uses: DefaultDict[SimVariable, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
+        self.uses: defaultdict[SimVariable, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
         self.has_load = False
 
     def _handle_expr(
@@ -213,7 +213,7 @@ class ExpressionCounter(SequenceWalker):
         # each element in the set is a tuple of (source of the assignment statement, a tuple of unified variables that
         # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
         # indicates if ExpressionUseFinder has succeeded or not)
-        self.assignments: DefaultDict[Any, set[tuple]] = defaultdict(set)
+        self.assignments: defaultdict[Any, set[tuple]] = defaultdict(set)
         self.uses: dict[SimVariable, set[tuple[Expression, LocationBase | None]]] = {}
         self._variable_manager: VariableManagerInternal = variable_manager
 
@@ -540,8 +540,8 @@ class StoreStatementFinder(SequenceWalker):
 
         self._intervals = intervals
 
-        self._start_to_ends: DefaultDict[StatementLocation, set[LocationBase]] = defaultdict(set)
-        self._end_to_starts: DefaultDict[LocationBase, set[StatementLocation]] = defaultdict(set)
+        self._start_to_ends: defaultdict[StatementLocation, set[LocationBase]] = defaultdict(set)
+        self._end_to_starts: defaultdict[LocationBase, set[StatementLocation]] = defaultdict(set)
         self.interval_to_hasstore: dict[tuple[StatementLocation, StatementLocation], bool] = {}
         for start, end in intervals:
             self._start_to_ends[start].add(end)

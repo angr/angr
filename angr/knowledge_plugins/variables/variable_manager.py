@@ -359,7 +359,7 @@ class VariableManagerInternal(Serializable):
                 region = model._global_region
                 offset = var.addr
             else:
-                raise ValueError("Unsupported sort %s in parse_from_cmessage()." % type(var))
+                raise ValueError(f"Unsupported sort {type(var)} in parse_from_cmessage().")
 
             region.add_variable(offset, var)
 
@@ -373,7 +373,7 @@ class VariableManagerInternal(Serializable):
 
     def next_variable_ident(self, sort):
         if sort not in self._variable_counters:
-            raise ValueError("Unsupported variable sort %s" % sort)
+            raise ValueError(f"Unsupported variable sort {sort}")
 
         if sort == "register":
             prefix = "r"
@@ -397,7 +397,7 @@ class VariableManagerInternal(Serializable):
         elif sort == "global":
             region = self._global_region
         else:
-            raise ValueError("Unsupported sort %s in add_variable()." % sort)
+            raise ValueError(f"Unsupported sort {sort} in add_variable().")
 
         # find if there is already an existing variable with the same identifier
         if variable.ident in self._ident_to_variable:
@@ -418,7 +418,7 @@ class VariableManagerInternal(Serializable):
         elif sort == "global":
             region = self._global_region
         else:
-            raise ValueError("Unsupported sort %s in set_variable()." % sort)
+            raise ValueError(f"Unsupported sort {sort} in set_variable().")
         # find if there is already an existing variable with the same identifier
         if variable.ident in self._ident_to_variable:
             existing_var = self._ident_to_variable[variable.ident]
@@ -553,7 +553,7 @@ class VariableManagerInternal(Serializable):
             ident_sort = "stack"
             a = SimStackVariable(repre.offset, repre_size, ident=self.next_variable_ident(ident_sort))
         else:
-            raise TypeError('make_phi_node(): Unsupported variable type "%s".' % type(repre))
+            raise TypeError(f'make_phi_node(): Unsupported variable type "{type(repre)}".')
 
         # Keep a record of all phi variables
         self._phi_variables[a] = set(variables)
@@ -825,7 +825,7 @@ class VariableManagerInternal(Serializable):
                 if var.name is not None:
                     continue
                 if var.ident.startswith("iarg"):
-                    var.name = "arg_%x" % var.offset
+                    var.name = f"arg_{var.offset:x}"
                 else:
                     var.name = "s_%x" % (-var.offset)
                     # var.name = var.ident
@@ -841,11 +841,11 @@ class VariableManagerInternal(Serializable):
                     if "@@" in var.name:
                         var.name = var.name[: var.name.index("@@")]
                 elif isinstance(var.addr, int):
-                    var.name = "g_%x" % var.addr
+                    var.name = f"g_{var.addr:x}"
                 elif var.ident is not None:
                     var.name = var.ident
                 else:
-                    var.name = "g_%s" % var.addr
+                    var.name = f"g_{var.addr}"
 
     def assign_unified_variable_names(
         self, labels=None, arg_names: list[str] | None = None, reset: bool = False

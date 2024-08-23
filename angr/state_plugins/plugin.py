@@ -108,7 +108,7 @@ class SimStatePlugin:
         :returns: True if the state plugins are actually merged.
         :rtype: bool
         """
-        raise NotImplementedError("merge() not implement for %s" % self.__class__.__name__)
+        raise NotImplementedError(f"merge() not implement for {self.__class__.__name__}")
 
     def widen(self, others):  # pylint:disable=unused-argument
         """
@@ -121,7 +121,7 @@ class SimStatePlugin:
         :returns: True if the state plugin is actually widened.
         :rtype: bool
         """
-        raise NotImplementedError("widen() not implemented for %s" % self.__class__.__name__)
+        raise NotImplementedError(f"widen() not implemented for {self.__class__.__name__}")
 
     @classmethod
     def register_default(cls, name, xtr=None):

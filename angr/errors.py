@@ -565,7 +565,7 @@ class SimSegfaultException(SimException, SimMemoryError):
         return "SimSegfaultException({:#x} ({}{})".format(
             self.addr,
             self.reason,
-            (", original %s" % self.original_addr.__repr__(max_depth=3)) if self.original_addr is not None else "",
+            (f", original {self.original_addr.__repr__(max_depth=3)}") if self.original_addr is not None else "",
         )
 
     def __reduce__(self):

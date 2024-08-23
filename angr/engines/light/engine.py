@@ -196,7 +196,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     #
 
     def _handle_Stmt(self, stmt):
-        handler = "_handle_%s" % type(stmt).__name__
+        handler = f"_handle_{type(stmt).__name__}"
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
         elif type(stmt).__name__ not in ("IMark", "AbiHint"):
@@ -238,7 +238,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     #
 
     def _expr(self, expr):
-        handler = "_handle_%s" % type(expr).__name__
+        handler = f"_handle_{type(expr).__name__}"
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
         elif self.l is not None:
@@ -894,12 +894,12 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_type_name += "Expr"
 
         h = None
-        handler = "_handle_%s" % expr_type_name
+        handler = f"_handle_{expr_type_name}"
         if hasattr(self, handler):
             h = getattr(self, handler)
 
         if h is None:
-            handler = "_ail_handle_%s" % expr_type_name
+            handler = f"_ail_handle_{expr_type_name}"
             if hasattr(self, handler):
                 h = getattr(self, handler)
 
@@ -927,13 +927,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     #
 
     def _handle_Stmt(self, stmt):
-        handler = "_handle_%s" % type(stmt).__name__
+        handler = f"_handle_{type(stmt).__name__}"
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
             return
 
         # compatibility
-        old_handler = "_ail_handle_%s" % type(stmt).__name__
+        old_handler = f"_ail_handle_{type(stmt).__name__}"
         if hasattr(self, old_handler):
             getattr(self, old_handler)(stmt)
             return
@@ -1006,7 +1006,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            handler_name = "_ail_handle_%s" % expr.op
+            handler_name = f"_ail_handle_{expr.op}"
             try:
                 handler = getattr(self, handler_name)
             except AttributeError:
@@ -1021,7 +1021,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            handler_name = "_ail_handle_%s" % expr.op
+            handler_name = f"_ail_handle_{expr.op}"
             try:
                 handler = getattr(self, handler_name)
             except AttributeError:
@@ -1036,7 +1036,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            handler_name = "_ail_handle_%s" % expr.op
+            handler_name = f"_ail_handle_{expr.op}"
             try:
                 handler = getattr(self, handler_name)
             except AttributeError:

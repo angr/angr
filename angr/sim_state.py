@@ -282,13 +282,13 @@ class SimState(PluginHub):
         try:
             addr = self.addr
             if type(addr) is int:
-                ip_str = "%#x" % addr
+                ip_str = f"{addr:#x}"
             else:
                 ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
-        return "<SimState @ %s>" % ip_str
+        return f"<SimState @ {ip_str}>"
 
     def __setattr__(self, key, value):
         if key == "options":
@@ -304,7 +304,7 @@ class SimState(PluginHub):
         elif isinstance(v, SimStateOptions):
             super().__setattr__("options", v)
         else:
-            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
+            raise SimStateError(f"Unsupported type '{type(v)}' in SimState.options.setter().")
 
     #
     # Easier access to some properties
@@ -681,7 +681,7 @@ class SimState(PluginHub):
         common_ancestor_history = kwargs.pop("common_ancestor_history", None)
 
         if len(kwargs) != 0:
-            raise ValueError("invalid arguments: %s" % kwargs.keys())
+            raise ValueError(f"invalid arguments: {kwargs.keys()}")
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
@@ -862,7 +862,7 @@ class SimState(PluginHub):
         strings = []
         for stack_value in stack_values:
             if self.solver.symbolic(stack_value):
-                concretized_value = "SYMBOLIC - %s" % repr(stack_value)
+                concretized_value = f"SYMBOLIC - {repr(stack_value)}"
             else:
                 if len(self.solver.eval_upto(stack_value, 2)) == 2:
                     concretized_value = repr(stack_value)
@@ -889,7 +889,7 @@ class SimState(PluginHub):
         else:
             sp_value = sp if sp is not None else self.solver.eval(sp_sim)
             if self.solver.symbolic(bp_sim):
-                result = "SP = 0x%08x, BP is symbolic\n" % (sp_value)
+                result = f"SP = 0x{sp_value:08x}, BP is symbolic\n"
                 bp_value = None
             else:
                 bp_value = self.solver.eval(bp_sim)

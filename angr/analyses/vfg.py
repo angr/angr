@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, DefaultDict
+from typing import TYPE_CHECKING, Any
 from collections.abc import Callable, Generator
 import logging
 from collections import defaultdict
@@ -77,7 +77,7 @@ class VFGJob(CFGJobBase):
             if func_addr is None:
                 continue
 
-            call_site_str = "%#x" % call_site if call_site is not None else "None"
+            call_site_str = f"{call_site:#x}" if call_site is not None else "None"
 
             if func_addr in kb.functions:
                 s.append(f"{kb.functions[func_addr].name}[{call_site_str}]")
@@ -379,22 +379,22 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         # Initial states of each function, which is context sensitive
         # It maps function key to its states
-        self._function_initial_states: DefaultDict[int, dict[int, SimState]] = defaultdict(dict)
+        self._function_initial_states: defaultdict[int, dict[int, SimState]] = defaultdict(dict)
         # Final states of each function, right after `ret` is called. Also context sensitive.
         # even if a function may have multiple return sites, as long as they all return to the same place, there is
         # only one final state of that function.
-        self._function_final_states: DefaultDict[int, dict[int, SimState]] = defaultdict(dict)
+        self._function_final_states: defaultdict[int, dict[int, SimState]] = defaultdict(dict)
 
         # All final states are put in this list
         self.final_states: list[SimState] = []
 
-        self._state_initialization_map: DefaultDict[int, list[tuple[int, int]]] = defaultdict(list)
+        self._state_initialization_map: defaultdict[int, list[tuple[int, int]]] = defaultdict(list)
 
-        self._exit_targets: DefaultDict[tuple[int | None, ...], list[tuple[BlockID, str]]] = defaultdict(
+        self._exit_targets: defaultdict[tuple[int | None, ...], list[tuple[BlockID, str]]] = defaultdict(
             list
         )  # A dict to log edges and the jumpkind between each basic block
         # A dict to record all blocks that returns to a specific address
-        self._return_target_sources: DefaultDict[int, list[int]] = defaultdict(list)
+        self._return_target_sources: defaultdict[int, list[int]] = defaultdict(list)
 
         self._pending_returns: dict[BlockID, PendingJob] = {}
 
@@ -412,10 +412,10 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         self._task_stack: list[FunctionAnalysis] = []
 
-        self._tracing_times: DefaultDict[BlockID, int] = defaultdict(int)
+        self._tracing_times: defaultdict[BlockID, int] = defaultdict(int)
 
         # counters for debugging
-        self._execution_counter: DefaultDict[BlockID, int] = defaultdict(int)
+        self._execution_counter: defaultdict[BlockID, int] = defaultdict(int)
 
         # Start analysis
         self._analyze()
@@ -1355,12 +1355,12 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                         if addr is None:
                             return "None"
                         else:
-                            return "%#08x" % addr
+                            return f"{addr:#08x}"
 
                     s = "(["
                     for addr in ex[:-1]:
                         s += addr_formalize(addr) + ", "
-                    s += "] %s)" % addr_formalize(ex[-1])
+                    s += f"] {addr_formalize(ex[-1])})"
                     l.warning("Key %s does not exist.", s)
 
         return cfg
@@ -1846,7 +1846,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         if isinstance(b, SimSuccessors):
             return b.addr
         else:
-            raise TypeError("Unsupported block type %s" % type(b))
+            raise TypeError(f"Unsupported block type {type(b)}")
 
     def _get_nx_paths(self, begin, end):
         """

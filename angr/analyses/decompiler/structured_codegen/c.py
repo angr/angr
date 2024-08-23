@@ -660,7 +660,7 @@ class CExpression(CConstruct):
 
     @property
     def type(self):
-        raise NotImplementedError("Class %s does not implement type()." % type(self))
+        raise NotImplementedError(f"Class {type(self)} does not implement type().")
 
     def set_type(self, v):
         self._type = v
@@ -1674,7 +1674,7 @@ class CUnaryOp(CExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "UnaryOp %s" % (self.op), self
+            yield f"UnaryOp {self.op}", self
 
     #
     # Handlers
@@ -3056,7 +3056,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 converted = handler(node, lvalue=lvalue)
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
-        raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
+        raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
 
     def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
@@ -3507,7 +3507,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         elif expr.to_bits == 1:
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
-            raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
+            raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
 
         # convert child
         child = self._handle(expr.operand)

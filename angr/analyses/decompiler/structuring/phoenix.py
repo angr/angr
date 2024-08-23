@@ -1,6 +1,6 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, DefaultDict, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 from enum import Enum
 import logging
@@ -1334,7 +1334,7 @@ class PhoenixStructurer(StructurerBase):
 
         # entry_addrs_set = set(jumptable_entries)
         converted_nodes: dict[tuple[int, int | None], Any] = {}
-        entry_addr_to_ids: DefaultDict[tuple[int, int | None], set[int]] = defaultdict(set)
+        entry_addr_to_ids: defaultdict[tuple[int, int | None], set[int]] = defaultdict(set)
 
         # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
