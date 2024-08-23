@@ -21,10 +21,9 @@ def make_bv_sizes_equal(bv1: BV, bv2: BV) -> tuple[BV, BV]:
     """
     if bv1.size() < bv2.size():
         return (bv1.sign_extend(bv2.size() - bv1.size()), bv2)
-    elif bv1.size() > bv2.size():
+    if bv1.size() > bv2.size():
         return (bv1, bv2.sign_extend(bv1.size() - bv2.size()))
-    else:
-        return (bv1, bv2)
+    return (bv1, bv2)
 
 
 # FIXME: Unimplemented ops (mostly floating point related) have associated C++

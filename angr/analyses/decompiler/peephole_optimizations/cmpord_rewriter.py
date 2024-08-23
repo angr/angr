@@ -60,7 +60,7 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
 
         # generate the new comparison
         new_cond = BinaryOp(stmt.condition.idx, cmp_op, real_cmp.operands[::], real_cmp.signed, **real_cmp.tags)
-        new_stmt = ConditionalJump(
+        return ConditionalJump(
             stmt.idx,
             new_cond,
             stmt.true_target,
@@ -69,5 +69,3 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
             stmt.false_target_idx,
             **stmt.tags,
         )
-
-        return new_stmt

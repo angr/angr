@@ -136,8 +136,7 @@ class SimType:
             return self
         if self._arch is not None and self._arch == arch:
             return self
-        else:
-            return self._with_arch(arch)
+        return self._with_arch(arch)
 
     def _with_arch(self, arch):
         cp = copy.copy(self)
@@ -152,8 +151,7 @@ class SimType:
     ):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
-        else:
-            return f"{str(self) if self.label is None else self.label} {name}"
+        return f"{str(self) if self.label is None else self.label} {name}"
 
     def copy(self):
         raise NotImplementedError
@@ -228,10 +226,8 @@ class TypeRef(SimType):
         if not full:
             if name is not None:
                 return f"{self.name} {name}"
-            else:
-                return self.name
-        else:
-            return self.type.c_repr(name=name, full=full, memo=memo, indent=indent)
+            return self.name
+        return self.type.c_repr(name=name, full=full, memo=memo, indent=indent)
 
     def copy(self):
         raise NotImplementedError("copy() for TypeRef is ill-defined. What do you want this to do?")
@@ -280,8 +276,7 @@ class SimTypeBottom(SimType):
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
             return "int"
-        else:
-            return f'{"int" if self.label is None else self.label} {name}'
+        return f'{"int" if self.label is None else self.label} {name}'
 
     def _init_str(self):
         return "{}({})".format(self.__class__.__name__, (f'label="{self.label}"') if self.label else "")
@@ -958,8 +953,7 @@ class SimTypeString(NamedTypeMixin, SimType):
             out = state.memory.load(addr, size=self.length)
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
-        else:
-            return state.solver.eval(out, cast_to=bytes) if out is not None else b""
+        return state.solver.eval(out, cast_to=bytes) if out is not None else b""
 
     _can_refine_int = True
 
@@ -1031,11 +1025,9 @@ class SimTypeWString(NamedTypeMixin, SimType):
             out = claripy.BVV(0, 0)
         if not concrete:
             return out
-        else:
-            return "".join(
-                chr(state.solver.eval(x.reversed if state.arch.memory_endness == "Iend_LE" else x))
-                for x in out.chop(16)
-            )
+        return "".join(
+            chr(state.solver.eval(x.reversed if state.arch.memory_endness == "Iend_LE" else x)) for x in out.chop(16)
+        )
 
     def store(self, state, addr, value):
         raise NotImplementedError
@@ -1420,10 +1412,9 @@ class SimStruct(NamedTypeMixin, SimType):
         last_type = self.fields[last_name]
         if isinstance(last_type, SimTypeNumOffset):
             return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
-        elif last_type.size is None:
+        if last_type.size is None:
             raise AngrTypeError("Cannot compute the size of a struct with elements with no size")
-        else:
-            return last_off * self._arch.byte_width + last_type.size
+        return last_off * self._arch.byte_width + last_type.size
 
     @property
     def alignment(self):
@@ -3181,20 +3172,20 @@ def _decl_to_type(
         r._arch = arch
         return r
 
-    elif isinstance(decl, pycparser.c_ast.TypeDecl):
+    if isinstance(decl, pycparser.c_ast.TypeDecl):
         if decl.declname == "TOP":
             r = SimTypeTop()
             r._arch = arch
             return r
         return _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
 
-    elif isinstance(decl, pycparser.c_ast.PtrDecl):
+    if isinstance(decl, pycparser.c_ast.PtrDecl):
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
         r = SimTypePointer(pts_to)
         r._arch = arch
         return r
 
-    elif isinstance(decl, pycparser.c_ast.ArrayDecl):
+    if isinstance(decl, pycparser.c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
 
         if decl.dim is None:
@@ -3210,7 +3201,7 @@ def _decl_to_type(
         r._arch = arch
         return r
 
-    elif isinstance(decl, pycparser.c_ast.Struct):
+    if isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -3249,7 +3240,7 @@ def _decl_to_type(
             struct._arch = arch
         return struct
 
-    elif isinstance(decl, pycparser.c_ast.Union):
+    if isinstance(decl, pycparser.c_ast.Union):
         if decl.decls is not None:
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
@@ -3283,18 +3274,17 @@ def _decl_to_type(
             union._arch = arch
         return union
 
-    elif isinstance(decl, pycparser.c_ast.IdentifierType):
+    if isinstance(decl, pycparser.c_ast.IdentifierType):
         key = " ".join(decl.names)
         if bitsize is not None:
             return SimTypeNumOffset(int(bitsize.value), signed=False)
-        elif key in extra_types:
+        if key in extra_types:
             return extra_types[key]
-        elif key in ALL_TYPES:
+        if key in ALL_TYPES:
             return ALL_TYPES[key].with_arch(arch)
-        else:
-            raise TypeError(f"Unknown type '{key}'")
+        raise TypeError(f"Unknown type '{key}'")
 
-    elif isinstance(decl, pycparser.c_ast.Enum):
+    if isinstance(decl, pycparser.c_ast.Enum):
         # See C99 at 6.7.2.2
         return ALL_TYPES["int"].with_arch(arch)
 
@@ -3304,7 +3294,7 @@ def _decl_to_type(
 def _parse_const(c, arch=None, extra_types=None):
     if type(c) is pycparser.c_ast.Constant:
         return int(c.value, base=0)
-    elif type(c) is pycparser.c_ast.BinaryOp:
+    if type(c) is pycparser.c_ast.BinaryOp:
         if c.op == "+":
             return _parse_const(c.children()[0][1], arch, extra_types) + _parse_const(
                 c.children()[1][1], arch, extra_types
@@ -3330,15 +3320,13 @@ def _parse_const(c, arch=None, extra_types=None):
                 c.children()[1][1], arch, extra_types
             )
         raise ValueError(f"Binary op {c.op}")
-    elif type(c) is pycparser.c_ast.UnaryOp:
+    if type(c) is pycparser.c_ast.UnaryOp:
         if c.op == "sizeof":
             return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
-        else:
-            raise ValueError(f"Unary op {c.op}")
-    elif type(c) is pycparser.c_ast.Cast:
+        raise ValueError(f"Unary op {c.op}")
+    if type(c) is pycparser.c_ast.Cast:
         return _parse_const(c.expr, arch, extra_types)
-    else:
-        raise ValueError(c)
+    raise ValueError(c)
 
 
 def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes=True):
@@ -3368,24 +3356,21 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
         # other properties
         ctor = the_func["constructor"]
         dtor = the_func["destructor"]
-        func = SimTypeCppFunction(args, returnty, arg_names=arg_names_tuple, ctor=ctor, dtor=dtor)
-        return func
+        return SimTypeCppFunction(args, returnty, arg_names=arg_names_tuple, ctor=ctor, dtor=dtor)
 
-    elif isinstance(decl, str):
+    if isinstance(decl, str):
         # a string that represents type
         if decl.endswith("&"):
             # reference
             subdecl = decl.rstrip("&").strip()
             subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
-            t = SimTypeReference(subt)
-            return t
+            return SimTypeReference(subt)
 
         if decl.endswith("*"):
             # pointer
             subdecl = decl.rstrip("*").strip()
             subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
-            t = SimTypePointer(subt)
-            return t
+            return SimTypePointer(subt)
 
         if decl.endswith(" const"):
             # drop const

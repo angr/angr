@@ -347,7 +347,7 @@ def x86g_dirtyhelper_SxDT(state, addr, op):
     if not op.concrete:
         # resolved failed
         return None, []
-    elif op.concrete_value == 0:
+    if op.concrete_value == 0:
         state.memory.store(addr, state.solver.Unconstrained("SIDT", 48))
     elif op.concrete_value == 1:
         state.memory.store(addr, state.regs.gdt)

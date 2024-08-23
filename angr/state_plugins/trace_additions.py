@@ -54,10 +54,9 @@ class FormatInfoStrToInt(FormatInfo):
         self.input_base = None
 
     def copy(self):
-        out = FormatInfoStrToInt(
+        return FormatInfoStrToInt(
             self.addr, self.func_name, self.str_arg_num, self.base, self.base_arg, self.allows_negative
         )
-        return out
 
     def compute(self, state):
         self.input_val = angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.str_arg_num)
@@ -94,10 +93,9 @@ class FormatInfoIntToStr(FormatInfo):
         self.str_dst_addr = None
 
     def copy(self):
-        out = FormatInfoIntToStr(
+        return FormatInfoIntToStr(
             self.addr, self.func_name, self.int_arg_num, self.str_dst_num, self.base, self.base_arg
         )
-        return out
 
     def compute(self, state):
         self.input_val = angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.int_arg_num)
@@ -122,8 +120,7 @@ class FormatInfoDontConstrain(FormatInfo):
         self.check_symbolic_arg = check_symbolic_arg
 
     def copy(self):
-        out = FormatInfoDontConstrain(self.addr, self.func_name, self.check_symbolic_arg)
-        return out
+        return FormatInfoDontConstrain(self.addr, self.func_name, self.check_symbolic_arg)
 
     def compute(self, state):
         pass
@@ -499,8 +496,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
                 if require_same_length:
                     l.warning("could not satisfy with same length, falling back to different lengths")
                     return ChallRespInfo.atoi_dumps(state, require_same_length=False)
-                else:
-                    return state.posix.dumps(0)
+                return state.posix.dumps(0)
             solns = solns[0]
 
             # now make the real stdin
@@ -671,8 +667,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         flag_arg_vars = {v for v in flag_arg_vars if v.startswith(("cgc-flag", "random"))}
         if len(flag_arg_vars) == 0:
             return 0
-        depth = max(self.depths.get(v, 0) for v in flag_arg_vars) + 1
-        return depth
+        return max(self.depths.get(v, 0) for v in flag_arg_vars) + 1
 
     @angr.state_plugins.SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument

@@ -490,10 +490,7 @@ class CFGBase(Analysis):
 
         if cfg_node is not None:
             return BlockNode(addr, size, thumb=thumb, bytestr=cfg_node.byte_string)  # pylint: disable=no-member
-        else:
-            return self.project.factory.snippet(
-                addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state
-            )
+        return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state)
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -600,13 +597,11 @@ class CFGBase(Analysis):
         if it_counter != 0:
             l.debug("Basic block ends before calculated IT block (%#x)", irsb.addr)
 
-        successors_filtered = [
+        return [
             suc
             for suc in successors
             if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT
         ]
-
-        return successors_filtered
 
     # Methods for determining scanning scope
 
@@ -825,9 +820,7 @@ class CFGBase(Analysis):
         if not memory_regions:
             memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
 
-        memory_regions = sorted(memory_regions, key=lambda x: x[0])
-
-        return memory_regions
+        return sorted(memory_regions, key=lambda x: x[0])
 
     def _addr_in_exec_memory_regions(self, addr):
         """
@@ -1103,7 +1096,7 @@ class CFGBase(Analysis):
             target_func = self.kb.functions[goout_target.addr]
             if target_func.returning is True:
                 return True
-            elif target_func.returning is None:
+            if target_func.returning is None:
                 # the returning status of at least one of the target functions is not decided yet.
                 bail_out = True
 
@@ -2610,7 +2603,7 @@ class CFGBase(Analysis):
         if insn_name == "nop":
             # nops
             return True
-        elif insn_name == "lea":
+        if insn_name == "lea":
             # lea reg, [reg + 0]
             op0, op1 = insn.operands
             # reg and mem

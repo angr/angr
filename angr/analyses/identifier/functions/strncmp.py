@@ -28,7 +28,7 @@ class strncmp(Func):
     def gen_input_output_pair(self):
         l = 5
         rand_str(l, strncmp.non_null)  # s
-        return None
+        return
 
     def can_call_other_funcs(self):
         return False

@@ -61,8 +61,7 @@ class ExpressionReplacer(AILBlockWalker):
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if expr == self._target_expr:
-            new_expr = self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
-            return new_expr
+            return self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 

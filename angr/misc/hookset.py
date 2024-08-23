@@ -99,8 +99,7 @@ class HookedMethod:
             finally:
                 self.pending.append(current_hook)
             return result
-        else:
-            return self.func(*args, **kwargs)
+        return self.func(*args, **kwargs)
 
     def copy_to(self, new_func):
         new_hooked = HookedMethod(new_func)

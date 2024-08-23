@@ -45,5 +45,4 @@ class select(angr.SimProcedure):
         for offset in range(long_array_size):
             self.state.memory.store(readfds + offset * arch_bytes, long_array[offset], endness=self.arch.memory_endness)
 
-        retval = claripy.BVV(0, 1).concat(claripy.BVS("select_ret", 31))
-        return retval
+        return claripy.BVV(0, 1).concat(claripy.BVS("select_ret", 31))

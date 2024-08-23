@@ -77,10 +77,9 @@ class AnnotatedCFG:
     def get_addr(self, run):
         if isinstance(run, CFGNode):
             return run.addr
-        elif type(run) is int:
+        if type(run) is int:
             return run
-        else:
-            raise AngrAnnotatedCFGError(f"Unknown type '{type(run)}' of the 'run' argument")
+        raise AngrAnnotatedCFGError(f"Unknown type '{type(run)}' of the 'run' argument")
 
     def add_block_to_whitelist(self, block):
         addr = self.get_addr(block)
@@ -124,12 +123,11 @@ class AnnotatedCFG:
     def should_execute_statement(self, addr, stmt_id):
         if self._run_statement_whitelist is None:
             return True
-        elif addr in self._run_statement_whitelist:
+        if addr in self._run_statement_whitelist:
             r = self._run_statement_whitelist[addr]
             if isinstance(r, bool):
                 return r
-            else:
-                return stmt_id in self._run_statement_whitelist[addr]
+            return stmt_id in self._run_statement_whitelist[addr]
         return False
 
     def get_run(self, addr):
@@ -147,11 +145,9 @@ class AnnotatedCFG:
                 # we execute all statements in this basic block. A
                 # little weird...
 
-            else:
-                return self._run_statement_whitelist[addr]
+            return self._run_statement_whitelist[addr]
 
-        else:
-            return []
+        return []
 
     def get_last_statement_index(self, addr):
         """
@@ -168,7 +164,7 @@ class AnnotatedCFG:
             return None
         if addr in self._addr_to_last_stmt_id:
             return self._addr_to_last_stmt_id[addr]
-        elif addr in self._run_statement_whitelist:
+        if addr in self._run_statement_whitelist:
             # is the default exit there? it equals to a negative number (-2 by default) so `max()` won't work.
             if self._run_statement_whitelist[addr] is True or (
                 isinstance(self._run_statement_whitelist[addr], list)
@@ -251,8 +247,7 @@ class AnnotatedCFG:
         addr = path.addr
         if addr in self._path_merge_points:
             return {self._path_merge_points[addr]}
-        else:
-            return set()
+        return set()
 
     def successor_func(self, path):
         """

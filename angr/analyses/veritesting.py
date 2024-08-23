@@ -105,10 +105,9 @@ class CallTracingFilter:
                 # accept!
                 l.debug("Accepting target 0x%x, jumpkind %s", addr, jumpkind)
                 return ACCEPT
-            else:
-                # reject
-                l.debug("Rejecting target 0x%x - syscall %s not in whitelist", addr, type(next_run))
-                return REJECT
+            # reject
+            l.debug("Rejecting target 0x%x - syscall %s not in whitelist", addr, type(next_run))
+            return REJECT
 
         cfg_key = (addr, jumpkind, self.project.filename)
         if cfg_key not in self.cfg_cache:

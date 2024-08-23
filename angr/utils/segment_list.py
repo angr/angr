@@ -28,8 +28,7 @@ class Segment:
         self.sort = sort
 
     def __repr__(self):
-        s = f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
-        return s
+        return f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
 
     @property
     def size(self):
@@ -275,7 +274,7 @@ class SegmentList:
                     # |-- address + size --|
                     # no overlap
                     break
-                elif segment.start < address + size <= segment.start + segment.size:
+                if segment.start < address + size <= segment.start + segment.size:
                     #            |---- segment ----|
                     # |-- address + size --|
                     #
@@ -285,7 +284,7 @@ class SegmentList:
                         # remove the segment
                         self._list.remove(segment)
                     break
-                elif address + size > segment.start + segment.size:
+                if address + size > segment.start + segment.size:
                     #            |---- segment ----|
                     # |--------- address + size ----------|
                     self._list.remove(segment)

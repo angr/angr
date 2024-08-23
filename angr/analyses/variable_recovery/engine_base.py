@@ -277,8 +277,7 @@ class SimEngineVRBase(SimEngineLight):
             # no associated variables. it's usually because _ensure_variable_existence() is not called, or the address
             # is a TOP. we ignore this case.
             return
-        else:
-            variable, _ = existing_vars[0]
+        variable, _ = existing_vars[0]
 
         if not self.state.typevars.has_type_variable_for(variable, codeloc):
             variable_typevar = typevars.TypeVariable()

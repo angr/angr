@@ -58,7 +58,6 @@ class fopen(angr.SimProcedure):
 
         if self.state.solver.is_true(fd == fd_concr):
             return file_struct_ptr
-        else:
-            # still possible that open failed
-            null = claripy.BVV(0, self.state.arch.bits)
-            return claripy.If(fd == fd_concr, file_struct_ptr, null)
+        # still possible that open failed
+        null = claripy.BVV(0, self.state.arch.bits)
+        return claripy.If(fd == fd_concr, file_struct_ptr, null)

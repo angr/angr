@@ -354,9 +354,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 func.prototype_libname,
                 self.kb.variables.get_function_manager(func_addr),
             )
-        else:
-            _l.info("Cannot determine calling convention for %r.", func)
-            return None, None, None, self.kb.variables.get_function_manager(func_addr)
+        _l.info("Cannot determine calling convention for %r.", func)
+        return None, None, None, self.kb.variables.get_function_manager(func_addr)
 
     def prioritize_functions(self, func_addrs_to_prioritize: Iterable[int]):
         """

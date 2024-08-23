@@ -1335,8 +1335,7 @@ class AILSimplifier(Analysis):
                 if rewriter.result is not None:
                     _any_update.v = True
                     return rewriter.result
-                else:
-                    return None
+                return None
 
             return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 

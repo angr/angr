@@ -173,10 +173,9 @@ class Definition(Generic[A]):
             return "<Definition {{Atom:{}, Codeloc:{}}}{}>".format(
                 self.atom, self.codeloc, "" if not self.dummy else "dummy"
             )
-        else:
-            return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
-                repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
-            )
+        return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
+            repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
+        )
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
@@ -191,22 +190,19 @@ class Definition(Generic[A]):
     def offset(self) -> int:
         if isinstance(self.atom, Register):
             return self.atom.reg_offset
-        elif isinstance(self.atom, MemoryLocation):
+        if isinstance(self.atom, MemoryLocation):
             if isinstance(self.atom.addr, SpOffset):
                 return self.atom.addr.offset
-            else:
-                return self.atom.addr
-        else:
-            raise ValueError(f"Unsupported operation offset on {type(self.atom)}.")
+            return self.atom.addr
+        raise ValueError(f"Unsupported operation offset on {type(self.atom)}.")
 
     @property
     def size(self) -> int:
         if isinstance(self.atom, Register):
             return self.atom.size
-        elif isinstance(self.atom, MemoryLocation):
+        if isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
-        else:
-            raise ValueError(f"Unsupported operation size on {type(self.atom)}.")
+        raise ValueError(f"Unsupported operation size on {type(self.atom)}.")
 
     def matches(self, **kwargs) -> bool:
         """

@@ -407,8 +407,7 @@ class SimOS:
         fs = selector
         selector = self._create_selector(4, S_GDT | S_PRIV_0)
         gs = selector
-        global_descriptor_table = GlobalDescriptorTable(GDT_ADDR, GDT_LIMIT, table, gdt, cs, ds, es, ss, fs, gs)
-        return global_descriptor_table
+        return GlobalDescriptorTable(GDT_ADDR, GDT_LIMIT, table, gdt, cs, ds, es, ss, fs, gs)
 
     @staticmethod
     def _create_selector(idx, flags):

@@ -79,8 +79,7 @@ class Unknown:
             raise Exception("You cannot create an unknown region of size 0.")
 
     def __repr__(self):
-        s = f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
-        return s
+        return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
 
 
 class CFBlanket(Analysis):

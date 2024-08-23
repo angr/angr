@@ -157,7 +157,7 @@ class PluginHub(Generic[P]):
         if name in self._active_plugins:
             return self._active_plugins[name]
 
-        elif self._active_preset is not None:
+        if self._active_preset is not None:
             plugin_cls: type[P] = self._active_preset.request_plugin(name)
             plugin = self._init_plugin(plugin_cls)
 
@@ -167,8 +167,7 @@ class PluginHub(Generic[P]):
             self.register_plugin(name, plugin)
             return plugin
 
-        else:
-            raise AngrNoPluginError(f"No such plugin: {name}")
+        raise AngrNoPluginError(f"No such plugin: {name}")
 
     def _init_plugin(self, plugin_cls: type[P]) -> P:  # pylint: disable=no-self-use
         """

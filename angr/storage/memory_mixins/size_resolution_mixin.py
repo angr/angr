@@ -21,7 +21,7 @@ class SizeNormalizationMixin(MemoryMixin):
     def load(self, addr, size=None, **kwargs):
         if size is None:
             raise TypeError("Must provide size to load")
-        elif type(size) is int:
+        if type(size) is int:
             out_size = size
         elif getattr(size, "op", None) == "BVV":
             out_size = size.args[0]

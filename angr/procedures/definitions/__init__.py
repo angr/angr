@@ -274,8 +274,7 @@ class SimLibrary:
             proc = copy.deepcopy(self.procedures[name])
             self._apply_metadata(proc, arch)
             return proc
-        else:
-            return self.get_stub(name, arch)
+        return self.get_stub(name, arch)
 
     def get_stub(self, name, arch):
         """

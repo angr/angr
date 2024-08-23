@@ -84,8 +84,7 @@ class Oppologist(ExplorationTechnique):
             try:
                 if e.executed_instruction_count:
                     return self._delayed_oppology(simgr, state, e, **kwargs)
-                else:
-                    return self._oppologize(simgr, state, state.copy(), **kwargs)
+                return self._oppologize(simgr, state, state.copy(), **kwargs)
             except exc_list as err:
                 l.error("Oppologizer hit an error while trying to perform repairs", exc_info=True)
                 raise e from err

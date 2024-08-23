@@ -16,9 +16,8 @@ def translate_stmt(stmt, state):
         s.process()
         return s
 
-    else:
-        l.warning("Unsupported Soot statement %s.", stmt_cls_name)
-        return None
+    l.warning("Unsupported Soot statement %s.", stmt_cls_name)
+    return None
 
 
 from .assign import SimSootStmt_Assign

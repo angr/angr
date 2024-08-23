@@ -86,7 +86,7 @@ class Server:
         self._active_workers = state["_active_workers"]
 
     def __getstate__(self):
-        s = {
+        return {
             "project": self.project,
             "spill_yard": self.spill_yard,
             "db_str": self.db_str,
@@ -99,7 +99,6 @@ class Server:
             "_stopped": self._stopped,
             "_active_workers": self._active_workers,
         }
-        return s
 
     #
     # Actions

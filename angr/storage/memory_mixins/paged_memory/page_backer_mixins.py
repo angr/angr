@@ -94,7 +94,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         # initialize the page
         if isinstance(backer, (bytes, bytearray, mmap)):
             return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
-        elif isinstance(backer, list):
+        if isinstance(backer, list):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
         raise TypeError(f"Unsupported backer type {type(backer)}.")
 
@@ -162,8 +162,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             except StopIteration:
                 break
 
-        data = claripy.Concat(*(claripy.BVV(v, self.state.arch.byte_width) for v in page_data))
-        return data
+        return claripy.Concat(*(claripy.BVV(v, self.state.arch.byte_width) for v in page_data))
 
     def _cle_permissions_lookup(self, addr):
         if self._cle_loader is None:

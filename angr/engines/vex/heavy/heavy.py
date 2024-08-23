@@ -233,6 +233,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 )
 
         successors.processed = True
+        return None
 
     #
     # behavior instrumenting the VEXMixin

@@ -104,11 +104,10 @@ class VariableAccess(Serializable):
             access_type = VariableAccessSort.REFERENCE
         else:
             raise NotImplementedError
-        model = VariableAccess(
+        return VariableAccess(
             variable,
             access_type,
             location,
             cmsg.offset if cmsg.HasField("offset") else None,
             atom_hash=cmsg.atom_hash if cmsg.HasField("atom_hash") else None,
         )
-        return model

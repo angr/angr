@@ -100,8 +100,7 @@ class FunctionKey:
         return " -> ".join(s)
 
     def __repr__(self):
-        s = f"<FuncKey {self.addr:#08x} ({self.callsite_repr()})>"
-        return s
+        return f"<FuncKey {self.addr:#08x} ({self.callsite_repr()})>"
 
     def __hash__(self):
         if self._hash is None:
@@ -201,5 +200,4 @@ class CFGJobBase:
     def __repr__(self):
         if isinstance(self.addr, SootAddressDescriptor):
             return f"<Entry {self.addr} {self.jumpkind}>"
-        else:
-            return f"<Entry {self.addr:#08x} % {self.jumpkind}>"
+        return f"<Entry {self.addr:#08x} % {self.jumpkind}>"

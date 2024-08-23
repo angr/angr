@@ -221,7 +221,7 @@ class SequenceWalker:
             self._handle(child_node, parent=node, index=index)
         if node.else_node is not None:
             self._handle(node.else_node, parent=node, index=-1)
-        return None
+        return
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):  # pylint:disable=no-self-use
         return None

@@ -211,8 +211,7 @@ class BlockSimplifier(Analysis):
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             new_block = self._eliminate_dead_assignments(new_block)
 
-        new_block = self._peephole_optimize(new_block)
-        return new_block
+        return self._peephole_optimize(new_block)
 
     @staticmethod
     def _replace_and_build(
@@ -311,8 +310,7 @@ class BlockSimplifier(Analysis):
                     continue
             new_statements.append(stmt)
 
-        new_block = block.copy(statements=new_statements)
-        return new_block
+        return block.copy(statements=new_statements)
 
     def _eliminate_dead_assignments(self, block):
         new_statements = []
@@ -400,8 +398,7 @@ class BlockSimplifier(Analysis):
 
             new_statements.append(stmt)
 
-        new_block = block.copy(statements=new_statements)
-        return new_block
+        return block.copy(statements=new_statements)
 
     #
     # Peephole optimization
@@ -420,8 +417,7 @@ class BlockSimplifier(Analysis):
 
         if not multi_stmts_updated:
             return new_block
-        new_block = new_block.copy(statements=statements)
-        return new_block
+        return new_block.copy(statements=statements)
 
 
 register_analysis(BlockSimplifier, "AILBlockSimplifier")

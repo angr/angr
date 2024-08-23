@@ -17,12 +17,11 @@ class PosixDevFS(SimMount):  # this'll be mounted at /dev
     def get(self, path):  # pylint: disable=arguments-differ
         if path == ["stdin"]:
             return self.state.posix.fd.get(0, None)
-        elif path == ["stdout"]:
+        if path == ["stdout"]:
             return self.state.posix.fd.get(1, None)
-        elif path == ["stderr"]:
+        if path == ["stderr"]:
             return self.state.posix.fd.get(2, None)
-        else:
-            return None
+        return None
 
     def insert(self, path, simfile):  # pylint: disable=unused-argument, arguments-differ
         return False
@@ -51,8 +50,7 @@ class PosixProcFS(SimMount):
     def get(self, path):  # pylint: disable=arguments-differ
         if path == [b"uptime"]:
             return SimFile(b"uptime", content=b"0 0")
-        else:
-            return None
+        return None
 
     def insert(self, path, simfile):  # pylint: disable=unused-argument, arguments-differ
         return False
@@ -368,9 +366,8 @@ class SimSystemPosix(SimStatePlugin):
         self.fd[fd] = simfd
         if self.state.solver.is_true(simfd.file_exists):
             return fd
-        else:
-            m1 = claripy.BVV(-1, self.state.arch.sizeof["int"])
-            return claripy.If(simfd.file_exists, fd, m1)
+        m1 = claripy.BVV(-1, self.state.arch.sizeof["int"])
+        return claripy.If(simfd.file_exists, fd, m1)
 
     def open_socket(self, ident):
         fd = self._pick_fd()

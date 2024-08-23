@@ -24,9 +24,7 @@ class ConstantPropagation:
         self.constant_consuming_loc = constant_consuming_loc
 
     def __repr__(self):
-        s = f"<Constant {self.constant:#x} propagates from {self.constant_assignment_loc.ins_addr:#x} to {self.constant_consuming_loc.ins_addr:#x}>"
-
-        return s
+        return f"<Constant {self.constant:#x} propagates from {self.constant_assignment_loc.ins_addr:#x} to {self.constant_consuming_loc.ins_addr:#x}>"
 
 
 class RedundantStackVariable:
@@ -37,14 +35,12 @@ class RedundantStackVariable:
         self.argument_register_as_retval = False
 
     def __repr__(self):
-        s = "<StackVar %s for %s at %d locations%s>" % (
+        return "<StackVar %s for %s at %d locations%s>" % (
             self.stack_variable,
             self.argument,
             len(self.stack_variable_consuming_locs),
             " - retval" if self.argument_register_as_retval else "",
         )
-
-        return s
 
 
 class RegisterReallocation:
@@ -83,13 +79,12 @@ class RegisterReallocation:
         self.epilogue_size = epilogue_size
 
     def __repr__(self):
-        s = "<RegisterReallocation %s for %s with %d sources and %d consumers>" % (
+        return "<RegisterReallocation %s for %s with %d sources and %d consumers>" % (
             self.register_variable,
             self.stack_variable,
             len(self.stack_variable_sources),
             len(self.stack_variable_consumers),
         )
-        return s
 
 
 class DeadAssignment:
@@ -103,8 +98,7 @@ class DeadAssignment:
         self.pv = pv
 
     def __repr__(self):
-        s = f"<DeadAssignmentElimination {self.pv}>"
-        return s
+        return f"<DeadAssignmentElimination {self.pv}>"
 
 
 class BinaryOptimizer(Analysis):

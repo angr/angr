@@ -40,10 +40,9 @@ class AST:
 
         if len(self.operands) == 1:
             return f"{self.op}{_short_repr(self.operands[0])}"
-        elif len(self.operands) == 2:
+        if len(self.operands) == 2:
             return f"{_short_repr(self.operands[0])} {self.op} {_short_repr(self.operands[1])}"
-        else:
-            return f"{self.op} ({self.operands})"
+        return f"{self.op} ({self.operands})"
 
 
 class ProgramVariable:
@@ -230,7 +229,7 @@ class LiveDefinitions:
         if isinstance(variable, SimRegisterVariable):
             if variable.reg is None:
                 l.warning("kill_def: Got a None for a SimRegisterVariable. Consider fixing.")
-                return None
+                return
 
             size = min(variable.size, size_threshold)
             offset = variable.reg
@@ -341,12 +340,11 @@ class DDGViewItem:
         return None
 
     def __repr__(self):
-        s = "[%s, %d dependents, depends on %d]" % (
+        return "[%s, %d dependents, depends on %d]" % (
             self._variable,
             len(self.dependents),
             len(self.depends_on),
         )
-        return s
 
     def __eq__(self, other):
         return (
@@ -423,6 +421,7 @@ class DDGViewInstruction:
             pv = ProgramVariable(variable, location, arch=self._project.arch)
 
             return DDGViewItem(self._ddg, pv, simplified=self._simplified)
+        return None
 
     @property
     def definitions(self) -> list[DDGViewItem]:
@@ -461,6 +460,7 @@ class DDGView:
         if isinstance(key, int):
             # instruction address
             return DDGViewInstruction(self._cfg, self._ddg, key, simplified=self._simplified)
+        return None
 
 
 class DDG(Analysis):
@@ -943,8 +943,7 @@ class DDG(Analysis):
         # TODO: support registers that are not aligned
         if reg_offset in self.project.arch.register_names:
             reg_name = self.project.arch.register_names[reg_offset]
-            reg_size = self.project.arch.registers[reg_name][1]
-            return reg_size
+            return self.project.arch.registers[reg_name][1]
 
         l.warning(
             "_get_register_size(): unsupported register offset %d. Assum size 1. "
@@ -1299,8 +1298,7 @@ class DDG(Analysis):
 
                 const_def = ProgramVariable(SimConstantVariable(const_value), location)
                 tmp_def = self._temp_variables[tmp]
-                ast = AST("-", tmp_def, const_def)
-                return ast
+                return AST("-", tmp_def, const_def)
 
         elif action.op.endswith("Add32") or action.op.endswith("Add64"):
             # add
@@ -1314,8 +1312,7 @@ class DDG(Analysis):
 
                 const_def = ProgramVariable(SimConstantVariable(const_value), location)
                 tmp_def = self._temp_variables[tmp]
-                ast = AST("+", tmp_def, const_def)
-                return ast
+                return AST("+", tmp_def, const_def)
 
         return None
 
@@ -1443,7 +1440,7 @@ class DDG(Analysis):
 
         if node_wrapper.cfg_node in worklist_set:
             # It's already in the work-list
-            return
+            return None
 
         worklist.append(node_wrapper)
         worklist_set.add(node_wrapper.cfg_node)

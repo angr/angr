@@ -37,8 +37,7 @@ class memset(Func):
         test_output = [chr(char) * set_len + result_buf[-5:], None, None]
         max_steps = 20
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         return True

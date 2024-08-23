@@ -43,5 +43,4 @@ def resolve_method(
     #              still can use SimProcedures
     if raise_exception_if_not_found:
         raise SootMethodNotLoadedException
-    else:
-        return SootMethodDescriptor(class_name, method_name, params, ret_type=ret_type)
+    return SootMethodDescriptor(class_name, method_name, params, ret_type=ret_type)

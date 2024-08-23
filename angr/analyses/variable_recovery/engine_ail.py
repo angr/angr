@@ -224,8 +224,7 @@ class SimEngineVRAIL(
         addr_r = self._expr(expr.addr)
         size = expr.size
 
-        r = self._load(addr_r, size, expr=expr)
-        return r
+        return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_Const(self, expr: ailment.Expr.Const):
         if isinstance(expr.value, float):

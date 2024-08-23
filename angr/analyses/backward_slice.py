@@ -97,8 +97,7 @@ class BackwardSlice(Analysis):
     #
 
     def __repr__(self):
-        s = f"BackwardSlice (to {self._targets})"
-        return s
+        return f"BackwardSlice (to {self._targets})"
 
     def dbg_repr(self, max_display=10):
         """

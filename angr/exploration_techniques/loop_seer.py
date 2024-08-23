@@ -98,8 +98,7 @@ class LoopSeer(ExplorationTechnique):
         if state in self.cut_succs:
             self.cut_succs.remove(state)
             return self.discard_stash
-        else:
-            return simgr.filter(state, **kwargs)
+        return simgr.filter(state, **kwargs)
 
     def successors(self, simgr, state, **kwargs):
         node = self.cfg.model.get_any_node(state.addr)

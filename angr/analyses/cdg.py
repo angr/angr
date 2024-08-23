@@ -69,8 +69,7 @@ class CDG(Analysis):
         """
         if run in self._graph.nodes():
             return list(self._graph.successors(run))
-        else:
-            return []
+        return []
 
     def get_guardians(self, run):
         """
@@ -78,8 +77,7 @@ class CDG(Analysis):
         """
         if run in self._graph.nodes():
             return list(self._graph.predecessors(run))
-        else:
-            return []
+        return []
 
     #
     # Private methods

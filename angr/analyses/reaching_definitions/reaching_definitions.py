@@ -468,19 +468,18 @@ class ReachingDefinitionsAnalysis(
     def _initial_abstract_state(self, node) -> ReachingDefinitionsState:
         if self._init_state is not None:
             return self._init_state
-        else:
-            return ReachingDefinitionsState(
-                CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, context=self._init_context),
-                self.project.arch,
-                self.subject,
-                track_tmps=self._track_tmps,
-                track_consts=self._track_consts,
-                analysis=self,
-                canonical_size=self._canonical_size,
-                initializer=self._state_initializer,
-                element_limit=self._element_limit,
-                merge_into_tops=self._merge_into_tops,
-            )
+        return ReachingDefinitionsState(
+            CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, context=self._init_context),
+            self.project.arch,
+            self.subject,
+            track_tmps=self._track_tmps,
+            track_consts=self._track_consts,
+            analysis=self,
+            canonical_size=self._canonical_size,
+            initializer=self._state_initializer,
+            element_limit=self._element_limit,
+            merge_into_tops=self._merge_into_tops,
+        )
 
     # pylint: disable=no-self-use,arguments-differ
     def _merge_states(self, _node, *states: ReachingDefinitionsState):
@@ -498,8 +497,7 @@ class ReachingDefinitionsAnalysis(
         :return:
         """
 
-        reached_fixedpoint = new_state.compare(old_state)
-        return reached_fixedpoint
+        return new_state.compare(old_state)
 
     def _run_on_node(self, node, state: ReachingDefinitionsState):
         """
@@ -576,8 +574,7 @@ class ReachingDefinitionsAnalysis(
 
         if self._node_iterations[block_key] < self._max_iterations:
             return None, state
-        else:
-            return False, state
+        return False, state
 
     def _intra_analysis(self):
         pass

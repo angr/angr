@@ -404,9 +404,8 @@ class PagedMemoryMixin(MemoryMixin):
         if result.op == "BVV":
             if with_bitmap:
                 return memoryview(result.args[0].to_bytes(size, "big")), memoryview(bytes(size))
-            else:
-                return memoryview(result.args[0].to_bytes(size, "big"))
-        elif result.op == "Concat":
+            return memoryview(result.args[0].to_bytes(size, "big"))
+        if result.op == "Concat":
             bytes_out = bytearray(size)
             bitmap_out = bytearray(size)
             bit_idx = 0
@@ -465,13 +464,10 @@ class PagedMemoryMixin(MemoryMixin):
                     bitmap_out[bit_idx // byte_width] = 1
             if with_bitmap:
                 return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
-            else:
-                return memoryview(bytes(bytes_out))
-        else:
-            if with_bitmap:
-                return memoryview(bytes(size)), memoryview(b"\x01" * size)
-            else:
-                return memoryview(b"")
+            return memoryview(bytes(bytes_out))
+        if with_bitmap:
+            return memoryview(bytes(size)), memoryview(b"\x01" * size)
+        return memoryview(b"")
 
     def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):
         pageno, offset = self._divide_addr(addr)
@@ -481,8 +477,7 @@ class PagedMemoryMixin(MemoryMixin):
         except SimMemoryError:
             if with_bitmap:
                 return memoryview(b""), memoryview(b"")
-            else:
-                return memoryview(b"")
+            return memoryview(b"")
 
         if not page.SUPPORTS_CONCRETE_LOAD:
             # the page does not support concrete_load

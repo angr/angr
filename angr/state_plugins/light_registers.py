@@ -19,8 +19,7 @@ class SimLightRegisters(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, _memo):
-        o = type(self)(reg_map=self.reg_map, registers=dict(self.registers))
-        return o
+        return type(self)(reg_map=self.reg_map, registers=dict(self.registers))
 
     def set_state(self, state):
         super().set_state(state)
@@ -57,8 +56,7 @@ class SimLightRegisters(SimStatePlugin):
                 try:
                     if size.symbolic:
                         raise SimFastMemoryError("Can't handle symbolic register access")
-                    else:
-                        size = offset.args[0]
+                    size = offset.args[0]
                 except AttributeError:
                     raise TypeError("Invalid size argument") from None
 
@@ -66,8 +64,7 @@ class SimLightRegisters(SimStatePlugin):
                 try:
                     if offset.symbolic:
                         raise SimFastMemoryError("Can't handle symbolic register access")
-                    else:
-                        offset = offset.args[0]
+                    offset = offset.args[0]
                 except AttributeError:
                     raise TypeError("Invalid offset argument") from None
 

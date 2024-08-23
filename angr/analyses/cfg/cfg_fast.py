@@ -499,10 +499,7 @@ class CFGJob:
     def __repr__(self):
         if isinstance(self.addr, SootAddressDescriptor):
             return f"<CFGJob {self.addr}>"
-        else:
-            return "<CFGJob{} {:#08x} @ func {:#08x}>".format(
-                " syscall" if self.syscall else "", self.addr, self.func_addr
-            )
+        return "<CFGJob{} {:#08x} @ func {:#08x}>".format(" syscall" if self.syscall else "", self.addr, self.func_addr)
 
     def __eq__(self, other):
         return (
@@ -1014,8 +1011,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 if self.project.arch.memory_endness == Endness.BE and b"\x47\x70" in sz_bytes:  # bx lr
                     return 0
             l.debug("Got a string of %d chars", len(sz))
-            string_length = len(sz) + 1
-            return string_length
+            return len(sz) + 1
 
         # no string is found
         return 0
@@ -1048,8 +1044,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if sz and is_sz:
             l.debug("Got a wide-string of %d wide chars", len(sz))
-            string_length = len(sz) + 2
-            return string_length
+            return len(sz) + 2
 
         # no wide string is found
         return 0
@@ -1081,8 +1076,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if repeating_length >= threshold:
             return repeating_length
-        else:
-            return 0
+        return 0
 
     def _next_code_addr_core(self):
         """
@@ -1928,9 +1922,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # If we have traced it before, don't trace it anymore
         if addr in self._traced_addresses:
             return []
-        else:
-            # Mark the address as traced
-            self._traced_addresses.add(addr)
+        # Mark the address as traced
+        self._traced_addresses.add(addr)
 
         entries: list[CFGJob] = []
 
@@ -2061,9 +2054,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if real_addr in self._traced_addresses:
             # the address has been traced before
             return []
-        else:
-            # Mark the address as traced
-            self._traced_addresses.add(real_addr)
+        # Mark the address as traced
+        self._traced_addresses.add(real_addr)
 
         # irsb cannot be None here, but we add a check for resilience
         if irsb is None:
@@ -4978,8 +4970,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):  # pylint:disable=arguments-differ
         kwargs["extra_stop_points"] = set(self._known_thunks)
-        b = super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
-        return b
+        return super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
 
     #
     # Public methods
@@ -5002,9 +4993,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         return n
 
     def output(self):
-        s = f"{self._graph.edges(data=True)}"
-
-        return s
+        return f"{self._graph.edges(data=True)}"
 
     @deprecated(replacement="angr.analyses.CFB")
     def generate_code_cover(self):
@@ -5017,8 +5006,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             size = cfg_node.size
             lst.append((cfg_node.addr, size))
 
-        lst = sorted(lst, key=lambda x: x[0])
-        return lst
+        return sorted(lst, key=lambda x: x[0])
 
 
 AnalysesHub.register_default("CFGFast", CFGFast)

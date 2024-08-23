@@ -85,7 +85,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         return self.stack_region == other.stack_region and self.register_region == other.register_region
 
     def copy(self):
-        state = VariableRecoveryFastState(
+        return VariableRecoveryFastState(
             self.block_addr,
             self._analysis,
             self.arch,
@@ -101,8 +101,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             project=self.project,
             ret_val_size=self.ret_val_size,
         )
-
-        return state
 
     def merge(self, others: tuple[VariableRecoveryFastState], successor=None) -> tuple[VariableRecoveryFastState, bool]:
         """

@@ -19,8 +19,7 @@ class DominanceFrontier(Analysis):
         self._compute()
 
     def _get_graph(self):
-        g = self.function.graph_ex(exception_edges=self._exception_edges)
-        return g
+        return self.function.graph_ex(exception_edges=self._exception_edges)
 
     def _compute(self):
         g = self._get_graph()

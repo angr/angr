@@ -356,30 +356,29 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_edges_except(full_graph, loop_node, right)
 
                             return True, loop_node, right
-                        else:
-                            # we generate a while-true loop instead
-                            last_stmt = self._remove_last_statement_if_jump(head_block)
-                            cond_jump = Jump(
-                                None,
-                                Const(None, None, right.addr, self.project.arch.bits),
-                                None,
-                                ins_addr=last_stmt.ins_addr,
-                            )
-                            jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
-                            cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
-                            new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
-                            loop_node = LoopNode("while", claripy.true, new_node, addr=node.addr)
+                        # we generate a while-true loop instead
+                        last_stmt = self._remove_last_statement_if_jump(head_block)
+                        cond_jump = Jump(
+                            None,
+                            Const(None, None, right.addr, self.project.arch.bits),
+                            None,
+                            ins_addr=last_stmt.ins_addr,
+                        )
+                        jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
+                        cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
+                        new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
+                        loop_node = LoopNode("while", claripy.true, new_node, addr=node.addr)
 
-                            # on the original graph
-                            self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
-                            # on the graph with successors
-                            self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+                        # on the original graph
+                        self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
+                        # on the graph with successors
+                        self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
 
-                            # ensure the loop has only one successor: the right node
-                            self._remove_edges_except(graph, loop_node, right)
-                            self._remove_edges_except(full_graph, loop_node, right)
+                        # ensure the loop has only one successor: the right node
+                        self._remove_edges_except(graph, loop_node, right)
+                        self._remove_edges_except(full_graph, loop_node, right)
 
-                            return True, loop_node, right
+                        return True, loop_node, right
 
                 if self._improve_algorithm and full_graph.out_degree[node] == 1:
                     # while (true) { ...; if (...) break; }
@@ -1033,8 +1032,7 @@ class PhoenixStructurer(StructurerBase):
         r = self._match_acyclic_switch_cases_address_computed(node, graph, full_graph, jump_tables)
         if r:
             return r
-        r = self._match_acyclic_incomplete_switch_cases(node, graph, full_graph, jump_tables)
-        return r
+        return self._match_acyclic_incomplete_switch_cases(node, graph, full_graph, jump_tables)
 
     def _match_acyclic_switch_cases_incomplete_switch_head(self, node, graph, full_graph) -> bool:
         try:
@@ -2358,10 +2356,9 @@ class PhoenixStructurer(StructurerBase):
         walker.walk(node)
         if not walker.parent_and_block:
             return None, None, None
-        else:
-            if last:
-                return walker.parent_and_block[-1]
-            return walker.parent_and_block[0]
+        if last:
+            return walker.parent_and_block[-1]
+        return walker.parent_and_block[0]
 
     @staticmethod
     def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):
@@ -2406,7 +2403,7 @@ class PhoenixStructurer(StructurerBase):
     def _count_statements(node: BaseNode | Block) -> int:
         if isinstance(node, Block):
             return sum(1 for stmt in node.statements if not isinstance(stmt, Label))
-        elif isinstance(node, (MultiNode, SequenceNode)):
+        if isinstance(node, (MultiNode, SequenceNode)):
             return sum(PhoenixStructurer._count_statements(nn) for nn in node.nodes)
         return 1
 
@@ -2460,7 +2457,7 @@ class PhoenixStructurer(StructurerBase):
                     return None
                 stmts += stmts_
             return stmts
-        elif isinstance(block, Block):
+        if isinstance(block, Block):
             for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Label):
                     continue

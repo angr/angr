@@ -188,8 +188,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 
         if mountpoint is None:
             return self._files.get(self._join_chunks(chunks))
-        else:
-            return mountpoint.get(chunks)
+        return mountpoint.get(chunks)
 
     def insert(self, path, simfile):
         """
@@ -202,8 +201,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         if mountpoint is None:
             self._files[self._join_chunks(chunks)] = simfile
             return True
-        else:
-            return mountpoint.insert(chunks, simfile)
+        return mountpoint.insert(chunks, simfile)
 
     def delete(self, path):
         """
@@ -443,7 +441,7 @@ class SimHostFilesystem(SimConcreteFilesystem):
             if dereference:
                 path = os.path.realpath(path)
             s = os.stat(path)
-            stat = Stat(
+            return Stat(
                 s.st_dev,
                 s.st_ino,
                 s.st_nlink,
@@ -461,6 +459,5 @@ class SimHostFilesystem(SimConcreteFilesystem):
                 round(s.st_ctime),
                 s.st_ctime_ns,
             )
-            return stat
         except OSError:
             return None

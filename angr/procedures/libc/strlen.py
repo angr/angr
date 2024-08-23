@@ -65,39 +65,38 @@ class strlen(angr.SimProcedure):
 
             return length
 
-        else:
-            search_len = max_str_len
+        search_len = max_str_len
+        r, c, i = self.state.memory.find(
+            s,
+            null_seq,
+            search_len,
+            max_symbolic_bytes=max_symbolic_bytes,
+            chunk_size=chunk_size,
+            char_size=char_size,
+        )
+
+        # try doubling the search len and searching again
+        s_new = s
+        while c and all(con.is_false() for con in c):
+            s_new += search_len
+            search_len *= 2
             r, c, i = self.state.memory.find(
-                s,
+                s_new,
                 null_seq,
                 search_len,
                 max_symbolic_bytes=max_symbolic_bytes,
                 chunk_size=chunk_size,
                 char_size=char_size,
             )
+            # stop searching after some reasonable limit
+            if search_len > 0x10000:
+                raise angr.SimMemoryLimitError("strlen hit limit of 0x10000")
 
-            # try doubling the search len and searching again
-            s_new = s
-            while c and all(con.is_false() for con in c):
-                s_new += search_len
-                search_len *= 2
-                r, c, i = self.state.memory.find(
-                    s_new,
-                    null_seq,
-                    search_len,
-                    max_symbolic_bytes=max_symbolic_bytes,
-                    chunk_size=chunk_size,
-                    char_size=char_size,
-                )
-                # stop searching after some reasonable limit
-                if search_len > 0x10000:
-                    raise angr.SimMemoryLimitError("strlen hit limit of 0x10000")
-
-            self.max_null_index = max(i)
-            self.state.add_constraints(*c)
-            result = r - s
-            if result.depth > 3:
-                rresult = self.state.solver.BVS("strlen", len(result), key=("api", "strlen"))
-                self.state.add_constraints(result == rresult)
-                result = rresult
-            return result
+        self.max_null_index = max(i)
+        self.state.add_constraints(*c)
+        result = r - s
+        if result.depth > 3:
+            rresult = self.state.solver.BVS("strlen", len(result), key=("api", "strlen"))
+            self.state.add_constraints(result == rresult)
+            result = rresult
+        return result

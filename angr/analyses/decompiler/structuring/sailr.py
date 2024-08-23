@@ -105,7 +105,7 @@ class SAILRStructurer(PhoenixStructurer):
 
                 if len(best_edges) == 1:
                     return best_edges
-                elif not best_edges:
+                if not best_edges:
                     best_edges = candidate_edges
 
         # if we have another tie, or we never used improved heuristics, then we do the default ordering.

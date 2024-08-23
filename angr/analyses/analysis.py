@@ -90,13 +90,12 @@ class AnalysisLogEntry:
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
             return f"<AnalysisLogEntry {msg_str}>"
-        else:
-            msg_str = repr(self.message)
-            if len(msg_str) > 40:
-                msg_str = msg_str[:36] + "..."
-                if msg_str[0] in ('"', "'"):
-                    msg_str += msg_str[0]
-            return f"<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>"
+        msg_str = repr(self.message)
+        if len(msg_str) > 40:
+            msg_str = msg_str[:36] + "..."
+            if msg_str[0] in ('"', "'"):
+                msg_str += msg_str[0]
+        return f"<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>"
 
 
 A = TypeVar("A", bound="Analysis")

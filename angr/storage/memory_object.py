@@ -100,25 +100,24 @@ class SimMemoryObject:
 
             return o if allow_concrete else claripy.BVV(o)
 
-        else:
-            offset = addr - self.base
-            try:
-                thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
-            except claripy.ClaripyOperationError:
-                # hacks to handle address space wrapping
-                if offset >= 0:
-                    raise
-                if offset + 2**32 >= 0:
-                    offset += 2**32
-                elif offset + 2**64 >= 0:
-                    offset += 2**64
-                else:
-                    raise
-                thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
+        offset = addr - self.base
+        try:
+            thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
+        except claripy.ClaripyOperationError:
+            # hacks to handle address space wrapping
+            if offset >= 0:
+                raise
+            if offset + 2**32 >= 0:
+                offset += 2**32
+            elif offset + 2**64 >= 0:
+                offset += 2**64
+            else:
+                raise
+            thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
 
-            if self.endness != endness:
-                thing = thing.reversed
-            return thing
+        if self.endness != endness:
+            thing = thing.reversed
+        return thing
 
     def _object_equals(self, other):
         if self.is_bytes != other.is_bytes:
@@ -126,8 +125,7 @@ class SimMemoryObject:
 
         if self.is_bytes:
             return self.object == other.object
-        else:
-            return self.object.cache_key == other.object.cache_key
+        return self.object.cache_key == other.object.cache_key
 
     def _length_equals(self, other):
         if type(self.length) is not type(other.length):
@@ -135,8 +133,7 @@ class SimMemoryObject:
 
         if isinstance(self.length, int):
             return self.length == other.length
-        else:
-            return self.length.cache_key == other.length.cache_key
+        return self.length.cache_key == other.length.cache_key
 
     def __eq__(self, other):
         if self is other:

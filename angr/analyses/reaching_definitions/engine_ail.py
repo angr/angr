@@ -140,9 +140,8 @@ class SimEngineRDAIL(
         handler = self._expr_handlers.get(type(expr), None)
         if handler is not None:
             return handler(expr)
-        else:
-            self.l.warning("Unsupported expression type %s.", type(expr).__name__)
-            return MultiValues(self.state.top(self.arch.bits))
+        self.l.warning("Unsupported expression type %s.", type(expr).__name__)
+        return MultiValues(self.state.top(self.arch.bits))
 
     def _ail_handle_Assignment(self, stmt):
         """
@@ -719,8 +718,7 @@ class SimEngineRDAIL(
         self._expr(arg1)
         bits = expr.bits
 
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_DivMod(self, expr):
         return self._ail_handle_Div(expr)
@@ -732,8 +730,7 @@ class SimEngineRDAIL(
         self._expr(arg1)
         bits = expr.bits
 
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     _ail_handle_AddV = _ail_handle_Add
     _ail_handle_MulV = _ail_handle_Mul
@@ -745,8 +742,7 @@ class SimEngineRDAIL(
         self._expr(arg1)
         bits = expr.bits
 
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_Mod(self, expr):
         arg0, arg1 = expr.operands
@@ -755,8 +751,7 @@ class SimEngineRDAIL(
         self._expr(arg1)
         bits = expr.bits
 
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_Mul(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
@@ -895,8 +890,7 @@ class SimEngineRDAIL(
         expr1_v = expr1.one_value()
 
         if expr0_v is None and expr1_v is None:
-            r = MultiValues(self.state.top(bits))
-            return r
+            return MultiValues(self.state.top(bits))
 
         if expr0_v is None and expr1_v is not None:
             # expr1_v & each value in expr0
@@ -962,11 +956,9 @@ class SimEngineRDAIL(
         # TODO: can maybe be smarter about this. if we can determine that expr0 is never falsey, we can just return it,
         # TODO: or if it's always falsey we can return expr1 (did I get this backwards?)
         if expr0_v is None or expr1_v is None:
-            r = MultiValues(self.state.top(bits))
-            return r
+            return MultiValues(self.state.top(bits))
 
-        r = MultiValues(claripy.If(expr0_v == 0, expr0_v, expr1_v))
-        return r
+        return MultiValues(claripy.If(expr0_v == 0, expr0_v, expr1_v))
 
     def _ail_handle_LogicalOr(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
@@ -977,11 +969,9 @@ class SimEngineRDAIL(
         expr1_v = expr1.one_value()
 
         if expr0_v is None or expr1_v is None:
-            r = MultiValues(self.state.top(bits))
-            return r
+            return MultiValues(self.state.top(bits))
 
-        r = MultiValues(claripy.If(expr0_v != 0, expr0_v, expr1_v))
-        return r
+        return MultiValues(claripy.If(expr0_v != 0, expr0_v, expr1_v))
 
     def _ail_handle_LogicalXor(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
@@ -992,11 +982,9 @@ class SimEngineRDAIL(
         expr1_v = expr1.one_value()
 
         if expr0_v is None or expr1_v is None:
-            r = MultiValues(self.state.top(bits))
-            return r
+            return MultiValues(self.state.top(bits))
 
-        r = MultiValues(claripy.If(expr0_v != 0, expr1_v, expr0_v))
-        return r
+        return MultiValues(claripy.If(expr0_v != 0, expr1_v, expr0_v))
 
     def _ail_handle_Xor(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
@@ -1032,22 +1020,19 @@ class SimEngineRDAIL(
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_SCarry(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_SBorrow(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_Concat(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
@@ -1134,8 +1119,7 @@ class SimEngineRDAIL(
             elif expr.bits == 32:
                 sort = FSORT_FLOAT
             return MultiValues(claripy.FPV(expr.value, sort))
-        else:
-            return MultiValues(claripy.BVV(expr.value, expr.bits))
+        return MultiValues(claripy.BVV(expr.value, expr.bits))
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset) -> MultiValues:
         stack_addr = self.state.stack_address(expr.offset)

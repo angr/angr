@@ -61,6 +61,7 @@ class SimConcretizationStrategy:
         """
         if self._filter is None or self._filter(memory, addr):
             return self._concretize(memory, addr, **kwargs)
+        return None
 
     def _concretize(self, memory, addr, **kwargs):
         """

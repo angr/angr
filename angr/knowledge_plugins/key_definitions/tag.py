@@ -36,8 +36,7 @@ class FunctionTag(Tag):
     def __repr__(self):
         if self.function:
             return f"<{self.__class__.__name__} {{Function: {self.function:#x}, Metadata:{self.metadata}}}>"
-        else:
-            return super().__repr__()
+        return super().__repr__()
 
 
 class SideEffectTag(FunctionTag):

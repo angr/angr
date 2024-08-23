@@ -51,9 +51,8 @@ class VariableManagerSerializer:
 
     @staticmethod
     def load_internal(db_varcoll, variable_manager: VariableManager) -> VariableManagerInternal:
-        internal = VariableManagerInternal.parse(
+        return VariableManagerInternal.parse(
             db_varcoll.blob,
             variable_manager=variable_manager,
             func_addr=db_varcoll.func_addr if db_varcoll.func_addr != -1 else None,
         )
-        return internal

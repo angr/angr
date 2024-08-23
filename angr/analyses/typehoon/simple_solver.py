@@ -903,7 +903,7 @@ class SimpleSolver:
     def _to_typevar_or_typeconst(obj: TypeVariable | DerivedTypeVariable | TypeConstant) -> TypeVariable | TypeConstant:
         if isinstance(obj, DerivedTypeVariable):
             return SimpleSolver._to_typevar_or_typeconst(obj.type_var)
-        elif isinstance(obj, (TypeVariable, TypeConstant)):
+        if isinstance(obj, (TypeVariable, TypeConstant)):
             return obj
         raise TypeError(f"Unsupported type {type(obj)}")
 
@@ -969,10 +969,9 @@ class SimpleSolver:
             ancestor = networkx.lowest_common_ancestor(self._base_lattice, abstract_t1, abstract_t2)
             if ancestor == abstract_t1:
                 return t1
-            elif ancestor == abstract_t2:
+            if ancestor == abstract_t2:
                 return t2
-            else:
-                return ancestor
+            return ancestor
         if t1 == Bottom_:
             return t2
         if t2 == Bottom_:
@@ -986,10 +985,9 @@ class SimpleSolver:
             ancestor = networkx.lowest_common_ancestor(self._base_lattice_inverted, abstract_t1, abstract_t2)
             if ancestor == abstract_t1:
                 return t1
-            elif ancestor == abstract_t2:
+            if ancestor == abstract_t2:
                 return t2
-            else:
-                return ancestor
+            return ancestor
         if t1 == Top_:
             return t2
         if t2 == Top_:
@@ -1000,7 +998,7 @@ class SimpleSolver:
     def abstract(t: TypeConstant | TypeVariable) -> TypeConstant | TypeVariable:
         if isinstance(t, Pointer32):
             return Pointer32()
-        elif isinstance(t, Pointer64):
+        if isinstance(t, Pointer64):
             return Pointer64()
         return t
 
@@ -1046,7 +1044,7 @@ class SimpleSolver:
                 cached_results.add(self._solution_cache[node.typevar])
         if len(cached_results) == 1:
             return next(iter(cached_results))
-        elif len(cached_results) > 1:
+        if len(cached_results) > 1:
             # we get nodes for multiple type variables?
             raise RuntimeError("Getting nodes for multiple type variables. Unexpected.")
 
@@ -1237,6 +1235,6 @@ class SimpleSolver:
     def _pointer_class(self) -> type[Pointer32] | type[Pointer64]:
         if self.bits == 32:
             return Pointer32
-        elif self.bits == 64:
+        if self.bits == 64:
             return Pointer64
         raise NotImplementedError("Unsupported bits %d" % self.bits)

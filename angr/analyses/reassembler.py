@@ -90,9 +90,7 @@ def string_escape(s):
     s = s.encode("unicode_escape").decode("utf-8")
 
     s = s.replace("\\'", "'")
-    s = s.replace('"', '\\"')
-
-    return s
+    return s.replace('"', '\\"')
 
 
 def fill_reg_map():
@@ -172,8 +170,7 @@ class Label:
         # if self.var_size is not None:
         #    s = ".type {name},@object\n.comm {name},{size},{size}".format(name=self.name, size=self.var_size)
         # else:
-        s = f".{self.name}:"
-        return s
+        return f".{self.name}:"
 
     def __hash__(self):
         return hash(self.name)
@@ -189,11 +186,10 @@ class Label:
     def operand_str(self):
         if self.base_addr is None:
             return f".{self.name}"
-        else:
-            offset = self.offset
-            sign = "+" if offset >= 0 else "-"
-            offset = abs(offset)
-            return ".%s%s%d" % (self.name, sign, offset)
+        offset = self.offset
+        sign = "+" if offset >= 0 else "-"
+        offset = abs(offset)
+        return ".%s%s%d" % (self.name, sign, offset)
 
     @property
     def offset(self):
@@ -209,10 +205,9 @@ class Label:
     def new_label(binary, name=None, function_name=None, original_addr=None, data_label=False):
         if function_name is not None:
             return FunctionLabel(binary, function_name, original_addr)
-        elif data_label:
+        if data_label:
             return DataLabel(binary, original_addr)
-        else:
-            return Label(binary, name, original_addr=original_addr)
+        return Label(binary, name, original_addr=original_addr)
 
 
 class DataLabel(Label):
@@ -223,18 +218,16 @@ class DataLabel(Label):
     def operand_str(self):
         if self.base_addr is None:
             return self.name
-        else:
-            offset = self.offset
-            sign = "+" if offset >= 0 else "-"
-            offset = abs(offset)
-            return f"({self.name}{sign}{offset})"
+        offset = self.offset
+        sign = "+" if offset >= 0 else "-"
+        offset = abs(offset)
+        return f"({self.name}{sign}{offset})"
 
     def __str__(self):
         # if self.var_size is not None:
         #    s = ".comm {name},{size},{size}".format(name=self.name, size=self.var_size)
         # else:
-        s = f"{self.name}:"
-        return s
+        return f"{self.name}:"
 
 
 class FunctionLabel(Label):
@@ -481,12 +474,11 @@ class Operand:
         if self.type == OP_TYPE_IMM and self.label:
             if self.label_offset > 0:
                 return "%s + %d" % (self.label.operand_str, self.label_offset)
-            elif self.label_offset < 0:
+            if self.label_offset < 0:
                 return "%s - %d" % (self.label.operand_str, abs(self.label_offset))
-            else:
-                return self.label.operand_str
+            return self.label.operand_str
 
-        elif self.type == OP_TYPE_MEM:
+        if self.type == OP_TYPE_MEM:
             disp = ""
             if self.disp:
                 if self.disp_label:
@@ -525,51 +517,49 @@ class Operand:
 
                 return s
 
-            else:
-                s = []
-                if base:
-                    s.append(base)
+            s = []
+            if base:
+                s.append(base)
 
-                if self.index and self.scale:
+            if self.index and self.scale:
+                if s:
+                    s.append("+")
+                s.append("(%s * %d)" % (CAPSTONE_REG_MAP[self.project.arch.name][self.index], self.scale))
+
+            if disp:
+                if disp.startswith("-"):
+                    s.append("-")
+                    s.append(disp[1:])
+                else:
                     if s:
                         s.append("+")
-                    s.append("(%s * %d)" % (CAPSTONE_REG_MAP[self.project.arch.name][self.index], self.scale))
+                    s.append(disp)
 
-                if disp:
-                    if disp.startswith("-"):
-                        s.append("-")
-                        s.append(disp[1:])
-                    else:
-                        if s:
-                            s.append("+")
-                        s.append(disp)
+            asm = " ".join(s)
 
-                asm = " ".join(s)
+            # we need to specify the size here
+            if self.size == 16:
+                asm = f"xmmword ptr [{asm}]"
+            elif self.size == 10:
+                asm = f"xword ptr [{asm}]"
+            elif self.size == 8:
+                asm = f"qword ptr [{asm}]"
+            elif self.size == 4:
+                asm = f"dword ptr [{asm}]"
+            elif self.size == 2:
+                asm = f"word ptr [{asm}]"
+            elif self.size == 1:
+                asm = f"byte ptr [{asm}]"
+            else:
+                raise BinaryError(f'Unsupported memory operand size for operand "{self.operand_str}"')
 
-                # we need to specify the size here
-                if self.size == 16:
-                    asm = f"xmmword ptr [{asm}]"
-                elif self.size == 10:
-                    asm = f"xword ptr [{asm}]"
-                elif self.size == 8:
-                    asm = f"qword ptr [{asm}]"
-                elif self.size == 4:
-                    asm = f"dword ptr [{asm}]"
-                elif self.size == 2:
-                    asm = f"word ptr [{asm}]"
-                elif self.size == 1:
-                    asm = f"byte ptr [{asm}]"
-                else:
-                    raise BinaryError(f'Unsupported memory operand size for operand "{self.operand_str}"')
+            return asm
 
-                return asm
-
-        elif self.type == OP_TYPE_RAW:
+        if self.type == OP_TYPE_RAW:
             return self.raw_asm
 
-        else:
-            # Nothing special
-            return None
+        # Nothing special
+        return None
 
     #
     # Overridden predefined methods
@@ -591,8 +581,7 @@ class Operand:
 
         if ref_type:
             return f"{op_type} <{ref_type}>"
-        else:
-            return op_type
+        return op_type
 
     #
     # Properties
@@ -747,8 +736,7 @@ class Instruction:
         :return:
         """
 
-        assembly = self.assembly(comments=True, symbolized=False)
-        return assembly
+        return self.assembly(comments=True, symbolized=False)
 
     #
     # Public methods
@@ -764,9 +752,7 @@ class Instruction:
     def dbg_comments(self):
         operands = ", ".join([str(operand) for operand in self.operands])
         capstone_str = f"{self.addr:#08x}:\t{self.mnemonic}\t{self.op_str}"
-        comments = f"\t# {capstone_str} [{operands}]"
-
-        return comments
+        return f"\t# {capstone_str} [{operands}]"
 
     def assembly(self, comments=False, symbolized=True):
         """
@@ -929,9 +915,7 @@ class BasicBlock:
             ins.assign_labels()
 
     def assembly(self, comments=False, symbolized=True):
-        s = "\n".join([ins.assembly(comments=comments, symbolized=symbolized) for ins in self.instructions])
-
-        return s
+        return "\n".join([ins.assembly(comments=comments, symbolized=symbolized) for ins in self.instructions])
 
     def instruction_addresses(self):
         return sorted([(ins.addr, ins.size) for ins in self.instructions], key=lambda x: x[0])
@@ -1704,8 +1688,7 @@ class Relocation:
         self.sort = sort
 
     def __repr__(self):
-        s = f"<Reloc {self.sort} {self.addr:#x} ({self.ref_addr:#x})>"
-        return s
+        return f"<Reloc {self.sort} {self.addr:#x} ({self.ref_addr:#x})>"
 
 
 class Reassembler(Analysis):
@@ -1763,9 +1746,7 @@ class Reassembler(Analysis):
         :return:
         """
 
-        s = "\n".join([str(proc) for proc in self.procedures])
-
-        return s
+        return "\n".join([str(proc) for proc in self.procedures])
 
     #
     # Properties
@@ -2363,8 +2344,7 @@ class Reassembler(Analysis):
                     ):
                         # we need to remove this label...
                         continue
-                    else:
-                        new_labels.append((rebased_addr, label))
+                    new_labels.append((rebased_addr, label))
                 d.labels = new_labels
 
     #
@@ -2809,10 +2789,9 @@ class Reassembler(Analysis):
 
         if size is not None:
             return "unknown", size
-        elif sequence_offset is not None:
+        if sequence_offset is not None:
             return "unknown", sequence_offset
-        else:
-            return None, None
+        return None, None
 
     def _has_integer_used_as_pointers(self):
         """

@@ -8,9 +8,8 @@ once_set = set()
 def once(key):
     if key in once_set:
         return False
-    else:
-        once_set.add(key)
-        return True
+    once_set.add(key)
+    return True
 
 
 already_complained = set()

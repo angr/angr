@@ -141,12 +141,10 @@ class Uses:
 
         :return:    Return a new <Uses> instance containing the same data.
         """
-        u = Uses(
+        return Uses(
             uses_by_definition=self._uses_by_definition.copy(),
             uses_by_location=self._uses_by_location.copy(),
         )
-
-        return u
 
     def merge(self, other: Uses) -> bool:
         """

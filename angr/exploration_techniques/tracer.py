@@ -280,11 +280,10 @@ class Tracer(ExplorationTechnique):
         legal_next = block.vex.constant_jump_targets
         if legal_next:
             return any(a + slide == self._trace[idx + 1] for a in legal_next)
-        else:
-            # the intuition is that if the first block of an initializer does an indirect jump,
-            # it's probably a call out to another binary (notably __libc_start_main)
-            # this is an awful fucking heuristic but it's as good as we've got
-            return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
+        # the intuition is that if the first block of an initializer does an indirect jump,
+        # it's probably a call out to another binary (notably __libc_start_main)
+        # this is an awful fucking heuristic but it's as good as we've got
+        return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
 
     def set_fd_data(self, fd_data: dict[int, bytes]):
         """
@@ -694,20 +693,19 @@ class Tracer(ExplorationTechnique):
         current_bin = self.project.loader.find_object_containing(state_addr)
         if current_bin is self.project.loader._extern_object or current_bin is self.project.loader._kernel_object:
             return False
-        elif current_bin in self._aslr_slides:
+        if current_bin in self._aslr_slides:
             self._current_slide = self._aslr_slides[current_bin]
             return trace_addr == state_addr + self._current_slide
-        elif ((trace_addr - state_addr) & 0xFFF) == 0:
+        if ((trace_addr - state_addr) & 0xFFF) == 0:
             self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
             return True
         # error handling
-        elif current_bin:
+        if current_bin:
             raise AngrTracerError(
                 f"Trace desynced on jumping into {current_bin.provides}. "
                 "Did you load the right version of this library?"
             )
-        else:
-            raise AngrTracerError(f"Trace desynced on jumping into {state_addr:#x}, where no library is mapped!")
+        raise AngrTracerError(f"Trace desynced on jumping into {state_addr:#x}, where no library is mapped!")
 
     def _check_qemu_block_in_unicorn_block(self, state: SimState, trace_curr_idx, state_desync_block_idx):
         """
@@ -825,8 +823,7 @@ class Tracer(ExplorationTechnique):
                     if angr_big_block_end_addr != big_block_end_addr:
                         # End does not match. Treat as trace desync.
                         return False
-                    else:
-                        break
+                    break
 
             if big_block_end_addr is not None:
                 break
@@ -875,15 +872,14 @@ class Tracer(ExplorationTechnique):
                 if self._trace[idx + 1] - slide == state.addr:
                     state.globals["trace_idx"] = idx + 1
                     return True
-                else:
-                    state.globals["trace_idx"] = idx
-                    # state.globals['trace_desync'] = True
-                    return True
+                state.globals["trace_idx"] = idx
+                # state.globals['trace_desync'] = True
+                return True
 
             # Case 2: trace block contains more instructions than angr
             # block.  Caused by VEX's maximum instruction limit of 99
             # instructions
-            elif (
+            if (
                 state.project.factory.block(state.history.addr).instructions == VEXMaxInsnsPerBlock
                 and state.history.jumpkind == "Ijk_Boring"
             ):

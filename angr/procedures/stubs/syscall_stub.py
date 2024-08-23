@@ -14,13 +14,11 @@ class syscall(angr.SimProcedure):
         size = self.prototype.returnty.size
         if size is None:
             return None
-        else:
-            return self.state.solver.Unconstrained(
-                f"syscall_stub_{self.display_name}", size, key=("syscall", "?", self.display_name)
-            )
+        return self.state.solver.Unconstrained(
+            f"syscall_stub_{self.display_name}", size, key=("syscall", "?", self.display_name)
+        )
 
     def __repr__(self):
         if "resolves" in self.kwargs:
             return "<Syscall stub ({})>".format(self.kwargs["resolves"])
-        else:
-            return "<Syscall stub>"
+        return "<Syscall stub>"

@@ -33,12 +33,10 @@ class SimSootStmt:
         raise NotImplementedError
 
     def _translate_expr(self, expr):
-        expr_ = translate_expr(expr, self.state)
-        return expr_
+        return translate_expr(expr, self.state)
 
     def _translate_value(self, value):
-        value_ = translate_value(value, self.state)
-        return value_
+        return translate_value(value, self.state)
 
     def _get_bb_addr_from_instr(self, instr):
         """

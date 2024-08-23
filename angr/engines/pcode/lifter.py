@@ -1187,23 +1187,21 @@ class PcodeLifterEngineMixin(SimEngineBase):
                 stop_point = self._first_stoppoint(irsb, extra_stop_points)
                 if stop_point is None:
                     return irsb
-                else:
-                    size = stop_point - addr
-                    # check the cache again
-                    cache_key = (
-                        addr,
-                        insn_bytes,
-                        size,
-                        num_inst,
-                        thumb,
-                        opt_level,
-                        strict_block_end,
-                    )
-                    if cache_key in self._block_cache:
-                        self._block_cache_hits += 1
-                        return self._block_cache[cache_key]
-                    else:
-                        self._block_cache_misses += 1
+                size = stop_point - addr
+                # check the cache again
+                cache_key = (
+                    addr,
+                    insn_bytes,
+                    size,
+                    num_inst,
+                    thumb,
+                    opt_level,
+                    strict_block_end,
+                )
+                if cache_key in self._block_cache:
+                    self._block_cache_hits += 1
+                    return self._block_cache[cache_key]
+                self._block_cache_misses += 1
             else:
                 # a special case: `size` is used as the maximum allowed size
                 tmp_cache_key = (

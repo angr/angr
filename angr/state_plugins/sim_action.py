@@ -51,17 +51,15 @@ class SimAction(SimEvent):
     def _make_object(v):
         if v is None:
             return None
-        elif isinstance(v, SimActionObject):
+        if isinstance(v, SimActionObject):
             return v
-        else:
-            return SimActionObject(v, reg_deps=None, tmp_deps=None)
+        return SimActionObject(v, reg_deps=None, tmp_deps=None)
 
     @staticmethod
     def _copy_object(v):
         if isinstance(v, SimActionObject):
             return v.copy()
-        else:
-            return None
+        return None
 
     @property
     def all_objects(self):

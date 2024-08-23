@@ -40,7 +40,7 @@ def is_similar(
         return True
 
     # AIL Statements
-    elif isinstance(ail_obj1, Statement):
+    if isinstance(ail_obj1, Statement):
         # if all(barr in [0x404530, 0x404573] for barr in [ail_obj1.ins_addr, ail_obj2.ins_addr]):
         #    do a breakpoint
 
@@ -82,10 +82,8 @@ def is_similar(
             return True
 
         # Generic Statement Handler
-        else:
-            return ail_obj1.likes(ail_obj2)
-    else:
-        return False
+        return ail_obj1.likes(ail_obj2)
+    return False
 
 
 #

@@ -265,8 +265,7 @@ class SimSlicer:
 
             return True
 
-        else:
-            return False
+        return False
 
     def _backward_handler_stmt_Store(self, stmt, state):
         addr = stmt.addr

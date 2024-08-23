@@ -42,8 +42,7 @@ class DisassemblyPiece:
         x = self._render(formatting)
         if len(x) == 1:
             return [self.highlight(x[0], formatting)]
-        else:
-            return x
+        return x
 
     def _render(self, formatting):
         raise NotImplementedError
@@ -508,9 +507,8 @@ class SootStatement(DisassemblyPiece):
 
         if hasattr(self, func):
             return getattr(self, func)(expr)
-        else:
-            # print func
-            return SootExpression(str(expr))
+        # print func
+        return SootExpression(str(expr))
 
     def _render(self, formatting=None):
         return [
@@ -673,8 +671,7 @@ class RegisterOperand(Operand):
 
         if custom_value_str:
             return [custom_value_str]
-        else:
-            return super()._render(formatting)
+        return super()._render(formatting)
 
 
 class MemoryOperand(Operand):
@@ -786,61 +783,56 @@ class MemoryOperand(Operand):
         if self.prefix is None:
             # we failed in parsing. use the default rendering
             return super()._render(formatting)
+        values_style = self.values_style
+        show_prefix = True
+        custom_values_str = None
+
+        if formatting is not None:
+            with contextlib.suppress(KeyError):
+                values_style = formatting["values_style"][self.ident]
+
+            try:
+                show_prefix_str = formatting["show_prefix"][self.ident]
+                if show_prefix_str in ("false", "False"):
+                    show_prefix = False
+            except KeyError:
+                pass
+
+            with contextlib.suppress(KeyError):
+                custom_values_str = formatting["custom_values_str"][self.ident]
+
+        prefix_str = " ".join(self.prefix) + " " if show_prefix and self.prefix else ""
+        if custom_values_str is not None:
+            value_str = custom_values_str
         else:
-            values_style = self.values_style
-            show_prefix = True
-            custom_values_str = None
+            value_str = "".join(x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values)
 
-            if formatting is not None:
-                with contextlib.suppress(KeyError):
-                    values_style = formatting["values_style"][self.ident]
+        if values_style == "curly":
+            left_paren, right_paren = "{", "}"
+        elif values_style == "paren":
+            left_paren, right_paren = "(", ")"
+        else:  # square
+            left_paren, right_paren = "[", "]"
 
-                try:
-                    show_prefix_str = formatting["show_prefix"][self.ident]
-                    if show_prefix_str in ("false", "False"):
-                        show_prefix = False
-                except KeyError:
-                    pass
+        if self.offset:
+            offset_str = "".join(x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset)
 
-                with contextlib.suppress(KeyError):
-                    custom_values_str = formatting["custom_values_str"][self.ident]
+            # combine values and offsets according to self.offset_location
+            if self.offset_location == "prefix":
+                value_str = f"{offset_str}{left_paren}{value_str}{right_paren}"
+            elif self.offset_location == "before_value":
+                value_str = f"{left_paren}{offset_str}{value_str}{right_paren}"
+            else:  # after_value
+                value_str = f"{left_paren}{value_str}{offset_str}{right_paren}"
+        else:
+            value_str = left_paren + value_str + right_paren
 
-            prefix_str = " ".join(self.prefix) + " " if show_prefix and self.prefix else ""
-            if custom_values_str is not None:
-                value_str = custom_values_str
-            else:
-                value_str = "".join(
-                    x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values
-                )
+        segment_selector_str = "" if self.segment_selector is None else self.segment_selector
 
-            if values_style == "curly":
-                left_paren, right_paren = "{", "}"
-            elif values_style == "paren":
-                left_paren, right_paren = "(", ")"
-            else:  # square
-                left_paren, right_paren = "[", "]"
+        if segment_selector_str and prefix_str:
+            prefix_str += " "
 
-            if self.offset:
-                offset_str = "".join(
-                    x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset
-                )
-
-                # combine values and offsets according to self.offset_location
-                if self.offset_location == "prefix":
-                    value_str = f"{offset_str}{left_paren}{value_str}{right_paren}"
-                elif self.offset_location == "before_value":
-                    value_str = f"{left_paren}{offset_str}{value_str}{right_paren}"
-                else:  # after_value
-                    value_str = f"{left_paren}{value_str}{offset_str}{right_paren}"
-            else:
-                value_str = left_paren + value_str + right_paren
-
-            segment_selector_str = "" if self.segment_selector is None else self.segment_selector
-
-            if segment_selector_str and prefix_str:
-                prefix_str += " "
-
-            return [f"{prefix_str}{segment_selector_str}{value_str}{self.suffix_str}"]
+        return [f"{prefix_str}{segment_selector_str}{value_str}{self.suffix_str}"]
 
 
 class OperandPiece(DisassemblyPiece):  # pylint: disable=abstract-method
@@ -883,14 +875,12 @@ class Value(OperandPiece):
                 if style[0] == "hex":
                     if self.render_with_sign:
                         return [f"{self.val:+#x}"]
-                    else:
-                        return [f"{self.val:#x}"]
-                elif style[0] == "dec":
+                    return [f"{self.val:#x}"]
+                if style[0] == "dec":
                     if self.render_with_sign:
                         return ["%+d" % self.val]
-                    else:
-                        return [str(self.val)]
-                elif style[0] == "label":
+                    return [str(self.val)]
+                if style[0] == "label":
                     labeloffset = style[1]
                     if labeloffset == 0:
                         lbl = self.project.kb.labels[self.val]
@@ -919,13 +909,11 @@ class Value(OperandPiece):
                 normalized_name = get_cpp_function_name(func.demangled_name, specialized=False, qualified=True)
                 return [normalized_name]
             return [("+" if self.render_with_sign else "") + lbl]
-        elif func is not None:
+        if func is not None:
             return [func.demangled_name]
-        else:
-            if self.render_with_sign:
-                return [f"{self.val:+#x}"]
-            else:
-                return [f"{self.val:#x}"]
+        if self.render_with_sign:
+            return [f"{self.val:+#x}"]
+        return [f"{self.val:#x}"]
 
 
 class Comment(DisassemblyPiece):

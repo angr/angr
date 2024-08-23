@@ -43,26 +43,25 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
         if stmt_idx is None:
             return method.blocks[0] if method.blocks else None
-        else:
-            # try:
-            #    _, block = method.block_by_label.floor_item(stmt_idx)
-            # except KeyError:
-            #    return None
-            # return block
-            # TODO: Re-enable the above code once bintrees are used
+        # try:
+        #    _, block = method.block_by_label.floor_item(stmt_idx)
+        # except KeyError:
+        #    return None
+        # return block
+        # TODO: Re-enable the above code once bintrees are used
 
-            # FIXME: stmt_idx does not index from the start of the method but from the start
-            #        of the block therefore it always returns the block with label 0 independently
-            #        of where we are
-            # block = method.block_by_label.get(stmt_idx, None)
-            # if block is not None:
-            #     return block
-            # Slow path
-            for block_idx, block in enumerate(method.blocks):
-                # if block.label <= stmt_idx < block.label + len(block.statements):
-                if block_idx == addr.block_idx:
-                    return block
-            return None
+        # FIXME: stmt_idx does not index from the start of the method but from the start
+        #        of the block therefore it always returns the block with label 0 independently
+        #        of where we are
+        # block = method.block_by_label.get(stmt_idx, None)
+        # if block is not None:
+        #     return block
+        # Slow path
+        for block_idx, block in enumerate(method.blocks):
+            # if block.label <= stmt_idx < block.label + len(block.statements):
+            if block_idx == addr.block_idx:
+                return block
+        return None
 
     def process_successors(self, successors, **kwargs):
         state = self.state
@@ -72,13 +71,13 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
         if isinstance(addr, SootAddressTerminator):
             successors.processed = True
-            return
+            return None
 
         if self.project.use_sim_procedures:
             procedure = self._get_sim_procedure(addr)
             if procedure is not None:
                 self.process_procedure(state, successors, procedure)
-                return
+                return None
 
         binary = state.regs._ip_binary
         method = binary.get_soot_method(addr.method, none_if_missing=True)
@@ -106,7 +105,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             # STEP 4: Execute unconstrained procedure
             self.process_procedure(state, successors, procedure)
             # self._add_return_exit(state, successors)
-            return
+            return None
 
         block = method.blocks[addr.block_idx]
         starting_stmt_idx = addr.stmt_idx
@@ -118,6 +117,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         self._handle_soot_block(state, successors, block, starting_stmt_idx, method)
 
         successors.processed = True
+        return None
 
     def _handle_soot_block(self, state, successors, block, starting_stmt_idx, method=None):
         stmt = stmt_idx = None
@@ -178,7 +178,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             return True
 
         # add jmp exit
-        elif s_stmt.has_jump_targets:
+        if s_stmt.has_jump_targets:
             for target, condition in s_stmt.jmp_targets_with_conditions:
                 if not target:
                     target = self._get_next_linear_instruction(state, stmt_idx)
@@ -187,14 +187,13 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             return True
 
         # add return exit
-        elif isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
+        if isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
             l.debug("Return exit")
             self._add_return_exit(state, successors, s_stmt.return_value)
             return True
 
         # go on linearly
-        else:
-            return False
+        return False
 
     @classmethod
     def _add_return_exit(cls, state, successors, return_val=None):
@@ -233,9 +232,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         procedure_cls = SIM_PROCEDURES["angr.unconstrained"]["unconstrained()"]
 
         # Lazy-initialize it
-        proc = procedure_cls(project=self.project)
-
-        return proc
+        return procedure_cls(project=self.project)
 
     @staticmethod
     def _is_method_beginning(addr):
@@ -250,17 +247,15 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         new_stmt_idx = addr.stmt_idx + 1
         if new_stmt_idx < len(current_bb.statements):
             return SootAddressDescriptor(addr.method, addr.block_idx, new_stmt_idx)
-        else:
-            new_bb_idx = addr.block_idx + 1
-            if new_bb_idx < len(method.blocks):
-                return SootAddressDescriptor(addr.method, new_bb_idx, 0)
-            else:
-                l.warning(
-                    "falling into a non existing bb: %d in %s",
-                    new_bb_idx,
-                    SootMethodDescriptor.from_soot_method(method),
-                )
-                raise IncorrectLocationException
+        new_bb_idx = addr.block_idx + 1
+        if new_bb_idx < len(method.blocks):
+            return SootAddressDescriptor(addr.method, new_bb_idx, 0)
+        l.warning(
+            "falling into a non existing bb: %d in %s",
+            new_bb_idx,
+            SootMethodDescriptor.from_soot_method(method),
+        )
+        raise IncorrectLocationException
 
     @classmethod
     def setup_callsite(cls, state, args, ret_addr, ret_var=None):

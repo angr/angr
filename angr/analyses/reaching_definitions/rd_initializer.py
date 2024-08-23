@@ -225,15 +225,13 @@ class RDAStateInitializer:
     def _generate_call_string(subject: Subject, current_address: int) -> tuple[int, ...] | None:
         if isinstance(subject.content, Function):
             return (subject.content.addr,)
-        elif isinstance(subject.content, CallTrace):
+        if isinstance(subject.content, CallTrace):
             if any(current_address == x.caller_func_addr for x in subject.content.callsites):
                 callsites = iter(reversed([x.caller_func_addr for x in subject.content.callsites]))
                 for call_addr in callsites:
                     if current_address == call_addr:
                         break
                 return tuple(callsites)
-            else:
-                return tuple(x.caller_func_addr for x in subject.content.callsites)
-        else:
-            l.warning("Subject with unknown content-type")
-            return None
+            return tuple(x.caller_func_addr for x in subject.content.callsites)
+        l.warning("Subject with unknown content-type")
+        return None

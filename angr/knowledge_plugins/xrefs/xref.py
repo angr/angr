@@ -129,7 +129,7 @@ class XRef(Serializable):
         else:
             dst = cmsg.data_ea
 
-        cr = XRef(
+        return XRef(
             ins_addr=cmsg.ea,
             block_addr=cmsg.block_ea,
             stmt_idx=cmsg.stmt_idx,
@@ -137,10 +137,9 @@ class XRef(Serializable):
             dst=dst,
             xref_type=cmsg.ref_type,
         )
-        return cr
 
     def copy(self):
-        cr = XRef(
+        return XRef(
             ins_addr=self.ins_addr,
             block_addr=self.block_addr,
             stmt_idx=self.stmt_idx,
@@ -149,7 +148,6 @@ class XRef(Serializable):
             dst=self.dst,
             xref_type=self.type,
         )
-        return cr
 
 
 from ..cfg.memory_data import MemoryDataSort

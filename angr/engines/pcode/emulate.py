@@ -155,12 +155,11 @@ class PcodeEmulatorMixin(SimEngineBase):
             v_out = v_in[num_bits - 1 : 0]
             l.debug("Truncating value %s (%d bits) to %s (%d bits)", v_in, v_in.size(), v_out, num_bits)
             return v_out
-        elif v_in.size() < num_bits:
+        if v_in.size() < num_bits:
             v_out = v_in.zero_extend(num_bits - v_in.size())
             l.debug("Extending value %s (%d bits) to %s (%d bits)", v_in, v_in.size(), v_out, num_bits)
             return v_out
-        else:
-            return v_in
+        return v_in
 
     def _set_value(self, varnode: Varnode, value: BV) -> None:
         """
@@ -208,12 +207,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         l.debug("Loading %s - %x x %d", space_name, varnode.offset, size)
         if space_name == "const":
             return claripy.BVV(varnode.offset, size * 8)
-        elif space_name == "register":
+        if space_name == "register":
             return self.state.registers.load(
                 self._map_register_name(varnode), size=size, endness=self.project.arch.register_endness
             )
 
-        elif space_name == "unique":
+        if space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
             try:
@@ -224,13 +223,12 @@ class PcodeEmulatorMixin(SimEngineBase):
                 self._pcode_tmps[varnode.offset] = claripy.BVV(0, size * 8)
             return self._pcode_tmps[varnode.offset]
 
-        elif space_name.lower() in ("ram", "mem"):
+        if space_name.lower() in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
             l.debug("Loaded %s from offset %s", val, varnode.offset)
             return val
 
-        else:
-            raise AngrError(f"Attempted read from unhandled address space '{space_name}'")
+        raise AngrError(f"Attempted read from unhandled address space '{space_name}'")
 
     def _execute_unary(self) -> None:
         """

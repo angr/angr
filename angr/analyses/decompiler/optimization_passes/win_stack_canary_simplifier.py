@@ -205,8 +205,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     and stmt.data.reg_offset == xored_reg
                 ):
                     return first_block, [load_stmt_idx, xor_stmt_idx, idx]
-                else:
-                    break
+                break
 
         return None
 

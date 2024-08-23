@@ -138,30 +138,28 @@ def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]
     if isinstance(expr, CConstant):
         return expr.value, []
     # elif isinstance(expr, CUnaryOp) and expr.op == 'Minus'
-    elif isinstance(expr, CBinaryOp) and expr.op == "Add":
+    if isinstance(expr, CBinaryOp) and expr.op == "Add":
         c1, t1 = extract_terms(expr.lhs)
         c2, t2 = extract_terms(expr.rhs)
         return c1 + c2, t1 + t2
-    elif isinstance(expr, CBinaryOp) and expr.op == "Sub":
+    if isinstance(expr, CBinaryOp) and expr.op == "Sub":
         c1, t1 = extract_terms(expr.lhs)
         c2, t2 = extract_terms(expr.rhs)
         return c1 - c2, t1 + [(-c, t) for c, t in t2]
-    elif isinstance(expr, CBinaryOp) and expr.op == "Mul":
+    if isinstance(expr, CBinaryOp) and expr.op == "Mul":
         if isinstance(expr.lhs, CConstant):
             c, t = extract_terms(expr.rhs)
             return c * expr.lhs.value, [(c1 * expr.lhs.value, t1) for c1, t1 in t]
-        elif isinstance(expr.rhs, CConstant):
+        if isinstance(expr.rhs, CConstant):
             c, t = extract_terms(expr.lhs)
             return c * expr.rhs.value, [(c1 * expr.rhs.value, t1) for c1, t1 in t]
-        else:
-            return 0, [(1, expr)]
-    elif isinstance(expr, CBinaryOp) and expr.op == "Shl":
+        return 0, [(1, expr)]
+    if isinstance(expr, CBinaryOp) and expr.op == "Shl":
         if isinstance(expr.rhs, CConstant):
             c, t = extract_terms(expr.lhs)
             return c << expr.rhs.value, [(c1 << expr.rhs.value, t1) for c1, t1 in t]
         return 0, [(1, expr)]
-    else:
-        return 0, [(1, expr)]
+    return 0, [(1, expr)]
 
 
 def is_machine_word_size_type(type_: SimType, arch: archinfo.Arch) -> bool:
@@ -1258,10 +1256,7 @@ class CFunctionCall(CStatement, CExpression):
     def type(self):
         if self.is_expr:
             return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
-        else:
-            raise AngrRuntimeError(
-                "CFunctionCall.type should not be accessed if the function call is used as a statement."
-            )
+        raise AngrRuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
         """
@@ -1534,10 +1529,9 @@ class CVariable(CExpression):
 
         if v.name:
             return v.name
-        elif isinstance(v, SimTemporaryVariable):
+        if isinstance(v, SimTemporaryVariable):
             return "tmp_%d" % v.tmp_id
-        else:
-            return str(v)
+        return str(v)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.name, self
@@ -1768,8 +1762,7 @@ class CBinaryOp(CExpression):
         if lhs_signed == rhs_signed:
             if lhs_ty.size > rhs_ty.size:
                 return lhs_ty
-            else:
-                return rhs_ty
+            return rhs_ty
 
         if lhs_signed:
             signed_ty = lhs_ty
@@ -2053,8 +2046,7 @@ class CConstant(CExpression):
         ident = (self.tags or {}).get("ins_addr", None)
         if ident is not None:
             return ("inst", ident)
-        else:
-            return ("val", self.value)
+        return ("val", self.value)
 
     @property
     def fmt(self):
@@ -2216,8 +2208,7 @@ class CConstant(CExpression):
             return repr(chr(value)) if value < 0x80 else f"'\\x{value:x}'"
 
         if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
-            str_value = str(struct.unpack("d", struct.pack("Q", value))[0])
-            return str_value
+            return str(struct.unpack("d", struct.pack("Q", value))[0])
 
         if self.fmt_neg:
             if value > 0:
@@ -2603,8 +2594,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _get_variable_type(self, var, is_global=False):
         if is_global:
             return self._variable_kb.variables["global"].get_variable_type(var)
-        else:
-            return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
@@ -3053,14 +3043,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 tags=tags,
                 codegen=self,
             )
-        elif loop_node.sort == "do-while":
+        if loop_node.sort == "do-while":
             return CDoWhileLoop(
                 self._handle(loop_node.condition),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
                 tags=tags,
                 codegen=self,
             )
-        elif loop_node.sort == "for":
+        if loop_node.sort == "for":
             return CForLoop(
                 None if loop_node.initializer is None else self._handle(loop_node.initializer),
                 None if loop_node.condition is None else self._handle(loop_node.condition),
@@ -3070,8 +3060,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 codegen=self,
             )
 
-        else:
-            raise NotImplementedError
+        raise NotImplementedError
 
     def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
         tags = {"ins_addr": condition_node.addr}
@@ -3085,7 +3074,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
 
-        code = CIfElse(
+        return CIfElse(
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
@@ -3095,7 +3084,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=tags,
             codegen=self,
         )
-        return code
 
     def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
         tags = {"ins_addr": cond_node.addr}
@@ -3105,14 +3093,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ]
         else_node = self._handle(cond_node.else_node) if cond_node.else_node is not None else None
 
-        code = CIfElse(
+        return CIfElse(
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
             cstyle_ifs=self.cstyle_ifs,
             codegen=self,
         )
-        return code
 
     def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
@@ -3144,8 +3131,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cases = [(idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items()]
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
-        switch_case = CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
-        return switch_case
+        return CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
 
     def _handle_Continue(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
@@ -3277,26 +3263,24 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if stmt.false_target is None
             else CGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
         )
-        ifelse = CIfElse(
+        return CIfElse(
             [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
             else_node=else_node,
             cstyle_ifs=self.cstyle_ifs,
             tags=stmt.tags,
             codegen=self,
         )
-        return ifelse
 
     def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
             return CReturn(None, tags=stmt.tags, codegen=self)
-        elif len(stmt.ret_exprs) == 1:
+        if len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
             return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
-        else:
-            # TODO: Multiple return expressions
-            l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
-            ret_expr = stmt.ret_exprs[0]
-            return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+        # TODO: Multiple return expressions
+        l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
+        ret_expr = stmt.ret_exprs[0]
+        return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = CLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
@@ -3327,8 +3311,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_size(expr.size, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
-        else:
-            return CRegister(expr, tags=expr.tags, codegen=self)
+        return CRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
         ty = self.default_simtype_from_size(expr.size)
@@ -3548,8 +3531,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # FIXME
         stack_base = CFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
-        ptr = CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
-        return ptr
+        return CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
 
 
 class CStructuredCodeWalker:

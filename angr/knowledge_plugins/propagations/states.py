@@ -476,7 +476,7 @@ class PropagatorVEXState(PropagatorState):
         return state
 
     def copy(self) -> PropagatorVEXState:
-        cp = PropagatorVEXState(
+        return PropagatorVEXState(
             self.arch,
             project=self.project,
             rda=self.rda,
@@ -493,8 +493,6 @@ class PropagatorVEXState(PropagatorState):
             model=self.model,
             artificial_reg_offsets=self._artificial_reg_offsets,
         )
-
-        return cp
 
     def merge(self, *others: PropagatorVEXState) -> tuple[PropagatorVEXState, bool]:
         state = self.copy()
@@ -752,7 +750,7 @@ class PropagatorAILState(PropagatorState):
         return state
 
     def copy(self) -> PropagatorAILState:
-        rd = PropagatorAILState(
+        return PropagatorAILState(
             self.arch,
             project=self.project,
             rda=self.rda,
@@ -770,8 +768,6 @@ class PropagatorAILState(PropagatorState):
             model=self.model,
             artificial_reg_offsets=self._artificial_reg_offsets,
         )
-
-        return rd
 
     @staticmethod
     def is_const_or_register(value: ailment.Expr.Expression | claripy.ast.Bits | None) -> bool:
@@ -842,8 +838,7 @@ class PropagatorAILState(PropagatorState):
             # value does not exist
             return None
 
-        prop_value = PropValue.from_value_and_labels(value, labels)
-        return prop_value
+        return PropValue.from_value_and_labels(value, labels)
 
     def load_stack_variable(self, sp_offset: int, size, endness=None) -> PropValue | None:
         # normalize sp_offset to handle negative offsets
@@ -870,8 +865,7 @@ class PropagatorAILState(PropagatorState):
             else:
                 return None
 
-        prop_value = PropValue.from_value_and_labels(value, labels)
-        return prop_value
+        return PropValue.from_value_and_labels(value, labels)
 
     def should_replace_reg(self, old_reg_offset: int, bp_as_gpr: bool, new_value) -> bool:
         if old_reg_offset == self.arch.sp_offset or (not bp_as_gpr and old_reg_offset == self.arch.bp_offset):
@@ -898,11 +892,10 @@ class PropagatorAILState(PropagatorState):
         # do not replace anything with a call expression
         if isinstance(new, ailment.statement.Call):
             return False
-        else:
-            callexpr_finder = CallExprFinder()
-            callexpr_finder.walk_expression(new)
-            if callexpr_finder.has_call:
-                return False
+        callexpr_finder = CallExprFinder()
+        callexpr_finder.walk_expression(new)
+        if callexpr_finder.has_call:
+            return False
 
         if self.is_top(new):
             self._replacements[codeloc][old] = self.top(1)  # placeholder

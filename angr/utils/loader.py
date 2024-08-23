@@ -22,9 +22,8 @@ def is_pc(project: Project, ins_addr: int, addr: int) -> bool:
             # thumb mode
             ins_addr = ins_addr - 1
             return addr == ins_addr + 4
-        else:
-            # arm mode
-            return addr == ins_addr + 8
+        # arm mode
+        return addr == ins_addr + 8
     return ins_addr == addr
 
 

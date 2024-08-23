@@ -89,7 +89,7 @@ class SimDebugVariable:
     def __getitem__(self, i):
         if isinstance(i, int):
             return self.array(i)
-        elif isinstance(i, str):
+        if isinstance(i, str):
             return self.member(i)
         raise KeyError
 
@@ -102,7 +102,7 @@ class SimDebugVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.array(i)
-        elif isinstance(self.type, ArrayType):
+        if isinstance(self.type, ArrayType):
             # an array already addresses its first element
             addr = self.addr
             el_type = self.type.element_type
@@ -127,7 +127,7 @@ class SimDebugVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.member(member_name)
-        elif isinstance(self.type, StructType):
+        if isinstance(self.type, StructType):
             member = self.type[member_name]
             addr = None if self.addr is None else self.addr + member.addr_offset
             return SimDebugVariable(self.state, addr, member.type)
@@ -184,7 +184,7 @@ class SimDebugVariablePlugin(SimStatePlugin):
         # FIXME This is only an approximation!
         if self.state.arch.name == "AMD64":
             return self.state.regs.rbp + 16
-        elif self.state.arch.name == "X86":
+        if self.state.arch.name == "X86":
             return self.state.regs.ebp + 8
         return 0
 

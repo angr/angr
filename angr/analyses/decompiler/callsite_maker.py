@@ -247,11 +247,10 @@ class CallSiteMaker(Analysis):
         stmt = self.block.statements[def_.codeloc.stmt_idx]
         if type(stmt) is Stmt.Assignment:
             return stmt.dst
-        elif type(stmt) is Stmt.Store:
+        if type(stmt) is Stmt.Store:
             return stmt.addr
-        else:
-            l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
-            return None
+        l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
+        return None
 
     def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, Definition]]:
         size = arg_loc.size
