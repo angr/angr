@@ -94,6 +94,7 @@ class DataGraphMeta:
             # return.
             for s in defer:
                 self._branch(dict(block.live_defs), s, path)
+        return None
 
     def _make_block(self, vfg_node, live_defs):
         raise DataGraphError("Not Implemented")

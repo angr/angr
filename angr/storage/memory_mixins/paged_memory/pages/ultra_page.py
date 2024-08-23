@@ -349,8 +349,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 memoryview(self.concrete_data)[addr : addr + size],
                 memoryview(self.symbolic_bitmap)[addr : addr + size],
             )
-        else:
-            return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
+        return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
 
     def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
@@ -408,9 +407,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
         if not self.symbolic_bitmap[start]:
             # concrete data
             return True
-        else:
-            # symbolic data or does not exist
-            return self._get_object(start, page_addr) is not None
+        # symbolic data or does not exist
+        return self._get_object(start, page_addr) is not None
 
     def _get_object(self, start: int, page_addr: int, memory=None) -> SimMemoryObject | None:
         try:
@@ -425,8 +423,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
             ):
                 return obj
-            else:
-                return None
+            return None
 
     def _get_next_place(self, start):
         try:

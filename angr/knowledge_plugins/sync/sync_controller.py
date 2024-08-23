@@ -41,10 +41,8 @@ def make_state(f):
             r = f(self, *args, **kwargs)
             state.save()
             return r
-        else:
-            kwargs["state"] = state
-            r = f(self, *args, **kwargs)
-            return r
+        kwargs["state"] = state
+        return f(self, *args, **kwargs)
 
     return state_check
 
@@ -237,8 +235,7 @@ class SyncController(KnowledgeBasePlugin):
 
         func_addr = self.get_func_addr_from_addr(addr)
         try:
-            func = state.get_function(func_addr)
-            return func
+            return state.get_function(func_addr)
         except KeyError:
             return None
 
@@ -256,8 +253,7 @@ class SyncController(KnowledgeBasePlugin):
 
         func_addr = self.get_func_addr_from_addr(addr)
         try:
-            comment = state.get_comment(func_addr, addr)
-            return comment
+            return state.get_comment(func_addr, addr)
         except KeyError:
             return None
 
@@ -274,8 +270,7 @@ class SyncController(KnowledgeBasePlugin):
         :rtype:                 Iterable
         """
         try:
-            comments = state.get_comments(func_addr)
-            return comments
+            return state.get_comments(func_addr)
         except KeyError:
             return {}
 

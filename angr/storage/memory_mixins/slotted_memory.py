@@ -86,8 +86,7 @@ class SlottedMemoryMixin(MemoryMixin):
 
         if offset == 0 and size == self.width:
             return d
-        else:
-            return d.get_bytes(offset, size)
+        return d.get_bytes(offset, size)
 
     def _single_store(self, addr, offset, size, data):
         """

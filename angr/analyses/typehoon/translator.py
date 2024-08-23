@@ -56,8 +56,7 @@ class TypeTranslator:
         except KeyError:
             return sim_type.SimTypeBottom().with_arch(self.arch)
 
-        translated = handler(self, tc)
-        return translated
+        return handler(self, tc)
 
     def simtype2tc(self, simtype: sim_type.SimType) -> typeconsts.TypeConstant:
         return self._simtype2tc(simtype)
@@ -200,14 +199,13 @@ class TypeTranslator:
 
     def _translate_SimTypeArray(self, st: sim_type.SimTypeArray) -> typeconsts.Array:
         elem_type = self._simtype2tc(st.elem_type)
-        array_tc = typeconsts.Array(elem_type, count=st.length)
-        return array_tc
+        return typeconsts.Array(elem_type, count=st.length)
 
     def _translate_SimTypePointer(self, st: sim_type.SimTypePointer) -> typeconsts.Pointer32 | typeconsts.Pointer64:
         base = self._simtype2tc(st.pts_to)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base)
-        elif self.arch.bits == 64:
+        if self.arch.bits == 64:
             return typeconsts.Pointer64(base)
         raise TypeError("Unsupported pointer size %d" % self.arch.bits)
 

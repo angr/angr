@@ -21,7 +21,7 @@ class RDAObserverControl:
             block_addr = kwargs.pop("addr", None)
             op_type = kwargs.pop("op_type", None)
             return block_addr in self.call_site_block_addrs and op_type == OP_AFTER
-        elif ob_type == "insn":
+        if ob_type == "insn":
             ins_addr = kwargs.pop("addr", None)
             op_type = kwargs.pop("op_type", None)
             return ins_addr in self.call_site_ins_addrs and op_type == OP_BEFORE

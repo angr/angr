@@ -77,8 +77,7 @@ class SimSuccessors:
 
         if isinstance(self.addr, int):
             return f"<{self.description} from {self.addr:#x}: {result}>"
-        else:
-            return f"<{self.description} from {self.addr}: {result}>"
+        return f"<{self.description} from {self.addr}: {result}>"
 
     @property
     def is_empty(self):
@@ -513,8 +512,7 @@ class SimSuccessors:
 
         if fallback:
             return None
-        else:
-            return cond_and_targets[:limit]
+        return cond_and_targets[:limit]
 
     @staticmethod
     def _eval_target_brutal(state, ip, limit):

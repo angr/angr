@@ -86,14 +86,14 @@ class JavaVmMemoryMixin(MemoryMixin):
             cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
-        elif type(addr) is SimSootValue_ArrayRef:
+        if type(addr) is SimSootValue_ArrayRef:
             return self.load_array_element(addr.base, addr.index)
 
-        elif type(addr) is SimSootValue_ParamRef:
+        if type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
-        elif type(addr) is SimSootValue_StaticFieldRef:
+        if type(addr) is SimSootValue_StaticFieldRef:
             value = self.vm_static_table.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
@@ -102,7 +102,7 @@ class JavaVmMemoryMixin(MemoryMixin):
                 self.store(addr, value)
             return value
 
-        elif type(addr) is SimSootValue_InstanceFieldRef:
+        if type(addr) is SimSootValue_InstanceFieldRef:
             value = self.heap.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
@@ -111,12 +111,11 @@ class JavaVmMemoryMixin(MemoryMixin):
                 self.store(addr, value)
             return value
 
-        elif type(addr) is SimSootValue_StringRef:
+        if type(addr) is SimSootValue_StringRef:
             return self.heap.load(addr.id, none_if_missing=none_if_missing)
 
-        else:
-            l.error("Unknown addr type %s", addr)
-            return None
+        l.error("Unknown addr type %s", addr)
+        return None
 
     def push_stack_frame(self):
         from .. import KeyValueMemory
@@ -307,7 +306,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         """
         if isinstance(idx, int):
             return [idx]
-        elif not self.state.solver.symbolic(idx):
+        if not self.state.solver.symbolic(idx):
             return [self.state.solver.eval(idx)]
 
         strategies = self.store_strategies if strategies is None else strategies
@@ -325,7 +324,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         """
         if isinstance(idx, int):
             return [idx]
-        elif not self.state.solver.symbolic(idx):
+        if not self.state.solver.symbolic(idx):
             return [self.state.solver.eval(idx)]
 
         strategies = self.load_strategies if strategies is None else strategies
@@ -387,4 +386,4 @@ class JavaVmMemoryMixin(MemoryMixin):
         self, addr, what, max_search=None, max_symbolic_bytes=None, default=None
     ):  # pylint: disable=unused-argument
         l.warning("Find is not implemented for JavaVM memory!")
-        return None
+        return

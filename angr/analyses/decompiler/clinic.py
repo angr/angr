@@ -865,11 +865,9 @@ class Clinic(Analysis):
                     ins_addr=block_node.addr,
                 )
             ]
-            ail_block = ailment.Block(block_node.addr, block_node.size, statements=statements)
-            return ail_block
+            return ailment.Block(block_node.addr, block_node.size, statements=statements)
 
-        ail_block = ailment.IRSBConverter.convert(block.vex, self._ail_manager)
-        return ail_block
+        return ailment.IRSBConverter.convert(block.vex, self._ail_manager)
 
     @timethis
     def _replace_single_target_indirect_transitions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
@@ -968,8 +966,7 @@ class Clinic(Analysis):
 
     @timethis
     def _make_ailgraph(self) -> networkx.DiGraph:
-        graph = self._function_graph_to_ail_graph(self._func_graph)
-        return graph
+        return self._function_graph_to_ail_graph(self._func_graph)
 
     @timethis
     def _simplify_blocks(
@@ -1991,7 +1988,7 @@ class Clinic(Analysis):
                 and self.project.loader.find_object_containing(op0.value) is not None
             ):
                 return op0, op1
-            elif (
+            if (
                 isinstance(op1, ailment.Expr.Const)
                 and self.project.loader.find_object_containing(op1.value) is not None
             ):

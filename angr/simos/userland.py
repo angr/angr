@@ -81,8 +81,7 @@ class SimUserland(SimOS):
             else:
                 if not state.solver.satisfiable():
                     raise AngrUnsupportedSyscallError("The program state is not satisfiable") from err
-                else:
-                    raise AngrUnsupportedSyscallError("Got a symbolic syscall number") from err
+                raise AngrUnsupportedSyscallError("Got a symbolic syscall number") from err
 
         proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported, abi=abi)
         proc.cc = cc
@@ -92,7 +91,7 @@ class SimUserland(SimOS):
         """
         Optionally, override this function to determine which abi is being used for the state's current syscall.
         """
-        return None
+        return
 
     def is_syscall_addr(self, addr):
         """

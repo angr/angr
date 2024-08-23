@@ -108,6 +108,7 @@ class HeavyPcodeMixin(
 
         self._process_successor_exits(successors)
         successors.processed = True
+        return None
 
     def _lift_irsb(self):
         irsb = self.state.scratch.irsb

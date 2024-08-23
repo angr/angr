@@ -153,8 +153,7 @@ class CFGFastSoot(CFGFast):
 
         # native method has no soot block
         if self.support_jni and block is None:
-            successors = self._native_method_successors(addr, method)
-            return successors
+            return self._native_method_successors(addr, method)
 
         block_id = block.idx
 
@@ -245,9 +244,7 @@ class CFGFastSoot(CFGFast):
         params = method.params
         dummy_expr = SootStaticInvokeExpr("void", class_name, method_name, params, {"jni"})
         dummy_stmt = InvokeStmt(0, 0, dummy_expr)
-        succs_native = self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
-
-        return succs_native
+        return self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
 
     def _special_invoke_successors(self, stmt, addr, block):
         invoke_expr = stmt.invoke_expr if isinstance(stmt, InvokeStmt) else stmt.right_op
@@ -426,9 +423,8 @@ class CFGFastSoot(CFGFast):
         if addr in self._traced_addresses:
             # the address has been traced before
             return []
-        else:
-            # Mark the address as traced
-            self._traced_addresses.add(addr)
+        # Mark the address as traced
+        self._traced_addresses.add(addr)
 
         # soot_block is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save
         # memory

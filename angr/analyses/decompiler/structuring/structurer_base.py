@@ -864,13 +864,10 @@ class StructurerBase(Analysis):
         if isinstance(node_0, SequenceNode):
             if isinstance(node_1, SequenceNode):
                 return SequenceNode(addr, nodes=node_0.nodes + node_1.nodes)
-            else:
-                return SequenceNode(addr, nodes=[*node_0.nodes, node_1])
-        else:
-            if isinstance(node_1, SequenceNode):
-                return SequenceNode(addr, nodes=[node_0, *node_1.nodes])
-            else:
-                return SequenceNode(addr, nodes=[node_0, node_1])
+            return SequenceNode(addr, nodes=[*node_0.nodes, node_1])
+        if isinstance(node_1, SequenceNode):
+            return SequenceNode(addr, nodes=[node_0, *node_1.nodes])
+        return SequenceNode(addr, nodes=[node_0, node_1])
 
     def _update_new_sequences(self, removed_sequences: set[SequenceNode], replaced_sequences: dict[SequenceNode, Any]):
         new_sequences = []
@@ -923,7 +920,7 @@ class StructurerBase(Analysis):
             if parent_node.true_node is old_node:
                 parent_node.true_node = new_node
                 return
-            elif parent_node.false_node is old_node:
+            if parent_node.false_node is old_node:
                 parent_node.false_node = new_node
                 return
         elif isinstance(parent_node, CascadingConditionNode):

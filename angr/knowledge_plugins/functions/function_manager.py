@@ -105,7 +105,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             func._function_manager = self
 
     def __getstate__(self):
-        s = {
+        return {
             "_kb": self._kb,
             "function_address_types": self.function_address_types,
             "address_types": self.address_types,
@@ -113,7 +113,6 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             "callgraph": self.callgraph,
             "block_map": self.block_map,
         }
-        return s
 
     def copy(self):
         fm = FunctionManager(self._kb)

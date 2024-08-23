@@ -33,14 +33,13 @@ class MemoryMixin(SimStatePlugin):
         if self.id in ("reg", "mem"):
             return self.id
 
-        elif self.id.startswith("file"):
+        if self.id.startswith("file"):
             return "file"
 
-        elif "_" in self.id:
+        if "_" in self.id:
             return self.id.split("_")[0]
 
-        else:
-            raise SimMemoryError(f'Unknown SimMemory category for memory_id "{self.id}"')
+        raise SimMemoryError(f'Unknown SimMemory category for memory_id "{self.id}"')
 
     @property
     def variable_key_prefix(self):

@@ -44,14 +44,13 @@ class Concrete(SimStatePlugin):
             self.already_sync_objects_addresses = already_sync_objects_addresses
 
     def copy(self, _memo):
-        conc = Concrete(
+        return Concrete(
             segment_registers_initialized=self.segment_registers_initialized,
             segment_registers_callback_initialized=self.segment_registers_callback_initialized,
             whitelist=list(self.whitelist),
             fs_register_bp=self.fs_register_bp,
             already_sync_objects_addresses=list(self.already_sync_objects_addresses),
         )
-        return conc
 
     def merge(self, _others, _merge_conditions, _common_ancestor=None):
         pass
@@ -174,11 +173,10 @@ class Concrete(SimStatePlugin):
         def _check_mapping_name(cle_mapping_name, concrete_mapping_name):
             if cle_mapping_name == concrete_mapping_name:
                 return True
-            else:
-                # removing version and extension information from the library name
-                cle_mapping_name = re.findall(r"[\w']+", cle_mapping_name)
-                concrete_mapping_name = re.findall(r"[\w']+", concrete_mapping_name)
-                return (cle_mapping_name[0] == concrete_mapping_name[0]) if len(concrete_mapping_name) else False
+            # removing version and extension information from the library name
+            cle_mapping_name = re.findall(r"[\w']+", cle_mapping_name)
+            concrete_mapping_name = re.findall(r"[\w']+", concrete_mapping_name)
+            return (cle_mapping_name[0] == concrete_mapping_name[0]) if len(concrete_mapping_name) else False
 
         l.debug("Synchronizing CLE backend with the concrete process memory mapping")
         try:

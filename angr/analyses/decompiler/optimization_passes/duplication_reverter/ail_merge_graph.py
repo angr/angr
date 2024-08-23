@@ -405,7 +405,7 @@ class AILMergeGraph:
             for other_block in originals:
                 if isinstance(other_block, Block) and other_block != block:
                     return other_block
-                elif isinstance(other_block, AILBlockSplit) and other_block.original != block:
+                if isinstance(other_block, AILBlockSplit) and other_block.original != block:
                     return other_block.original
 
         return None

@@ -254,38 +254,33 @@ class FunctionParser:
     def _get_block_or_func(addr, blocks, external_addrs, function_manager, project, all_func_addrs=None):
         # should we get a block or a function?
         try:
-            r = blocks[addr]
+            return blocks[addr]
             # it's a block. just return it
-            return r
         except KeyError:
             pass
 
         if addr in external_addrs:
             if project is not None and project.is_hooked(addr):
                 # get a hook node instead
-                r = HookNode(addr, 0, project.hooked_by(addr))
-                return r
+                return HookNode(addr, 0, project.hooked_by(addr))
             if all_func_addrs is not None and addr in all_func_addrs:
                 # get a function (which is yet to be created in the function manager)
-                r = function_manager.function(addr=addr, create=True)
-                return r
+                return function_manager.function(addr=addr, create=True)
+            # create a block
+            # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
+            # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
+            # TODO: created). The correct solution is to store the size and bytes of the block, too.
+            if project is not None:
+                block = project.factory.block(addr)
+                block_size = block.size
+                bytestr = block.bytes
             else:
-                # create a block
-                # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
-                # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
-                # TODO: created). The correct solution is to store the size and bytes of the block, too.
-                if project is not None:
-                    block = project.factory.block(addr)
-                    block_size = block.size
-                    bytestr = block.bytes
-                else:
-                    l.warning(
-                        "The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.", addr
-                    )
-                    block_size = 1
-                    bytestr = b"\x00"
-                r = BlockNode(addr, block_size, bytestr=bytestr)
-                return r
+                l.warning(
+                    "The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.", addr
+                )
+                block_size = 1
+                bytestr = b"\x00"
+            return BlockNode(addr, block_size, bytestr=bytestr)
         raise ValueError(
             "Unsupported case: The block %#x is not in external_addrs and is not in local blocks. "
             "This probably indicates a bug in angrdb generation."
@@ -293,5 +288,4 @@ class FunctionParser:
 
     @staticmethod
     def _get_func(addr, function_manager):
-        func = function_manager.function(addr=addr, create=True)
-        return func
+        return function_manager.function(addr=addr, create=True)

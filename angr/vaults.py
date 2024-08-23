@@ -350,9 +350,7 @@ class VaultDirShelf(VaultDict):
     def load(self, oid):
         shelve_path = os.path.join(self._d, oid)
         with self._locked_shelve(shelve_path):
-            o = super().load(oid)
-
-        return o
+            return super().load(oid)
 
     def keys(self):
         s = set()

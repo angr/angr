@@ -197,8 +197,7 @@ class DepGraph:
             def _string_and_length_from(data_at_address):
                 if data_at_address.content is None:
                     return UNDEFINED, data_at_address.size
-                else:
-                    return data_at_address.content.decode("utf-8"), data_at_address.size + 1
+                return data_at_address.content.decode("utf-8"), data_at_address.size + 1
 
             _, string_length = _string_and_length_from(data_at_address)
 

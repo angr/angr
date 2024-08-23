@@ -176,13 +176,11 @@ class CongruencyCheck(Analysis):
                     self.simgr.stashes[unicorn_stash][0] = new_unicorn
                     self.simgr.stashes[normal_stash][0] = new_normal
                     return False
-                else:
-                    l.warning("Divergence unaccounted for by unicorn.")
-                    return True
-            else:
-                # no idea
-                l.warning("Divergence unaccounted for.")
+                l.warning("Divergence unaccounted for by unicorn.")
                 return True
+            # no idea
+            l.warning("Divergence unaccounted for.")
+            return True
         finally:
             self._throw = ot
 
@@ -261,6 +259,7 @@ class CongruencyCheck(Analysis):
             if len(self.simgr.left) > 1:
                 self.simgr.split(from_stash="left", limit=1, to_stash="stashed_left")
                 self.simgr.split(from_stash="right", limit=1, to_stash="stashed_right")
+        return None
 
     def compare_path_group(self, pg):
         if len(pg.left) != len(pg.right):

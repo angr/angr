@@ -45,7 +45,7 @@ def parse_stack_pointer(sp):
         off1 = parse_stack_pointer(op1)
         if sp.op == "Sub":
             return off0 - off1
-        elif sp.op == "Add":
+        if sp.op == "Add":
             return off0 + off1
 
     raise NotImplementedError(f"Unsupported stack pointer representation type {type(sp)}.")
@@ -254,8 +254,7 @@ class VariableRecoveryStateBase:
     def annotate_with_variables(
         expr: claripy.ast.Base, addr_and_variables: Iterable[tuple[int, SimVariable | SpOffset]]
     ) -> claripy.ast.Base:
-        expr = expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
-        return expr
+        return expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
 
     def stack_address(self, offset: int) -> claripy.ast.Base:
         base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
@@ -283,7 +282,7 @@ class VariableRecoveryStateBase:
             if addr.args[0] == "stack_base":
                 return claripy.BVV(0, addr.size())
             return None
-        elif addr.op == "BVV":
+        if addr.op == "BVV":
             r = addr
         elif addr.op == "__add__":
             arg_offsets = []
@@ -435,8 +434,7 @@ class VariableRecoveryStateBase:
                 self.phi_variables[var] = phi_var
 
         r = self.top(bits)
-        r = self.annotate_with_variables(r, [(0, phi_var)])
-        return r
+        return self.annotate_with_variables(r, [(0, phi_var)])
 
     def _phi_node_contains(self, phi_variable, variable):
         """

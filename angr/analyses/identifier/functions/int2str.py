@@ -74,8 +74,7 @@ class int2str(Func):
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         num = random.randint(-(2**26), 2**26 - 1)
@@ -135,8 +134,7 @@ class int2str_v2(Func):
         test_output = [None, s, None]
         return_val = None
         max_steps = 10
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         num = random.randint(-(2**26), 2**26 - 1)
@@ -196,8 +194,7 @@ class int2str_v3(Func):
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         num = random.randint(-(2**26), 2**26 - 1)
@@ -257,8 +254,7 @@ class int2str_v4(Func):
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         num = random.randint(-(2**26), 2**26 - 1)

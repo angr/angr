@@ -64,10 +64,9 @@ class SimStatePlugin:
                 memo = {}
             if id(self) in memo:
                 return memo[id(self)]
-            else:
-                c = f(self, memo, **kwargs)
-                memo[id(self)] = c
-                return c
+            c = f(self, memo, **kwargs)
+            memo[id(self)] = c
+            return c
 
         return inner
 

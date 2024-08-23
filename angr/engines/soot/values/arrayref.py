@@ -30,8 +30,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
         """
         if self._default_value_generator:
             return self._default_value_generator(state)
-        else:
-            return state.project.simos.get_default_value_by_type(self.element_type, state=state)
+        return state.project.simos.get_default_value_by_type(self.element_type, state=state)
 
     def add_default_value_generator(self, generator):
         """
@@ -73,10 +72,9 @@ class SimSootValue_ArrayRef(SimSootValue):
         if isinstance(idx_value, SimSootValue_IntConstant):
             # idx is a constant
             return idx_value.value
-        else:
-            # idx is a variable
-            # => load value from memory
-            return state.memory.load(idx_value)
+        # idx is a variable
+        # => load value from memory
+        return state.memory.load(idx_value)
 
     @staticmethod
     def check_array_bounds(idx, array, state):

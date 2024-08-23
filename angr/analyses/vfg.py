@@ -148,8 +148,7 @@ class FunctionAnalysis(AnalysisTask):
         self.jobs = []
 
     def __repr__(self):
-        s = "<Function @ %#08x with %d jobs>" % (self.function_address, len(self.jobs))
-        return s
+        return "<Function @ %#08x with %d jobs>" % (self.function_address, len(self.jobs))
 
     #
     # Properties
@@ -184,8 +183,7 @@ class CallAnalysis(AnalysisTask):
         self._final_jobs = []
 
     def __repr__(self):
-        s = "<Call @ %#08x with %d function tasks>" % (self.address, len(self.function_analysis_tasks))
-        return s
+        return "<Call @ %#08x with %d function tasks>" % (self.address, len(self.function_analysis_tasks))
 
     #
     # Properties
@@ -265,8 +263,7 @@ class VFGNode:
         )
 
     def __repr__(self):
-        s = f"VFGNode[{self.addr:#x}] <{self.key!r}>"
-        return s
+        return f"VFGNode[{self.addr:#x}] <{self.key!r}>"
 
     def append_state(self, s, is_widened_state=False):
         """
@@ -654,29 +651,28 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             if unwind_count is None:
                 l.debug("%s is not recorded. Skip the job.", job)
                 raise AngrSkipJobNotice
-            else:
-                # unwind the stack till the target, unless we see any pending jobs for each new top task
-                for i in range(unwind_count):
-                    if isinstance(self._top_task, FunctionAnalysis):
-                        # are there any pending job belonging to the current function that we should handle first?
-                        pending_job_key = self._get_pending_job(self._top_task.function_address)
-                        if pending_job_key is not None:
-                            # ah there is
-                            # analyze it first
-                            self._trace_pending_job(pending_job_key)
-                            l.debug(
-                                "A pending job is found for function %#x. Delay %s.",
-                                self._top_task.function_address,
-                                job,
-                            )
-                            raise AngrDelayJobNotice
+            # unwind the stack till the target, unless we see any pending jobs for each new top task
+            for i in range(unwind_count):
+                if isinstance(self._top_task, FunctionAnalysis):
+                    # are there any pending job belonging to the current function that we should handle first?
+                    pending_job_key = self._get_pending_job(self._top_task.function_address)
+                    if pending_job_key is not None:
+                        # ah there is
+                        # analyze it first
+                        self._trace_pending_job(pending_job_key)
+                        l.debug(
+                            "A pending job is found for function %#x. Delay %s.",
+                            self._top_task.function_address,
+                            job,
+                        )
+                        raise AngrDelayJobNotice
 
-                    task = self._task_stack.pop()
+                task = self._task_stack.pop()
 
-                    if not task.done:
-                        l.warning("Removing an unfinished task %s. Might be a bug.", task)
+                if not task.done:
+                    l.warning("Removing an unfinished task %s. Might be a bug.", task)
 
-                assert job in self._top_task.jobs
+            assert job in self._top_task.jobs
 
         # check if this is considered to be a final state
         if self._final_state_callback is not None and self._final_state_callback(job.state, job.call_stack):
@@ -942,9 +938,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 job.dbg_exit_status[successor] = "Merged due to reaching a fix-point"
                 return []
 
-        new_jobs = self._create_new_jobs(job, successor, new_block_id, new_call_stack)
-
-        return new_jobs
+        return self._create_new_jobs(job, successor, new_block_id, new_call_stack)
 
     def _handle_successor_multitargets(self, job, successor, all_successors):
         """
@@ -1348,8 +1342,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                     def addr_formalize(addr):
                         if addr is None:
                             return "None"
-                        else:
-                            return f"{addr:#08x}"
+                        return f"{addr:#08x}"
 
                     s = "(["
                     for addr in ex[:-1]:
@@ -1834,8 +1827,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
     def _get_block_addr(self, b):  # pylint:disable=R0201
         if isinstance(b, SimSuccessors):
             return b.addr
-        else:
-            raise TypeError(f"Unsupported block type {type(b)}")
+        raise TypeError(f"Unsupported block type {type(b)}")
 
     def _get_nx_paths(self, begin, end):
         """

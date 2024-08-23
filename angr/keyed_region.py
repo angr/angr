@@ -102,8 +102,7 @@ class RegionObject:
         self.add_object(obj)
 
     def copy(self):
-        ro = RegionObject(self.start, self.size, objects=self.stored_objects.copy())
-        return ro
+        return RegionObject(self.start, self.size, objects=self.stored_objects.copy())
 
 
 class KeyedRegion:
@@ -324,8 +323,7 @@ class KeyedRegion:
         base_addr, container = self._get_container(addr)
         if container is None:
             return None
-        else:
-            return base_addr
+        return base_addr
 
     def get_variables_by_offset(self, start):
         """
@@ -339,8 +337,7 @@ class KeyedRegion:
         _, container = self._get_container(start)
         if container is None:
             return set()
-        else:
-            return container.internal_objects
+        return container.internal_objects
 
     def get_objects_by_offset(self, start):
         """
@@ -353,8 +350,7 @@ class KeyedRegion:
         _, container = self._get_container(start)
         if container is None:
             return set()
-        else:
-            return container.internal_objects
+        return container.internal_objects
 
     def get_all_variables(self):
         """

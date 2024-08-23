@@ -23,8 +23,7 @@ class EnvironAtom(Atom):
     def _identity(self):
         if self.name is not None:
             return (self.name,)
-        else:
-            return ()
+        return ()
 
     def __repr__(self):
         return f'<EnvironAtom {self.name if self.name is not None else "(dynamic)"}>'

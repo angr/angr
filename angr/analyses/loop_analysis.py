@@ -179,8 +179,7 @@ class SootBlockProcessor:
             var_type = mapping[full_method]
 
             if isinstance(base_var, (SootValue, AnnotatedVariable)):
-                annotated_var = AnnotatedVariable(base_var, var_type)
-                return annotated_var
+                return AnnotatedVariable(base_var, var_type)
 
         except KeyError:
             pass
@@ -255,8 +254,7 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        state = LoopAnalysisState(node)
-        return state
+        return LoopAnalysisState(node)
 
     def _merge_states(self, node, *states):
         merged = states[0]

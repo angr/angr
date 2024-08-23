@@ -251,8 +251,7 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, None
-        else:
-            return False, None
+        return False, None
 
     def _intra_analysis(self):
         pass

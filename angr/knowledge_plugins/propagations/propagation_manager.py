@@ -43,8 +43,7 @@ class PropagationManager(KnowledgeBasePlugin):
         """
         if prop_key in self._propagations:
             return self._propagations[prop_key]
-        else:
-            return default
+        return default
 
     def copy(self):
         o = PropagationManager(self._kb)

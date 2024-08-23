@@ -60,10 +60,9 @@ class OuterWalker(SequenceWalker):
     @staticmethod
     def _swap_expr_op(new_op: str, atom: Expression) -> Expression | None:
         # swap
-        new_expr = BinaryOp(
+        return BinaryOp(
             atom.idx, new_op, (atom.operands[1], atom.operands[0]), atom.signed, bits=atom.bits, **atom.tags
         )
-        return new_expr
 
 
 class ExpressionReplacer(AILBlockWalker):
@@ -81,8 +80,7 @@ class ExpressionReplacer(AILBlockWalker):
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if self._target_expr_predicate(expr):
-            new_expr = self._callback(self._block_addr, expr)
-            return new_expr
+            return self._callback(self._block_addr, expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 

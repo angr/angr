@@ -173,18 +173,17 @@ class OptimizationPass(BaseOptimizationPass):
     def _get_block(self, addr, idx=None) -> ailment.Block | None:
         if not self._blocks_by_addr:
             return None
+        if idx is None:
+            blocks = self._blocks_by_addr.get(addr, None)
         else:
-            if idx is None:
-                blocks = self._blocks_by_addr.get(addr, None)
-            else:
-                blocks = [self._blocks_by_addr_and_idx.get((addr, idx), None)]
-            if not blocks:
-                return None
-            if len(blocks) == 1:
-                return next(iter(blocks))
-            raise MultipleBlocksException(
-                "There are %d blocks at address %#x.%s but only one is requested." % (len(blocks), addr, idx)
-            )
+            blocks = [self._blocks_by_addr_and_idx.get((addr, idx), None)]
+        if not blocks:
+            return None
+        if len(blocks) == 1:
+            return next(iter(blocks))
+        raise MultipleBlocksException(
+            "There are %d blocks at address %#x.%s but only one is requested." % (len(blocks), addr, idx)
+        )
 
     def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block]:
         if not self._blocks_by_addr:

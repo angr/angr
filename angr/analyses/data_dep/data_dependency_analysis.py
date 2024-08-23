@@ -222,9 +222,7 @@ class DataDependencyGraphAnalysis(Analysis):
         if isinstance(val, BV):
             val = self._end_state.solver.eval(val)
 
-        var_node = self._get_or_create_graph_node(dep_type, sim_act, (val_ast, val), *[var_src])
-
-        return var_node
+        return self._get_or_create_graph_node(dep_type, sim_act, (val_ast, val), *[var_src])
 
     def _get_generic_node(self, action: SimActionData) -> BaseDepNode:
         def node_attributes(act: SimActionData) -> tuple:
@@ -374,14 +372,11 @@ class DataDependencyGraphAnalysis(Analysis):
 
             self._set_active_node(write_node)
             return act_loc
-        else:
-            read_node = self._parse_read_statement(read_nodes=read_nodes)
-            self._set_active_node(read_node)
+        read_node = self._parse_read_statement(read_nodes=read_nodes)
+        self._set_active_node(read_node)
 
-            # Sometimes an R is the last action in a statement
-            return (
-                self._parse_statement(read_nodes) if self._peek() and act.stmt_idx == self._peek().stmt_idx else act_loc
-            )
+        # Sometimes an R is the last action in a statement
+        return self._parse_statement(read_nodes) if self._peek() and act.stmt_idx == self._peek().stmt_idx else act_loc
 
     def _parse_mem_statement(self, read_nodes: dict[int, list[BaseDepNode]] | None = None) -> SimActLocation:
         act = self._peek()
@@ -445,8 +440,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
         if sim_act.type == SimActionData.MEM:
             return self._parse_mem_statement(read_nodes)
-        else:
-            return self._parse_var_statement(read_nodes)  # Tmp or Reg
+        return self._parse_var_statement(read_nodes)  # Tmp or Reg
 
     def _parse_instruction(self) -> SimActLocation:
         """
@@ -513,10 +507,7 @@ class DataDependencyGraphAnalysis(Analysis):
             relevant_actions = self._end_state.history.filter_actions(start_block_addr=self._start_from)[::-1]
 
         # We only care about SimActionData objects for this analysis
-        relevant_actions = list(
-            filter(lambda act: isinstance(act, SimActionData) and act.sim_procedure is None, relevant_actions)
-        )
-        return relevant_actions
+        return list(filter(lambda act: isinstance(act, SimActionData) and act.sim_procedure is None, relevant_actions))
 
     def _work(self):
         """
@@ -596,9 +587,8 @@ class DataDependencyGraphAnalysis(Analysis):
             DataDependencyGraphAnalysis._get_related_nodes(g, g_node, relevant_nodes, backwards)
             self._sub_graph = g.subgraph(relevant_nodes).copy()
             return self._sub_graph
-        else:
-            logger.error("No node %r in existing graph.", g_node)
-            return None
+        logger.error("No node %r in existing graph.", g_node)
+        return None
 
 
 # register this analysis

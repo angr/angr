@@ -204,8 +204,7 @@ class CallStack(SimStatePlugin):
         :return: A string representation
         :rtype: str
         """
-        s = "[" + ",".join([(f"0x{i:x}") if i is not None else "Unspecified" for i in stack_suffix]) + "]"
-        return s
+        return "[" + ",".join([(f"0x{i:x}") if i is not None else "Unspecified" for i in stack_suffix]) + "]"
 
     @staticmethod
     def _rfind(lst, item):
@@ -397,8 +396,8 @@ class CallStackAction:
     def __repr__(self):
         if self.action == "push":
             return f"<CallStackAction push with {self.callframe}>"
-        else:  # pop
-            return f"<CallStackAction pop, ret site {self.ret_site_addr:#x}>"
+        # pop
+        return f"<CallStackAction pop, ret site {self.ret_site_addr:#x}>"
 
 
 from angr.sim_state import SimState

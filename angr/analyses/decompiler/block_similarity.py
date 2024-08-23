@@ -52,7 +52,7 @@ def is_similar(
         return True
 
     # AIL Statements
-    elif isinstance(ail_obj1, Statement):
+    if isinstance(ail_obj1, Statement):
         # must be likeable
         if not hasattr(ail_obj2, "likes"):
             return False
@@ -96,10 +96,8 @@ def is_similar(
             return True
 
         # Generic Statement Handler
-        else:
-            return ail_obj1.likes(ail_obj2)
-    else:
-        return False
+        return ail_obj1.likes(ail_obj2)
+    return False
 
 
 #

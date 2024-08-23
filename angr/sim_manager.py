@@ -834,16 +834,15 @@ class SimulationManager:
     def _fetch_states(self, stash):
         if stash in self._stashes:
             return self._stashes[stash]
-        elif stash == SimulationManager.ALL:
+        if stash == SimulationManager.ALL:
             return list(itertools.chain.from_iterable(self._stashes.values()))
-        elif stash == "mp_" + SimulationManager.ALL:
+        if stash == "mp_" + SimulationManager.ALL:
             return mulpyplexer.MP(self._fetch_states(stash=SimulationManager.ALL))
-        elif stash.startswith("mp_"):
+        if stash.startswith("mp_"):
             return mulpyplexer.MP(self._stashes.get(stash[3:], []))
-        elif stash.startswith("one_"):
+        if stash.startswith("one_"):
             return self._stashes.get(stash[4:], [None])[0]
-        else:
-            raise AttributeError(f"No such stash: {stash}")
+        raise AttributeError(f"No such stash: {stash}")
 
     def _filter_states(self, filter_func, states):  # pylint:disable=no-self-use
         match, nomatch = [], []
@@ -891,8 +890,7 @@ class SimulationManager:
         if len(others):
             others.append(m)
             return self._merge_states(others)
-        else:
-            return m
+        return m
 
     #
     #   ...

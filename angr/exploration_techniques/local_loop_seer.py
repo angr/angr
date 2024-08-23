@@ -36,8 +36,7 @@ class LocalLoopSeer(ExplorationTechnique):
         if state in self.cut_succs:
             self.cut_succs.remove(state)
             return self.discard_stash
-        else:
-            return simgr.filter(state, **kwargs)
+        return simgr.filter(state, **kwargs)
 
     def successors(self, simgr, state, **kwargs):
         succs = simgr.successors(state, **kwargs)

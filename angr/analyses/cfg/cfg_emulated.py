@@ -775,7 +775,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._model = s["_model"]
 
     def __getstate__(self):
-        s = {
+        return {
             "project": self.project,
             "indirect_jumps": self.indirect_jumps,
             "_loop_back_edges": self._loop_back_edges,
@@ -786,8 +786,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             "_iropt_level": self._iropt_level,
             "_model": self._model,
         }
-
-        return s
 
     #
     # Properties
@@ -818,9 +816,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if self.graph is None:
             raise AngrCFGError("CFG hasn't been generated yet.")
 
-        deadends = [i for i in self.graph if self.graph.out_degree(i) == 0]
-
-        return deadends
+        return [i for i in self.graph if self.graph.out_degree(i) == 0]
 
     #
     # Private methods

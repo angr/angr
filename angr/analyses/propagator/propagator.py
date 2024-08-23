@@ -228,7 +228,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _node_key(self, node: ailment.Block | pyvex.IRSB) -> Any:
         if type(node) is ailment.Block:
             return node.addr, node.idx
-        elif type(node) is pyvex.IRSB:
+        if type(node) is pyvex.IRSB:
             return node.addr
         # fallback
         return node
@@ -321,8 +321,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         if self.model.node_iterations[block_key] < self._max_iterations:
             return None, state
-        else:
-            return False, state
+        return False, state
 
     def _process_input_state_for_successor(self, node, successor, input_state: PropagatorAILState | PropagatorVEXState):
         if self._only_consts:

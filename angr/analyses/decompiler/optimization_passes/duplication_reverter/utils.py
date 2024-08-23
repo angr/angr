@@ -72,8 +72,7 @@ def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
             else:
                 blocks += [children[1], children[0]]
 
-    blocks = [start_block, *blocks]
-    return blocks
+    return [start_block, *blocks]
 
 
 def copy_graph_and_nodes(graph: nx.DiGraph, new_idx=False):
@@ -136,13 +135,12 @@ def deepcopy_ail_condjump(stmt: ConditionalJump, idx=1):
 def deepcopy_ail_anyjump(stmt: Jump | ConditionalJump, idx=1):
     if isinstance(stmt, Jump):
         return deepcopy_ail_jump(stmt, idx=idx)
-    elif isinstance(stmt, ConditionalJump):
+    if isinstance(stmt, ConditionalJump):
         return deepcopy_ail_condjump(stmt, idx=idx)
-    else:
-        raise ValueError(
-            "Attempting to deepcopy non-jump stmt, likely happen to a "
-            "block ending in no jump. Place a jump there to fix it."
-        )
+    raise ValueError(
+        "Attempting to deepcopy non-jump stmt, likely happen to a "
+        "block ending in no jump. Place a jump there to fix it."
+    )
 
 
 def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
@@ -160,7 +158,7 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
             false_target.value = replacement_map[false_target.value]
 
         return cond_stmt
-    elif isinstance(stmt, Jump) and isinstance(stmt.target, Const):
+    if isinstance(stmt, Jump) and isinstance(stmt.target, Const):
         jump_stmt = deepcopy_ail_jump(stmt) if new_stmt else stmt
         target = jump_stmt.target
 
@@ -168,5 +166,4 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
             target.value = replacement_map[target.value]
 
         return jump_stmt
-    else:
-        return stmt
+    return stmt

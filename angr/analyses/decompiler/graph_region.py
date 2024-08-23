@@ -157,9 +157,7 @@ class GraphRegion:
 
     @staticmethod
     def dbg_get_repr(obj, ident=0):
-        s = obj.dbg_print(ident=ident) if type(obj) is GraphRegion else " " * ident + str(obj)
-
-        return s
+        return obj.dbg_print(ident=ident) if type(obj) is GraphRegion else " " * ident + str(obj)
 
     def dbg_print(self, ident=0):
         s = self.dbg_get_repr(self.head, ident=ident) + "\n"

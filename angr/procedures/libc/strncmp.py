@@ -66,7 +66,7 @@ class strncmp(angr.SimProcedure):
                 # limit is 0
                 l.debug("returning equal for 0-limit")
                 return claripy.BVV(0, 32)
-            elif (
+            if (
                 self.state.solver.single_valued(a_len)
                 and self.state.solver.single_valued(b_len)
                 and self.state.solver.eval(a_len) == self.state.solver.eval(b_len) == 0
@@ -74,13 +74,11 @@ class strncmp(angr.SimProcedure):
                 # two empty strings
                 l.debug("returning equal for two empty strings")
                 return claripy.BVV(0, 32)
-            else:
-                # all other cases fall into this branch
-                l.debug("returning non-equal for comparison of an empty string and a non-empty string")
-                if a_strlen.max_null_index == 0:
-                    return claripy.BVV(-1, 32)
-                else:
-                    return claripy.BVV(1, 32)
+            # all other cases fall into this branch
+            l.debug("returning non-equal for comparison of an empty string and a non-empty string")
+            if a_strlen.max_null_index == 0:
+                return claripy.BVV(-1, 32)
+            return claripy.BVV(1, 32)
 
         # the bytes
         max_byte_len = maxlen * char_size
@@ -115,8 +113,7 @@ class strncmp(angr.SimProcedure):
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                     if a_conc < b_conc:
                         return claripy.BVV(-1, 32)
-                    else:
-                        return claripy.BVV(1, 32)
+                    return claripy.BVV(1, 32)
             else:
                 if self.state.mode == "static":
                     return_values.append(a_byte - b_byte)

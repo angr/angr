@@ -56,7 +56,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         return None
 
     def copy(self):
-        state = VariableRecoveryState(
+        return VariableRecoveryState(
             self.block_addr,
             self._analysis,
             self.arch,
@@ -65,8 +65,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
         )
-
-        return state
 
     def register_callbacks(self, concrete_states):
         """
@@ -381,7 +379,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                     raise ValueError
 
                 return True, sum(off for _, off in parsed)
-            elif addr.op == "__sub__":
+            if addr.op == "__sub__":
                 # __sub__ might have multiple arguments
 
                 parsed = [_parse(arg) for arg in addr.args]
@@ -394,13 +392,12 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                     raise ValueError
 
                 return True, first_offset - sum(off for _, off in parsed[1:])
-            else:
-                anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
-                if anno is None:
-                    if addr.op == "BVV":
-                        return False, addr.concrete_value
-                    raise ValueError
-                return True, anno.offset
+            anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
+            if anno is None:
+                if addr.op == "BVV":
+                    return False, addr.concrete_value
+                raise ValueError
+            return True, anno.offset
 
         # find the annotated AST
         try:

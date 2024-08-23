@@ -91,8 +91,7 @@ class CodeLocation:
     def short_repr(self):
         if self.ins_addr is not None:
             return f"{self.ins_addr:#x}"
-        else:
-            return repr(self)
+        return repr(self)
 
     def __eq__(self, other):
         """
@@ -112,14 +111,14 @@ class CodeLocation:
         if self.block_addr != other.block_addr:
             if self.block_addr is None and other.block_addr is not None:
                 return True
-            elif self.block_addr is not None and other.block_addr is None:
+            if self.block_addr is not None and other.block_addr is None:
                 return False
             # elif self.block_addr is not None and other.block_addr is not None:
             return self.block_addr < other.block_addr
         if self.stmt_idx != other.stmt_idx:
             if self.stmt_idx is None and other.stmt_idx is not None:
                 return True
-            elif self.stmt_idx is not None and other.stmt_idx is None:
+            if self.stmt_idx is not None and other.stmt_idx is None:
                 return False
             # elif self.stmt_idx is not None and other.stmt_idx is not None
             return self.stmt_idx < other.stmt_idx

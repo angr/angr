@@ -45,5 +45,4 @@ class XRefsSerializer:
         if db_xrefs is None:
             return None
 
-        xrefs = XRefManager.parse(db_xrefs.blob, cfg_model=cfg_model, kb=kb)
-        return xrefs
+        return XRefManager.parse(db_xrefs.blob, cfg_model=cfg_model, kb=kb)

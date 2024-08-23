@@ -36,17 +36,16 @@ class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
                     "syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace, or set the "
                     "BYPASS_UNSUPPORTED_SYSCALL state option."
                 )
-            else:
+            try:
+                cc = angr.SYSCALL_CC[state.arch.name][state.os_name](state.arch)
+            except KeyError:
                 try:
-                    cc = angr.SYSCALL_CC[state.arch.name][state.os_name](state.arch)
+                    l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
+                    cc = angr.SYSCALL_CC[state.arch.name]["default"](state.arch)
                 except KeyError:
-                    try:
-                        l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
-                        cc = angr.SYSCALL_CC[state.arch.name]["default"](state.arch)
-                    except KeyError:
-                        cc = None  # some default will get picked down the line...
+                    cc = None  # some default will get picked down the line...
 
-                sys_procedure = angr.SIM_PROCEDURES["stubs"]["syscall"](cc=cc)
+            sys_procedure = angr.SIM_PROCEDURES["stubs"]["syscall"](cc=cc)
 
         return self.process_procedure(state, successors, sys_procedure, **kwargs)
 

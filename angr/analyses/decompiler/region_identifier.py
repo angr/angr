@@ -210,8 +210,7 @@ class RegionIdentifier(Analysis):
             if not updated:
                 break
 
-        nodes = set(loop_subgraph)
-        return nodes
+        return set(loop_subgraph)
 
     def _refine_loop(self, graph: networkx.DiGraph, head, initial_loop_nodes, initial_exit_nodes):
         if len(initial_exit_nodes) <= 1:
@@ -432,8 +431,7 @@ class RegionIdentifier(Analysis):
             return next(iter(graph.nodes()))
         # create a large graph region
         new_head = self._get_start_node(graph)
-        region = GraphRegion(new_head, graph, None, None, False, None)
-        return region
+        return GraphRegion(new_head, graph, None, None, False, None)
 
     #
     # Cyclic regions
@@ -830,8 +828,7 @@ class RegionIdentifier(Analysis):
             return GraphRegion(
                 node, subgraph, frontier, subgraph_with_frontier, False, None, cyclic_ancestor=cyclic_ancestor
             )
-        else:
-            return None
+        return None
 
     def _abstract_acyclic_region(
         self, graph: networkx.DiGraph, region, frontier, dummy_endnode=None, secondary_graph=None

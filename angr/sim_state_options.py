@@ -113,8 +113,7 @@ class SimStateOptions:
             raise SimStateOptionsError(f"The state option '{key}' does not exist.") from err
 
     def __repr__(self):
-        s = "<SimStateOptions>"
-        return s
+        return "<SimStateOptions>"
 
     def __contains__(self, key):
         """

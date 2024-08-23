@@ -23,8 +23,7 @@ class JobInfo(Generic[JobType, JobKey]):
         return type(self) == type(o) and self.key == o.key and self.job == o.job
 
     def __repr__(self):
-        s = f"<JobInfo {self.key!s}>"
-        return s
+        return f"<JobInfo {self.key!s}>"
 
     @property
     def job(self) -> JobType:

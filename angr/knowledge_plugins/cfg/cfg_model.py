@@ -102,9 +102,7 @@ class CFGModel(Serializable):
     #
 
     def __getstate__(self):
-        state = {x: self.__getattribute__(x) for x in self.__slots__}
-
-        return state
+        return {x: self.__getattribute__(x) for x in self.__slots__}
 
     def __setstate__(self, state):
         for attribute, value in state.items():

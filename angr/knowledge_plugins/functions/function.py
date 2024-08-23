@@ -376,9 +376,8 @@ class Function(Serializable):
             b = self._block_cache[addr]
             if size is None or b.size == size:
                 return b
-            else:
-                # size seems to be updated. remove this cached entry from the block cache
-                del self._block_cache[addr]
+            # size seems to be updated. remove this cached entry from the block cache
+            del self._block_cache[addr]
 
         if size is None and addr in self.block_addrs:
             # we know the size
@@ -581,8 +580,7 @@ class Function(Serializable):
     def __contains__(self, val):
         if isinstance(val, int):
             return val in self._block_sizes
-        else:
-            return False
+        return False
 
     def __str__(self):
         s = f"Function {self.name} [{self.addr:#x}]\n"
@@ -777,7 +775,7 @@ class Function(Serializable):
         if hooker:
             if hasattr(hooker, "DYNAMIC_RET") and hooker.DYNAMIC_RET:
                 return True
-            elif hasattr(hooker, "NO_RET"):
+            if hasattr(hooker, "NO_RET"):
                 return not hooker.NO_RET
 
         # Cannot determine
@@ -1321,10 +1319,9 @@ class Function(Serializable):
     def arguments(self):
         if self.calling_convention is None:
             return self._argument_registers + self._argument_stack_variables
-        else:
-            if self.prototype is None:
-                return []
-            return self.calling_convention.arg_locs(self.prototype)
+        if self.prototype is None:
+            return []
+        return self.calling_convention.arg_locs(self.prototype)
 
     @property
     def has_return(self):
@@ -1570,8 +1567,8 @@ class Function(Serializable):
         # FIXME
         if isinstance(addr, tuple):
             return addr[0]
-        else:  # int, long
-            return addr
+        # int, long
+        return addr
 
     @property
     def demangled_name(self):

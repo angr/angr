@@ -80,28 +80,26 @@ class TestCfgemulate(unittest.TestCase):
         for src, dst in s_graph.edges():
             if graph.has_edge(src, dst):
                 continue
-            else:
-                # Edge doesn't exist in our CFG
-                l.error(
-                    "Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.",
-                    get_function_name(src),
-                    src,
-                    get_function_name(dst),
-                    dst,
-                )
+            # Edge doesn't exist in our CFG
+            l.error(
+                "Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.",
+                get_function_name(src),
+                src,
+                get_function_name(dst),
+                dst,
+            )
 
         for src, dst in graph.edges():
             if s_graph.has_edge(src, dst):
                 continue
-            else:
-                # Edge doesn't exist in our CFG
-                l.error(
-                    "Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.",
-                    get_function_name(src),
-                    src,
-                    get_function_name(dst),
-                    dst,
-                )
+            # Edge doesn't exist in our CFG
+            l.error(
+                "Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.",
+                get_function_name(src),
+                src,
+                get_function_name(dst),
+                dst,
+            )
 
     def perform_single(self, binary_path, cfg_path=None):
         proj = angr.Project(

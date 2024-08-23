@@ -35,5 +35,4 @@ class SingleNodeGraphVisitor(GraphVisitor):
     def sort_nodes(self, nodes=None):
         if nodes:
             return nodes
-        else:
-            return [self.node]
+        return [self.node]

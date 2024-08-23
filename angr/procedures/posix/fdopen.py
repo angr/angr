@@ -61,20 +61,16 @@ class fdopen(angr.SimProcedure):
         if fd_concr not in self.state.posix.fd:
             # if file descriptor not found return NULL
             return 0
-        else:
-            # Allocate a FILE struct in heap
-            malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
-            io_file_data = io_file_data_for_arch(self.state.arch)
-            file_struct_ptr = self.inline_call(malloc, io_file_data["size"]).ret_expr
+        # Allocate a FILE struct in heap
+        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
+        io_file_data = io_file_data_for_arch(self.state.arch)
+        file_struct_ptr = self.inline_call(malloc, io_file_data["size"]).ret_expr
 
-            # Write the fd
-            fd_bvv = claripy.BVV(fd_concr, 4 * 8)  # int
-            self.state.memory.store(
-                file_struct_ptr + io_file_data["fd"], fd_bvv, endness=self.state.arch.memory_endness
-            )
+        # Write the fd
+        fd_bvv = claripy.BVV(fd_concr, 4 * 8)  # int
+        self.state.memory.store(file_struct_ptr + io_file_data["fd"], fd_bvv, endness=self.state.arch.memory_endness)
 
-            if self.state.solver.is_true(fd_int == fd_concr):
-                return file_struct_ptr
-            else:
-                null = claripy.BVV(0, self.state.arch.bits)
-                return claripy.If(fd_int == fd_concr, file_struct_ptr, null)
+        if self.state.solver.is_true(fd_int == fd_concr):
+            return file_struct_ptr
+        null = claripy.BVV(0, self.state.arch.bits)
+        return claripy.If(fd_int == fd_concr, file_struct_ptr, null)

@@ -18,7 +18,6 @@ class ASubASubN(PeepholeOptimizationExprBase):
             and expr.operands[1].op == "Sub"
             and expr.operands[0] == expr.operands[1].operands[0]
         ):
-            new_expr = expr.operands[1].operands[1]
-            return new_expr
+            return expr.operands[1].operands[1]
 
         return None

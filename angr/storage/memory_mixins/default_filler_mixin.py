@@ -107,9 +107,7 @@ class DefaultFillerMixin(MemoryMixin):
         if name is None:
             name = f"{self.id}_{addr:x}" if type(addr) is int else self.category
 
-        r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
-
-        return r
+        return self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
 
 
 class SpecialFillerMixin(MemoryMixin):
@@ -140,8 +138,7 @@ class ExplicitFillerMixin(MemoryMixin):
     def _default_value(self, addr, size, inspect=True, events=True, **kwargs):
         if self._uninitialized_read_handler is not None:
             return self._uninitialized_read_handler(addr, size, inspect=inspect, events=events)
-        else:
-            return super()._default_value(addr, size, inspect=inspect, events=events, **kwargs)
+        return super()._default_value(addr, size, inspect=inspect, events=events, **kwargs)
 
     def copy(self, memo):
         o = super().copy(memo)

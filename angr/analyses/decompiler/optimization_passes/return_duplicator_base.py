@@ -417,9 +417,9 @@ class ReturnDuplicatorBase:
         def _unpack_block_type_to_addrs(node):
             if isinstance(node, Block):
                 return {node.addr}
-            elif isinstance(node, MultiNode):
+            if isinstance(node, MultiNode):
                 return {n.addr for n in node.nodes}
-            elif isinstance(node, ConditionNode):
+            if isinstance(node, ConditionNode):
                 return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
             return set()
 

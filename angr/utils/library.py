@@ -47,8 +47,7 @@ def get_function_name(s):
     else:
         raise ValueError("Cannot find any space in the function declaration string.")
 
-    func_name = func_name[pos + 1 :]
-    return func_name
+    return func_name[pos + 1 :]
 
 
 def register_kernel_types():

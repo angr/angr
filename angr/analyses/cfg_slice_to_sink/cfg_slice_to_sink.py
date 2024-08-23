@@ -114,5 +114,4 @@ class CFGSliceToSink:
 
         if destination in direct_successors:
             return True
-        else:
-            return any(self.path_between(s, destination, _visited) for s in direct_successors)
+        return any(self.path_between(s, destination, _visited) for s in direct_successors)

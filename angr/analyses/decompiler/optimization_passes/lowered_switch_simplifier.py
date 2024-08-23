@@ -194,8 +194,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 current_len = 1
 
         # Final check to include the last sequence
-        max_len = max(max_len, current_len)
-        return max_len
+        return max(max_len, current_len)
 
     @staticmethod
     def _count_distinct_cases(cases: list[Case]) -> int:

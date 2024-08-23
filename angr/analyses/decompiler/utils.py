@@ -538,9 +538,7 @@ def peephole_optimize_expr(expr, expr_opts):
     # run expression optimizers
     walker = ailment.AILBlockWalker()
     walker._handle_expr = _handle_expr
-    new_expr = walker._handle_expr(0, expr, 0, None, None)
-
-    return new_expr
+    return walker._handle_expr(0, expr, 0, None, None)
 
 
 def copy_graph(graph: networkx.DiGraph):

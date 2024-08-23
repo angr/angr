@@ -94,7 +94,7 @@ class SimRegNameView(SimStatePlugin):
                 + ["tag%d" % n for n in range(8)]
                 + ["flags", "eflags", "rflags"]
             )
-        elif is_arm_arch(self.state.arch):
+        if is_arm_arch(self.state.arch):
             return [*list(self.state.arch.registers.keys()), "flags"]
         return self.state.arch.registers.keys()
 
@@ -174,12 +174,11 @@ class SimMemView(SimStatePlugin):
         if isinstance(k, slice):
             if k.step is not None:
                 raise ValueError("Slices with strides are not supported")
-            elif k.start is None:
+            if k.start is None:
                 raise ValueError("Must specify start index")
-            elif k.stop is not None:
+            if k.stop is not None:
                 raise ValueError("Slices with stop index are not supported")
-            else:
-                addr = k.start
+            addr = k.start
         elif self._type is not None and self._type._can_refine_int:
             return self._type._refine(self, k)
         else:

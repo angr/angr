@@ -30,8 +30,7 @@ class RefcountMixin(MemoryMixin):
         with self.lock:
             if self.refcount == 1:
                 return self
-            else:
-                self.refcount -= 1
+            self.refcount -= 1
         return self.copy(
             {}
         )  # TODO: evaluate if it's worth making the lock a reentrant lock (RLock) so this can go in the else arm

@@ -113,8 +113,7 @@ class RegionedMemoryMixin(MemoryMixin):
             regioned_addrs_desc.cardinality >= self._read_targets_limit
             and CONSERVATIVE_READ_STRATEGY in self.state.options
         ):
-            val = self.state.solver.Unconstrained("unconstrained_read", size * self.state.arch.byte_width)
-            return val
+            return self.state.solver.Unconstrained("unconstrained_read", size * self.state.arch.byte_width)
 
         gen = self._concretize_address_descriptor(regioned_addrs_desc, addr, is_write=False)
         for aw in gen:
@@ -179,6 +178,7 @@ class RegionedMemoryMixin(MemoryMixin):
             region_base_addr = self._region_base(region)
             r = claripy.ValueSet(r.size(), region, region_base_addr, claripy.backends.vsa.convert(r))
             return r, s, i
+        return None
 
     def set_state(self, state):
         for region in self._regions.values():
@@ -236,12 +236,11 @@ class RegionedMemoryMixin(MemoryMixin):
         region_ids = self._stack_region_map.region_ids
         if region_id not in region_ids:
             return region_id
-        else:
-            for i in range(0, 2000):
-                new_region_id = region_id + "_%d" % i
-                if new_region_id not in region_ids:
-                    return new_region_id
-            raise SimMemoryError(f"Cannot allocate region ID for function {function_address:#08x} - recursion too deep")
+        for i in range(2000):
+            new_region_id = region_id + "_%d" % i
+            if new_region_id not in region_ids:
+                return new_region_id
+        raise SimMemoryError(f"Cannot allocate region ID for function {function_address:#08x} - recursion too deep")
 
     def set_stack_size(self, size: int):
         self._stack_size = size
@@ -418,12 +417,11 @@ class RegionedMemoryMixin(MemoryMixin):
                 new_region_id, self._region_base(new_region_id), new_relative_address, True, related_function_addr
             )
 
-        else:
-            new_region_id, new_relative_address, related_function_addr = self._generic_region_map.relativize(
-                absolute_address, target_region_id=target_region
-            )
+        new_region_id, new_relative_address, related_function_addr = self._generic_region_map.relativize(
+            absolute_address, target_region_id=target_region
+        )
 
-            return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, False, None)
+        return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, False, None)
 
     @staticmethod
     def _apply_condition_to_symbolic_addr(addr, condition):

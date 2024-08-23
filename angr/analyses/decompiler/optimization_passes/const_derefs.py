@@ -60,13 +60,12 @@ class BlockWalker(AILBlockWalker):
         new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
 
         if new_dst is not None or new_src is not None:
-            new_stmt = Assignment(
+            return Assignment(
                 stmt.idx,
                 stmt.dst if new_dst is None else new_dst,
                 stmt.src if new_src is None else new_src,
                 **stmt.tags,
             )
-            return new_stmt
         return None
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
@@ -89,7 +88,7 @@ class BlockWalker(AILBlockWalker):
 
         if new_target is not None or new_args is not None:
             # create a new call expr
-            new_expr = Call(
+            return Call(
                 expr.idx,
                 expr.target if new_target is None else new_target,
                 calling_convention=expr.calling_convention,
@@ -98,7 +97,6 @@ class BlockWalker(AILBlockWalker):
                 ret_expr=expr.ret_expr,
                 **expr.tags,
             )
-            return new_expr
         return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block):
@@ -121,7 +119,7 @@ class BlockWalker(AILBlockWalker):
 
         if new_target is not None or new_args is not None:
             # create a new statement
-            new_stmt = Call(
+            return Call(
                 stmt.idx,
                 stmt.target if new_target is None else new_target,
                 calling_convention=stmt.calling_convention,
@@ -130,7 +128,6 @@ class BlockWalker(AILBlockWalker):
                 ret_expr=stmt.ret_expr,
                 **stmt.tags,
             )
-            return new_stmt
         return None
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block):
@@ -265,5 +262,4 @@ class ConstantDereferencesSimplifier(OptimizationPass):
         walker.walk()
 
     def _walk_block(self, block: Block) -> Block | None:
-        new_block = self._block_walker.walk(block)
-        return new_block
+        return self._block_walker.walk(block)

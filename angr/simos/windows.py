@@ -80,8 +80,7 @@ class SimWindows(SimOS):
         sym = self.project.loader.find_symbol(name)
         if sym is None:
             return self.project.loader.extern_object.get_pseudo_addr(name)
-        else:
-            return sym.rebased_addr
+        return sym.rebased_addr
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, env=None, argc=None, **kwargs):

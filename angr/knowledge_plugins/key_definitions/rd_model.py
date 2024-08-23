@@ -121,7 +121,7 @@ class ReachingDefinitionsModel:
     ) -> LiveDefinitions | None:
         if isinstance(ins_addr, int):
             return self.observed_results.get(("insn", ins_addr, kind), None)
-        elif ins_addr.ins_addr is None:
+        if ins_addr.ins_addr is None:
             raise ValueError("CodeLocation must have an instruction address associated")
         return self.observed_results.get(("insn", ins_addr.ins_addr, kind))
 
@@ -131,13 +131,12 @@ class ReachingDefinitionsModel:
         if isinstance(node_addr, int):
             key = ("node", node_addr, kind) if node_idx is None else ("node", (node_addr, node_idx), kind)
             return self.observed_results.get(key, None)
-        else:
-            key = (
-                ("node", node_addr.block_addr, kind)
-                if node_idx is None
-                else ("node", (node_addr.block_addr, node_idx), kind)
-            )
-            return self.observed_results.get(key, None)
+        key = (
+            ("node", node_addr.block_addr, kind)
+            if node_idx is None
+            else ("node", (node_addr.block_addr, node_idx), kind)
+        )
+        return self.observed_results.get(key, None)
 
     @overload
     def get_observation_by_stmt(self, codeloc: CodeLocation, kind: ObservationPointType) -> LiveDefinitions | None: ...
@@ -151,15 +150,12 @@ class ReachingDefinitionsModel:
         if isinstance(arg1, int):
             if block_idx is None:
                 return self.observed_results.get(("stmt", (arg1, arg2), arg3), None)
-            else:
-                return self.observed_results.get(("stmt", (arg1, arg2, block_idx), arg3), None)
-        else:
-            if arg1.stmt_idx is None:
-                raise ValueError("CodeLocation must have a statement index associated")
-            if arg1.block_idx is None:
-                return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx), arg2), None)
-            else:
-                return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx, block_idx), arg2), None)
+            return self.observed_results.get(("stmt", (arg1, arg2, block_idx), arg3), None)
+        if arg1.stmt_idx is None:
+            raise ValueError("CodeLocation must have a statement index associated")
+        if arg1.block_idx is None:
+            return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx), arg2), None)
+        return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx, block_idx), arg2), None)
 
     def get_observation_by_exit(
         self,

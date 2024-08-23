@@ -29,7 +29,7 @@ class strstr(angr.SimProcedure):
         if needle_maxlen == 0:
             l.debug("... zero-length needle.")
             return haystack_addr
-        elif haystack_maxlen == 0:
+        if haystack_maxlen == 0:
             l.debug("... zero-length haystack.")
             return claripy.BVV(0, self.state.arch.bits)
 

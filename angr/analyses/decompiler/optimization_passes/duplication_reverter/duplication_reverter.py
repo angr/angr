@@ -78,8 +78,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
     def _get_new_gotos(self):
         future_irreducible_gotos = self._find_future_irreducible_gotos()
-        new_gotos = [goto for goto in self._goto_manager.gotos if goto not in future_irreducible_gotos]
-        return new_gotos
+        return [goto for goto in self._goto_manager.gotos if goto not in future_irreducible_gotos]
 
     #
     # Main Analysis

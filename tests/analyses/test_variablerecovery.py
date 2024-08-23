@@ -50,12 +50,11 @@ class TestVariableRecovery(unittest.TestCase):
 
             return True
 
-        else:
-            if isinstance(variable, SimStackVariable):
-                # it is not a variable on the stack
-                return False
+        if isinstance(variable, SimStackVariable):
+            # it is not a variable on the stack
+            return False
 
-            raise NotImplementedError
+        raise NotImplementedError
 
     def _compare_register_variable(self, variable, variable_info):  # pylint:disable=unused-argument
         if not isinstance(variable, SimRegisterVariable):

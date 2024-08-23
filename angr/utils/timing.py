@@ -40,7 +40,6 @@ def timethis(func):
                 time_distribution[func].append(millisec)
             depth -= 1
             return r
-        else:
-            return func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     return timed_func

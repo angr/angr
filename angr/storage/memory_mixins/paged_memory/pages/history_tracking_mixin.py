@@ -27,8 +27,7 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
         return super().store(addr, data, **kwargs)
 
     def copy(self, memo):
-        o = super().copy(memo)
-        return o
+        return super().copy(memo)
 
     def acquire_unique(self):
         page = super().acquire_unique()

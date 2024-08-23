@@ -336,18 +336,17 @@ class CallingConventionAnalysis(Analysis):
                 self._function,
             )
             return None
-        else:
-            # reorder args
-            args = self._reorder_args(input_args, cc)
-            if fixed_args is not None:
-                args = args[:fixed_args]
+        # reorder args
+        args = self._reorder_args(input_args, cc)
+        if fixed_args is not None:
+            args = args[:fixed_args]
 
-            # guess the type of the return value -- it's going to be a wild guess...
-            ret_type = self._guess_retval_type(cc, vm.ret_val_size)
-            if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
-                # hack - main must return an int even in 64-bit binaries
-                ret_type = SimTypeInt()
-            prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type, variadic=is_variadic)
+        # guess the type of the return value -- it's going to be a wild guess...
+        ret_type = self._guess_retval_type(cc, vm.ret_val_size)
+        if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
+            # hack - main must return an int even in 64-bit binaries
+            ret_type = SimTypeInt()
+        prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type, variadic=is_variadic)
 
         return cc, prototype
 
@@ -375,8 +374,7 @@ class CallingConventionAnalysis(Analysis):
             observation_points=observation_points,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        fact = self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
-        return fact
+        return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
 
     def _extract_and_analyze_callsites(
         self,
@@ -744,31 +742,29 @@ class CallingConventionAnalysis(Analysis):
         if arch_name == "AARCH64":
             return 16 <= variable.reg < 80  # x0-x7
 
-        elif arch_name == "AMD64":
+        if arch_name == "AMD64":
             return 24 <= variable.reg < 40 or 64 <= variable.reg < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
             # 224 <= variable.reg < 480)  # xmm0-xmm7
 
-        elif is_arm_arch(arch):
+        if is_arm_arch(arch):
             if isinstance(arch, ArchARMHF):
                 return 8 <= variable.reg < 24 or 128 <= variable.reg < 160  # r0 - 32  # s0 - s7, or d0 - d4
-            else:
-                return 8 <= variable.reg < 24  # r0-r3
+            return 8 <= variable.reg < 24  # r0-r3
 
-        elif arch_name == "MIPS32":
+        if arch_name == "MIPS32":
             return 24 <= variable.reg < 40  # a0-a3
 
-        elif arch_name == "MIPS64":
+        if arch_name == "MIPS64":
             return 48 <= variable.reg < 80 or 112 <= variable.reg < 208  # a0-a3 or t4-t7
 
-        elif arch_name == "PPC32":
+        if arch_name == "PPC32":
             return 28 <= variable.reg < 60  # r3-r10
 
-        elif arch_name == "X86":
+        if arch_name == "X86":
             return 8 <= variable.reg < 24 or 160 <= variable.reg < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
 
-        else:
-            l.critical("Unsupported architecture %s.", arch.name)
-            return True
+        l.critical("Unsupported architecture %s.", arch.name)
+        return True
 
     def _reorder_args(self, args: list[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
@@ -831,20 +827,19 @@ class CallingConventionAnalysis(Analysis):
         if cc is not None and cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
             if arg.size == 4:
                 return SimTypeFloat()
-            elif arg.size == 8:
+            if arg.size == 8:
                 return SimTypeDouble()
 
         if arg.size == 4:
             return SimTypeInt()
-        elif arg.size == 8:
+        if arg.size == 8:
             return SimTypeLongLong()
-        elif arg.size == 2:
+        if arg.size == 2:
             return SimTypeShort()
-        elif arg.size == 1:
+        if arg.size == 1:
             return SimTypeChar()
-        else:
-            # Unsupported for now
-            return SimTypeBottom()
+        # Unsupported for now
+        return SimTypeBottom()
 
     def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
         if cc.FP_RETURN_VAL and self._function.ret_sites:
@@ -862,11 +857,11 @@ class CallingConventionAnalysis(Analysis):
         if ret_val_size is not None:
             if ret_val_size == 1:
                 return SimTypeChar()
-            elif ret_val_size == 2:
+            if ret_val_size == 2:
                 return SimTypeShort()
-            elif 3 <= ret_val_size <= 4:
+            if 3 <= ret_val_size <= 4:
                 return SimTypeInt()
-            elif 5 <= ret_val_size <= 8:
+            if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
 
         # fallback
