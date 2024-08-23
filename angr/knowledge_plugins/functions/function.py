@@ -30,6 +30,7 @@ l = logging.getLogger(name=__name__)
 from ...sim_type import SimTypeFunction, parse_defns
 from ...calling_conventions import SimCC
 from ...project import Project
+import contextlib
 
 
 class Function(Serializable):
@@ -278,10 +279,9 @@ class Function(Serializable):
 
     @property
     def project(self):
-        if self._project is None:
+        if self._project is None and self._function_manager is not None:
             # try to set it from function manager
-            if self._function_manager is not None:
-                self._project: Project | None = self._function_manager._kb._project
+            self._project: Project | None = self._function_manager._kb._project
         return self._project
 
     @property
@@ -301,12 +301,10 @@ class Function(Serializable):
         """
 
         for block_addr, block in self._local_blocks.items():
-            try:
+            with contextlib.suppress(SimEngineError, SimMemoryError):
                 yield self.get_block(
                     block_addr, size=block.size, byte_string=block.bytestr if isinstance(block, BlockNode) else None
                 )
-            except (SimEngineError, SimMemoryError):
-                pass
 
     @property
     def cyclomatic_complexity(self):
@@ -721,9 +719,8 @@ class Function(Serializable):
 
         self.is_default_name = False
         # Try to get a name from existing labels
-        if self._function_manager is not None:
-            if addr in self._function_manager._kb.labels:
-                name = self._function_manager._kb.labels[addr]
+        if self._function_manager is not None and addr in self._function_manager._kb.labels:
+            name = self._function_manager._kb.labels[addr]
 
         # try to get the name from a hook
         if name is None and self.project is not None:
@@ -933,9 +930,8 @@ class Function(Serializable):
             node._graph = self.transition_graph
             if self._block_sizes.get(node.addr, 0) == 0:
                 self._block_sizes[node.addr] = node.size
-            if node.addr == self.addr:
-                if self.startpoint is None or not self.startpoint.is_hook:
-                    self.startpoint = node
+            if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
+                self.startpoint = node
             if is_local and node.addr not in self._local_blocks:
                 self._update_local_blocks(node)
             # add BlockNodes to the addr_to_block_node cache if not already there
@@ -1095,11 +1091,13 @@ class Function(Serializable):
         for block in self._local_blocks.values():
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
-            if "type" in data:
-                if data["type"] in ("transition", "exception") and ("outside" not in data or data["outside"] is False):
-                    g.add_edge(src, dst, **data)
-                elif data["type"] == "fake_return" and ("outside" not in data or data["outside"] is False):
-                    g.add_edge(src, dst, **data)
+            if "type" in data and (
+                data["type"] in ("transition", "exception")
+                and ("outside" not in data or data["outside"] is False)
+                or data["type"] == "fake_return"
+                and ("outside" not in data or data["outside"] is False)
+            ):
+                g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
 
@@ -1221,10 +1219,9 @@ class Function(Serializable):
 
             in_edges = subgraph.in_edges(n)
             # out_edges = subgraph.out_edges(n)
-            if len(in_edges) > 1:
-                # the first instruction address should be included
-                if n.addr not in insns:
-                    insns = [n.addr] + insns
+            # the first instruction address should be included
+            if len(in_edges) > 1 and n.addr not in insns:
+                insns = [n.addr] + insns
 
             for src, _ in in_edges:
                 last_instr = block_addr_to_insns[src.addr][-1]
@@ -1270,9 +1267,12 @@ class Function(Serializable):
             if b.addr <= addr < b.addr + b.size:
                 # found it
                 for i, instr_addr in enumerate(b.instruction_addrs):
-                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i + 1]:
-                        return instr_addr
-                    elif i == len(b.instruction_addrs) - 1 and instr_addr <= addr:
+                    if (
+                        i < len(b.instruction_addrs) - 1
+                        and instr_addr <= addr < b.instruction_addrs[i + 1]
+                        or i == len(b.instruction_addrs) - 1
+                        and instr_addr <= addr
+                    ):
                         return instr_addr
                 # Not covered by any instruction... why?
                 return None

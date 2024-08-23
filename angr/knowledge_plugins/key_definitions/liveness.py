@@ -95,24 +95,18 @@ class Liveness:
         self, block_addr: int, block_idx: int | None, stmt_idx: int | None, op: int = OP_BEFORE
     ) -> set[Definition]:
         block: BlockAddrType = block_addr, block_idx
-        if block not in self.blockstart_to_defs:
-            defs = set()
-        else:
-            defs = self.blockstart_to_defs[block].copy()
+        defs = set() if block not in self.blockstart_to_defs else self.blockstart_to_defs[block].copy()
 
         if stmt_idx is None:
             return defs
 
-        added_defs = self.loc_to_added_defs[block] if block in self.loc_to_added_defs else None
+        added_defs = self.loc_to_added_defs.get(block, None)
         killed_defs = self.loc_to_killed_defs[block] if block in self.loc_to_added_defs else None
 
         if stmt_idx == DEFAULT_STATEMENT:
             end_stmt_idx = self._node_max_stmt_id[block] + 1
         else:
-            if op == OP_BEFORE:
-                end_stmt_idx = stmt_idx
-            else:
-                end_stmt_idx = stmt_idx + 1
+            end_stmt_idx = stmt_idx if op == OP_BEFORE else stmt_idx + 1
 
         if added_defs is not None and killed_defs is not None:
             indices = chain(added_defs, killed_defs)

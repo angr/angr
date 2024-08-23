@@ -435,11 +435,8 @@ class SimJavaVM(SimOS):
 
         :return: A SymTypeReg with the JNI size of the given type.
         """
-        if java_type in ArchSoot.sizeof.keys():
-            jni_type_size = ArchSoot.sizeof[java_type]
-        else:
-            # if it's not a primitive type, we treat it as a reference
-            jni_type_size = self.native_simos.arch.bits
+        # if it's not a primitive type, we treat it as a reference
+        jni_type_size = ArchSoot.sizeof.get(java_type, self.native_simos.arch.bits)
         return SimTypeNum(size=jni_type_size)
 
     def get_method_native_type(self, method):

@@ -29,9 +29,7 @@ class MultiNode:
         self.nodes = []
 
         for node in nodes:
-            if type(node) is MultiNode:
-                self.nodes += node.nodes
-            elif type(node) is GraphRegion:
+            if type(node) is MultiNode or type(node) is GraphRegion:
                 self.nodes += node.nodes
             else:
                 self.nodes.append(node)
@@ -73,12 +71,9 @@ class BaseNode:
 
     @staticmethod
     def test_empty_node(node):
-        # pylint:disable=simplifiable-if-statement
         if type(node) is ailment.Block:
-            if not node.statements:
-                return True
-            # not empty
-            return False
+            # is it empty?
+            return bool(not node.statements)
         elif type(node) is CodeNode:
             return BaseNode.test_empty_node(node.node)
         # unsupported node type. probably not empty?

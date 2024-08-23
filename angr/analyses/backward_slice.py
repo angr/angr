@@ -150,10 +150,7 @@ class BackwardSlice(Analysis):
 
             statements = vex_block.statements
             for i in range(0, len(statements)):
-                if i in chosen_statements:
-                    line = "+"
-                else:
-                    line = "-"
+                line = "+" if i in chosen_statements else "-"
                 line += "[% 3d] " % i
                 line += str(statements[i])
                 ss += line + "\n"

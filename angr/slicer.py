@@ -155,10 +155,12 @@ class SimSlicer:
     def _forward_handler_expr_Get(self, expr, state):
         reg = expr.offset
 
-        if state.options["mock_sp"] and reg == self._arch.sp_offset:
-            return state.regs[reg]
-
-        elif state.options["mock_bp"] and reg == self._arch.bp_offset:
+        if (
+            state.options["mock_sp"]
+            and reg == self._arch.sp_offset
+            or state.options["mock_bp"]
+            and reg == self._arch.bp_offset
+        ):
             return state.regs[reg]
 
         return None

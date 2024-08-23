@@ -16,6 +16,7 @@ from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffe
 from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
 from ..codenode import BlockNode
 from .disassembly_utils import decode_instruction
+import contextlib
 
 try:
     from ..engines import pcode
@@ -273,11 +274,8 @@ class Instruction(DisassemblyPiece):
             self.operands.append(cur_operand)
 
         for i, opr in enumerate(self.operands):
-            if i < len(self.insn.operands):
-                op_type = self.insn.operands[i].type
-            else:
-                # set extra dummy operand type to default 0
-                op_type = 0
+            # set extra dummy operand type to default 0
+            op_type = self.insn.operands[i].type if i < len(self.insn.operands) else 0
             self.operands[i] = Operand.build(op_type, i, opr, self)
 
         if len(self.operands) == 0 and len(self.insn.operands) != 0:
@@ -640,7 +638,7 @@ class Operand(DisassemblyPiece):
             70: Operand,  # ARM64 BARRIER
         }
 
-        cls = MAPPING.get(operand_type, None)
+        cls = MAPPING.get(operand_type)
         if cls is None:
             raise ValueError(f"Unknown capstone operand type {operand_type}.")
 
@@ -670,10 +668,8 @@ class RegisterOperand(Operand):
     def _render(self, formatting):
         custom_value_str = None
         if formatting is not None:
-            try:
+            with contextlib.suppress(KeyError):
                 custom_value_str = formatting["custom_values_str"][self.ident]
-            except KeyError:
-                pass
 
         if custom_value_str:
             return [custom_value_str]
@@ -796,10 +792,8 @@ class MemoryOperand(Operand):
             custom_values_str = None
 
             if formatting is not None:
-                try:
+                with contextlib.suppress(KeyError):
                     values_style = formatting["values_style"][self.ident]
-                except KeyError:
-                    pass
 
                 try:
                     show_prefix_str = formatting["show_prefix"][self.ident]
@@ -808,10 +802,8 @@ class MemoryOperand(Operand):
                 except KeyError:
                     pass
 
-                try:
+                with contextlib.suppress(KeyError):
                     custom_values_str = formatting["custom_values_str"][self.ident]
-                except KeyError:
-                    pass
 
             prefix_str = " ".join(self.prefix) + " " if show_prefix and self.prefix else ""
             if custom_values_str is not None:
@@ -921,12 +913,11 @@ class Value(OperandPiece):
 
         if self.val in self.project.kb.labels:
             lbl = self.project.kb.labels[self.val]
-            if func is not None:
+            if func is not None and lbl == func.name and func.name != func.demangled_name:
                 # see if lbl == func.name and func.demangled_name != func.name. if so, we prioritize the
                 # demangled name
-                if lbl == func.name and func.name != func.demangled_name:
-                    normalized_name = get_cpp_function_name(func.demangled_name, specialized=False, qualified=True)
-                    return [normalized_name]
+                normalized_name = get_cpp_function_name(func.demangled_name, specialized=False, qualified=True)
+                return [normalized_name]
             return [("+" if self.render_with_sign else "") + lbl]
         elif func is not None:
             return [func.demangled_name]
@@ -1084,13 +1075,11 @@ class Disassembly(Analysis):
         if irsb.statements is not None:
             if pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
                 addr = None
-                stmt_idx = 0
-                for op in irsb._ops:
+                for stmt_idx, op in enumerate(irsb._ops):
                     if op.opcode == pypcode.OpCode.IMARK:
                         addr = op.inputs[0].offset
                     else:
                         addr_to_ops_map[addr].append(IROp(addr, stmt_idx, op, irsb))
-                    stmt_idx += 1
             else:
                 for seq, stmt in enumerate(irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark):

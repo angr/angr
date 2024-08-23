@@ -242,9 +242,7 @@ class VariableRecoveryStateBase:
 
     @staticmethod
     def is_top(thing) -> bool:
-        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == "top":
-            return True
-        return False
+        return bool(isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == "top")
 
     @staticmethod
     def extract_variables(expr: claripy.ast.Base) -> Generator[tuple[int, SimVariable | SpOffset]]:

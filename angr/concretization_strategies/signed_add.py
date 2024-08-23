@@ -18,10 +18,13 @@ class SimConcretizationStrategySignedAdd(SimConcretizationStrategy):
             if addr.args[0].singlevalued and addr.args[1].symbolic:
                 # Swap variable and immediate
                 addr.args = (addr.args[1], addr.args[0])
-            if addr.args[0].symbolic and addr.args[1].singlevalued:
+            if (
+                addr.args[0].symbolic
+                and addr.args[1].singlevalued
                 # Check if negative argument
-                if memory.state.solver.is_true(addr.args[1] >= 1 << (addr.args[1].size() - 1)):
-                    new_arg = (1 << addr.args[1].size()) - memory.state.solver.eval(addr.args[1])
-                    if new_arg < self._substraction_limit:
-                        addr.op = "__sub__"
-                        addr.args = (addr.args[0], claripy.BVV(new_arg, addr.args[1].size()))
+                and memory.state.solver.is_true(addr.args[1] >= 1 << (addr.args[1].size() - 1))
+            ):
+                new_arg = (1 << addr.args[1].size()) - memory.state.solver.eval(addr.args[1])
+                if new_arg < self._substraction_limit:
+                    addr.op = "__sub__"
+                    addr.args = (addr.args[0], claripy.BVV(new_arg, addr.args[1].size()))

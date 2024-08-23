@@ -254,10 +254,7 @@ class SimMemoryVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        if type(self.size) is int:
-            size = "%d" % self.size
-        else:
-            size = f"{self.size}"
+        size = "%d" % self.size if type(self.size) is int else f"{self.size}"
 
         if type(self.addr) is int:
             s = f"<{self.name}: {self.region}-Mem {self.addr:#x} {size}>"
@@ -328,11 +325,7 @@ class SimStackVariable(SimMemoryVariable):
             mask = (1 << offset.bit_length()) - 1
             offset = -((0 - offset) & mask)
 
-        if base_addr is not None:
-            addr = offset + base_addr
-        else:
-            # TODO: this is not optimal
-            addr = offset
+        addr = offset + base_addr if base_addr is not None else offset  # TODO: this is not optimal
 
         super().__init__(addr, size, ident=ident, name=name, region=region, category=category)
 
@@ -341,10 +334,7 @@ class SimStackVariable(SimMemoryVariable):
         self.base_addr = base_addr
 
     def __repr__(self):
-        if type(self.size) is int:
-            size = "%d" % self.size
-        else:
-            size = f"{self.size}"
+        size = "%d" % self.size if type(self.size) is int else f"{self.size}"
 
         prefix = f"{self.name}(stack)" if self.name is not None else "Stack"
         ident = f"[{self.ident}]" if self.ident else ""

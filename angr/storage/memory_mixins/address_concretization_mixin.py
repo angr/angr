@@ -290,10 +290,8 @@ class AddressConcretizationMixin(MemoryMixin):
             self._add_constraints(conditional_constraint, condition=condition, **kwargs)
 
         # quick optimization to not introduce the DUMMY value if there's only one loop
-        if len(concrete_addrs) == 1:
-            read_value = None
-        else:
-            read_value = DUMMY_SYMBOLIC_READ_VALUE  # this is a sentinel value and should never be touched
+        # DUMMY_SYMBOLIC_READ_VALUE is a sentinel value and should never be touched
+        read_value = None if len(concrete_addrs) == 1 else DUMMY_SYMBOLIC_READ_VALUE
 
         for concrete_addr in concrete_addrs:
             # perform each of the loads

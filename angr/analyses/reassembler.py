@@ -664,17 +664,19 @@ class Operand:
         is_coderef, is_dataref = False, False
         baseaddr = None
 
-        if not is_coderef and not is_dataref:
-            if self.binary.main_executable_regions_contain(imm):
-                # does it point to the beginning of an instruction?
-                if imm in self.binary.all_insn_addrs:
-                    is_coderef = True
-                    baseaddr = imm
+        if (
+            not is_coderef
+            and not is_dataref
+            and self.binary.main_executable_regions_contain(imm)
+            # does it point to the beginning of an instruction?
+            and imm in self.binary.all_insn_addrs
+        ):
+            is_coderef = True
+            baseaddr = imm
 
-        if not is_coderef and not is_dataref:
-            if self.binary.main_nonexecutable_regions_contain(imm):
-                is_dataref = True
-                baseaddr = imm
+        if not is_coderef and not is_dataref and self.binary.main_nonexecutable_regions_contain(imm):
+            is_dataref = True
+            baseaddr = imm
 
         if not is_coderef and not is_dataref:
             tolerance_before = 1024 if operand_type == OP_TYPE_MEM else 64
@@ -772,10 +774,7 @@ class Instruction:
         :return:
         """
 
-        if comments:
-            dbg_comments = self.dbg_comments()
-        else:
-            dbg_comments = ""
+        dbg_comments = self.dbg_comments() if comments else ""
 
         labels = "\n".join([str(lbl) for lbl in self.labels])
 
@@ -1114,10 +1113,7 @@ class Procedure:
         assembly = []
 
         header = f"\t.section\t{self.section}\n\t.align\t{self.binary.section_alignment(self.section)}\n"
-        if self.addr is not None:
-            procedure_name = f"{self.addr:#x}"
-        else:
-            procedure_name = self._name
+        procedure_name = f"{self.addr:#x}" if self.addr is not None else self._name
         header += f"\t#Procedure {procedure_name}\n"
 
         if self._output_function_label:
@@ -1169,16 +1165,14 @@ class Procedure:
 
         else:
             x86_getpc_retsites = set()
-            if self.project.arch.name == "X86":
-                if "pc_reg" in self.function.info:
-                    # this is an x86-PIC function that calls a get_pc thunk
-                    # we need to fix the "add e{a,b,c}x, offset" instruction right after the get_pc call
-                    # first let's identify which function is the get_pc function
-                    for src, dst, data in self.function.transition_graph.edges(data=True):
-                        if isinstance(src, CodeNode) and isinstance(dst, Function):
-                            if "get_pc" in dst.info:
-                                # found it!
-                                x86_getpc_retsites.add(src.addr + src.size)
+            if self.project.arch.name == "X86" and "pc_reg" in self.function.info:
+                # this is an x86-PIC function that calls a get_pc thunk
+                # we need to fix the "add e{a,b,c}x, offset" instruction right after the get_pc call
+                # first let's identify which function is the get_pc function
+                for src, dst, data in self.function.transition_graph.edges(data=True):
+                    if isinstance(src, CodeNode) and isinstance(dst, Function) and "get_pc" in dst.info:
+                        # found it!
+                        x86_getpc_retsites.add(src.addr + src.size)
             for block_addr in self.function.block_addrs:
                 b = BasicBlock(
                     self.binary,
@@ -1210,9 +1204,7 @@ class Procedure:
             return True
         if not the_block.instructions:
             return True
-        if not the_block.instructions[0].labels:
-            return True
-        return False
+        return bool(not the_block.instructions[0].labels)
 
 
 class ProcedureChunk(Procedure):
@@ -1375,10 +1367,8 @@ class Data:
 
                     last_pos = pos
 
-                    if i == len(self.labels) - 1 and pos == self.size:
-                        directive = ".asciz"  # null at the end
-                    else:
-                        directive = ".ascii"
+                    # null at the end in true case
+                    directive = ".asciz" if i == len(self.labels) - 1 and pos == self.size else ".ascii"
 
                     if string_piece:
                         ss.append(f'\t{directive} "{string_escape(string_piece)}"')
@@ -1392,10 +1382,7 @@ class Data:
 
                 s += "\n".join(ss)
             else:
-                if self.null_terminated is False:
-                    directive = ".ascii"
-                else:
-                    directive = ".asciz"
+                directive = ".ascii" if self.null_terminated is False else ".asciz"
                 s += f'\t.{directive} "{string_escape(self.content[0])}"'
             s += "\n"
 
@@ -1470,13 +1457,14 @@ class Data:
                     addr_to_labels[k].append(v)
 
                 show_integer = False
-                if len(addr_to_labels) == 0:
+                if len(addr_to_labels) == 0 or (
+                    len(addr_to_labels) == 1
+                    and self.addr is not None
+                    and next(iter(addr_to_labels.keys())) == self.addr
+                    or self.addr is None
+                    and next(iter(addr_to_labels.keys())) == 0
+                ):
                     show_integer = True
-                elif len(addr_to_labels) == 1:
-                    if self.addr is not None and next(iter(addr_to_labels.keys())) == self.addr:
-                        show_integer = True
-                    elif self.addr is None and next(iter(addr_to_labels.keys())) == 0:
-                        show_integer = True
 
                 if directive is not None and show_integer:
                     # nice, we should display it as an integer
@@ -1889,10 +1877,7 @@ class Reassembler(Analysis):
         :param addr:
         :return:
         """
-        for start, end in self.main_executable_regions:
-            if start <= addr < end:
-                return True
-        return False
+        return any(start <= addr < end for start, end in self.main_executable_regions)
 
     def main_executable_region_limbos_contain(self, addr):
         """
@@ -1910,14 +1895,12 @@ class Reassembler(Analysis):
         least_limbo = None
 
         for start, end in self.main_executable_regions:
-            if start - TOLERANCE <= addr < start:
-                if least_limbo is None or start - addr < least_limbo:
-                    closest_region = (True, start)
-                    least_limbo = start - addr
-            if end <= addr < end + TOLERANCE:
-                if least_limbo is None or addr - end < least_limbo:
-                    closest_region = (True, end)
-                    least_limbo = addr - end
+            if start - TOLERANCE <= addr < start and (least_limbo is None or start - addr < least_limbo):
+                closest_region = (True, start)
+                least_limbo = start - addr
+            if end <= addr < end + TOLERANCE and (least_limbo is None or addr - end < least_limbo):
+                closest_region = (True, end)
+                least_limbo = addr - end
 
         if closest_region is not None:
             return closest_region
@@ -1930,10 +1913,7 @@ class Reassembler(Analysis):
         :return: True if the address is inside a non-executable region, False otherwise.
         :rtype: bool
         """
-        for start, end in self.main_nonexecutable_regions:
-            if start <= addr < end:
-                return True
-        return False
+        return any(start <= addr < end for start, end in self.main_nonexecutable_regions)
 
     def main_nonexecutable_region_limbos_contain(self, addr, tolerance_before=64, tolerance_after=64):
         """
@@ -1949,14 +1929,12 @@ class Reassembler(Analysis):
         least_limbo = None
 
         for start, end in self.main_nonexecutable_regions:
-            if start - tolerance_before <= addr < start:
-                if least_limbo is None or start - addr < least_limbo:
-                    closest_region = (True, start)
-                    least_limbo = start - addr
-            if end <= addr < end + tolerance_after:
-                if least_limbo is None or addr - end < least_limbo:
-                    closest_region = (True, end)
-                    least_limbo = addr - end
+            if start - tolerance_before <= addr < start and least_limbo is None or start - addr < least_limbo:
+                closest_region = (True, start)
+                least_limbo = start - addr
+            if end <= addr < end + tolerance_after and (least_limbo is None or addr - end < least_limbo):
+                closest_region = (True, end)
+                least_limbo = addr - end
 
         if closest_region is not None:
             return closest_region
@@ -2033,10 +2011,7 @@ class Reassembler(Analysis):
         :return: None
         """
 
-        if readonly:
-            section_name = ".rodata"
-        else:
-            section_name = ".data"
+        section_name = ".rodata" if readonly else ".data"
 
         if initial_content is None:
             initial_content = b""
@@ -2378,20 +2353,19 @@ class Reassembler(Analysis):
                     ptr = d.content[i]
                     if isinstance(ptr, Label) and ptr.name in glibc_references_blacklist:
                         d.content[i] = 0
-            elif d.sort == MemoryDataSort.SegmentBoundary:
-                if d.labels:
-                    new_labels = []
-                    for rebased_addr, label in d.labels:
-                        # check if this label belongs to a removed function
-                        if (
-                            self.cfg.functions.contains_addr(rebased_addr)
-                            and self.cfg.functions[rebased_addr].name in glibc_functions_blacklist
-                        ):
-                            # we need to remove this label...
-                            continue
-                        else:
-                            new_labels.append((rebased_addr, label))
-                    d.labels = new_labels
+            elif d.sort == MemoryDataSort.SegmentBoundary and d.labels:
+                new_labels = []
+                for rebased_addr, label in d.labels:
+                    # check if this label belongs to a removed function
+                    if (
+                        self.cfg.functions.contains_addr(rebased_addr)
+                        and self.cfg.functions[rebased_addr].name in glibc_functions_blacklist
+                    ):
+                        # we need to remove this label...
+                        continue
+                    else:
+                        new_labels.append((rebased_addr, label))
+                d.labels = new_labels
 
     #
     # Private methods
@@ -2467,9 +2441,7 @@ class Reassembler(Analysis):
         l.debug("Creating functions...")
         for f in cfg.kb.functions.values():
             # Skip all SimProcedures
-            if self.project.is_hooked(f.addr):
-                continue
-            elif self.project.simos.is_syscall_addr(f.addr):
+            if self.project.is_hooked(f.addr) or self.project.simos.is_syscall_addr(f.addr):
                 continue
 
             # Check which section the start address belongs to
@@ -2623,35 +2595,34 @@ class Reassembler(Analysis):
                 continue
 
             # process the overlapping ones
-            if i < len(self.data) - 1:
-                if data.addr + data.size > self.data[i + 1].addr:
-                    # they are overlapping :-(
+            if i < len(self.data) - 1 and data.addr + data.size > self.data[i + 1].addr:
+                # they are overlapping :-(
 
-                    # TODO: make sure new_size makes sense
-                    new_size = self.data[i + 1].addr - data.addr
+                # TODO: make sure new_size makes sense
+                new_size = self.data[i + 1].addr - data.addr
 
-                    # there are cases that legit data is misclassified as pointers
-                    # we are able to detect some of them here
-                    if data.sort == "pointer-array":
-                        pointer_size = self.project.arch.bytes
-                        if new_size % pointer_size != 0:
-                            # the self.data[i+1] cannot be pointed to by a pointer
-                            # remove that guy later
-                            data_indices_to_remove.add(i + 1)
-                            # mark the source as a non-pointer
-                            # apparently the original Reassembleable Disassembler paper cannot get this case
-                            source_addr = self.data[i + 1].memory_data.pointer_addr
-                            if source_addr is not None:
-                                # find the original data
-                                original_data = next(
-                                    (d for d in self.data if d.addr <= source_addr < d.addr + d.size), None
-                                )
-                                if original_data is not None:
-                                    original_data.desymbolize()
+                # there are cases that legit data is misclassified as pointers
+                # we are able to detect some of them here
+                if data.sort == "pointer-array":
+                    pointer_size = self.project.arch.bytes
+                    if new_size % pointer_size != 0:
+                        # the self.data[i+1] cannot be pointed to by a pointer
+                        # remove that guy later
+                        data_indices_to_remove.add(i + 1)
+                        # mark the source as a non-pointer
+                        # apparently the original Reassembleable Disassembler paper cannot get this case
+                        source_addr = self.data[i + 1].memory_data.pointer_addr
+                        if source_addr is not None:
+                            # find the original data
+                            original_data = next(
+                                (d for d in self.data if d.addr <= source_addr < d.addr + d.size), None
+                            )
+                            if original_data is not None:
+                                original_data.desymbolize()
 
-                            continue
+                        continue
 
-                    data.shrink(new_size)
+                data.shrink(new_size)
 
             # process those ones whose type is unknown
             if data.sort == "unknown" and data.size == 0:
@@ -2689,19 +2660,16 @@ class Reassembler(Analysis):
             ptr = self.fast_memory_load(closest_aligned_addr, 4, int, endness=self.project.arch.memory_endness)
             if ptr is None:
                 return False
-            if self._is_pointer(cfg, ptr):
-                return False
-            return True
+            return not self._is_pointer(cfg, ptr)
         return False
 
     def _is_pointer(self, cfg, ptr):
-        if (
+        return bool(
             cfg.project.loader.find_section_containing(ptr) is not None
             or cfg.project.loader.find_segment_containing(ptr) is not None
-            or (self._extra_memory_regions and next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None))
-        ):
-            return True
-        return False
+            or self._extra_memory_regions
+            and next((a < ptr < b for a, b in self._extra_memory_regions), None)
+        )
 
     def _sequence_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """

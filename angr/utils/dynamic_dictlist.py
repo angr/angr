@@ -4,11 +4,7 @@ from typing import Generic, TypeVar
 
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
-if platform.python_implementation() == "PyPy":
-    LIST2DICT_THRESHOLD = 96
-else:
-    # cpython
-    LIST2DICT_THRESHOLD = 2048
+LIST2DICT_THRESHOLD = 96 if platform.python_implementation() == "PyPy" else 2048
 
 
 VT = TypeVar("VT")

@@ -290,10 +290,7 @@ class ProximityGraphAnalysis(Analysis):
                         found_blocks[block] = node
 
         # subgraph check - do before in case of recursion
-        if self.graph == graph:
-            subgraph = False
-        else:
-            subgraph = True
+        subgraph = self.graph != graph
 
         for edge in func.graph.edges:
             nodes = ()
@@ -392,10 +389,7 @@ class ProximityGraphAnalysis(Analysis):
             _handle_Call(stmt_idx, expr, block)
 
         # subgraph check - do before in case of recursion
-        if self.graph == graph:
-            subgraph = False
-        else:
-            subgraph = True
+        subgraph = self.graph != graph
 
         # Keep all default handlers, but overwrite necessary ones:
         bw = AILBlockWalker()
@@ -419,10 +413,7 @@ class ProximityGraphAnalysis(Analysis):
                             graph.add_edge(self.handled_stmts[idx - 1], current)
                     # If first block in edge, LAST handled node -> next node
                     # Else (second block in edge), prev node -> FIRST handled node
-                    if block == ail_edge[0]:
-                        proxi_node = self.handled_stmts[-1]
-                    else:
-                        proxi_node = self.handled_stmts[0]
+                    proxi_node = self.handled_stmts[-1] if block == ail_edge[0] else self.handled_stmts[0]
 
                     # Clear the handled stmts for next block
                     self.handled_stmts = []

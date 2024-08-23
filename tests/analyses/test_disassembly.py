@@ -77,7 +77,7 @@ class TestDisassembly(TestCase):
         assert rendered_insns[4].endswith("eq")
         insn = rendered_insns[5]
         regs_table = insn[insn.index("{") + 1 : insn.index("}")].replace(" ", "").split(",")
-        assert ["v0.16b", "v1.16b", "v2.16b", "v3.16b"] == regs_table
+        assert regs_table == ["v0.16b", "v1.16b", "v2.16b", "v3.16b"]
 
     def test_arm32_dissect_instructions(self):
         proj = angr.load_shellcode(

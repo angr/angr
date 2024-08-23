@@ -52,17 +52,14 @@ class UnderconstrainedMixin(MemoryMixin):
             and isinstance(addr, claripy.ast.Base)
             and addr.uninitialized
             and addr.uc_alloc_depth is not None
+        ) and (
+            not self.state.uc_manager.is_bounded(addr)
+            or self.state.solver.max_int(addr) - self.state.solver.min_int(addr) >= self._unconstrained_range
         ):
-            if (
-                not self.state.uc_manager.is_bounded(addr)
-                or self.state.solver.max_int(addr) - self.state.solver.min_int(addr) >= self._unconstrained_range
-            ):
-                # in under-constrained symbolic execution, we'll assign a new memory region for this address
-                mem_region = self.state.uc_manager.assign(addr)
+            # in under-constrained symbolic execution, we'll assign a new memory region for this address
+            mem_region = self.state.uc_manager.assign(addr)
 
-                # ... but only if it's not already been constrained to something!
-                if self.state.solver.solution(addr, mem_region):
-                    self.state.add_constraints(addr == mem_region)
-                l.debug(
-                    "Under-constrained symbolic execution: assigned a new memory region @ %s to %s", mem_region, addr
-                )
+            # ... but only if it's not already been constrained to something!
+            if self.state.solver.solution(addr, mem_region):
+                self.state.add_constraints(addr == mem_region)
+            l.debug("Under-constrained symbolic execution: assigned a new memory region @ %s to %s", mem_region, addr)

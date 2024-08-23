@@ -203,10 +203,9 @@ class Project:
             )
             self.selfmodifying_code = bool(support_selfmodifying_code)
 
-        if self.selfmodifying_code:
-            if self._translation_cache is True:
-                self._translation_cache = False
-                l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
+        if self.selfmodifying_code and self._translation_cache is True:
+            self._translation_cache = False
+            l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry
         self.storage = defaultdict(list)
@@ -429,11 +428,7 @@ class Project:
         for lib in hinted_libs:
             if SIM_LIBRARIES[lib].has_implementation(f.name):
                 l.debug("Found implementation for %s in %s", f, lib)
-                if f.resolvedby:
-                    hook_at = f.resolvedby.rebased_addr
-                else:
-                    # ????
-                    hook_at = f.relative_addr
+                hook_at = f.resolvedby.rebased_addr if f.resolvedby else f.relative_addr  # ????
                 self.hook_symbol(hook_at, (SIM_LIBRARIES[lib].get(f.name, self.arch)))
                 return True
 
@@ -710,10 +705,7 @@ class Project:
         simulation manager.
         """
 
-        if args:
-            state = args[0]
-        else:
-            state = self.factory.full_init_state(**kwargs)
+        state = args[0] if args else self.factory.full_init_state(**kwargs)
 
         pg = self.factory.simulation_manager(state)
         self._executing = True

@@ -21,10 +21,7 @@ l = logging.getLogger(name=__name__)
 
 # There might be a better way of doing this
 def calc_paritybit(p, msb=7, lsb=0):
-    if len(p) > msb:
-        p_part = p[msb:lsb]
-    else:
-        p_part = p
+    p_part = p[msb:lsb] if len(p) > msb else p
 
     b = claripy.BVV(1, 1)
     for i in range(p_part.size()):
@@ -988,10 +985,7 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
     if bits > len(rot_amt):
         raise SimError("Got a rotate instruction for data larger than the provided word size. Panic.")
 
-    if bits == len(rot_amt):
-        sized_amt = (rot_amt & (bits_in - 1)).zero_extend(1)
-    else:
-        sized_amt = (rot_amt & (bits_in - 1))[bits:0]
+    sized_amt = (rot_amt & bits_in - 1).zero_extend(1) if bits == len(rot_amt) else (rot_amt & bits_in - 1)[bits:0]
 
     assert len(sized_amt) == bits + 1
 
@@ -1541,9 +1535,7 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_SBB:
         res = cc_dep1 - cc_dep2 - (cc_dep3 ^ 1)
         flag = claripy.LShR(res, 31)
-    elif concrete_op == ARMG_CC_OP_LOGIC:
-        flag = claripy.LShR(cc_dep1, 31)
-    elif concrete_op == ARMG_CC_OP_MUL:
+    elif concrete_op in (ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL):
         flag = claripy.LShR(cc_dep1, 31)
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = claripy.LShR(cc_dep2, 31)
@@ -1576,9 +1568,7 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_SBB:
         res = cc_dep1 - cc_dep2 - (cc_dep3 ^ 1)
         flag = arm_zerobit(state, res)
-    elif concrete_op == ARMG_CC_OP_LOGIC:
-        flag = arm_zerobit(state, cc_dep1)
-    elif concrete_op == ARMG_CC_OP_MUL:
+    elif concrete_op in (ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL):
         flag = arm_zerobit(state, cc_dep1)
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = arm_zerobit(state, cc_dep1 | cc_dep2)
@@ -1614,9 +1604,7 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         )
     elif concrete_op == ARMG_CC_OP_LOGIC:
         flag = cc_dep2
-    elif concrete_op == ARMG_CC_OP_MUL:
-        flag = (claripy.LShR(cc_dep3, 1)) & 1
-    elif concrete_op == ARMG_CC_OP_MULL:
+    elif concrete_op in (ARMG_CC_OP_MUL, ARMG_CC_OP_MULL):
         flag = (claripy.LShR(cc_dep3, 1)) & 1
 
     if flag is not None:
@@ -1650,9 +1638,7 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         flag = claripy.LShR(v, 31)
     elif concrete_op == ARMG_CC_OP_LOGIC:
         flag = cc_dep3
-    elif concrete_op == ARMG_CC_OP_MUL:
-        flag = cc_dep3 & 1
-    elif concrete_op == ARMG_CC_OP_MULL:
+    elif concrete_op in (ARMG_CC_OP_MUL, ARMG_CC_OP_MULL):
         flag = cc_dep3 & 1
 
     if flag is not None:

@@ -50,14 +50,8 @@ class StateOption:
         return isinstance(other, StateOption) and self.name == other.name and self.types == other.types
 
     def __repr__(self):
-        if self.description is not None:
-            desc = f": {self.description}"
-        else:
-            desc = ""
-        if self.one_type() is not None:
-            types = self.one_type().__name__
-        else:
-            types = ",".join(t.__name__ for t in self.types)
+        desc = f": {self.description}" if self.description is not None else ""
+        types = self.one_type().__name__ if self.one_type() is not None else ",".join(t.__name__ for t in self.types)
 
         return f"<O {self.name}[{types}]{desc}>"
 

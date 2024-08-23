@@ -131,10 +131,9 @@ class Decompiler(Analysis):
         self._update_progress(5.0, text="Converting to AIL")
 
         variable_kb = self._variable_kb
-        if variable_kb is None:
-            # fall back to old codegen
-            if old_codegen is not None:
-                variable_kb = old_codegen._variable_kb
+        # fall back to old codegen
+        if variable_kb is None and old_codegen is not None:
+            variable_kb = old_codegen._variable_kb
 
         if variable_kb is None:
             reset_variable_names = True
@@ -316,14 +315,13 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.BEFORE_REGION_IDENTIFICATION:
                 continue
-            if pass_.STRUCTURING:
-                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
-                    l.warning(
-                        "Skipping %s because it does not support structuring algorithm: %s",
-                        pass_,
-                        self._recursive_structurer_params["structurer_cls"].NAME,
-                    )
-                    continue
+            if pass_.STRUCTURING and self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                l.warning(
+                    "Skipping %s because it does not support structuring algorithm: %s",
+                    pass_,
+                    self._recursive_structurer_params["structurer_cls"].NAME,
+                )
+                continue
 
             a = pass_(
                 self.func,
@@ -372,14 +370,13 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
-            if pass_.STRUCTURING:
-                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
-                    l.warning(
-                        "Skipping %s because it does not support structuring algorithm: %s",
-                        pass_,
-                        self._recursive_structurer_params["structurer_cls"].NAME,
-                    )
-                    continue
+            if pass_.STRUCTURING and self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                l.warning(
+                    "Skipping %s because it does not support structuring algorithm: %s",
+                    pass_,
+                    self._recursive_structurer_params["structurer_cls"].NAME,
+                )
+                continue
 
             a = pass_(
                 self.func,

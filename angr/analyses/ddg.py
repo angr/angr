@@ -434,10 +434,7 @@ class DDGViewInstruction:
 
         defs = set()
 
-        if self._simplified:
-            graph = self._ddg.simplified_data_graph
-        else:
-            graph = self._ddg.data_graph
+        graph = self._ddg.simplified_data_graph if self._simplified else self._ddg.data_graph
 
         n: ProgramVariable
         for n in graph.nodes():
@@ -794,10 +791,7 @@ class DDG(Analysis):
 
                 # if every successor can be matched with one or more final states (by IP address),
                 # only take over the LiveDefinition of matching states
-                if matches:
-                    add_state_to_sucs = match_state[state]
-                else:
-                    add_state_to_sucs = successing_nodes
+                add_state_to_sucs = match_state[state] if matches else successing_nodes
 
                 for successing_node in add_state_to_sucs:
                     if (state.history.jumpkind == "Ijk_Call" or state.history.jumpkind.startswith("Ijk_Sys")) and (
@@ -817,14 +811,14 @@ class DDG(Analysis):
                         # l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
-                if changed:
-                    if (self._call_depth is None) or (
-                        self._call_depth is not None and 0 <= new_call_depth <= self._call_depth
-                    ):
-                        # Put all reachable successors back to our work-list again
-                        for successor in self._cfg.model.get_all_successors(node):
-                            nw = DDGJob(successor, new_call_depth)
-                            self._worklist_append(nw, worklist, worklist_set)
+                if changed and (
+                    (self._call_depth is None)
+                    or (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth)
+                ):
+                    # Put all reachable successors back to our work-list again
+                    for successor in self._cfg.model.get_all_successors(node):
+                        nw = DDGJob(successor, new_call_depth)
+                        self._worklist_append(nw, worklist, worklist_set)
 
     def _track(self, state, live_defs, statements):
         """
@@ -1165,9 +1159,8 @@ class DDG(Analysis):
             # moving a constant into the register
             # try to parse out the constant from statement
             const_variable = SimConstantVariable()
-            if statement is not None:
-                if isinstance(statement.data, pyvex.IRExpr.Const):
-                    const_variable = SimConstantVariable(value=statement.data.con.value)
+            if statement is not None and isinstance(statement.data, pyvex.IRExpr.Const):
+                const_variable = SimConstantVariable(value=statement.data.con.value)
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
@@ -1428,11 +1421,10 @@ class DDG(Analysis):
 
             for pred, _, data_in in in_edges:
                 for _, suc, data_out in out_edges:
-                    if pred is not tmp_node and suc is not tmp_node:
-                        if suc not in graph[pred]:
-                            data = data_in.copy()
-                            data.update(data_out)
-                            graph.add_edge(pred, suc, **data)
+                    if pred is not tmp_node and suc is not tmp_node and suc not in graph[pred]:
+                        data = data_in.copy()
+                        data.update(data_out)
+                        graph.add_edge(pred, suc, **data)
 
             graph.remove_node(tmp_node)
 
@@ -1543,16 +1535,17 @@ class DDG(Analysis):
         # TODO: use information from a calling convention analysis
         filtered_defs = LiveDefinitions()
         for variable, locs in defs.items():
-            if isinstance(variable, SimRegisterVariable):
-                if self.project.arch.name == "X86":
-                    if variable.reg in (
-                        self.project.arch.registers["eax"][0],
-                        self.project.arch.registers["ecx"][0],
-                        self.project.arch.registers["edx"][0],
-                    ):
-                        continue
-
-            filtered_defs.add_defs(variable, locs)
+            if not (
+                isinstance(variable, SimRegisterVariable)
+                and self.project.arch.name == "X86"
+                and variable.reg
+                in (
+                    self.project.arch.registers["eax"][0],
+                    self.project.arch.registers["ecx"][0],
+                    self.project.arch.registers["edx"][0],
+                )
+            ):
+                filtered_defs.add_defs(variable, locs)
 
         return filtered_defs
 
@@ -1568,10 +1561,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         defs = []
 
@@ -1597,10 +1587,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         if var_def not in graph:
             return []
@@ -1636,10 +1623,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         if var_def not in graph:
             return []
@@ -1662,10 +1646,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         if var_def not in graph:
             return []

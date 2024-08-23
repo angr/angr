@@ -206,7 +206,7 @@ class ReturnDeduplicator(OptimizationPass):
         for super_blocks in if_ret_candidates:
             corrected_region = []
             for super_block in super_blocks:
-                block = super_block_map.get(super_block, None)
+                block = super_block_map.get(super_block)
                 if block is None:
                     break
 

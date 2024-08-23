@@ -147,12 +147,12 @@ class TestVault(unittest.TestCase):
         ps = v.store(p)
         pp = v.load(ps)
         assert p is pp
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
 
         pstring = v.dumps(p)
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
         pp2 = v.loads(pstring)
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
         assert p is pp
 
         p._asdf = "fdsa"
@@ -164,7 +164,7 @@ class TestVault(unittest.TestCase):
         gc.collect()
 
         v.load(ps)
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
 
 
 if __name__ == "__main__":

@@ -25,9 +25,8 @@ class ListPage(MemoryObjectMixin, PageBase):
             DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
         )
         self.stored_offset = set()
-        if self.content is None:
-            if memory is not None:
-                self.content: DynamicDictList[SimMemoryObject | None] = DynamicDictList(max_size=memory.page_size)
+        if self.content is None and memory is not None:
+            self.content: DynamicDictList[SimMemoryObject | None] = DynamicDictList(max_size=memory.page_size)
         self._mo_cmp = mo_cmp
 
         self.sinkhole: SimMemoryObject | None = sinkhole
@@ -264,16 +263,11 @@ class ListPage(MemoryObjectMixin, PageBase):
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
-            if not s_contains and o_contains:
-                differences.add(c)
-            elif s_contains and not o_contains:
+            if not s_contains and o_contains or s_contains and not o_contains:
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    if self.sinkhole is None:
-                        v = claripy.BVV(0, 8)
-                    else:
-                        v = (self.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if self.sinkhole is None else (self.sinkhole.bytes_at(page_addr + c, 1),)
                     self.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,
@@ -281,10 +275,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                         endness="Iend_BE",
                     )
                 if other.content[c] is None:
-                    if other.sinkhole is None:
-                        v = claripy.BVV(0, 8)
-                    else:
-                        v = (other.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if other.sinkhole is None else (other.sinkhole.bytes_at(page_addr + c, 1),)
                     other.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,

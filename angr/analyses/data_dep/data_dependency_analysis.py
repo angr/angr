@@ -324,13 +324,13 @@ class DataDependencyGraphAnalysis(Analysis):
         dep_found = False
 
         for tmp_off in act.tmp_deps:
-            dep_node = possible_dep_nodes.get(tmp_off, None)
+            dep_node = possible_dep_nodes.get(tmp_off)
             if dep_node and isinstance(dep_node, TmpDepNode):
                 dep_found = True
                 self._graph.add_edge(dep_node, write_node, label="unknown_dep")
 
         for reg_off in act.reg_deps:
-            dep_node = possible_dep_nodes.get(reg_off, None)
+            dep_node = possible_dep_nodes.get(reg_off)
             if dep_node and not isinstance(dep_node, TmpDepNode):
                 dep_found = True
                 self._graph.add_edge(dep_node, write_node, label="unknown_dep")

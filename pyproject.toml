@@ -21,6 +21,7 @@ exclude = [
 [tool.ruff.lint]
 extend-select = [
 	"I002",
+	"SIM",
 	"UP",
 ]
 extend-ignore = [

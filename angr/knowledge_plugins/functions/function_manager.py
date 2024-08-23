@@ -1,5 +1,7 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
+
+import contextlib
 from collections.abc import Generator
 import logging
 import collections.abc
@@ -44,10 +46,8 @@ class FunctionDict(SortedDict):
                 t = SootFunction(self._backref, addr)
             else:
                 t = Function(self._backref, addr)
-            try:
+            with contextlib.suppress(Exception):
                 self[addr] = t
-            except Exception:  # pylint:disable=broad-except
-                pass
             self._backref._function_added(t)
             return t
 
@@ -490,7 +490,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def rebuild_callgraph(self):
         self.callgraph = networkx.MultiDiGraph()
-        for func_addr in self._function_map.keys():
+        for func_addr in self._function_map:
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
             if func.block_addrs_set:

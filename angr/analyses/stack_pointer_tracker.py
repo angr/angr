@@ -15,6 +15,7 @@ from ..knowledge_plugins import Function
 from ..block import BlockNode
 from ..errors import SimTranslationError
 from .analysis import Analysis
+import contextlib
 
 try:
     import pypcode
@@ -283,15 +284,11 @@ def _dict_merge(d1, d2):
     all_keys = set(d1.keys()) | set(d2.keys())
     merged = {}
     for k in all_keys:
-        if k not in d1 or d1[k] is TOP:
-            merged[k] = TOP
-        elif k not in d2 or d2[k] is TOP:
+        if k not in d1 or d1[k] is TOP or (k not in d2 or d2[k] is TOP):
             merged[k] = TOP
         elif d1[k] is BOTTOM:
             merged[k] = d2[k]
-        elif d2[k] is BOTTOM:
-            merged[k] = d1[k]
-        elif d1[k] == d2[k]:
+        elif d2[k] is BOTTOM or d1[k] == d2[k]:
             merged[k] = d1[k]
         else:  # d1[k] != d2[k]
             merged[k] = TOP
@@ -439,10 +436,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return any(self.inconsistent_for(r) for r in self.reg_offsets)
 
     def inconsistent_for(self, reg):
-        for endpoint in self._func.endpoints:
-            if self.offset_after_block(endpoint.addr, reg) is TOP:
-                return True
-        return False
+        return any(self.offset_after_block(endpoint.addr, reg) is TOP for endpoint in self._func.endpoints)
 
     def offsets_for(self, reg):
         return [
@@ -511,10 +505,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         curr_stmt_start_addr = None
 
         vex_block = None
-        try:
+        with contextlib.suppress(SimTranslationError):
             vex_block = block.vex
-        except SimTranslationError:
-            pass
 
         if node.addr in self._reg_value_at_block_start:
             for reg, val in self._reg_value_at_block_start[node.addr].items():
@@ -667,10 +659,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                 if cond is not None:
                                     self._reg_value_at_block_start[stmt.dst.value][reg] = cond
             else:
-                try:
+                with contextlib.suppress(CouldNotResolveException):
                     resolve_stmt(stmt)
-                except CouldNotResolveException:
-                    pass
 
         # stack pointer adjustment
         if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == "Ijk_Call":
@@ -678,10 +668,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 # pop the return address on the stack
                 try:
                     v = state.get(self.project.arch.sp_offset)
-                    if v is BOTTOM:
-                        incremented = BOTTOM
-                    else:
-                        incremented = v + Constant(self.project.arch.bytes)
+                    incremented = BOTTOM if v is BOTTOM else v + Constant(self.project.arch.bytes)
                     state.put(self.project.arch.sp_offset, incremented)
                 except CouldNotResolveException:
                     pass
@@ -764,10 +751,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 curr_stmt_start_addr = op.inputs[0].offset
                 self._set_pre_state(curr_stmt_start_addr, state.freeze())
             else:
-                try:
+                with contextlib.suppress(CouldNotResolveException):
                     resolve_op(op)
-                except CouldNotResolveException:
-                    pass
 
                 is_call |= op.opcode == pypcode.OpCode.CALL
 
@@ -777,10 +762,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 # pop the return address on the stack
                 try:
                     v = state.get(self.project.arch.sp_offset)
-                    if v is BOTTOM:
-                        incremented = BOTTOM
-                    else:
-                        incremented = v + Constant(self.project.arch.bytes)
+                    incremented = BOTTOM if v is BOTTOM else v + Constant(self.project.arch.bytes)
                     state.put(self.project.arch.sp_offset, incremented)
                 except CouldNotResolveException:
                     pass
@@ -824,9 +806,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _find_callees(self, node) -> list[Function]:
         callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
-            if data.get("type") == "call":
-                if isinstance(dst, Function):
-                    callees.append(dst)
+            if data.get("type") == "call" and isinstance(dst, Function):
+                callees.append(dst)
         return callees
 
 

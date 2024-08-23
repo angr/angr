@@ -31,9 +31,7 @@ class AMD64PeIatResolver(IndirectJumpResolver):
 
         opnd = insns[-1].insn.operands[0]
         # Must be of the form: call qword ptr [0xABCD]
-        if opnd.type == X86_OP_MEM and opnd.mem.disp and opnd.mem.base == X86_REG_RIP and opnd.mem.index == 0:
-            return True
-        return False
+        return bool(opnd.type == X86_OP_MEM and opnd.mem.disp and opnd.mem.base == X86_REG_RIP and opnd.mem.index == 0)
 
     def resolve(
         self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs

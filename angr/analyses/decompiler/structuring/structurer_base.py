@@ -621,10 +621,7 @@ class StructurerBase(Analysis):
             i = 0
             while i < len(seq_node.nodes):
                 old_node = seq_node.nodes[i]
-                if type(old_node) is CodeNode:
-                    node = old_node.node
-                else:
-                    node = old_node
+                node = old_node.node if type(old_node) is CodeNode else old_node
                 new_node = None
                 if isinstance(node, ConditionalBreakNode) and new_nodes:
                     prev_node = new_nodes[-1]
@@ -829,9 +826,7 @@ class StructurerBase(Analysis):
         addr = node_0.addr if node_0.addr is not None else node_1.addr
 
         # fix the last block of node_0 and remove useless goto statements
-        if isinstance(node_0, SequenceNode) and node_0.nodes:
-            last_node = node_0.nodes[-1]
-        elif isinstance(node_0, MultiNode) and node_0.nodes:
+        if isinstance(node_0, SequenceNode) and node_0.nodes or isinstance(node_0, MultiNode) and node_0.nodes:
             last_node = node_0.nodes[-1]
         elif isinstance(node_0, ailment.Block):
             last_node = node_0

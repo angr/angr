@@ -26,6 +26,7 @@ from .rd_initializer import RDAStateInitializer
 from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
+import contextlib
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -186,10 +187,8 @@ class ReachingDefinitionsAnalysis(
             the_func = self.subject.content
         else:
             if self._func_addr is not None:
-                try:
+                with contextlib.suppress(KeyError):
                     the_func = self.kb.functions.get_by_addr(self._func_addr)
-                except KeyError:
-                    pass
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 

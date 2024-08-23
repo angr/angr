@@ -65,9 +65,7 @@ class CallTrace:
     def includes_function(self, func_addr: int) -> bool:
         if self.target == func_addr:
             return True
-        if any(cs.caller_func_addr == func_addr for cs in self.callsites):
-            return True
-        return False
+        return bool(any(cs.caller_func_addr == func_addr for cs in self.callsites))
 
     def copy(self) -> CallTrace:
         t = CallTrace(self.target)

@@ -193,10 +193,7 @@ class CallAnalysis(AnalysisTask):
 
     @property
     def done(self) -> bool:
-        for task in self.function_analysis_tasks:
-            if not task.done:
-                return False
-        return True
+        return all(task.done for task in self.function_analysis_tasks)
 
     #
     # Public methods
@@ -650,10 +647,9 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             # make sure this job is at least recorded somewhere
             unwind_count = None
             for i, task in enumerate(reversed(self._task_stack)):
-                if isinstance(task, FunctionAnalysis):
-                    if job in task.jobs:
-                        # nice
-                        unwind_count = i
+                if isinstance(task, FunctionAnalysis) and job in task.jobs:
+                    # nice
+                    unwind_count = i
 
             if unwind_count is None:
                 l.debug("%s is not recorded. Skip the job.", job)
@@ -1034,21 +1030,20 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
                 # the next guy *might be* a call analysis task
                 task = self._top_task
-                if isinstance(task, CallAnalysis):
-                    if task.done:
-                        # awesome!
-                        # pop it from the task stack
-                        self._task_stack.pop()
+                if isinstance(task, CallAnalysis) and task.done:
+                    # awesome!
+                    # pop it from the task stack
+                    self._task_stack.pop()
 
-                        if task._final_jobs:
-                            # merge all jobs, and create a new job
-                            new_job = task.merge_jobs()
+                    if task._final_jobs:
+                        # merge all jobs, and create a new job
+                        new_job = task.merge_jobs()
 
-                            # register the job to the top task
-                            self._top_task.jobs.append(new_job)
+                        # register the job to the top task
+                        self._top_task.jobs.append(new_job)
 
-                            # insert the job
-                            self._insert_job(new_job)
+                        # insert the job
+                        self._insert_job(new_job)
 
         # if not new_jobs:
         #    # task stack is empty
@@ -1112,10 +1107,9 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             return False
 
         tracing_times = self._tracing_times[job_0.block_id]
-        if tracing_times > self._max_iterations_before_widening and tracing_times % self._widening_interval == 0:
-            return True
-
-        return False
+        return bool(
+            tracing_times > self._max_iterations_before_widening and tracing_times % self._widening_interval == 0
+        )
 
     def _widen_jobs(self, *jobs: VFGJob):
         """
@@ -1512,10 +1506,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             # Clear the useless values (like return addresses, parameters) on stack if needed
             if self._cfg is not None:
                 current_function = self.kb.functions.function(job.call_target)
-                if current_function is not None:
-                    sp_difference = current_function.sp_delta
-                else:
-                    sp_difference = 0
+                sp_difference = current_function.sp_delta if current_function is not None else 0
                 arch = successor_state.arch
                 reg_sp_offset = arch.sp_offset
                 reg_sp_expr = (
@@ -1704,9 +1695,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
     @staticmethod
     def _is_call_jumpkind(jumpkind: str) -> bool:
-        if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys_"):
-            return True
-        return False
+        return bool(jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys_"))
 
     @staticmethod
     def _is_return_jumpkind(jumpkind):

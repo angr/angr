@@ -159,24 +159,23 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         byte_width = memory.state.arch.byte_width
 
-        if type(data) is not int:
-            if data.object.op == "BVV" and not data.object.annotations:
-                # trim the unnecessary leading bytes if there are any
-                full_bits = len(data.object)
-                start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
-                if start >= data.base + data.length:
-                    raise SimMemoryError("Not enough bytes to store.")
-                start_bits = full_bits - start * byte_width - 1
-                # trim the overflowing bytes if there are any
-                end_bits = start_bits + 1 - size * byte_width
-                if start_bits != full_bits - 1 or end_bits != 0:
-                    if endness == "Iend_LE":
-                        start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
+        if type(data) is not int and data.object.op == "BVV" and not data.object.annotations:
+            # trim the unnecessary leading bytes if there are any
+            full_bits = len(data.object)
+            start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
+            if start >= data.base + data.length:
+                raise SimMemoryError("Not enough bytes to store.")
+            start_bits = full_bits - start * byte_width - 1
+            # trim the overflowing bytes if there are any
+            end_bits = start_bits + 1 - size * byte_width
+            if start_bits != full_bits - 1 or end_bits != 0:
+                if endness == "Iend_LE":
+                    start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
 
-                    concrete_data: bytes = data.concrete_bytes(
-                        (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits + 1) // byte_width
-                    )
-                    data = int.from_bytes(concrete_data, "big")
+                concrete_data: bytes = data.concrete_bytes(
+                    (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits + 1) // byte_width
+                )
+                data = int.from_bytes(concrete_data, "big")
 
         if type(data) is int or (data.object.op == "BVV" and not data.object.annotations):
             # mark range as not symbolic
@@ -184,10 +183,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             # store
             arange = range(addr, addr + size)
-            if type(data) is int:
-                ival = data
-            else:  # data.object.op == 'BVV'
-                ival = data.object.args[0]
+            ival = data if type(data) is int else data.object.args[0]
             if endness == "Iend_BE":
                 arange = reversed(arange)
 
@@ -423,9 +419,11 @@ class UltraPage(MemoryObjectMixin, PageBase):
             return None
         else:
             obj = self.symbolic_data[place]
-            if obj.includes(start + page_addr):
-                return obj
-            elif memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits)):
+            if (
+                obj.includes(start + page_addr)
+                or memory is not None
+                and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
+            ):
                 return obj
             else:
                 return None

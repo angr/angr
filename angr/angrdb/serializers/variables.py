@@ -32,7 +32,7 @@ class VariableManagerSerializer:
     ):
         blob = internal_manager.serialize()
 
-        db_varcoll = DbVariableCollection(kb=db_kb, ident=None if not ident else ident, func_addr=func_addr, blob=blob)
+        db_varcoll = DbVariableCollection(kb=db_kb, ident=ident if ident else None, func_addr=func_addr, blob=blob)
         session.add(db_varcoll)
 
     @staticmethod

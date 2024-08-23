@@ -72,9 +72,8 @@ class VariableAccess(Serializable):
         cmsg.block_addr = self.location.block_addr
         cmsg.stmt_idx = self.location.stmt_idx
         cmsg.ins_addr = self.location.ins_addr
-        if self.offset is not None:
-            if isinstance(self.offset, int):
-                cmsg.offset = self.offset
+        if self.offset is not None and isinstance(self.offset, int):
+            cmsg.offset = self.offset
         if self.atom_hash is not None:
             cmsg.atom_hash = self.atom_hash
 

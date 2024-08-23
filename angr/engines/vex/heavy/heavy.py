@@ -276,18 +276,18 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         if o.COPY_STATES not in self.state.options:
             # very special logic to try to minimize copies
             # first, check if this branch is impossible
-            if guard.is_false():
-                cont_state = self.state
-            elif o.LAZY_SOLVES not in self.state.options and not self.state.solver.satisfiable(
-                extra_constraints=(guard,)
+            if (
+                guard.is_false()
+                or o.LAZY_SOLVES not in self.state.options
+                and not self.state.solver.satisfiable(extra_constraints=(guard,))
             ):
                 cont_state = self.state
 
             # then, check if it's impossible to continue from this branch
-            elif guard.is_true():
-                exit_state = self.state
-            elif o.LAZY_SOLVES not in self.state.options and not self.state.solver.satisfiable(
-                extra_constraints=(claripy.Not(guard),)
+            elif (
+                guard.is_true()
+                or o.LAZY_SOLVES not in self.state.options
+                and not self.state.solver.satisfiable(extra_constraints=(claripy.Not(guard),))
             ):
                 exit_state = self.state
             # one more step, when LAZY_SOLVES is enabled, ignore "bad" jumpkinds
@@ -345,9 +345,10 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         result = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
-        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
-            if getattr(claripy.backends.vsa.convert(addr), "uninitialized", False):
-                raise errors.SimUninitializedAccessError("addr", addr)
+        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and getattr(
+            claripy.backends.vsa.convert(addr), "uninitialized", False
+        ):
+            raise errors.SimUninitializedAccessError("addr", addr)
         return result
 
     def _perform_vex_expr_CCall(self, func_name, ty, args, func=None):

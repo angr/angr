@@ -41,7 +41,7 @@ class FunctionGraphVisitor(GraphVisitor):
         if len(new_sorted_nodes) < len(self._sorted_nodes):
             must_restart = True
         else:
-            must_restart = not new_sorted_nodes[: len(self._sorted_nodes)] == self._sorted_nodes
+            must_restart = new_sorted_nodes[: len(self._sorted_nodes)] != self._sorted_nodes
 
         if must_restart:
             _l.debug("Cannot resume for function %r with the new graph.", self.function)

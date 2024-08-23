@@ -50,10 +50,8 @@ class DataGraphMeta:
     def _print_edge(self, e, data, imarks=False):
         pp = []
         for stmt in e:
-            if imarks is False or stmt[1] == -1:  # SimProcedure
-                s = "(0x%x, %d)" % (stmt[0], stmt[1])
-            else:
-                s = f"[0x{self._imarks[stmt]:x}]"
+            # true case is a SimProcedure
+            s = "(0x%x, %d)" % (stmt[0], stmt[1]) if imarks is False or stmt[1] == -1 else f"[0x{self._imarks[stmt]:x}]"
             pp.append(s)
 
         print(pp[0] + " -> " + pp[1] + " : " + str(data))

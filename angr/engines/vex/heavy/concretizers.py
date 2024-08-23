@@ -192,10 +192,9 @@ def concretize_prem(state, args):
         quotient = math.floor((dividend / divisor) / pow(2, exp_dividend - exp_divisor - N))
         result = dividend - (divisor * quotient * pow(2, exp_dividend - exp_divisor - N))
 
-    if result == 0.0:
-        if math.copysign(1.0, dividend) < 0:
-            # According to Intel manual, if result is 0, its sign should be same as that of dividend.
-            return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
+    if result == 0.0 and math.copysign(1.0, dividend) < 0:
+        # According to Intel manual, if result is 0, its sign should be same as that of dividend.
+        return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
 
     return state.solver.FPV(result, claripy.FSORT_DOUBLE)
 

@@ -55,10 +55,9 @@ class ClaripyDataMixin(VEXMixin):
             and guard.op == "If"
             and isinstance(addr, claripy.ast.Base)
             and addr.op == "If"
-        ):
-            if guard.args[0] is addr.args[0]:
-                # the address is guarded by the same guard! unpack the addr
-                return addr.args[1]
+        ) and guard.args[0] is addr.args[0]:
+            # the address is guarded by the same guard! unpack the addr
+            return addr.args[1]
         return addr
 
     # consts

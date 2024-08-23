@@ -82,10 +82,7 @@ class FormatString:
                 # what type of format specifier is it?
                 fmt_spec = component
                 if fmt_spec.spec_type == b"s":
-                    if fmt_spec.length_spec == b".*":
-                        str_length = va_arg("size_t")
-                    else:
-                        str_length = None
+                    str_length = va_arg("size_t") if fmt_spec.length_spec == b".*" else None
                     str_ptr = va_arg("char*")
                     string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
@@ -97,9 +94,7 @@ class FormatString:
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= 1 << fmt_spec.size * 8
 
-                    if fmt_spec.spec_type in (b"d", b"i"):
-                        s_val = str(c_val)
-                    elif fmt_spec.spec_type == b"u":
+                    if fmt_spec.spec_type in (b"d", b"i") or fmt_spec.spec_type == b"u":
                         s_val = str(c_val)
                     elif fmt_spec.spec_type == b"c":
                         s_val = chr(c_val & 0xFF)
