@@ -650,7 +650,7 @@ class PhoenixStructurer(StructurerBase):
                     if loop_head is succ:
                         continue_edges.append((node, succ))
             if successor_candidates:
-                successor_candidates = list(sorted(successor_candidates, key=lambda x: x.addr))
+                successor_candidates = sorted(successor_candidates, key=lambda x: x.addr)
                 successor = successor_candidates[0]
                 # virtualize all other edges
                 for succ in successor_candidates:
@@ -2531,7 +2531,7 @@ class PhoenixStructurer(StructurerBase):
             src_out_degree = graph.out_degree[src]
             return -node_seq.get(dst), dst_in_degree, src_out_degree, -src.addr, -dst.addr
 
-        return list(sorted(edges, key=_sort_edge, reverse=True))
+        return sorted(edges, key=_sort_edge, reverse=True)
 
     @staticmethod
     def _replace_node_in_edge_list(edge_list: list[tuple], old_node, new_node) -> None:

@@ -98,7 +98,7 @@ def get_unique_strings(ar_path: str) -> list[str]:
     grouped_strings = defaultdict(set)
     for s in all_strings:
         grouped_strings[s[:5]].add(s)
-    sorted_strings = list(sorted(all_strings, key=len, reverse=True))
+    sorted_strings = sorted(all_strings, key=len, reverse=True)
 
     ctr = 0
     picked = set()
@@ -176,7 +176,7 @@ def process_exc_file(exc_path: str):
             non_cold_names.append(func_name)
 
         # sort it
-        non_cold_names = list(sorted(non_cold_names, key=len))
+        non_cold_names = sorted(non_cold_names, key=len)
 
         # pick the top one
         the_chosen_one = non_cold_names[0]

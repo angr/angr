@@ -662,7 +662,7 @@ class SimpleSolver:
                     graph.add_edge(ta, tb)
 
         for components in networkx.connected_components(graph):
-            components_lst = list(sorted(components, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
+            components_lst = sorted(components, key=lambda x: str(x))  # pylint:disable=unnecessary-lambda
             representative = components_lst[0]
             for tv in components_lst[1:]:
                 replacements[tv] = representative

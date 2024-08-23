@@ -71,7 +71,7 @@ class FunctionDict(SortedDict):
             self[k] = v
 
     def __getstate__(self):
-        return {v: k for (v, k) in self.items()}
+        return dict(self.items())
 
 
 class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):

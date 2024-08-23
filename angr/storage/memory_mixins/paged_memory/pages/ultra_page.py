@@ -438,7 +438,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
         memory_objects = set()
-        for offset in sorted(list(offsets)):
+        for offset in sorted(offsets):
             try:
                 a = next(self.symbolic_data.irange(maximum=offset, reverse=True))
             except StopIteration:

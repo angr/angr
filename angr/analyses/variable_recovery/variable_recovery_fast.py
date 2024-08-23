@@ -475,7 +475,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         # unify type variables for global variables
         for var, typevars in self.var_to_typevars.items():
             if len(typevars) > 1 and isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
-                sorted_typevars = list(sorted(typevars, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
+                sorted_typevars = sorted(typevars, key=lambda x: str(x))  # pylint:disable=unnecessary-lambda
                 for tv in sorted_typevars[1:]:
                     self.type_constraints[self.func_typevar].add(Equivalence(sorted_typevars[0], tv))
 

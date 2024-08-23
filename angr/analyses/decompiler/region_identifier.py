@@ -479,7 +479,7 @@ class RegionIdentifier(Analysis):
         if len(refined_exit_nodes) > 1:
             # self._get_start_node(graph)
             node_post_order = list(networkx.dfs_postorder_nodes(graph, head))
-            sorted_exit_nodes = sorted(list(refined_exit_nodes), key=node_post_order.index)
+            sorted_exit_nodes = sorted(refined_exit_nodes, key=node_post_order.index)
             normal_exit_node = sorted_exit_nodes[0]
             abnormal_exit_nodes = set(sorted_exit_nodes[1:])
         else:

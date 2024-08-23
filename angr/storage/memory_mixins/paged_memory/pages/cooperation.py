@@ -259,7 +259,7 @@ class MemoryObjectSetMixin(CooperationBase):
                         )
                     )
 
-            sorted_offsets = list(sorted(offset_to_mos.keys()))
+            sorted_offsets = sorted(offset_to_mos.keys())
             pos = 0
             while pos < len(sorted_offsets):
                 mos = set(offset_to_mos[sorted_offsets[pos]])

@@ -1254,7 +1254,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             starting_points |= set(self._extra_function_starts)
 
         # Sort it
-        sorted_starting_points: list[int] = sorted(list(starting_points), reverse=False)
+        sorted_starting_points: list[int] = sorted(starting_points, reverse=False)
 
         if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry):
             if self.project.entry not in starting_points:
@@ -1745,7 +1745,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         MAX_STRING_SIZE = 256
         UPDATE_RATIO = 0.5
 
-        all_memory_data = sorted(list(self.model.memory_data.items()), key=lambda x: x[0])  # sorted by addr
+        all_memory_data = sorted(self.model.memory_data.items(), key=lambda x: x[0])  # sorted by addr
         to_update: dict[int, bytes] = {}
         total_string_refs: int = 0
         for i, (addr, md) in enumerate(all_memory_data):

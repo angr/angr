@@ -75,7 +75,7 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
 
     def copy(self) -> KeyDefinitionManager:
         dm = KeyDefinitionManager(self._kb)
-        dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()), self.model_by_funcaddr.items()))
+        dm.model_by_funcaddr = {x[0]: x[1].copy() for x in self.model_by_funcaddr.items()}
         return dm
 
 

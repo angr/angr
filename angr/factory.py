@@ -267,7 +267,7 @@ class AngrObjectFactory:
         """
         Return a default function prototype parameterized for this project and SimOS.
         """
-        return SimTypeFunction(tuple(), SimTypeInt()).with_arch(self.project.arch)
+        return SimTypeFunction((), SimTypeInt()).with_arch(self.project.arch)
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload

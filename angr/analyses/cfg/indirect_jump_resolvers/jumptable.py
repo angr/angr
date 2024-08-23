@@ -1838,7 +1838,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # Adjust entries inside the jump table
         mask = (2**self.project.arch.bits) - 1
-        transformation_list = list(reversed(list(v for v in transformations.values() if not v.first_load)))
+        transformation_list = list(reversed([v for v in transformations.values() if not v.first_load]))
         if transformation_list:
 
             def handle_signed_ext(a):
@@ -2114,7 +2114,7 @@ class JumpTableResolver(IndirectJumpResolver):
     def _dbg_repr_slice(self, blade, in_slice_stmts_only=False):
         stmts = defaultdict(set)
 
-        for addr, stmt_idx in sorted(list(blade.slice.nodes())):
+        for addr, stmt_idx in sorted(blade.slice.nodes()):
             stmts[addr].add(stmt_idx)
 
         for addr in sorted(stmts.keys()):

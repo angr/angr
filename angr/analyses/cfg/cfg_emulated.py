@@ -3463,7 +3463,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if simsuccessors.sort == "IRSB" and state.thumb:
             insn_addrs = simsuccessors.artifacts["insn_addrs"]
             self._thumb_addrs.update(insn_addrs)
-            self._thumb_addrs.update(map(lambda x: x + 1, insn_addrs))  # pylint:disable=bad-builtin
+            self._thumb_addrs.update(x + 1 for x in insn_addrs)  # pylint:disable=bad-builtin
 
     def _get_callsites(self, function_address):
         """

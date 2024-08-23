@@ -335,7 +335,7 @@ def simplify_switch_clusters(
         if overlaps:
             continue
 
-        used_condnodes = list(condnode for condnode, _ in used_condnodes_and_branch)
+        used_condnodes = [condnode for condnode, _ in used_condnodes_and_branch]
 
         # collect addresses for all case nodes
         case_addr_to_case_id: dict[int, int | tuple[int, ...] | str] = {}

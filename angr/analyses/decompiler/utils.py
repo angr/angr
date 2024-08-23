@@ -659,7 +659,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
 
     # collect all functions when None are provided
     if functions is None:
-        functions = list(sorted(cfg.kb.functions))
+        functions = sorted(cfg.kb.functions)
 
     # normalize the functions that could be ints as names
     normalized_functions: list[int | str] = []

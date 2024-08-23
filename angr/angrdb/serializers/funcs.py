@@ -48,7 +48,7 @@ class FunctionManagerSerializer:
         funcs = FunctionManager(kb)
 
         db_funcs = session.query(DbFunction).filter_by(kb=db_kb)
-        all_func_addrs = set(map(lambda x: x[0], session.query(DbFunction.addr).filter_by(kb=db_kb)))
+        all_func_addrs = {x[0] for x in session.query(DbFunction.addr).filter_by(kb=db_kb)}
 
         for db_func in db_funcs:
             func = Function.parse(

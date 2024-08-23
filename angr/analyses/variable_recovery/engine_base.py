@@ -217,7 +217,7 @@ class SimEngineVRBase(SimEngineLight):
             variable_manager = self.variable_manager["global"]
 
             # special case for global variables: find existing variable by base address
-            existing_vars = list((var, 0) for var in variable_manager.get_global_variables(global_var_addr))
+            existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
 
             if not existing_vars:
                 variable = SimMemoryVariable(
@@ -269,7 +269,7 @@ class SimEngineVRBase(SimEngineLight):
             global_var_addr = data.concrete_value
             variable_manager = self.variable_manager["global"]
             # special case for global variables: find existing variable by base address
-            existing_vars = list((var, 0) for var in variable_manager.get_global_variables(global_var_addr))
+            existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
         else:
             return
 
