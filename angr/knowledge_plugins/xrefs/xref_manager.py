@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
+from itertools import chain
 
 from ...serializable import Serializable
 from ...protos import xrefs_pb2
@@ -95,10 +97,7 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         # pylint:disable=no-member
         cmsg = self._get_cmsg()
         # references
-        refs = []
-        for ref_set in self.xrefs_by_ins_addr.values():
-            for ref in ref_set:
-                refs.append(ref.serialize_to_cmessage())
+        refs = [ref.serialize_to_cmessage() for ref in chain(*self.xrefs_by_ins_addr.values())]
         cmsg.xrefs.extend(refs)
         return cmsg
 

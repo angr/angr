@@ -148,16 +148,12 @@ class RegionMap:
                 raise SimRegionMapError('Received a non-stack memory ID "%d" in a stack region map' % region_id)
 
             # Remove all stack regions that are lower than the one to add
-            while True:
-                try:
-                    addr = next(self._address_to_region_id.irange(maximum=absolute_address, reverse=True))
-                    descriptor = self._address_to_region_id[addr]
-                    # Remove this mapping
-                    del self._address_to_region_id[addr]
-                    # Remove this region ID from the other mapping
-                    del self._region_id_to_address[descriptor.region_id]
-                except StopIteration:
-                    break
+            for addr in self._address_to_region_id.irange(maximum=absolute_address, reverse=True):
+                descriptor = self._address_to_region_id[addr]
+                # Remove this mapping
+                del self._address_to_region_id[addr]
+                # Remove this region ID from the other mapping
+                del self._region_id_to_address[descriptor.region_id]
 
         else:
             if absolute_address in self._address_to_region_id:

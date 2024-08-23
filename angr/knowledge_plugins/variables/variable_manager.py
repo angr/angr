@@ -199,11 +199,9 @@ class VariableManagerInternal(Serializable):
         cmsg.memvars.extend(memory_variables)
 
         # accesses
-        accesses = []
-        for variable_accesses in self._variable_accesses.values():
-            for variable_access in variable_accesses:
-                accesses.append(variable_access.serialize_to_cmessage())
-        cmsg.accesses.extend(accesses)
+        cmsg.extend(
+            variable_access.serialize_to_cmessage() for variable_access in chain(*self._variable_accesses.values())
+        )
 
         # unified variables
         unified_register_variables = []
@@ -268,14 +266,11 @@ class VariableManagerInternal(Serializable):
         variable_by_ident = {}
 
         # variables
-        all_vars = []
+        all_vars = [
+            (var.base.is_phi, SimVariable.parse_from_cmessage(var))
+            for var in chain(cmsg.regvars, cmsg.stackvars, cmsg.memvars)
+        ]
 
-        for regvar_pb2 in cmsg.regvars:
-            all_vars.append((regvar_pb2.base.is_phi, SimRegisterVariable.parse_from_cmessage(regvar_pb2)))
-        for stackvar_pb2 in cmsg.stackvars:
-            all_vars.append((stackvar_pb2.base.is_phi, SimStackVariable.parse_from_cmessage(stackvar_pb2)))
-        for memvar_pb2 in cmsg.memvars:
-            all_vars.append((memvar_pb2.base.is_phi, SimMemoryVariable.parse_from_cmessage(memvar_pb2)))
         for is_phi, var in all_vars:
             variable_by_ident[var.ident] = var
             if is_phi:
@@ -649,24 +644,11 @@ class VariableManagerInternal(Serializable):
 
     def get_variable_accesses(self, variable: SimVariable, same_name: bool = False) -> list[VariableAccess]:
         if not same_name:
-            if variable in self._variable_accesses:
-                return list(self._variable_accesses[variable])
-
-            return []
+            return list(self._variable_accesses.get(variable, []))
 
         # find all variables with the same variable name
-
-        vars_list = []
-
-        for var in self._variable_accesses:
-            if variable.name == var.name:
-                vars_list.append(var)
-
-        accesses = []
-        for var in vars_list:
-            accesses.extend(self.get_variable_accesses(var))
-
-        return accesses
+        vars_list = [var for var in self._variables if var.name == variable.name]
+        return [self.get_variable_accesses(var for var in chain(*vars_list))]
 
     def get_variables(
         self, sort: Literal["stack", "reg"] | None = None, collapse_same_ident=False
@@ -679,19 +661,15 @@ class VariableManagerInternal(Serializable):
         :return:                    A list of variables.
         """
 
-        variables = []
-
         if collapse_same_ident:
             raise NotImplementedError
 
-        for var in self._variables:
-            if sort == "stack" and not isinstance(var, SimStackVariable):
-                continue
-            if sort == "reg" and not isinstance(var, SimRegisterVariable):
-                continue
-            variables.append(var)
-
-        return variables
+        return [
+            var
+            for var in self._variables
+            if (sort == "stack" and isinstance(var, SimStackVariable))
+            or (sort == "reg" and isinstance(var, SimRegisterVariable))
+        ]
 
     def get_unified_variables(
         self, sort: Literal["stack", "reg"] | None = None
@@ -703,16 +681,12 @@ class VariableManagerInternal(Serializable):
         :return:        A list of variables.
         """
 
-        variables = []
-
-        for var in self._unified_variables:
-            if sort == "stack" and not isinstance(var, SimStackVariable):
-                continue
-            if sort == "reg" and not isinstance(var, SimRegisterVariable):
-                continue
-            variables.append(var)
-
-        return variables
+        return [
+            var
+            for var in self._unified_variables
+            if (sort == "stack" and isinstance(var, SimStackVariable))
+            or (sort == "reg" and isinstance(var, SimRegisterVariable))
+        ]
 
     def get_global_variables(self, addr):
         """
@@ -756,12 +730,11 @@ class VariableManagerInternal(Serializable):
         :rtype:                 dict
         """
 
-        if block_addr not in self._phi_variables_by_block:
-            return {}
-        variables = {}
-        for phi in self._phi_variables_by_block[block_addr]:
-            variables[phi] = self._phi_variables[phi]
-        return variables
+        return (
+            {phi: self._phi_variables[phi] for phi in self._phi_variables_by_block[block_addr]}
+            if block_addr in self._phi_variables_by_block
+            else {}
+        )
 
     def get_variables_without_writes(self) -> list[SimVariable]:
         """
@@ -773,16 +746,11 @@ class VariableManagerInternal(Serializable):
         def has_write_access(accesses):
             return any(acc for acc in accesses if acc.access_type == VariableAccessSort.WRITE)
 
-        input_variables = []
-
-        for variable, accesses in self._variable_accesses.items():
-            if variable in self._phi_variables:
-                # a phi variable is definitely not an input variable
-                continue
-            if not has_write_access(accesses):
-                input_variables.append(variable)
-
-        return input_variables
+        return [
+            variable
+            for variable, accesses in self._variable_accesses.items()
+            if not (variable in self._phi_variables or has_write_access(accesses))
+        ]
 
     def input_variables(self, exclude_specials: bool = True):
         """
@@ -1010,7 +978,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(v, SimRegisterVariable):
                 reg_vars.add(v)
 
-        for _, vs in stack_vars.items():
+        for vs in stack_vars.values():
             unified = vs[0].copy()
             for v in vs:
                 self.set_unified_variable(v, unified)

@@ -62,15 +62,12 @@ class GraphRegion:
         self._replaced_regions = {}
 
     def __repr__(self):
-        addrs: list[int] = []
         s = ""
         if self.graph is None:
             # only head is available
             return f"<GraphRegion {self.head!r}>"
 
-        for node in self.graph.nodes():
-            if hasattr(node, "addr"):
-                addrs.append(node.addr)
+        addrs: list[int] = [node.addr for node in self.graph.nodes() if hasattr(node, "addr")]
         if addrs:
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 

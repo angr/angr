@@ -88,9 +88,7 @@ class PluginHub(Generic[P]):
         while q:
             cls = q.pop(0)
             out.update(cls.__dict__)
-            for base in cls.__bases__:
-                if base is not object:
-                    q.append(base)
+            q.extend([base for base in cls.__bases__ if base is not object])
 
         return sorted(out)
 

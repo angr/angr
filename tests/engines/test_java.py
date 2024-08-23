@@ -624,7 +624,7 @@ class TestJava(unittest.TestCase):
                 assert val == assert_value
 
         if assertions:
-            for _, test in assertions.items():
+            for test in assertions.values():
                 assert test(end_state)
 
         return end_state

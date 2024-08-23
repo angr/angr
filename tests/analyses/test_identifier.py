@@ -22,9 +22,7 @@ class TestIdentifier(unittest.TestCase):
         p = angr.Project(os.path.join(bin_location, "tests", "i386", "identifiable"))
         idfer = p.analyses.Identifier(require_predecessors=False)
 
-        seen = {}
-        for addr, symbol in idfer.run():
-            seen[addr] = symbol
+        seen = dict(idfer.run())
 
         for addr, symbol in true_symbols.items():
             assert symbol == seen[addr]

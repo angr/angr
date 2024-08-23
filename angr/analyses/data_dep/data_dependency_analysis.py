@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+from itertools import chain
 from typing import TYPE_CHECKING
 
 from networkx import DiGraph
@@ -311,11 +312,7 @@ class DataDependencyGraphAnalysis(Analysis):
     def _create_dep_edges(self, act, write_node, read_nodes: dict[int, list[BaseDepNode]]) -> bool:
         """Last resort for linking dependencies"""
         # Check tmp and reg deps
-        var_read_nodes = []
-        for nodes in read_nodes.values():
-            for node in nodes:
-                if isinstance(node, VarDepNode):
-                    var_read_nodes.append(node)
+        var_read_nodes = [node for node in chain(*read_nodes.values()) if isinstance(node, VarDepNode)]
 
         possible_dep_nodes = {node.reg: node for node in var_read_nodes}
 

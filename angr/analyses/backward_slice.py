@@ -324,9 +324,7 @@ class BackwardSlice(Analysis):
             if simrun not in cfg:
                 l.error("SimRun instance %s is not in the CFG.", simrun)
 
-        stack = []
-        for simrun in simruns:
-            stack.append(simrun)
+        stack = list(simruns)
 
         self.runs_in_slice = networkx.DiGraph()
         self.cfg_nodes_in_slice = networkx.DiGraph()

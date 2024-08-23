@@ -303,9 +303,7 @@ class SegmentList:
         :rtype: str
         """
         s = "["
-        lst = []
-        for segment in self._list:
-            lst.append(repr(segment))
+        lst = [repr(segment) for segment in self._list]
         s += ", ".join(lst)
         s += "]"
         return s

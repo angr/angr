@@ -1242,11 +1242,11 @@ class CFunctionCall(CStatement, CExpression):
             proto = self.callee_func.prototype
             if self.callee_func.prototype_libname is not None:
                 # we need to deref the prototype in case it uses SimTypeRef internally
-                type_collections = []
-                prototype_lib = SIM_LIBRARIES[self.callee_func.prototype_libname]
+                prototype_lib = SIM_LIBRARIES.get(self.callee_func.prototype_libname, [])
+                type_collections = [
+                    SIM_TYPE_COLLECTIONS[typelib_name] for typelib_name in prototype_lib.type_collection_names
+                ]
                 if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
                     proto = dereference_simtype(proto, type_collections)
             return proto
         returnty = SimTypeInt(signed=False)
@@ -2139,7 +2139,7 @@ class CConstant(CExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
+            for v in self.reference_values.values():
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
                     return
@@ -3023,10 +3023,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return self._handle(node.node, is_expr=False)
 
     def _handle_Sequence(self, seq, **kwargs):
-        lines = []
-
-        for node in seq.nodes:
-            lines.append(self._handle(node, is_expr=False))
+        lines = [self._handle(node, is_expr=False) for node in seq.nodes]
 
         if not lines:
             return CStatements([], codegen=None)

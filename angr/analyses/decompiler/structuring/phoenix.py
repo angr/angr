@@ -883,7 +883,6 @@ class PhoenixStructurer(StructurerBase):
                 # there is an out-going edge from the loop head
                 # virtualize all other edges
                 continue_edges: list[tuple[BaseNode, BaseNode]] = []
-                outgoing_edges = []
                 successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
                 for node in networkx.descendants(graph, loop_head):
                     succs = list(fullgraph.successors(node))
@@ -891,8 +890,7 @@ class PhoenixStructurer(StructurerBase):
                         continue_edges.append((node, loop_head))
 
                     outside_succs = [succ for succ in succs if succ not in graph]
-                    for outside_succ in outside_succs:
-                        outgoing_edges.append((node, outside_succ))
+                    outgoing_edges = [(node, outside_succ) for outside_succ in outside_succs]
 
                 return True, (continue_edges, outgoing_edges, loop_head, successor)
         return False, None
@@ -911,7 +909,6 @@ class PhoenixStructurer(StructurerBase):
                 _, _, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
                 if src_block_0 is src_block_1 and src_block_0 is not None:
                     continue_edges: list[tuple[BaseNode, BaseNode]] = []
-                    outgoing_edges = []
                     # there is an out-going edge from the loop tail
                     # virtualize all other edges
                     successor = next(iter(nn for nn in head_pred_succs if nn not in graph))
@@ -924,8 +921,7 @@ class PhoenixStructurer(StructurerBase):
                             continue_edges.append((node, head_pred))
 
                         outside_succs = [succ for succ in succs if succ not in graph]
-                        for outside_succ in outside_succs:
-                            outgoing_edges.append((node, outside_succ))
+                        outgoing_edges = [(node, outside_succ) for outside_succ in outside_succs]
 
                     return True, (continue_edges, outgoing_edges, continue_node, successor)
         return False, None
@@ -1440,12 +1436,8 @@ class PhoenixStructurer(StructurerBase):
         for nn in to_remove:
             if nn is head:
                 continue
-            for src in graph.predecessors(nn):
-                if src not in to_remove:
-                    other_nodes_inedges.append((src, nn))
-            for dst in full_graph.successors(nn):
-                if dst not in to_remove:
-                    out_edges.append((nn, dst))
+            other_nodes_inedges.extend((src, nn) for src in graph.predecessors(nn) if src not in to_remove)
+            out_edges.extend((nn, dst) for dst in graph.successors(nn) if dst not in to_remove)
 
         if can_bail:
             nonhead_out_nodes = {edge[1] for edge in out_edges if edge[1] is not head}

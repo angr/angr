@@ -252,8 +252,7 @@ class NormalizedBlock:
     def __init__(self, block, function):
         addresses = [block.addr]
         if block.addr in function.merged_blocks:
-            for a in function.merged_blocks[block.addr]:
-                addresses.append(a.addr)
+            addresses.extend([a.addr for a in function.merged_blocks[block.addr]])
 
         self.addr = block.addr
         self.addresses = addresses
@@ -339,9 +338,13 @@ class NormalizedFunction:
             if n.addr in self.orig_function.get_call_sites():
                 call_targets.append(self.orig_function.get_call_target(n.addr))
             if n.addr in self.merged_blocks:
-                for block in self.merged_blocks[n]:
-                    if block.addr in self.orig_function.get_call_sites():
-                        call_targets.append(self.orig_function.get_call_target(block.addr))
+                call_targets.extend(
+                    [
+                        self.orig_function.get_call_target(b.addr)
+                        for b in self.merged_blocks[n]
+                        if b.addr in self.orig_function.get_call_sites()
+                    ]
+                )
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
@@ -732,15 +735,11 @@ class FunctionDiff:
             # add them in order of the vex
             addr = block.addr
             succ = set(succ)
-            ordered_succ = []
             bl = project.factory.block(addr)
-            for x in bl.vex.all_constants:
-                if x in succ:
-                    ordered_succ.append(x)
+            ordered_succ = [x for x in bl.vex.all_constants if x in succ]
 
             # add the rest (sorting might be better than no order)
-            for s in sorted(succ - set(ordered_succ), key=lambda x: x.addr):
-                ordered_succ.append(s)
+            ordered_succ.extend(sorted(succ - set(ordered_succ), key=lambda x: x.addr))
             return ordered_succ
         except (SimMemoryError, SimEngineError):
             return sorted(succ, key=lambda x: x.addr)

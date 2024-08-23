@@ -21,11 +21,8 @@ class TestClassIdentifier(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, "x86_64", "cpp_classes"), auto_load_libs=False)
         class_identifier_analysis = p.analyses.ClassIdentifier()
         classes_found = class_identifier_analysis.classes
-        class_labels = []
+        class_labels = list(classes_found)
         vtable_ptr_c = [0x403CB0, 0x403CD8]
-
-        for class_str in classes_found:
-            class_labels.append(class_str)
 
         assert "A" in class_labels
         assert "B" in class_labels

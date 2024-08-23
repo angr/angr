@@ -27,6 +27,7 @@ extend-select = [
 	"INT",
 	"ISC",
 	"LOG",
+	"PERF",
 	"PIE",
 	"R",
 	"RET",
@@ -43,6 +44,7 @@ extend-ignore = [
 	"E402", # Bottom imports
 	"E721", # Type comparisons
 	"E741", # Variable names
+	"PERF203", # try-except in loops
 	"RUF012", # FIXME: Annotate class variables
 ]
 

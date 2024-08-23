@@ -206,10 +206,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         #  + E | t8 = GET:I32(t9)
         #  Next: t8
 
-        nodes_with_no_outedges = []
-        for node in blade.slice.nodes():
-            if blade.slice.out_degree(node) == 0:
-                nodes_with_no_outedges.append(node)
+        nodes_with_no_outedges = [node for node in blade.slice.nodes() if blade.slice.out_degree(node) == 0]
         if len(nodes_with_no_outedges) != 1:
             return None
 
@@ -312,10 +309,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         #  + H | t4 = GET:I32(t9)
         #  + Next: t4
 
-        nodes_with_no_outedges = []
-        for node in blade.slice.nodes():
-            if blade.slice.out_degree(node) == 0:
-                nodes_with_no_outedges.append(node)
+        nodes_with_no_outedges = [node for node in blade.slice.nodes() if blade.slice.out_degree(node) == 0]
         if len(nodes_with_no_outedges) != 1:
             return None
 

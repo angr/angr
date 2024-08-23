@@ -23,7 +23,7 @@ def register_simos(name, cls):
 
 
 # Pulling in all EI_OSABI options supported by elftools
-for _k, v in _DESCR_EI_OSABI.items():
+for v in _DESCR_EI_OSABI.values():
     register_simos(v, SimLinux)
 
 register_simos("linux", SimLinux)

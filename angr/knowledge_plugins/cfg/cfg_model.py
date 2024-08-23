@@ -124,9 +124,7 @@ class CFGModel(Serializable):
         cmsg.ident = self.ident
 
         # nodes
-        nodes = []
-        for n in self.graph.nodes():
-            nodes.append(n.serialize_to_cmessage())
+        nodes = [n.serialize_to_cmessage() for n in self.graph.nodes()]
         cmsg.nodes.extend(nodes)
 
         # edges
@@ -148,9 +146,7 @@ class CFGModel(Serializable):
         cmsg.edges.extend(edges)
 
         # memory data
-        memory_data = []
-        for data in self.memory_data.values():
-            memory_data.append(data.serialize_to_cmessage())
+        memory_data = [data.serialize_to_cmessage() for data in self.memory_data.values()]
         cmsg.memory_data.extend(memory_data)
 
         cmsg.normalized = self.normalized
@@ -337,16 +333,21 @@ class CFGModel(Serializable):
         :param is_syscall: True returns the syscall node, False returns the normal CFGNode, None returns both
         :return:           all CFGNodes
         """
-        results = []
-
-        for cfg_node in self.graph.nodes():
+        return [
+            cfg_node
+            for cfg_node in self.graph.nodes()
             if (
-                cfg_node.addr == addr
-                or (anyaddr and cfg_node.size is not None and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size))
-            ) and (is_syscall is None or is_syscall == cfg_node.is_syscall):
-                results.append(cfg_node)
-
-        return results
+                (
+                    cfg_node.addr == addr
+                    or (
+                        anyaddr
+                        and cfg_node.size is not None
+                        and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
+                    )
+                )
+                and (is_syscall is None or is_syscall == cfg_node.is_syscall)
+            )
+        ]
 
     def get_all_nodes_intersecting_region(self, addr: int, size: int = 1) -> set[CFGNode]:
         """

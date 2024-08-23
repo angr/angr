@@ -209,10 +209,7 @@ class MVListPage(
                     continue
 
                 the_endness = next(iter(endnesses))
-                to_merge = []
-                for mo_set, fv in memory_object_sets:
-                    for mo in mo_set:
-                        to_merge.append((mo.object, fv))
+                to_merge = [(mo.object, fv) for mo in mo_set for mo_set, fv in memory_object_sets]
 
                 # Update `merged_to`
                 mo_base = next(iter(mo_bases))
@@ -252,11 +249,11 @@ class MVListPage(
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = []
-                if min_size != 0:
-                    for mo_set, fv in memory_object_sets:
-                        for mo in mo_set:
-                            extracted.append((mo.bytes_at(page_addr + b, min_size), fv))
+                extracted = (
+                    [(mo.bytes_at(page_addr + b, min_size), fv) for mo in mo_set for mo_set, fv in memory_object_sets]
+                    if min_size != 0
+                    else []
+                )
                 if not memory.skip_missing_values_during_merging:
                     created = [
                         (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory), fv)
@@ -418,9 +415,7 @@ class MVListPage(
             return None
         lst = []
         if type(mos) is set:
-            for mo in mos:
-                if mo.includes(start + page_addr):
-                    lst.append(mo)
+            lst = [mo for mo in mos if mo.includes(start + page_addr)]
         else:
             lst.append(mos)
         if lst:

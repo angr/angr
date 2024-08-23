@@ -7,7 +7,7 @@ import ailment
 import claripy
 from unique_log_filter import UniqueLogFilter
 
-from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
+from angr.procedures import SIM_TYPE_COLLECTIONS
 from angr.utils.constants import MAX_POINTSTO_BITS
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction, dereference_simtype
@@ -169,12 +169,11 @@ class SimEngineVRAIL(
         if prototype is not None and args:
             # add type constraints
 
-            type_collections = []
-            if prototype_libname is not None:
-                prototype_lib = SIM_LIBRARIES[prototype_libname]
-                if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+            type_collections = (
+                [SIM_TYPE_COLLECTIONS[typelib_name] for typelib_name in prototype.type_collection_names]
+                if prototype_libname is not None and prototype.type_collection_names
+                else []
+            )
 
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
