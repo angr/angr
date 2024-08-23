@@ -104,9 +104,7 @@ class Identifier(Analysis):
                 l.debug("Simulation error: %s", e)
 
     def _too_large(self):
-        if len(self._cfg.functions) > 400:
-            return True
-        return False
+        return len(self._cfg.functions) > 400
 
     def run(self, only_find=None):
         if only_find is not None:
@@ -193,9 +191,8 @@ class Identifier(Analysis):
             for s in succ:
                 if s in self._cfg.functions:
                     f = self._cfg.functions[s]
-                    if f in self.matches:
-                        if self.matches[f][0] == name:
-                            return True
+                    if f in self.matches and self.matches[f][0] == name:
+                        return True
             to_process.extend(succ)
         return False
 
@@ -328,16 +325,15 @@ class Identifier(Analysis):
                     simgr.stashes["active"] = [ss]
                     stepped = True
                     break
-            if not stepped:
-                if len(simgr.unconstrained) > 0:
-                    s = simgr.unconstrained[0]
-                    if s.history.jumpkind == "Ijk_Call":
-                        s.regs.eax = claripy.BVS("unconstrained_ret", s.arch.bits)
-                        s.regs.ip = s.stack_pop()
-                        s.history.jumpkind = "Ijk_Ret"
-                    s.regs.ip = addr_trace[0]
-                    simgr.stashes["active"] = [s]
-                    stepped = True
+            if not stepped and len(simgr.unconstrained) > 0:
+                s = simgr.unconstrained[0]
+                if s.history.jumpkind == "Ijk_Call":
+                    s.regs.eax = claripy.BVS("unconstrained_ret", s.arch.bits)
+                    s.regs.ip = s.stack_pop()
+                    s.history.jumpkind = "Ijk_Ret"
+                s.regs.ip = addr_trace[0]
+                simgr.stashes["active"] = [s]
+                stepped = True
             if not stepped:
                 raise IdentifierException("could not get call args")
             addr_trace = addr_trace[1:]
@@ -556,9 +552,8 @@ class Identifier(Analysis):
         for a in succ.history.recent_actions:
             if a.type == "mem" and a.action == "write":
                 addr = succ.solver.eval(a.addr.ast)
-                if min_sp <= addr <= initial_sp:
-                    if hash(a.data.ast) in reg_dict:
-                        pushed_regs.append(reg_dict[hash(a.data.ast)])
+                if min_sp <= addr <= initial_sp and hash(a.data.ast) in reg_dict:
+                    pushed_regs.append(reg_dict[hash(a.data.ast)])
         pushed_regs = pushed_regs[::-1]
         # found the preamble
 
@@ -627,9 +622,12 @@ class Identifier(Analysis):
             written_regs = set()
             # we can get stack variables via memory actions
             for a in succ.history.recent_actions:
-                if a.type == "mem":
-                    if "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables):
-                        possible_stack_vars.append((addr, a.addr.ast, a.action))
+                if (
+                    a.type == "mem"
+                    and "sym_sp" in a.addr.ast.variables
+                    or (bp_based and "sym_bp" in a.addr.ast.variables)
+                ):
+                    possible_stack_vars.append((addr, a.addr.ast, a.action))
                 if a.type == "reg" and a.action == "write":
                     # stack variables can also be if a stack addr is loaded into a register, eg lea
                     reg_name = self.get_reg_name(self.project.arch, a.offset)
@@ -658,10 +656,7 @@ class Identifier(Analysis):
                     sp_off = 2**self.project.arch.bits - sp_off
 
                 # get the offsets
-                if bp_based:
-                    bp_off = sp_off - bp_sp_diff
-                else:
-                    bp_off = sp_off - (initial_sp - min_sp) + self.project.arch.bytes
+                bp_off = sp_off - bp_sp_diff if bp_based else sp_off - (initial_sp - min_sp) + self.project.arch.bytes
 
                 stack_var_accesses[bp_off].add((addr, action))
                 stack_vars.add(bp_off)
@@ -738,16 +733,12 @@ class Identifier(Analysis):
             return True
         if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
             return False
-        if len(succ.solver.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
-            return True
-        return False
+        return len(succ.solver.eval_upto(state.regs.sp - succ.regs.bp, 2)) == 1
 
     @staticmethod
     def _is_bt(bl):
         # vex does really weird stuff with bit test instructions
-        if bl.bytes.startswith(b"\x0f\xa3"):
-            return True
-        return False
+        return bool(bl.bytes.startswith(b"\x0f\xa3"))
 
     @staticmethod
     def _is_jump_or_call(bl):
@@ -755,19 +746,12 @@ class Identifier(Analysis):
             return True
         if len(bl.vex.constant_jump_targets) != 1:
             return True
-        if next(iter(bl.vex.constant_jump_targets)) != bl.addr + bl.size:
-            return True
-
-        return False
+        return next(iter(bl.vex.constant_jump_targets)) != bl.addr + bl.size
 
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:
             for e in chain([s], s.expressions):
-                if e.tag == "Iex_Get":
-                    reg = self.get_reg_name(self.project.arch, e.offset)
-                    if reg == "ebp" or reg == "esp":
-                        return False
-                elif e.tag == "Ist_Put":
+                if e.tag == "Iex_Get" or e.tag == "Ist_Put":
                     reg = self.get_reg_name(self.project.arch, e.offset)
                     if reg == "ebp" or reg == "esp":
                         return False
@@ -788,9 +772,7 @@ class Identifier(Analysis):
     @staticmethod
     def _non_normal_args(stack_args):
         for i, arg in enumerate(stack_args):
-            if arg != i * 4:
-                return True
-            return False
+            return arg != i * 4
 
     @staticmethod
     def make_initial_state(project, stack_length):

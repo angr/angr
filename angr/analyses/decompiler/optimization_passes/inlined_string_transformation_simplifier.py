@@ -368,11 +368,16 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
                     stack_accesses = engine.stack_accesses[stack_addr]
                     if len(stack_accesses) == 3:
                         item0, item1, item2 = stack_accesses
-                        if item0[0] == "store" and item1[0] == "load" and item2[0] == "store":
-                            if item0[1] != item1[1] and item1[1] == item2[1]:
-                                if item0[2] is item1[2]:
-                                    # found one!
-                                    candidate_stack_addrs.append(stack_addr)
+                        if (
+                            item0[0] == "store"
+                            and item1[0] == "load"
+                            and item2[0] == "store"
+                            and item0[1] != item1[1]
+                            and item1[1] == item2[1]
+                            and item0[2] is item1[2]
+                        ):
+                            # found one!
+                            candidate_stack_addrs.append(stack_addr)
 
                 if (
                     len(candidate_stack_addrs) >= 2

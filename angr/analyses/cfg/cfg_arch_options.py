@@ -58,7 +58,7 @@ class CFGArchOptions:
                 self._options[k] = value
 
         # make sure options are valid
-        for k in options.keys():
+        for k in options:
             if self.arch.name not in self.OPTIONS or k not in self.OPTIONS[self.arch.name]:
                 raise KeyError(f'Architecture {self.arch.name} does not support arch-specific option "{k}".')
 

@@ -208,9 +208,12 @@ def compare_statement_dict(statement_1, statement_2):
 
     # constants
     if isinstance(statement_1, (int, float, str, bytes)):
-        if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
-            return []
-        elif statement_1 == statement_2:
+        if (
+            isinstance(statement_1, float)
+            and math.isnan(statement_1)
+            and math.isnan(statement_2)
+            or statement_1 == statement_2
+        ):
             return []
         else:
             return [Difference(None, statement_1, statement_2)]
@@ -378,10 +381,7 @@ class FunctionDiff:
         """
         if len(self._unmatched_blocks_from_a | self._unmatched_blocks_from_b) > 0:
             return False
-        for a, b in self._block_matches:
-            if not self.blocks_probably_identical(a, b):
-                return False
-        return True
+        return all(self.blocks_probably_identical(a, b) for a, b in self._block_matches)
 
     @property
     def identical_blocks(self):
@@ -586,13 +586,10 @@ class FunctionDiff:
 
         attributes = {}
         for block in function.graph.nodes():
-            if block in call_sites:
-                number_of_subfunction_calls = len(call_sites[block])
-            else:
-                number_of_subfunction_calls = 0
+            number_of_subfunction_calls = len(call_sites[block]) if block in call_sites else 0
             # there really shouldn't be blocks that can't be reached from the start, but there are for now
-            dist_start = distances_from_start[block] if block in distances_from_start else 10000
-            dist_exit = distances_from_exit[block] if block in distances_from_exit else 10000
+            dist_start = distances_from_start.get(block, 10000)
+            dist_exit = distances_from_exit.get(block, 10000)
 
             attributes[block] = (dist_start, dist_exit, number_of_subfunction_calls)
 
@@ -1201,8 +1198,8 @@ class BinDiff(Analysis):
                 self.function_matches.add((x, y))
 
         # get the unmatched functions
-        self._unmatched_functions_from_a = {x for x in self.attributes_a.keys() if x not in matched_a}
-        self._unmatched_functions_from_b = {x for x in self.attributes_b.keys() if x not in matched_b}
+        self._unmatched_functions_from_a = {x for x in self.attributes_a if x not in matched_a}
+        self._unmatched_functions_from_b = {x for x in self.attributes_b if x not in matched_b}
 
         # remove unneeded function diffs
         for x, y in dict(self._function_diffs):

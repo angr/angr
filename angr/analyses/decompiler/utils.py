@@ -24,12 +24,7 @@ def remove_last_statement(node):
     elif type(node) is ailment.Block:
         stmt = node.statements[-1]
         node.statements = node.statements[:-1]
-    elif type(node) is MultiNode:
-        if node.nodes:
-            stmt = remove_last_statement(node.nodes[-1])
-            if BaseNode.test_empty_node(node.nodes[-1]):
-                node.nodes = node.nodes[:-1]
-    elif type(node) is SequenceNode:
+    elif type(node) is MultiNode or type(node) is SequenceNode:
         if node.nodes:
             stmt = remove_last_statement(node.nodes[-1])
             if BaseNode.test_empty_node(node.nodes[-1]):
@@ -361,10 +356,7 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
 
 def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
-        if isinstance(node, CodeNode):
-            inner_node = node.node
-        else:
-            inner_node = node
+        inner_node = node.node if isinstance(node, CodeNode) else node
         if isinstance(inner_node, ailment.Block) and not has_nonlabel_statements(inner_node):
             continue
         return node
@@ -673,10 +665,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     normalized_functions: list[int | str] = []
     for func in functions:
         try:
-            if isinstance(func, str):
-                normalized_name = int(func, 0)
-            else:
-                normalized_name = func
+            normalized_name = int(func, 0) if isinstance(func, str) else func
         except ValueError:
             normalized_name = func
         normalized_functions.append(normalized_name)

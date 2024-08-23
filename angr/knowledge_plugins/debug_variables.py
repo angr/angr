@@ -121,9 +121,7 @@ class DebugVariable(DebugVariableContainer):
             return True
         if l2 < l1 < h2 < h1:
             return True
-        if l1 < l2 < h1 < h2:
-            return True
-        return False
+        return l1 < l2 < h1 < h2
 
 
 class DebugVariableManager(KnowledgeBasePlugin):
@@ -193,10 +191,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
         :param elf_object:  Optional, when only one elf object should be considered (e.g. p.loader.main_object)
         :param cu:          Optional, when only one compilation unit should be considered
         """
-        if elf_object:
-            objs = [elf_object]
-        else:
-            objs = self._kb._project.loader.all_elf_objects
+        objs = [elf_object] if elf_object else self._kb._project.loader.all_elf_objects
         for obj in objs:
             if cu:
                 if obj not in obj.compilation_units:

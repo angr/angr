@@ -8,6 +8,7 @@ l = logging.getLogger(name=__name__)
 _noneset = frozenset()
 
 from .sim_event import SimEvent
+import contextlib
 
 
 class SimAction(SimEvent):
@@ -279,10 +280,8 @@ class SimActionData(SimAction):
         def _repr(o):
             if type(o) in {bytes, str, int}:
                 return o
-            try:
+            with contextlib.suppress(AttributeError):
                 o = o.ast
-            except AttributeError:
-                pass
             if type(o) in {bytes, str, int}:
                 return o
             return o.shallow_repr()
@@ -302,10 +301,8 @@ class SimActionData(SimAction):
         def _repr(o):
             if type(o) in {bytes, str, int}:
                 return o
-            try:
+            with contextlib.suppress(AttributeError):
                 o = o.ast
-            except AttributeError:
-                pass
             if type(o) in {bytes, str, int}:
                 return o
             return o.shallow_repr()

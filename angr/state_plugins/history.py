@@ -257,9 +257,7 @@ class SimStateHistory(SimStatePlugin):
                 if addr.symbolic:
                     return False
                 addr = self.state.solver.eval(addr)
-            if addr != read_offset:
-                return False
-            return True
+            return addr == read_offset
 
         def action_writes(action):
             if action.type != write_type:
@@ -275,9 +273,7 @@ class SimStateHistory(SimStatePlugin):
                 if addr.symbolic:
                     return False
                 addr = self.state.solver.eval(addr)
-            if addr != write_offset:
-                return False
-            return True
+            return addr == write_offset
 
         return [
             x

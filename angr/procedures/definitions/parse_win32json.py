@@ -70,10 +70,9 @@ def get_angr_type_from_name(name):
 
 
 def get_typeref_from_struct_type(t: angr.types.SimType) -> angr.types.SimType:
-    if isinstance(t, angr.types.SimStruct):
-        if t.name and not is_anonymous_struct(t.name):
-            # replace it with a SimTypeRef to avoid duplicate definition
-            t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
+    if isinstance(t, angr.types.SimStruct) and t.name and not is_anonymous_struct(t.name):
+        # replace it with a SimTypeRef to avoid duplicate definition
+        t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
     return t
 
 

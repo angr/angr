@@ -1,5 +1,7 @@
 # pylint:disable=no-member,import-outside-toplevel
 from __future__ import annotations
+
+import contextlib
 import logging
 
 from . import ExplorationTechnique
@@ -76,12 +78,9 @@ class PickledStatesDb(PickledStatesBase):
         # ORM declarations
         engine = create_engine(db_str)
 
-        # create table
-        try:
+        # create table (unless it already exists)
+        with contextlib.suppress(OperationalError):
             Base.metadata.create_all(engine, checkfirst=True)
-        except OperationalError:
-            # table already exists
-            pass
 
         self.Session = sessionmaker(bind=engine)
 

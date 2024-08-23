@@ -233,7 +233,7 @@ class ConstPropOptReverter(OptimizationPass):
                 else:
                     continue
 
-                if not const_value == const_arg.value:
+                if const_value != const_arg.value:
                     continue
 
                 _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
@@ -272,9 +272,7 @@ class ConstPropOptReverter(OptimizationPass):
             if isinstance(expr, Convert):
                 unpacked_expr = expr.operands[0]
 
-            if isinstance(unpacked_expr, Const):
-                const_expr = expr
-            elif isinstance(unpacked_expr, Call):
+            if isinstance(unpacked_expr, (Const, Call)):
                 const_expr = expr
             else:
                 symb_expr = expr

@@ -123,16 +123,14 @@ class SwitchClusterFinder(SequenceWalker):
             variable = None
             if isinstance(cond.operands[1], ailment.Expr.Const):
                 v = cond.operands[1].value
-            if isinstance(cond.operands[0], (ailment.Expr.Register, ailment.Expr.Load)):
-                if hasattr(cond.operands[0], "variable"):
-                    # there we go
-                    variable = cond.operands[0].variable
+            if isinstance(cond.operands[0], (ailment.Expr.Register, ailment.Expr.Load)) and hasattr(
+                cond.operands[0], "variable"
+            ):
+                # there we go
+                variable = cond.operands[0].variable
 
             if v is not None and variable is not None:
-                if negated:
-                    real_op = ailment.Expr.BinaryOp.COMPARISON_NEGATION[cond.op]
-                else:
-                    real_op = cond.op
+                real_op = ailment.Expr.BinaryOp.COMPARISON_NEGATION[cond.op] if negated else cond.op
                 # eliminate equal
                 if real_op == "CmpLE":
                     real_op = CmpOp.LT
@@ -468,9 +466,8 @@ def simplify_switch_clusters(
                         # found a gap...
                         pass
                 else:
-                    if start_idx is not None:
-                        if end_idx is None:
-                            end_idx = idx
+                    if start_idx is not None and end_idx is None:
+                        end_idx = idx
 
             if start_idx is None:
                 continue

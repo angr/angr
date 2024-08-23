@@ -94,7 +94,4 @@ class realloc(Func):
                 return False
             returned_locs2.append(state.solver.eval(state.regs.eax))
 
-        if returned_locs == returned_locs2:
-            return False
-
-        return True
+        return returned_locs != returned_locs2

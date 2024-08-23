@@ -433,10 +433,8 @@ class SegmentList:
             return False
         if self._list[idx].start <= address < self._list[idx].end:
             return True
-        if idx > 0 and address < self._list[idx - 1].end:
-            # TODO: It seems that this branch is never reached. Should it be removed?
-            return True
-        return False
+        # TODO: It seems that this is never True. Should it be removed?
+        return idx > 0 and address < self._list[idx - 1].end
 
     def occupied_by_sort(self, address: int) -> str | None:
         """

@@ -510,10 +510,9 @@ class AILSimplifier(Analysis):
             return expr.size, ("expr", (expr,))
 
         first_op = walker.operations[0]
-        if isinstance(first_op, Convert):
-            if first_op.to_bits >= self.project.arch.byte_width:
-                # we need at least one byte!
-                return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
+        if isinstance(first_op, Convert) and first_op.to_bits >= self.project.arch.byte_width:
+            # we need at least one byte!
+            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
             if len(walker.operations) >= 2:
@@ -673,14 +672,18 @@ class AILSimplifier(Analysis):
                 for def_ in rd.all_definitions:
                     if def_.codeloc == eq.codeloc:
                         if isinstance(to_replace, SimStackVariable):
-                            if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(
-                                def_.atom.addr, atoms.SpOffset
+                            if (
+                                isinstance(def_.atom, atoms.MemoryLocation)
+                                and isinstance(def_.atom.addr, atoms.SpOffset)
+                                and to_replace.offset == def_.atom.addr.offset
                             ):
-                                if to_replace.offset == def_.atom.addr.offset:
-                                    defs.append(def_)
-                        elif isinstance(to_replace, Register):
-                            if isinstance(def_.atom, atoms.Register) and to_replace.reg_offset == def_.atom.reg_offset:
                                 defs.append(def_)
+                        elif (
+                            isinstance(to_replace, Register)
+                            and isinstance(def_.atom, atoms.Register)
+                            and to_replace.reg_offset == def_.atom.reg_offset
+                        ):
+                            defs.append(def_)
                 if len(defs) != 1:
                     continue
                 the_def = defs[0]
@@ -723,13 +726,12 @@ class AILSimplifier(Analysis):
                         # found the copied definition (either a stack variable or a register variable)
 
                         # Make sure there is no other write to this stack location if the copy is a stack variable
-                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation):
-                            if any(
-                                (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
-                                for def_ in rd.all_definitions
-                                if isinstance(def_.atom, atoms.MemoryLocation)
-                            ):
-                                continue
+                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation) and any(
+                            (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
+                            for def_ in rd.all_definitions
+                            if isinstance(def_.atom, atoms.MemoryLocation)
+                        ):
+                            continue
 
                         # Make sure the register is never updated across this function
                         if any(
@@ -884,9 +886,7 @@ class AILSimplifier(Analysis):
                         isinstance(d.atom, RegisterAtom)
                         and isinstance(def_.atom, RegisterAtom)
                         and d.atom.reg_offset == def_.atom.reg_offset
-                    ):
-                        use_expr_defns.append(d)
-                    elif d.atom == def_.atom:
+                    ) or d.atom == def_.atom:
                         use_expr_defns.append(d)
                 # you can never replace a use with dependencies from outside the checked defn
                 if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
@@ -1214,29 +1214,28 @@ class AILSimplifier(Analysis):
             # we do not remove references to global memory regions no matter what
             if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
                 continue
-            if isinstance(def_.atom, atoms.MemoryLocation):
-                if not self._remove_dead_memdefs:
-                    # we always remove definitions for stack arguments
-                    if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
-                        if (def_.atom.addr.offset & mask) not in stackarg_offsets:
-                            continue
-                    else:
+            if isinstance(def_.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
+                # we always remove definitions for stack arguments
+                if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
+                    if (def_.atom.addr.offset & mask) not in stackarg_offsets:
                         continue
+                else:
+                    continue
 
             uses = rd.all_uses.get_uses(def_)
             if (
-                isinstance(def_.atom, atoms.Register)
-                and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+                (
+                    isinstance(def_.atom, atoms.Register)
+                    and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+                )
+                and len(uses) == 1
+                and next(iter(uses)) == def_.codeloc
             ):
-                if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
-                    # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                    uses = set()
+                # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                uses = set()
 
-            if not uses:
-                if not isinstance(def_.codeloc, ExternalCodeLocation):
-                    stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
-                        def_.codeloc.stmt_idx
-                    )
+            if not uses and not isinstance(def_.codeloc, ExternalCodeLocation):
+                stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
@@ -1401,9 +1400,8 @@ class AILSimplifier(Analysis):
                 started = False
                 continue
 
-            if started:
-                if b.statements and isinstance(b.statements[-1], Call):
-                    calls += 1
+            if started and b.statements and isinstance(b.statements[-1], Call):
+                calls += 1
         return calls
 
 

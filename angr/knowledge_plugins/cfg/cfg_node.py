@@ -117,10 +117,9 @@ class CFGNode(Serializable):
         else:
             self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
 
-        if not instruction_addrs and not self.is_simprocedure:
+        if not instruction_addrs and not self.is_simprocedure and irsb is not None:
             # We have to collect instruction addresses by ourselves
-            if irsb is not None:
-                self.instruction_addrs = irsb.instruction_addresses
+            self.instruction_addrs = irsb.instruction_addresses
 
         self.irsb = None
         self.soot_block = soot_block
@@ -229,15 +228,9 @@ class CFGNode(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
-        if len(cmsg.block_id) == 0:
-            block_id = None
-        else:
-            block_id = cmsg.block_id[0]
+        block_id = None if len(cmsg.block_id) == 0 else cmsg.block_id[0]
 
-        if not cmsg.instr_addrs:
-            instruction_addrs = None
-        else:
-            instruction_addrs = list(cmsg.instr_addrs)
+        instruction_addrs = None if not cmsg.instr_addrs else list(cmsg.instr_addrs)
 
         obj = cls(
             cmsg.ea,

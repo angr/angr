@@ -488,9 +488,8 @@ class Director(ExplorationTechnique):
 
         for goal in self._goals:
             for p in simgr.active:
-                if self._check_goals(goal, p):
-                    if self._goal_satisfied_callback is not None:
-                        self._goal_satisfied_callback(goal, p, simgr)
+                if self._check_goals(goal, p) and self._goal_satisfied_callback is not None:
+                    self._goal_satisfied_callback(goal, p, simgr)
 
         simgr.stash(
             filter_func=lambda p: all(

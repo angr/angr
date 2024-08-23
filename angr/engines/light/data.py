@@ -351,10 +351,7 @@ class RegisterOffset:
         return type(self.offset) is not int
 
     def __repr__(self):
-        if type(self.offset) is int:
-            offset_str = "" if self.offset == 0 else f"{self.offset:+x}"
-        else:
-            offset_str = str(self.offset)
+        offset_str = ("" if self.offset == 0 else f"{self.offset:+x}") if type(self.offset) is int else str(self.offset)
         return f"{self.reg}{offset_str}"
 
     def __add__(self, other):

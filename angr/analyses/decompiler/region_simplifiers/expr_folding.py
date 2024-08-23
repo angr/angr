@@ -228,22 +228,25 @@ class ExpressionCounter(SequenceWalker):
         return self._variable_manager.unified_variable(v)
 
     def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
-        if isinstance(stmt, ailment.Stmt.Assignment):
-            if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                u = self._u(stmt.dst.variable)
-                if u is not None:
-                    # dependency
-                    dependency_finder = ExpressionUseFinder()
-                    dependency_finder.walk_expression(stmt.src)
-                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                    self.assignments[u].add(
-                        (
-                            stmt.src,
-                            dependencies,
-                            StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
-                            dependency_finder.has_load,
-                        )
+        if (
+            isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Register)
+            and stmt.dst.variable is not None
+        ):
+            u = self._u(stmt.dst.variable)
+            if u is not None:
+                # dependency
+                dependency_finder = ExpressionUseFinder()
+                dependency_finder.walk_expression(stmt.src)
+                dependencies = tuple({self._u(v) for v in dependency_finder.uses})
+                self.assignments[u].add(
+                    (
+                        stmt.src,
+                        dependencies,
+                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                        dependency_finder.has_load,
                     )
+                )
         if (
             isinstance(stmt, ailment.Stmt.Call)
             and isinstance(stmt.ret_expr, ailment.Expr.Register)
@@ -353,11 +356,10 @@ class ExpressionReplacer(AILBlockWalker):
                 isinstance(stmt_, Assignment)
                 and isinstance(stmt_.dst, ailment.Expr.Register)
                 and stmt_.dst.variable is not None
-            ):
-                if stmt_.dst.variable in self._assignments:
-                    # remove this statement
-                    changed = True
-                    continue
+            ) and stmt_.dst.variable in self._assignments:
+                # remove this statement
+                changed = True
+                continue
 
             new_stmt = self._handle_stmt(idx, stmt_, None)
             if new_stmt is not None and new_stmt is not stmt_:
@@ -445,12 +447,15 @@ class ExpressionFolder(SequenceWalker):
         # Walk the block to remove each assignment and replace uses of each variable
         new_stmts = []
         for stmt in node.statements:
-            if isinstance(stmt, ailment.Stmt.Assignment):
-                if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                    unified_var = self._u(stmt.dst.variable)
-                    if unified_var in self._assignments:
-                        # remove this statement
-                        continue
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.Register)
+                and stmt.dst.variable is not None
+            ):
+                unified_var = self._u(stmt.dst.variable)
+                if unified_var in self._assignments:
+                    # remove this statement
+                    continue
             if (
                 isinstance(stmt, ailment.Stmt.Call)
                 and isinstance(stmt.ret_expr, ailment.Expr.Register)

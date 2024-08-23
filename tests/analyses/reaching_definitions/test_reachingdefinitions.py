@@ -103,16 +103,15 @@ class TestReachingDefinitions(TestCase):
         for page_id, page in storage._pages.items():
             last_mo = None
             for pos, n in enumerate(page.content):
-                if n is not None:
-                    if type(n) is not set or len(n) == 1:
-                        addr = page_id * 4096 + pos
-                        if type(n) is set:
-                            mo: SimMemoryObject = next(iter(n))
-                        else:
-                            mo: SimMemoryObject = n
-                        if mo is not last_mo:
-                            last_mo = mo
-                            all_defs.append((addr, list(LiveDefinitions.extract_defs(mo.object))))
+                if n is not None and (type(n) is not set or len(n) == 1):
+                    addr = page_id * 4096 + pos
+                    if type(n) is set:
+                        mo: SimMemoryObject = next(iter(n))
+                    else:
+                        mo: SimMemoryObject = n
+                    if mo is not last_mo:
+                        last_mo = mo
+                        all_defs.append((addr, list(LiveDefinitions.extract_defs(mo.object))))
 
         return all_defs
 

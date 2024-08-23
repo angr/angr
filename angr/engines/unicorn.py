@@ -88,10 +88,13 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # if we have a concrete target we want the program to synchronize the segment
         # registers before, otherwise undefined behavior could happen.
-        if state.project.concrete_target and self.project.arch.name in ("x86", "x86_64"):
-            if not state.concrete.segment_registers_initialized:
-                l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
-                return False
+        if (
+            state.project.concrete_target
+            and self.project.arch.name in ("x86", "x86_64")
+            and not state.concrete.segment_registers_initialized
+        ):
+            l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
+            return False
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False
@@ -421,8 +424,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # initialize unicorn plugin
         try:
-            syscall_data = kwargs["syscall_data"] if "syscall_data" in kwargs else None
-            fd_bytes = kwargs["fd_bytes"] if "fd_bytes" in kwargs else None
+            syscall_data = kwargs.get("syscall_data", None)
+            fd_bytes = kwargs.get("fd_bytes", None)
             state.unicorn.setup(syscall_data=syscall_data, fd_bytes=fd_bytes)
         except SimValueError:
             # it's trying to set a symbolic register somehow

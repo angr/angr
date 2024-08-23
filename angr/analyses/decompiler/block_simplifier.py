@@ -302,14 +302,13 @@ class BlockSimplifier(Analysis):
                     isinstance(stmt.dst, Register)
                     and isinstance(stmt.src, Convert)
                     and isinstance(stmt.src.operand, Register)
+                ) and (
+                    stmt.dst.size == stmt.src.size
+                    and stmt.dst.reg_offset == stmt.src.operand.reg_offset
+                    and not stmt.src.is_signed
                 ):
-                    if (
-                        stmt.dst.size == stmt.src.size
-                        and stmt.dst.reg_offset == stmt.src.operand.reg_offset
-                        and not stmt.src.is_signed
-                    ):
-                        # ignore statements like edi = convert(rdi, 32)
-                        continue
+                    # ignore statements like edi = convert(rdi, 32)
+                    continue
             new_statements.append(stmt)
 
         new_block = block.copy(statements=new_statements)
@@ -333,14 +332,13 @@ class BlockSimplifier(Analysis):
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
-            if isinstance(d.atom, atoms.MemoryLocation):
-                if not self._remove_dead_memdefs:
-                    # we always remove definitions for stack arguments
-                    if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
-                        if (d.atom.addr.offset & mask) not in stackarg_offsets:
-                            continue
-                    else:
+            if isinstance(d.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
+                # we always remove definitions for stack arguments
+                if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
+                    if (d.atom.addr.offset & mask) not in stackarg_offsets:
                         continue
+                else:
+                    continue
 
             if isinstance(d.atom, atoms.Tmp):
                 uses = live_defs.tmp_uses[d.atom.tmp_idx]
@@ -386,9 +384,8 @@ class BlockSimplifier(Analysis):
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 # tmps can't execute new code
-                if type(stmt.dst) is Tmp:
-                    if stmt.dst.tmp_idx not in used_tmps:
-                        continue
+                if type(stmt.dst) is Tmp and stmt.dst.tmp_idx not in used_tmps:
+                    continue
 
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
@@ -417,10 +414,7 @@ class BlockSimplifier(Analysis):
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
 
-        if stmts_updated:
-            new_block = block.copy(statements=statements)
-        else:
-            new_block = block
+        new_block = block.copy(statements=statements) if stmts_updated else block
 
         statements, multi_stmts_updated = peephole_optimize_multistmts(new_block, self._multistmt_peephole_opts)
 

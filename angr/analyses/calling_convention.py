@@ -175,10 +175,7 @@ class CallingConventionAnalysis(Analysis):
                             else None
                         ),
                     )
-                    if cc_cls is not None:
-                        cc = cc_cls(self.project.arch)
-                    else:
-                        cc = None
+                    cc = cc_cls(self.project.arch) if cc_cls is not None else None
                     prototype = None
                     if callsite_facts:
                         if self.prototype is None:
@@ -233,10 +230,7 @@ class CallingConventionAnalysis(Analysis):
                     self.project.simos.name if self.project is not None and self.project.simos is not None else None
                 ),
             )
-            if cc_cls is not None:
-                cc = cc_cls(self.project.arch)
-            else:
-                cc = None
+            cc = cc_cls(self.project.arch) if cc_cls is not None else None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -282,9 +276,10 @@ class CallingConventionAnalysis(Analysis):
                 if self.project.is_hooked(real_func.addr):
                     # prioritize the hooker
                     hooker = self.project.hooked_by(real_func.addr)
-                    if hooker is not None:
-                        if not hooker.is_stub or hooker.is_function and not hooker.guessed_prototype:
-                            return real_func.calling_convention, hooker.prototype
+                    if hooker is not None and (
+                        not hooker.is_stub or hooker.is_function and not hooker.guessed_prototype
+                    ):
+                        return real_func.calling_convention, hooker.prototype
                 if real_func.calling_convention and real_func.prototype:
                     return real_func.calling_convention, real_func.prototype
             else:
@@ -294,10 +289,7 @@ class CallingConventionAnalysis(Analysis):
             # determine the calling convention by analyzing its callsites
             callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
             cc_cls = default_cc(self.project.arch.name)
-            if cc_cls is not None:
-                cc = cc_cls(self.project.arch)
-            else:
-                cc = None
+            cc = cc_cls(self.project.arch) if cc_cls is not None else None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -515,7 +507,7 @@ class CallingConventionAnalysis(Analysis):
     ) -> None:
         all_defs: set[Definition] = {
             def_
-            for def_ in rda.all_uses._uses_by_definition.keys()
+            for def_ in rda.all_uses._uses_by_definition
             if (
                 def_.codeloc.block_addr == caller_block_addr
                 and def_.codeloc.stmt_idx == DEFAULT_STATEMENT
@@ -636,15 +628,15 @@ class CallingConventionAnalysis(Analysis):
             else:
                 proto.returnty = SimTypeInt().with_arch(self.project.arch)
 
-        if update_arguments == UpdateArgumentsOption.AlwaysUpdate or (
-            update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args
-        ):
-            if len({len(fact.args) for fact in facts}) == 1:
-                fact = next(iter(facts))
-                proto.args = [
-                    self._guess_arg_type(arg) if arg is not None else SimTypeInt().with_arch(self.project.arch)
-                    for arg in fact.args
-                ]
+        if (
+            update_arguments == UpdateArgumentsOption.AlwaysUpdate
+            or (update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args)
+        ) and len({len(fact.args) for fact in facts}) == 1:
+            fact = next(iter(facts))
+            proto.args = [
+                self._guess_arg_type(arg) if arg is not None else SimTypeInt().with_arch(self.project.arch)
+                for arg in fact.args
+            ]
 
         return proto
 
@@ -658,10 +650,7 @@ class CallingConventionAnalysis(Analysis):
         """
 
         args = set()
-        if not self.project.arch.call_pushes_ret:
-            ret_addr_offset = 0
-        else:
-            ret_addr_offset = self.project.arch.bytes
+        ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
 
         reg_vars_with_single_access: list[SimRegisterVariable] = []
 
@@ -839,12 +828,11 @@ class CallingConventionAnalysis(Analysis):
         return reg_args + int_args + fp_args + stack_args
 
     def _guess_arg_type(self, arg: SimFunctionArgument, cc: SimCC | None = None) -> SimType:
-        if cc is not None:
-            if cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
-                if arg.size == 4:
-                    return SimTypeFloat()
-                elif arg.size == 8:
-                    return SimTypeDouble()
+        if cc is not None and cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
+            if arg.size == 4:
+                return SimTypeFloat()
+            elif arg.size == 8:
+                return SimTypeDouble()
 
         if arg.size == 4:
             return SimTypeInt()
@@ -859,19 +847,17 @@ class CallingConventionAnalysis(Analysis):
             return SimTypeBottom()
 
     def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
-        if cc.FP_RETURN_VAL:
+        if cc.FP_RETURN_VAL and self._function.ret_sites:
             # examine the last block of the function and see which registers are assigned to
-            if self._function.ret_sites:
-                for ret_block in self._function.ret_sites:
-                    irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
-                    for stmt in irsb.statements:
-                        if isinstance(stmt, Put):
-                            if isinstance(stmt.data, RdTmp):
-                                reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
-                                reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
-                                if reg_name == cc.FP_RETURN_VAL.reg_name:
-                                    # possibly float
-                                    return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
+            for ret_block in self._function.ret_sites:
+                irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
+                for stmt in irsb.statements:
+                    if isinstance(stmt, Put) and isinstance(stmt.data, RdTmp):
+                        reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
+                        reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
+                        if reg_name == cc.FP_RETURN_VAL.reg_name:
+                            # possibly float
+                            return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
 
         if ret_val_size is not None:
             if ret_val_size == 1:
@@ -898,9 +884,8 @@ class CallingConventionAnalysis(Analysis):
                     ),
                     None,
                 )
-                if src_reg_def is not None:
-                    if isinstance(src_reg_def.codeloc, ExternalCodeLocation):
-                        return True
+                if src_reg_def is not None and isinstance(src_reg_def.codeloc, ExternalCodeLocation):
+                    return True
         return False
 
     def is_va_start_amd64(self, func: Function) -> tuple[bool, int | None]:

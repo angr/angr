@@ -2,6 +2,7 @@
 from __future__ import annotations
 from __future__ import annotations
 
+import contextlib
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
@@ -327,10 +328,8 @@ class SimTypeReg(SimType):
 
     def store(self, state, addr, value: StoreType):
         store_endness = state.arch.memory_endness
-        try:
+        with contextlib.suppress(AttributeError):
             value = value.ast  # type: ignore
-        except AttributeError:
-            pass
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
@@ -1116,10 +1115,7 @@ class SimTypeFunction(SimType):
         ]
         if self.variadic:
             formatted_args.append("...")
-        if name_parens:
-            name_str = f"({name or ''})"
-        else:
-            name_str = name or ""
+        name_str = f"({name or ''})" if name_parens else name or ""
         proto = f"{name_str}({', '.join(formatted_args)})"
         return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
@@ -3073,16 +3069,15 @@ _type_parser_singleton = None
 
 def type_parser_singleton() -> pycparser.CParser:
     global _type_parser_singleton  # pylint:disable=global-statement
-    if pycparser is not None:
-        if _type_parser_singleton is None:
-            _type_parser_singleton = pycparser.CParser()
-            _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(
-                module=_type_parser_singleton,
-                start="parameter_declaration",
-                debug=False,
-                optimize=False,
-                errorlog=errorlog,
-            )
+    if pycparser is not None and _type_parser_singleton is None:
+        _type_parser_singleton = pycparser.CParser()
+        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(
+            module=_type_parser_singleton,
+            start="parameter_declaration",
+            debug=False,
+            optimize=False,
+            errorlog=errorlog,
+        )
     return _type_parser_singleton
 
 
@@ -3229,7 +3224,7 @@ def _decl_to_type(
             struct = extra_types.get(key, None)
             from_global = False
             if struct is None:
-                struct = ALL_TYPES.get(key, None)
+                struct = ALL_TYPES.get(key)
                 if struct is not None:
                     from_global = True
                     struct = struct.with_arch(arch)
@@ -3264,10 +3259,9 @@ def _decl_to_type(
             key = "union " + decl.name
             union = extra_types.get(key, None)
             from_global = False
-            if union is None:
-                if key in ALL_TYPES:
-                    union = ALL_TYPES[key]
-                    from_global = True
+            if union is None and key in ALL_TYPES:
+                union = ALL_TYPES[key]
+                from_global = True
             if union is not None and not isinstance(union, SimUnion):
                 raise AngrTypeError("Provided a non-SimUnion value for a type that must be a union")
 
@@ -3353,11 +3347,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
     if isinstance(decl, CppHeaderParser.CppMethod):
         the_func = decl
         func_name = the_func["name"]
-        if "__deleting_dtor__" in func_name:
-            the_func["destructor"] = True
-        elif "__base_dtor__" in func_name:
-            the_func["destructor"] = True
-        elif "__dtor__" in func_name:
+        if "__deleting_dtor__" in func_name or "__base_dtor__" in func_name or "__dtor__" in func_name:
             the_func["destructor"] = True
         # translate parameters
         args = []
@@ -3401,10 +3391,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
             # drop const
             return _cpp_decl_to_type(decl[:-6].strip(), extra_types, opaque_classes=opaque_classes)
 
-        if "::" in decl:
-            unqualified_name = decl.split("::")[-1]
-        else:
-            unqualified_name = decl
+        unqualified_name = decl.split("::")[-1] if "::" in decl else decl
 
         key = unqualified_name
         if key in extra_types:
@@ -3467,11 +3454,10 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
 
         # the last parameter
         idx = s.find(")", last_pos)
-        if idx != -1:
-            # TODO: consider the case where there are one or multiple spaces between ( and )
-            if s[idx - 1] != "(":
-                arg_name = "a%d" % i
-                s = s[:idx] + " " + arg_name + s[idx:]
+        # TODO: consider the case where there are one or multiple spaces between ( and )
+        if idx != -1 and s[idx - 1] != "(":
+            arg_name = "a%d" % i
+            s = s[:idx] + " " + arg_name + s[idx:]
 
     # CppHeaderParser does not like missing function body
     s += "\n\n{}"
@@ -3565,7 +3551,7 @@ def dereference_simtype(
 if pycparser is not None:
     _accepts_scope_stack()
 
-try:
+with contextlib.suppress(ImportError):
     register_types(
         parse_types(
             """
@@ -3583,8 +3569,6 @@ struct timeval {
 """
         )
     )
-except ImportError:
-    pass
 
 from .state_plugins.view import SimMemView
 from .state_plugins import SimState

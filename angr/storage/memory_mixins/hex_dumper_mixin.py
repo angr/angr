@@ -3,6 +3,7 @@ import string
 
 from ...errors import SimValueError
 from . import MemoryMixin
+import contextlib
 
 
 class HexDumperMixin(MemoryMixin):
@@ -41,10 +42,7 @@ class HexDumperMixin(MemoryMixin):
         :param disable_actions: whether or not to disable SimActions for the memory load
         :return: hex dump as a string
         """
-        if endianness == "Iend_BE":
-            end = 1
-        else:
-            end = -1
+        end = 1 if endianness == "Iend_BE" else -1
         if extra_constraints is None:
             extra_constraints = []
 
@@ -64,10 +62,8 @@ class HexDumperMixin(MemoryMixin):
                 for byte_ in word.chop(self.state.arch.byte_width)[::end]:
                     byte_value = None
                     if not self.state.solver.symbolic(byte_) or solve:
-                        try:
+                        with contextlib.suppress(SimValueError):
                             byte_value = self.state.solver.eval_one(byte_, extra_constraints=extra_constraints)
-                        except SimValueError:
-                            pass
 
                     if byte_value is not None:
                         word_bytes += f"{byte_value:02x}"

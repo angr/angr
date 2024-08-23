@@ -303,10 +303,7 @@ class Uniwrapper(unicorn.Uc if unicorn is not None else object):
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        if thumb:
-            uc_mode = arch.uc_mode_thumb
-        else:
-            uc_mode = arch.uc_mode
+        uc_mode = arch.uc_mode_thumb if thumb else arch.uc_mode
         unicorn.Uc.__init__(self, arch.uc_arch, uc_mode)
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
@@ -869,9 +866,7 @@ class Unicorn(SimStatePlugin):
             )
         elif arch == "i386":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-        elif arch == "mips":
-            self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
-        elif arch == "mipsel":
+        elif arch == "mips" or arch == "mipsel":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         elif arch == "arm":
             # EDG says: Unicorn's ARM support has no concept of interrupts.
@@ -961,9 +956,9 @@ class Unicorn(SimStatePlugin):
             return self._concretize(d)
         elif len(d.variables & self.never_concretize) > 0:
             return d
-        elif d.variables.issubset(self.always_concretize):
-            return self._concretize(d)
-        elif self.state.solver.eval(self.state.ip) in self.concretize_at:
+        elif (
+            d.variables.issubset(self.always_concretize) or self.state.solver.eval(self.state.ip) in self.concretize_at
+        ):
             return self._concretize(d)
         else:
             return d
@@ -1640,10 +1635,7 @@ class Unicorn(SimStatePlugin):
                         mantissa = 0
                     elif exponent == 0x7FF:  # nan or infinity
                         exponent = 0x7FFF
-                        if mantissa != 0:
-                            mantissa = 0x8000000000000000
-                        else:
-                            mantissa = 0xFFFFFFFFFFFFFFFF
+                        mantissa = 9223372036854775808 if mantissa != 0 else 18446744073709551615
 
                     if sign:
                         exponent |= 0x8000
@@ -1743,10 +1735,7 @@ class Unicorn(SimStatePlugin):
         handling symbolic exits in native interface
         """
 
-        if succ_state:
-            state = succ_state
-        else:
-            state = self.state
+        state = succ_state if succ_state else self.state
 
         # first, get the ignore list (in case of symbolic registers)
         saved_registers = []
@@ -1858,7 +1847,7 @@ class Unicorn(SimStatePlugin):
 
     def _check_registers(self, report=True):
         """check if this state might be used in unicorn (has no concrete register)"""
-        for r in self.state.arch.uc_regs.keys():
+        for r in self.state.arch.uc_regs:
             v = getattr(self.state.regs, r)
             processed_v = self._process_value(v, "reg")
             if processed_v is None or processed_v.symbolic:

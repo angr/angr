@@ -12,48 +12,36 @@ class TwoOrThree:
     def __eq__(self, other):
         if other == 2:
             return True
-        if other == 3:
-            return True
-        return False
+        return other == 3
 
     def __ne__(self, other):
         if other == 2:
             return False
-        if other == 3:
-            return False
-        return True
+        return not other == 3
 
 
 class ThreeOrFour:
     def __eq__(self, other):
         if other == 3:
             return True
-        if other == 4:
-            return True
-        return False
+        return other == 4
 
     def __ne__(self, other):
         if other == 3:
             return False
-        if other == 4:
-            return False
-        return True
+        return not other == 4
 
 
 class FourOrFive:
     def __eq__(self, other):
         if other == 4:
             return True
-        if other == 5:
-            return True
-        return False
+        return other == 5
 
     def __ne__(self, other):
         if other == 4:
             return False
-        if other == 5:
-            return False
-        return True
+        return not other == 5
 
 
 class int2str(Func):

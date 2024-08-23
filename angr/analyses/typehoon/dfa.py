@@ -103,7 +103,6 @@ class DFAConstraintSolver:
         for forget in reversed(forgets):
             rhs = rhs.recall(forget)
 
-        if lhs.variance == Variance.COVARIANT and rhs.variance == Variance.COVARIANT:
-            if lhs.typevar != rhs.typevar:
-                return Subtype(lhs.typevar, rhs.typevar)
+        if lhs.variance == Variance.COVARIANT and rhs.variance == Variance.COVARIANT and lhs.typevar != rhs.typevar:
+            return Subtype(lhs.typevar, rhs.typevar)
         return None

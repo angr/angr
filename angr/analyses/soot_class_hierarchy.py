@@ -86,18 +86,12 @@ class SootClassHierarchy(Analysis):
     def is_subclass_including(self, cls_child, cls_parent):
         parent_classes = self.get_super_classes_including(cls_child)
 
-        if cls_parent in parent_classes:
-            return True
-
-        return False
+        return cls_parent in parent_classes
 
     def is_subclass(self, cls_child, cls_parent):
         parent_classes = self.get_super_classes(cls_child)
 
-        if cls_parent in parent_classes:
-            return True
-
-        return False
+        return cls_parent in parent_classes
 
     def is_visible_method(self, cls, method):
         method_cls = self.project.loader.main_object.classes[method.class_name]
@@ -234,9 +228,8 @@ class SootClassHierarchy(Analysis):
 
         for c in self.get_super_classes_including(cls):
             for m in c.methods:
-                if m.name == method.name and m.params == method.params:
-                    if self.is_visible_method(c, method):
-                        return m
+                if m.name == method.name and m.params == method.params and self.is_visible_method(c, method):
+                    return m
 
         raise NoConcreteDispatch("Could not resolve concrete dispatch!")
 
@@ -260,13 +253,11 @@ class SootClassHierarchy(Analysis):
         invoke_type = str(type(invoke_expr))
         cls = self.project.loader.main_object.classes[method.class_name]
 
-        if "VirtualInvokeExpr" in invoke_type:
-            targets = self.resolve_abstract_dispatch(cls, method)
-
-        elif "DynamicInvokeExpr" in invoke_type:
-            targets = self.resolve_abstract_dispatch(cls, method)
-
-        elif "InterfaceInvokeExpr" in invoke_type:
+        if (
+            "VirtualInvokeExpr" in invoke_type
+            or "DynamicInvokeExpr" in invoke_type
+            or "InterfaceInvokeExpr" in invoke_type
+        ):
             targets = self.resolve_abstract_dispatch(cls, method)
 
         elif "SpecialInvokeExpr" in invoke_type:

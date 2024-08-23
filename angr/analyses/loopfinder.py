@@ -3,6 +3,7 @@ import logging
 
 import networkx
 from . import Analysis
+import contextlib
 
 l = logging.getLogger(name=__name__)
 
@@ -114,10 +115,8 @@ class LoopFinder(Analysis):
                     except networkx.NetworkXError:
                         if entry_edge in removed_entries:
                             subg.add_edge(removed_entries[entry_edge], subloop)
-                            try:
+                            with contextlib.suppress(networkx.NetworkXError):
                                 subg.remove_edge(removed_entries[entry_edge], entry_edge[1])
-                            except networkx.NetworkXError:
-                                pass
                         else:
                             raise
                     else:
@@ -129,10 +128,8 @@ class LoopFinder(Analysis):
                     except networkx.NetworkXError:
                         if exit_edge in removed_entries:
                             subg.add_edge(subloop, removed_entries[exit_edge])
-                            try:
+                            with contextlib.suppress(networkx.NetworkXError):
                                 subg.remove_edge(exit_edge[0], removed_entries[exit_edge])
-                            except networkx.NetworkXError:
-                                pass
                         else:
                             raise
                     else:
@@ -160,9 +157,8 @@ class LoopFinder(Analysis):
         for subg in (
             networkx.induced_subgraph(graph, nodes).copy() for nodes in networkx.strongly_connected_components(graph)
         ):
-            if len(subg.nodes()) == 1:
-                if len(list(subg.successors(list(subg.nodes())[0]))) == 0:
-                    continue
+            if len(subg.nodes()) == 1 and len(list(subg.successors(list(subg.nodes())[0]))) == 0:
+                continue
             thisloop, allloops = self._parse_loop_graph(subg, graph)
             if thisloop is not None:
                 outall += allloops

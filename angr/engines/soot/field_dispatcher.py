@@ -45,6 +45,4 @@ def _class_contains_field(field_class, field_name, field_type):
         return False
     field = field_class.fields[field_name]
     # check type
-    if field[1] != field_type:
-        return False
-    return True
+    return field[1] == field_type

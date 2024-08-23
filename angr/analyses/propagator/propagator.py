@@ -18,6 +18,7 @@ from .. import register_analysis
 from ..analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
+import contextlib
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
@@ -80,10 +81,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise ValueError("Unsupported analysis target.")
 
-        if profiling:
-            start = time.perf_counter_ns() / 1000000
-        else:
-            start = 0
+        start = time.perf_counter_ns() / 1000000 if profiling else 0
 
         self._base_state = base_state
         self._function = func
@@ -162,10 +160,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             the_func = self._function
         else:
             if self._func_addr is not None:
-                try:
+                with contextlib.suppress(KeyError):
                     the_func = self.kb.functions.get_by_addr(self._func_addr)
-                except KeyError:
-                    pass
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 

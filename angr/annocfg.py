@@ -228,10 +228,7 @@ class AnnotatedCFG:
         statements = vex_block.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(0, len(statements)):
-            if whitelist is True or i in whitelist:
-                line = "+"
-            else:
-                line = "-"
+            line = "+" if whitelist is True or i in whitelist else "-"
             line += "[% 3d] " % i
             # We cannot get data returned by pp(). WTF?
             print(line, end="")
@@ -312,10 +309,9 @@ class AnnotatedCFG:
         for source, target_list in self._cfg._edge_map.items():
             for target in target_list:
                 temp_graph.add_edge(source, target)
-        ctr = 0
-        for loop_lst in networkx.simple_cycles(temp_graph):
-            l.debug("A loop is found. %d", ctr)
-            ctr += 1
+
+        for i, loop_lst in enumerate(networkx.simple_cycles(temp_graph)):
+            l.debug("A loop is found. %d", i)
             loop = tuple(x[-1] for x in loop_lst)
             print(" => ".join([f"0x{x:08x}" for x in loop]))
             self.add_loop(loop)

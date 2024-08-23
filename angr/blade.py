@@ -327,10 +327,9 @@ class Blade:
                     in_edges = itertools.islice(in_edges, self._max_predecessors)
 
                 for pred, _, data in in_edges:
-                    if "jumpkind" in data:
-                        if self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
-                            # Skip calls
-                            continue
+                    if "jumpkind" in data and self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
+                        # Skip calls
+                        continue
                     if self.project.is_hooked(pred.addr):
                         # Skip SimProcedures
                         continue
@@ -418,10 +417,9 @@ class Blade:
                     in_edges = itertools.islice(in_edges, self._max_predecessors)
 
                 for pred, _, data in in_edges:
-                    if "jumpkind" in data:
-                        if self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
-                            # skip calls as instructed
-                            continue
+                    if "jumpkind" in data and self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
+                        # skip calls as instructed
+                        continue
                     if self.project.is_hooked(pred.addr):
                         # Stop at SimProcedures
                         continue

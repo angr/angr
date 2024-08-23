@@ -26,7 +26,7 @@ class Environment:
             And a boolean value telling whether all the names were known of the internal representation (i.e. will be
             False if one of the queried variable was not found).
         """
-        has_unknown = not all(map(lambda name: name in self._environment.keys(), names))
+        has_unknown = not all(map(lambda name: name in self._environment, names))
 
         def _get(name):
             if not isinstance(name, (str, Undefined)):
@@ -87,7 +87,10 @@ class Environment:
         for k in set(self._environment.keys()).union(set(other._environment.keys())):
             if k not in self._environment:
                 return False
-            if k in self._environment and k in other._environment:
-                if not self._environment[k].issuperset(other._environment[k]):
-                    return False
+            if (
+                k in self._environment
+                and k in other._environment
+                and not self._environment[k].issuperset(other._environment[k])
+            ):
+                return False
         return True

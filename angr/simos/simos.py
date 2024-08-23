@@ -63,11 +63,8 @@ class SimOS:
                 resolver_addr, concrete_only=True, base_state=base_state, prototype=prototype
             )
             try:
-                if isinstance(self.arch, ArchS390X):
-                    # On s390x ifunc resolvers expect hwcaps.
-                    val = resolver(0)
-                else:
-                    val = resolver()
+                # On s390x ifunc resolvers expect hwcaps.
+                val = resolver(0) if isinstance(self.arch, ArchS390X) else resolver()
             except AngrCallableMultistateError:
                 _l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
                 return None
@@ -80,16 +77,12 @@ class SimOS:
         self.project.loader.perform_irelative_relocs(irelative_resolver)
 
     def _weak_hook_symbol(self, name, hook, scope=None):
-        if scope is None:
-            sym = self.project.loader.find_symbol(name)
-        else:
-            sym = scope.get_symbol(name)
+        sym = self.project.loader.find_symbol(name) if scope is None else scope.get_symbol(name)
 
         if sym is not None:
             addr, _ = self.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
-            if self.project.is_hooked(addr):
-                if not self.project.hooked_by(addr).is_stub:
-                    return
+            if self.project.is_hooked(addr) and not self.project.hooked_by(addr).is_stub:
+                return
             self.project.hook(addr, hook)
 
     def state_blank(
@@ -147,10 +140,8 @@ class SimOS:
                         perms |= 4  # PROT_EXEC
                     permission_map[(seg.min_addr, seg.max_addr)] = perms
             kwargs["permissions_map"] = permission_map
-        if self.project.loader.main_object.execstack:
-            stack_perms = 1 | 2 | 4  # RWX
-        else:
-            stack_perms = 1 | 2  # RW
+        # RWX or RW
+        stack_perms = 1 | 2 | 4 if self.project.loader.main_object.execstack else 1 | 2
 
         state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, stack_perms=stack_perms, **kwargs)
 

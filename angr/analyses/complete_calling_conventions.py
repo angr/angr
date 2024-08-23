@@ -85,7 +85,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._skip_other_funcs = skip_other_funcs
         self._auto_start = auto_start
         self._total_funcs = None
-        self._func_graphs = {} if not func_graphs else func_graphs
+        self._func_graphs = func_graphs if func_graphs else {}
         self.prototype_libnames: set[str] = set()
 
         self._func_addrs = []  # a list that holds addresses of all functions to be analyzed
@@ -140,16 +140,15 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         )
                         continue
 
-                if self._max_function_blocks is not None:
-                    if len(func.block_addrs_set) > self._max_function_blocks:
-                        _l.info(
-                            "Skipping variable recovery for %r since its number of blocks (%d) is greater than the "
-                            "cutoff number (%d).",
-                            func,
-                            len(func.block_addrs_set),
-                            self._max_function_blocks,
-                        )
-                        continue
+                if self._max_function_blocks is not None and len(func.block_addrs_set) > self._max_function_blocks:
+                    _l.info(
+                        "Skipping variable recovery for %r since its number of blocks (%d) is greater than the "
+                        "cutoff number (%d).",
+                        func,
+                        len(func.block_addrs_set),
+                        self._max_function_blocks,
+                    )
+                    continue
 
                 # if it's a normal function, we attempt to perform variable recovery
                 self._func_addrs.append(func_addr)
@@ -172,9 +171,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
     def work(self):
         total_funcs = self._total_funcs
         if self._workers == 0:
-            idx = 0
             self._update_progress(0)
-            for func_addr in self._func_addrs:
+            for idx, func_addr in enumerate(self._func_addrs):
                 cc, proto, proto_libname, _ = self._analyze_core(func_addr)
 
                 func = self.kb.functions.get_by_addr(func_addr)
@@ -187,12 +185,10 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if self._cc_callback is not None:
                     self._cc_callback(func_addr)
 
-                idx += 1
-
-                percentage = idx / total_funcs * 100.0
-                self._update_progress(percentage, text=f"{idx}/{total_funcs} - {func.demangled_name}")
+                percentage = idx + 1 / total_funcs * 100.0
+                self._update_progress(percentage, text=f"{idx + 1}/{total_funcs} - {func.demangled_name}")
                 if self._low_priority:
-                    self._release_gil(idx, 10, 0.000001)
+                    self._release_gil(idx + 1, 10, 0.000001)
 
         else:
             self._remaining_funcs.value = len(self._func_addrs)
@@ -303,9 +299,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
                     self._set_function_prototype(callee_func, callee_proto, callee_proto_libname)
 
             idx += 1
-            if self._low_priority:
-                if idx % 3 == 0:
-                    time.sleep(0.1)
+            if self._low_priority and idx % 3 == 0:
+                time.sleep(0.1)
 
             try:
                 cc, proto, proto_libname, varman = self._analyze_core(func_addr)
@@ -329,10 +324,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
         if self._recover_variables and self.function_needs_variable_recovery(func):
             # special case: we don't have a PCode-engine variable recovery analysis for PCode architectures!
-            if ":" in self.project.arch.name:
+            if ":" in self.project.arch.name and self._func_graphs and func.addr in self._func_graphs:
                 # this is a pcode architecture
-                if not self._func_graphs or func.addr not in self._func_graphs:
-                    return None, None, None, None
+                return None, None, None, None
 
             _l.info("Performing variable recovery on %r...", func)
             try:
@@ -416,10 +410,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
         :rtype:         bool
         """
 
-        if func.is_simprocedure or func.is_plt:
-            return False
         # TODO: Check SimLibraries
-        return True
+        return not (func.is_simprocedure or func.is_plt)
 
 
 register_analysis(CompleteCallingConventionsAnalysis, "CompleteCallingConventions")

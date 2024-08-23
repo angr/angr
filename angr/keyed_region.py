@@ -168,11 +168,7 @@ class KeyedRegion:
         if set(self._storage.keys()) != set(other._storage.keys()):
             return False
 
-        for k, v in self._storage.items():
-            if v != other._storage[k]:
-                return False
-
-        return True
+        return all(v == other._storage[k] for k, v in self._storage.items())
 
     def copy(self):
         if not self._storage:

@@ -21,11 +21,13 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         operand_1 = self._expr(expr.operands[1])
 
         # x + x = 2*x
-        if type(operand_0) in [Expr.Convert, Expr.Register]:
-            if isinstance(operand_1, (Expr.Convert, Expr.Register)):
-                if operand_0 == operand_1:
-                    count = Expr.Const(expr.idx, None, 2, operand_1.bits)
-                    return Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
+        if (
+            type(operand_0) in [Expr.Convert, Expr.Register]
+            and isinstance(operand_1, (Expr.Convert, Expr.Register))
+            and operand_0 == operand_1
+        ):
+            count = Expr.Const(expr.idx, None, 2, operand_1.bits)
+            return Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
         # 2*x + x = 3*x
         if Expr.BinaryOp in [type(operand_0), type(operand_1)]:
             if (
@@ -92,12 +94,14 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         operand_1 = self._expr(expr.operands[1])
 
         # x + x = 2*x
-        if type(operand_0) in [Expr.Convert, Expr.Register]:
-            if isinstance(operand_1, (Expr.Convert, Expr.Register)):
-                if operand_0 == operand_1:
-                    count = Expr.Const(expr.idx, None, 0, 8)
-                    new_expr = Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
-                    return new_expr
+        if (
+            type(operand_0) in [Expr.Convert, Expr.Register]
+            and isinstance(operand_1, (Expr.Convert, Expr.Register))
+            and operand_0 == operand_1
+        ):
+            count = Expr.Const(expr.idx, None, 0, 8)
+            new_expr = Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
+            return new_expr
 
         # 2*x - x = x
         if Expr.BinaryOp in [type(operand_0), type(operand_1)]:
@@ -176,17 +180,16 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if Expr.Const in [type(operand_0), type(operand_1)]:
-            if Expr.BinaryOp in [type(operand_0), type(operand_1)]:
-                const_, x0 = (operand_0, operand_1) if isinstance(operand_0, Expr.Const) else (operand_1, operand_0)
-                if x0.op == "Mul" and Expr.Const in [type(x0.operands[0]), type(x0.operands[1])]:
-                    if isinstance(x0.operands[0], Expr.Const):
-                        const_x0, x = x0.operands[0], x0.operands[1]
-                    else:
-                        const_x0, x = x0.operands[1], x0.operands[0]
-                    new_const = Expr.Const(const_.idx, None, const_.value * const_x0.value, const_.bits)
-                    new_expr = Expr.BinaryOp(expr.idx, "Mul", [x, new_const], expr.signed, **expr.tags)
-                    return new_expr
+        if Expr.Const in [type(operand_0), type(operand_1)] and Expr.BinaryOp in [type(operand_0), type(operand_1)]:
+            const_, x0 = (operand_0, operand_1) if isinstance(operand_0, Expr.Const) else (operand_1, operand_0)
+            if x0.op == "Mul" and Expr.Const in [type(x0.operands[0]), type(x0.operands[1])]:
+                if isinstance(x0.operands[0], Expr.Const):
+                    const_x0, x = x0.operands[0], x0.operands[1]
+                else:
+                    const_x0, x = x0.operands[1], x0.operands[0]
+                new_const = Expr.Const(const_.idx, None, const_.value * const_x0.value, const_.bits)
+                new_expr = Expr.BinaryOp(expr.idx, "Mul", [x, new_const], expr.signed, **expr.tags)
+                return new_expr
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
             return Expr.BinaryOp(expr.idx, "Mul", [operand_0, operand_1], expr.signed, **expr.tags)

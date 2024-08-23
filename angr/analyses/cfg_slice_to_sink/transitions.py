@@ -17,7 +17,7 @@ def merge_transitions(transitions, existing_transitions):
     """
 
     def _add_to_existing(address, values):
-        if address in existing_transitions.keys():
+        if address in existing_transitions:
             values += existing_transitions[address]
             values = list(set(values))
         existing_transitions.update({address: values})

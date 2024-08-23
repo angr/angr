@@ -166,10 +166,7 @@ class OptimizationPass(BaseOptimizationPass):
 
         :return:    The block address.
         """
-        if self._new_block_addrs:
-            new_addr = max(self._new_block_addrs) + 1
-        else:
-            new_addr = max(self.blocks_by_addr) + 2048
+        new_addr = max(self._new_block_addrs) + 1 if self._new_block_addrs else max(self.blocks_by_addr) + 2048
         self._new_block_addrs.add(new_addr)
         return new_addr
 
@@ -469,7 +466,4 @@ class StructuringOptimizationPass(OptimizationPass):
         # Note: this check is only for _trading_, meaning the total number of loops must be the same.
         #
         # 1. We traded to remove a for-loop
-        if curr_floops < prev_floops and total_curr_loops == total_prev_loops:
-            return False
-
-        return True
+        return not (curr_floops < prev_floops and total_curr_loops == total_prev_loops)

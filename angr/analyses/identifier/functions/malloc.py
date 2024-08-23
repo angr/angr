@@ -108,7 +108,4 @@ class malloc(Func):
             if any(a < 0x3000 for a in returned_locs2):
                 return False
 
-        if returned_locs == returned_locs2:
-            return False
-
-        return True
+        return returned_locs != returned_locs2

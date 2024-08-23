@@ -7,9 +7,7 @@ import angr
 
 def mode_to_flag(mode):
     # TODO improve this: handle mode = strings
-    if mode[-1] == ord("b"):  # lol who uses windows
-        mode = mode[:-1]
-    elif mode[-1] == ord("t"):  # Rarely modes rt or wt are used, but identical to r and w
+    if mode[-1] == ord("b") or mode[-1] == ord("t"):  # lol who uses windows
         mode = mode[:-1]
     mode = mode.replace(b"c", b"").replace(b"e", b"")
     all_modes = {

@@ -96,10 +96,7 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
         while stackbaseoffset_objs:
             sign, obj = stackbaseoffset_objs.pop(0)
             if expr is None:
-                if sign:
-                    expr = obj
-                else:
-                    expr = UnaryOp(None, "Neg", obj, **obj.tags)
+                expr = obj if sign else UnaryOp(None, "Neg", obj, **obj.tags)
             else:
                 op = "Add" if sign else "Sub"
                 expr = BinaryOp(

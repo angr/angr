@@ -46,10 +46,9 @@ class MultiValues:
             self._values = {}
 
         # if only one value is passed in, assign it to self._single_value
-        if self._values:
-            if len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
-                self._single_value = next(iter(self._values[0]))
-                self._values = None
+        if self._values and len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
+            self._single_value = next(iter(self._values[0]))
+            self._values = None
 
         if self._values:
             # sanity check
@@ -178,10 +177,7 @@ class MultiValues:
         assert other._values is not None
         if set(self._values.keys()) != set(other._values.keys()):
             return False
-        for k in self._values.keys():
-            if self._values[k] != other._values[k]:
-                return False
-        return True
+        return all(self._values[k] == other._values[k] for k in self._values)
 
     def __repr__(self):
         if self._single_value is not None:

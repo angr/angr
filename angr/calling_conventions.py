@@ -32,6 +32,7 @@ from .sim_type import (
 )
 from .state_plugins.sim_action_object import SimActionObject
 from .engines.soot.engine import SootMixin
+import contextlib
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -139,10 +140,7 @@ def refine_locs_with_struct_type(
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
 
-        if len(pieces) == 1:
-            piece = pieces[0]
-        else:
-            piece = SimComboArg(pieces)
+        piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
         return piece
@@ -321,10 +319,7 @@ class SimRegArg(SimFunctionArgument):
         if offset is None:
             if arch is None:
                 raise ValueError("Need to specify either offset or arch in order to refine a register argument")
-            if arch.register_endness == "Iend_LE":
-                offset = 0
-            else:
-                offset = self.size - size
+            offset = 0 if arch.register_endness == "Iend_LE" else self.size - size
         if is_fp is None:
             is_fp = self.is_fp
         return SimRegArg(self.reg_name, size, self.reg_offset + offset, is_fp, clear_entire_reg=passed_offset_none)
@@ -374,10 +369,7 @@ class SimStackArg(SimFunctionArgument):
         if offset is None:
             if arch is None:
                 raise ValueError("Need to specify either offset or arch in order to refine a stack argument")
-            if arch.register_endness == "Iend_LE":
-                offset = 0
-            else:
-                offset = self.size - size
+            offset = 0 if arch.register_endness == "Iend_LE" else self.size - size
         if is_fp is None:
             is_fp = self.is_fp
         return SimStackArg(self.stack_offset + offset, size, is_fp)
@@ -715,10 +707,7 @@ class SimCC:
         is_fp = isinstance(arg_type, SimTypeFloat)
         size = arg_type.size // self.arch.byte_width
         try:
-            if is_fp:
-                arg = next(session.fp_iter)
-            else:
-                arg = next(session.int_iter)
+            arg = next(session.fp_iter) if is_fp else next(session.int_iter)
         except StopIteration:
             try:
                 arg = next(session.both_iter)
@@ -1006,9 +995,8 @@ class SimCC:
             elif isinstance(ty, SimTypeArray):
                 ref = True
                 subty = ty.elem_type
-                if ty.length is not None:
-                    if len(arg) != ty.length:
-                        raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
+                if ty.length is not None and len(arg) != ty.length:
+                    raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
             else:
                 raise TypeError(f"Type mismatch: Expected {ty}, got char*")
 
@@ -1224,10 +1212,7 @@ class SimCCCdecl(SimCC):
             byte_size = ty.size // self.arch.byte_width
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
-            if perspective_returned:
-                ptr_loc = self.RETURN_VAL
-            else:
-                ptr_loc = SimStackArg(0, 4)
+            ptr_loc = self.RETURN_VAL if perspective_returned else SimStackArg(0, 4)
             reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
             return reference_loc
 
@@ -1324,10 +1309,8 @@ class SimCCSyscall(SimCC):
             return expr
         if type(expr) is int:
             expr = claripy.BVV(expr, state.arch.bits)
-        try:
+        with contextlib.suppress(AttributeError):
             expr = expr.ast
-        except AttributeError:
-            pass
         nbits = self.ERROR_REG.size * state.arch.byte_width
         error_cond = claripy.UGE(expr, self.SYSCALL_ERRNO_START)
         if state.solver.is_false(error_cond):
@@ -1486,10 +1469,7 @@ class SimCCSystemVAMD64(SimCC):
             byte_size = ty.size // self.arch.byte_width
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
-            if perspective_returned:
-                ptr_loc = self.RETURN_VAL
-            else:
-                ptr_loc = SimRegArg("rdi", 8)
+            ptr_loc = self.RETURN_VAL if perspective_returned else SimRegArg("rdi", 8)
             reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
             return reference_loc
         else:
@@ -1520,10 +1500,7 @@ class SimCCSystemVAMD64(SimCC):
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        if isinstance(ty, SimTypeBottom):
-            nchunks = 1
-        else:
-            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
         elif isinstance(ty, (SimTypeFloat,)):
@@ -1671,12 +1648,7 @@ class SimCCARM(SimCC):
                     raise NotImplementedError("Bug. Report to @rhelmot")
                 elif cls == "MEMORY":
                     mapped_classes.append(next(session.both_iter))
-                elif cls == "INTEGER":
-                    try:
-                        mapped_classes.append(next(session.int_iter))
-                    except StopIteration:
-                        mapped_classes.append(next(session.both_iter))
-                elif cls == "SINGLEP":
+                elif cls == "INTEGER" or cls == "SINGLEP":
                     try:
                         mapped_classes.append(next(session.int_iter))
                     except StopIteration:
@@ -1693,10 +1665,7 @@ class SimCCARM(SimCC):
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        if isinstance(ty, SimTypeBottom):
-            nchunks = 1
-        else:
-            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
         elif isinstance(ty, (SimTypeFloat,)):
@@ -1917,10 +1886,7 @@ class SimCCO32(SimCC):
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        if isinstance(ty, SimTypeBottom):
-            nchunks = 1
-        else:
-            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
         elif isinstance(ty, (SimTypeFloat,)):

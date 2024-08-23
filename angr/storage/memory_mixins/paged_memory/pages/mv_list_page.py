@@ -36,11 +36,8 @@ class MVListPage(
         self.stored_offset = set()
         self._mo_cmp: Callable | None = mo_cmp
 
-        if self.content is None:
-            if memory is not None:
-                self.content: DynamicDictList[_MOTYPE | set[_MOTYPE] | None] = DynamicDictList(
-                    max_size=memory.page_size
-                )
+        if self.content is None and memory is not None:
+            self.content: DynamicDictList[_MOTYPE | set[_MOTYPE] | None] = DynamicDictList(max_size=memory.page_size)
 
         self.sinkhole: _MOTYPE | None = sinkhole
 
@@ -342,27 +339,23 @@ class MVListPage(
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
-            if not s_contains and o_contains:
-                differences.add(c)
-            elif s_contains and not o_contains:
+            if not s_contains and o_contains or s_contains and not o_contains:
                 differences.add(c)
             else:
-                if self.content[c] is None:
-                    if self.sinkhole is not None:
-                        self.content[c] = SimMemoryObject(
-                            self.sinkhole.bytes_at(page_addr + c, 1),
-                            page_addr + c,
-                            byte_width=byte_width,
-                            endness="Iend_BE",
-                        )
-                if other.content[c] is None:
-                    if other.sinkhole is not None:
-                        other.content[c] = SimMemoryObject(
-                            other.sinkhole.bytes_at(page_addr + c, 1),
-                            page_addr + c,
-                            byte_width=byte_width,
-                            endness="Iend_BE",
-                        )
+                if self.content[c] is None and self.sinkhole is not None:
+                    self.content[c] = SimMemoryObject(
+                        self.sinkhole.bytes_at(page_addr + c, 1),
+                        page_addr + c,
+                        byte_width=byte_width,
+                        endness="Iend_BE",
+                    )
+                if other.content[c] is None and other.sinkhole is not None:
+                    other.content[c] = SimMemoryObject(
+                        other.sinkhole.bytes_at(page_addr + c, 1),
+                        page_addr + c,
+                        byte_width=byte_width,
+                        endness="Iend_BE",
+                    )
                 if s_contains and self.content[c] != other.content[c]:
                     same = None
                     if self._mo_cmp is not None:

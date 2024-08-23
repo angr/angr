@@ -149,10 +149,7 @@ def in_other(stmts, other, graph=None):
     @return:
     """
 
-    if index_of_similar_stmts(stmts, other, graph=graph) is not None:
-        return True
-
-    return False
+    return index_of_similar_stmts(stmts, other, graph=graph) is not None
 
 
 def longest_ail_subseq(

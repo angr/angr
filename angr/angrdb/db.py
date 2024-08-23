@@ -149,20 +149,19 @@ class AngrDB:
     def dump(self, db_path, kbs: list[KnowledgeBase] | None = None, extra_info: dict[str, Any] | None = None):
         db_str = f"sqlite:///{db_path}"
 
-        with self.open_db(db_str) as Session:
-            with self.session_scope(Session) as session:
-                # Dump the loader
-                LoaderSerializer.dump(session, self.project.loader)
-                # Dump the knowledge base
+        with self.open_db(db_str) as Session, self.session_scope(Session) as session:
+            # Dump the loader
+            LoaderSerializer.dump(session, self.project.loader)
+            # Dump the knowledge base
 
-                if kbs is None:
-                    kbs = [self.project.kb]
+            if kbs is None:
+                kbs = [self.project.kb]
 
-                for kb in kbs:
-                    KnowledgeBaseSerializer.dump(session, kb)
+            for kb in kbs:
+                KnowledgeBaseSerializer.dump(session, kb)
 
-                # Update the information
-                self.update_dbinfo(session, extra_info=extra_info)
+            # Update the information
+            self.update_dbinfo(session, extra_info=extra_info)
 
     def load(
         self,
@@ -173,39 +172,35 @@ class AngrDB:
     ):
         db_str = f"sqlite:///{db_path}"
 
-        with self.open_db(db_str) as Session:
-            with self.session_scope(Session) as session:
-                # Compatibility check
-                dbinfo = self.get_dbinfo(session, extra_info=extra_info)
-                if not self.db_compatible(dbinfo.get("version", None)):
-                    raise AngrIncompatibleDBError(
-                        "Version {} is incompatible with the current version of angr.".format(
-                            dbinfo.get("version", None)
-                        )
-                    )
+        with self.open_db(db_str) as Session, self.session_scope(Session) as session:
+            # Compatibility check
+            dbinfo = self.get_dbinfo(session, extra_info=extra_info)
+            if not self.db_compatible(dbinfo.get("version", None)):
+                raise AngrIncompatibleDBError(
+                    "Version {} is incompatible with the current version of angr.".format(dbinfo.get("version", None))
+                )
 
-                # Load the loader
-                loader = LoaderSerializer.load(session)
-                # Create the project
-                proj = Project(loader)
+            # Load the loader
+            loader = LoaderSerializer.load(session)
+            # Create the project
+            proj = Project(loader)
 
-                if kb_names is None:
-                    kb_names = ["global"]
+            if kb_names is None:
+                kb_names = ["global"]
 
-                if len(kb_names) != 1 or kb_names[0] != "global":
-                    if other_kbs is None:
-                        raise ValueError(
-                            'You must provide a dict via "other_kbs" to collect angr KnowledgeBases '
-                            "that are not the global one."
-                        )
+            if (len(kb_names) != 1 or kb_names[0] != "global") and other_kbs is None:
+                raise ValueError(
+                    'You must provide a dict via "other_kbs" to collect angr KnowledgeBases '
+                    "that are not the global one."
+                )
 
-                # Load knowledgebases
-                for kb_name in kb_names:
-                    kb = KnowledgeBaseSerializer.load(session, proj, kb_name)
-                    if kb is not None:
-                        if kb_name == "global":
-                            proj.kb = kb
-                        else:
-                            other_kbs[kb_name] = kb
+            # Load knowledgebases
+            for kb_name in kb_names:
+                kb = KnowledgeBaseSerializer.load(session, proj, kb_name)
+                if kb is not None:
+                    if kb_name == "global":
+                        proj.kb = kb
+                    else:
+                        other_kbs[kb_name] = kb
 
-                return proj
+            return proj

@@ -61,7 +61,4 @@ class free(Func):
             if state is None:
                 return False
 
-        if len(malloc_vals) == len(set(malloc_vals)):
-            return False
-
-        return True
+        return len(malloc_vals) != len(set(malloc_vals))
