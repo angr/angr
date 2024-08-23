@@ -176,7 +176,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             except errors.SimReliftException as e:
                 self.state = e.state
                 if insn_bytes is not None:
-                    raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
+                    raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!") from e
                 new_ip = self.state.scratch.ins_addr
                 if size is not None:
                     size -= new_ip - addr

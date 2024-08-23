@@ -39,7 +39,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         try:
             method = the_binary.get_soot_method(method, params=method.params)
         except CLEError as ex:
-            raise SimTranslationError(f"CLE error: {ex}")
+            raise SimTranslationError("CLE error") from ex
 
         if stmt_idx is None:
             return method.blocks[0] if method.blocks else None

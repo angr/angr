@@ -37,14 +37,14 @@ class SootClassHierarchy(Analysis):
         self.init_hierarchy()
 
     def init_hierarchy(self):
-        for class_name, cls in self.project.loader.main_object.classes.items():
+        for _class_name, cls in self.project.loader.main_object.classes.items():
             if "INTERFACE" in cls.attrs:
                 self.interface_implementers[cls] = []
                 self.dir_sub_interfaces[cls] = []
             else:
                 self.dir_sub_classes[cls] = []
 
-        for class_name, cls in self.project.loader.main_object.classes.items():
+        for _class_name, cls in self.project.loader.main_object.classes.items():
             if self.has_super_class(cls):
                 if "INTERFACE" in cls.attrs:
                     # TODO
@@ -63,7 +63,7 @@ class SootClassHierarchy(Analysis):
                         self.interface_implementers[i].append(cls)
 
         # fill direct implementers with subclasses
-        for class_name, cls in self.project.loader.main_object.classes.items():
+        for _class_name, cls in self.project.loader.main_object.classes.items():
             if "INTERFACE" in cls.attrs:
                 implementers = self.interface_implementers[cls]
                 s = set()

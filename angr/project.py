@@ -248,7 +248,7 @@ class Project:
             # If we execute a Java archive that includes native JNI libraries,
             # we need to use the arch of the native simos for all (native) sim
             # procedures.
-            sim_proc_arch = getattr(self.simos, "native_arch")
+            sim_proc_arch = self.simos.native_arch
         else:
             sim_proc_arch = self.arch
         for obj in self.loader.initial_load_objects:

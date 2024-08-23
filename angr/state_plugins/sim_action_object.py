@@ -108,7 +108,7 @@ class SimActionObject:
             raise AttributeError("not forwarding __slots__ to AST")
 
         f = getattr(self.ast, attr)
-        if hasattr(f, "__call__"):
+        if callable(f):
             return functools.partial(self._preserving_bound, f)
         elif isinstance(f, claripy.ast.Base):
             return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)

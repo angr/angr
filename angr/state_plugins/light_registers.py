@@ -35,7 +35,7 @@ class SimLightRegisters(SimStatePlugin):
         bw = state.arch.byte_width
         for reg in state.arch.register_list:
             self.reg_map[(reg.vex_offset, reg.size)] = reg.name, None, reg.size * bw
-            for subreg_name, subreg_suboffset, subreg_size in reg.subregisters:
+            for _subreg_name, subreg_suboffset, subreg_size in reg.subregisters:
                 # endian swap gets undone here
                 if state.arch.register_endness == "Iend_BE":
                     extract_high = (reg.size - 1 - subreg_suboffset) * bw + 7

@@ -2147,7 +2147,7 @@ class CConstant(CExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for ty, v in self.reference_values.items():  # pylint:disable=unused-variable
+            for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
                     return

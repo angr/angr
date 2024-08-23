@@ -339,7 +339,7 @@ class Veritesting(Analysis):
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
                 manager.stash(
-                    lambda s: s.addr == merge_point_addr,  # pylint:disable=cell-var-from-loop
+                    lambda s, merge_point_addr=merge_point_addr: s.addr == merge_point_addr,
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times),
                 )
 
@@ -396,9 +396,7 @@ class Veritesting(Analysis):
             # merge things callstack by callstack
             while len(manager.stashes[stash_name]):
                 r = manager.stashes[stash_name][0]
-                manager.move(
-                    stash_name, "merge_tmp", lambda p: p.callstack == r.callstack  # pylint:disable=cell-var-from-loop
-                )
+                manager.move(stash_name, "merge_tmp", lambda p, r=r: p.callstack == r.callstack)
 
                 old_count = len(manager.merge_tmp)
                 l.debug("... trying to merge %d states.", old_count)

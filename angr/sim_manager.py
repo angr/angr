@@ -323,7 +323,9 @@ class SimulationManager:
             if isinstance(t, Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter", None)
                 if deviation_filter_saved is not None:
-                    t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s) or deviation_filter_saved(s)
+                    t.options["deviation_filter"] = (
+                        lambda s, dfs=deviation_filter_saved: tech.find(s) or tech.avoid(s) or dfs(s)
+                    )
                 else:
                     t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)
                 break
@@ -796,7 +798,7 @@ class SimulationManager:
         merge_groups = []
         while to_merge:
             base_key = merge_key(to_merge[0])
-            g, to_merge = self._filter_states(lambda s: base_key == merge_key(s), to_merge)
+            g, to_merge = self._filter_states(lambda s, base_key=base_key: base_key == merge_key(s), to_merge)
             if len(g) <= 1:
                 not_to_merge.extend(g)
             else:

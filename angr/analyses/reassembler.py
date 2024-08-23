@@ -970,7 +970,7 @@ class BasicBlock:
                     and instr.operands[0].type == capstone.CS_OP_REG
                     and instr.operands[1].type == capstone.CS_OP_IMM
                 ):
-                    instruction.operands[1].type == OP_TYPE_RAW
+                    instruction.operands[1].type = OP_TYPE_RAW
                     instruction.operands[1].raw_asm = "OFFSET FLAG:_GLOBAL_OFFSET_TABLE_"
 
             self.instructions.append(instruction)
@@ -1169,7 +1169,7 @@ class Procedure:
                 # this is an x86-PIC function that calls a get_pc thunk
                 # we need to fix the "add e{a,b,c}x, offset" instruction right after the get_pc call
                 # first let's identify which function is the get_pc function
-                for src, dst, data in self.function.transition_graph.edges(data=True):
+                for src, dst, _data in self.function.transition_graph.edges(data=True):
                     if isinstance(src, CodeNode) and isinstance(dst, Function) and "get_pc" in dst.info:
                         # found it!
                         x86_getpc_retsites.add(src.addr + src.size)

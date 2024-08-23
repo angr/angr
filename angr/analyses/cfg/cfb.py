@@ -184,8 +184,8 @@ class CFBlanket(Analysis):
     def floor_addr(self, addr):
         try:
             return next(self._blanket.irange(maximum=addr, reverse=True))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def floor_item(self, addr):
         key = self.floor_addr(addr)
@@ -206,8 +206,8 @@ class CFBlanket(Analysis):
     def ceiling_addr(self, addr):
         try:
             return next(self._blanket.irange(minimum=addr))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def ceiling_item(self, addr):
         key = self.ceiling_addr(addr)

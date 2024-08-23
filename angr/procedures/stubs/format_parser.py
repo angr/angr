@@ -495,8 +495,8 @@ class FormatParser(SimProcedure):
                 nugtype: SimType = all_spec[nugget]
                 try:
                     typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
-                except Exception:
-                    raise SimProcedureError(f"format specifier uses unknown type '{nugtype!r}'")
+                except Exception as err:
+                    raise SimProcedureError(f"format specifier uses unknown type '{nugtype!r}'") from err
                 return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None
