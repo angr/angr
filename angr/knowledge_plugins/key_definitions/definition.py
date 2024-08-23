@@ -1,4 +1,5 @@
-from typing import Optional, Literal, TypeVar, Generic
+from __future__ import annotations
+from typing import Literal, TypeVar, Generic
 from dataclasses import dataclass
 import logging
 
@@ -39,7 +40,7 @@ class DefinitionMatchPredicate:
     extern: bool | None = None
 
     @staticmethod
-    def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
+    def construct(predicate: DefinitionMatchPredicate | None = None, **kwargs) -> DefinitionMatchPredicate:
         if predicate is None:
             predicate = DefinitionMatchPredicate(**kwargs)
             predicate.normalize()
@@ -79,7 +80,7 @@ class DefinitionMatchPredicate:
         elif self.tmp_idx is not None:
             self.kind = AtomKind.TMP
 
-    def matches(self, defn: "Definition") -> bool:
+    def matches(self, defn: Definition) -> bool:
         if self.variable is not None:
             if self.variable_manager is False:
                 pass

@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
 from collections import defaultdict, Counter
 import logging
@@ -120,7 +121,7 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size
 
 
-def extract_terms(expr: "CExpression") -> tuple[int, list[tuple[int, "CExpression"]]]:
+def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
         expr = MakeTypecastsImplicit.collapse(expr.dst_type, expr.expr)
@@ -163,11 +164,11 @@ def extract_terms(expr: "CExpression") -> tuple[int, list[tuple[int, "CExpressio
         return 0, [(1, expr)]
 
 
-def is_machine_word_size_type(type_: SimType, arch: "archinfo.Arch") -> bool:
+def is_machine_word_size_type(type_: SimType, arch: archinfo.Arch) -> bool:
     return isinstance(type_, SimTypeReg) and type_.size == arch.bits
 
 
-def guess_value_type(value: int, project: "angr.Project") -> SimType | None:
+def guess_value_type(value: int, project: angr.Project) -> SimType | None:
     if project.kb.functions.contains_addr(value):
         # might be a function pointer
         return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
@@ -260,7 +261,7 @@ class CConstruct:
     __slots__ = ("codegen",)
 
     def __init__(self, codegen):
-        self.codegen: "StructuredCodeGenerator" = codegen
+        self.codegen: StructuredCodeGenerator = codegen
 
     def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
@@ -400,7 +401,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         addr,
         name,
         functy: SimTypeFunction,
-        arg_list: list["CVariable"],
+        arg_list: list[CVariable],
         statements,
         variables_in_use,
         variable_manager,
@@ -417,13 +418,13 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.arg_list = arg_list
         self.statements = statements
         self.variables_in_use = variables_in_use
-        self.variable_manager: "VariableManagerInternal" = variable_manager
+        self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
         self.unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]] = self.get_unified_local_vars()
         self.show_demangled_name = show_demangled_name
         self.omit_header = omit_header
 
-    def get_unified_local_vars(self) -> dict[SimVariable, set[tuple["CVariable", SimType]]]:
+    def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[CVariable, SimType]]]:
         unified_to_var_and_types: dict[SimVariable, set[tuple[CVariable, SimType]]] = defaultdict(set)
 
         arg_set: set[SimVariable] = set()
@@ -1229,7 +1230,7 @@ class CFunctionCall(CStatement, CExpression):
         super().__init__(**kwargs)
 
         self.callee_target = callee_target
-        self.callee_func: Optional["Function"] = callee_func
+        self.callee_func: Function | None = callee_func
         self.args = args if args is not None else []
         self.returning = returning
         self.ret_expr = ret_expr

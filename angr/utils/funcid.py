@@ -1,4 +1,5 @@
 # pylint:disable=too-many-boolean-expressions
+from __future__ import annotations
 
 import capstone
 
@@ -31,7 +32,7 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
     return False
 
 
-def is_function_security_init_cookie(func: "Function", project, security_cookie_addr: int | None) -> bool:
+def is_function_security_init_cookie(func: Function, project, security_cookie_addr: int | None) -> bool:
     if func.is_plt or func.is_syscall or func.is_simprocedure:
         return False
     # the function should have only one return point
@@ -74,7 +75,7 @@ def is_function_security_init_cookie(func: "Function", project, security_cookie_
     return False
 
 
-def is_function_security_init_cookie_win8(func: "Function", project, security_cookie_addr: int) -> bool:
+def is_function_security_init_cookie_win8(func: Function, project, security_cookie_addr: int) -> bool:
     # disassemble the first instruction
     if func.is_plt or func.is_syscall or func.is_simprocedure:
         return False
@@ -113,7 +114,7 @@ def is_function_security_init_cookie_win8(func: "Function", project, security_co
     return False
 
 
-def is_function_likely_security_init_cookie(func: "Function") -> bool:
+def is_function_likely_security_init_cookie(func: Function) -> bool:
     """
     Conducts a fuzzy match for security_init_cookie function.
     """

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from collections import defaultdict
 
@@ -60,8 +61,8 @@ class NewFunctionHandler(FunctionHandler):
 
     def handle_local_function(
         self,
-        state: "ReachingDefinitionsState",
-        data: "FunctionCallData",
+        state: ReachingDefinitionsState,
+        data: FunctionCallData,
     ):
         function_address = data.address
         if function_address == self.new_func_addr:

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, UnaryOp, Expression
 from ailment.statement import Statement, Assignment
 from ailment import Block

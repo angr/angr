@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 l = logging.getLogger(name=__name__)
@@ -45,7 +46,7 @@ class CodeNode:
             self._hash = hash((self.addr, self.size))
         return self._hash
 
-    def successors(self) -> list["CodeNode"]:
+    def successors(self) -> list[CodeNode]:
         if self._graph is None:
             raise ValueError("Cannot calculate successors for graphless node")
         return list(self._graph.successors(self))

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -28,19 +29,19 @@ class SimDebugVariable:
         self.type = var_type
 
     @staticmethod
-    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> "SimDebugVariable":
+    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> SimDebugVariable:
         addr = cle_variable.rebased_addr_from_cfa(dwarf_cfa)
         var_type = cle_variable.type
         return SimDebugVariable(state, addr, var_type)
 
     @property
-    def mem_untyped(self) -> "SimMemView":
+    def mem_untyped(self) -> SimMemView:
         if self.addr is None:
             raise Exception("Cannot view a variable without an address")
         return self.state.mem[self.addr]
 
     @property
-    def mem(self) -> "SimMemView":
+    def mem(self) -> SimMemView:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
@@ -62,12 +63,12 @@ class SimDebugVariable:
     # methods and properties equivalent to SimMemView
 
     @property
-    def string(self) -> "SimMemView":
+    def string(self) -> SimMemView:
         first_char = self.deref
         # first char should have some char type (could be checked here)
         return first_char.mem_untyped.string
 
-    def with_type(self, sim_type: "SimType") -> "SimMemView":
+    def with_type(self, sim_type: SimType) -> SimMemView:
         return self.mem_untyped.with_type(sim_type)
 
     @property
@@ -93,11 +94,11 @@ class SimDebugVariable:
         raise KeyError
 
     @property
-    def deref(self) -> "SimDebugVariable":
+    def deref(self) -> SimDebugVariable:
         # dereferincing is equivalent to getting the first array element
         return self.array(0)
 
-    def array(self, i) -> "SimDebugVariable":
+    def array(self, i) -> SimDebugVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.array(i)
@@ -122,7 +123,7 @@ class SimDebugVariable:
             new_addr = addr + i * el_type.byte_size
         return SimDebugVariable(self.state, new_addr, el_type)
 
-    def member(self, member_name: str) -> "SimDebugVariable":
+    def member(self, member_name: str) -> SimDebugVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.member(member_name)

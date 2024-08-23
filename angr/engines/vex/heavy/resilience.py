@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pyvex
 
 from angr import sim_options as o

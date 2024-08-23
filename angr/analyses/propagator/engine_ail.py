@@ -1,5 +1,6 @@
 # pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
@@ -32,7 +33,7 @@ class SimEnginePropagatorAIL(
     The AIl engine for Propagator.
     """
 
-    state: "PropagatorAILState"
+    state: PropagatorAILState
 
     def _is_top(self, expr: claripy.ast.Base | Expr.StackBaseOffset) -> bool:
         if isinstance(expr, Expr.StackBaseOffset):
@@ -119,7 +120,7 @@ class SimEnginePropagatorAIL(
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
     def _ail_handle_Store(self, stmt: Stmt.Store):
-        self.state: "PropagatorAILState"
+        self.state: PropagatorAILState
 
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
@@ -362,7 +363,7 @@ class SimEnginePropagatorAIL(
         return PropValue(self.state.top(expr.size * self.arch.byte_width))
 
     def _ail_handle_Register(self, expr: Expr.Register) -> PropValue | None:
-        self.state: "PropagatorAILState"
+        self.state: PropagatorAILState
 
         # Special handling for SP and BP
         if self._stack_pointer_tracker is not None:
@@ -577,7 +578,7 @@ class SimEnginePropagatorAIL(
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
     def _ail_handle_Load(self, expr: Expr.Load) -> PropValue | None:
-        self.state: "PropagatorAILState"
+        self.state: PropagatorAILState
 
         addr = self._expr(expr.addr)
 
@@ -1494,8 +1495,8 @@ class SimEnginePropagatorAIL(
     def is_using_outdated_def(
         self,
         expr: Expr.Expression,
-        expr_defat: Optional["CodeLocation"],
-        current_loc: "CodeLocation",
+        expr_defat: CodeLocation | None,
+        current_loc: CodeLocation,
         avoid: Expr.Expression | None = None,
     ) -> tuple[bool, bool]:
         if self._reaching_definitions is None:

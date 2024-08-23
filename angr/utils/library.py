@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..sim_type import (
@@ -72,7 +73,7 @@ def register_kernel_types():
     )
 
 
-def convert_cproto_to_py(c_decl) -> tuple[str, "SimTypeFunction", str]:
+def convert_cproto_to_py(c_decl) -> tuple[str, SimTypeFunction, str]:
     """
     Convert a C-style function declaration string to its corresponding SimTypes-based Python representation.
 
@@ -145,7 +146,7 @@ def convert_cppproto_to_py(
 
 
 def parsedcprotos2py(
-    parsed_cprotos: list[tuple[str, "SimTypeFunction", str]], fd_spots=frozenset(), remove_sys_prefix=False
+    parsed_cprotos: list[tuple[str, SimTypeFunction, str]], fd_spots=frozenset(), remove_sys_prefix=False
 ) -> str:
     """
     Parse a list of C function declarations and output to Python code that can be embedded into

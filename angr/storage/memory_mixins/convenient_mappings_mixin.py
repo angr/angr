@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ,assignment-from-no-return,isinstance-second-argument-not-valid-type
+from __future__ import annotations
 import logging
 
 import claripy

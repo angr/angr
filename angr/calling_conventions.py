@@ -1,6 +1,7 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
+from __future__ import annotations
 import logging
-from typing import Optional, Union, cast
+from typing import cast
 from collections import defaultdict
 
 import claripy
@@ -265,7 +266,7 @@ class SimFunctionArgument:
     def refine(self, size, arch=None, offset=None, is_fp=None):
         raise NotImplementedError
 
-    def get_footprint(self) -> list[Union["SimRegArg", "SimStackArg"]]:
+    def get_footprint(self) -> list[SimRegArg | SimStackArg]:
         """
         Return a list of SimRegArg and SimStackArgs that are the base components used for this location
         """
@@ -1105,8 +1106,8 @@ class SimCC:
 
     @staticmethod
     def find_cc(
-        arch: "archinfo.Arch", args: list[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
-    ) -> Optional["SimCC"]:
+        arch: archinfo.Arch, args: list[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
+    ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
         found.

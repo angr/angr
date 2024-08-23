@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.state_plugins.inspect"  # pylint:disable=redefined-builtin
 
 import os

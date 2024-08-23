@@ -1,5 +1,6 @@
+from __future__ import annotations
 import platform
-from typing import Union, Generic, TypeVar
+from typing import Generic, TypeVar
 
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
@@ -27,7 +28,7 @@ class DynamicDictList(Generic[VT]):
     def __init__(
         self,
         max_size: int | None = None,
-        content: Union["DynamicDictList", dict[int, VT], list[VT]] | None = None,
+        content: DynamicDictList | dict[int, VT] | list[VT] | None = None,
     ):
         self.list_content: list[VT] | None = None
         self.dict_content: dict[int, VT] | None = None

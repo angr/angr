@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import os
 import types
@@ -258,14 +259,14 @@ class Project:
         self.simos.configure_project()
 
     @property
-    def analyses(self) -> "AnalysesHubWithDefault":
+    def analyses(self) -> AnalysesHubWithDefault:
         result = self._analyses
         if result is None:
             raise ValueError("Cannot access analyses this early in project lifecycle")
         return result
 
     @analyses.setter
-    def analyses(self, v: "AnalysesHubWithDefault"):
+    def analyses(self, v: AnalysesHubWithDefault):
         self._analyses = v
 
     def _initialize_analyses_hub(self):

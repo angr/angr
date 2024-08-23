@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -17,7 +18,7 @@ _l = logging.getLogger(name=__name__)
 
 
 class BlockWalker(AILBlockWalker):
-    def __init__(self, project: "Project"):
+    def __init__(self, project: Project):
         super().__init__()
         self._project = project
         self._new_block: Block | None = None  # output

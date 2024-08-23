@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,arguments-differ
+from __future__ import annotations
 import logging
 
 import pyvex

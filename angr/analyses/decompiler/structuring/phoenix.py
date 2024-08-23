@@ -1,5 +1,6 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
-from typing import Any, DefaultDict, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, DefaultDict, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 from enum import Enum
 import logging
@@ -79,7 +80,7 @@ class PhoenixStructurer(StructurerBase):
         region,
         parent_map=None,
         condition_processor=None,
-        func: Optional["Function"] = None,
+        func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         improve_algorithm=False,

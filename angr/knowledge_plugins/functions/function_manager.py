@@ -1,4 +1,5 @@
 # pylint:disable=raise-missing-from
+from __future__ import annotations
 from collections.abc import Generator
 import logging
 import collections.abc
@@ -350,7 +351,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
-    def get_by_name(self, name: str) -> Generator[Function, None, None]:
+    def get_by_name(self, name: str) -> Generator[Function]:
         for f in self._function_map.values():
             if f.name == name:
                 yield f

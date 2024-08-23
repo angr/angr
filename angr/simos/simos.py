@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import struct
 
@@ -26,7 +27,7 @@ class SimOS:
     A class describing OS/arch-level configuration.
     """
 
-    def __init__(self, project: "angr.Project", name=None):
+    def __init__(self, project: angr.Project, name=None):
         self.arch = project.arch
         self.project = project
         self.name = name

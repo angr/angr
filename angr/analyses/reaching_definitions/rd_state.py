@@ -1,4 +1,5 @@
-from typing import Optional, Any, TYPE_CHECKING, overload
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING, overload
 from collections.abc import Iterable, Iterator
 import logging
 
@@ -84,7 +85,7 @@ class ReachingDefinitionsState:
         subject: Subject,
         track_tmps: bool = False,
         track_consts: bool = False,
-        analysis: Optional["ReachingDefinitionsAnalysis"] = None,
+        analysis: ReachingDefinitionsAnalysis | None = None,
         rtoc_value=None,
         live_definitions: LiveDefinitions | None = None,
         canonical_size: int = 8,
@@ -92,7 +93,7 @@ class ReachingDefinitionsState:
         environment: Environment = None,
         sp_adjusted: bool = False,
         all_definitions: set[Definition[A]] | None = None,
-        initializer: Optional["RDAStateInitializer"] = None,
+        initializer: RDAStateInitializer | None = None,
         element_limit: int = 5,
         merge_into_tops: bool = True,
     ):
@@ -306,7 +307,7 @@ class ReachingDefinitionsState:
 
         return self
 
-    def copy(self, discard_tmpdefs=False) -> "ReachingDefinitionsState":
+    def copy(self, discard_tmpdefs=False) -> ReachingDefinitionsState:
         rd = ReachingDefinitionsState(
             self.codeloc,
             self.arch,
@@ -325,16 +326,16 @@ class ReachingDefinitionsState:
 
         return rd
 
-    def merge(self, *others) -> tuple["ReachingDefinitionsState", bool]:
+    def merge(self, *others) -> tuple[ReachingDefinitionsState, bool]:
         state = self.copy()
-        others: Iterable["ReachingDefinitionsState"]
+        others: Iterable[ReachingDefinitionsState]
 
         state.live_definitions, merged_0 = state.live_definitions.merge(*[other.live_definitions for other in others])
         state._environment, merged_1 = state.environment.merge(*[other.environment for other in others])
 
         return state, merged_0 or merged_1
 
-    def compare(self, other: "ReachingDefinitionsState") -> bool:
+    def compare(self, other: ReachingDefinitionsState) -> bool:
         r0 = self.live_definitions.compare(other.live_definitions)
         r1 = self.environment.compare(other.environment)
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from math import gcd
 
 from ailment.expression import BinaryOp, UnaryOp, Const, Convert, StackBaseOffset

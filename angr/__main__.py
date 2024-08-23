@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER

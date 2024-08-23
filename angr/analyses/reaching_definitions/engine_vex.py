@@ -1,5 +1,6 @@
+from __future__ import annotations
 from itertools import chain
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from collections.abc import Iterable
 import logging
 
@@ -42,8 +43,8 @@ class SimEngineRDVEX(
     def __init__(self, project, functions=None, function_handler=None):
         super().__init__()
         self.project = project
-        self.functions: Optional["FunctionManager"] = functions
-        self._function_handler: Optional["FunctionHandler"] = function_handler
+        self.functions: FunctionManager | None = functions
+        self._function_handler: FunctionHandler | None = function_handler
         self._visited_blocks = None
         self._dep_graph = None
 

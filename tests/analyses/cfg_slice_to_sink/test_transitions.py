@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import unittest
 
 from angr.analyses.cfg_slice_to_sink.transitions import merge_transitions

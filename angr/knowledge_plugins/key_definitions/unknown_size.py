@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class UnknownSize:
     """
     A value indicating an unknown size for elements of DataSets.

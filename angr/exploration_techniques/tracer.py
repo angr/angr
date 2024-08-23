@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 import cle
@@ -186,7 +187,7 @@ class Tracer(ExplorationTechnique):
         self._fd_bytes = None
 
         # keep track of the last basic block we hit
-        self.predecessors: list["SimState"] = [None] * keep_predecessors
+        self.predecessors: list[SimState] = [None] * keep_predecessors
         self.last_state = None
 
         # whether we should follow the trace
@@ -522,7 +523,7 @@ class Tracer(ExplorationTechnique):
         self._update_state_tracking(res[0])
         return res[0]
 
-    def _update_state_tracking(self, state: "SimState"):
+    def _update_state_tracking(self, state: SimState):
         idx = state.globals["trace_idx"]
         sync = state.globals["sync_idx"]
         timer = state.globals["sync_timer"]
@@ -708,7 +709,7 @@ class Tracer(ExplorationTechnique):
         else:
             raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
 
-    def _check_qemu_block_in_unicorn_block(self, state: "SimState", trace_curr_idx, state_desync_block_idx):
+    def _check_qemu_block_in_unicorn_block(self, state: SimState, trace_curr_idx, state_desync_block_idx):
         """
         Check if desync occurred because unicorn block was split into multiple blocks in qemu tracer. If yes, find the
         correct increment for trace index
@@ -749,7 +750,7 @@ class Tracer(ExplorationTechnique):
 
         return (True, next_contain_index - trace_curr_idx)
 
-    def _check_qemu_unicorn_large_block_split(self, state: "SimState", trace_curr_idx, state_desync_block_idx):
+    def _check_qemu_unicorn_large_block_split(self, state: SimState, trace_curr_idx, state_desync_block_idx):
         """
         Check if desync occurred because large blocks are split up at different instructions by qemu and unicorn. This
         is done by reconstructing part of block executed so far from the trace and state history and checking if they

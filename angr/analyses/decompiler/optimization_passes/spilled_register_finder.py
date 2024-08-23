@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier

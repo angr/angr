@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...knowledge_plugins import FunctionManager, Function
@@ -14,7 +15,7 @@ class FunctionManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb: "DbKnowledgeBase", func_manager: FunctionManager):
+    def dump(session, db_kb: DbKnowledgeBase, func_manager: FunctionManager):
         """
 
         :param session:
@@ -35,7 +36,7 @@ class FunctionManagerSerializer:
             session.add(db_func)
 
     @staticmethod
-    def load(session, db_kb: "DbKnowledgeBase", kb: "KnowledgeBase"):
+    def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase):
         """
 
         :param session:

@@ -1,7 +1,8 @@
 # pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
+from __future__ import annotations
 import pathlib
 import copy
-from typing import Any, Union
+from typing import Any
 from collections.abc import Iterable
 import logging
 
@@ -337,7 +338,7 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> ailment.Stmt.Statement | None:
+def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
             stmt = first_nonlabel_statement(n)
@@ -358,7 +359,7 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
     return None
 
 
-def first_nonlabel_node(seq: "SequenceNode") -> Union["BaseNode", ailment.Block] | None:
+def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
             inner_node = node.node
@@ -410,7 +411,7 @@ def update_labels(graph: networkx.DiGraph):
 
 
 def structured_node_is_simple_return(
-    node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph, use_packed_successors=False
+    node: SequenceNode | MultiNode, graph: networkx.DiGraph, use_packed_successors=False
 ) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
@@ -424,7 +425,7 @@ def structured_node_is_simple_return(
     Returns true on any block ending in linear statements and a return.
     """
 
-    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> list[ailment.Block]:
+    def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 
@@ -748,7 +749,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr: int):
     raise KeyError("The block is not in the graph!")
 
 
-def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
+def sequence_to_blocks(seq: BaseNode) -> list[ailment.Block]:
     """
     Converts a sequence node (BaseNode) to a list of ailment blocks contained in it and all its children.
     """
@@ -758,7 +759,7 @@ def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
 
 
 def sequence_to_statements(
-    seq: "BaseNode", exclude=(ailment.statement.Jump, ailment.statement.Jump)
+    seq: BaseNode, exclude=(ailment.statement.Jump, ailment.statement.Jump)
 ) -> list[ailment.statement.Statement]:
     """
     Converts a sequence node (BaseNode) to a list of ailment Statements contained in it and all its children.

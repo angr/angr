@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class Undefined:
     """
     A TOP-like value indicating an unknown data source. Should live next to raw integers in DataSets.

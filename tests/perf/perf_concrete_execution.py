@@ -1,6 +1,7 @@
 # Performance tests on concrete code execution without invoking Unicorn engine
 # uses a stripped-down SimEngine to only test the essential pieces
 # TODO also use a stripped-down memory
+from __future__ import annotations
 
 import os
 import time

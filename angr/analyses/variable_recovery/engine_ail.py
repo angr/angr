@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ,invalid-unary-operand-type
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -31,7 +32,7 @@ class SimEngineVRAIL(
     The engine for variable recovery on AIL.
     """
 
-    state: "VariableRecoveryFastState"
+    state: VariableRecoveryFastState
     block: ailment.Block
 
     def __init__(self, *args, call_info=None, **kwargs):

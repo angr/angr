@@ -1,3 +1,4 @@
+from __future__ import annotations
 import cffi
 from typing import Any
 from collections.abc import Iterable
@@ -252,7 +253,7 @@ class PagedMemoryMixin(MemoryMixin):
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
-    def merge(self, others: Iterable["PagedMemoryMixin"], merge_conditions, common_ancestor=None) -> bool:
+    def merge(self, others: Iterable[PagedMemoryMixin], merge_conditions, common_ancestor=None) -> bool:
         changed_pages_and_offsets: dict[int, set[int] | None] = {}
         for o in others:
             for changed_page, changed_offsets in self.changed_pages(o).items():
@@ -295,7 +296,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         return bool(merged_bytes)
 
-    def compare(self, other: "PagedMemoryMixin") -> bool:
+    def compare(self, other: PagedMemoryMixin) -> bool:
         changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
 
         for page_no in sorted(changed_pages_and_offsets):
@@ -726,7 +727,7 @@ class MVListPagesMixin(PagedMemoryMixin):
         self.skip_missing_values_during_merging = skip_missing_values_during_merging
 
     @MemoryMixin.memo
-    def copy(self, memo) -> "MVListPagesMixin":
+    def copy(self, memo) -> MVListPagesMixin:
         r = super().copy(memo)
         r.skip_missing_values_during_merging = self.skip_missing_values_during_merging
         return r

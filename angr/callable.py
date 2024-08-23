@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pycparser
 
 from .calling_conventions import default_cc, SimCC

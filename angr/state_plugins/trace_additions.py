@@ -12,6 +12,8 @@ This can happen in challenge response if all of the values in the flag page are 
 before being printed.
 """
 
+from __future__ import annotations
+
 import logging
 import string
 

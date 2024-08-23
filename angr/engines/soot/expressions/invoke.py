@@ -1,3 +1,4 @@
+from __future__ import annotations
 from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
 from . import translate_expr

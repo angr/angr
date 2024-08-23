@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from itertools import count
 from typing import Optional, TYPE_CHECKING
@@ -78,7 +79,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: "RegionedMemoryMixin" = super().copy(memo)
+        o: RegionedMemoryMixin = super().copy(memo)
         o._write_targets_limit = self._write_targets_limit
         o._read_targets_limit = self._read_targets_limit
         o._stack_size = self._stack_size
@@ -155,7 +156,7 @@ class RegionedMemoryMixin(MemoryMixin):
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
-    def merge(self, others: Iterable["RegionedMemoryMixin"], merge_conditions, common_ancestor=None) -> bool:
+    def merge(self, others: Iterable[RegionedMemoryMixin], merge_conditions, common_ancestor=None) -> bool:
         r = False
         for o in others:
             for region_id, region in o._regions.items():
@@ -248,7 +249,7 @@ class RegionedMemoryMixin(MemoryMixin):
     def _create_region(
         self,
         key: str,
-        state: "SimState",
+        state: SimState,
         related_function_addr: int,
         endness,
         cle_memory_backer: Optional = None,
@@ -349,7 +350,7 @@ class RegionedMemoryMixin(MemoryMixin):
         original_addr: claripy.ast.Bits,
         is_write: bool = False,
         target_region: str | None = None,
-    ) -> Generator[AddressWrapper, None, None]:
+    ) -> Generator[AddressWrapper]:
         raise NotImplementedError()
 
     def _normalize_address(self, addr: claripy.ast.Bits, condition=None) -> AbstractAddressDescriptor:
@@ -432,7 +433,7 @@ class RegionedMemoryMixin(MemoryMixin):
         return addr
 
     @staticmethod
-    def _normalize_address_type(addr: int | Bits, bits) -> Generator[tuple[str, StridedInterval], None, None]:
+    def _normalize_address_type(addr: int | Bits, bits) -> Generator[tuple[str, StridedInterval]]:
         """
         Convert address of different types to a list of mapping between region IDs and offsets (strided intervals).
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -25,7 +26,7 @@ class SimEnginePropagatorVEX(
     SimEngineLightVEXMixin,
     SimEnginePropagatorBase,
 ):
-    state: "PropagatorVEXState"
+    state: PropagatorVEXState
 
     #
     # Private methods

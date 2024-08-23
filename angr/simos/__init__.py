@@ -2,6 +2,8 @@
 Manage OS-level configuration.
 """
 
+from __future__ import annotations
+
 from collections import defaultdict
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 

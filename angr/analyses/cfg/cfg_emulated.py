@@ -1,3 +1,4 @@
+from __future__ import annotations
 import itertools
 import logging
 import sys
@@ -350,7 +351,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     # Public methods
     #
 
-    def copy(self) -> "CFGEmulated":
+    def copy(self) -> CFGEmulated:
         """
         Make a copy of the CFG.
 
@@ -1248,7 +1249,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             the_jobs = []
             if block_id in self._pending_jobs:
-                the_jobs: "PendingJob" = self._pending_jobs.pop(block_id)
+                the_jobs: PendingJob = self._pending_jobs.pop(block_id)
                 for the_job in the_jobs:
                     self._deregister_analysis_job(the_job.caller_func_addr, the_job)
             else:

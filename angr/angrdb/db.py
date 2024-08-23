@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import time
 from contextlib import contextmanager
@@ -145,7 +146,7 @@ class AngrDB:
 
         return version == self.VERSION
 
-    def dump(self, db_path, kbs: list["KnowledgeBase"] | None = None, extra_info: dict[str, Any] | None = None):
+    def dump(self, db_path, kbs: list[KnowledgeBase] | None = None, extra_info: dict[str, Any] | None = None):
         db_str = "sqlite:///%s" % db_path
 
         with self.open_db(db_str) as Session:
@@ -167,7 +168,7 @@ class AngrDB:
         self,
         db_path: str,
         kb_names: list[str] | None = None,
-        other_kbs: dict[str, "KnowledgeBase"] | None = None,
+        other_kbs: dict[str, KnowledgeBase] | None = None,
         extra_info: dict[str, Any] | None = None,
     ):
         db_str = "sqlite:///%s" % db_path

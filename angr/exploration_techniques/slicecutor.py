@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..errors import AngrExitError
 from . import ExplorationTechnique
 

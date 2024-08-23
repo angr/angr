@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument,arguments-differ
+from __future__ import annotations
 
 import ailment
 

@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any, DefaultDict, Optional
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any, DefaultDict
 from collections.abc import Callable, Generator
 import logging
 from collections import defaultdict
@@ -66,7 +67,7 @@ class VFGJob(CFGJobBase):
     def block_id(self) -> BlockID | None:
         return self._block_id
 
-    def callstack_repr(self, kb: "KnowledgeBase"):
+    def callstack_repr(self, kb: KnowledgeBase):
         s = []
         for i in range(0, len(self.call_stack_suffix), 2):
             call_site, func_addr = (
@@ -226,7 +227,7 @@ class VFGNode:
     A descriptor of nodes in a Value-Flow Graph
     """
 
-    def __init__(self, addr: int, key: BlockID, state: Optional["SimState"] = None) -> None:
+    def __init__(self, addr: int, key: BlockID, state: SimState | None = None) -> None:
         """
         Constructor.
 
@@ -313,15 +314,15 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         start: int | None = None,
         function_start: int | None = None,
         interfunction_level: int = 0,
-        initial_state: Optional["SimState"] = None,
+        initial_state: SimState | None = None,
         avoid_runs: list[int] | None = None,
         remove_options: set[str] | None = None,
         timeout: int | None = None,
         max_iterations_before_widening: int = 8,
         max_iterations: int = 40,
         widening_interval: int = 3,
-        final_state_callback: Callable[["SimState", CallStack], Any] | None = None,
-        status_callback: Callable[["VFG"], Any] | None = None,
+        final_state_callback: Callable[[SimState, CallStack], Any] | None = None,
+        status_callback: Callable[[VFG], Any] | None = None,
         record_function_final_states: bool = False,
     ) -> None:
         """
@@ -475,7 +476,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 return n
         return None
 
-    def get_all_nodes(self, addr) -> Generator[VFGNode, None, None]:
+    def get_all_nodes(self, addr) -> Generator[VFGNode]:
         for n in self.graph.nodes():
             if n.addr == addr:
                 yield n
@@ -744,7 +745,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         # Obtain successors
         if addr not in self._avoid_runs:
             assert job.sim_successors is not None
-            all_successors: list["SimState"] = (
+            all_successors: list[SimState] = (
                 job.sim_successors.flat_successors + job.sim_successors.unconstrained_successors
             )
         else:
@@ -1290,7 +1291,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         return state
 
-    def _set_return_address(self, state: "SimState", ret_addr: int) -> None:
+    def _set_return_address(self, state: SimState, ret_addr: int) -> None:
         """
         Set the return address of the current state to a specific address. We assume we are at the beginning of a
         function, or in other words, we are about to execute the very first instruction of the function.
@@ -1474,7 +1475,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         return sim_successors, error_occured, restart_analysis
 
     def _create_new_jobs(
-        self, job: VFGJob, successor: "SimState", new_block_id: BlockID, new_call_stack: CallStack
+        self, job: VFGJob, successor: SimState, new_block_id: BlockID, new_call_stack: CallStack
     ) -> list[VFGJob | Any]:
         """
         Create a list of new VFG jobs for the successor state.

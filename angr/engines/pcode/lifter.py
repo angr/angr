@@ -4,6 +4,7 @@
 #       to reduce duplication with Vex
 #     - Fix default_exit_target
 #     - Fix/remove NotImplementedError's
+from __future__ import annotations
 
 import logging
 from typing import Optional
@@ -129,7 +130,7 @@ class IRSB:
     _direct_next: bool | None
     _exit_statements: Sequence[tuple[int, int, ExitStatement]]
     _instruction_addresses: Sequence[int] | None
-    _ops: Sequence["pypcode.PcodeOp"]  # FIXME: Merge into _statements
+    _ops: Sequence[pypcode.PcodeOp]  # FIXME: Merge into _statements
     _size: int | None
     _statements: Iterable  # Note: currently unused
     _disassembly: PcodeDisassemblerBlock | None
@@ -237,7 +238,7 @@ class IRSB:
         jumpkind: str | None = None,
         direct_next: bool | None = None,
         size: int | None = None,
-    ) -> "IRSB":
+    ) -> IRSB:
         block = IRSB(None, addr, arch)
         block._set_attributes(statements, nxt, tyenv, jumpkind, direct_next, size=size)
         return block
@@ -250,7 +251,7 @@ class IRSB:
     def exit_statements(self) -> Sequence[tuple[int, int, ExitStatement]]:
         return self._exit_statements
 
-    def copy(self) -> "IRSB":
+    def copy(self) -> IRSB:
         """
         Copy by creating an empty IRSB and then filling in the leftover
         attributes. Copy is made as deep as possible
@@ -269,7 +270,7 @@ class IRSB:
 
         return new
 
-    def extend(self, extendwith: "IRSB") -> "IRSB":
+    def extend(self, extendwith: IRSB) -> IRSB:
         """
         Appends an irsb to the current irsb. The irsb that is appended is invalidated.
         The appended irsb's jumpkind and default exit are used.
@@ -456,14 +457,14 @@ class IRSB:
         return self.default_exit_target is not None
 
     def _set_attributes(
-        self: "IRSB",
+        self: IRSB,
         statements: Iterable = None,
         nxt: int | None = None,
         tyenv=None,  # Unused, kept for compatibility
         jumpkind: str | None = None,
         direct_next: bool | None = None,
         size: int | None = None,
-        ops: Sequence["pypcode.PcodeOp"] | None = None,
+        ops: Sequence[pypcode.PcodeOp] | None = None,
         instruction_addresses: Iterable[int] | None = None,
         exit_statements: Sequence[tuple[int, int, ExitStatement]] = None,
         default_exit_target: Optional = None,
@@ -479,7 +480,7 @@ class IRSB:
         self._exit_statements = exit_statements or []
         self.default_exit_target = default_exit_target
 
-    def _from_py(self, irsb: "IRSB") -> None:
+    def _from_py(self, irsb: IRSB) -> None:
         self._set_attributes(
             irsb.statements,
             irsb.next,
@@ -814,7 +815,7 @@ class PcodeBasicBlockLifter:
     Lifts basic blocks to P-code
     """
 
-    context: "pypcode.Context"
+    context: pypcode.Context
     behaviors: BehaviorFactory
 
     def __init__(self, arch: archinfo.Arch):

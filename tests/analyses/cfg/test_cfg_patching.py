@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import os
@@ -31,13 +33,13 @@ def apply_patches(proj: angr.Project, patches: list[tuple[int, str]]):
         proj.kb.patches.add_patch(addr, patch_bytes)
 
 
-def assert_models_equal(model_a: "CFGModel", model_b: "CFGModel"):
+def assert_models_equal(model_a: CFGModel, model_b: CFGModel):
     assert model_a.graph.nodes() == model_b.graph.nodes()
     assert model_a.graph.edges() == model_b.graph.edges()
     # FIXME: Check more
 
 
-def assert_function_graphs_equal(function_a: "Function", function_b: "Function"):
+def assert_function_graphs_equal(function_a: Function, function_b: Function):
     nodes_a = function_a.graph.nodes()
     nodes_b = function_b.graph.nodes()
     if nodes_a != nodes_b:
@@ -46,7 +48,7 @@ def assert_function_graphs_equal(function_a: "Function", function_b: "Function")
     # FIXME: Check more
 
 
-def assert_all_function_equal(functions_a: "FunctionManager", functions_b: "FunctionManager"):
+def assert_all_function_equal(functions_a: FunctionManager, functions_b: FunctionManager):
     for f in functions_b:
         assert f in functions_a, f"Extra function: {functions_b[f]}"
     for f in functions_a:

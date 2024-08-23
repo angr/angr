@@ -1,3 +1,4 @@
+from __future__ import annotations
 import xml.etree.ElementTree
 import glob
 import os

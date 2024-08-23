@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.utils.graph import GraphUtils
 from .graph import GraphVisitor
 

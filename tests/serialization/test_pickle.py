@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
 from contextlib import suppress

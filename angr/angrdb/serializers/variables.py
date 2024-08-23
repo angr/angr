@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...knowledge_plugins import VariableManager
@@ -15,7 +16,7 @@ class VariableManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb: "DbKnowledgeBase", var_manager: VariableManager):
+    def dump(session, db_kb: DbKnowledgeBase, var_manager: VariableManager):
         # Remove all existing variable collections
         session.query(DbVariableCollection).filter_by(kb=db_kb).delete()
 
@@ -27,7 +28,7 @@ class VariableManagerSerializer:
 
     @staticmethod
     def dump_internal(
-        session, db_kb: "DbKnowledgeBase", internal_manager: VariableManagerInternal, func_addr: int, ident=None
+        session, db_kb: DbKnowledgeBase, internal_manager: VariableManagerInternal, func_addr: int, ident=None
     ):
         blob = internal_manager.serialize()
 
@@ -35,7 +36,7 @@ class VariableManagerSerializer:
         session.add(db_varcoll)
 
     @staticmethod
-    def load(session, db_kb: "DbKnowledgeBase", kb: "KnowledgeBase", ident=None):
+    def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase, ident=None):
         variable_manager = VariableManager(kb)
 
         db_varcolls = session.query(DbVariableCollection).filter_by(kb=db_kb, ident=ident)

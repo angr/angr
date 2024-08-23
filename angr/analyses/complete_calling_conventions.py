@@ -1,5 +1,6 @@
 # pylint:disable=import-outside-toplevel
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from collections.abc import Callable, Iterable
 import queue
 import threading
@@ -51,7 +52,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         prioritize_func_addrs: Iterable[int] | None = None,
         skip_other_funcs: bool = False,
         auto_start: bool = True,
-        func_graphs: dict[int, "networkx.DiGraph"] | None = None,
+        func_graphs: dict[int, networkx.DiGraph] | None = None,
     ):
         """
 
@@ -161,7 +162,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._prioritize_func_addrs = None  # no longer useful
 
     def _set_function_prototype(
-        self, func: "Function", prototype: Optional["SimTypeFunction"], prototype_libname: str | None
+        self, func: Function, prototype: SimTypeFunction | None, prototype_libname: str | None
     ) -> None:
         if func.prototype is None or func.is_prototype_guessed or self._force:
             func.is_prototype_guessed = True
@@ -295,7 +296,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 continue
 
             if callee_info is not None:
-                callee_info: dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]
+                callee_info: dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None]]
                 for callee, (callee_cc, callee_proto, callee_proto_libname) in callee_info.items():
                     callee_func = self.kb.functions.get_by_addr(callee)
                     callee_func.calling_convention = callee_cc
@@ -316,7 +317,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def _analyze_core(
         self, func_addr: int
-    ) -> tuple[Optional["SimCC"], Optional["SimTypeFunction"], Optional["str"], Optional["VariableManagerInternal"]]:
+    ) -> tuple[SimCC | None, SimTypeFunction | None, str | None, VariableManagerInternal | None]:
         func = self.kb.functions.get_by_addr(func_addr)
         if func.ran_cca:
             return (
@@ -385,7 +386,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def _get_callees_cc_prototypes(
         self, caller_func_addr: int
-    ) -> dict[int, tuple[Optional["SimCC"], Optional["SimTypeFunction"], str | None]]:
+    ) -> dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None]]:
         d = {}
         for callee in self.kb.functions.callgraph.successors(caller_func_addr):
             if callee != caller_func_addr and callee not in d:

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from archinfo.arch_arm import is_arm_arch
 import cle
 

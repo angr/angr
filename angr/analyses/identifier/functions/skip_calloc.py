@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..func import Func, TestData
 from ....errors import SimMemoryError
 

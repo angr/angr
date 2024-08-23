@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .stdlib import LibcStdlibHandlers, EnvironAtom, SystemAtom, ExecveAtom
 from .stdio import LibcStdioHandlers, StdoutAtom, StdinAtom
 from .unistd import LibcUnistdHandlers

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import networkx
@@ -64,7 +65,7 @@ class DFAConstraintSolver:
 
     def generate_constraints_between(self, graph: networkx.DiGraph, starts: set, ends: set) -> set:
         epsilon_nfa = self.graph_to_epsilon_nfa(graph, starts, ends)
-        min_dfa: "DeterministicFiniteAutomaton" = epsilon_nfa.minimize()
+        min_dfa: DeterministicFiniteAutomaton = epsilon_nfa.minimize()
         dfa_graph: networkx.MultiDiGraph = min_dfa.to_networkx()
 
         constraints = set()

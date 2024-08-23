@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 def translate_value(value, state):
     value_name = value.__class__.__name__
     if value_name.startswith("Soot"):

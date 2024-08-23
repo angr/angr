@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Optional, Union, DefaultDict, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import DefaultDict, Any, TYPE_CHECKING
 from collections import defaultdict
 import weakref
 
@@ -81,13 +82,13 @@ class PropagatorState:
 
     def __init__(
         self,
-        arch: "Arch",
-        project: Optional["Project"] = None,
+        arch: Arch,
+        project: Project | None = None,
         rda=None,
         replacements: DefaultDict[CodeLocation, dict] | None = None,
         only_consts: bool = False,
         expr_used_locs: DefaultDict[Any, set[CodeLocation]] | None = None,
-        equivalence: set["Equivalence"] | None = None,
+        equivalence: set[Equivalence] | None = None,
         store_tops: bool = True,
         gp: int | None = None,
         max_prop_expr_occurrence: int = 1,
@@ -148,8 +149,8 @@ class PropagatorState:
 
     @staticmethod
     def _mo_cmp(
-        mo_self: Union["SimMemoryObject", "SimLabeledMemoryObject"],
-        mo_other: Union["SimMemoryObject", "SimLabeledMemoryObject"],
+        mo_self: SimMemoryObject | SimLabeledMemoryObject,
+        mo_other: SimMemoryObject | SimLabeledMemoryObject,
         addr: int,
         size: int,
     ):  # pylint:disable=unused-argument
@@ -242,7 +243,7 @@ class PropagatorState:
                             merge_occurred = True
         return merge_occurred
 
-    def copy(self) -> "PropagatorState":
+    def copy(self) -> PropagatorState:
         raise NotImplementedError()
 
     def merge(self, *others):
@@ -476,7 +477,7 @@ class PropagatorVEXState(PropagatorState):
             )
         return state
 
-    def copy(self) -> "PropagatorVEXState":
+    def copy(self) -> PropagatorVEXState:
         cp = PropagatorVEXState(
             self.arch,
             project=self.project,
@@ -497,7 +498,7 @@ class PropagatorVEXState(PropagatorState):
 
         return cp
 
-    def merge(self, *others: "PropagatorVEXState") -> tuple["PropagatorVEXState", bool]:
+    def merge(self, *others: PropagatorVEXState) -> tuple[PropagatorVEXState, bool]:
         state = self.copy()
         merge_occurred = state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
@@ -748,7 +749,7 @@ class PropagatorAILState(PropagatorState):
 
         return state
 
-    def copy(self) -> "PropagatorAILState":
+    def copy(self) -> PropagatorAILState:
         rd = PropagatorAILState(
             self.arch,
             project=self.project,
@@ -791,9 +792,9 @@ class PropagatorAILState(PropagatorState):
             return True
         return False
 
-    def merge(self, *others) -> tuple["PropagatorAILState", bool]:
+    def merge(self, *others) -> tuple[PropagatorAILState, bool]:
         state, merge_occurred = super().merge(*others)
-        state: "PropagatorAILState"
+        state: PropagatorAILState
 
         merge_occurred |= state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)

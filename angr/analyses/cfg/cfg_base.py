@@ -1,5 +1,6 @@
 # pylint:disable=line-too-long,multiple-statements
-from typing import Optional, TYPE_CHECKING, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any
 import logging
 from collections import defaultdict
 
@@ -412,7 +413,7 @@ class CFGBase(Analysis):
         return self._model.get_exit_stmt_idx(src_block, dst_block)
 
     @property
-    def graph(self) -> "networkx.DiGraph[CFGNode]":
+    def graph(self) -> networkx.DiGraph[CFGNode]:
         raise NotImplementedError()
 
     def remove_edge(self, block_from, block_to):
@@ -655,7 +656,7 @@ class CFGBase(Analysis):
         except StopIteration:
             return None
 
-    def _is_region_extremely_sparse(self, start: int, end: int, base_state: Optional["SimState"] = None) -> bool:
+    def _is_region_extremely_sparse(self, start: int, end: int, base_state: SimState | None = None) -> bool:
         """
         Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
 
@@ -1302,7 +1303,7 @@ class CFGBase(Analysis):
 
     def _normalize_core(
         self,
-        graph: "networkx.DiGraph[CFGNode]",
+        graph: networkx.DiGraph[CFGNode],
         callstack_key,
         smallest_node,
         other_nodes,
@@ -2161,7 +2162,7 @@ class CFGBase(Analysis):
 
     def _is_tail_call_optimization(
         self,
-        g: "networkx.DiGraph[CFGNode]",
+        g: networkx.DiGraph[CFGNode],
         src_addr,
         dst_addr,
         src_function,

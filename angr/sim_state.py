@@ -1,3 +1,4 @@
+from __future__ import annotations
 import functools
 import itertools
 import contextlib
@@ -63,17 +64,17 @@ class SimState(PluginHub):
     """
 
     # Type Annotations for default plugins to allow type inference
-    solver: "SimSolver"
-    posix: "SimSystemPosix"
-    registers: "DefaultMemory"
-    regs: "SimRegNameView"
-    memory: "DefaultMemory"
-    callstack: "CallStack"
-    mem: "SimMemView"
-    history: "SimStateHistory"
-    inspect: "SimInspector"
-    jni_references: "SimStateJNIReferences"
-    scratch: "SimStateScratch"
+    solver: SimSolver
+    posix: SimSystemPosix
+    registers: DefaultMemory
+    regs: SimRegNameView
+    memory: DefaultMemory
+    callstack: CallStack
+    mem: SimMemView
+    history: SimStateHistory
+    inspect: SimInspector
+    jni_references: SimStateJNIReferences
+    scratch: SimStateScratch
 
     def __init__(
         self,

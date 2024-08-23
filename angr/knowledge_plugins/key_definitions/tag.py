@@ -9,6 +9,8 @@ Classes to structure the different types of <Tag>s that can be attached to <Defi
     - InitialValueTag
 """
 
+from __future__ import annotations
+
 
 class Tag:
     """

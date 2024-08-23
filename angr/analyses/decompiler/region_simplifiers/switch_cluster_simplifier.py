@@ -1,4 +1,5 @@
 # pylint:disable=no-self-use,arguments-renamed
+from __future__ import annotations
 import enum
 from typing import DefaultDict, Any
 from collections import OrderedDict, defaultdict

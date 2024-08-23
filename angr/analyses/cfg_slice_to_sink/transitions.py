@@ -3,6 +3,8 @@ Some utilitary functions to manage our representation of transitions:
     A dictionary, indexed by int (source addresses), which values are list of ints (target addresses).
 """
 
+from __future__ import annotations
+
 
 def merge_transitions(transitions, existing_transitions):
     """

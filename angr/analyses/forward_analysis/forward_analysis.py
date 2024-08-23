@@ -1,5 +1,6 @@
+from __future__ import annotations
 from collections import defaultdict
-from typing import Any, Optional, Generic, TypeVar, TYPE_CHECKING
+from typing import Any, Generic, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
 import networkx
@@ -42,8 +43,8 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         order_jobs=False,
         allow_merging=False,
         allow_widening=False,
-        status_callback: Callable[[type["ForwardAnalysis"]], Any] | None = None,
-        graph_visitor: "Optional[GraphVisitor[NodeType]]" = None,
+        status_callback: Callable[[type[ForwardAnalysis]], Any] | None = None,
+        graph_visitor: GraphVisitor[NodeType] | None = None,
     ):
         """
         Constructor
