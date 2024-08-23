@@ -11,7 +11,7 @@ class RemoveEmptyIfBody(PeepholeOptimizationStmtBase):
     NAME = "Remove empty If bodies"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
         cond = stmt.condition
 
         # if (!cond) {} else { ITE(cond, true_branch, false_branch } ==> if (cond) { ITE(...) } else {}

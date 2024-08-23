@@ -314,7 +314,7 @@ class ConstraintGraphNode:
 
     def recall(self, label: BaseLabel) -> ConstraintGraphNode:
         if isinstance(self.typevar, DerivedTypeVariable):
-            labels = self.typevar.labels + (label,)
+            labels = (*self.typevar.labels, label)
             typevar = self.typevar.type_var
         elif isinstance(self.typevar, (TypeVariable, TypeConstant)):
             labels = (label,)
@@ -1225,7 +1225,7 @@ class SimpleSolver:
                     continue
                 if isinstance(label, IsArray):
                     continue
-                new_labels = curr_labels + [label]
+                new_labels = [*curr_labels, label]
                 succ: SketchNode
                 if isinstance(succ.typevar, DerivedTypeVariable) and isinstance(succ.typevar.labels[-1], (Load, Store)):
                     queue.append((new_labels, succ))

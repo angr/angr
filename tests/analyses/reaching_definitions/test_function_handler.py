@@ -72,7 +72,7 @@ class CustomFunctionHandler(FunctionHandler):
 
         src_value = state.get_values(src_atom).one_value().concrete_value
         self.malloc_sizes.append(src_value)
-        data.depends(list(data.ret_atoms)[0], value=MultiValues(claripy.BVV(0x12345678, 64)))
+        data.depends(next(iter(data.ret_atoms)), value=MultiValues(claripy.BVV(0x12345678, 64)))
 
     def handle_impl___isoc99_sscanf(self, state: ReachingDefinitionsState, data: FunctionCallData):
         (str_atom,), (fmtstr_atom,), (out_atom,) = data.args_atoms[:3]

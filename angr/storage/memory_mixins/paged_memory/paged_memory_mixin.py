@@ -110,7 +110,7 @@ class PagedMemoryMixin(MemoryMixin):
     def _divide_addr(self, addr: int) -> tuple[int, int]:
         return divmod(addr, self.page_size)
 
-    def load(self, addr: int, size: int = None, endness=None, **kwargs):
+    def load(self, addr: int, size: int | None = None, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
 
@@ -164,7 +164,7 @@ class PagedMemoryMixin(MemoryMixin):
         l.debug("%s.load(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
         return out
 
-    def store(self, addr: int, data, size: int = None, endness=None, **kwargs):
+    def store(self, addr: int, data, size: int | None = None, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
 
@@ -648,7 +648,7 @@ class PagedMemoryMixin(MemoryMixin):
 
 class LabeledPagesMixin(PagedMemoryMixin):
     def load_with_labels(
-        self, addr: int, size: int = None, endness=None, **kwargs
+        self, addr: int, size: int | None = None, endness=None, **kwargs
     ) -> tuple[claripy.ast.Base, tuple[tuple[int, int, int, Any]]]:
         if endness is None:
             endness = self.endness

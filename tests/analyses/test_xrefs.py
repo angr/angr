@@ -34,13 +34,13 @@ class TestXrefs(unittest.TestCase):
         assert next(iter(timenow_cp_xrefs)) == XRef(ins_addr=0x23C9, dst=0x23D4, xref_type=XRefType.Read)
 
         assert len(timenow_xrefs) == 3
-        assert [x for x in timenow_xrefs if x.type == XRefType.Offset][0] == XRef(
+        assert next(x for x in timenow_xrefs if x.type == XRefType.Offset) == XRef(
             ins_addr=0x23C9, dst=0x1FFF36F4, xref_type=XRefType.Offset
         )
-        assert [x for x in timenow_xrefs if x.type == XRefType.Read][0] == XRef(
+        assert next(x for x in timenow_xrefs if x.type == XRefType.Read) == XRef(
             ins_addr=0x23CB, dst=0x1FFF36F4, xref_type=XRefType.Read
         )
-        assert [x for x in timenow_xrefs if x.type == XRefType.Write][0] == XRef(
+        assert next(x for x in timenow_xrefs if x.type == XRefType.Write) == XRef(
             ins_addr=0x23CF, dst=0x1FFF36F4, xref_type=XRefType.Write
         )
 

@@ -272,10 +272,10 @@ class SimSolver(SimStatePlugin):
             self.eternal_tracked_variables[key] = v
         else:
             self.temporal_tracked_variables = dict(self.temporal_tracked_variables)
-            ctrkey = key + (None,)
+            ctrkey = (*key, None)
             ctrval = self.temporal_tracked_variables.get(ctrkey, 0) + 1
             self.temporal_tracked_variables[ctrkey] = ctrval
-            tempkey = key + (ctrval,)
+            tempkey = (*key, ctrval)
             self.temporal_tracked_variables[tempkey] = v
 
     def describe_variables(self, v):

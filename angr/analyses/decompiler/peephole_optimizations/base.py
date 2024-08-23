@@ -29,7 +29,7 @@ class PeepholeOptimizationStmtBase:
         self.kb = kb
         self.func_addr = func_addr
 
-    def optimize(self, stmt, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt, stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
 
 

@@ -156,7 +156,7 @@ class SimActionConstraint(SimAction):
         c.condition = self._copy_object(self.condition)
 
     def _desc(self):
-        s = f"{str(self.constraint)}"
+        s = f"{self.constraint!s}"
         if self.condition is not None:
             s += " (cond)"
         return s

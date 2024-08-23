@@ -51,7 +51,7 @@ class strlen(angr.SimProcedure):
                     char_size=char_size,
                 )
 
-                self.max_null_index = max([self.max_null_index] + i)
+                self.max_null_index = max([self.max_null_index, *i])
 
                 # Convert r to the same region as s
                 r_desc = self.state.memory._normalize_address(r)

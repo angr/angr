@@ -18,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 
 class Checker:
     def __init__(
-        self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False, delimiter: str = None
+        self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False, delimiter: str | None = None
     ):
         self._check_func = check_func
         self._length = length

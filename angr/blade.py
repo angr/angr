@@ -152,7 +152,7 @@ class Blade:
             elif isinstance(block.next, pyvex.IRExpr.RdTmp):
                 block_str += "Next: t%d\n" % block.next.tmp
             else:
-                block_str += f"Next: {str(block.next)}\n"
+                block_str += f"Next: {block.next!s}\n"
 
             s += block_str
             s += "\n"
@@ -226,7 +226,7 @@ class Blade:
 
     def _inslice_callback(self, stmt_idx, stmt, infodict):  # pylint:disable=unused-argument
         tpl = (infodict["irsb_addr"], stmt_idx)
-        if "prev" in infodict and infodict["prev"]:
+        if infodict.get("prev"):
             prev = infodict["prev"]
             self._slice.add_edge(tpl, prev)
         else:

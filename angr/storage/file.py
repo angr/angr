@@ -266,7 +266,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         data = self.load(0, size)
 
         kwargs["cast_to"] = kwargs.get("cast_to", bytes)
-        kwargs["extra_constraints"] = tuple(kwargs.get("extra_constraints", ())) + (self._size == size,)
+        kwargs["extra_constraints"] = (*tuple(kwargs.get("extra_constraints", ())), self._size == size)
         return self.state.solver.eval(data, **kwargs)
 
     def read(self, pos, size, **kwargs):
@@ -570,7 +570,7 @@ class SimPackets(SimFileBase):
         )
         packet = (data, size)
         self.content.append(packet)
-        return packet + (pos + 1,)
+        return (*packet, pos + 1)
 
     def write(self, pos, data, size=None, events=True, **kwargs):
         """

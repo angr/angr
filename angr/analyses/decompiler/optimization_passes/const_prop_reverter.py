@@ -227,7 +227,7 @@ class ConstPropOptReverter(OptimizationPass):
                 if len(state_vals) != 1:
                     continue
 
-                state_val = list(state_vals[0])[0]
+                state_val = next(iter(state_vals[0]))
                 if hasattr(state_val, "concrete") and state_val.concrete:
                     const_value = claripy.Solver().eval(state_val, 1)[0]
                 else:
@@ -263,7 +263,7 @@ class ConstPropOptReverter(OptimizationPass):
         if len(conflicts) != 1:
             return
 
-        _, ret_exprs = list(conflicts.items())[0]
+        _, ret_exprs = next(iter(conflicts.items()))
         expr_to_blk = {ret_exprs[0]: blk0, ret_exprs[1]: blk1}
         # find the expression that is symbolic
         symb_expr, const_expr = None, None

@@ -1398,7 +1398,7 @@ class CFGBase(Analysis):
                     graph.add_edge(p, new_node, **data)
 
             # We should find the correct successor
-            new_successors = [i for i in [smallest_node] + other_nodes if i.addr == smallest_node.addr]
+            new_successors = [i for i in [smallest_node, *other_nodes] if i.addr == smallest_node.addr]
             if new_successors:
                 new_successor = new_successors[0]
                 graph.add_edge(

@@ -428,8 +428,8 @@ class RegionIdentifier(Analysis):
             head = next(iter(n for n in subgraph.nodes() if n.addr == head.addr))
             region.head = head
 
-        if len(graph.nodes()) == 1 and isinstance(list(graph.nodes())[0], GraphRegion):
-            return list(graph.nodes())[0]
+        if len(graph.nodes()) == 1 and isinstance(next(iter(graph.nodes())), GraphRegion):
+            return next(iter(graph.nodes()))
         # create a large graph region
         new_head = self._get_start_node(graph)
         region = GraphRegion(new_head, graph, None, None, False, None)

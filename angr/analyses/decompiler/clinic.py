@@ -296,7 +296,7 @@ class Clinic(Analysis):
             callee,
             mode=ClinicMode.DECOMPILE,
             inline_functions=self._inline_functions,
-            inlining_parents=self._inlining_parents + (self.function.addr,),
+            inlining_parents=(*self._inlining_parents, self.function.addr),
             inlined_counts=self._inlined_counts,
             optimization_passes=[StackCanarySimplifier, SpilledRegisterFinder],
             sp_shift=self._max_stack_depth,

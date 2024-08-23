@@ -855,7 +855,7 @@ class SimState(PluginHub):
         strings = []
         for stack_value in stack_values:
             if self.solver.symbolic(stack_value):
-                concretized_value = f"SYMBOLIC - {repr(stack_value)}"
+                concretized_value = f"SYMBOLIC - {stack_value!r}"
             else:
                 if len(self.solver.eval_upto(stack_value, 2)) == 2:
                     concretized_value = repr(stack_value)

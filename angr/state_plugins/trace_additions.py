@@ -255,7 +255,7 @@ def end_info_hook(state):
     state.solver._solver.add_replacement(new_var, result, invalidate_cache=False)
     # dont add this constraint to preconstraints or we lose real constraints
     # chall_resp_plugin.tracer.preconstraints.append(constraint)
-    chall_resp_plugin.state.preconstrainer.variable_map[list(new_var.variables)[0]] = constraint
+    chall_resp_plugin.state.preconstrainer.variable_map[next(iter(new_var.variables))] = constraint
     chall_resp_plugin.pop_from_backup()
 
 
@@ -458,7 +458,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
     def get_same_length_constraints(self):
         constraints = []
         for str_var, int_var in self.str_to_int_pairs:
-            int_var_name = list(int_var.variables)[0]
+            int_var_name = next(iter(int_var.variables))
             base = int(int_var_name.split("_")[1], 10)
             original_len = str_var.size() // 8
             abs_max = (1 << int_var.size()) - 1
@@ -508,7 +508,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
 
             stdin_replacements = []
             for soln, (_, int_var) in zip(solns[1:], chall_resp_plugin.str_to_int_pairs):
-                int_var_name = list(int_var.variables)[0]
+                int_var_name = next(iter(int_var.variables))
                 indices = chall_resp_plugin.get_stdin_indices(int_var_name)
                 if len(indices) == 0:
                     continue
@@ -591,17 +591,17 @@ def zen_hook(state, expr):
                     con = replacement == expr
                     state.add_constraints(con)
                     contained_bytes = zen_plugin.get_flag_bytes(expr)
-                    zen_plugin.byte_dict[list(replacement.variables)[0]] = contained_bytes
+                    zen_plugin.byte_dict[next(iter(replacement.variables))] = contained_bytes
                     zen_plugin.zen_constraints.append(con)
                     # saves a ton of memory to do this here rather than later
                     zen_plugin.zen_constraints.append(state.solver.simplify(con))
                 else:
                     # otherwise don't add the constraint, just replace
                     depth = 0
-                    zen_plugin.byte_dict[list(replacement.variables)[0]] = set()
+                    zen_plugin.byte_dict[next(iter(replacement.variables))] = set()
 
                 # save and replace
-                var = list(replacement.variables)[0]
+                var = next(iter(replacement.variables))
                 zen_plugin.depths[var] = depth
                 constraint = replacement == concrete_val
                 zen_plugin.state.preconstrainer.preconstraints.append(constraint)
@@ -737,7 +737,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         # setup the byte dict
         byte_dict = zen_plugin.byte_dict
         for i, b in enumerate(state.cgc.flag_bytes):
-            var = list(b.variables)[0]
+            var = next(iter(b.variables))
             byte_dict[var] = {i}
 
         state.preconstrainer.preconstraints.extend(zen_plugin.preconstraints)

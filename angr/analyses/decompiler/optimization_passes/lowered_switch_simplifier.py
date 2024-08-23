@@ -61,7 +61,7 @@ class Case:
         if self.value == "default":
             return f"Case default@{self.target:#x}{'' if self.target_idx is None else '.' + str(self.target_idx)}"
         return (
-            f"Case {repr(self.original_node)}@{self.target:#x}"
+            f"Case {self.original_node!r}@{self.target:#x}"
             f"{'' if self.target_idx is None else '.' + str(self.target_idx)}: {self.expr} == {self.value}"
         )
 
@@ -370,15 +370,15 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         for node in sorted_nodes:
             r = self._find_switch_variable_comparison_type_a(node)
             if r is not None:
-                variable_comparisons[node] = ("a",) + r
+                variable_comparisons[node] = ("a", *r)
                 continue
             r = self._find_switch_variable_comparison_type_b(node)
             if r is not None:
-                variable_comparisons[node] = ("b",) + r
+                variable_comparisons[node] = ("b", *r)
                 continue
             r = self._find_switch_variable_comparison_type_c(node)
             if r is not None:
-                variable_comparisons[node] = ("c",) + r
+                variable_comparisons[node] = ("c", *r)
                 continue
 
         varhash_to_caselists: defaultdict[int, list[tuple[list[Case], list]]] = defaultdict(list)

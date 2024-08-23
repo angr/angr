@@ -14,7 +14,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
     NAME = "(signed(expr)? expr + A ** 2 - 1: expr) >>s A => expr /s 2 ** A"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp, stmt_idx: int = None, block=None):
+    def optimize(self, expr: BinaryOp, stmt_idx: int | None = None, block=None):
         if expr.op == "Sar" and isinstance(expr.operands[1], Const):
             op0, const = expr.operands
 

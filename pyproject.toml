@@ -21,6 +21,7 @@ exclude = [
 [tool.ruff.lint]
 extend-select = [
 	"I002",
+	"RUF",
 	"SIM",
 	"UP",
 ]
@@ -28,6 +29,7 @@ extend-ignore = [
 	"E402", # Bottom imports
 	"E721", # Type comparisons
 	"E741", # Variable names
+	"RUF012", # FIXME: Annotate class variables
 ]
 
 [tool.ruff.lint.per-file-ignores]

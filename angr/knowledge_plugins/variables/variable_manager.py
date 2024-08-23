@@ -1189,7 +1189,7 @@ class VariableManager(KnowledgeBasePlugin):
             simv.name = v.name
             manager.add_variable(v.sort, v.addr, simv)
 
-    def load_from_dwarf(self, cu_list: list[CompilationUnit] = None):
+    def load_from_dwarf(self, cu_list: list[CompilationUnit] | None = None):
         cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
         if cu_list is None:
             l.warning("no CompilationUnit found")

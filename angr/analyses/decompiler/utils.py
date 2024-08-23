@@ -384,7 +384,7 @@ def add_labels(graph: networkx.DiGraph):
     for node in graph:
         lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
         node_copy = node.copy()
-        node_copy.statements = [lbl] + node_copy.statements
+        node_copy.statements = [lbl, *node_copy.statements]
         nodes_map[node] = node_copy
 
     new_graph.add_nodes_from(nodes_map.values())

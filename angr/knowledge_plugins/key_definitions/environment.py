@@ -15,7 +15,7 @@ class Environment:
 
     __slots__ = ("_environment",)
 
-    def __init__(self, environment: dict[str | Undefined, set[claripy.ast.Base]] = None):
+    def __init__(self, environment: dict[str | Undefined, set[claripy.ast.Base]] | None = None):
         self._environment: dict[str | Undefined, set[claripy.ast.Base]] = environment or {}
 
     def get(self, names: set[str]) -> tuple[set[claripy.ast.Base], bool]:

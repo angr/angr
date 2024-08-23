@@ -61,7 +61,7 @@ class ReachingDefinitionsAnalysis(
         max_iterations=30,
         track_tmps=False,
         track_consts=True,
-        observation_points: Iterable[ObservationPoint] = None,
+        observation_points: Iterable[ObservationPoint] | None = None,
         init_state: ReachingDefinitionsState = None,
         init_context=None,
         state_initializer: RDAStateInitializer | None = None,
@@ -256,7 +256,7 @@ class ReachingDefinitionsAnalysis(
         key = "insn", ins_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                f"Reaching definitions are not available at observation point {str(key)}. "
+                f"Reaching definitions are not available at observation point {key!s}. "
                 "Did you specify that observation point?"
             )
 
@@ -266,7 +266,7 @@ class ReachingDefinitionsAnalysis(
         key = "node", node_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                f"Reaching definitions are not available at observation point {str(key)}. "
+                f"Reaching definitions are not available at observation point {key!s}. "
                 "Did you specify that observation point?"
             )
 

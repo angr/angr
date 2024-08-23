@@ -1095,7 +1095,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert funcs.contains_addr(0x129C4)
         func = funcs[0x129C4]
         assert len(list(func.blocks)) == 1
-        assert list(func.blocks)[0].size == 16
+        assert next(iter(func.blocks)).size == 16
 
     def test_data_references_windows_driver_utf16_strings(self):
         path = os.path.join(

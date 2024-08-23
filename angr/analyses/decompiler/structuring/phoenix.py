@@ -1153,7 +1153,7 @@ class PhoenixStructurer(StructurerBase):
         # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
         node_pred = None
         if graph.in_degree[node] == 1:
-            node_pred = list(graph.predecessors(node))[0]
+            node_pred = next(iter(graph.predecessors(node)))
 
         case_nodes = list(graph.successors(node_a))
         case_node_successors = set()
@@ -1480,7 +1480,7 @@ class PhoenixStructurer(StructurerBase):
                     all_case_nodes = list(cases.values())
                     if node_default is not None:
                         all_case_nodes.append(node_default)
-                    case_node: SequenceNode = [nn for nn in all_case_nodes if nn.addr == out_src.addr][0]
+                    case_node: SequenceNode = next(nn for nn in all_case_nodes if nn.addr == out_src.addr)
                     case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
                     if not isinstance(case_node_last_stmt, Jump):
                         jump_stmt = Jump(
@@ -2553,9 +2553,9 @@ class PhoenixStructurer(StructurerBase):
         graph_with_str = networkx.DiGraph()
 
         for node in graph:
-            graph_with_str.add_node(f'"{repr(node)}"')
+            graph_with_str.add_node(f'"{node!r}"')
 
         for src, dst in graph.edges:
-            graph_with_str.add_edge(f'"{repr(src)}"', f'"{repr(dst)}"')
+            graph_with_str.add_edge(f'"{src!r}"', f'"{dst!r}"')
 
         networkx.drawing.nx_pydot.write_dot(graph_with_str, path)

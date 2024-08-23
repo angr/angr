@@ -651,7 +651,7 @@ class Operand(DisassemblyPiece):
                 # Indirect addressing in x86_64
                 # 400520  push [rip+0x200782] ==>  400520  push [0x600ca8]
                 absolute_addr = parentinsn.addr + parentinsn.size + op1.val
-                return MemoryOperand(1, operand.prefix + ["[", Value(absolute_addr, False), "]"], parentinsn)
+                return MemoryOperand(1, [*operand.prefix, "[", Value(absolute_addr, False), "]"], parentinsn)
 
         return operand
 

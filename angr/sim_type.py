@@ -351,7 +351,7 @@ class SimTypeNum(SimType):
     SimTypeNum is a numeric type of arbitrary length
     """
 
-    _fields = SimType._fields + ("signed", "size")
+    _fields = (*SimType._fields, "signed", "size")
 
     def __init__(self, size: int, signed=True, label=None):
         """
@@ -410,7 +410,7 @@ class SimTypeInt(SimTypeReg):
     SimTypeInt is a type that specifies a signed or unsigned C integer.
     """
 
-    _fields = tuple(x for x in SimTypeReg._fields if x != "size") + ("signed",)
+    _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "signed")
     _base_name = "int"
 
     def __init__(self, signed=True, label=None):
@@ -692,7 +692,7 @@ class SimTypePointer(SimTypeReg):
     SimTypePointer is a type that specifies a pointer to some other type.
     """
 
-    _fields = tuple(x for x in SimTypeReg._fields if x != "size") + ("pts_to",)
+    _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
 
     def __init__(self, pts_to, label=None, offset=0):
         """
@@ -915,7 +915,7 @@ class SimTypeString(NamedTypeMixin, SimType):
     i.e. a NUL-terminated array of bytes.
     """
 
-    _fields = SimTypeArray._fields + ("length",)
+    _fields = (*SimTypeArray._fields, "length")
 
     def __init__(self, length: int | None = None, label=None, name: str | None = None):
         """
@@ -996,7 +996,7 @@ class SimTypeWString(NamedTypeMixin, SimType):
     A wide-character null-terminated string, where each character is 2 bytes.
     """
 
-    _fields = SimTypeArray._fields + ("length",)
+    _fields = (*SimTypeArray._fields, "length")
 
     def __init__(self, length: int | None = None, label=None, name: str | None = None):
         super().__init__(label=label, name=name)
@@ -1212,7 +1212,7 @@ class SimTypeLength(SimTypeLong):
     ...I'm not really sure what the original design of this class was going for
     """
 
-    _fields = tuple(x for x in SimTypeReg._fields if x != "size") + ("addr", "length")  # ?
+    _fields = (*(x for x in SimTypeReg._fields if x != "size"), "addr", "length")  # ?
 
     def __init__(self, signed=False, addr=None, length=None, label=None):
         """
@@ -1604,7 +1604,7 @@ class SimUnion(NamedTypeMixin, SimType):
         # use the str instead of repr of each member to avoid exceed recursion
         # depth when representing self-referential unions
         return "union {} {{\n\t{}\n}}".format(
-            self.name, "\n\t".join(f"{name} {str(ty)};" for name, ty in self.members.items())
+            self.name, "\n\t".join(f"{name} {ty!s};" for name, ty in self.members.items())
         )
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
@@ -1797,7 +1797,7 @@ class SimTypeNumOffset(SimTypeNum):
     like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields
     """
 
-    _fields = SimTypeNum._fields + ("offset",)
+    _fields = (*SimTypeNum._fields, "offset")
 
     def __init__(self, size, signed=True, label=None, offset=0):
         super().__init__(size, signed, label)
@@ -3475,10 +3475,11 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
         proto = cast(Optional[SimTypeCppFunction], _cpp_decl_to_type(the_func, {}, opaque_classes=True))
         if proto is not None and the_func["class"]:
             func_name = cast(str, the_func["class"] + "::" + the_func["name"])
-            proto.args = (SimTypePointer(pts_to=SimTypeBottom(label="void")),) + tuple(
-                proto.args
+            proto.args = (
+                SimTypePointer(pts_to=SimTypeBottom(label="void")),
+                *proto.args,
             )  # pylint:disable=attribute-defined-outside-init
-            proto.arg_names = ("this",) + proto.arg_names  # pylint:disable=attribute-defined-outside-init
+            proto.arg_names = ("this", *proto.arg_names)  # pylint:disable=attribute-defined-outside-init
         elif proto is None:
             raise ValueError("proto is None but class is also None... not sure what this edge case means")
         else:

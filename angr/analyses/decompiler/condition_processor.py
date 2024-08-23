@@ -75,13 +75,13 @@ def _op_with_unified_size(op, conv, operand0, operand1):
 
 
 def _dummy_bvs(condition, condition_mapping, name_suffix=""):
-    var = claripy.BVS(f"ailexpr_{repr(condition)}{name_suffix}", condition.bits, explicit_name=True)
+    var = claripy.BVS(f"ailexpr_{condition!r}{name_suffix}", condition.bits, explicit_name=True)
     condition_mapping[var.args[0]] = condition
     return var
 
 
 def _dummy_bools(condition, condition_mapping, name_suffix=""):
-    var = claripy.BoolS(f"ailexpr_{repr(condition)}{name_suffix}", explicit_name=True)
+    var = claripy.BoolS(f"ailexpr_{condition!r}{name_suffix}", explicit_name=True)
     condition_mapping[var.args[0]] = condition
     return var
 
@@ -208,7 +208,7 @@ class ConditionProcessor:
 
         if graph:
             _g = graph
-            head = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+            head = next(node for node in graph.nodes if graph.in_degree(node) == 0)
         else:
             if with_successors and region.graph_with_successors is not None:
                 _g = region.graph_with_successors
@@ -756,10 +756,10 @@ class ConditionProcessor:
             # does it have a variable associated?
             if condition.variable is not None:
                 var = claripy.BVS(
-                    f"ailexpr_{repr(condition)}-{condition.variable.ident}", condition.bits, explicit_name=True
+                    f"ailexpr_{condition!r}-{condition.variable.ident}", condition.bits, explicit_name=True
                 )
             else:
-                var = claripy.BVS(f"ailexpr_{repr(condition)}-{condition.idx}", condition.bits, explicit_name=True)
+                var = claripy.BVS(f"ailexpr_{condition!r}-{condition.idx}", condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Convert):

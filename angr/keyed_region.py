@@ -29,7 +29,7 @@ class StoredObject:
         return hash((self.start, self.size, self.obj))
 
     def __repr__(self):
-        return f"<SO {repr(self.obj)}@{self.start:#x}, {self.size} bytes>"
+        return f"<SO {self.obj!r}@{self.start:#x}, {self.size} bytes>"
 
     @property
     def obj_id(self):

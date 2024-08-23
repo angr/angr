@@ -389,7 +389,7 @@ class SimComboArg(SimFunctionArgument):
             yield from x.get_footprint()
 
     def __repr__(self):
-        return f"SimComboArg({repr(self.locations)})"
+        return f"SimComboArg({self.locations!r})"
 
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
@@ -972,16 +972,16 @@ class SimCC:
                 pass
             elif isinstance(ty, SimTypeFixedSizeArray) and isinstance(ty.elem_type, SimTypeChar):
                 if len(arg) > ty.length:
-                    raise TypeError(f"String {repr(arg)} is too long for {ty}")
+                    raise TypeError(f"String {arg!r} is too long for {ty}")
                 arg = arg.ljust(ty.length, b"\0")
             elif isinstance(ty, SimTypeArray) and isinstance(ty.elem_type, SimTypeChar):
                 if ty.length is not None:
                     if len(arg) > ty.length:
-                        raise TypeError(f"String {repr(arg)} is too long for {ty}")
+                        raise TypeError(f"String {arg!r} is too long for {ty}")
                     arg = arg.ljust(ty.length, b"\0")
             elif isinstance(ty, SimTypeString):
                 if len(arg) > ty.length + 1:
-                    raise TypeError(f"String {repr(arg)} is too long for {ty}")
+                    raise TypeError(f"String {arg!r} is too long for {ty}")
                 arg = arg.ljust(ty.length + 1, b"\0")
             else:
                 raise TypeError(f"Type mismatch: Expected {ty}, got char*")
@@ -996,7 +996,7 @@ class SimCC:
                 ref = True
                 subty = ty.elem_type
                 if ty.length is not None and len(arg) != ty.length:
-                    raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
+                    raise TypeError(f"Array {arg!r} is the wrong length for {ty}")
             else:
                 raise TypeError(f"Type mismatch: Expected {ty}, got char*")
 
@@ -1055,7 +1055,7 @@ class SimCC:
             raise TypeError(f"Type mismatch: expected {ty}, got bitvector")
 
         else:
-            raise TypeError(f"I don't know how to serialize {repr(arg)}.")
+            raise TypeError(f"I don't know how to serialize {arg!r}.")
 
     def __repr__(self):
         return f"<{self.__class__.__name__}>"

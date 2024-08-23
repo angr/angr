@@ -993,7 +993,7 @@ class DDG(Analysis):
 
         variable = None
         if len(addrs) == 1 and len(action.addr.tmp_deps) == 1:
-            addr_tmp = list(action.addr.tmp_deps)[0]
+            addr_tmp = next(iter(action.addr.tmp_deps))
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]

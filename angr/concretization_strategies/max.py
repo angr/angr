@@ -19,7 +19,7 @@ class SimConcretizationStrategyMax(SimConcretizationStrategy):
             return [self._max(memory, addr, extra_constraints=extra_constraints, **kwargs)]
         else:
             try:
-                child_constraints = (addr <= self._max_addr,) + extra_constraints
+                child_constraints = (addr <= self._max_addr, *extra_constraints)
                 return [self._max(memory, addr, extra_constraints=child_constraints)]
             except SimSolverError:
                 return [self._max(memory, addr, extra_constraints=extra_constraints, **kwargs)]

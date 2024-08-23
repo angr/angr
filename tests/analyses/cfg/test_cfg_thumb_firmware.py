@@ -39,9 +39,9 @@ class TestCfgThumbFirmware(unittest.TestCase):
         assert vfprintf.returning
         assert len(list(vfprintf.blocks)) == 1
         # The function should have one "transition"
-        block = list(vfprintf.endpoints_with_type["transition"])[0]
+        block = next(iter(vfprintf.endpoints_with_type["transition"]))
         assert len(block.successors()) == 1
-        succ = list(block.successors())[0]
+        succ = next(iter(block.successors()))
         assert succ.addr == 0x080081DD
         f2 = p.kb.functions[succ.addr]
         assert f2.name == "_vfprintf_r"

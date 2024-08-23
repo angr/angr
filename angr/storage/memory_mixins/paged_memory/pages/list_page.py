@@ -116,7 +116,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         others: list[ListPage],
         merge_conditions,
         common_ancestor=None,
-        page_addr: int = None,
+        page_addr: int | None = None,
         memory=None,
         changed_offsets: set[int] | None = None,
     ):
@@ -125,7 +125,7 @@ class ListPage(MemoryObjectMixin, PageBase):
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: list[ListPage] = [self] + others
+        all_pages: list[ListPage] = [self, *others]
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -165,7 +165,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
-                mo_base = list(mo_bases)[0]
+                mo_base = next(iter(mo_bases))
                 mo_length = memory_objects[0][0].length
                 size = mo_length - (page_addr + b - mo_base)
                 merged_to = b + size
@@ -240,7 +240,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def changed_bytes(self, other: ListPage, page_addr: int = None):
+    def changed_bytes(self, other: ListPage, page_addr: int | None = None):
         candidates = super().changed_bytes(other)
         if candidates is None:
             candidates: set[int] = set()
