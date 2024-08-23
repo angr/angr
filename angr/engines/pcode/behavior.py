@@ -868,6 +868,8 @@ class OpBehaviorSubpiece(OpBehavior):
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         if in2.size() < in1.size():
             in2 = in2.sign_extend(in1.size() - in2.size())
+        if in1.size() < in2.size():
+            in1 = in1.sign_extend(in2.size() - in1.size())
         return (in1 >> (in2 * 8)) & (2 ** (size_out * 8) - 1)
 
 
