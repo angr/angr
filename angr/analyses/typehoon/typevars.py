@@ -21,7 +21,7 @@ class TypeConstraint:
     __slots__ = ()
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Equivalence(TypeConstraint):

@@ -30,7 +30,7 @@ class SimplifierAILState:
         return rd
 
     def merge(self, *others):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def store_variable(self, old, new):
         if new is not None:

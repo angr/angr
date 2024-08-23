@@ -36,13 +36,13 @@ class SimVariable(Serializable):
         self.size = size
 
     def copy(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def loc_repr(self, arch: archinfo.Arch):
         """
         The representation that shows up in a GUI
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _set_base(self, obj):
         obj.base.ident = self.ident

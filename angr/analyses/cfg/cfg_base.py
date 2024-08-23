@@ -340,10 +340,10 @@ class CFGBase(Analysis):
 
     # pylint: disable=no-self-use
     def copy(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def output(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def generate_index(self):
         """
@@ -414,7 +414,7 @@ class CFGBase(Analysis):
 
     @property
     def graph(self) -> networkx.DiGraph[CFGNode]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def remove_edge(self, block_from, block_to):
         if self.graph is None:

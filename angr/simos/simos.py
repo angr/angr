@@ -335,7 +335,7 @@ class SimOS:
         return None
 
     def syscall_cc(self, state) -> angr.calling_conventions.SimCCSyscall | None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def is_syscall_addr(self, addr):
         return False

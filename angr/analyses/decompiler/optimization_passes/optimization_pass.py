@@ -86,7 +86,7 @@ class BaseOptimizationPass:
         :returns: a tuple of (does_apply, cache) where cache is a way to pass
                   information to _analyze so it does not have to be recalculated
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _analyze(self, cache=None):
         """
@@ -96,7 +96,7 @@ class BaseOptimizationPass:
                       recalculated
         :returns: None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _simplify_graph(self, graph):
         simp = self.project.analyses.AILSimplifier(
@@ -306,7 +306,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._current_structure_counter = None
 
     def _analyze(self, cache=None) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def analyze(self):
         """

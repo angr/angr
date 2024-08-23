@@ -84,7 +84,7 @@ class VariableAccess(Serializable):
         elif self.access_type == VariableAccessSort.REFERENCE:
             cmsg.access_type = variables_pb2.VariableAccess.REFERENCE
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         return cmsg
 
@@ -103,7 +103,7 @@ class VariableAccess(Serializable):
         elif cmsg.access_type == variables_pb2.VariableAccess.REFERENCE:
             access_type = VariableAccessSort.REFERENCE
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
         model = VariableAccess(
             variable,
             access_type,

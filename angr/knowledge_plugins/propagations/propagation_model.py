@@ -60,7 +60,7 @@ class PropagationModel(Serializable):
 
     def block_beginning_state(self, block_addr) -> PropagatorState:
         if self._function is None:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         node = self._function.get_node(block_addr)
         preds = [self.states[pnode.addr] for pnode in self._function.graph.predecessors(node)]

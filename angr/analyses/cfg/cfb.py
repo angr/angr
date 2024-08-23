@@ -36,7 +36,7 @@ class CFBlanketView:
                 addr_ += obj
                 # Find gaps
                 # TODO: finish it
-                raise NotImplementedError()
+                raise NotImplementedError
 
 
 #

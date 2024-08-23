@@ -712,7 +712,7 @@ class MemoryOperand(Operand):
             elif "(" in self.children:
                 self._parse_memop_paren()
             else:
-                raise ValueError()
+                raise ValueError
 
         except ValueError:
             l.error("Failed to parse operand children %s. Please report to Fish.", self.children)
@@ -750,7 +750,7 @@ class MemoryOperand(Operand):
                 self.suffix_str = "!"
                 close_square_pos -= 1
             else:
-                raise ValueError()
+                raise ValueError
 
         self.values = self.children[square_bracket_pos + 1 : close_square_pos]
 

@@ -39,7 +39,7 @@ def remove_last_statement(node):
     elif type(node) is LoopNode:
         stmt = remove_last_statement(node.sequence_node)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     return stmt
 
@@ -55,16 +55,16 @@ def append_statement(node, stmt):
         if node.nodes:
             append_statement(node.nodes[-1], stmt)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
         return
     if type(node) is SequenceNode:
         if node.nodes:
             append_statement(node.nodes[-1], stmt)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
         return
 
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def replace_last_statement(node, old_stmt, new_stmt):
@@ -90,7 +90,7 @@ def replace_last_statement(node, old_stmt, new_stmt):
             replace_last_statement(node.false_node, old_stmt, new_stmt)
         return
 
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def extract_jump_targets(stmt):
@@ -239,9 +239,9 @@ def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] |
                 parent.sequence_node = SequenceNode(parent.sequence_node.addr, nodes=[parent.sequence_node])
             insert_node(parent.sequence_node, insert_location, node, node_idx)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ailment.Block:

@@ -293,7 +293,7 @@ class FunctionEdge:
     )
 
     def apply(self, cfg):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class FunctionTransitionEdge(FunctionEdge):
@@ -1129,7 +1129,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             start_addr = start_addr - start_addr % instr_alignment + instr_alignment
             # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
             if not self._inside_regions(start_addr):
-                raise ContinueScanningNotification()
+                raise ContinueScanningNotification
 
         return start_addr
 
@@ -1313,7 +1313,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     if cfg_node is not None:
                         self._graph_add_edge(cfg_node, job.src_node, job.jumpkind, job.src_ins_addr, job.src_stmt_idx)
                     job.apply_function_edges(self, clear=True)
-                raise AngrSkipJobNotice()
+                raise AngrSkipJobNotice
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:

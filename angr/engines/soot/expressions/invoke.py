@@ -44,7 +44,7 @@ class InvokeBase(SimSootExpr):
         return args
 
     def _resolve_invoke_target(self, expr, state):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class SimSootExpr_VirtualInvoke(InvokeBase):

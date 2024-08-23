@@ -30,7 +30,7 @@ class SimSootStmt:
         self._execute()
 
     def _execute(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _translate_expr(self, expr):
         expr_ = translate_expr(expr, self.state)
@@ -53,7 +53,7 @@ class SimSootStmt:
             bb = current_method.block_by_label[instr]
         except KeyError as err:
             l.error("Possible jump to a non-existing bb %s --> %d", self.state.addr, instr)
-            raise IncorrectLocationException() from err
+            raise IncorrectLocationException from err
 
         return SootAddressDescriptor(current_method, bb.idx, 0)
 

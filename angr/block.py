@@ -53,19 +53,19 @@ class DisassemblerInsn:
 
     @property
     def size(self) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def address(self) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def mnemonic(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def op_str(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __str__(self):
         return f"{self.address:#x}:\t{self.mnemonic}\t{self.op_str}"
@@ -114,7 +114,7 @@ class CapstoneInsn(DisassemblerInsn):
             return self.__getattribute__(item)
         if hasattr(self.insn, item):
             return getattr(self.insn, item)
-        raise AttributeError()
+        raise AttributeError
 
 
 class Block(Serializable):

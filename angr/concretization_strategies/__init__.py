@@ -67,7 +67,7 @@ class SimConcretizationStrategy:
         Should be implemented by child classes to handle concretization.
         :param **kwargs:
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy(self):
         """

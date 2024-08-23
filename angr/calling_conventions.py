@@ -581,7 +581,7 @@ class SimCC:
         Returns an iterator of SimFunctionArguments
         """
         if self.ARG_REGS is None:
-            raise NotImplementedError()
+            raise NotImplementedError
         return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.ARG_REGS])
 
     @property
@@ -602,7 +602,7 @@ class SimCC:
         Returns an iterator of SimFunctionArguments
         """
         if self.FP_ARG_REGS is None:
-            raise NotImplementedError()
+            raise NotImplementedError
         return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.FP_ARG_REGS])
 
     def is_fp_arg(self, arg):
@@ -1300,7 +1300,7 @@ class SimCCSyscall(SimCC):
 
     @staticmethod
     def syscall_num(state) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def linux_syscall_update_error_reg(self, state, expr):
         # special handling for Linux syscalls: on some architectures (mips/a3, powerpc/cr0_0) a bool indicating success

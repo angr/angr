@@ -92,7 +92,7 @@ class MemoryMixin(SimStatePlugin):
         :param writing:
         :return:        A memoryview into the loaded bytes.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def erase(self, addr, size=None, **kwargs) -> None:
         """
@@ -103,7 +103,7 @@ class MemoryMixin(SimStatePlugin):
         :param size:    The number of bytes for erasing.
         :return:        None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
         """
@@ -125,7 +125,7 @@ class MemoryMixin(SimStatePlugin):
         :param merged_size:     The size (in bytes) of the merged value.
         :return:                The merged value, or None to skip merging of the current value.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _merge_labels(self, labels: Iterable[dict], **kwargs) -> dict | None:
         """
@@ -134,13 +134,13 @@ class MemoryMixin(SimStatePlugin):
         :param labels:          A collection of labels.
         :return:                The merged label, or None to skip merging of the current label.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def replace_all(self, old: claripy.ast.BV, new: claripy.ast.BV):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy_contents(self, dst, src, size, condition=None, **kwargs):
         """
@@ -153,7 +153,7 @@ class MemoryMixin(SimStatePlugin):
         :param kwargs:      Other parameters.
         :return:        None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow

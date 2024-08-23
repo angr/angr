@@ -1779,7 +1779,7 @@ class Reassembler(Analysis):
         :rtype: tuple
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def relocations(self):
@@ -2046,7 +2046,7 @@ class Reassembler(Analysis):
         :return:
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def symbolize(self):
         # clear the flag

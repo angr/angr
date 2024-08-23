@@ -372,7 +372,7 @@ class CConstruct:
         return "".join(mapper(self.c_repr_chunks(indent)))
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def indent_str(indent=0):
@@ -3071,7 +3071,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
 
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
 
     def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
         tags = {"ins_addr": condition_node.addr}
