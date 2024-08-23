@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
+from __future__ import annotations
 import unittest
 
 import angr
@@ -22,11 +23,11 @@ class TestHookSet(unittest.TestCase):
 
         class Bar:
             def blah(self, foo):  # pylint:disable=no-self-use
-                return ["bar"] + foo.blah()
+                return ["bar", *foo.blah()]
 
         class Baz:
             def blah(self, foo):  # pylint:disable=no-self-use
-                return ["baz"] + foo.blah()
+                return ["baz", *foo.blah()]
 
         class Coward:
             def blah(self, foo):  # pylint:disable=no-self-use,unused-argument

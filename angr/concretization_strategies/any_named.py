@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from . import SimConcretizationStrategy
@@ -15,7 +16,7 @@ class SimConcretizationStrategyAnyNamed(SimConcretizationStrategy):
         mn, mx = self._range(memory, addr, **kwargs)
         if mn == mx:
             # Check if a variable already exists
-            for _, values in memory._name_mapping.items():
+            for values in memory._name_mapping.values():
                 if mn in values:
                     return [mn]
         # Get any solution

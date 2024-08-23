@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint:disable=isinstance-second-argument-not-valid-type,missing-class-docstring,no-self-use
+from __future__ import annotations
 import unittest
 from unittest import TestCase
 

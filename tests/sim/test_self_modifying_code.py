@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=no-self-use,missing-class-docstring
+from __future__ import annotations
+
 __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 
 import os

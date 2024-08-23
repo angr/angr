@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 
 import os
@@ -622,7 +624,7 @@ class TestJava(unittest.TestCase):
                 assert val == assert_value
 
         if assertions:
-            for _, test in assertions.items():
+            for test in assertions.values():
                 assert test(end_state)
 
         return end_state

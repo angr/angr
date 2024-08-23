@@ -1,3 +1,4 @@
+from __future__ import annotations
 from sortedcontainers import SortedDict
 
 from ....sim_variable import SimVariable
@@ -109,8 +110,7 @@ class InstructionMapping:
 
         if abs(ins_addr - e1.ins_addr) <= abs(ins_addr - e2.ins_addr):
             return e1.posmap_pos
-        else:
-            return e2.posmap_pos
+        return e2.posmap_pos
 
 
 class BaseStructuredCodeGenerator:

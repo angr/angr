@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .base import SimSootValue
 from ..field_dispatcher import resolve_field
 

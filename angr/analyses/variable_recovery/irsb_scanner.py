@@ -1,4 +1,5 @@
 # pylint:disable=no-self-use,unused-argument
+from __future__ import annotations
 
 import pyvex
 

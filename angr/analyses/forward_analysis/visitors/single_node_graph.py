@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .graph import GraphVisitor
 
 
@@ -34,5 +35,4 @@ class SingleNodeGraphVisitor(GraphVisitor):
     def sort_nodes(self, nodes=None):
         if nodes:
             return nodes
-        else:
-            return [self.node]
+        return [self.node]

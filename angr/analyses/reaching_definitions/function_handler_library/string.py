@@ -1,3 +1,4 @@
+from __future__ import annotations
 import archinfo
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
@@ -57,10 +58,7 @@ class LibcStringHandlers(FunctionHandler):
     def handle_impl_strdup(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
         src_str = state.get_values(src_atom)
-        if src_str is not None:
-            malloc_size = len(src_str) // 8
-        else:
-            malloc_size = 1
+        malloc_size = len(src_str) // 8 if src_str is not None else 1
         heap_ptr = state.heap_allocator.allocate(malloc_size)
         dst_atom = state.deref(heap_ptr, malloc_size)
         data.depends(dst_atom, src_atom, value=src_str)

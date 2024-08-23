@@ -1,4 +1,5 @@
 # pylint:disable=too-many-boolean-expressions
+from __future__ import annotations
 from ailment.expression import Expression, BinaryOp, Const, Convert, ITE
 
 from .base import PeepholeOptimizationExprBase
@@ -69,9 +70,8 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
         """
 
         if isinstance(expr, BinaryOp):
-            if expr.op == "And":
-                if isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
-                    return 0, expr
+            if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
+                return 0, expr
             if expr.op == "Shl" and isinstance(expr.operands[1], Const):
                 offset = expr.operands[1].value
                 r = RewriteBitExtractions._get_setbit(expr.operands[0])

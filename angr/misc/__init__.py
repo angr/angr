@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import ux
 from . import autoimport
 from . import weakpatch

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
@@ -81,10 +82,7 @@ class FormatString:
                 # what type of format specifier is it?
                 fmt_spec = component
                 if fmt_spec.spec_type == b"s":
-                    if fmt_spec.length_spec == b".*":
-                        str_length = va_arg("size_t")
-                    else:
-                        str_length = None
+                    str_length = va_arg("size_t") if fmt_spec.length_spec == b".*" else None
                     str_ptr = va_arg("char*")
                     string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
@@ -96,9 +94,7 @@ class FormatString:
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= 1 << fmt_spec.size * 8
 
-                    if fmt_spec.spec_type in (b"d", b"i"):
-                        s_val = str(c_val)
-                    elif fmt_spec.spec_type == b"u":
+                    if fmt_spec.spec_type in (b"d", b"i") or fmt_spec.spec_type == b"u":
                         s_val = str(c_val)
                     elif fmt_spec.spec_type == b"c":
                         s_val = chr(c_val & 0xFF)
@@ -109,7 +105,7 @@ class FormatString:
                     elif fmt_spec.spec_type == b"p":
                         s_val = hex(c_val)
                     else:
-                        raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+                        raise SimProcedureError(f"Unimplemented format specifier '{fmt_spec.spec_type}'")
 
                     if isinstance(fmt_spec.length_spec, int):
                         s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
@@ -174,7 +170,7 @@ class FormatString:
                     spec_digits = component.length_spec
 
                     # how many bits can we specify as input?
-                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log(base, 2)
+                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log2(base)
                     not_enough_bits = available_bits < bits
 
                     # how many digits will we model this input as?
@@ -295,7 +291,7 @@ class FormatString:
                         i = i.zero_extend(bits - 8)
                         position += 1
                     else:
-                        raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
+                        raise SimProcedureError(f"unsupported format spec '{fmt_spec.spec_type}' in interpret")
 
                     i = claripy.Extract(fmt_spec.size * 8 - 1, 0, i)
                     self.parser.state.memory.store(
@@ -346,7 +342,7 @@ class FormatSpecifier:
         return self.string[-1:].lower()
 
     def __str__(self):
-        return "%%%s" % self.string.decode()
+        return f"%{self.string.decode()}"
 
     def __len__(self):
         return len(self.string)
@@ -433,7 +429,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self) -> dict[bytes, "SimType"]:
+    def _all_spec(self) -> dict[bytes, SimType]:
         """
         All specifiers and their lengths.
         """
@@ -496,11 +492,11 @@ class FormatParser(SimProcedure):
                 # this is gross coz sim_type is gross..
                 nugget = nugget[: len(spec)]
                 original_nugget = original_nugget[: (length_spec_str_len + len(spec))]
-                nugtype: "SimType" = all_spec[nugget]
+                nugtype: SimType = all_spec[nugget]
                 try:
                     typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
-                except Exception:
-                    raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
+                except Exception as err:
+                    raise SimProcedureError(f"format specifier uses unknown type '{nugtype!r}'") from err
                 return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None

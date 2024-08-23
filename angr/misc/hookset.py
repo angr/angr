@@ -4,6 +4,8 @@ This process is formalized as a "hooking" of a python method - each exploration 
 the same name on the simulation manager class.
 """
 
+from __future__ import annotations
+
 
 class HookSet:
     """
@@ -97,8 +99,7 @@ class HookedMethod:
             finally:
                 self.pending.append(current_hook)
             return result
-        else:
-            return self.func(*args, **kwargs)
+        return self.func(*args, **kwargs)
 
     def copy_to(self, new_func):
         new_hooked = HookedMethod(new_func)

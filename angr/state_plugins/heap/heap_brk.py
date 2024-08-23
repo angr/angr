@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -62,7 +63,7 @@ class SimHeapBrk(SimHeapBase):
         """
         requested = self._conc_alloc_size(sim_size)
         used = self.heap_location - self.heap_base
-        released = requested if requested <= used else used
+        released = min(requested, used)
         self.heap_location -= released
         l.debug("Releasing %d bytes from the heap (%d bytes were requested to be released)", released, requested)
 
@@ -89,9 +90,12 @@ class SimHeapBrk(SimHeapBase):
 
         final_size = size * nmemb
 
-        if self.state.solver.symbolic(sim_nmemb) or self.state.solver.symbolic(sim_size):
-            if final_size > plugin.max_variable_size:
-                final_size = plugin.max_variable_size
+        if (
+            self.state.solver.symbolic(sim_nmemb)
+            or self.state.solver.symbolic(sim_size)
+            and final_size > plugin.max_variable_size
+        ):
+            final_size = plugin.max_variable_size
 
         addr = self.state.heap.allocate(final_size)
         v = claripy.BVV(0, final_size * 8)
@@ -121,8 +125,7 @@ class SimHeapBrk(SimHeapBase):
         if self.heap_location != new_heap_location:
             self.heap_location = new_heap_location
             return True
-        else:
-            return False
+        return False
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         return self._combine(others)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import time
 
@@ -346,7 +347,7 @@ def x86g_dirtyhelper_SxDT(state, addr, op):
     if not op.concrete:
         # resolved failed
         return None, []
-    elif op.concrete_value == 0:
+    if op.concrete_value == 0:
         state.memory.store(addr, state.solver.Unconstrained("SIDT", 48))
     elif op.concrete_value == 1:
         state.memory.store(addr, state.regs.gdt)
@@ -449,7 +450,7 @@ def x86g_dirtyhelper_RDMSR(state, msr):
     except errors.SimSolverError:
         return claripy.BVS("rdmsr_?", 64, key=("cpu", "rdmsr", "?")), []
     else:
-        return claripy.BVS("rdmsr_%#x" % msr_conc, 64, key=("cpu", "rdmsr", msr_conc), eternal=True), []
+        return claripy.BVS(f"rdmsr_{msr_conc:#x}", 64, key=("cpu", "rdmsr", msr_conc), eternal=True), []
 
 
 def x86g_dirtyhelper_XGETBV(state, reg):
@@ -458,7 +459,7 @@ def x86g_dirtyhelper_XGETBV(state, reg):
     except errors.SimSolverError:
         return claripy.BVS("xgetbv_?", 64, key=("cpu", "xgetbv", "?")), []
     else:
-        return claripy.BVS("xgetbv_%#x" % reg_conc, 64, key=("cpu", "xgetbv", reg_conc), eternal=True), []
+        return claripy.BVS(f"xgetbv_{reg_conc:#x}", 64, key=("cpu", "xgetbv", reg_conc), eternal=True), []
 
 
 amd64g_dirtyhelper_RDMSR = x86g_dirtyhelper_RDMSR

@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ,invalid-unary-operand-type
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -6,7 +7,7 @@ import ailment
 import claripy
 from unique_log_filter import UniqueLogFilter
 
-from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
+from angr.procedures import SIM_TYPE_COLLECTIONS
 from angr.utils.constants import MAX_POINTSTO_BITS
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction, dereference_simtype
@@ -31,7 +32,7 @@ class SimEngineVRAIL(
     The engine for variable recovery on AIL.
     """
 
-    state: "VariableRecoveryFastState"
+    state: VariableRecoveryFastState
     block: ailment.Block
 
     def __init__(self, *args, call_info=None, **kwargs):
@@ -143,10 +144,7 @@ class SimEngineVRAIL(
                 prototype_libname = func.prototype_libname
 
         # dump the type of the return value
-        if prototype is not None:
-            ret_ty = typevars.TypeVariable()  # TypeLifter(self.arch.bits).lift(prototype.returnty)
-        else:
-            ret_ty = typevars.TypeVariable()
+        ret_ty = typevars.TypeVariable() if prototype is not None else typevars.TypeVariable()
         if isinstance(ret_ty, typeconsts.BottomType):
             ret_ty = typevars.TypeVariable()
 
@@ -159,10 +157,7 @@ class SimEngineVRAIL(
         else:
             if ret_expr is not None:
                 # update the return value register
-                if return_value_use_full_width_reg:
-                    expr_bits = self.state.arch.bits
-                else:
-                    expr_bits = ret_expr_bits
+                expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
                 self._assign_to_register(
                     ret_reg_offset,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
@@ -174,12 +169,11 @@ class SimEngineVRAIL(
         if prototype is not None and args:
             # add type constraints
 
-            type_collections = []
-            if prototype_libname is not None:
-                prototype_lib = SIM_LIBRARIES[prototype_libname]
-                if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+            type_collections = (
+                [SIM_TYPE_COLLECTIONS[typelib_name] for typelib_name in prototype.type_collection_names]
+                if prototype_libname is not None and prototype.type_collection_names
+                else []
+            )
 
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
@@ -229,8 +223,7 @@ class SimEngineVRAIL(
         addr_r = self._expr(expr.addr)
         size = expr.size
 
-        r = self._load(addr_r, size, expr=expr)
-        return r
+        return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_Const(self, expr: ailment.Expr.Const):
         if isinstance(expr.value, float):
@@ -350,11 +343,8 @@ class SimEngineVRAIL(
         r1 = self._expr(arg1)
 
         type_constraints = set()
-        if r0.typevar is not None:
-            r0_typevar = r0.typevar
-        else:
-            # create a new type variable and add constraints accordingly
-            r0_typevar = typevars.TypeVariable()
+        # create a new type variable and add constraints accordingly
+        r0_typevar = r0.typevar if r0.typevar is not None else typevars.TypeVariable()
 
         if r1.data.concrete:
             # addition with constants. create a derived type variable

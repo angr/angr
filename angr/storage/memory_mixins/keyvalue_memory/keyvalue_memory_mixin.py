@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .. import MemoryMixin
 
 
@@ -28,7 +29,7 @@ class KeyValueMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: "KeyValueMemoryMixin" = super().copy(memo)
+        o: KeyValueMemoryMixin = super().copy(memo)
         o._store = self._store.copy()
         return o
 

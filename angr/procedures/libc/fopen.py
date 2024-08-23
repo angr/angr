@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
@@ -6,9 +7,7 @@ import angr
 
 def mode_to_flag(mode):
     # TODO improve this: handle mode = strings
-    if mode[-1] == ord("b"):  # lol who uses windows
-        mode = mode[:-1]
-    elif mode[-1] == ord("t"):  # Rarely modes rt or wt are used, but identical to r and w
+    if mode[-1] == ord("b") or mode[-1] == ord("t"):  # lol who uses windows
         mode = mode[:-1]
     mode = mode.replace(b"c", b"").replace(b"e", b"")
     all_modes = {
@@ -20,7 +19,7 @@ def mode_to_flag(mode):
         b"a+": angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
     }
     if mode not in all_modes:
-        raise angr.SimProcedureError("unsupported file open mode %s" % mode)
+        raise angr.SimProcedureError(f"unsupported file open mode {mode}")
 
     return all_modes[mode]
 
@@ -59,7 +58,6 @@ class fopen(angr.SimProcedure):
 
         if self.state.solver.is_true(fd == fd_concr):
             return file_struct_ptr
-        else:
-            # still possible that open failed
-            null = claripy.BVV(0, self.state.arch.bits)
-            return claripy.If(fd == fd_concr, file_struct_ptr, null)
+        # still possible that open failed
+        null = claripy.BVV(0, self.state.arch.bits)
+        return claripy.If(fd == fd_concr, file_struct_ptr, null)

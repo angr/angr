@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import logging
 import os
@@ -190,7 +191,7 @@ class Runner:
                 curr_buf_loc += max(len(i), 0x1000)
             else:
                 if not isinstance(i, int):
-                    raise Exception("Expected int/bytes got %s" % type(i))
+                    raise Exception(f"Expected int/bytes got {type(i)}")
                 mapped_input.append(i)
 
         cc = self.project.factory.cc()
@@ -217,7 +218,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/str got %s" % type(i))
+                        raise Exception(f"Expected int/str got {type(i)}")
                     mapped_input.append(i)
         else:
             for i, off in zip(test_data.input_args, custom_offs):
@@ -227,7 +228,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/str got %s" % type(i))
+                        raise Exception(f"Expected int/str got {type(i)}")
                     mapped_input.append(i)
 
         cc = self.project.factory.cc()
@@ -323,7 +324,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/bytes got %s" % type(i))
+                        raise Exception(f"Expected int/bytes got {type(i)}")
                     mapped_input.append(i)
 
         else:
@@ -334,7 +335,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/bytes got %s" % type(i))
+                        raise Exception(f"Expected int/bytes got {type(i)}")
                     mapped_input.append(i)
 
         cc = self.project.factory.cc()

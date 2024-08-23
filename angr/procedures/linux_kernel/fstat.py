@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 import angr
 
@@ -18,7 +19,7 @@ class fstat(angr.SimProcedure):
         elif self.state.arch.name == "AARCH64":
             self._store_aarch64(stat_buf, stat)
         else:
-            raise angr.errors.SimProcedureError("unsupported fstat arch: %s" % self.state.arch)
+            raise angr.errors.SimProcedureError(f"unsupported fstat arch: {self.state.arch}")
         return result
 
     def _store_amd64(self, stat_buf, stat):

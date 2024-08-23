@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
 from functools import cmp_to_key
@@ -104,10 +105,9 @@ class CallTracingFilter:
                 # accept!
                 l.debug("Accepting target 0x%x, jumpkind %s", addr, jumpkind)
                 return ACCEPT
-            else:
-                # reject
-                l.debug("Rejecting target 0x%x - syscall %s not in whitelist", addr, type(next_run))
-                return REJECT
+            # reject
+            l.debug("Rejecting target 0x%x - syscall %s not in whitelist", addr, type(next_run))
+            return REJECT
 
         cfg_key = (addr, jumpkind, self.project.filename)
         if cfg_key not in self.cfg_cache:
@@ -338,7 +338,7 @@ class Veritesting(Analysis):
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
                 manager.stash(
-                    lambda s: s.addr == merge_point_addr,  # pylint:disable=cell-var-from-loop
+                    lambda s, merge_point_addr=merge_point_addr: s.addr == merge_point_addr,
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times),
                 )
 
@@ -395,9 +395,7 @@ class Veritesting(Analysis):
             # merge things callstack by callstack
             while len(manager.stashes[stash_name]):
                 r = manager.stashes[stash_name][0]
-                manager.move(
-                    stash_name, "merge_tmp", lambda p: p.callstack == r.callstack  # pylint:disable=cell-var-from-loop
-                )
+                manager.move(stash_name, "merge_tmp", lambda p, r=r: p.callstack == r.callstack)
 
                 old_count = len(manager.merge_tmp)
                 l.debug("... trying to merge %d states.", old_count)
@@ -448,10 +446,7 @@ class Veritesting(Analysis):
         if n is None:
             return True
 
-        if n.simprocedure_name == "PathTerminator":
-            return True
-
-        return False
+        return n.simprocedure_name == "PathTerminator"
 
     def _get_successors(self, state):
         """
@@ -546,9 +541,8 @@ class Veritesting(Analysis):
         if self.project.arch.name == "X86":
             if not state.solver.symbolic(state.regs.eax):
                 cfg_initial_state.regs.eax = state.regs.eax
-        elif self.project.arch.name == "AMD64":
-            if not state.solver.symbolic(state.regs.rax):
-                cfg_initial_state.regs.rax = state.regs.rax
+        elif self.project.arch.name == "AMD64" and not state.solver.symbolic(state.regs.rax):
+            cfg_initial_state.regs.rax = state.regs.rax
 
         # generate the cfg and perform loop unrolling
         cfg = self.project.analyses[CFGEmulated].prep(kb=KnowledgeBase(self.project))(

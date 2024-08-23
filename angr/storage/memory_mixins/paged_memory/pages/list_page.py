@@ -1,4 +1,5 @@
 # pylint:disable=abstract-method,arguments-differ
+from __future__ import annotations
 import logging
 
 import claripy
@@ -24,9 +25,8 @@ class ListPage(MemoryObjectMixin, PageBase):
             DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
         )
         self.stored_offset = set()
-        if self.content is None:
-            if memory is not None:
-                self.content: DynamicDictList[SimMemoryObject | None] = DynamicDictList(max_size=memory.page_size)
+        if self.content is None and memory is not None:
+            self.content: DynamicDictList[SimMemoryObject | None] = DynamicDictList(max_size=memory.page_size)
         self._mo_cmp = mo_cmp
 
         self.sinkhole: SimMemoryObject | None = sinkhole
@@ -113,10 +113,10 @@ class ListPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: list["ListPage"],
+        others: list[ListPage],
         merge_conditions,
         common_ancestor=None,
-        page_addr: int = None,
+        page_addr: int | None = None,
         memory=None,
         changed_offsets: set[int] | None = None,
     ):
@@ -125,7 +125,7 @@ class ListPage(MemoryObjectMixin, PageBase):
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: list["ListPage"] = [self] + others
+        all_pages: list[ListPage] = [self, *others]
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -165,7 +165,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
-                mo_base = list(mo_bases)[0]
+                mo_base = next(iter(mo_bases))
                 mo_length = memory_objects[0][0].length
                 size = mo_length - (page_addr + b - mo_base)
                 merged_to = b + size
@@ -202,7 +202,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                     if min_size is None or mo_size < min_size:
                         min_size = mo_size
                 for um, _ in unconstrained_in:
-                    for i in range(0, min_size):
+                    for i in range(min_size):
                         if um._contains(b + i, page_addr):
                             min_size = i
                             break
@@ -240,7 +240,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def changed_bytes(self, other: "ListPage", page_addr: int = None):
+    def changed_bytes(self, other: ListPage, page_addr: int | None = None):
         candidates = super().changed_bytes(other)
         if candidates is None:
             candidates: set[int] = set()
@@ -263,16 +263,11 @@ class ListPage(MemoryObjectMixin, PageBase):
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
-            if not s_contains and o_contains:
-                differences.add(c)
-            elif s_contains and not o_contains:
+            if not s_contains and o_contains or s_contains and not o_contains:
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    if self.sinkhole is None:
-                        v = claripy.BVV(0, 8)
-                    else:
-                        v = (self.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if self.sinkhole is None else (self.sinkhole.bytes_at(page_addr + c, 1),)
                     self.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,
@@ -280,10 +275,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                         endness="Iend_BE",
                     )
                 if other.content[c] is None:
-                    if other.sinkhole is None:
-                        v = claripy.BVV(0, 8)
-                    else:
-                        v = (other.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if other.sinkhole is None else (other.sinkhole.bytes_at(page_addr + c, 1),)
                     other.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,

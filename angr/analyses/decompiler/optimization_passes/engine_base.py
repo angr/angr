@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from ailment import Expr, Stmt
@@ -21,15 +22,13 @@ class SimplifierAILState:
         return "<SimplifierAILState>"
 
     def copy(self):
-        rd = SimplifierAILState(
+        return SimplifierAILState(
             self.arch,
             variables=self._variables.copy(),
         )
 
-        return rd
-
     def merge(self, *others):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def store_variable(self, old, new):
         if new is not None:
@@ -85,12 +84,11 @@ class SimplifierAILEngine(
 
     # handle stmt
     def _ail_handle_Stmt(self, stmt):
-        handler = "_ail_handle_%s" % type(stmt).__name__
+        handler = f"_ail_handle_{type(stmt).__name__}"
         if hasattr(self, handler):
             return getattr(self, handler)(stmt)
-        else:
-            _l.debug("Unsupported statement type %s.", type(stmt).__name__)
-            return stmt
+        _l.debug("Unsupported statement type %s.", type(stmt).__name__)
+        return stmt
 
     def _ail_handle_Assignment(self, stmt):
         src = self._expr(stmt.src)
@@ -170,7 +168,7 @@ class SimplifierAILEngine(
     # handle expr
 
     def _expr(self, expr):
-        handler = "_ail_handle_%s" % type(expr).__name__
+        handler = f"_ail_handle_{type(expr).__name__}"
         if hasattr(self, handler):
             v = getattr(self, handler)(expr)
             if v is None:
@@ -207,19 +205,18 @@ class SimplifierAILEngine(
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
                 # eliminate the redundant Convert
                 return operand_expr.operand
-            else:
-                return Expr.Convert(
-                    expr.idx,
-                    operand_expr.from_bits,
-                    expr.to_bits,
-                    expr.is_signed,
-                    operand_expr.operand,
-                    from_type=operand_expr.from_type,
-                    to_type=expr.to_type,
-                    rounding_mode=expr.rounding_mode,
-                    **expr.tags,
-                )
-        elif (
+            return Expr.Convert(
+                expr.idx,
+                operand_expr.from_bits,
+                expr.to_bits,
+                expr.is_signed,
+                operand_expr.operand,
+                from_type=operand_expr.from_type,
+                to_type=expr.to_type,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
+        if (
             type(operand_expr) is Expr.Const
             and expr.from_type == Expr.Convert.TYPE_INT
             and expr.to_type == Expr.Convert.TYPE_INT
@@ -229,7 +226,7 @@ class SimplifierAILEngine(
             mask = (2**expr.to_bits) - 1
             value &= mask
             return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits, **expr.tags)
-        elif type(operand_expr) is Expr.BinaryOp and operand_expr.op in {
+        if type(operand_expr) is Expr.BinaryOp and operand_expr.op in {
             "Mul",
             "Shl",
             "Div",
@@ -275,21 +272,20 @@ class SimplifierAILEngine(
                 isinstance(operand_expr.operands[0], Expr.Convert)
                 and isinstance(operand_expr.operands[1], Expr.Convert)
                 and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits
+            ) and (
+                operand_expr.operands[0].to_bits == operand_expr.operands[1].to_bits
+                and expr.from_bits == operand_expr.operands[0].to_bits
+                and expr.to_bits == operand_expr.operands[1].from_bits
             ):
-                if (
-                    operand_expr.operands[0].to_bits == operand_expr.operands[1].to_bits
-                    and expr.from_bits == operand_expr.operands[0].to_bits
-                    and expr.to_bits == operand_expr.operands[1].from_bits
-                ):
-                    return Expr.BinaryOp(
-                        operand_expr.idx,
-                        operand_expr.op,
-                        [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
-                        expr.is_signed,
-                        **operand_expr.tags,
-                    )
+                return Expr.BinaryOp(
+                    operand_expr.idx,
+                    operand_expr.op,
+                    [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
+                    expr.is_signed,
+                    **operand_expr.tags,
+                )
 
-        converted = Expr.Convert(
+        return Expr.Convert(
             expr.idx,
             expr.from_bits,
             expr.to_bits,
@@ -300,4 +296,3 @@ class SimplifierAILEngine(
             rounding_mode=expr.rounding_mode,
             **expr.tags,
         )
-        return converted

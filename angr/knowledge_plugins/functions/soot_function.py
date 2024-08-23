@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import networkx
 from collections import defaultdict
@@ -115,16 +116,14 @@ class SootFunction(Function):
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
                 self._block_sizes[node.addr] = node.size
-            if node.addr == self.addr.addr:
-                if self.startpoint is None or not self.startpoint.is_hook:
-                    self.startpoint = node
+            if node.addr == self.addr.addr and (self.startpoint is None or not self.startpoint.is_hook):
+                self.startpoint = node
             if is_local:
                 self._local_blocks[node.addr] = node
                 self._local_block_addrs.add(node.addr)
             # add BlockNodes to the addr_to_block_node cache if not already there
-            if isinstance(node, BlockNode):
-                if node.addr not in self._addr_to_block_node:
-                    self._addr_to_block_node[node.addr] = node
+            if isinstance(node, BlockNode) and node.addr not in self._addr_to_block_node:
+                self._addr_to_block_node[node.addr] = node
 
 
 from ...codenode import BlockNode

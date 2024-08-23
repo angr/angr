@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import overload
 import logging
 import archinfo
@@ -58,12 +59,11 @@ class AngrObjectFactory:
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get("length", 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
-        elif self.project.simos.is_syscall_addr(addr):
+        if self.project.simos.is_syscall_addr(addr):
             syscall = self.project.simos.syscall_from_addr(addr)
             size = syscall.kwargs.get("length", 0)
             return SyscallNode(addr, size, syscall)
-        else:
-            return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
+        return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
 
     def successors(self, *args, engine=None, **kwargs):
         """
@@ -174,7 +174,7 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(self, thing: list[SimState] | SimState | None = None, **kwargs) -> "SimulationManager":
+    def simulation_manager(self, thing: list[SimState] | SimState | None = None, **kwargs) -> SimulationManager:
         """
         Constructs a new simulation manager.
 
@@ -200,7 +200,7 @@ class AngrObjectFactory:
         elif isinstance(thing, SimState):
             thing = [thing]
         else:
-            raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
+            raise AngrError(f"BadType to initialze SimulationManager: {thing!r}")
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 
@@ -266,7 +266,7 @@ class AngrObjectFactory:
         """
         Return a default function prototype parameterized for this project and SimOS.
         """
-        return SimTypeFunction(tuple(), SimTypeInt()).with_arch(self.project.arch)
+        return SimTypeFunction((), SimTypeInt()).with_arch(self.project.arch)
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -291,7 +291,7 @@ class AngrObjectFactory:
         load_from_ro_regions=False,
         initial_regs=None,
         skip_stmts=False,
-    ) -> "Block": ...
+    ) -> Block: ...
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -314,7 +314,7 @@ class AngrObjectFactory:
         collect_data_refs=False,
         cross_insn_opt=True,
         skip_stmts=False,
-    ) -> "SootBlock": ...
+    ) -> SootBlock: ...
 
     def block(
         self,

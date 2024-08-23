@@ -1,4 +1,5 @@
 # pylint:disable=too-many-boolean-expressions
+from __future__ import annotations
 
 from ailment.expression import Convert, BinaryOp, Const
 
@@ -43,8 +44,7 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                 divisor = self._check_divisor(pow(2, V), C, ndigits)
                 if divisor is not None:
                     new_const = Const(None, None, divisor, X.bits)
-                    new_div = BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
-                    return new_div
+                    return BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
 
         elif isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
             expr0, expr1 = expr.operands
@@ -55,32 +55,30 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                 and isinstance(expr1, BinaryOp)
                 and expr1.op in {"Shr", "Sar"}
                 and isinstance(expr1.operands[1], Const)
+            ) and (
+                isinstance(expr0.operands[0], BinaryOp)
+                and expr0.operands[0].op in {"Mull", "Mul"}
+                and isinstance(expr0.operands[0].operands[1], Const)
             ):
-                if (
-                    isinstance(expr0.operands[0], BinaryOp)
-                    and expr0.operands[0].op in {"Mull", "Mul"}
-                    and isinstance(expr0.operands[0].operands[1], Const)
-                ):
-                    a0 = expr0.operands[0].operands[0]
-                    a1 = expr1.operands[0]
-                    if a0 == a1:
-                        # (a * x >> M1) +/- (a >> M2)  ==>  a / N
-                        C = expr0.operands[0].operands[1].value
-                        X = a0
-                        V = expr0.operands[1].value
-                        ndigits = 5 if V == 32 else 6
-                        divisor = self._check_divisor(pow(2, V), C, ndigits)
-                        if divisor is not None:
-                            new_const = Const(None, None, divisor, X.bits)
-                            new_div = BinaryOp(
-                                expr0.operands[0].idx,
-                                "Div",
-                                [X, new_const],
-                                expr0.operands[0].signed,
-                                **expr0.operands[0].tags,
-                            )
-                            # we cannot drop the convert in this case
-                            return new_div
+                a0 = expr0.operands[0].operands[0]
+                a1 = expr1.operands[0]
+                if a0 == a1:
+                    # (a * x >> M1) +/- (a >> M2)  ==>  a / N
+                    C = expr0.operands[0].operands[1].value
+                    X = a0
+                    V = expr0.operands[1].value
+                    ndigits = 5 if V == 32 else 6
+                    divisor = self._check_divisor(pow(2, V), C, ndigits)
+                    if divisor is not None:
+                        new_const = Const(None, None, divisor, X.bits)
+                        return BinaryOp(
+                            expr0.operands[0].idx,
+                            "Div",
+                            [X, new_const],
+                            expr0.operands[0].signed,
+                            **expr0.operands[0].tags,
+                        )
+                        # we cannot drop the convert in this case
 
         return None
 

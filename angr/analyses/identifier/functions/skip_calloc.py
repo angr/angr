@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..func import Func, TestData
 from ....errors import SimMemoryError
 
@@ -44,7 +45,7 @@ class calloc(Func):
             return False
         returned_locs.append(state.solver.eval(state.regs.eax))
 
-        for i in range(6):  # pylint disable=unused-variable
+        for _i in range(6):  # pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False

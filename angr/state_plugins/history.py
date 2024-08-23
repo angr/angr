@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Reversible
 import operator
 import logging
@@ -112,11 +113,11 @@ class SimStateHistory(SimStatePlugin):
         if addr is None:
             addr_str = "Unknown"
         elif isinstance(addr, int):
-            addr_str = "%#x" % addr
+            addr_str = f"{addr:#x}"
         else:
             addr_str = repr(addr)
 
-        return "<StateHistory @ %s>" % addr_str
+        return f"<StateHistory @ {addr_str}>"
 
     def set_strongref_state(self, state):
         if sim_options.EFFICIENT_STATE_MERGING in state.options:
@@ -256,9 +257,7 @@ class SimStateHistory(SimStatePlugin):
                 if addr.symbolic:
                     return False
                 addr = self.state.solver.eval(addr)
-            if addr != read_offset:
-                return False
-            return True
+            return addr == read_offset
 
         def action_writes(action):
             if action.type != write_type:
@@ -274,9 +273,7 @@ class SimStateHistory(SimStatePlugin):
                 if addr.symbolic:
                     return False
                 addr = self.state.solver.eval(addr)
-            if addr != write_offset:
-                return False
-            return True
+            return addr == write_offset
 
         return [
             x
@@ -361,11 +358,11 @@ class SimStateHistory(SimStatePlugin):
             yield from self.parent.lineage
 
     @property
-    def events(self) -> Reversible["SimEvent"]:
+    def events(self) -> Reversible[SimEvent]:
         return LambdaIterIter(self, operator.attrgetter("recent_events"))
 
     @property
-    def actions(self) -> Reversible["SimAction"]:
+    def actions(self) -> Reversible[SimAction]:
         return LambdaIterIter(self, operator.attrgetter("recent_actions"))
 
     @property

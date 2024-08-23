@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 from archinfo.arch_arm import is_arm_arch
@@ -49,7 +50,7 @@ class CFGManager(KnowledgeBasePlugin):
 
     def copy(self):
         cm = CFGManager(self._kb)
-        cm.cfgs = dict(map(lambda x: (x[0], x[1].copy()), self.cfgs.items()))
+        cm.cfgs = {x[0]: x[1].copy() for x in self.cfgs.items()}
         return cm
 
     def get_most_accurate(self) -> CFGModel | None:

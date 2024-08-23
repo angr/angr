@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 from angr.storage.memory_mixins import MemoryMixin
 
 

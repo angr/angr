@@ -1,3 +1,4 @@
+from __future__ import annotations
 import binascii
 import copy
 import ctypes
@@ -302,10 +303,7 @@ class Uniwrapper(unicorn.Uc if unicorn is not None else object):
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        if thumb:
-            uc_mode = arch.uc_mode_thumb
-        else:
-            uc_mode = arch.uc_mode
+        uc_mode = arch.uc_mode_thumb if thumb else arch.uc_mode
         unicorn.Uc.__init__(self, arch.uc_arch, uc_mode)
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
@@ -839,7 +837,7 @@ class Unicorn(SimStatePlugin):
 
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
-            raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
+            raise SimUnicornUnsupport(f"unsupported architecture {self.state.arch!r}")
 
     def set_last_block_details(self, details):
         _UC_NATIVE.set_last_block_details(self._uc_state, details["addr"], details["curr_count"], details["tot_count"])
@@ -868,9 +866,7 @@ class Unicorn(SimStatePlugin):
             )
         elif arch == "i386":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-        elif arch == "mips":
-            self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
-        elif arch == "mipsel":
+        elif arch == "mips" or arch == "mipsel":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         elif arch == "arm":
             # EDG says: Unicorn's ARM support has no concept of interrupts.
@@ -935,8 +931,7 @@ class Unicorn(SimStatePlugin):
         if sysno in self.syscall_hooks:
             self.syscall_hooks[sysno](self.state)
             return True
-        else:
-            return False
+        return False
 
     def _handle_syscall(self, uc, user_data):  # pylint:disable=unused-argument
         # unicorn does not support syscall, we should giveup emulation
@@ -956,16 +951,13 @@ class Unicorn(SimStatePlugin):
     def _symbolic_passthrough(self, d):
         if not d.symbolic:
             return d
-        elif options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+        if options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
             return self._concretize(d)
-        elif len(d.variables & self.never_concretize) > 0:
+        if len(d.variables & self.never_concretize) > 0:
             return d
-        elif d.variables.issubset(self.always_concretize):
+        if d.variables.issubset(self.always_concretize) or self.state.solver.eval(self.state.ip) in self.concretize_at:
             return self._concretize(d)
-        elif self.state.solver.eval(self.state.ip) in self.concretize_at:
-            return self._concretize(d)
-        else:
-            return d
+        return d
 
     def _report_symbolic_blocker(self, d, from_where):
         if options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
@@ -1001,10 +993,9 @@ class Unicorn(SimStatePlugin):
         if len(d.annotations):
             l.debug("Blocking annotated AST.")
             return None
-        elif not d.symbolic:
+        if not d.symbolic:
             return d
-        else:
-            l.debug("Processing AST with variables %s.", d.variables)
+        l.debug("Processing AST with variables %s.", d.variables)
 
         dd = self._symbolic_passthrough(d)
 
@@ -1012,12 +1003,11 @@ class Unicorn(SimStatePlugin):
             if d.symbolic:
                 l.debug("... concretized")
             return dd
-        elif from_where == "reg" and options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+        if from_where == "reg" and options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
             l.debug("... allowing symbolic register")
             return dd
-        else:
-            l.debug("... denied")
-            return None
+        l.debug("... denied")
+        return None
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data):  # pylint:disable=unused-argument
         """
@@ -1033,7 +1023,7 @@ class Unicorn(SimStatePlugin):
                 if pageno >= needed_pages:
                     break
                 if options.UNICORN_ZEROPAGE_GUARD in self.state.options:
-                    self.error = "accessing zero page (%#x)" % access
+                    self.error = f"accessing zero page ({access:#x})"
                     l.warning(self.error)
 
                     _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)
@@ -1639,10 +1629,7 @@ class Unicorn(SimStatePlugin):
                         mantissa = 0
                     elif exponent == 0x7FF:  # nan or infinity
                         exponent = 0x7FFF
-                        if mantissa != 0:
-                            mantissa = 0x8000000000000000
-                        else:
-                            mantissa = 0xFFFFFFFFFFFFFFFF
+                        mantissa = 9223372036854775808 if mantissa != 0 else 18446744073709551615
 
                     if sign:
                         exponent |= 0x8000
@@ -1742,10 +1729,7 @@ class Unicorn(SimStatePlugin):
         handling symbolic exits in native interface
         """
 
-        if succ_state:
-            state = succ_state
-        else:
-            state = self.state
+        state = succ_state if succ_state else self.state
 
         # first, get the ignore list (in case of symbolic registers)
         saved_registers = []
@@ -1857,7 +1841,7 @@ class Unicorn(SimStatePlugin):
 
     def _check_registers(self, report=True):
         """check if this state might be used in unicorn (has no concrete register)"""
-        for r in self.state.arch.uc_regs.keys():
+        for r in self.state.arch.uc_regs:
             v = getattr(self.state.regs, r)
             processed_v = self._process_value(v, "reg")
             if processed_v is None or processed_v.symbolic:

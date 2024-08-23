@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.statement import Assignment
 from ailment.expression import BinaryOp, Const, Tmp
 
@@ -14,7 +15,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
     NAME = "ROL/ROR rewriter"
     stmt_classes = (Assignment,)
 
-    def optimize(self, stmt: Assignment, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: Assignment, stmt_idx: int | None = None, block=None, **kwargs):
         # Rol example:
         #    61 | t304 = Shr32(t301,0x19)
         #    62 | t306 = Shl32(t301,0x07)
@@ -58,20 +59,18 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             return None
 
         if stmt_1.src.op == "Shl" and stmt_2.src.op == "Shr" and stmt1_op1.value + stmt2_op1.value == stmt.dst.bits:
-            new_stmt = Assignment(
+            return Assignment(
                 stmt.idx,
                 stmt.dst,
                 BinaryOp(None, "Rol", [stmt1_op0, stmt1_op1], False, bits=stmt.dst.bits, **stmt_1.src.tags),
                 **stmt.tags,
             )
-            return new_stmt
-        elif stmt_1.src.op == "Shr" and stmt_2.src.op == "Shl" and stmt1_op1.value + stmt2_op1.value == stmt.dst.bits:
-            new_stmt = Assignment(
+        if stmt_1.src.op == "Shr" and stmt_2.src.op == "Shl" and stmt1_op1.value + stmt2_op1.value == stmt.dst.bits:
+            return Assignment(
                 stmt.idx,
                 stmt.dst,
                 BinaryOp(None, "Ror", [stmt1_op0, stmt1_op1], False, bits=stmt.dst.bits, **stmt_1.src.tags),
                 **stmt.tags,
             )
-            return new_stmt
 
         return None

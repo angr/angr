@@ -1,5 +1,5 @@
+from __future__ import annotations
 from typing import (
-    Optional,
     TYPE_CHECKING,
     overload,
     Literal,
@@ -52,7 +52,7 @@ class DepGraph:
     Mostly a wrapper around a <networkx.DiGraph>.
     """
 
-    def __init__(self, graph: Optional["networkx.DiGraph[Definition]"] = None):
+    def __init__(self, graph: networkx.DiGraph[Definition] | None = None):
         """
         :param graph: A graph where nodes are definitions, and edges represent uses.
         """
@@ -60,12 +60,12 @@ class DepGraph:
         self._transitive_closures: dict = {}
 
         if graph and not all(map(_is_definition, graph.nodes)):
-            raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
+            raise TypeError(f"In a DepGraph, nodes need to be <{Definition.__name__}>s.")
 
-        self._graph: "networkx.DiGraph[Definition]" = graph if graph is not None else networkx.DiGraph()
+        self._graph: networkx.DiGraph[Definition] = graph if graph is not None else networkx.DiGraph()
 
     @property
-    def graph(self) -> "networkx.DiGraph[Definition]":
+    def graph(self) -> networkx.DiGraph[Definition]:
         return self._graph
 
     def add_node(self, node: Definition) -> None:
@@ -84,7 +84,7 @@ class DepGraph:
         """
         self._graph.add_edge(source, destination, **labels)
 
-    def nodes(self) -> "networkx.classes.reportviews.NodeView[Definition]":
+    def nodes(self) -> networkx.classes.reportviews.NodeView[Definition]:
         return self._graph.nodes()
 
     def predecessors(self, node: Definition) -> Iterator[Definition]:
@@ -93,7 +93,7 @@ class DepGraph:
         """
         return self._graph.predecessors(node)
 
-    def transitive_closure(self, definition: Definition[Atom]) -> "networkx.DiGraph[Definition[Atom]]":
+    def transitive_closure(self, definition: Definition[Atom]) -> networkx.DiGraph[Definition[Atom]]:
         """
         Compute the "transitive closure" of a given definition.
         Obtained by transitively aggregating the ancestors of this definition in the graph.
@@ -106,8 +106,8 @@ class DepGraph:
 
         def _transitive_closure(
             def_: Definition[Atom],
-            graph: "networkx.DiGraph[Definition[Atom]]",
-            result: "networkx.DiGraph[Definition[Atom]]",
+            graph: networkx.DiGraph[Definition[Atom]],
+            result: networkx.DiGraph[Definition[Atom]],
             visited: set[Definition[Atom]] | None = None,
         ):
             """
@@ -147,7 +147,7 @@ class DepGraph:
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
 
     def contains_atom(self, atom: Atom) -> bool:
-        return any(map(lambda definition: definition.atom == atom, self.nodes()))
+        return any(definition.atom == atom for definition in self.nodes())
 
     def add_dependencies_for_concrete_pointers_of(
         self, values: Iterable[claripy.ast.Base | int], definition: Definition, cfg: CFGModel, loader: Loader
@@ -163,13 +163,10 @@ class DepGraph:
         """
         assert definition in self.nodes(), "The given Definition must be present in the given graph."
 
-        known_predecessor_addresses: list[int | claripy.ast.Base] = list(
-            # Needs https://github.com/python/mypy/issues/6847
-            map(
-                lambda definition: definition.atom.addr,  # type: ignore
-                filter(lambda p: isinstance(p.atom, MemoryLocation), self.predecessors(definition)),
-            )
-        )
+        known_predecessor_addresses: list[int | claripy.ast.Base] = [
+            definition.atom.addr
+            for definition in filter(lambda p: isinstance(p.atom, MemoryLocation), self.predecessors(definition))
+        ]
 
         # concretize addresses where possible
         concrete_known_pred_addresses = []
@@ -184,9 +181,8 @@ class DepGraph:
         for v in values:
             if isinstance(v, claripy.ast.Base) and v.concrete:
                 v = v.concrete_value
-            if isinstance(v, int):
-                if v not in concrete_known_pred_addresses:
-                    unknown_concrete_addresses.add(v)
+            if isinstance(v, int) and v not in concrete_known_pred_addresses:
+                unknown_concrete_addresses.add(v)
 
         for address in unknown_concrete_addresses:
             data_at_address = cfg.memory_data.get(address, None) if cfg is not None else None
@@ -201,8 +197,7 @@ class DepGraph:
             def _string_and_length_from(data_at_address):
                 if data_at_address.content is None:
                     return UNDEFINED, data_at_address.size
-                else:
-                    return data_at_address.content.decode("utf-8"), data_at_address.size + 1
+                return data_at_address.content.decode("utf-8"), data_at_address.size + 1
 
             _, string_length = _string_and_length_from(data_at_address)
 
@@ -281,12 +276,7 @@ class DepGraph:
         Parameters can be any valid keyword args to `DefinitionMatchPredicate`
         """
         predicate = DefinitionMatchPredicate.construct(**kwargs)
-        result = []
-        defn: Definition
-        for defn in self.nodes():
-            if predicate.matches(defn):
-                result.append(defn)
-        return result
+        return [defn for defn in self.nodes() if predicate.matches(defn)]
 
     @overload
     def find_all_predecessors(
@@ -438,7 +428,7 @@ class DepGraph:
         while queue:
             path = queue.pop()
             for succ in self.graph.succ[path[-1]]:
-                newpath = path + (succ,)
+                newpath = (*path, succ)
                 if succ in ends:
                     yield newpath
                 elif succ in seen:

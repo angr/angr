@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import archinfo
@@ -57,12 +58,9 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         if block.size != 6:
             return False
 
-        if block.instructions != 1:
-            return False
-
         # TODO: check whether ebx/edx is used
 
-        return True
+        return block.instructions == 1
 
     def resolve(
         self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
@@ -77,10 +75,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
             # cannot get the base address of GOT
             return False, []
 
-        if cfg._initial_state is not None:
-            state = cfg._initial_state.copy()
-        else:
-            state = self.project.factory.blank_state()
+        state = cfg._initial_state.copy() if cfg._initial_state is not None else self.project.factory.blank_state()
         state.regs.ebx = got_addr
 
         successors = self.project.factory.default_engine.process(state, block, force_addr=addr)

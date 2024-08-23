@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .region_identifier import RegionIdentifier
 from .structured_codegen import CStructuredCodeGenerator, ImportSourceCode
 from .clinic import Clinic

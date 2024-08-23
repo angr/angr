@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import claripy
@@ -27,7 +28,7 @@ class SimEngineVRVEX(
     Implements the VEX engine for variable recovery analysis.
     """
 
-    state: "VariableRecoveryStateBase"
+    state: VariableRecoveryStateBase
 
     def __init__(self, *args, call_info=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -143,16 +144,14 @@ class SimEngineVRVEX(
         #    49 | t300 = ITE(t299,0x00000000,t143)
         #    50 | PUT(r3) = t300
         #    51 | PUT(pc) = 0x000feca5
-        if is_arm_arch(self.arch) and (self.ins_addr & 1) == 1:
-            if self.stmt_idx < len(self.block.vex.statements) - 1:
-                next_stmt = self.block.vex.statements[self.stmt_idx + 1]
-                if isinstance(next_stmt, pyvex.IRStmt.WrTmp) and isinstance(next_stmt.data, pyvex.IRExpr.ITE):
-                    return RichR(self.state.top(reg_size * 8))
+        if is_arm_arch(self.arch) and (self.ins_addr & 1) == 1 and self.stmt_idx < len(self.block.vex.statements) - 1:
+            next_stmt = self.block.vex.statements[self.stmt_idx + 1]
+            if isinstance(next_stmt, pyvex.IRStmt.WrTmp) and isinstance(next_stmt.data, pyvex.IRExpr.ITE):
+                return RichR(self.state.top(reg_size * 8))
 
         force_variable_size = None
-        if self.stmts_to_lower and self.stmt_idx in self.stmts_to_lower:
-            if reg_size == 8:
-                force_variable_size = 4
+        if self.stmts_to_lower and self.stmt_idx in self.stmts_to_lower and reg_size == 8:
+            force_variable_size = 4
 
         return self._read_from_register(
             reg_offset,

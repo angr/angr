@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any
 from itertools import count
 import copy
@@ -49,7 +50,7 @@ class ReturnDuplicatorBase:
     #
 
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # main analysis
@@ -171,8 +172,7 @@ class ReturnDuplicatorBase:
             except EmptyBlockNotice:
                 pass
 
-            for succ in region.successors(node):
-                queue.append((node_copy, succ))
+            queue.extend((node_copy, succ) for succ in region.successors(node))
 
         for pred_node in pred_nodes:
             # delete the old edge to the return node
@@ -193,13 +193,14 @@ class ReturnDuplicatorBase:
                 continue
 
             # find components that have a node that should be duplicated
-            candidate_components = []
-            for nodes in multi_node_components:
+            candidate_components = [
+                nodes
+                for nodes in multi_node_components
                 if any(
                     self._should_duplicate_dst(n, region_head, graph, dst_is_const_ret=is_single_const_ret_region)
                     for n in nodes
-                ):
-                    candidate_components.append(nodes)
+                )
+            ]
             if not candidate_components:
                 continue
 
@@ -388,7 +389,7 @@ class ReturnDuplicatorBase:
         return region, region_head
 
     @staticmethod
-    def _is_indirect_jump_ailblock(block: "Block") -> bool:
+    def _is_indirect_jump_ailblock(block: Block) -> bool:
         if block.statements and isinstance(block.statements[-1], Jump):
             last_stmt = block.statements[-1]
             if not isinstance(last_stmt.target, Const):
@@ -416,9 +417,9 @@ class ReturnDuplicatorBase:
         def _unpack_block_type_to_addrs(node):
             if isinstance(node, Block):
                 return {node.addr}
-            elif isinstance(node, MultiNode):
+            if isinstance(node, MultiNode):
                 return {n.addr for n in node.nodes}
-            elif isinstance(node, ConditionNode):
+            if isinstance(node, ConditionNode):
                 return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
             return set()
 

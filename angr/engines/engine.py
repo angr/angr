@@ -1,4 +1,5 @@
 # pylint: disable=no-self-use,unused-private-member
+from __future__ import annotations
 
 import abc
 import logging
@@ -70,13 +71,13 @@ class TLSMixin:
         super().__init_subclass__(**kwargs)
 
         for subcls in cls.mro():
-            for attr in subcls.__dict__.get("_%s__tls" % subcls.__name__, ()):
+            for attr in subcls.__dict__.get(f"_{subcls.__name__}__tls", ()):
                 if attr.startswith("__"):
                     attr = f"_{subcls.__name__}{attr}"
 
                 if hasattr(cls, attr):
                     if type(getattr(cls, attr, None)) is not TLSProperty:
-                        raise Exception("Programming error: %s is both in __tls and __class__" % attr)
+                        raise Exception(f"Programming error: {attr} is both in __tls and __class__")
                 else:
                     setattr(cls, attr, TLSProperty(attr))
 
@@ -134,10 +135,7 @@ class SuccessorsMixin(SimEngine):
         )
 
         # make a copy of the initial state for actual processing, if needed
-        if not inline and o.COPY_STATES in state.options:
-            new_state = state.copy()
-        else:
-            new_state = state
+        new_state = state.copy() if not inline and o.COPY_STATES in state.options else state
         # enforce this distinction
         old_state = state
         del state

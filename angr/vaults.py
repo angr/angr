@@ -1,3 +1,4 @@
+from __future__ import annotations
 import collections.abc
 import contextlib
 import threading
@@ -60,19 +61,19 @@ class Vault(collections.abc.MutableMapping):
         """
         Should be a context that yields a pickle-read()able file object for the given id i.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _write_context(self, i):
         """
         Should be a context that yields a pickle-write()able file object for the given id i.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def keys(self):
         """
         Should return the IDs stored by the vault.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Persistance managers
@@ -349,9 +350,7 @@ class VaultDirShelf(VaultDict):
     def load(self, oid):
         shelve_path = os.path.join(self._d, oid)
         with self._locked_shelve(shelve_path):
-            o = super().load(oid)
-
-        return o
+            return super().load(oid)
 
     def keys(self):
         s = set()

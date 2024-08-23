@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..errors import SimSolverError
 from . import SimConcretizationStrategy
 
@@ -16,9 +17,8 @@ class SimConcretizationStrategyMax(SimConcretizationStrategy):
         extra_constraints = tuple(extra_constraints) if extra_constraints is not None else ()
         if self._max_addr is None:
             return [self._max(memory, addr, extra_constraints=extra_constraints, **kwargs)]
-        else:
-            try:
-                child_constraints = (addr <= self._max_addr,) + extra_constraints
-                return [self._max(memory, addr, extra_constraints=child_constraints)]
-            except SimSolverError:
-                return [self._max(memory, addr, extra_constraints=extra_constraints, **kwargs)]
+        try:
+            child_constraints = (addr <= self._max_addr, *extra_constraints)
+            return [self._max(memory, addr, extra_constraints=child_constraints)]
+        except SimSolverError:
+            return [self._max(memory, addr, extra_constraints=extra_constraints, **kwargs)]

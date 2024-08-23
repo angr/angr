@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
 
 import os

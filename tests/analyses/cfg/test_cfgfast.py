@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import os
@@ -82,12 +84,9 @@ class TestCfgfast(unittest.TestCase):
         for src, dst in edges:
             src_node = cfg.model.get_any_node(src)
             dst_node = cfg.model.get_any_node(dst)
-            assert src_node is not None, "CFG node 0x%x is not found." % src
-            assert dst_node is not None, "CFG node 0x%x is not found." % dst
-            assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
-                src_node,
-                dst_node,
-            )
+            assert src_node is not None, f"CFG node 0x{src:x} is not found."
+            assert dst_node is not None, f"CFG node 0x{dst:x} is not found."
+            assert dst_node in src_node.successors, f"CFG edge {src_node}-{dst_node} is not found."
 
     def test_cfg_0(self):
         functions = {
@@ -731,10 +730,7 @@ class TestCfgfast(unittest.TestCase):
             )
             assert len(return_block_addrs) == len(expected_return_addrs), msg
             for expected_addr in expected_return_addrs:
-                msg = "expected retaddr {:x} not found for returning_block {:x}".format(
-                    expected_addr,
-                    returning_block_addr,
-                )
+                msg = f"expected retaddr {expected_addr:x} not found for returning_block {returning_block_addr:x}"
                 assert expected_addr in return_block_addrs, msg
 
     #
@@ -1099,7 +1095,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert funcs.contains_addr(0x129C4)
         func = funcs[0x129C4]
         assert len(list(func.blocks)) == 1
-        assert list(func.blocks)[0].size == 16
+        assert next(iter(func.blocks)).size == 16
 
     def test_data_references_windows_driver_utf16_strings(self):
         path = os.path.join(

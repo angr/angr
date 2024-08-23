@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import SimConcretizationStrategy
 
 
@@ -10,3 +11,4 @@ class SimConcretizationStrategySingle(SimConcretizationStrategy):
         addrs = self._eval(memory, addr, 2, **kwargs)
         if len(addrs) == 1:
             return addrs
+        return None

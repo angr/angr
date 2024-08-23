@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Optional, Union, Any, TYPE_CHECKING
@@ -49,7 +50,7 @@ class Decompiler(Analysis):
     def __init__(
         self,
         func: Function | str | int,
-        cfg: Union["CFGFast", "CFGModel"] | None = None,
+        cfg: CFGFast | CFGModel | None = None,
         options=None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
@@ -92,10 +93,10 @@ class Decompiler(Analysis):
         self._inline_functions = inline_functions
 
         self.clinic = None  # mostly for debugging purposes
-        self.codegen: Optional["CStructuredCodeGenerator"] = None
+        self.codegen: CStructuredCodeGenerator | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
-        self.seq_node: Optional["SequenceNode"] = None
+        self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
 
@@ -130,10 +131,9 @@ class Decompiler(Analysis):
         self._update_progress(5.0, text="Converting to AIL")
 
         variable_kb = self._variable_kb
-        if variable_kb is None:
-            # fall back to old codegen
-            if old_codegen is not None:
-                variable_kb = old_codegen._variable_kb
+        # fall back to old codegen
+        if variable_kb is None and old_codegen is not None:
+            variable_kb = old_codegen._variable_kb
 
         if variable_kb is None:
             reset_variable_names = True
@@ -315,14 +315,13 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.BEFORE_REGION_IDENTIFICATION:
                 continue
-            if pass_.STRUCTURING:
-                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
-                    l.warning(
-                        "Skipping %s because it does not support structuring algorithm: %s",
-                        pass_,
-                        self._recursive_structurer_params["structurer_cls"].NAME,
-                    )
-                    continue
+            if pass_.STRUCTURING and self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                l.warning(
+                    "Skipping %s because it does not support structuring algorithm: %s",
+                    pass_,
+                    self._recursive_structurer_params["structurer_cls"].NAME,
+                )
+                continue
 
             a = pass_(
                 self.func,
@@ -371,14 +370,13 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
-            if pass_.STRUCTURING:
-                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
-                    l.warning(
-                        "Skipping %s because it does not support structuring algorithm: %s",
-                        pass_,
-                        self._recursive_structurer_params["structurer_cls"].NAME,
-                    )
-                    continue
+            if pass_.STRUCTURING and self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                l.warning(
+                    "Skipping %s because it does not support structuring algorithm: %s",
+                    pass_,
+                    self._recursive_structurer_params["structurer_cls"].NAME,
+                )
+                continue
 
             a = pass_(
                 self.func,
@@ -499,7 +497,7 @@ class Decompiler(Analysis):
 
         return codegen
 
-    def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
+    def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument

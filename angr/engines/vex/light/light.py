@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import pyvex
@@ -399,10 +400,7 @@ class VEXMixin(SimEngineBase):
         load_result = self._perform_vex_stmt_LoadG_load(
             addr, ty, end, condition=self._perform_vex_stmt_LoadG_guard_condition(guard)
         )
-        if cvt_op is None:
-            cvt_result = load_result
-        else:
-            cvt_result = self._perform_vex_stmt_LoadG_widen(cvt_op, (load_result,))
+        cvt_result = load_result if cvt_op is None else self._perform_vex_stmt_LoadG_widen(cvt_op, (load_result,))
         ite_result = self._perform_vex_stmt_LoadG_ite(guard, cvt_result, alt)
         self._perform_vex_stmt_LoadG_wrtmp(dst, ite_result)
 

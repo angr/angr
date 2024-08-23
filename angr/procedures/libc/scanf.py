@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from angr.procedures.stubs.format_parser import ScanfFormatParser
@@ -16,5 +17,4 @@ class scanf(ScanfFormatParser):
         if simfd is None:
             return -1
 
-        items = fmt_str.interpret(self.va_arg, simfd=simfd)
-        return items
+        return fmt_str.interpret(self.va_arg, simfd=simfd)

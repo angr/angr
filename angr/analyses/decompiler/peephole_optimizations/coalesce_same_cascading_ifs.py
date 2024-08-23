@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.statement import ConditionalJump
 from ailment.expression import ITE
 
@@ -10,7 +11,7 @@ class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
     NAME = "Coalescing cascading If constructs"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
         cond = stmt.condition
 
         # if (cond) {ITE(cond, true_branch, false_branch)} else {} ==> if (cond) {true_branch} else {}

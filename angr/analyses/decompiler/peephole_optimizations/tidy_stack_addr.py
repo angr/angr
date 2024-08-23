@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ailment.expression import UnaryOp, BinaryOp, StackBaseOffset, Const
@@ -30,8 +31,8 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
             return None
 
         # consolidate all expressions into a list of expressions with their signs (True for +, False for -)
-        all_operands: list[tuple[bool, "Expression"]] = []
-        stack: list[tuple[bool, "Expression"]] = [(True, expr)]
+        all_operands: list[tuple[bool, Expression]] = []
+        stack: list[tuple[bool, Expression]] = [(True, expr)]
         stackbase_count = 0
         while stack:
             sign, item = stack.pop(0)
@@ -95,10 +96,7 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
         while stackbaseoffset_objs:
             sign, obj = stackbaseoffset_objs.pop(0)
             if expr is None:
-                if sign:
-                    expr = obj
-                else:
-                    expr = UnaryOp(None, "Neg", obj, **obj.tags)
+                expr = obj if sign else UnaryOp(None, "Neg", obj, **obj.tags)
             else:
                 op = "Add" if sign else "Sub"
                 expr = BinaryOp(

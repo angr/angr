@@ -1,3 +1,4 @@
+from __future__ import annotations
 import enum
 import os
 import logging
@@ -79,8 +80,7 @@ class SimWindows(SimOS):
         sym = self.project.loader.find_symbol(name)
         if sym is None:
             return self.project.loader.extern_object.get_pseudo_addr(name)
-        else:
-            return sym.rebased_addr
+        return sym.rebased_addr
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
@@ -269,7 +269,7 @@ class SimWindows(SimOS):
                                 init_order.append(depo)
 
                 fuck_load(self.project.loader.main_object)
-                load_order = [self.project.loader.main_object] + init_order
+                load_order = [self.project.loader.main_object, *init_order]
 
                 def link(a, b):
                     state.mem[a].dword = b
@@ -309,9 +309,12 @@ class SimWindows(SimOS):
         if engine is not self.project.factory.default_engine:
             raise exception
         # don't bother handling symbolic-address exceptions
-        if type(exception) is SimSegfaultException:
-            if exception.original_addr is not None and exception.original_addr.symbolic:
-                raise exception
+        if (
+            type(exception) is SimSegfaultException
+            and exception.original_addr is not None
+            and exception.original_addr.symbolic
+        ):
+            raise exception
 
         _l.debug("Handling exception from block at %#x: %r", successors.addr, exception)
 
@@ -380,12 +383,12 @@ class SimWindows(SimOS):
         tib_addr = exc_state.regs._fs.concat(claripy.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
             _l.debug("... no handlers registered")
-            exception.args = ("Unhandled exception: %r" % exception,)
+            exception.args = (f"Unhandled exception: {exception!r}",)
             raise exception
         # catch nested exceptions here with magic value
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
             _l.debug("... nested exception")
-            exception.args = ("Unhandled exception: %r" % exception,)
+            exception.args = (f"Unhandled exception: {exception!r}",)
             raise exception
 
         # serialize the thread context and set up the exception record...
@@ -508,7 +511,7 @@ class SimWindows(SimOS):
         """
         exfiltration_reg = "eax"
         # instruction to inject for reading the value at segment value = offset
-        read_fs0_x86 = b"\x64\xA1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
+        read_fs0_x86 = b"\x64\xa1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
         return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
 
     @staticmethod
@@ -522,7 +525,7 @@ class SimWindows(SimOS):
         """
         exfiltration_reg = "rax"
         # instruction to inject for reading the value at segment value = offset
-        read_gs0_x64 = b"\x65\x48\x8B\x04\x25\x30\x00\x00\x00\x90\x90\x90\x90"  # mov rax, gs:[0x30]
+        read_gs0_x64 = b"\x65\x48\x8b\x04\x25\x30\x00\x00\x00\x90\x90\x90\x90"  # mov rax, gs:[0x30]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
 
     def get_segment_register_name(self):

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Iterable
 import logging
 
@@ -52,7 +53,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
     @staticmethod
     def _modify_statement(
-        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int = None
+        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None
     ):  # pylint:disable=unused-argument
         if old_block not in updated_blocks_:
             block = old_block.copy()

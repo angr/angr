@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import time
@@ -78,28 +80,26 @@ class TestCfgemulate(unittest.TestCase):
         for src, dst in s_graph.edges():
             if graph.has_edge(src, dst):
                 continue
-            else:
-                # Edge doesn't exist in our CFG
-                l.error(
-                    "Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.",
-                    get_function_name(src),
-                    src,
-                    get_function_name(dst),
-                    dst,
-                )
+            # Edge doesn't exist in our CFG
+            l.error(
+                "Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.",
+                get_function_name(src),
+                src,
+                get_function_name(dst),
+                dst,
+            )
 
         for src, dst in graph.edges():
             if s_graph.has_edge(src, dst):
                 continue
-            else:
-                # Edge doesn't exist in our CFG
-                l.error(
-                    "Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.",
-                    get_function_name(src),
-                    src,
-                    get_function_name(dst),
-                    dst,
-                )
+            # Edge doesn't exist in our CFG
+            l.error(
+                "Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.",
+                get_function_name(src),
+                src,
+                get_function_name(dst),
+                dst,
+            )
 
     def perform_single(self, binary_path, cfg_path=None):
         proj = angr.Project(
@@ -119,7 +119,8 @@ class TestCfgemulate(unittest.TestCase):
 
         if cfg_path is not None and os.path.isfile(cfg_path):
             # Compare the graph with a predefined CFG
-            info = pickle.load(open(cfg_path, "rb"))
+            with open(cfg_path, "rb") as f:
+                info = pickle.load(f)
             standard = info["cfg"]
             functions = info["functions"]
             graph = cfg.graph
@@ -274,7 +275,7 @@ class TestCfgemulate(unittest.TestCase):
         binary_path = test_location + "/i386/bios.bin.elf"
         proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1, auto_load_libs=False)
         proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
-        assert {f for f in proj.kb.functions} >= set(function_addresses)
+        assert set(proj.kb.functions) >= set(function_addresses)
         o.modes["fastpath"] ^= {o.DO_CCALLS}
 
     def test_fauxware(self):
@@ -378,9 +379,7 @@ class TestCfgemulate(unittest.TestCase):
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(keep_state=True, fail_fast=True)
 
-        string_references = []
-        for f in cfg.functions.values():
-            string_references.append(list(f.string_references()))
+        [list(f.string_references()) for f in cfg.functions.values()]
 
         # test passes if hasn't thrown an exception
 
@@ -541,10 +540,7 @@ class TestCfgemulate(unittest.TestCase):
             for src, dst in edges[arch]:
                 src_node = cfg.get_any_node(src)
                 dst_node = cfg.get_any_node(dst)
-                assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
-                    src_node,
-                    dst_node,
-                )
+                assert dst_node in src_node.successors, f"CFG edge {src_node}-{dst_node} is not found."
 
     class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
         """
@@ -610,16 +606,13 @@ class TestCfgemulate(unittest.TestCase):
         for src, dst in edges:
             src_node = target_function_cfg_emulated.get_any_node(src)
             dst_node = target_function_cfg_emulated.get_any_node(dst)
-            assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
-                src_node,
-                dst_node,
-            )
+            assert dst_node in src_node.successors, f"CFG edge {src_node}-{dst_node} is not found."
 
         for node_addr, final_states_number in final_states_info.items():
             node = target_function_cfg_emulated.get_any_node(node_addr)
-            assert final_states_number == len(node.final_states), (
-                "CFG node 0x%x has incorrect final states." % node_addr
-            )
+            assert final_states_number == len(
+                node.final_states
+            ), f"CFG node 0x{node_addr:x} has incorrect final states."
 
 
 if __name__ == "__main__":

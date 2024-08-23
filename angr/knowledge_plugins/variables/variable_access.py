@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ,no-member
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...code_location import CodeLocation
@@ -33,7 +34,7 @@ class VariableAccess(Serializable):
     )
 
     def __init__(self, variable, access_type, location, offset, atom_hash=None):
-        self.variable: "SimVariable" = variable
+        self.variable: SimVariable = variable
         self.access_type: int = access_type
         self.location: CodeLocation = location
         self.offset: int | None = offset
@@ -71,9 +72,8 @@ class VariableAccess(Serializable):
         cmsg.block_addr = self.location.block_addr
         cmsg.stmt_idx = self.location.stmt_idx
         cmsg.ins_addr = self.location.ins_addr
-        if self.offset is not None:
-            if isinstance(self.offset, int):
-                cmsg.offset = self.offset
+        if self.offset is not None and isinstance(self.offset, int):
+            cmsg.offset = self.offset
         if self.atom_hash is not None:
             cmsg.atom_hash = self.atom_hash
 
@@ -84,14 +84,14 @@ class VariableAccess(Serializable):
         elif self.access_type == VariableAccessSort.REFERENCE:
             cmsg.access_type = variables_pb2.VariableAccess.REFERENCE
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         return cmsg
 
     @classmethod
     def parse_from_cmessage(
-        cls, cmsg, variable_by_ident: dict[str, "SimVariable"] | None = None, **kwargs
-    ) -> "VariableAccess":
+        cls, cmsg, variable_by_ident: dict[str, SimVariable] | None = None, **kwargs
+    ) -> VariableAccess:
         assert variable_by_ident is not None
 
         variable = variable_by_ident[cmsg.ident]
@@ -103,12 +103,11 @@ class VariableAccess(Serializable):
         elif cmsg.access_type == variables_pb2.VariableAccess.REFERENCE:
             access_type = VariableAccessSort.REFERENCE
         else:
-            raise NotImplementedError()
-        model = VariableAccess(
+            raise NotImplementedError
+        return VariableAccess(
             variable,
             access_type,
             location,
             cmsg.offset if cmsg.HasField("offset") else None,
             atom_hash=cmsg.atom_hash if cmsg.HasField("atom_hash") else None,
         )
-        return model

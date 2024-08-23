@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 from ..models import DbComment
 from ...knowledge_plugins.comments import Comments
 

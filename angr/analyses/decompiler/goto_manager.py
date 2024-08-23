@@ -1,3 +1,4 @@
+from __future__ import annotations
 import ailment
 
 
@@ -65,9 +66,8 @@ class GotoManager:
         for goto in src_gotos:
             if goto.dst_addr == dst.addr:
                 return True
-            else:
-                block_addrs = {stmt.ins_addr for stmt in dst.statements if "ins_addr" in stmt.tags}
-                if goto.dst_addr in block_addrs:
-                    return True
+            block_addrs = {stmt.ins_addr for stmt in dst.statements if "ins_addr" in stmt.tags}
+            if goto.dst_addr in block_addrs:
+                return True
 
         return False

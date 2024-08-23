@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, UnaryOp, Expression
 from ailment.statement import Statement, Assignment
 from ailment import Block
@@ -28,7 +29,7 @@ class PeepholeOptimizationStmtBase:
         self.kb = kb
         self.func_addr = func_addr
 
-    def optimize(self, stmt, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt, stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
 
 
@@ -94,27 +95,23 @@ class PeepholeOptimizationExprBase:
         idx = stmt_idx - 1
         if idx >= 0:
             stmt = block.statements[idx]
-            if isinstance(stmt, Assignment):
-                if stmt.dst.likes(ail_expr):
-                    return stmt.src
+            if isinstance(stmt, Assignment) and stmt.dst.likes(ail_expr):
+                return stmt.src
         return None
 
     @staticmethod
     def is_bool_expr(ail_expr):
-        if isinstance(ail_expr, BinaryOp):
-            if ail_expr.op in {
-                "CmpEQ",
-                "CmpNE",
-                "CmpLT",
-                "CmpLE",
-                "CmpGT",
-                "CmpGE",
-                "CmpLTs",
-                "CmpLEs",
-                "CmpGTs",
-                "CmpGEs",
-            }:
-                return True
-        if isinstance(ail_expr, UnaryOp) and ail_expr.op == "Not":
+        if isinstance(ail_expr, BinaryOp) and ail_expr.op in {
+            "CmpEQ",
+            "CmpNE",
+            "CmpLT",
+            "CmpLE",
+            "CmpGT",
+            "CmpGE",
+            "CmpLTs",
+            "CmpLEs",
+            "CmpGTs",
+            "CmpGEs",
+        }:
             return True
-        return False
+        return bool(isinstance(ail_expr, UnaryOp) and ail_expr.op == "Not")

@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 from ...engines.light import SimEngineLight
@@ -17,7 +18,7 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
         project=None,
         propagate_tmps=True,
         arch=None,
-        reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
+        reaching_definitions: ReachingDefinitionsModel | None = None,
         immediate_stmt_removal: bool = False,
         bp_as_gpr: bool = False,
     ):

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from . import ExplorationTechnique
@@ -80,7 +81,7 @@ class LoopSeer(ExplorationTechnique):
                 func = self._get_function(f)
                 if func is not None:
                     funcs.append(func)
-            funcs = None if not funcs else funcs
+            funcs = funcs if funcs else None
 
         elif self.functions is not None:
             raise TypeError("Invalid type for 'functions' parameter!")
@@ -97,8 +98,7 @@ class LoopSeer(ExplorationTechnique):
         if state in self.cut_succs:
             self.cut_succs.remove(state)
             return self.discard_stash
-        else:
-            return simgr.filter(state, **kwargs)
+        return simgr.filter(state, **kwargs)
 
     def successors(self, simgr, state, **kwargs):
         node = self.cfg.model.get_any_node(state.addr)
@@ -111,14 +111,13 @@ class LoopSeer(ExplorationTechnique):
         # chose not to take it (e.g., the loop is not concrete), increase the trip count
         at_loop_exit = False
         for succ_state in succs.successors:
-            if succ_state.loop_data.current_loop:
-                if succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
-                    l.debug(
-                        "One of the successors: %s is at the exit of the current loop %s",
-                        hex(succ_state.addr),
-                        succ_state.loop_data.current_loop[-1][0],
-                    )
-                    at_loop_exit = True
+            if succ_state.loop_data.current_loop and succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
+                l.debug(
+                    "One of the successors: %s is at the exit of the current loop %s",
+                    hex(succ_state.addr),
+                    succ_state.loop_data.current_loop[-1][0],
+                )
+                at_loop_exit = True
 
         for succ_state in succs.successors:
             # Processing a currently running loop
@@ -214,9 +213,7 @@ class LoopSeer(ExplorationTechnique):
     # pylint: disable=R0201
     def _inside_current_loops(self, succ_state):
         current_loops_addrs = [x[0].entry.addr for x in succ_state.loop_data.current_loop]
-        if succ_state.addr in current_loops_addrs:
-            return True
-        return False
+        return succ_state.addr in current_loops_addrs
 
     def _get_function(self, func):
         f = None

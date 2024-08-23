@@ -1,3 +1,4 @@
+from __future__ import annotations
 import operator
 from .plugin import SimStatePlugin
 
@@ -116,7 +117,7 @@ class SimStateCGC(SimStatePlugin):
         sinkhole is removed.
         """
 
-        ordered_sinks = sorted(list(self.sinkholes), key=operator.itemgetter(0), reverse=True)
+        ordered_sinks = sorted(self.sinkholes, key=operator.itemgetter(0), reverse=True)
         max_pair = None
         for addr, sz in ordered_sinks:
             if sz >= length:

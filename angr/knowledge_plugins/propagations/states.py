@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Optional, Union, DefaultDict, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import weakref
 
@@ -81,13 +82,13 @@ class PropagatorState:
 
     def __init__(
         self,
-        arch: "Arch",
-        project: Optional["Project"] = None,
+        arch: Arch,
+        project: Project | None = None,
         rda=None,
-        replacements: DefaultDict[CodeLocation, dict] | None = None,
+        replacements: defaultdict[CodeLocation, dict] | None = None,
         only_consts: bool = False,
-        expr_used_locs: DefaultDict[Any, set[CodeLocation]] | None = None,
-        equivalence: set["Equivalence"] | None = None,
+        expr_used_locs: defaultdict[Any, set[CodeLocation]] | None = None,
+        equivalence: set[Equivalence] | None = None,
         store_tops: bool = True,
         gp: int | None = None,
         max_prop_expr_occurrence: int = 1,
@@ -129,7 +130,7 @@ class PropagatorState:
         max_prop_expr_occurrence=None,
         initial_codeloc=None,
     ):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_weakref(self):
         return weakref.proxy(self)
@@ -142,14 +143,12 @@ class PropagatorState:
             return True
         if isinstance(v, claripy.ast.FP) and v.op == "FPV":
             return True
-        if isinstance(v, claripy.ast.Bool) and v.op == "BoolV":
-            return True
-        return False
+        return bool(isinstance(v, claripy.ast.Bool) and v.op == "BoolV")
 
     @staticmethod
     def _mo_cmp(
-        mo_self: Union["SimMemoryObject", "SimLabeledMemoryObject"],
-        mo_other: Union["SimMemoryObject", "SimLabeledMemoryObject"],
+        mo_self: SimMemoryObject | SimLabeledMemoryObject,
+        mo_other: SimMemoryObject | SimLabeledMemoryObject,
         addr: int,
         size: int,
     ):  # pylint:disable=unused-argument
@@ -229,21 +228,23 @@ class PropagatorState:
                                 replacements_0[loc][var] = t
                                 merge_occurred = True
                         elif (
-                            isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
-                        ) and replacements_0[loc][var] is not repl:
-                            replacements_0[loc][var] = repl
-                            merge_occurred = True
-                        elif (
-                            not isinstance(replacements_0[loc][var], claripy.ast.Base)
-                            and not isinstance(repl, claripy.ast.Base)
-                            and replacements_0[loc][var] != repl
+                            (
+                                isinstance(replacements_0[loc][var], claripy.ast.Base)
+                                or isinstance(repl, claripy.ast.Base)
+                            )
+                            and replacements_0[loc][var] is not repl
+                            or (
+                                not isinstance(replacements_0[loc][var], claripy.ast.Base)
+                                and not isinstance(repl, claripy.ast.Base)
+                                and replacements_0[loc][var] != repl
+                            )
                         ):
                             replacements_0[loc][var] = repl
                             merge_occurred = True
         return merge_occurred
 
-    def copy(self) -> "PropagatorState":
-        raise NotImplementedError()
+    def copy(self) -> PropagatorState:
+        raise NotImplementedError
 
     def merge(self, *others):
         state = self.copy()
@@ -295,9 +296,7 @@ class PropagatorState:
             return False
         if codeloc not in self._replacements:
             return False
-        if all(self.is_top(replaced_by) for replaced_by in self._replacements[codeloc].values()):
-            return False
-        return True
+        return not all(self.is_top(replaced_by) for replaced_by in self._replacements[codeloc].values())
 
 
 # VEX state
@@ -476,8 +475,8 @@ class PropagatorVEXState(PropagatorState):
             )
         return state
 
-    def copy(self) -> "PropagatorVEXState":
-        cp = PropagatorVEXState(
+    def copy(self) -> PropagatorVEXState:
+        return PropagatorVEXState(
             self.arch,
             project=self.project,
             rda=self.rda,
@@ -495,9 +494,7 @@ class PropagatorVEXState(PropagatorState):
             artificial_reg_offsets=self._artificial_reg_offsets,
         )
 
-        return cp
-
-    def merge(self, *others: "PropagatorVEXState") -> tuple["PropagatorVEXState", bool]:
+    def merge(self, *others: PropagatorVEXState) -> tuple[PropagatorVEXState, bool]:
         state = self.copy()
         merge_occurred = state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
@@ -636,7 +633,7 @@ class PropagatorAILState(PropagatorState):
         self._tmps = {}
         self.temp_expressions = {}
         self.register_expressions = {}
-        self.block_initial_reg_values: DefaultDict[
+        self.block_initial_reg_values: defaultdict[
             tuple[int, int], list[tuple[ailment.Expr.Register, ailment.Expr.Const]]
         ] = (defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values)
         self._sp_adjusted: bool = sp_adjusted
@@ -732,24 +729,28 @@ class PropagatorAILState(PropagatorState):
                 PropValue(claripy.BVV(0, 8), offset_and_details={0: Detail(1, reg_value, initial_codeloc)}),
             )
 
-        if project is not None and project.simos is not None and project.simos.function_initial_registers:
-            if func_addr is not None:
-                for reg_name, reg_value in project.simos.function_initial_registers.items():
-                    reg_size = project.arch.registers[reg_name][1]
-                    reg_expr = ailment.Expr.Register(None, None, project.arch.registers[reg_name][0], reg_size)
-                    reg_value_expr = ailment.Expr.Const(None, None, reg_value, reg_size * 8)
-                    state.store_register(
-                        reg_expr,
-                        PropValue(
-                            claripy.BVV(reg_value, project.arch.bits),
-                            offset_and_details={0: Detail(reg_size, reg_value_expr, initial_codeloc)},
-                        ),
-                    )
+        if (
+            project is not None
+            and project.simos is not None
+            and project.simos.function_initial_registers
+            and func_addr is not None
+        ):
+            for reg_name, reg_value in project.simos.function_initial_registers.items():
+                reg_size = project.arch.registers[reg_name][1]
+                reg_expr = ailment.Expr.Register(None, None, project.arch.registers[reg_name][0], reg_size)
+                reg_value_expr = ailment.Expr.Const(None, None, reg_value, reg_size * 8)
+                state.store_register(
+                    reg_expr,
+                    PropValue(
+                        claripy.BVV(reg_value, project.arch.bits),
+                        offset_and_details={0: Detail(reg_size, reg_value_expr, initial_codeloc)},
+                    ),
+                )
 
         return state
 
-    def copy(self) -> "PropagatorAILState":
-        rd = PropagatorAILState(
+    def copy(self) -> PropagatorAILState:
+        return PropagatorAILState(
             self.arch,
             project=self.project,
             rda=self.rda,
@@ -768,8 +769,6 @@ class PropagatorAILState(PropagatorState):
             artificial_reg_offsets=self._artificial_reg_offsets,
         )
 
-        return rd
-
     @staticmethod
     def is_const_or_register(value: ailment.Expr.Expression | claripy.ast.Bits | None) -> bool:
         if value is None:
@@ -783,17 +782,18 @@ class PropagatorAILState(PropagatorState):
         if isinstance(value, ailment.Expr.StackBaseOffset):
             return True
         # more hacks: also store the eq comparisons
-        if isinstance(value, ailment.Expr.BinaryOp) and value.op == "CmpEQ":
-            if all(isinstance(arg, (ailment.Expr.Const, ailment.Expr.Tmp)) for arg in value.operands):
-                return True
-        # more hacks: also store the conversions
-        if isinstance(value, ailment.Expr.Convert) and PropagatorAILState.is_const_or_register(value.operand):
+        if (
+            isinstance(value, ailment.Expr.BinaryOp)
+            and value.op == "CmpEQ"
+            and all(isinstance(arg, (ailment.Expr.Const, ailment.Expr.Tmp)) for arg in value.operands)
+        ):
             return True
-        return False
+        # more hacks: also store the conversions
+        return bool(isinstance(value, ailment.Expr.Convert) and PropagatorAILState.is_const_or_register(value.operand))
 
-    def merge(self, *others) -> tuple["PropagatorAILState", bool]:
+    def merge(self, *others) -> tuple[PropagatorAILState, bool]:
         state, merge_occurred = super().merge(*others)
-        state: "PropagatorAILState"
+        state: PropagatorAILState
 
         merge_occurred |= state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
@@ -838,8 +838,7 @@ class PropagatorAILState(PropagatorState):
             # value does not exist
             return None
 
-        prop_value = PropValue.from_value_and_labels(value, labels)
-        return prop_value
+        return PropValue.from_value_and_labels(value, labels)
 
     def load_stack_variable(self, sp_offset: int, size, endness=None) -> PropValue | None:
         # normalize sp_offset to handle negative offsets
@@ -866,17 +865,14 @@ class PropagatorAILState(PropagatorState):
             else:
                 return None
 
-        prop_value = PropValue.from_value_and_labels(value, labels)
-        return prop_value
+        return PropValue.from_value_and_labels(value, labels)
 
     def should_replace_reg(self, old_reg_offset: int, bp_as_gpr: bool, new_value) -> bool:
         if old_reg_offset == self.arch.sp_offset or (not bp_as_gpr and old_reg_offset == self.arch.bp_offset):
             return True
         if old_reg_offset in self._artificial_reg_offsets:
             return True
-        if isinstance(new_value, ailment.Expr.StackBaseOffset):
-            return True
-        return False
+        return bool(isinstance(new_value, ailment.Expr.StackBaseOffset))
 
     def add_replacement(
         self,
@@ -896,11 +892,10 @@ class PropagatorAILState(PropagatorState):
         # do not replace anything with a call expression
         if isinstance(new, ailment.statement.Call):
             return False
-        else:
-            callexpr_finder = CallExprFinder()
-            callexpr_finder.walk_expression(new)
-            if callexpr_finder.has_call:
-                return False
+        callexpr_finder = CallExprFinder()
+        callexpr_finder.walk_expression(new)
+        if callexpr_finder.has_call:
+            return False
 
         if self.is_top(new):
             self._replacements[codeloc][old] = self.top(1)  # placeholder
@@ -1002,10 +997,9 @@ class PropagatorAILState(PropagatorState):
                 for key, replace_with in list(self._replacements[codeloc_].items()):
                     if isinstance(replace_with, dict):
                         replace_with = replace_with["expr"]
-                    if not self.is_top(replace_with) and replace_with == replaced_by:
-                        if to_replace.likes(key):
-                            self._replacements[codeloc_][key] = self.top(1)
-                            updated_codelocs.add(codeloc_)
+                    if not self.is_top(replace_with) and replace_with == replaced_by and to_replace.likes(key):
+                        self._replacements[codeloc_][key] = self.top(1)
+                        updated_codelocs.add(codeloc_)
 
         return updated_codelocs
 
@@ -1017,7 +1011,7 @@ class PropagatorAILState(PropagatorState):
     def is_simple_expression(expr: ailment.Expr.Expression) -> bool:
         if PropagatorAILState.is_shallow_expression(expr):
             return True
-        if (
+        return bool(
             isinstance(expr, ailment.Expr.BinaryOp)
             and expr.op in {"Add", "Sub"}
             and (
@@ -1026,9 +1020,7 @@ class PropagatorAILState(PropagatorState):
                 or isinstance(expr.operands[1], ailment.Expr.Register)
                 and PropagatorAILState.is_global_variable_load(expr.operands[0])
             )
-        ):
-            return True
-        return False
+        )
 
     @staticmethod
     def is_shallow_expression(expr: ailment.Expr.Expression) -> bool:
@@ -1038,9 +1030,7 @@ class PropagatorAILState(PropagatorState):
     def is_global_variable_load(expr: ailment.Expr.Expression) -> bool:
         if isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.Const):
             return True
-        if isinstance(expr, ailment.Expr.Convert) and PropagatorAILState.is_global_variable_load(expr.operand):
-            return True
-        return False
+        return bool(isinstance(expr, ailment.Expr.Convert) and PropagatorAILState.is_global_variable_load(expr.operand))
 
     @staticmethod
     def is_expression_too_deep(expr: ailment.Expr.Expression) -> bool:

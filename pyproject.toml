@@ -19,11 +19,34 @@ exclude = [
 ]
 
 [tool.ruff.lint]
+extend-select = [
+	"B",
+	"C4",
+	"FLY",
+	"FURB",
+	"I002",
+	"INT",
+	"ISC",
+	"LOG",
+	"PERF",
+	"PIE",
+	"R",
+	"RET",
+	"RSE",
+	"RUF",
+	"SIM",
+	"SLOT",
+	"UP",
+	"YTT",
+]
 extend-ignore = [
+	"B007", # Unused loop control variable
+	"B011", # Asserts
 	"E402", # Bottom imports
 	"E721", # Type comparisons
 	"E741", # Variable names
-
+	"PERF203", # try-except in loops
+	"RUF012", # FIXME: Annotate class variables
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -42,3 +65,6 @@ extend-ignore = [
 	"F401",
 	"F403",
 ]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]

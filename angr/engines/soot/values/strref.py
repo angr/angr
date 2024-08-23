@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .base import SimSootValue
 
 
@@ -5,7 +6,7 @@ class SimSootValue_StringRef(SimSootValue):
     __slots__ = ["id", "type"]
 
     def __init__(self, heap_alloc_id):
-        self.id = "%s.string" % heap_alloc_id
+        self.id = f"{heap_alloc_id}.string"
         self.type = "java.lang.String"
 
     def __repr__(self):
@@ -16,7 +17,7 @@ class SimSootValue_StringRef(SimSootValue):
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def new_string(state, value):

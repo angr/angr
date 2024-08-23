@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 import claripy
 import logging
@@ -32,7 +33,7 @@ class strtol(angr.SimProcedure):
         # order matters here since we will use an if then else tree, and -0x will have precedence over -
         prefixes = [b"-", b"+", b""]
         if base == 16:
-            prefixes = [b"0x", b"-0x", b"+0x"] + prefixes
+            prefixes = [b"0x", b"-0x", b"+0x", *prefixes]
 
         cases = []
         conditions = []
@@ -115,7 +116,7 @@ class strtol(angr.SimProcedure):
             # identify the constraints necessary to set num_bytes to the current value
             # the current char (i.e. the terminator if this is satisfied) should not be a char,
             # so `condition` should be false, plus all the previous conditions should be satisfied
-            case_constraints = conditions + [claripy.Not(condition), num_bytes == i]
+            case_constraints = [*conditions, claripy.Not(condition), num_bytes == i]
             constraints_num_bytes.append(claripy.And(*case_constraints))
 
             # break the loop early if no value past this is viable
@@ -130,7 +131,7 @@ class strtol(angr.SimProcedure):
         # if we ran out of bytes, we still need to add the case that every single byte was a digit
         if not cutoff:
             cases.append((num_bytes == length, current_val))
-            case_constraints = conditions + [num_bytes == length]
+            case_constraints = [*conditions, num_bytes == length]
             if read_length is None:
                 # the loop broke because we hit angr's coded max. we need to assert that the following char is not
                 # a digit in order for this case to generate correct models
@@ -253,9 +254,8 @@ class strtol(angr.SimProcedure):
 
             return value
 
-        else:
-            expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
-            self.state.memory.store(
-                endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
-            )
-            return claripy.If(expression, value, 0)
+        expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
+        self.state.memory.store(
+            endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
+        )
+        return claripy.If(expression, value, 0)

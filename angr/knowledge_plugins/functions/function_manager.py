@@ -1,4 +1,7 @@
 # pylint:disable=raise-missing-from
+from __future__ import annotations
+
+import contextlib
 from collections.abc import Generator
 import logging
 import collections.abc
@@ -37,16 +40,14 @@ class FunctionDict(SortedDict):
             return super().__getitem__(addr)
         except KeyError as ex:
             if not isinstance(addr, self._key_types):
-                raise TypeError("FunctionDict only supports %s as key type" % self._key_types) from ex
+                raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
 
             if isinstance(addr, SootMethodDescriptor):
                 t = SootFunction(self._backref, addr)
             else:
                 t = Function(self._backref, addr)
-            try:
+            with contextlib.suppress(Exception):
                 self[addr] = t
-            except Exception:  # pylint:disable=broad-except
-                pass
             self._backref._function_added(t)
             return t
 
@@ -56,21 +57,21 @@ class FunctionDict(SortedDict):
     def floor_addr(self, addr):
         try:
             return next(self.irange(maximum=addr, reverse=True))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def ceiling_addr(self, addr):
         try:
             return next(self.irange(minimum=addr, reverse=False))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def __setstate__(self, state):
         for v, k in state.items():
             self[k] = v
 
     def __getstate__(self):
-        return {v: k for (v, k) in self.items()}
+        return dict(self.items())
 
 
 class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
@@ -104,7 +105,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             func._function_manager = self
 
     def __getstate__(self):
-        s = {
+        return {
             "_kb": self._kb,
             "function_address_types": self.function_address_types,
             "address_types": self.address_types,
@@ -112,7 +113,6 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             "callgraph": self.callgraph,
             "block_map": self.block_map,
         }
-        return s
 
     def copy(self):
         fm = FunctionManager(self._kb)
@@ -315,7 +315,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         elif type(k) is str:
             f = self.function(name=k)
         else:
-            raise ValueError("FunctionManager.__getitem__ does not support keys of type %s" % type(k))
+            raise ValueError(f"FunctionManager.__getitem__ does not support keys of type {type(k)}")
 
         if f is None:
             raise KeyError(k)
@@ -350,7 +350,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
-    def get_by_name(self, name: str) -> Generator[Function, None, None]:
+    def get_by_name(self, name: str) -> Generator[Function]:
         for f in self._function_map.values():
             if f.name == name:
                 yield f
@@ -489,7 +489,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def rebuild_callgraph(self):
         self.callgraph = networkx.MultiDiGraph()
-        for func_addr in self._function_map.keys():
+        for func_addr in self._function_map:
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
             if func.block_addrs_set:

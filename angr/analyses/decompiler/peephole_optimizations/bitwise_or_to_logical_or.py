@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -28,7 +29,6 @@ class BitwiseOrToLogicalOr(PeepholeOptimizationExprBase):
             new_left = BinaryOp(inner.idx, expr.op, (inner.operands[0], expr.operands[1]), False, bits=1, **inner.tags)
             new_right = BinaryOp(inner.idx, expr.op, (inner.operands[1], expr.operands[1]), False, bits=1, **inner.tags)
             op = "LogicalOr" if expr.op == "CmpNE" else "LogicalAnd"
-            new_expr = BinaryOp(expr.idx, op, (new_left, new_right), False, bits=expr.bits, **expr.tags)
-            return new_expr
+            return BinaryOp(expr.idx, op, (new_left, new_right), False, bits=expr.bits, **expr.tags)
 
         return expr

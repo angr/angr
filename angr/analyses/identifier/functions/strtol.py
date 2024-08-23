@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import string
 
@@ -85,7 +86,4 @@ class strtol(Func):
         return_val = num
         max_steps = 20
         test = TestData(test_input, test_output, return_val, max_steps)
-        if not runner.test(func, test):
-            return False
-
-        return True
+        return runner.test(func, test)

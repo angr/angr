@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 import logging
@@ -10,5 +11,4 @@ class atoi(angr.SimProcedure):
     def run(self, s):
         strtol = angr.SIM_PROCEDURES["libc"]["strtol"]
         val = strtol.strtol_inner(s, self.state, self.state.memory, 10, True)[1]
-        val = val[self.arch.sizeof["int"] - 1 : 0]
-        return val
+        return val[self.arch.sizeof["int"] - 1 : 0]

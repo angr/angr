@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...knowledge_base import KnowledgeBase
 from ..models import DbKnowledgeBase
 from .cfg_model import CFGModelSerializer
@@ -102,8 +103,8 @@ class KnowledgeBaseSerializer:
 
             # re-initialize CFGModel.insn_addr_to_memory_data
             # fill in insn_addr_to_memory_data
-            for xrefs in xrefs.xrefs_by_ins_addr.values():
-                for xref in xrefs:
+            for xrefs_ in xrefs.xrefs_by_ins_addr.values():
+                for xref in xrefs_:
                     if xref.ins_addr is not None and xref.memory_data is not None:
                         cfg_model.insn_addr_to_memory_data[xref.ins_addr] = xref.memory_data
 

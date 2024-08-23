@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -16,11 +17,8 @@ class openat(angr.SimProcedure):
         # simply check the unsigned value.
         # TODO: Is above described way to check dirfd okay?
         dirfd_val = self.state.solver.eval(dirfd)
-        if path.startswith(b"/") or dirfd_val == 0xFFFFFF9C:
-            fd = self.state.posix.open(path, flags)
-        else:
-            # TODO: Implement support for opening path relative to directory corresponding to dirfd
-            fd = None
+        # TODO: Implement support for opening path relative to directory corresponding to dirfd
+        fd = self.state.posix.open(path, flags) if path.startswith(b"/") or dirfd_val == 4294967196 else None
 
         if fd is None:
             return -1

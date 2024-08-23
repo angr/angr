@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any
 
 import networkx
@@ -41,7 +42,7 @@ class SAILRStructurer(PhoenixStructurer):
 
         # TODO: the graph we have here is not an accurate graph and can have no "entry node". We need a better graph.
         try:
-            entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+            entry_node = next(node for node in graph.nodes if graph.in_degree(node) == 0)
         except IndexError:
             entry_node = None
 
@@ -104,7 +105,7 @@ class SAILRStructurer(PhoenixStructurer):
 
                 if len(best_edges) == 1:
                     return best_edges
-                elif not best_edges:
+                if not best_edges:
                     best_edges = candidate_edges
 
         # if we have another tie, or we never used improved heuristics, then we do the default ordering.

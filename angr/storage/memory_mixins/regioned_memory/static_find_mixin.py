@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from ..smart_find_mixin import SmartFindMixin

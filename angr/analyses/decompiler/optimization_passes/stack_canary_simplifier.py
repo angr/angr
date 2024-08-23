@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 import logging
 
@@ -143,10 +144,7 @@ class StackCanarySimplifier(OptimizationPass):
                 if len(succs) != 2:
                     _l.debug("Expect 2 successors. Found %d.", len(succs))
                     continue
-                if stack_chk_fail_caller is succs[0]:
-                    ret_node = succs[1]
-                else:
-                    ret_node = succs[0]
+                ret_node = succs[1] if stack_chk_fail_caller is succs[0] else succs[0]
                 nodes_to_process.append((pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node))
 
             # Awesome. Now patch this function.
@@ -201,9 +199,13 @@ class StackCanarySimplifier(OptimizationPass):
                     op0, op1 = stmt.data.addr.operands
                     if isinstance(op1, ailment.Expr.Register):
                         op0, op1 = op1, op0
-                    if isinstance(op0, ailment.Expr.Register) and isinstance(op1, ailment.Expr.Const):
-                        if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
-                            return first_block, idx
+                    if (
+                        isinstance(op0, ailment.Expr.Register)
+                        and isinstance(op1, ailment.Expr.Const)
+                        and op0.reg_offset == self.project.arch.get_register_offset("fs")
+                        and op1.value == 0x28
+                    ):
+                        return first_block, idx
 
             succs = list(self._graph.successors(first_block))
             if len(succs) == 1:
@@ -280,9 +282,7 @@ class StackCanarySimplifier(OptimizationPass):
     def _is_stack_canary_load_expr(expr, bits: int, canary_value_stack_offset: int) -> bool:
         if not (isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.StackBaseOffset)):
             return False
-        if s2u(expr.addr.offset, bits) != s2u(canary_value_stack_offset, bits):
-            return False
-        return True
+        return s2u(expr.addr.offset, bits) == s2u(canary_value_stack_offset, bits)
 
     @staticmethod
     def _is_random_number_load_expr(expr, fs_reg_offset: int) -> bool:

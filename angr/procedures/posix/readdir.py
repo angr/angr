@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections import namedtuple
 
@@ -35,7 +36,6 @@ class readdir(angr.SimProcedure):
         The two useful variables you can override are self.struct, a named tuple of all the struct
         fields, and self.condition, the condition for whether the function succeeds.
         """
-        pass
 
     def _build_amd64(self):
         self.struct = Dirent(

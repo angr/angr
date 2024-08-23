@@ -1,4 +1,4 @@
-from typing import Union
+from __future__ import annotations
 from enum import Enum, auto
 
 import claripy
@@ -39,7 +39,7 @@ class Atom:
         self._hash = None
 
     def __repr__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def bits(self) -> int:
@@ -54,19 +54,18 @@ class Atom:
         self.size = v
 
     @staticmethod
-    def from_ail_expr(expr: ailment.Expr.Expression, arch: Arch, full_reg: bool = False) -> "Register":
+    def from_ail_expr(expr: ailment.Expr.Expression, arch: Arch, full_reg: bool = False) -> Register:
         if isinstance(expr, ailment.Expr.Register):
             if full_reg:
                 reg_name = arch.translate_register_name(expr.reg_offset)
                 return Register(arch.registers[reg_name][0], arch.registers[reg_name][1], arch)
-            else:
-                return Register(expr.reg_offset, expr.size, arch)
+            return Register(expr.reg_offset, expr.size, arch)
         raise TypeError(f"Expression type {type(expr)} is not yet supported")
 
     @staticmethod
     def from_argument(
         argument: SimFunctionArgument, arch: Arch, full_reg=False, sp: int | None = None
-    ) -> Union["Register", "MemoryLocation"]:
+    ) -> Register | MemoryLocation:
         """
         Instanciate an `Atom` from a given argument.
 
@@ -79,19 +78,17 @@ class Atom:
         if isinstance(argument, SimRegArg):
             if full_reg:
                 return Register(arch.registers[argument.reg_name][0], arch.registers[argument.reg_name][1], arch)
-            else:
-                return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
-        elif isinstance(argument, SimStackArg):
+            return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
+        if isinstance(argument, SimStackArg):
             if sp is None:
                 raise ValueError("You must provide a stack pointer to translate a SimStackArg")
             return MemoryLocation(
                 SpOffset(arch.bits, argument.stack_offset + sp), argument.size, endness=arch.memory_endness
             )
-        else:
-            raise TypeError("Argument type %s is not yet supported." % type(argument))
+        raise TypeError(f"Argument type {type(argument)} is not yet supported.")
 
     @staticmethod
-    def reg(thing: str | RegisterOffset, size: int | None = None, arch: Arch | None = None) -> "Register":
+    def reg(thing: str | RegisterOffset, size: int | None = None, arch: Arch | None = None) -> Register:
         """
         Create a Register atom.
 
@@ -126,7 +123,7 @@ class Atom:
     register = reg
 
     @staticmethod
-    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None) -> "MemoryLocation":
+    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None) -> MemoryLocation:
         """
         Create a MemoryLocation atom,
 
@@ -141,7 +138,7 @@ class Atom:
     memory = mem
 
     def _identity(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __hash__(self):
         if self._hash is None:
@@ -164,7 +161,7 @@ class GuardUse(Atom):
         self.target = target
 
     def __repr__(self):
-        return "<Guard %#x>" % self.target
+        return f"<Guard {self.target:#x}>"
 
     def _identity(self):
         return (self.target,)
@@ -282,7 +279,7 @@ class MemoryLocation(Atom):
     def symbolic(self) -> bool:
         if isinstance(self.addr, int):
             return False
-        elif isinstance(self.addr, SpOffset):
+        if isinstance(self.addr, SpOffset):
             return type(self.addr.offset) is not int
         return True
 

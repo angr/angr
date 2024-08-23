@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 import claripy
@@ -108,11 +109,8 @@ class SimEngineXRefsVEX(
                 addr = self.replacements[blockloc][addr_tmp]
                 addr_v = self.extract_value_if_concrete(addr)
                 if addr_v is not None:
-                    if stmt.storedata is None:
-                        # load-link
-                        xref_type = XRefType.Read
-                    else:
-                        xref_type = XRefType.Write
+                    # load-link in true case
+                    xref_type = XRefType.Read if stmt.storedata is None else XRefType.Write
                     self.add_xref(xref_type, self._codeloc(), addr_v)
 
     def _handle_data_offset_refs(self, data_tmp):
@@ -127,12 +125,11 @@ class SimEngineXRefsVEX(
             data_v = self.extract_value_if_concrete(data)
             if data_v is None:
                 return
-            if self.project.loader.find_object_containing(data_v) is not None:
-                # HACK: Avoid spamming Xrefs if the binary is loaded at 0
-                # e.g., firmware!
-                # (magic value chosen due to length of CM EVT)
-                if data_v > 0x200:
-                    self.add_xref(XRefType.Offset, self._codeloc(), data_v)
+            # HACK: Avoid spamming Xrefs if the binary is loaded at 0
+            # e.g., firmware!
+            # (magic value chosen due to length of CM EVT)
+            if self.project.loader.find_object_containing(data_v) is not None and data_v > 0x200:
+                self.add_xref(XRefType.Offset, self._codeloc(), data_v)
 
     #
     # Expression handlers
@@ -250,8 +247,7 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, None
-        else:
-            return False, None
+        return False, None
 
     def _intra_analysis(self):
         pass

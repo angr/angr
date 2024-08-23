@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -43,7 +44,7 @@ class free(Func):
 
         malloc_vals = []
         state = None
-        for i in range(10):  # pylint disable=unused-variable
+        for _i in range(10):  # pylint disable=unused-variable
             state = runner.get_out_state(malloc, malloc_test, initial_state=state)
             if state is None:
                 l.critical("malloc failed")
@@ -60,7 +61,4 @@ class free(Func):
             if state is None:
                 return False
 
-        if len(malloc_vals) == len(set(malloc_vals)):
-            return False
-
-        return True
+        return len(malloc_vals) != len(set(malloc_vals))

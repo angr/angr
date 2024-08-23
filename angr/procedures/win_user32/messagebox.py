@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 import angr
@@ -6,10 +7,7 @@ import angr
 class MessageBoxA(angr.SimProcedure):
     def run(self, hWnd, lpText, lpCaption, uType):
         text = self.extract(lpText)
-        if not self.state.solver.is_true(lpCaption == 0):
-            caption = self.extract(lpCaption)
-        else:
-            caption = "Error"
+        caption = self.extract(lpCaption) if not self.state.solver.is_true(lpCaption == 0) else "Error"
 
         result = claripy.If(
             uType & 0xF == 0, 1, self.state.solver.BVS("messagebox_button", 32, key=("api", "messagebox", "button"))

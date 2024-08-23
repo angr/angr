@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 import string
 
 from archinfo import Endness
@@ -24,7 +25,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
     NAME = "Simplifying inlined wstrcpy"
     stmt_classes = (Store,)
 
-    def optimize(self, stmt: Store, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: Store, stmt_idx: int | None = None, block=None, **kwargs):
         if isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
             r, s = self.is_integer_likely_a_wide_string(stmt.data.value, stmt.data.size, stmt.endness)
             if r:
@@ -139,7 +140,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
                 if byt != 0 and chr(byt) not in ASCII_PRINTABLES:
                     return False, None
                 chars.append(chr(byt))
-            chars = chars[::-1]
+            chars.reverse()
         else:
             # unsupported endness
             return False, None

@@ -1,4 +1,5 @@
 # pylint:disable=unnecessary-pass
+from __future__ import annotations
 import logging
 
 from ailment.statement import ConditionalJump, Assignment, Jump
@@ -126,7 +127,7 @@ class ITERegionConverter(OptimizationPass):
             common_successor = true_successors[0]
 
             # lastly, normalize the region we will be editing
-            region_head = super_to_normal_node.get(if_stmt_block, None)
+            region_head = super_to_normal_node.get(if_stmt_block)
             tail_blocks = list(self.blocks_by_addr.get(common_successor.addr, []))
             region_tail = tail_blocks[0] if tail_blocks else None
             if region_head is None or region_tail is None:

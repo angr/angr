@@ -1,4 +1,5 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions
+from __future__ import annotations
 from typing import Any
 
 import ailment

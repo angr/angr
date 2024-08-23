@@ -1,3 +1,4 @@
+from __future__ import annotations
 from itertools import count
 
 import claripy
@@ -63,31 +64,30 @@ class receive(angr.SimProcedure):
             self.size = read_length
 
             return 0
-        else:
-            if self.state.solver.solution(count != 0, True):
-                data, read_length = simfd.read_data(count)
-                if not self.state.solver.is_true(read_length == 0):
-                    self.state.memory.store(buf, data, size=read_length)
-                action_list = list(self.state.history.recent_actions)
+        if self.state.solver.solution(count != 0, True):
+            data, read_length = simfd.read_data(count)
+            if not self.state.solver.is_true(read_length == 0):
+                self.state.memory.store(buf, data, size=read_length)
+            action_list = list(self.state.history.recent_actions)
 
-                try:
-                    # get and fix up the memory write
-                    action = next(
-                        a
-                        for a in reversed(action_list)
-                        if isinstance(a, SimActionData) and a.action == "write" and a.type == "mem"
-                    )
-                    action.size.ast = read_length
-                    action.data.ast = action.actual_value.ast
-                    self.data = data
-                except StopIteration:
-                    # the write didn't occur (i.e., size of 0)
-                    self.data = None
-            else:
+            try:
+                # get and fix up the memory write
+                action = next(
+                    a
+                    for a in reversed(action_list)
+                    if isinstance(a, SimActionData) and a.action == "write" and a.type == "mem"
+                )
+                action.size.ast = read_length
+                action.data.ast = action.actual_value.ast
+                self.data = data
+            except StopIteration:
+                # the write didn't occur (i.e., size of 0)
                 self.data = None
+        else:
+            self.data = None
 
-            self.size = read_length
-            if type(read_length) is int:
-                read_length = claripy.BVV(read_length, 32)
-            self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness="Iend_LE")
-            return 0
+        self.size = read_length
+        if type(read_length) is int:
+            read_length = claripy.BVV(read_length, 32)
+        self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness="Iend_LE")
+        return 0

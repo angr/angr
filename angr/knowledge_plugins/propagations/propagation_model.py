@@ -1,4 +1,5 @@
-from typing import DefaultDict, Any
+from __future__ import annotations
+from typing import Any
 from collections import defaultdict
 
 import claripy
@@ -30,10 +31,10 @@ class PropagationModel(Serializable):
     def __init__(
         self,
         prop_key: tuple,
-        node_iterations: DefaultDict[Any, int] | None = None,
+        node_iterations: defaultdict[Any, int] | None = None,
         states: dict | None = None,
         block_initial_reg_values: dict | None = None,
-        replacements: DefaultDict[Any, dict] | None = None,
+        replacements: defaultdict[Any, dict] | None = None,
         equivalence: set | None = None,
         function: Function | None = None,
         input_states: dict | None = None,
@@ -59,7 +60,7 @@ class PropagationModel(Serializable):
 
     def block_beginning_state(self, block_addr) -> PropagatorState:
         if self._function is None:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         node = self._function.get_node(block_addr)
         preds = [self.states[pnode.addr] for pnode in self._function.graph.predecessors(node)]

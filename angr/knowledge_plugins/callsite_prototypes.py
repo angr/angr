@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .plugin import KnowledgeBasePlugin
 from ..sim_type import SimTypeFunction
 from ..calling_conventions import SimCC

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 import logging
 
@@ -18,8 +19,7 @@ class SimLightRegisters(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, _memo):
-        o = type(self)(reg_map=self.reg_map, registers=dict(self.registers))
-        return o
+        return type(self)(reg_map=self.reg_map, registers=dict(self.registers))
 
     def set_state(self, state):
         super().set_state(state)
@@ -34,7 +34,7 @@ class SimLightRegisters(SimStatePlugin):
         bw = state.arch.byte_width
         for reg in state.arch.register_list:
             self.reg_map[(reg.vex_offset, reg.size)] = reg.name, None, reg.size * bw
-            for subreg_name, subreg_suboffset, subreg_size in reg.subregisters:
+            for _subreg_name, subreg_suboffset, subreg_size in reg.subregisters:
                 # endian swap gets undone here
                 if state.arch.register_endness == "Iend_BE":
                     extract_high = (reg.size - 1 - subreg_suboffset) * bw + 7
@@ -56,8 +56,7 @@ class SimLightRegisters(SimStatePlugin):
                 try:
                     if size.symbolic:
                         raise SimFastMemoryError("Can't handle symbolic register access")
-                    else:
-                        size = offset.args[0]
+                    size = offset.args[0]
                 except AttributeError:
                     raise TypeError("Invalid size argument") from None
 
@@ -65,8 +64,7 @@ class SimLightRegisters(SimStatePlugin):
                 try:
                     if offset.symbolic:
                         raise SimFastMemoryError("Can't handle symbolic register access")
-                    else:
-                        offset = offset.args[0]
+                    offset = offset.args[0]
                 except AttributeError:
                     raise TypeError("Invalid offset argument") from None
 
@@ -164,7 +162,7 @@ class SimLightRegisters(SimStatePlugin):
                         "to suppress these messages."
                     )
                 l.warning("Filling register %s with %d unconstrained bytes", name, size)
-            return self.state.solver.Unconstrained("reg_%s" % name, size_bits, key=("reg", name), eternal=True)  # :)
+            return self.state.solver.Unconstrained(f"reg_{name}", size_bits, key=("reg", name), eternal=True)  # :)
 
         self.registers[name] = value
         return value

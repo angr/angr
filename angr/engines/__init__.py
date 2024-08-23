@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .successors import SimSuccessors
 from .engine import SimEngine, SuccessorsMixin, TLSMixin
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 
@@ -60,13 +61,14 @@ class SimConcretizationStrategy:
         """
         if self._filter is None or self._filter(memory, addr):
             return self._concretize(memory, addr, **kwargs)
+        return None
 
     def _concretize(self, memory, addr, **kwargs):
         """
         Should be implemented by child classes to handle concretization.
         :param **kwargs:
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy(self):
         """
@@ -80,7 +82,6 @@ class SimConcretizationStrategy:
         Merges this strategy with others (if there is data that should be kept separate between
         states. If not, is a no-op.
         """
-        pass
 
 
 from .any import SimConcretizationStrategyAny

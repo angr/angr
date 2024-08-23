@@ -1,4 +1,5 @@
 # pylint:disable=missing-class-docstring
+from __future__ import annotations
 import angr
 
 from ...sim_type import SimStruct, SimTypeLong, SimTypeFixedSizeArray, SimTypeShort, SimTypeInt

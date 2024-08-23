@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 import angr
 
@@ -23,7 +24,7 @@ class fstat64(angr.SimProcedure):
         elif self.arch.name.startswith("ARM"):
             self._store_arm(stat_buf, stat)
         else:
-            raise angr.errors.SimProcedureError("Unsupported fstat64 arch: %s" % self.arch.name)
+            raise angr.errors.SimProcedureError(f"Unsupported fstat64 arch: {self.arch.name}")
         return result
 
     def _store_arm(self, stat_buf, stat):

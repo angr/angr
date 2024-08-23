@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
@@ -26,7 +27,7 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                         inner_expr,
                         **expr.tags,
                     )
-                    conv_expr = Convert(
+                    return Convert(
                         None,
                         expr_a.bits - n0,
                         expr.bits,
@@ -34,7 +35,6 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                         conv_inner_expr,
                         **expr.tags,
                     )
-                    return conv_expr
 
         # expr << 0  ==>  expr
         # expr >> 0  ==>  expr

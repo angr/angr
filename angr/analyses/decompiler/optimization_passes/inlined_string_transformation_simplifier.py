@@ -1,6 +1,6 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use
 from __future__ import annotations
-from typing import Any, DefaultDict
+from typing import Any
 from collections import defaultdict
 
 from archinfo import Endness
@@ -90,7 +90,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         self.MASK = 0xFFFF_FFFF if self.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
         state = InlinedStringTransformationState(project)
-        self.stack_accesses: DefaultDict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
+        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
         self.finished: bool = False
 
         i = 0
@@ -139,7 +139,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 self.state.mem_store(addr, val, stmt.endness)
                 # log it
                 if addr_type == "stack":
-                    for i in range(0, val.size() // self.arch.byte_width):
+                    for i in range(val.size() // self.arch.byte_width):
                         byte_off = i
                         if self.arch.memory_endness == Endness.LE:
                             byte_off = val.size() // self.arch.byte_width - i - 1
@@ -171,7 +171,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
             v = self.state.mem_load(addr, expr.size, expr.endness)
             # log it
             if addr_type == "stack" and isinstance(v, claripy.ast.BV):
-                for i in range(0, expr.size):
+                for i in range(expr.size):
                     byte_off = i
                     if self.arch.memory_endness == Endness.LE:
                         byte_off = expr.size - i - 1
@@ -189,10 +189,9 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 if not expr.is_signed:
                     return claripy.ZeroExt(expr.to_bits - expr.from_bits, v)
                 return claripy.SignExt(expr.to_bits - expr.from_bits, v)
-            elif expr.to_bits < expr.from_bits:
+            if expr.to_bits < expr.from_bits:
                 return claripy.Extract(expr.to_bits - 1, 0, v)
-            else:
-                return v
+            return v
         return None
 
     def _handle_CmpEQ(self, expr):
@@ -368,11 +367,16 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
                     stack_accesses = engine.stack_accesses[stack_addr]
                     if len(stack_accesses) == 3:
                         item0, item1, item2 = stack_accesses
-                        if item0[0] == "store" and item1[0] == "load" and item2[0] == "store":
-                            if item0[1] != item1[1] and item1[1] == item2[1]:
-                                if item0[2] is item1[2]:
-                                    # found one!
-                                    candidate_stack_addrs.append(stack_addr)
+                        if (
+                            item0[0] == "store"
+                            and item1[0] == "load"
+                            and item2[0] == "store"
+                            and item0[1] != item1[1]
+                            and item1[1] == item2[1]
+                            and item0[2] is item1[2]
+                        ):
+                            # found one!
+                            candidate_stack_addrs.append(stack_addr)
 
                 if (
                     len(candidate_stack_addrs) >= 2

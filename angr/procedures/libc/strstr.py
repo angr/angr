@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -28,7 +29,7 @@ class strstr(angr.SimProcedure):
         if needle_maxlen == 0:
             l.debug("... zero-length needle.")
             return haystack_addr
-        elif haystack_maxlen == 0:
+        if haystack_maxlen == 0:
             l.debug("... zero-length haystack.")
             return claripy.BVV(0, self.state.arch.bits)
 
@@ -54,9 +55,12 @@ class strstr(angr.SimProcedure):
 
                 c = claripy.And(
                     *(
-                        [claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0]
-                        + not_terminated_yet_constraints
-                        + exclusions
+                        [
+                            claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr),
+                            cmp_res.ret_expr == 0,
+                            *not_terminated_yet_constraints,
+                            *exclusions,
+                        ]
                     )
                 )
 

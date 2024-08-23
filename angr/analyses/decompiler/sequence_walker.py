@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument,useless-return
+from __future__ import annotations
 from collections import OrderedDict
 
 import ailment
@@ -66,7 +67,7 @@ class SequenceWalker:
         if handler is not None:
             return handler(node, **kwargs)
         if self._exception_on_unsupported:
-            raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
+            raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
         return None
 
     def _handle_Code(self, node: CodeNode, **kwargs):
@@ -200,15 +201,9 @@ class SequenceWalker:
         return None
 
     def _handle_Condition(self, node, **kwargs):
-        if node.true_node is not None:
-            new_true_node = self._handle(node.true_node, parent=node, index=0)
-        else:
-            new_true_node = None
+        new_true_node = self._handle(node.true_node, parent=node, index=0) if node.true_node is not None else None
 
-        if node.false_node is not None:
-            new_false_node = self._handle(node.false_node, parent=node, index=1)
-        else:
-            new_false_node = None
+        new_false_node = self._handle(node.false_node, parent=node, index=1) if node.false_node is not None else None
 
         if new_true_node is None and new_false_node is None:
             return None
@@ -226,7 +221,7 @@ class SequenceWalker:
             self._handle(child_node, parent=node, index=index)
         if node.else_node is not None:
             self._handle(node.else_node, parent=node, index=-1)
-        return None
+        return
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):  # pylint:disable=no-self-use
         return None

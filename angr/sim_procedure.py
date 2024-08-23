@@ -1,3 +1,4 @@
+from __future__ import annotations
 import inspect
 import copy
 import itertools
@@ -99,7 +100,7 @@ class SimProcedure:
 
     """
 
-    state: "SimState"
+    state: SimState
 
     def __init__(
         self,
@@ -168,7 +169,7 @@ class SimProcedure:
         self.arg_session: None | ArgSession | int = None
 
     def __repr__(self):
-        return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
+        return "<SimProcedure {}{}{}{}{}>".format(*self._describe_me())
 
     def _describe_me(self):
         """
@@ -176,7 +177,7 @@ class SimProcedure:
         """
         return (
             self.display_name,
-            " (cont: %s)" % self.run_func if self.is_continuation else "",
+            f" (cont: {self.run_func})" if self.is_continuation else "",
             " (syscall)" if self.is_syscall else "",
             " (inline)" if not self.use_state_arguments else "",
             " (stub)" if self.is_stub else "",
@@ -206,8 +207,8 @@ class SimProcedure:
                 )(self.arch)
             else:
                 raise SimProcedureError(
-                    "There is no default calling convention for architecture %s."
-                    " You must specify a calling convention." % self.arch.name
+                    f"There is no default calling convention for architecture {self.arch.name}."
+                    " You must specify a calling convention."
                 )
         if self.prototype._arch is None:
             self.prototype = self.prototype.with_arch(self.arch)
@@ -274,7 +275,7 @@ class SimProcedure:
                     inst.arg_session = 0
 
             # run it
-            l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
+            l.debug("Executing %s%s%s%s%s with %s, %s", *((*inst._describe_me(), sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         state._inspect(
@@ -327,7 +328,7 @@ class SimProcedure:
         """
         Implement the actual procedure here!
         """
-        raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
+        raise SimProcedureError(f"{self.__class__.__name__} does not implement a run() method")
 
     def static_exits(self, blocks, **kwargs):  # pylint: disable=unused-argument
         """
@@ -340,7 +341,7 @@ class SimProcedure:
         """
 
         if self.ADDS_EXITS:
-            raise SimProcedureError("static_exits() is not implemented for %s" % self)
+            raise SimProcedureError(f"static_exits() is not implemented for {self}")
 
         # This SimProcedure does not add any new exit
         return []
@@ -498,7 +499,7 @@ class SimProcedure:
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
+        saved_local_vars = list(zip(self.local_vars, (getattr(self, name) for name in self.local_vars)))
         simcallstack_entry = (
             self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
             self.arguments,

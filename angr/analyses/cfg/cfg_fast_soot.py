@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from collections import defaultdict
@@ -102,10 +103,9 @@ class CFGFastSoot(CFGFast):
         self._total_methods = total_methods
 
     def _pre_job_handling(self, job):
-        if self._show_progressbar or self._progress_callback:
-            if self._total_methods:
-                percentage = len(self.functions) * 100.0 / self._total_methods
-                self._update_progress(percentage)
+        if (self._show_progressbar or self._progress_callback) and self._total_methods:
+            percentage = len(self.functions) * 100.0 / self._total_methods
+            self._update_progress(percentage)
 
     def normalize(self):
         # The Shimple CFG is already normalized.
@@ -153,8 +153,7 @@ class CFGFastSoot(CFGFast):
 
         # native method has no soot block
         if self.support_jni and block is None:
-            successors = self._native_method_successors(addr, method)
-            return successors
+            return self._native_method_successors(addr, method)
 
         block_id = block.idx
 
@@ -245,9 +244,7 @@ class CFGFastSoot(CFGFast):
         params = method.params
         dummy_expr = SootStaticInvokeExpr("void", class_name, method_name, params, {"jni"})
         dummy_stmt = InvokeStmt(0, 0, dummy_expr)
-        succs_native = self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
-
-        return succs_native
+        return self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
 
     def _special_invoke_successors(self, stmt, addr, block):
         invoke_expr = stmt.invoke_expr if isinstance(stmt, InvokeStmt) else stmt.right_op
@@ -347,10 +344,7 @@ class CFGFastSoot(CFGFast):
             size = hooker.kwargs.get("length", 0)
             return HookNode(addr, size, type(hooker))
 
-        if cfg_node is not None:
-            soot_block = cfg_node.soot_block
-        else:
-            soot_block = self.project.factory.block(addr).soot
+        soot_block = cfg_node.soot_block if cfg_node is not None else self.project.factory.block(addr).soot
 
         if soot_block is not None:
             stmts = soot_block.statements
@@ -429,9 +423,8 @@ class CFGFastSoot(CFGFast):
         if addr in self._traced_addresses:
             # the address has been traced before
             return []
-        else:
-            # Mark the address as traced
-            self._traced_addresses.add(addr)
+        # Mark the address as traced
+        self._traced_addresses.add(addr)
 
         # soot_block is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save
         # memory
@@ -500,7 +493,7 @@ class CFGFastSoot(CFGFast):
                 if target_func_addr is None:
                     target_func_addr = current_function_addr
 
-                to_outside = not target_func_addr == current_function_addr
+                to_outside = target_func_addr != current_function_addr
 
                 edge = FunctionTransitionEdge(
                     cfg_node,

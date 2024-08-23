@@ -1,10 +1,11 @@
+from __future__ import annotations
 import angr
 
 
 class dup(angr.SimProcedure):  # pylint:disable=W0622
     def run(self, oldfd):  # pylint:disable=arguments-differ
         oldfd = self.state.solver.eval(oldfd)
-        if oldfd not in self.state.posix.fd.keys():
+        if oldfd not in self.state.posix.fd:
             return self.state.libc.ret_errno("EBADF")
 
         # The new fd gets the lowest free number, so we search
@@ -22,7 +23,7 @@ class dup2(angr.SimProcedure):
         oldfd = self.state.solver.eval(oldfd)
         newfd = self.state.solver.eval(newfd)
 
-        if oldfd not in self.state.posix.fd.keys():
+        if oldfd not in self.state.posix.fd:
             return self.state.libc.ret_errno("EBADF")
 
         if oldfd == newfd:
@@ -41,7 +42,7 @@ class dup3(angr.SimProcedure):
         oldfd = self.state.solver.eval(oldfd)
         newfd = self.state.solver.eval(newfd)
 
-        if oldfd not in self.state.posix.fd.keys():
+        if oldfd not in self.state.posix.fd:
             return self.state.libc.ret_errno("EBADF")
 
         if oldfd == newfd:

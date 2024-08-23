@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from ..sim_state import SimState
@@ -72,7 +73,7 @@ class SimStateJNIReferences(SimStatePlugin):
 
     def _get_reference_value(self, opaque_ref):
         if self.state.solver.symbolic(opaque_ref):
-            raise NotImplementedError("Opaque reference %s is symbolic." % opaque_ref.to_claripy())
+            raise NotImplementedError(f"Opaque reference {opaque_ref.to_claripy()} is symbolic.")
         return self.state.solver.eval(opaque_ref)
 
     @SimStatePlugin.memo

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import collections
 import itertools
 import logging
@@ -30,7 +31,7 @@ class JNISimProcedure(SimProcedure):
         # Setup a SimCC using the correct type for the return value
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
-        elif self.return_ty != "void":
+        if self.return_ty != "void":
             prototype = SimTypeFunction(
                 args=self.prototype.args, returnty=state.project.simos.get_native_type(self.return_ty)
             )
@@ -111,8 +112,7 @@ class JNISimProcedure(SimProcedure):
         # return element(s)
         if no_of_elements == 1 and not return_as_list:
             return values[0]
-        else:
-            return values
+        return values
 
     def _load_string_from_native_memory(self, addr_):
         """
@@ -197,8 +197,7 @@ class JNISimProcedure(SimProcedure):
             idx = idx.to_claripy()
         if self.arch.memory_endness == "Iend_LE":
             return idx.reversed.get_bytes(index=0, size=4).reversed
-        else:
-            return idx.get_bytes(index=0, size=4)
+        return idx.get_bytes(index=0, size=4)
 
 
 #

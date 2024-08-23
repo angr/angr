@@ -1,4 +1,5 @@
-from typing import Optional, Literal, TypeVar, Generic
+from __future__ import annotations
+from typing import Literal, TypeVar, Generic
 from dataclasses import dataclass
 import logging
 
@@ -39,7 +40,7 @@ class DefinitionMatchPredicate:
     extern: bool | None = None
 
     @staticmethod
-    def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
+    def construct(predicate: DefinitionMatchPredicate | None = None, **kwargs) -> DefinitionMatchPredicate:
         if predicate is None:
             predicate = DefinitionMatchPredicate(**kwargs)
             predicate.normalize()
@@ -79,7 +80,7 @@ class DefinitionMatchPredicate:
         elif self.tmp_idx is not None:
             self.kind = AtomKind.TMP
 
-    def matches(self, defn: "Definition") -> bool:
+    def matches(self, defn: Definition) -> bool:
         if self.variable is not None:
             if self.variable_manager is False:
                 pass
@@ -123,16 +124,14 @@ class DefinitionMatchPredicate:
                 else:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
-            if self.stack_offset is not None:
-                if (
-                    not isinstance(defn.atom.addr, SpOffset)
-                    or defn.atom.addr.base != "sp"  # TODO???????
-                    or defn.atom.addr.offset != self.stack_offset
-                ):
-                    return False
-        elif isinstance(defn.atom, Tmp):
-            if self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
+            if self.stack_offset is not None and (
+                not isinstance(defn.atom.addr, SpOffset)
+                or defn.atom.addr.base != "sp"  # TODO???????
+                or defn.atom.addr.offset != self.stack_offset
+            ):
                 return False
+        elif isinstance(defn.atom, Tmp) and self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
+            return False
 
         return True
 
@@ -174,14 +173,13 @@ class Definition(Generic[A]):
             return "<Definition {{Atom:{}, Codeloc:{}}}{}>".format(
                 self.atom, self.codeloc, "" if not self.dummy else "dummy"
             )
-        else:
-            return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
-                repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
-            )
+        return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
+            repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
+        )
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
-        return f"Definition:\n" f"Atom: {self.atom}\n" f"CodeLoc: {self.codeloc}\n" f"Tags: {pretty_tags}"
+        return f"Definition:\nAtom: {self.atom}\nCodeLoc: {self.codeloc}\nTags: {pretty_tags}"
 
     def __hash__(self):
         if self._hash is None:
@@ -192,22 +190,19 @@ class Definition(Generic[A]):
     def offset(self) -> int:
         if isinstance(self.atom, Register):
             return self.atom.reg_offset
-        elif isinstance(self.atom, MemoryLocation):
+        if isinstance(self.atom, MemoryLocation):
             if isinstance(self.atom.addr, SpOffset):
                 return self.atom.addr.offset
-            else:
-                return self.atom.addr
-        else:
-            raise ValueError("Unsupported operation offset on %s." % type(self.atom))
+            return self.atom.addr
+        raise ValueError(f"Unsupported operation offset on {type(self.atom)}.")
 
     @property
     def size(self) -> int:
         if isinstance(self.atom, Register):
             return self.atom.size
-        elif isinstance(self.atom, MemoryLocation):
+        if isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
-        else:
-            raise ValueError("Unsupported operation size on %s." % type(self.atom))
+        raise ValueError(f"Unsupported operation size on {type(self.atom)}.")
 
     def matches(self, **kwargs) -> bool:
         """

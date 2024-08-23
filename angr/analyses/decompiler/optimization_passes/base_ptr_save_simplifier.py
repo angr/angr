@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import ailment
@@ -135,10 +136,9 @@ class BasePointerSaveSimplifier(OptimizationPass):
                     if endpoint.addr not in callouts_and_jumpouts:
                         _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
                         return None
-                    else:
-                        _l.debug(
-                            "No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
-                            endpoint.addr,
-                        )
+                    _l.debug(
+                        "No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                        endpoint.addr,
+                    )
 
         return baseptr_restore_stmts

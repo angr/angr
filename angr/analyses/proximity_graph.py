@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 import networkx
@@ -163,10 +164,10 @@ class ProximityGraphAnalysis(Analysis):
 
     def __init__(
         self,
-        func: "Function",
-        cfg_model: "CFGModel",
-        xrefs: "XRefManager",
-        decompilation: Optional["Decompiler"] = None,
+        func: Function,
+        cfg_model: CFGModel,
+        xrefs: XRefManager,
+        decompilation: Decompiler | None = None,
         expand_funcs: set[int] | None = None,
     ):
         self._function = func
@@ -240,7 +241,7 @@ class ProximityGraphAnalysis(Analysis):
         # condense blank nodes after the graph has been constructed
         self._condense_blank_nodes(self.graph)
 
-    def _endnode_connector(self, func: "Function", subgraph: networkx.DiGraph):
+    def _endnode_connector(self, func: Function, subgraph: networkx.DiGraph):
         """
         Properly connect expanded function call's to proximity graph.
         """
@@ -268,7 +269,7 @@ class ProximityGraphAnalysis(Analysis):
                     subgraph.add_edge(end_node, succ)
 
     def _process_function(
-        self, func: "Function", graph: networkx.DiGraph, func_proxi_node: FunctionProxiNode | None = None
+        self, func: Function, graph: networkx.DiGraph, func_proxi_node: FunctionProxiNode | None = None
     ) -> list[FunctionProxiNode]:
         to_expand: list[FunctionProxiNode] = []
         found_blocks: dict[BlockNode:BaseProxiNode] = {}
@@ -289,10 +290,7 @@ class ProximityGraphAnalysis(Analysis):
                         found_blocks[block] = node
 
         # subgraph check - do before in case of recursion
-        if self.graph == graph:
-            subgraph = False
-        else:
-            subgraph = True
+        subgraph = self.graph != graph
 
         for edge in func.graph.edges:
             nodes = ()
@@ -346,7 +344,7 @@ class ProximityGraphAnalysis(Analysis):
             args.append(UnknownProxiNode("_"))
 
     def _process_decompilation(
-        self, graph: networkx.DiGraph, decompilation: "Decompiler", func_proxi_node: FunctionProxiNode | None = None
+        self, graph: networkx.DiGraph, decompilation: Decompiler, func_proxi_node: FunctionProxiNode | None = None
     ) -> list[FunctionProxiNode]:
         to_expand: list[FunctionProxiNode] = []
 
@@ -391,10 +389,7 @@ class ProximityGraphAnalysis(Analysis):
             _handle_Call(stmt_idx, expr, block)
 
         # subgraph check - do before in case of recursion
-        if self.graph == graph:
-            subgraph = False
-        else:
-            subgraph = True
+        subgraph = self.graph != graph
 
         # Keep all default handlers, but overwrite necessary ones:
         bw = AILBlockWalker()
@@ -418,10 +413,7 @@ class ProximityGraphAnalysis(Analysis):
                             graph.add_edge(self.handled_stmts[idx - 1], current)
                     # If first block in edge, LAST handled node -> next node
                     # Else (second block in edge), prev node -> FIRST handled node
-                    if block == ail_edge[0]:
-                        proxi_node = self.handled_stmts[-1]
-                    else:
-                        proxi_node = self.handled_stmts[0]
+                    proxi_node = self.handled_stmts[-1] if block == ail_edge[0] else self.handled_stmts[0]
 
                     # Clear the handled stmts for next block
                     self.handled_stmts = []

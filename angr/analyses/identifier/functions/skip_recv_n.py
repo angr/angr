@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import struct
 
@@ -36,8 +37,7 @@ class receive_n4(Func):
         test_output = [None, outbuf, None, struct.pack("<I", max_len)]
         max_steps = max_len * 4 + 10
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps, stdin)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps, stdin)
 
     def pre_test(self, func, runner):
         return True
@@ -68,8 +68,7 @@ class receive_n3(Func):
         test_output = [None, outbuf, None]
         max_steps = max_len * 4 + 10
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps, stdin)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps, stdin)
 
     def pre_test(self, func, runner):
         return True
@@ -100,8 +99,7 @@ class receive_n2(Func):
         test_output = [outbuf, None]
         max_steps = max_len * 4 + 10
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps, stdin)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps, stdin)
 
     def pre_test(self, func, runner):
         return True

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import networkx as nx
 from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump
@@ -39,7 +40,7 @@ def is_similar(
         return True
 
     # AIL Statements
-    elif isinstance(ail_obj1, Statement):
+    if isinstance(ail_obj1, Statement):
         # if all(barr in [0x404530, 0x404573] for barr in [ail_obj1.ins_addr, ail_obj2.ins_addr]):
         #    do a breakpoint
 
@@ -81,10 +82,8 @@ def is_similar(
             return True
 
         # Generic Statement Handler
-        else:
-            return ail_obj1.likes(ail_obj2)
-    else:
-        return False
+        return ail_obj1.likes(ail_obj2)
+    return False
 
 
 #
@@ -148,10 +147,7 @@ def in_other(stmts, other, graph=None):
     @return:
     """
 
-    if index_of_similar_stmts(stmts, other, graph=graph) is not None:
-        return True
-
-    return False
+    return index_of_similar_stmts(stmts, other, graph=graph) is not None
 
 
 def longest_ail_subseq(

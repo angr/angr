@@ -1,4 +1,5 @@
 # pylint:disable=missing-class-docstring
+from __future__ import annotations
 from typing import Any
 from collections import OrderedDict
 
@@ -28,9 +29,7 @@ class MultiNode:
         self.nodes = []
 
         for node in nodes:
-            if type(node) is MultiNode:
-                self.nodes += node.nodes
-            elif type(node) is GraphRegion:
+            if type(node) is MultiNode or type(node) is GraphRegion:
                 self.nodes += node.nodes
             else:
                 self.nodes.append(node)
@@ -72,13 +71,10 @@ class BaseNode:
 
     @staticmethod
     def test_empty_node(node):
-        # pylint:disable=simplifiable-if-statement
         if type(node) is ailment.Block:
-            if not node.statements:
-                return True
-            # not empty
-            return False
-        elif type(node) is CodeNode:
+            # is it empty?
+            return bool(not node.statements)
+        if type(node) is CodeNode:
             return BaseNode.test_empty_node(node.node)
         # unsupported node type. probably not empty?
         return False
@@ -115,8 +111,7 @@ class SequenceNode(BaseNode):
     def __repr__(self):
         if self.addr is None:
             return "<SequenceNode, %d nodes>" % len(self.nodes)
-        else:
-            return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
+        return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -156,16 +151,14 @@ class CodeNode(BaseNode):
         if self.addr is not None:
             if self.idx is not None:
                 return f"<CodeNode {self.addr:#x}.{self.idx}>"
-            return "<CodeNode %#x>" % self.addr
-        else:
-            return "<CodeNode %s>" % repr(self.node)
+            return f"<CodeNode {self.addr:#x}>"
+        return f"<CodeNode {self.node!r}>"
 
     @property
     def addr(self):
         if hasattr(self.node, "addr"):
             return self.node.addr
-        else:
-            return None
+        return None
 
     @property
     def idx(self):
@@ -226,9 +219,8 @@ class ConditionNode(BaseNode):
 
     def __repr__(self):
         if self.addr is not None:
-            return "<ConditionNode %#x>" % self.addr
-        else:
-            return f"<ConditionNode ({self.true_node!r}|{self.false_node!r})>"
+            return f"<ConditionNode {self.addr:#x}>"
+        return f"<ConditionNode ({self.true_node!r}|{self.false_node!r})>"
 
 
 class CascadingConditionNode(BaseNode):
@@ -278,15 +270,13 @@ class LoopNode(BaseNode):
     def addr(self):
         if self._addr is None:
             return self.sequence_node.addr
-        else:
-            return self._addr
+        return self._addr
 
     @property
     def continue_addr(self):
         if self._continue_addr is None:
             return self.addr
-        else:
-            return self._continue_addr
+        return self._continue_addr
 
     @continue_addr.setter
     def continue_addr(self, value):
@@ -404,7 +394,7 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
         return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"
 
     def __str__(self):
-        return f"switch ({str(self.switch_variable)}): {len(self.case_addrs)} cases"
+        return f"switch ({self.switch_variable!s}): {len(self.case_addrs)} cases"
 
     __hash__ = ailment.statement.TaggedObject.__hash__
 

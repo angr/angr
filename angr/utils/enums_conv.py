@@ -1,4 +1,5 @@
 # pylint:disable=no-member
+from __future__ import annotations
 import logging
 
 l = logging.getLogger(name=__name__)
@@ -27,9 +28,7 @@ _CFG_JUMPKINDS = {
 }
 
 
-_PB_TO_CFG_JUMPKINDS = {}
-for k, v in _CFG_JUMPKINDS.items():
-    _PB_TO_CFG_JUMPKINDS[v] = k
+_PB_TO_CFG_JUMPKINDS = {v: k for k, v in _CFG_JUMPKINDS.items()}
 
 
 _FUNCTION_EDGETYPES = {
@@ -43,9 +42,7 @@ _FUNCTION_EDGETYPES = {
 }
 
 
-_PB_TO_FUNCTION_EDGETYPES = {}
-for k, v in _FUNCTION_EDGETYPES.items():
-    _PB_TO_FUNCTION_EDGETYPES[v] = k
+_PB_TO_FUNCTION_EDGETYPES = {v: k for k, v in _FUNCTION_EDGETYPES.items()}
 
 
 def cfg_jumpkind_to_pb(jk):

@@ -1,6 +1,7 @@
 # pylint:disable=no-self-use,arguments-renamed
+from __future__ import annotations
 import enum
-from typing import DefaultDict, Any
+from typing import Any
 from collections import OrderedDict, defaultdict
 
 import ailment
@@ -82,8 +83,8 @@ class SwitchClusterFinder(SequenceWalker):
         }
         super().__init__(handlers)
 
-        self.var2condnodes: DefaultDict[Any, list[ConditionalRegion]] = defaultdict(list)
-        self.var2switches: DefaultDict[Any, list[SwitchCaseRegion]] = defaultdict(list)
+        self.var2condnodes: defaultdict[Any, list[ConditionalRegion]] = defaultdict(list)
+        self.var2switches: defaultdict[Any, list[SwitchCaseRegion]] = defaultdict(list)
 
         self.walk(node)
 
@@ -122,16 +123,14 @@ class SwitchClusterFinder(SequenceWalker):
             variable = None
             if isinstance(cond.operands[1], ailment.Expr.Const):
                 v = cond.operands[1].value
-            if isinstance(cond.operands[0], (ailment.Expr.Register, ailment.Expr.Load)):
-                if hasattr(cond.operands[0], "variable"):
-                    # there we go
-                    variable = cond.operands[0].variable
+            if isinstance(cond.operands[0], (ailment.Expr.Register, ailment.Expr.Load)) and hasattr(
+                cond.operands[0], "variable"
+            ):
+                # there we go
+                variable = cond.operands[0].variable
 
             if v is not None and variable is not None:
-                if negated:
-                    real_op = ailment.Expr.BinaryOp.COMPARISON_NEGATION[cond.op]
-                else:
-                    real_op = cond.op
+                real_op = ailment.Expr.BinaryOp.COMPARISON_NEGATION[cond.op] if negated else cond.op
                 # eliminate equal
                 if real_op == "CmpLE":
                     real_op = CmpOp.LT
@@ -258,7 +257,7 @@ def update_switch_case_list(
             new_key = (case_ids, new_case_id)
         elif isinstance(case_ids, tuple):
             match = old_case_id == case_ids or old_case_id in case_ids
-            new_key = case_ids + (new_case_id,)
+            new_key = (*case_ids, new_case_id)
         else:
             raise TypeError(f"Unsupported case_ids type {type(case_ids)}")
         if match:
@@ -336,7 +335,7 @@ def simplify_switch_clusters(
         if overlaps:
             continue
 
-        used_condnodes = list(condnode for condnode, _ in used_condnodes_and_branch)
+        used_condnodes = [condnode for condnode, _ in used_condnodes_and_branch]
 
         # collect addresses for all case nodes
         case_addr_to_case_id: dict[int, int | tuple[int, ...] | str] = {}
@@ -467,9 +466,8 @@ def simplify_switch_clusters(
                         # found a gap...
                         pass
                 else:
-                    if start_idx is not None:
-                        if end_idx is None:
-                            end_idx = idx
+                    if start_idx is not None and end_idx is None:
+                        end_idx = idx
 
             if start_idx is None:
                 continue

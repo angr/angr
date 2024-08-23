@@ -1,4 +1,5 @@
 # misc
+from __future__ import annotations
 
 DUMMY_SYMBOLIC_READ_VALUE = 0xC0DEB4BE
 

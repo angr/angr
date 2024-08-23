@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 from archinfo.arch_arm import is_arm_arch
 from . import MemoryMixin
@@ -22,20 +23,19 @@ class NameResolutionMixin(MemoryMixin):
                     return (((stn_map[name] + self.load("ftop")) & 7) << 3) + self.state.arch.registers["fpu_regs"][
                         0
                     ], 8
-                elif name in tag_map:
+                if name in tag_map:
                     return ((tag_map[name] + self.load("ftop")) & 7) + self.state.arch.registers["fpu_tags"][0], 1
-                elif name in ("flags", "eflags", "rflags"):
+                if name in ("flags", "eflags", "rflags"):
                     # we tweak the state to convert the vex condition registers into the flags register
                     if not is_write:  # this work doesn't need to be done if we're just gonna overwrite it
                         self.store("cc_dep1", _get_flags(self.state))  # constraints cannot be added by this
                     self.store("cc_op", 0)  # OP_COPY
                     return self.state.arch.registers["cc_dep1"]
-            if is_arm_arch(self.state.arch):
-                if name == "flags":
-                    if not is_write:
-                        self.store("cc_dep1", _get_flags(self.state))
-                    self.store("cc_op", 0)
-                    return self.state.arch.registers["cc_dep1"]
+            if is_arm_arch(self.state.arch) and name == "flags":
+                if not is_write:
+                    self.store("cc_dep1", _get_flags(self.state))
+                self.store("cc_op", 0)
+                return self.state.arch.registers["cc_dep1"]
 
             if name == "sp" and "sp" not in self.state.arch.registers:
                 sp_reg_name = self.state.arch.register_names[self.state.arch.sp_offset]
@@ -45,10 +45,9 @@ class NameResolutionMixin(MemoryMixin):
                 return self.state.arch.registers[lr_reg_name]
 
             return self.state.arch.registers[name]
-        elif name[0] == "*":
+        if name[0] == "*":
             return self.state.registers.load(name[1:]), None
-        else:
-            raise SimMemoryError("Trying to address memory with a register name.")
+        raise SimMemoryError("Trying to address memory with a register name.")
 
     def store(self, addr, data, size=None, **kwargs):
         if isinstance(addr, str):
@@ -56,15 +55,13 @@ class NameResolutionMixin(MemoryMixin):
             if isinstance(data, claripy.ast.BV) and len(data) < named_size * self.state.arch.byte_width:
                 data = data.zero_extend(named_size * self.state.arch.byte_width - len(data))
             return super().store(named_addr, data, size=named_size if size is None else size, **kwargs)
-        else:
-            return super().store(addr, data, size=size, **kwargs)
+        return super().store(addr, data, size=size, **kwargs)
 
     def load(self, addr, size=None, **kwargs):
         if isinstance(addr, str):
             named_addr, named_size = self._resolve_location_name(addr, is_write=False)
             return super().load(named_addr, size=named_size if size is None else size, **kwargs)
-        else:
-            return super().load(addr, size=size, **kwargs)
+        return super().load(addr, size=size, **kwargs)
 
 
 from ...errors import SimMemoryError

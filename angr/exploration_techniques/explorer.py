@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import claripy
 
@@ -136,9 +137,12 @@ class Explorer(ExplorationTechnique):
             resource_event(state, e)
             return "interrupted"
 
-        if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
-            if state.addr not in self.ok_blocks:
-                return self.avoid_stash
+        if (
+            self.cfg is not None
+            and self.cfg.model.get_any_node(state.addr) is not None
+            and state.addr not in self.ok_blocks
+        ):
+            return self.avoid_stash
 
         return None
 

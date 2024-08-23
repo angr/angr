@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 import angr
@@ -12,8 +13,8 @@ class select(angr.SimProcedure):
             # readfds_v = self.state.solver.eval_one(readfds)
             writefds_v = self.state.solver.eval_one(writefds)
             exceptfds_v = self.state.solver.eval_one(exceptfds)
-        except angr.errors.SimSolverError:
-            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic select arguments")
+        except angr.errors.SimSolverError as err:
+            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic select arguments") from err
 
         if writefds_v != 0 or exceptfds_v != 0:
             raise angr.errors.SimProcedureError("Can't handle write or exception events in select")
@@ -23,10 +24,10 @@ class select(angr.SimProcedure):
 
         long_array = []
         long_array_size = ((nfds_v - 1) + arch_bits) // arch_bits
-        for offset in range(0, long_array_size):
+        for offset in range(long_array_size):
             long = self.state.memory.load(readfds + offset * arch_bytes, arch_bytes, endness=self.arch.memory_endness)
             long_array.append(long)
-        for i in range(0, nfds_v - 1):
+        for i in range(nfds_v - 1):
             # get a bit
             long_pos = i // arch_bits
             bit_offset = i % arch_bits
@@ -41,8 +42,7 @@ class select(angr.SimProcedure):
                 )
 
         # write things back
-        for offset in range(0, long_array_size):
+        for offset in range(long_array_size):
             self.state.memory.store(readfds + offset * arch_bytes, long_array[offset], endness=self.arch.memory_endness)
 
-        retval = claripy.BVV(0, 1).concat(claripy.BVS("select_ret", 31))
-        return retval
+        return claripy.BVV(0, 1).concat(claripy.BVS("select_ret", 31))

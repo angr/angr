@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class CallSite:
     """
     Describes a call site on a CFG.
@@ -17,7 +20,7 @@ class CallSite:
     def __repr__(self):
         result = f"<CallSite in function {self.caller_func_addr:#x}, calling {self.callee_func_addr:#x}"
         if self.block_addr is not None:
-            result += "at block %#x" % self.block_addr
+            result += f"at block {self.block_addr:#x}"
         result += ">"
         return result
 
@@ -52,7 +55,7 @@ class CallTrace:
             return self.target
         return self.callsites[-1].caller_func_addr
 
-    def step_back(self, caller_func_addr: int, block_addr: int | None, callee_func_addr) -> "CallTrace":
+    def step_back(self, caller_func_addr: int, block_addr: int | None, callee_func_addr) -> CallTrace:
         # create a new CallSite object
         site = CallSite(caller_func_addr, block_addr, callee_func_addr)
         t = self.copy()
@@ -62,11 +65,9 @@ class CallTrace:
     def includes_function(self, func_addr: int) -> bool:
         if self.target == func_addr:
             return True
-        if any(cs.caller_func_addr == func_addr for cs in self.callsites):
-            return True
-        return False
+        return bool(any(cs.caller_func_addr == func_addr for cs in self.callsites))
 
-    def copy(self) -> "CallTrace":
+    def copy(self) -> CallTrace:
         t = CallTrace(self.target)
         t.callsites = self.callsites[::]
         return t

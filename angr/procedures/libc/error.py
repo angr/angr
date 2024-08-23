@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -50,6 +51,4 @@ class error(angr.SimProcedure):
         )(self.arch)
         ty = angr.sim_type.parse_signature("void x(int, int, char*)").with_arch(self.arch)
         args = cc.get_args(state, ty)
-        if args[0].concrete and state.solver.eval(args[0]) == 0:
-            return True
-        return False
+        return bool(args[0].concrete and state.solver.eval(args[0]) == 0)

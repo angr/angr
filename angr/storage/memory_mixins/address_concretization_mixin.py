@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from . import MemoryMixin
@@ -183,7 +184,7 @@ class AddressConcretizationMixin(MemoryMixin):
                 return a
 
         # well, we tried
-        raise SimMemoryAddressError("Unable to concretize address for %s with the provided strategies." % action)
+        raise SimMemoryAddressError(f"Unable to concretize address for {action} with the provided strategies.")
 
     def concretize_write_addr(self, addr, strategies=None, condition=None):
         """
@@ -197,7 +198,7 @@ class AddressConcretizationMixin(MemoryMixin):
 
         if isinstance(addr, int):
             return [addr]
-        elif not self.state.solver.symbolic(addr):
+        if not self.state.solver.symbolic(addr):
             return [self.state.solver.eval(addr)]
 
         strategies = self.write_strategies if strategies is None else strategies
@@ -214,7 +215,7 @@ class AddressConcretizationMixin(MemoryMixin):
 
         if isinstance(addr, int):
             return [addr]
-        elif not self.state.solver.symbolic(addr):
+        if not self.state.solver.symbolic(addr):
             return [self.state.solver.eval(addr)]
 
         strategies = self.read_strategies if strategies is None else strategies
@@ -254,8 +255,7 @@ class AddressConcretizationMixin(MemoryMixin):
 
         if read_value is None:
             return sub_value
-        else:
-            return claripy.If(addr == concrete_addr, sub_value, read_value)
+        return claripy.If(addr == concrete_addr, sub_value, read_value)
 
     def load(self, addr, size=None, condition=None, **kwargs):
         if type(size) is not int:
@@ -264,7 +264,7 @@ class AddressConcretizationMixin(MemoryMixin):
         # Fast path
         if type(addr) is int:
             return self._load_one_addr(addr, True, addr, condition, size, read_value=None, **kwargs)
-        elif not self.state.solver.symbolic(addr):
+        if not self.state.solver.symbolic(addr):
             return self._load_one_addr(
                 self.state.solver.eval(addr), True, addr, condition, size, read_value=None, **kwargs
             )
@@ -277,8 +277,7 @@ class AddressConcretizationMixin(MemoryMixin):
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
-            else:
-                raise
+            raise
 
         # quick optimization so as to not involve the solver if not necessary
         trivial = len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true()
@@ -289,10 +288,8 @@ class AddressConcretizationMixin(MemoryMixin):
             self._add_constraints(conditional_constraint, condition=condition, **kwargs)
 
         # quick optimization to not introduce the DUMMY value if there's only one loop
-        if len(concrete_addrs) == 1:
-            read_value = None
-        else:
-            read_value = DUMMY_SYMBOLIC_READ_VALUE  # this is a sentinel value and should never be touched
+        # DUMMY_SYMBOLIC_READ_VALUE is a sentinel value and should never be touched
+        read_value = None if len(concrete_addrs) == 1 else DUMMY_SYMBOLIC_READ_VALUE
 
         for concrete_addr in concrete_addrs:
             # perform each of the loads
@@ -317,7 +314,7 @@ class AddressConcretizationMixin(MemoryMixin):
         if type(addr) is int:
             self._store_one_addr(addr, data, True, addr, condition, size, **kwargs)
             return
-        elif not self.state.solver.symbolic(addr):
+        if not self.state.solver.symbolic(addr):
             self._store_one_addr(self.state.solver.eval(addr), data, True, addr, condition, size, **kwargs)
             return
 
@@ -330,8 +327,7 @@ class AddressConcretizationMixin(MemoryMixin):
         except SimMemoryError:
             if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
                 return  # not completed
-            else:
-                raise
+            raise
 
         # quick optimization so as to not involve the solver if not necessary
         trivial = len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true()

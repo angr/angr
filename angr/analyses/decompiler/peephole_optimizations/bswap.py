@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Expression, Convert
 from ailment.statement import Call
 
@@ -100,32 +101,38 @@ class Bswap(PeepholeOptimizationExprBase):
         return None
 
     def _match_inner(self, or_first: BinaryOp, or_second: BinaryOp) -> tuple[bool, Expression | None]:
-        if isinstance(or_first.operands[1], Const) and or_first.operands[1].value == 0xFF00FF00:
-            if isinstance(or_second.operands[1], Const) and or_second.operands[1].value == 0x00FF00FF:
-                inner_first = or_first.operands[0]
-                inner_second = or_second.operands[0]
-                if (
+        if (
+            isinstance(or_first.operands[1], Const)
+            and or_first.operands[1].value == 0xFF00FF00
+            and isinstance(or_second.operands[1], Const)
+            and or_second.operands[1].value == 0x00FF00FF
+        ):
+            inner_first = or_first.operands[0]
+            inner_second = or_second.operands[0]
+            if (
+                (
                     isinstance(inner_first, BinaryOp)
                     and inner_first.op == "Shl"
                     and isinstance(inner_first.operands[1], Const)
                     and inner_first.operands[1].value == 8
-                ):
+                )
+                and (
+                    isinstance(inner_second, BinaryOp)
+                    and inner_second.op == "Shr"
+                    and isinstance(inner_second.operands[1], Const)
+                    and inner_second.operands[1].value == 8
+                )
+                and isinstance(inner_first.operands[0], Convert)
+            ):
+                conv: Convert = inner_first.operands[0]
+                if conv.from_bits == 16 and conv.to_bits == 32:
+                    the_expr_1 = conv.operand
                     if (
-                        isinstance(inner_second, BinaryOp)
-                        and inner_second.op == "Shr"
-                        and isinstance(inner_second.operands[1], Const)
-                        and inner_second.operands[1].value == 8
+                        isinstance(inner_second.operands[0], Convert)
+                        and inner_second.operands[0].from_bits == 16
+                        and inner_second.operands[0].to_bits == 32
                     ):
-                        if isinstance(inner_first.operands[0], Convert):
-                            conv: Convert = inner_first.operands[0]
-                            if conv.from_bits == 16 and conv.to_bits == 32:
-                                the_expr_1 = conv.operand
-                                if (
-                                    isinstance(inner_second.operands[0], Convert)
-                                    and inner_second.operands[0].from_bits == 16
-                                    and inner_second.operands[0].to_bits == 32
-                                ):
-                                    the_expr_2 = inner_second.operands[0].operand
-                                    if the_expr_1.likes(the_expr_2):
-                                        return True, the_expr_1
+                        the_expr_2 = inner_second.operands[0].operand
+                        if the_expr_1.likes(the_expr_2):
+                            return True, the_expr_1
         return False, None

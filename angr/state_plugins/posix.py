@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -16,12 +17,11 @@ class PosixDevFS(SimMount):  # this'll be mounted at /dev
     def get(self, path):  # pylint: disable=arguments-differ
         if path == ["stdin"]:
             return self.state.posix.fd.get(0, None)
-        elif path == ["stdout"]:
+        if path == ["stdout"]:
             return self.state.posix.fd.get(1, None)
-        elif path == ["stderr"]:
+        if path == ["stderr"]:
             return self.state.posix.fd.get(2, None)
-        else:
-            return None
+        return None
 
     def insert(self, path, simfile):  # pylint: disable=unused-argument, arguments-differ
         return False
@@ -50,8 +50,7 @@ class PosixProcFS(SimMount):
     def get(self, path):  # pylint: disable=arguments-differ
         if path == [b"uptime"]:
             return SimFile(b"uptime", content=b"0 0")
-        else:
-            return None
+        return None
 
     def insert(self, path, simfile):  # pylint: disable=unused-argument, arguments-differ
         return False
@@ -301,7 +300,7 @@ class SimSystemPosix(SimStatePlugin):
                 sock_pair[1].set_state(state)
 
     def _pick_fd(self):
-        for fd in range(0, max_fds):
+        for fd in range(max_fds):
             if fd not in self.fd:
                 return fd
         raise SimPosixError("exhausted file descriptors")
@@ -330,10 +329,7 @@ class SimSystemPosix(SimStatePlugin):
             return -1
 
         # TODO: speed this up (editor's note: ...really? this is fine)
-        if preferred_fd is not None and preferred_fd not in self.fd:
-            fd = preferred_fd
-        else:
-            fd = self._pick_fd()
+        fd = preferred_fd if preferred_fd is not None and preferred_fd not in self.fd else self._pick_fd()
 
         flags = self.state.solver.eval(flags)
         create_file = (flags & Flags.O_ACCMODE) in (Flags.O_RDWR, Flags.O_WRONLY)
@@ -344,7 +340,7 @@ class SimSystemPosix(SimStatePlugin):
             if not create_file:
                 if options.ALL_FILES_EXIST not in self.state.options:
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
-                        file_exists = claripy.BoolS("file_exists_%s" % ident, explicit_name=True)
+                        file_exists = claripy.BoolS(f"file_exists_{ident}", explicit_name=True)
                     else:
                         return -1
                 else:
@@ -356,7 +352,7 @@ class SimSystemPosix(SimStatePlugin):
                     name,
                     ident=ident,
                     size=self.state.solver.BVS(
-                        "filesize_%s" % ident, self.state.arch.bits, key=("file", ident, "filesize"), eternal=True
+                        f"filesize_{ident}", self.state.arch.bits, key=("file", ident, "filesize"), eternal=True
                     ),
                     file_exists=file_exists,
                 )
@@ -370,9 +366,8 @@ class SimSystemPosix(SimStatePlugin):
         self.fd[fd] = simfd
         if self.state.solver.is_true(simfd.file_exists):
             return fd
-        else:
-            m1 = claripy.BVV(-1, self.state.arch.sizeof["int"])
-            return claripy.If(simfd.file_exists, fd, m1)
+        m1 = claripy.BVV(-1, self.state.arch.sizeof["int"])
+        return claripy.If(simfd.file_exists, fd, m1)
 
     def open_socket(self, ident):
         fd = self._pick_fd()
@@ -398,8 +393,8 @@ class SimSystemPosix(SimStatePlugin):
                     sockpair = sockpair[0].copy(memo), sockpair[1].copy(memo)
 
             if sockpair is None:
-                read_file = SimPacketsStream("socket %s read" % str(ident))
-                write_file = SimPacketsStream("socket %s write" % str(ident))
+                read_file = SimPacketsStream(f"socket {ident!s} read")
+                write_file = SimPacketsStream(f"socket {ident!s} write")
                 sockpair = (read_file, write_file)
 
             self.sockets[ident] = sockpair
@@ -444,10 +439,7 @@ class SimSystemPosix(SimStatePlugin):
 
         new_filename = b"/tmp/angr_implicit_%d" % self.autotmp_counter
         self.autotmp_counter += 1
-        if create_file:
-            flags = Flags.O_RDWR
-        else:
-            flags = Flags.O_RDONLY
+        flags = Flags.O_RDWR if create_file else Flags.O_RDONLY
         concr_fd = self._pick_fd()
         if not self.state.satisfiable(extra_constraints=(concr_fd == fd,)):
             l.error("Could not look up a partially constrained symbolic fd")

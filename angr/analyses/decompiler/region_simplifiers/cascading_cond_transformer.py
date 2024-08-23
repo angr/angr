@@ -1,4 +1,5 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
+from __future__ import annotations
 
 import ailment
 import claripy
@@ -84,7 +85,7 @@ class CascadingConditionTransformer(SequenceWalker):
 
         elif isinstance(structured, CascadingConditionNode):
             # merge two nodes
-            cond_and_nodes = [(cond_0, node_0)] + structured.condition_and_nodes
+            cond_and_nodes = [(cond_0, node_0), *structured.condition_and_nodes]
             else_node = structured.else_node
 
         else:

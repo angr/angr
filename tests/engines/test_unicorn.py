@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 
 import gc
@@ -80,7 +82,7 @@ class TestUnicorn(unittest.TestCase):
         # this is an address inside main that is not the beginning of a basic block. we should stop here
         stop_in_bb = 0x08048638
         stop_bb = 0x08048633  # basic block of the above address
-        pg_stoppoints = p.factory.simulation_manager(s_stoppoints).run(n=1, extra_stop_points=stop_fake + [stop_in_bb])
+        pg_stoppoints = p.factory.simulation_manager(s_stoppoints).run(n=1, extra_stop_points=[*stop_fake, stop_in_bb])
         assert len(pg_stoppoints.active) == 1
         p_stoppoints = pg_stoppoints.one_active
         assert p_stoppoints.addr == stop_bb

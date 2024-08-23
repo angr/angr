@@ -1,4 +1,5 @@
 # pylint: disable=missing-class-docstring
+from __future__ import annotations
 import glob
 import importlib.resources
 import os
@@ -55,10 +56,10 @@ def _build_native():
         cmd = ["make"]
     try:
         subprocess.run(cmd, cwd="native", env=env, check=True)
-    except FileNotFoundError:
-        raise LibError("Couldn't find " + cmd[0] + " in PATH")
+    except FileNotFoundError as err:
+        raise LibError("Couldn't find " + cmd[0] + " in PATH") from err
     except subprocess.CalledProcessError as err:
-        raise LibError("Error while building angr_native: " + str(err))
+        raise LibError("Error while building angr_native: " + str(err)) from err
 
     shutil.rmtree("angr/lib", ignore_errors=True)
     os.mkdir("angr/lib")

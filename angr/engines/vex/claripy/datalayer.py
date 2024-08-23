@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -16,21 +17,19 @@ zero = claripy.BVV(0, 32)
 def value(ty, val, size: int | None = None):
     if ty == "Ity_F32":
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
-    elif ty == "Ity_F64":
+    if ty == "Ity_F64":
         return claripy.FPV(float(val), claripy.FSORT_DOUBLE)
-    else:
-        if size is not None:
-            return claripy.BVV(int(val), size)
-        return claripy.BVV(int(val), pyvex.get_type_size(ty))
+    if size is not None:
+        return claripy.BVV(int(val), size)
+    return claripy.BVV(int(val), pyvex.get_type_size(ty))
 
 
 def symbol(ty, name):
     if ty == "Ity_F32":
         return claripy.FPS(name, claripy.FSORT_FLOAT)
-    elif ty == "Ity_F64":
+    if ty == "Ity_F64":
         return claripy.FPS(name, claripy.FSORT_DOUBLE)
-    else:
-        return claripy.BVS(name, pyvex.get_type_size(ty))
+    return claripy.BVS(name, pyvex.get_type_size(ty))
 
 
 class ClaripyDataMixin(VEXMixin):
@@ -54,10 +53,9 @@ class ClaripyDataMixin(VEXMixin):
             and guard.op == "If"
             and isinstance(addr, claripy.ast.Base)
             and addr.op == "If"
-        ):
-            if guard.args[0] is addr.args[0]:
-                # the address is guarded by the same guard! unpack the addr
-                return addr.args[1]
+        ) and guard.args[0] is addr.args[0]:
+            # the address is guarded by the same guard! unpack the addr
+            return addr.args[1]
         return addr
 
     # consts
@@ -91,15 +89,13 @@ class ClaripyDataMixin(VEXMixin):
         res = super()._perform_vex_expr_Get(offset, ty, **kwargs)
         if ty.startswith("Ity_F"):
             return res.raw_to_fp()
-        else:
-            return res
+        return res
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         res = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
         if ty.startswith("Ity_F"):
             return res.raw_to_fp()
-        else:
-            return res
+        return res
 
     def _perform_vex_stmt_Put(self, offset, data, **kwargs):
         super()._perform_vex_stmt_Put(offset, data.raw_to_bv(), **kwargs)

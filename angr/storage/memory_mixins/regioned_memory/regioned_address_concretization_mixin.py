@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Generator
 
 import claripy
@@ -96,7 +97,7 @@ class RegionedAddressConcretizationMixin(MemoryMixin):
         original_addr: claripy.ast.Bits,
         is_write: bool = False,
         target_region: str | None = None,
-    ) -> Generator[AddressWrapper, None, None]:
+    ) -> Generator[AddressWrapper]:
         strategies = self.write_strategies if is_write else self.read_strategies
         targets_limit = self._write_targets_limit if is_write else self._read_targets_limit
 

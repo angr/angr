@@ -1,4 +1,5 @@
 # pylint:disable=missing-class-docstring,no-self-use
+from __future__ import annotations
 import logging
 
 from angr.analyses import ForwardAnalysis, visitors
@@ -52,7 +53,7 @@ class Condition:
             "!=": cls.NotEqual,
         }
 
-        return mapping.get(opstr, None)
+        return mapping.get(opstr)
 
 
 class SootBlockProcessor:
@@ -64,13 +65,13 @@ class SootBlockProcessor:
 
     def process(self):
         if not isinstance(self.block, SootBlockNode):
-            raise AngrLoopAnalysisError("Got an unexpected type of block %s." % type(self.block))
+            raise AngrLoopAnalysisError(f"Got an unexpected type of block {type(self.block)}.")
 
         if not self.block.stmts:
             return None
 
         for stmt in self.block.stmts:
-            func_name = "_handle_%s" % (stmt.__class__.__name__)
+            func_name = f"_handle_{stmt.__class__.__name__}"
 
             if hasattr(self, func_name):
                 getattr(self, func_name)(stmt)
@@ -87,13 +88,10 @@ class SootBlockProcessor:
 
         # TODO: This is slow. Fix the performance issue
 
-        for node in self.loop.body_nodes:
-            if node.addr.stmt_idx <= stmt_idx < node.addr.stmt_idx + node.size:
-                return True
-        return False
+        return any(node.addr.stmt_idx <= stmt_idx < node.addr.stmt_idx + node.size for node in self.loop.body_nodes)
 
     def _expr(self, expr):
-        func_name = "_handle_%s" % (expr.__class__.__name__)
+        func_name = f"_handle_{expr.__class__.__name__}"
 
         if hasattr(self, func_name):
             return getattr(self, func_name)(expr)
@@ -181,8 +179,7 @@ class SootBlockProcessor:
             var_type = mapping[full_method]
 
             if isinstance(base_var, (SootValue, AnnotatedVariable)):
-                annotated_var = AnnotatedVariable(base_var, var_type)
-                return annotated_var
+                return AnnotatedVariable(base_var, var_type)
 
         except KeyError:
             pass
@@ -200,7 +197,7 @@ class LoopAnalysisState:
         self.loop_exit_stmts = set()
 
     def __repr__(self):
-        return "<LoopAnalysisState %s>" % self.block.addr
+        return f"<LoopAnalysisState {self.block.addr}>"
 
     def copy(self):
         state = LoopAnalysisState(block=self.block)
@@ -257,8 +254,7 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        state = LoopAnalysisState(node)
-        return state
+        return LoopAnalysisState(node)
 
     def _merge_states(self, node, *states):
         merged = states[0]
@@ -344,7 +340,7 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
                 and local.variable == the_iterator
             )
 
-        if not any([check_1(local) for local in self.locals.values()]):
+        if not any(check_1(local) for local in self.locals.values()):
             return None
 
         return True

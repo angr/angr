@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
@@ -48,12 +50,11 @@ class TestVariableRecovery(unittest.TestCase):
 
             return True
 
-        else:
-            if isinstance(variable, SimStackVariable):
-                # it is not a variable on the stack
-                return False
+        if isinstance(variable, SimStackVariable):
+            # it is not a variable on the stack
+            return False
 
-            raise NotImplementedError()
+        raise NotImplementedError
 
     def _compare_register_variable(self, variable, variable_info):  # pylint:disable=unused-argument
         if not isinstance(variable, SimRegisterVariable):
@@ -111,10 +112,7 @@ class TestVariableRecovery(unittest.TestCase):
 
                 assert (
                     the_var is not None
-                ), "The variable {} in groundtruth at instruction {:#x} cannot be found in variable manager.".format(
-                    var_info,
-                    insn_addr,
-                )
+                ), f"The variable {var_info} in groundtruth at instruction {insn_addr:#x} cannot be found in variable manager."
                 l.debug("Found variable %s at %#x.", the_var, insn_addr)
 
         for block_addr, variables in groundtruth["phi_variables_by_block"].items():
@@ -139,10 +137,7 @@ class TestVariableRecovery(unittest.TestCase):
 
                 assert (
                     the_var is not None
-                ), "The phi variable {} in groundtruth at block {:#x} cannot be found in variable manager.".format(
-                    var_info,
-                    block_addr,
-                )
+                ), f"The phi variable {var_info} in groundtruth at block {block_addr:#x} cannot be found in variable manager."
                 l.debug("Found phi variable %s at %#x.", the_var, block_addr)
 
     def test_variable_recovery_fauxware_authenticate_true(self):

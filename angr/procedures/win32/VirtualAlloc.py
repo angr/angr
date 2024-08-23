@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 import logging
 
@@ -25,7 +26,7 @@ def convert_prot(prot):
         return 3
     if prot & 0x08:
         return 3
-    raise angr.errors.SimValueError("Unknown windows memory protection constant: %#x" % prot)
+    raise angr.errors.SimValueError(f"Unknown windows memory protection constant: {prot:#x}")
 
 
 def deconvert_prot(prot):

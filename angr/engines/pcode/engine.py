@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Iterable
 
 import claripy
@@ -107,6 +108,7 @@ class HeavyPcodeMixin(
 
         self._process_successor_exits(successors)
         successors.processed = True
+        return None
 
     def _lift_irsb(self):
         irsb = self.state.scratch.irsb
@@ -123,9 +125,9 @@ class HeavyPcodeMixin(
         if irsb.size == 0:
             if irsb.jumpkind == "Ijk_NoDecode" and not self.state.project.is_hooked(irsb.addr):
                 raise errors.SimIRSBNoDecodeError(
-                    "IR decoding error at %#x. You can hook this instruction with "
+                    f"IR decoding error at {self._addr:#x}. You can hook this instruction with "
                     "a python replacement using project.hook"
-                    "(%#x, your_function, length=length_of_instruction)." % (self._addr, self._addr)
+                    f"({self._addr:#x}, your_function, length=length_of_instruction)."
                 )
             raise errors.SimIRSBError("Empty IRSB passed to HeavyPcodeMixin.")
         self.state.scratch.irsb = irsb
@@ -167,7 +169,7 @@ class HeavyPcodeMixin(
         except errors.SimReliftException as e:
             self.state = e.state
             if self._insn_bytes is not None:
-                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
+                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!") from e
             new_ip = self.state.scratch.ins_addr
             if self._size is not None:
                 self._size -= new_ip - self._addr

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from itertools import islice
 
@@ -97,8 +98,4 @@ class DrillerCore(ExplorationTechnique):
         if state.scratch.guard.cache_key == claripy_false.cache_key:
             return True
 
-        for c in state.solver.constraints:
-            if c.cache_key == claripy_false.cache_key:
-                return True
-
-        return False
+        return any(c.cache_key == claripy_false.cache_key for c in state.solver.constraints)

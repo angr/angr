@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..func import Func, TestData
 from ....errors import SimMemoryError
 
@@ -41,7 +42,7 @@ class malloc(Func):
             return False
         returned_locs.append(state.solver.eval(state.regs.eax))
 
-        for i in range(6):  # pylint disable=unused-variable
+        for _i in range(6):  # pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
@@ -99,7 +100,7 @@ class malloc(Func):
             return False
         returned_locs2.append(state.solver.eval(state.regs.eax))
 
-        for i in range(10):
+        for _i in range(10):
             state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
@@ -107,7 +108,4 @@ class malloc(Func):
             if any(a < 0x3000 for a in returned_locs2):
                 return False
 
-        if returned_locs == returned_locs2:
-            return False
-
-        return True
+        return returned_locs != returned_locs2

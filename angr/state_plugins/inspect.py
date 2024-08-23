@@ -1,4 +1,5 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
+from __future__ import annotations
 
 import logging
 
@@ -208,8 +209,8 @@ class BP:
             shell = IPython.terminal.embed.InteractiveShellEmbed()
             shell.mainloop(
                 display_banner="This is an ipython shell for you to happily debug your state!\n"
-                + "The state can be accessed through the variable 'state'. You can\n"
-                + "make modifications, then exit this shell to resume your analysis."
+                "The state can be accessed through the variable 'state'. You can\n"
+                "make modifications, then exit this shell to resume your analysis."
             )
         else:
             self.action(state)

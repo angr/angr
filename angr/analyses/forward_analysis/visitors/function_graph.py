@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import networkx
@@ -40,7 +41,7 @@ class FunctionGraphVisitor(GraphVisitor):
         if len(new_sorted_nodes) < len(self._sorted_nodes):
             must_restart = True
         else:
-            must_restart = not new_sorted_nodes[: len(self._sorted_nodes)] == self._sorted_nodes
+            must_restart = new_sorted_nodes[: len(self._sorted_nodes)] != self._sorted_nodes
 
         if must_restart:
             _l.debug("Cannot resume for function %r with the new graph.", self.function)
@@ -79,7 +80,7 @@ class FunctionGraphVisitor(GraphVisitor):
             start_nodes = [node for node in self.graph if self.graph.in_degree(node) == 0]
 
         if not start_nodes:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         start_node = start_nodes[0]
         return list(dfs_back_edges(self.graph, start_node))

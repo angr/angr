@@ -1,3 +1,4 @@
+from __future__ import annotations
 from mmap import mmap
 from typing import Union
 from collections.abc import Generator
@@ -93,9 +94,9 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         # initialize the page
         if isinstance(backer, (bytes, bytearray, mmap)):
             return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
-        elif isinstance(backer, list):
+        if isinstance(backer, list):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
-        raise TypeError("Unsupported backer type %s." % type(backer))
+        raise TypeError(f"Unsupported backer type {type(backer)}.")
 
     def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> tuple[int, int, int]:
         # lord help me. why do I keep having to write code that looks like this
@@ -118,7 +119,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         addr: int,
         backer: bytes | bytearray,
         backer_start: int,
-        backer_iter: Generator[tuple[int, bytes | bytearray], None, None],
+        backer_iter: Generator[tuple[int, bytes | bytearray]],
     ) -> claripy.ast.BV:
         if backer_start <= addr and backer_start + len(backer) >= addr + self.page_size:
             # fast case
@@ -145,7 +146,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         return data
 
     def _data_from_lists_backer(
-        self, addr: int, backer: list[int], backer_start: int, backer_iter: Generator[tuple[int, list[int]], None, None]
+        self, addr: int, backer: list[int], backer_start: int, backer_iter: Generator[tuple[int, list[int]]]
     ) -> claripy.ast.BV:
         page_data = [0] * self.page_size
         while backer_start < addr + self.page_size:
@@ -161,8 +162,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             except StopIteration:
                 break
 
-        data = claripy.Concat(*map(lambda v: claripy.BVV(v, self.state.arch.byte_width), page_data))
-        return data
+        return claripy.Concat(*(claripy.BVV(v, self.state.arch.byte_width) for v in page_data))
 
     def _cle_permissions_lookup(self, addr):
         if self._cle_loader is None:

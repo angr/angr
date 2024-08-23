@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..sim_type import (
@@ -46,8 +47,7 @@ def get_function_name(s):
     else:
         raise ValueError("Cannot find any space in the function declaration string.")
 
-    func_name = func_name[pos + 1 :]
-    return func_name
+    return func_name[pos + 1 :]
 
 
 def register_kernel_types():
@@ -72,7 +72,7 @@ def register_kernel_types():
     )
 
 
-def convert_cproto_to_py(c_decl) -> tuple[str, "SimTypeFunction", str]:
+def convert_cproto_to_py(c_decl) -> tuple[str, SimTypeFunction, str]:
     """
     Convert a C-style function declaration string to its corresponding SimTypes-based Python representation.
 
@@ -84,7 +84,7 @@ def convert_cproto_to_py(c_decl) -> tuple[str, "SimTypeFunction", str]:
     s = []
 
     try:
-        s.append("# %s" % c_decl)  # comment string
+        s.append(f"# {c_decl}")  # comment string
 
         parsed = parse_file(c_decl)
         parsed_decl = parsed[0]
@@ -100,7 +100,7 @@ def convert_cproto_to_py(c_decl) -> tuple[str, "SimTypeFunction", str]:
         try:
             func_name = get_function_name(c_decl)
             func_proto = None
-            s.append('"%s": None,' % func_name)
+            s.append(f'"{func_name}": None,')
         except ValueError:
             # Failed to extract the function name. Is it a function declaration?
             func_name, func_proto = None, None
@@ -121,7 +121,7 @@ def convert_cppproto_to_py(
 
     s = []
     try:
-        s.append("# %s" % cpp_decl)
+        s.append(f"# {cpp_decl}")
 
         parsed = parse_cpp_file(cpp_decl, with_param_names=with_param_names)
         parsed_decl = parsed[0]
@@ -136,7 +136,7 @@ def convert_cppproto_to_py(
         try:
             func_name = get_function_name(cpp_decl)
             func_proto = None
-            s.append('"%s": None,' % func_name)
+            s.append(f'"{func_name}": None,')
         except ValueError:
             # Failed to extract the function name. Is it a function declaration?
             func_name, func_proto = None, None
@@ -145,7 +145,7 @@ def convert_cppproto_to_py(
 
 
 def parsedcprotos2py(
-    parsed_cprotos: list[tuple[str, "SimTypeFunction", str]], fd_spots=frozenset(), remove_sys_prefix=False
+    parsed_cprotos: list[tuple[str, SimTypeFunction, str]], fd_spots=frozenset(), remove_sys_prefix=False
 ) -> str:
     """
     Parse a list of C function declarations and output to Python code that can be embedded into
@@ -196,11 +196,8 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
 
 
 def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
-    if not specialized:
-        # remove "<???>"s
-        name = normalize_cpp_function_name(demangled_name)
-    else:
-        name = demangled_name
+    # remove "<???>"s
+    name = normalize_cpp_function_name(demangled_name) if not specialized else demangled_name
 
     if not qualified:
         # remove leading namespaces

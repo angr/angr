@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 import logging
 
@@ -9,5 +10,4 @@ class strnlen(angr.SimProcedure):
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
 
         maxlen = self.state.solver.eval_one(n)
-        length = self.inline_call(strlen, s, maxlen=maxlen).ret_expr
-        return length
+        return self.inline_call(strlen, s, maxlen=maxlen).ret_expr

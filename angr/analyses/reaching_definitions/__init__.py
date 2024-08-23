@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Set, Optional, Union, TYPE_CHECKING
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
@@ -42,15 +43,15 @@ __all__ = (
 )
 
 
-def get_all_definitions(region: "MultiValuedMemory") -> set["Definition"]:
-    all_defs: set["Definition"] = set()
+def get_all_definitions(region: MultiValuedMemory) -> set[Definition]:
+    all_defs: set[Definition] = set()
 
     # MultiValuedMemory only uses ListPage internally
     for page in region._pages.values():
-        page: "MVListPage"
+        page: MVListPage
 
         for idx in page.stored_offset:
-            cnt_set: Union["SimMemoryObject", set["SimMemoryObject"]] | None = page.content[idx]
+            cnt_set: SimMemoryObject | set[SimMemoryObject] | None = page.content[idx]
             if cnt_set is None:
                 continue
             if type(cnt_set) is not set:

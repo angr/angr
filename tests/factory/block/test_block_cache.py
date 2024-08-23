@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.factory.block"  # pylint:disable=redefined-builtin
 
 import logging

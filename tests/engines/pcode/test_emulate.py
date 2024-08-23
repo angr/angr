@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import unittest
 import operator
@@ -63,7 +64,7 @@ class MockPcodeOp:
     Mock P-Code Op
     """
 
-    opcode: "OpCode"
+    opcode: OpCode
     output: MockVarnode | None
     inputs: list[MockVarnode]
 
@@ -107,7 +108,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         emulator.successors.processed = True
         return emulator.successors
 
-    def _test_branch_and_call_common(self, opcode: "OpCode"):
+    def _test_branch_and_call_common(self, opcode: OpCode):
         target_addr = 0x12345678
         successors = self._step_irsb(
             MockIRSB(
@@ -136,7 +137,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     def test_call(self):
         self._test_branch_and_call_common(OpCode.CALL)
 
-    def _test_branchind_and_callind_common(self, opcode: "OpCode"):
+    def _test_branchind_and_callind_common(self, opcode: OpCode):
         target_addr = 0x12345678
         target_pointer_addr = 0x100000
         target_pointer_size = 8
@@ -349,7 +350,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         new_state = successors.successors[0]
         assert new_state.solver.is_true(new_state.memory.load(addr2, 8) == value)
 
-    def _test_single_arith_binary_op(self, opcode: "OpCode"):
+    def _test_single_arith_binary_op(self, opcode: OpCode):
         opcode_to_operation = {
             OpCode.BOOL_AND: operator.and_,
             OpCode.BOOL_OR: operator.or_,
@@ -459,7 +460,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             with self.subTest(opcode):
                 self._test_single_arith_binary_op(opcode)
 
-    def _test_single_arith_unary_op(self, opcode: "OpCode"):
+    def _test_single_arith_unary_op(self, opcode: OpCode):
         opcode_to_operation = {
             OpCode.INT_NEGATE: operator.inv,
             OpCode.INT_2COMP: operator.neg,

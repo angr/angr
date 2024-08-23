@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import Convert, BinaryOp, Const, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
@@ -20,7 +21,7 @@ class OneSubBool(PeepholeOptimizationExprBase):
         ):
             conv_expr = expr.operands[1]
             if self.is_bool_expr(conv_expr.operand):
-                new_expr = Convert(
+                return Convert(
                     None,
                     1,
                     conv_expr.to_bits,
@@ -28,6 +29,5 @@ class OneSubBool(PeepholeOptimizationExprBase):
                     UnaryOp(None, "Not", conv_expr.operand, **conv_expr.operand.tags),
                     **conv_expr.tags,
                 )
-                return new_expr
 
         return None

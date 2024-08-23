@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import Analysis
 from .. import SIM_PROCEDURES
 
@@ -57,10 +58,8 @@ class CalleeCleanupFinder(Analysis):
                     if stmt.tag == "Ist_IMark":
                         l.error("VERY strange return instruction at %#x...", addr)
                         break
-                    if stmt.tag == "Ist_WrTmp":
-                        if stmt.data.tag == "Iex_Binop":
-                            if stmt.data.op.startswith("Iop_Add"):
-                                return stmt.data.args[1].con.value - self.project.arch.bytes
+                    if stmt.tag == "Ist_WrTmp" and stmt.data.tag == "Iex_Binop" and stmt.data.op.startswith("Iop_Add"):
+                        return stmt.data.args[1].con.value - self.project.arch.bytes
             elif irsb.jumpkind == "Ijk_Call":
                 if addr + irsb.size not in seen:
                     todo.append(addr + irsb.size)

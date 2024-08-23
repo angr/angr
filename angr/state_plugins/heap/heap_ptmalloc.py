@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -56,8 +57,7 @@ class PTChunk(Chunk):
         chunk_size = self.get_size()
         if self.is_free():
             return chunk_size - 4 * self._chunk_size_t_size
-        else:
-            return chunk_size - 2 * self._chunk_size_t_size
+        return chunk_size - 2 * self._chunk_size_t_size
 
     def _set_leading_size(self, size):
         level = silence_logger()
@@ -89,9 +89,8 @@ class PTChunk(Chunk):
                 next_chunk.set_prev_freeness(is_free)
             else:
                 self.heap._set_final_freeness(is_free)
-        if is_free is not None and is_free or self.is_free():
-            if next_chunk is not None:
-                self.state.memory.store(next_chunk.base, size, size=self.state.arch.bytes)
+        if (is_free is not None and is_free or self.is_free()) and next_chunk is not None:
+            self.state.memory.store(next_chunk.base, size, size=self.state.arch.bytes)
 
     def set_prev_freeness(self, is_free):
         """
@@ -139,20 +138,19 @@ class PTChunk(Chunk):
         next_chunk = self.next_chunk()
         if next_chunk is not None:
             return next_chunk.is_prev_free()
-        else:
-            flag = (
-                self.state.memory.load(
-                    self.heap.heap_base + self.heap.heap_size - self._chunk_size_t_size, self._chunk_size_t_size
-                )
-                & CHUNK_P_MASK
+        flag = (
+            self.state.memory.load(
+                self.heap.heap_base + self.heap.heap_size - self._chunk_size_t_size, self._chunk_size_t_size
             )
+            & CHUNK_P_MASK
+        )
 
-            def sym_flag_handler(flag):
-                l.warning("The final P flag is symbolic; assuming it is not set")
-                return self.state.solver.min_int(flag)
+        def sym_flag_handler(flag):
+            l.warning("The final P flag is symbolic; assuming it is not set")
+            return self.state.solver.min_int(flag)
 
-            flag = concretize(flag, self.state.solver, sym_flag_handler)
-            return not flag
+        flag = concretize(flag, self.state.solver, sym_flag_handler)
+        return not flag
 
     def data_ptr(self):
         return self.base + (2 * self._chunk_size_t_size)
@@ -171,8 +169,7 @@ class PTChunk(Chunk):
         base = concretize(self.base + self.get_size(), self.state.solver, sym_base_handler)
         if base >= self.heap.heap_base + self.heap.heap_size - 2 * self._chunk_size_t_size:
             return None
-        else:
-            return PTChunk(base, self.state)
+        return PTChunk(base, self.state)
 
     def prev_chunk(self):
         """
@@ -183,8 +180,7 @@ class PTChunk(Chunk):
         """
         if self.is_prev_free():
             return PTChunk(self.base - self.prev_size(), self.state)
-        else:
-            raise SimHeapError("Attempted to access the previous chunk, but it was not free")
+        raise SimHeapError("Attempted to access the previous chunk, but it was not free")
 
     def fwd_chunk(self):
         """
@@ -198,8 +194,7 @@ class PTChunk(Chunk):
                 self.base + 2 * self._chunk_size_t_size, self._chunk_size_t_size, endness=self.state.arch.memory_endness
             )
             return PTChunk(base, self.state)
-        else:
-            raise SimHeapError("Attempted to access the forward chunk of an allocated chunk")
+        raise SimHeapError("Attempted to access the forward chunk of an allocated chunk")
 
     def set_fwd_chunk(self, fwd):
         self.state.memory.store(
@@ -221,8 +216,7 @@ class PTChunk(Chunk):
                 self.base + 3 * self._chunk_size_t_size, self._chunk_size_t_size, endness=self.state.arch.memory_endness
             )
             return PTChunk(base, self.state)
-        else:
-            raise SimHeapError("Attempted to access the backward chunk of an allocated chunk")
+        raise SimHeapError("Attempted to access the backward chunk of an allocated chunk")
 
     def set_bck_chunk(self, bck):
         self.state.memory.store(
@@ -339,11 +333,10 @@ class SimHeapPTMalloc(SimHeapFreelist):
                 cur = fwd
                 fwd = cur.fwd_chunk()
             return cur
-        else:
-            while fwd != self.free_head_chunk:
-                cur = fwd
-                fwd = cur.fwd_chunk()
-            return cur
+        while fwd != self.free_head_chunk:
+            cur = fwd
+            fwd = cur.fwd_chunk()
+        return cur
 
     def _set_final_freeness(self, flag):
         """
@@ -365,7 +358,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
         """
         size = req_size
         size += 2 * self._chunk_size_t_size  # Two size fields
-        size = self._chunk_min_size if size < self._chunk_min_size else size
+        size = max(size, self._chunk_min_size)
         if size & self._chunk_align_mask:  # If the chunk would not be aligned
             size = (size & ~self._chunk_align_mask) + self._chunk_align_mask + 1  # Fix it
         return size
@@ -395,8 +388,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
                 if fwd <= free_chunk:
                     l.debug("No free chunks of sufficient size available")
                     return 0
-                else:
-                    free_chunk = fwd
+                free_chunk = fwd
             elif free_size > size and free_size - size >= self._chunk_min_size:
                 # Chunk may be too large but we'll use it anyway
                 chunk = free_chunk
@@ -564,7 +556,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
             self.state.memory.store(new_data_ptr, old_data)
             self.free(old_data_ptr)  # Free the old chunk
             return new_data_ptr
-        elif new_size < old_size and old_size - new_size >= self._chunk_min_size:
+        if new_size < old_size and old_size - new_size >= self._chunk_min_size:
             # Less space is needed, so just shrink the chunk and create a new free chunk from the freed space
             chunk.set_size(new_size, False)
             new_next_chunk = chunk.next_chunk()
@@ -572,9 +564,8 @@ class SimHeapPTMalloc(SimHeapFreelist):
             new_next_chunk.set_prev_freeness(False)
             self.free(new_next_chunk.data_ptr())
             return chunk.data_ptr()
-        else:
-            # No changes needed; we're already the right size
-            return chunk.data_ptr()
+        # No changes needed; we're already the right size
+        return chunk.data_ptr()
 
     def _malloc(self, sim_size):
         return self.malloc(sim_size)

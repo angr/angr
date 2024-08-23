@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Any
 from collections.abc import Callable
@@ -35,7 +36,7 @@ class CFBlanketView:
                 addr_ += obj
                 # Find gaps
                 # TODO: finish it
-                raise NotImplementedError()
+                raise NotImplementedError
 
 
 #
@@ -78,8 +79,7 @@ class Unknown:
             raise Exception("You cannot create an unknown region of size 0.")
 
     def __repr__(self):
-        s = f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
-        return s
+        return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
 
 
 class CFBlanket(Analysis):
@@ -106,7 +106,7 @@ class CFBlanket(Analysis):
 
         self._on_object_added_callback = on_object_added
         self._regions = []
-        self._exclude_region_types = set() if not exclude_region_types else exclude_region_types
+        self._exclude_region_types = exclude_region_types if exclude_region_types else set()
 
         self._init_regions()
 
@@ -164,16 +164,13 @@ class CFBlanket(Analysis):
                     mr = MemoryRegion(obj.min_addr, size, "tls", obj, None)
                     self._regions.append(mr)
             else:
-                if hasattr(obj, "size"):
-                    size = obj.size
-                else:
-                    size = obj.max_addr - obj.min_addr
+                size = obj.size if hasattr(obj, "size") else obj.max_addr - obj.min_addr
                 type_ = "TODO"
                 mr = MemoryRegion(obj.min_addr, size, type_, obj, obj)
                 self._regions.append(mr)
 
         # Sort them just in case
-        self._regions = list(sorted(self._regions, key=lambda x: x.addr))
+        self._regions = sorted(self._regions, key=lambda x: x.addr)
 
     @property
     def regions(self):
@@ -186,8 +183,8 @@ class CFBlanket(Analysis):
     def floor_addr(self, addr):
         try:
             return next(self._blanket.irange(maximum=addr, reverse=True))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def floor_item(self, addr):
         key = self.floor_addr(addr)
@@ -208,8 +205,8 @@ class CFBlanket(Analysis):
     def ceiling_addr(self, addr):
         try:
             return next(self._blanket.irange(minimum=addr))
-        except StopIteration:
-            raise KeyError(addr)
+        except StopIteration as err:
+            raise KeyError(addr) from err
 
     def ceiling_item(self, addr):
         key = self.ceiling_addr(addr)
@@ -260,14 +257,14 @@ class CFBlanket(Analysis):
                 if section.memsize == 0:
                     continue
                 min_addr, max_addr = section.min_addr, section.max_addr
-                output.append("### Object %s" % repr(section))
+                output.append(f"### Object {section!r}")
                 output.append(f"### Range {min_addr:#x}-{max_addr:#x}")
 
                 pos = min_addr
                 while pos < max_addr:
                     try:
                         addr, thing = self.floor_item(pos)
-                        output.append(f"{addr:#x}: {repr(thing)}")
+                        output.append(f"{addr:#x}: {thing!r}")
 
                         if thing.size == 0:
                             pos += 1
@@ -393,11 +390,8 @@ class CFBlanket(Analysis):
                 # impossible
                 raise Exception("Impossible")
 
-            if last_item.size == 0 or last_item.size is None:
-                # Make sure everything has a non-zero size
-                last_item_size = 1
-            else:
-                last_item_size = last_item.size
+            # Make sure everything has a non-zero size
+            last_item_size = 1 if last_item.size == 0 or last_item.size is None else last_item.size
             end_addr = last_addr + last_item_size
             if end_addr < max_addr:
                 try:

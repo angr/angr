@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument,arguments-differ
+from __future__ import annotations
 import logging
 
 import ailment
@@ -104,39 +105,31 @@ class IfSimplifier(SequenceWalker):
 
         if block.statements and isinstance(block.statements[-1], ailment.Stmt.ConditionalJump):
             cond_stmt = block.statements[-1]  # ailment.Stmt.ConditionalJump
-            if isinstance(successor, ConditionNode):
-                true_cond = False
-                if cond_stmt.true_target is not None and successor.true_node is not None:
-                    # True branch exists. Test if the true target is the address
-                    if (
-                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
-                        and cond_stmt.true_target.value == successor.true_node.addr
-                    ):
-                        true_cond = True
-                if cond_stmt.true_target is not None and successor.false_node is not None:
-                    # True branch exists. Test if the true target is the address
-                    if (
-                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
-                        and cond_stmt.true_target.value == successor.false_node.addr
-                    ):
-                        true_cond = True
-
-                false_cond = False
-                if cond_stmt.false_target is not None and successor.false_node is not None:
-                    # False branch exists. Test if the false target is the address
-                    if (
-                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
-                        and cond_stmt.false_target.value == successor.false_node.addr
-                    ):
-                        false_cond = True
-                if cond_stmt.false_target is not None and successor.true_node is not None:
-                    # True branch exists. Test if the true target is the address
-                    if (
-                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
-                        and cond_stmt.false_target.value == successor.true_node.addr
-                    ):
-                        false_cond = True
-
-                if true_cond or false_cond:
-                    # We can safely remove this statement
-                    block.statements = block.statements[:-1]
+            if (
+                isinstance(successor, ConditionNode)
+                and isinstance(cond_stmt.true_target, ailment.Expr.Const)
+                and (
+                    (
+                        (successor.true_node is not None and cond_stmt.true_target.value == successor.true_node.addr)
+                        or (
+                            successor.false_node is not None
+                            and cond_stmt.true_target.value == successor.false_node.addr
+                        )
+                    )
+                    or (
+                        cond_stmt.false_target is not None
+                        and (
+                            (
+                                successor.false_node is not None
+                                and cond_stmt.false_target.value == successor.false_node.addr
+                            )
+                            or (
+                                successor.true_node is not None
+                                and cond_stmt.false_target.value == successor.true_node.addr
+                            )
+                        )
+                    )
+                )
+            ):
+                # We can safely remove this statement
+                block.statements = block.statements[:-1]

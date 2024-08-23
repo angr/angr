@@ -1,3 +1,4 @@
+from __future__ import annotations
 import select
 
 import claripy
@@ -25,7 +26,7 @@ class poll(angr.SimProcedure):
         offset_revents = 6
 
         pollfd_array = []
-        for offset in range(0, nfds_v):
+        for offset in range(nfds_v):
             pollfd = {
                 "fd": self.state.memory.load(
                     fds + offset * size_of_pollfd + offset_fd, 4, endness=self.arch.memory_endness
@@ -51,5 +52,4 @@ class poll(angr.SimProcedure):
                     fds + offset * size_of_pollfd + offset_revents, revents, endness=self.arch.memory_endness
                 )
 
-        retval = claripy.BVV(0, 1).concat(claripy.BVS("poll_ret", self.state.arch.bits - 1))
-        return retval
+        return claripy.BVV(0, 1).concat(claripy.BVS("poll_ret", self.state.arch.bits - 1))

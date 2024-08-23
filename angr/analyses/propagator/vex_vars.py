@@ -1,14 +1,15 @@
 # VEX Variables
+from __future__ import annotations
 
 
 class VEXVariable:
     __slots__ = ()
 
     def __hash__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __eq__(self, other):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class VEXMemVar:

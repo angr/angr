@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.procedures.libc"  # pylint:disable=redefined-builtin
 
 import os
@@ -16,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 
 class Checker:
     def __init__(
-        self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False, delimiter: str = None
+        self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False, delimiter: str | None = None
     ):
         self._check_func = check_func
         self._length = length
@@ -121,7 +123,7 @@ class TestScanf(unittest.TestCase):
         for path in pg.found:
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
-                assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
+                assert expected_outputs[test_output].check(path), f"Test case failed. Output is {test_output}."
 
             total_outputs += 1
 
@@ -193,7 +195,7 @@ class TestScanf(unittest.TestCase):
             path.posix.dumps(0)
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
-                assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
+                assert expected_outputs[test_output].check(path), f"Test case failed. Output is {test_output}."
 
             total_outputs += 1
 

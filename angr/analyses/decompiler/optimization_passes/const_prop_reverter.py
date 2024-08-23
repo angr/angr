@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections.abc import Callable
 import itertools
@@ -226,13 +227,13 @@ class ConstPropOptReverter(OptimizationPass):
                 if len(state_vals) != 1:
                     continue
 
-                state_val = list(state_vals[0])[0]
+                state_val = next(iter(state_vals[0]))
                 if hasattr(state_val, "concrete") and state_val.concrete:
                     const_value = claripy.Solver().eval(state_val, 1)[0]
                 else:
                     continue
 
-                if not const_value == const_arg.value:
+                if const_value != const_arg.value:
                     continue
 
                 _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
@@ -262,7 +263,7 @@ class ConstPropOptReverter(OptimizationPass):
         if len(conflicts) != 1:
             return
 
-        _, ret_exprs = list(conflicts.items())[0]
+        _, ret_exprs = next(iter(conflicts.items()))
         expr_to_blk = {ret_exprs[0]: blk0, ret_exprs[1]: blk1}
         # find the expression that is symbolic
         symb_expr, const_expr = None, None
@@ -271,9 +272,7 @@ class ConstPropOptReverter(OptimizationPass):
             if isinstance(expr, Convert):
                 unpacked_expr = expr.operands[0]
 
-            if isinstance(unpacked_expr, Const):
-                const_expr = expr
-            elif isinstance(unpacked_expr, Call):
+            if isinstance(unpacked_expr, (Const, Call)):
                 const_expr = expr
             else:
                 symb_expr = expr
@@ -362,6 +361,4 @@ class ConstPropOptReverter(OptimizationPass):
             return None
 
         # zip args of call 0 and 1 conflict if they are not like each other
-        conflicts = {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
-
-        return conflicts
+        return {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}

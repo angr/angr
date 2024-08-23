@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 import angr
@@ -19,5 +20,4 @@ class send(angr.SimProcedure):
             send_failed = -1
             self.state.add_constraints(claripy.Or(retval == send_succeeded, retval == send_failed))
             return retval
-        else:
-            return send_succeeded
+        return send_succeeded

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 from collections import defaultdict
 import importlib
@@ -25,7 +26,7 @@ for proc_file_name in os.listdir(path):
         continue
 
     try:
-        proc_module = importlib.import_module(".%s" % proc_module_name, "angr.analyses.identifier.functions")
+        proc_module = importlib.import_module(f".{proc_module_name}", "angr.analyses.identifier.functions")
     except ImportError:
         l.warning("Unable to import procedure %s", proc_module_name)
         continue

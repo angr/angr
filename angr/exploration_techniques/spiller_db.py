@@ -1,4 +1,5 @@
 # pylint:disable=missing-class-docstring,unused-import
+from __future__ import annotations
 import datetime
 
 try:

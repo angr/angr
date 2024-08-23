@@ -1,4 +1,5 @@
 # pylint:disable=consider-using-with
+from __future__ import annotations
 import json
 import subprocess
 import argparse
@@ -97,7 +98,7 @@ def get_unique_strings(ar_path: str) -> list[str]:
     grouped_strings = defaultdict(set)
     for s in all_strings:
         grouped_strings[s[:5]].add(s)
-    sorted_strings = list(sorted(all_strings, key=len, reverse=True))
+    sorted_strings = sorted(all_strings, key=len, reverse=True)
 
     ctr = 0
     picked = set()
@@ -118,10 +119,7 @@ def run_pelf(pelf_path: str, ar_path: str, output_path: str):
 
 
 def run_sigmake(sigmake_path: str, sig_name: str, pat_path: str, sig_path: str):
-    if " " not in sig_name:
-        sig_name_arg = f"-n{sig_name}"
-    else:
-        sig_name_arg = f'-n"{sig_name}"'
+    sig_name_arg = f"-n{sig_name}" if " " not in sig_name else f'-n"{sig_name}"'
 
     proc = subprocess.Popen(
         [sigmake_path, sig_name_arg, pat_path, sig_path],
@@ -130,9 +128,7 @@ def run_sigmake(sigmake_path: str, sig_name: str, pat_path: str, sig_path: str):
     )
     _, stderr = proc.communicate()
 
-    if b"COLLISIONS:" in stderr:
-        return False
-    return True
+    return b"COLLISIONS:" not in stderr
 
 
 def process_exc_file(exc_path: str):
@@ -180,7 +176,7 @@ def process_exc_file(exc_path: str):
             non_cold_names.append(func_name)
 
         # sort it
-        non_cold_names = list(sorted(non_cold_names, key=len))
+        non_cold_names = sorted(non_cold_names, key=len)
 
         # pick the top one
         the_chosen_one = non_cold_names[0]
@@ -222,14 +218,14 @@ def main():
     if args.pelf_path:
         pelf_path = args.pelf_path
     elif "pelf_path" in os.environ:
-        pelf_path = os.environ["pelf_path"]
+        pelf_path = os.environ["PELF_PATH"]
     else:
         raise ValueError("pelf_path must be specified.")
 
     if args.sigmake_path:
         sigmake_path = args.sigmake_path
     elif "sigmake_path" in os.environ:
-        sigmake_path = os.environ["sigmake_path"]
+        sigmake_path = os.environ["SIGMAKE_PATH"]
     else:
         raise ValueError("sigmake_path must be specified.")
 

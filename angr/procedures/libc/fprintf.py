@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from angr.procedures.stubs.format_parser import FormatParser

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import string
 
@@ -19,10 +20,7 @@ class atoi(Func):
         return 1
 
     def get_name(self):
-        if self.allows_negative:
-            suffix = ""
-        else:
-            suffix = "_no_signs"
+        suffix = "" if self.allows_negative else "_no_signs"
         if self.skips_whitespace:
             return "atoi_whitespace_skip" + suffix
         return "atoi" + suffix

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -55,7 +56,7 @@ class SimCGC(SimUserland):
         elif type(flag_page) is list:
             pass
         else:
-            raise ValueError("Bad flag page: expected None, bytestring, or list, but got %s" % type(flag_page))
+            raise ValueError(f"Bad flag page: expected None, bytestring, or list, but got {type(flag_page)}")
 
         s.cgc.flag_bytes = flag_page
         if s.mode != "static":

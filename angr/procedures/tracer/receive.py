@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -15,9 +16,8 @@ class receive(orig_receive):
     """
 
     def run(self, fd, buf, count, rx_bytes):
-        if len(self.state.solver.eval_upto(fd, 2)) < 2:
-            if self.state.solver.eval(fd) == 1:
-                l.debug("Fixed receive call's fd.")
-                fd = claripy.BVV(0, self.state.arch.bits)
+        if len(self.state.solver.eval_upto(fd, 2)) < 2 and self.state.solver.eval(fd) == 1:
+            l.debug("Fixed receive call's fd.")
+            fd = claripy.BVV(0, self.state.arch.bits)
 
         return super().run(fd, buf, count, rx_bytes)

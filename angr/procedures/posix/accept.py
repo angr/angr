@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -25,5 +26,4 @@ class accept(angr.SimProcedure):
         ident_counters = dict(self.state.globals.get("accept_idents", {}))
         ident_counters[ident] = ident_counters.get(ident, 0) + 1
         self.state.globals["accept_idents"] = ident_counters
-        fd = self.state.posix.open_socket(("accept", ident, ident_counters[ident]))
-        return fd
+        return self.state.posix.open_socket(("accept", ident, ident_counters[ident]))

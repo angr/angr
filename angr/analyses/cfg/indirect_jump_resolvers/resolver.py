@@ -1,3 +1,4 @@
+from __future__ import annotations
 import typing
 
 from ....errors import SimMemoryError
@@ -8,7 +9,7 @@ if typing.TYPE_CHECKING:
 
 class IndirectJumpResolver:
     def __init__(self, project, timeless=False, base_state=None):
-        self.project: "Project" = project
+        self.project: Project = project
         self.timeless = timeless
         self.base_state = base_state
 
@@ -26,7 +27,7 @@ class IndirectJumpResolver:
         :rtype:  bool
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):
         """
@@ -45,7 +46,7 @@ class IndirectJumpResolver:
         :rtype:                 tuple
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _is_target_valid(self, cfg, target):  # pylint:disable=no-self-use
         """
@@ -68,7 +69,6 @@ class IndirectJumpResolver:
         if cfg._addr_in_exec_memory_regions(target):
             # the jump target is executable
             return True
-        if self.project.is_hooked(target):
-            # the jump target is hooked
-            return True
-        return False
+
+        # if true, the jump target is hooked
+        return bool(self.project.is_hooked(target))

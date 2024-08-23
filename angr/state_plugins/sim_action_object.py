@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 l = logging.getLogger(name=__name__)
@@ -15,14 +16,13 @@ _noneset = frozenset()
 def _raw_ast(a):
     if type(a) is SimActionObject:
         return a.ast
-    elif type(a) is dict:
+    if type(a) is dict:
         return {k: _raw_ast(a[k]) for k in a}
-    elif type(a) in (tuple, list, set, frozenset):
+    if type(a) in (tuple, list, set, frozenset):
         return type(a)(_raw_ast(b) for b in a)
-    elif type(a) in (zip, filter, map):
+    if type(a) in (zip, filter, map):
         return (_raw_ast(i) for i in a)
-    else:
-        return a
+    return a
 
 
 def _all_objects(a):
@@ -49,8 +49,7 @@ def ast_preserving_op(f, *args, **kwargs):
     a = ast_stripping_op(f, *args, **kwargs)
     if isinstance(a, claripy.ast.Base):
         return SimActionObject(a, reg_deps=reg_deps, tmp_deps=tmp_deps)
-    else:
-        return a
+    return a
 
 
 def ast_stripping_decorator(f):
@@ -97,7 +96,7 @@ class SimActionObject:
         self.ast, self.reg_deps, self.tmp_deps = data
 
     def _preserving_unbound(self, f, *args, **kwargs):
-        return ast_preserving_op(f, *((self,) + tuple(args)), **kwargs)
+        return ast_preserving_op(f, *((self, *tuple(args))), **kwargs)
 
     def _preserving_bound(self, f, *args, **kwargs):  # pylint:disable=no-self-use
         return ast_preserving_op(f, *args, **kwargs)
@@ -107,12 +106,11 @@ class SimActionObject:
             raise AttributeError("not forwarding __slots__ to AST")
 
         f = getattr(self.ast, attr)
-        if hasattr(f, "__call__"):
+        if callable(f):
             return functools.partial(self._preserving_bound, f)
-        elif isinstance(f, claripy.ast.Base):
+        if isinstance(f, claripy.ast.Base):
             return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)
-        else:
-            return f
+        return f
 
     def __len__(self):
         return len(self.ast)

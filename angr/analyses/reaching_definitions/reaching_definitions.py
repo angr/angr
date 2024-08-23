@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Optional, DefaultDict, Any, Union, TYPE_CHECKING
+from typing import Any, Union, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
 
@@ -25,6 +26,7 @@ from .rd_initializer import RDAStateInitializer
 from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
+import contextlib
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -59,12 +61,12 @@ class ReachingDefinitionsAnalysis(
         max_iterations=30,
         track_tmps=False,
         track_consts=True,
-        observation_points: "Iterable[ObservationPoint]" = None,
+        observation_points: Iterable[ObservationPoint] | None = None,
         init_state: ReachingDefinitionsState = None,
         init_context=None,
-        state_initializer: Optional["RDAStateInitializer"] = None,
+        state_initializer: RDAStateInitializer | None = None,
         cc=None,
-        function_handler: "Optional[FunctionHandler]" = None,
+        function_handler: FunctionHandler | None = None,
         observe_all=False,
         visited_blocks=None,
         dep_graph: DepGraph | bool | None = True,
@@ -172,7 +174,7 @@ class ReachingDefinitionsAnalysis(
         if self._observation_points and any(type(op) is not tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        self._node_iterations: DefaultDict[int, int] = defaultdict(int)
+        self._node_iterations: defaultdict[int, int] = defaultdict(int)
 
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None,
@@ -185,10 +187,8 @@ class ReachingDefinitionsAnalysis(
             the_func = self.subject.content
         else:
             if self._func_addr is not None:
-                try:
+                with contextlib.suppress(KeyError):
                     the_func = self.kb.functions.get_by_addr(self._func_addr)
-                except KeyError:
-                    pass
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 
@@ -256,8 +256,8 @@ class ReachingDefinitionsAnalysis(
         key = "insn", ins_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                "Reaching definitions are not available at observation point %s. "
-                "Did you specify that observation point?" % str(key)
+                f"Reaching definitions are not available at observation point {key!s}. "
+                "Did you specify that observation point?"
             )
 
         return self.observed_results[key]
@@ -266,8 +266,8 @@ class ReachingDefinitionsAnalysis(
         key = "node", node_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                "Reaching definitions are not available at observation point %s. "
-                "Did you specify that observation point?" % str(key)
+                f"Reaching definitions are not available at observation point {key!s}. "
+                "Did you specify that observation point?"
             )
 
         return self.observed_results[key]
@@ -468,19 +468,18 @@ class ReachingDefinitionsAnalysis(
     def _initial_abstract_state(self, node) -> ReachingDefinitionsState:
         if self._init_state is not None:
             return self._init_state
-        else:
-            return ReachingDefinitionsState(
-                CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, context=self._init_context),
-                self.project.arch,
-                self.subject,
-                track_tmps=self._track_tmps,
-                track_consts=self._track_consts,
-                analysis=self,
-                canonical_size=self._canonical_size,
-                initializer=self._state_initializer,
-                element_limit=self._element_limit,
-                merge_into_tops=self._merge_into_tops,
-            )
+        return ReachingDefinitionsState(
+            CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, context=self._init_context),
+            self.project.arch,
+            self.subject,
+            track_tmps=self._track_tmps,
+            track_consts=self._track_consts,
+            analysis=self,
+            canonical_size=self._canonical_size,
+            initializer=self._state_initializer,
+            element_limit=self._element_limit,
+            merge_into_tops=self._merge_into_tops,
+        )
 
     # pylint: disable=no-self-use,arguments-differ
     def _merge_states(self, _node, *states: ReachingDefinitionsState):
@@ -498,8 +497,7 @@ class ReachingDefinitionsAnalysis(
         :return:
         """
 
-        reached_fixedpoint = new_state.compare(old_state)
-        return reached_fixedpoint
+        return new_state.compare(old_state)
 
     def _run_on_node(self, node, state: ReachingDefinitionsState):
         """
@@ -576,8 +574,7 @@ class ReachingDefinitionsAnalysis(
 
         if self._node_iterations[block_key] < self._max_iterations:
             return None, state
-        else:
-            return False, state
+        return False, state
 
     def _intra_analysis(self):
         pass

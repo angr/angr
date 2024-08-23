@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Any, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -77,7 +78,7 @@ class AILSimplifier(Analysis):
         remove_dead_memdefs=False,
         stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
-        ail_manager: Optional["Manager"] = None,
+        ail_manager: Manager | None = None,
         gp: int | None = None,
         narrow_expressions=False,
         only_consts=False,
@@ -87,7 +88,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions: Optional["ReachingDefinitionsModel"] = None
+        self._reaching_definitions: ReachingDefinitionsModel | None = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -177,7 +178,7 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
+    def _compute_reaching_definitions(self) -> ReachingDefinitionsModel:
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
@@ -509,10 +510,9 @@ class AILSimplifier(Analysis):
             return expr.size, ("expr", (expr,))
 
         first_op = walker.operations[0]
-        if isinstance(first_op, Convert):
-            if first_op.to_bits >= self.project.arch.byte_width:
-                # we need at least one byte!
-                return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
+        if isinstance(first_op, Convert) and first_op.to_bits >= self.project.arch.byte_width:
+            # we need at least one byte!
+            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
             if len(walker.operations) >= 2:
@@ -672,14 +672,18 @@ class AILSimplifier(Analysis):
                 for def_ in rd.all_definitions:
                     if def_.codeloc == eq.codeloc:
                         if isinstance(to_replace, SimStackVariable):
-                            if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(
-                                def_.atom.addr, atoms.SpOffset
+                            if (
+                                isinstance(def_.atom, atoms.MemoryLocation)
+                                and isinstance(def_.atom.addr, atoms.SpOffset)
+                                and to_replace.offset == def_.atom.addr.offset
                             ):
-                                if to_replace.offset == def_.atom.addr.offset:
-                                    defs.append(def_)
-                        elif isinstance(to_replace, Register):
-                            if isinstance(def_.atom, atoms.Register) and to_replace.reg_offset == def_.atom.reg_offset:
                                 defs.append(def_)
+                        elif (
+                            isinstance(to_replace, Register)
+                            and isinstance(def_.atom, atoms.Register)
+                            and to_replace.reg_offset == def_.atom.reg_offset
+                        ):
+                            defs.append(def_)
                 if len(defs) != 1:
                     continue
                 the_def = defs[0]
@@ -722,13 +726,12 @@ class AILSimplifier(Analysis):
                         # found the copied definition (either a stack variable or a register variable)
 
                         # Make sure there is no other write to this stack location if the copy is a stack variable
-                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation):
-                            if any(
-                                (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
-                                for def_ in rd.all_definitions
-                                if isinstance(def_.atom, atoms.MemoryLocation)
-                            ):
-                                continue
+                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation) and any(
+                            (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
+                            for def_ in rd.all_definitions
+                            if isinstance(def_.atom, atoms.MemoryLocation)
+                        ):
+                            continue
 
                         # Make sure the register is never updated across this function
                         if any(
@@ -812,9 +815,9 @@ class AILSimplifier(Analysis):
                         else:
                             replace_with = eq.atom0
                     else:
-                        raise AngrRuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
+                        raise AngrRuntimeError(f"Unsupported atom1 type {type(eq.atom1)}.")
                 else:
-                    raise AngrRuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
+                    raise AngrRuntimeError(f"Unsupported atom0 type {type(eq.atom0)}.")
 
                 to_replace_def = the_def
 
@@ -877,18 +880,20 @@ class AILSimplifier(Analysis):
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
 
-                use_expr_defns = []
-                for d in rd.all_uses.get_uses_by_location(u):
+                use_expr_defns = [
+                    d
+                    for d in rd.all_uses.get_uses_by_location(u)
                     if (
-                        isinstance(d.atom, RegisterAtom)
-                        and isinstance(def_.atom, RegisterAtom)
-                        and d.atom.reg_offset == def_.atom.reg_offset
-                    ):
-                        use_expr_defns.append(d)
-                    elif d.atom == def_.atom:
-                        use_expr_defns.append(d)
+                        (
+                            isinstance(d.atom, RegisterAtom)
+                            and isinstance(def_.atom, RegisterAtom)
+                            and d.atom.reg_offset == def_.atom.reg_offset
+                        )
+                        or d.atom == def_.atom
+                    )
+                ]
                 # you can never replace a use with dependencies from outside the checked defn
-                if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
+                if len(use_expr_defns) != 1 or next(iter(use_expr_defns)) != def_:
                     if not use_expr_defns:
                         _l.warning("There was no use_expr_defns for %s, this is likely a bug", u)
                     # TODO: can you have multiple definitions which can all be eliminated?
@@ -1213,29 +1218,28 @@ class AILSimplifier(Analysis):
             # we do not remove references to global memory regions no matter what
             if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
                 continue
-            if isinstance(def_.atom, atoms.MemoryLocation):
-                if not self._remove_dead_memdefs:
-                    # we always remove definitions for stack arguments
-                    if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
-                        if (def_.atom.addr.offset & mask) not in stackarg_offsets:
-                            continue
-                    else:
+            if isinstance(def_.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
+                # we always remove definitions for stack arguments
+                if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
+                    if (def_.atom.addr.offset & mask) not in stackarg_offsets:
                         continue
+                else:
+                    continue
 
             uses = rd.all_uses.get_uses(def_)
             if (
-                isinstance(def_.atom, atoms.Register)
-                and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+                (
+                    isinstance(def_.atom, atoms.Register)
+                    and def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+                )
+                and len(uses) == 1
+                and next(iter(uses)) == def_.codeloc
             ):
-                if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
-                    # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                    uses = set()
+                # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                uses = set()
 
-            if not uses:
-                if not isinstance(def_.codeloc, ExternalCodeLocation):
-                    stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
-                        def_.codeloc.stmt_idx
-                    )
+            if not uses and not isinstance(def_.codeloc, ExternalCodeLocation):
+                stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
@@ -1301,7 +1305,7 @@ class AILSimplifier(Analysis):
                                 simplified = True
                     else:
                         # Should not happen!
-                        raise NotImplementedError()
+                        raise NotImplementedError
 
                 new_statements.append(stmt)
 
@@ -1335,8 +1339,7 @@ class AILSimplifier(Analysis):
                 if rewriter.result is not None:
                     _any_update.v = True
                     return rewriter.result
-                else:
-                    return None
+                return None
 
             return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
@@ -1359,7 +1362,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-            raise HasCallNotification()
+            raise HasCallNotification
 
         walker = AILBlockWalker()
         walker.expr_handlers[Call] = _handle_callexpr
@@ -1373,7 +1376,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _expression_has_call_exprs(expr: Expression) -> bool:
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-            raise HasCallNotification()
+            raise HasCallNotification
 
         walker = AILBlockWalker()
         walker.expr_handlers[Call] = _handle_callexpr
@@ -1400,9 +1403,8 @@ class AILSimplifier(Analysis):
                 started = False
                 continue
 
-            if started:
-                if b.statements and isinstance(b.statements[-1], Call):
-                    calls += 1
+            if started and b.statements and isinstance(b.statements[-1], Call):
+                calls += 1
         return calls
 
 

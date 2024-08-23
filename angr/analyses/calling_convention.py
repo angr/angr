@@ -1,6 +1,7 @@
 # pylint:disable=no-self-use
+from __future__ import annotations
 from collections import defaultdict
-from typing import Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import networkx
@@ -87,8 +88,8 @@ class CallingConventionAnalysis(Analysis):
 
     def __init__(
         self,
-        func: Union["Function", int, str] | None,
-        cfg: Optional["CFGModel"] = None,
+        func: Function | int | str | None,
+        cfg: CFGModel | None = None,
         analyze_callsites: bool = False,
         caller_func_addr: int | None = None,
         callsite_block_addr: int | None = None,
@@ -174,10 +175,7 @@ class CallingConventionAnalysis(Analysis):
                             else None
                         ),
                     )
-                    if cc_cls is not None:
-                        cc = cc_cls(self.project.arch)
-                    else:
-                        cc = None
+                    cc = cc_cls(self.project.arch) if cc_cls is not None else None
                     prototype = None
                     if callsite_facts:
                         if self.prototype is None:
@@ -232,10 +230,7 @@ class CallingConventionAnalysis(Analysis):
                     self.project.simos.name if self.project is not None and self.project.simos is not None else None
                 ),
             )
-            if cc_cls is not None:
-                cc = cc_cls(self.project.arch)
-            else:
-                cc = None
+            cc = cc_cls(self.project.arch) if cc_cls is not None else None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -281,9 +276,10 @@ class CallingConventionAnalysis(Analysis):
                 if self.project.is_hooked(real_func.addr):
                     # prioritize the hooker
                     hooker = self.project.hooked_by(real_func.addr)
-                    if hooker is not None:
-                        if not hooker.is_stub or hooker.is_function and not hooker.guessed_prototype:
-                            return real_func.calling_convention, hooker.prototype
+                    if hooker is not None and (
+                        not hooker.is_stub or hooker.is_function and not hooker.guessed_prototype
+                    ):
+                        return real_func.calling_convention, hooker.prototype
                 if real_func.calling_convention and real_func.prototype:
                     return real_func.calling_convention, real_func.prototype
             else:
@@ -293,10 +289,7 @@ class CallingConventionAnalysis(Analysis):
             # determine the calling convention by analyzing its callsites
             callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
             cc_cls = default_cc(self.project.arch.name)
-            if cc_cls is not None:
-                cc = cc_cls(self.project.arch)
-            else:
-                cc = None
+            cc = cc_cls(self.project.arch) if cc_cls is not None else None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -343,18 +336,17 @@ class CallingConventionAnalysis(Analysis):
                 self._function,
             )
             return None
-        else:
-            # reorder args
-            args = self._reorder_args(input_args, cc)
-            if fixed_args is not None:
-                args = args[:fixed_args]
+        # reorder args
+        args = self._reorder_args(input_args, cc)
+        if fixed_args is not None:
+            args = args[:fixed_args]
 
-            # guess the type of the return value -- it's going to be a wild guess...
-            ret_type = self._guess_retval_type(cc, vm.ret_val_size)
-            if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
-                # hack - main must return an int even in 64-bit binaries
-                ret_type = SimTypeInt()
-            prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type, variadic=is_variadic)
+        # guess the type of the return value -- it's going to be a wild guess...
+        ret_type = self._guess_retval_type(cc, vm.ret_val_size)
+        if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
+            # hack - main must return an int even in 64-bit binaries
+            ret_type = SimTypeInt()
+        prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type, variadic=is_variadic)
 
         return cc, prototype
 
@@ -382,8 +374,7 @@ class CallingConventionAnalysis(Analysis):
             observation_points=observation_points,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        fact = self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
-        return fact
+        return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
 
     def _extract_and_analyze_callsites(
         self,
@@ -406,7 +397,7 @@ class CallingConventionAnalysis(Analysis):
         facts = []
         in_edges = self._cfg.graph.in_edges(node, data=True)
 
-        call_sites_by_function: dict["Function", list[tuple[int, int]]] = defaultdict(list)
+        call_sites_by_function: dict[Function, list[tuple[int, int]]] = defaultdict(list)
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
             if edge_type != "Ijk_Call":
@@ -448,7 +439,7 @@ class CallingConventionAnalysis(Analysis):
 
     def _generate_callsite_subgraph(
         self,
-        func: "Function",
+        func: Function,
         callsite_block_addr: int,
         include_preds: bool = False,
     ) -> networkx.DiGraph | None:
@@ -512,16 +503,16 @@ class CallingConventionAnalysis(Analysis):
     def _analyze_callsite_return_value_uses(
         self, cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-        all_defs: set["Definition"] = {
+        all_defs: set[Definition] = {
             def_
-            for def_ in rda.all_uses._uses_by_definition.keys()
+            for def_ in rda.all_uses._uses_by_definition
             if (
                 def_.codeloc.block_addr == caller_block_addr
                 and def_.codeloc.stmt_idx == DEFAULT_STATEMENT
                 or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
             )
         }
-        all_uses: "Uses" = rda.all_uses
+        all_uses: Uses = rda.all_uses
 
         # determine if the return value is used
         return_val = cc.RETURN_VAL
@@ -556,9 +547,9 @@ class CallingConventionAnalysis(Analysis):
     ) -> None:
         # determine if potential register and stack arguments are set
         state = rda.observed_results[("insn", call_insn_addr, OP_BEFORE)]
-        defs_by_reg_offset: dict[int, list["Definition"]] = defaultdict(list)
-        all_reg_defs: set["Definition"] = get_all_definitions(state.registers)
-        all_stack_defs: set["Definition"] = get_all_definitions(state.stack)
+        defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
+        all_reg_defs: set[Definition] = get_all_definitions(state.registers)
+        all_stack_defs: set[Definition] = get_all_definitions(state.stack)
         for d in all_reg_defs:
             if (
                 isinstance(d.atom, Register)
@@ -635,15 +626,15 @@ class CallingConventionAnalysis(Analysis):
             else:
                 proto.returnty = SimTypeInt().with_arch(self.project.arch)
 
-        if update_arguments == UpdateArgumentsOption.AlwaysUpdate or (
-            update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args
-        ):
-            if len({len(fact.args) for fact in facts}) == 1:
-                fact = next(iter(facts))
-                proto.args = [
-                    self._guess_arg_type(arg) if arg is not None else SimTypeInt().with_arch(self.project.arch)
-                    for arg in fact.args
-                ]
+        if (
+            update_arguments == UpdateArgumentsOption.AlwaysUpdate
+            or (update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args)
+        ) and len({len(fact.args) for fact in facts}) == 1:
+            fact = next(iter(facts))
+            proto.args = [
+                self._guess_arg_type(arg) if arg is not None else SimTypeInt().with_arch(self.project.arch)
+                for arg in fact.args
+            ]
 
         return proto
 
@@ -657,10 +648,7 @@ class CallingConventionAnalysis(Analysis):
         """
 
         args = set()
-        if not self.project.arch.call_pushes_ret:
-            ret_addr_offset = 0
-        else:
-            ret_addr_offset = self.project.arch.bytes
+        ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
 
         reg_vars_with_single_access: list[SimRegisterVariable] = []
 
@@ -754,31 +742,29 @@ class CallingConventionAnalysis(Analysis):
         if arch_name == "AARCH64":
             return 16 <= variable.reg < 80  # x0-x7
 
-        elif arch_name == "AMD64":
+        if arch_name == "AMD64":
             return 24 <= variable.reg < 40 or 64 <= variable.reg < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
             # 224 <= variable.reg < 480)  # xmm0-xmm7
 
-        elif is_arm_arch(arch):
+        if is_arm_arch(arch):
             if isinstance(arch, ArchARMHF):
                 return 8 <= variable.reg < 24 or 128 <= variable.reg < 160  # r0 - 32  # s0 - s7, or d0 - d4
-            else:
-                return 8 <= variable.reg < 24  # r0-r3
+            return 8 <= variable.reg < 24  # r0-r3
 
-        elif arch_name == "MIPS32":
+        if arch_name == "MIPS32":
             return 24 <= variable.reg < 40  # a0-a3
 
-        elif arch_name == "MIPS64":
+        if arch_name == "MIPS64":
             return 48 <= variable.reg < 80 or 112 <= variable.reg < 208  # a0-a3 or t4-t7
 
-        elif arch_name == "PPC32":
+        if arch_name == "PPC32":
             return 28 <= variable.reg < 60  # r3-r10
 
-        elif arch_name == "X86":
+        if arch_name == "X86":
             return 8 <= variable.reg < 24 or 160 <= variable.reg < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
 
-        else:
-            l.critical("Unsupported architecture %s.", arch.name)
-            return True
+        l.critical("Unsupported architecture %s.", arch.name)
+        return True
 
     def _reorder_args(self, args: list[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
@@ -838,55 +824,51 @@ class CallingConventionAnalysis(Analysis):
         return reg_args + int_args + fp_args + stack_args
 
     def _guess_arg_type(self, arg: SimFunctionArgument, cc: SimCC | None = None) -> SimType:
-        if cc is not None:
-            if cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
-                if arg.size == 4:
-                    return SimTypeFloat()
-                elif arg.size == 8:
-                    return SimTypeDouble()
+        if cc is not None and cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
+            if arg.size == 4:
+                return SimTypeFloat()
+            if arg.size == 8:
+                return SimTypeDouble()
 
         if arg.size == 4:
             return SimTypeInt()
-        elif arg.size == 8:
+        if arg.size == 8:
             return SimTypeLongLong()
-        elif arg.size == 2:
+        if arg.size == 2:
             return SimTypeShort()
-        elif arg.size == 1:
+        if arg.size == 1:
             return SimTypeChar()
-        else:
-            # Unsupported for now
-            return SimTypeBottom()
+        # Unsupported for now
+        return SimTypeBottom()
 
     def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
-        if cc.FP_RETURN_VAL:
+        if cc.FP_RETURN_VAL and self._function.ret_sites:
             # examine the last block of the function and see which registers are assigned to
-            if self._function.ret_sites:
-                for ret_block in self._function.ret_sites:
-                    irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
-                    for stmt in irsb.statements:
-                        if isinstance(stmt, Put):
-                            if isinstance(stmt.data, RdTmp):
-                                reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
-                                reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
-                                if reg_name == cc.FP_RETURN_VAL.reg_name:
-                                    # possibly float
-                                    return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
+            for ret_block in self._function.ret_sites:
+                irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
+                for stmt in irsb.statements:
+                    if isinstance(stmt, Put) and isinstance(stmt.data, RdTmp):
+                        reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
+                        reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
+                        if reg_name == cc.FP_RETURN_VAL.reg_name:
+                            # possibly float
+                            return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
 
         if ret_val_size is not None:
             if ret_val_size == 1:
                 return SimTypeChar()
-            elif ret_val_size == 2:
+            if ret_val_size == 2:
                 return SimTypeShort()
-            elif 3 <= ret_val_size <= 4:
+            if 3 <= ret_val_size <= 4:
                 return SimTypeInt()
-            elif 5 <= ret_val_size <= 8:
+            if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
 
         # fallback
         return SimTypeInt() if cc.arch.bits == 32 else SimTypeLongLong()
 
     @staticmethod
-    def _likely_saving_temp_reg(ail_block: ailment.Block, d: "Definition", all_reg_defs: set["Definition"]) -> bool:
+    def _likely_saving_temp_reg(ail_block: ailment.Block, d: Definition, all_reg_defs: set[Definition]) -> bool:
         if d.codeloc.block_addr == ail_block.addr and d.codeloc.stmt_idx < len(ail_block.statements):
             stmt = ail_block.statements[d.codeloc.stmt_idx]
             if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Register):
@@ -897,9 +879,8 @@ class CallingConventionAnalysis(Analysis):
                     ),
                     None,
                 )
-                if src_reg_def is not None:
-                    if isinstance(src_reg_def.codeloc, ExternalCodeLocation):
-                        return True
+                if src_reg_def is not None and isinstance(src_reg_def.codeloc, ExternalCodeLocation):
+                    return True
         return False
 
     def is_va_start_amd64(self, func: Function) -> tuple[bool, int | None]:

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -41,13 +42,13 @@ class SimSuccessors:
 
     def __init__(self, addr: int | None, initial_state):
         self.addr = addr
-        self.initial_state: "SimState" = initial_state
+        self.initial_state: SimState = initial_state
 
-        self.successors: list["SimState"] = []
-        self.all_successors: list["SimState"] = []
-        self.flat_successors: list["SimState"] = []
-        self.unsat_successors: list["SimState"] = []
-        self.unconstrained_successors: list["SimState"] = []
+        self.successors: list[SimState] = []
+        self.all_successors: list[SimState] = []
+        self.flat_successors: list[SimState] = []
+        self.unsat_successors: list[SimState] = []
+        self.unconstrained_successors: list[SimState] = []
 
         # the engine that should process or did process this request
         self.engine = None
@@ -70,17 +71,13 @@ class SimSuccessors:
             if len(self.unconstrained_successors) != 0:
                 successor_strings.append(f"{len(self.unconstrained_successors)} unconstrained")
 
-            if len(successor_strings) == 0:
-                result = "empty"
-            else:
-                result = " ".join(successor_strings)
+            result = "empty" if len(successor_strings) == 0 else " ".join(successor_strings)
         else:
             result = "failure"
 
         if isinstance(self.addr, int):
             return f"<{self.description} from {self.addr:#x}: {result}>"
-        else:
-            return f"<{self.description} from {self.addr}: {result}>"
+        return f"<{self.description} from {self.addr}: {result}>"
 
     @property
     def is_empty(self):
@@ -260,18 +257,19 @@ class SimSuccessors:
 
         # categorize the state
         if o.APPROXIMATE_GUARDS in state.options and state.solver.is_false(state.scratch.guard, exact=False):
-            if o.VALIDATE_APPROXIMATIONS in state.options:
-                if state.satisfiable():
-                    raise Exception("WTF")
+            if o.VALIDATE_APPROXIMATIONS in state.options and state.satisfiable():
+                raise Exception("WTF")
             self.unsat_successors.append(state)
         elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
-            if o.VALIDATE_APPROXIMATIONS in state.options:
-                if state.solver.satisfiable():
-                    raise Exception("WTF")
+            if o.VALIDATE_APPROXIMATIONS in state.options and state.solver.satisfiable():
+                raise Exception("WTF")
             self.unsat_successors.append(state)
-        elif not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard):
-            self.unsat_successors.append(state)
-        elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
+        elif (
+            not state.scratch.guard.symbolic
+            and state.solver.is_false(state.scratch.guard)
+            or o.LAZY_SOLVES not in state.options
+            and not state.satisfiable()
+        ):
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
             self.unconstrained_successors.append(state)
@@ -514,8 +512,7 @@ class SimSuccessors:
 
         if fallback:
             return None
-        else:
-            return cond_and_targets[:limit]
+        return cond_and_targets[:limit]
 
     @staticmethod
     def _eval_target_brutal(state, ip, limit):

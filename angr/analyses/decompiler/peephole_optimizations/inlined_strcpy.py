@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 import string
 
 from archinfo import Endness
@@ -24,7 +25,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     NAME = "Simplifying inlined strcpy"
     stmt_classes = (Store,)
 
-    def optimize(self, stmt: Store, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: Store, stmt_idx: int | None = None, block=None, **kwargs):
         if isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
             r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.data.size, stmt.endness)
             if r:
@@ -135,7 +136,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                 if chr(byt) not in ASCII_PRINTABLES:
                     return False, None
                 chars.append(chr(byt))
-            chars = chars[::-1]
+            chars.reverse()
         else:
             # unsupported endness
             return False, None

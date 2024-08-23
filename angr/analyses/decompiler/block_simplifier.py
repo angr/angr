@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
+from __future__ import annotations
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from collections.abc import Iterable
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
@@ -44,11 +45,11 @@ class HasCallExprWalker(AILBlockWalkerBase):
         super().__init__()
         self.has_call_expr = False
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Optional["Block"]):  # pylint:disable=unused-argument
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):  # pylint:disable=unused-argument
         self.has_call_expr = True
 
     def _handle_CallExpr(  # pylint:disable=unused-argument
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional["Block"]
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         self.has_call_expr = True
 
@@ -60,7 +61,7 @@ class BlockSimplifier(Analysis):
 
     def __init__(
         self,
-        block: Optional["Block"],
+        block: Block | None,
         func_addr: int | None = None,
         remove_dead_memdefs=False,
         stack_pointer_tracker=None,
@@ -197,7 +198,7 @@ class BlockSimplifier(Analysis):
             propagator = self._compute_propagation(block)
             new_block = block
             if propagator.model.states:
-                prop_state = list(propagator.model.states.values())[0]
+                prop_state = next(iter(propagator.model.states.values()))
                 replacements = prop_state._replacements
                 if replacements:
                     _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
@@ -210,8 +211,7 @@ class BlockSimplifier(Analysis):
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             new_block = self._eliminate_dead_assignments(new_block)
 
-        new_block = self._peephole_optimize(new_block)
-        return new_block
+        return self._peephole_optimize(new_block)
 
     @staticmethod
     def _replace_and_build(
@@ -221,7 +221,7 @@ class BlockSimplifier(Analysis):
         replace_loads: bool = False,
         gp: int | None = None,
         replace_registers: bool = True,
-    ) -> tuple[bool, "Block"]:
+    ) -> tuple[bool, Block]:
         new_statements = block.statements[::]
         replaced = False
 
@@ -301,18 +301,16 @@ class BlockSimplifier(Analysis):
                     isinstance(stmt.dst, Register)
                     and isinstance(stmt.src, Convert)
                     and isinstance(stmt.src.operand, Register)
+                ) and (
+                    stmt.dst.size == stmt.src.size
+                    and stmt.dst.reg_offset == stmt.src.operand.reg_offset
+                    and not stmt.src.is_signed
                 ):
-                    if (
-                        stmt.dst.size == stmt.src.size
-                        and stmt.dst.reg_offset == stmt.src.operand.reg_offset
-                        and not stmt.src.is_signed
-                    ):
-                        # ignore statements like edi = convert(rdi, 32)
-                        continue
+                    # ignore statements like edi = convert(rdi, 32)
+                    continue
             new_statements.append(stmt)
 
-        new_block = block.copy(statements=new_statements)
-        return new_block
+        return block.copy(statements=new_statements)
 
     def _eliminate_dead_assignments(self, block):
         new_statements = []
@@ -320,11 +318,11 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        live_defs: "LiveDefinitions" = rd.observed_results[("node", block.addr, OP_AFTER)]
+        live_defs: LiveDefinitions = rd.observed_results[("node", block.addr, OP_AFTER)]
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
-        all_defs: Iterable["Definition"] = rd.all_definitions
+        all_defs: Iterable[Definition] = rd.all_definitions
         mask = (1 << self.project.arch.bits) - 1
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
@@ -332,14 +330,13 @@ class BlockSimplifier(Analysis):
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
-            if isinstance(d.atom, atoms.MemoryLocation):
-                if not self._remove_dead_memdefs:
-                    # we always remove definitions for stack arguments
-                    if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
-                        if (d.atom.addr.offset & mask) not in stackarg_offsets:
-                            continue
-                    else:
+            if isinstance(d.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
+                # we always remove definitions for stack arguments
+                if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
+                    if (d.atom.addr.offset & mask) not in stackarg_offsets:
                         continue
+                else:
+                    continue
 
             if isinstance(d.atom, atoms.Tmp):
                 uses = live_defs.tmp_uses[d.atom.tmp_idx]
@@ -354,15 +351,13 @@ class BlockSimplifier(Analysis):
                     defs_ = set()
                     if isinstance(d.atom, atoms.Register):
                         try:
-                            vs: "MultiValues" = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
+                            vs: MultiValues = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
                         except SimMemoryMissingError:
                             vs = None
                     elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                         stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                         try:
-                            vs: "MultiValues" = live_defs.stack.load(
-                                stack_addr, size=d.atom.size, endness=d.atom.endness
-                            )
+                            vs: MultiValues = live_defs.stack.load(stack_addr, size=d.atom.size, endness=d.atom.endness)
                         except SimMemoryMissingError:
                             vs = None
                     else:
@@ -387,9 +382,8 @@ class BlockSimplifier(Analysis):
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 # tmps can't execute new code
-                if type(stmt.dst) is Tmp:
-                    if stmt.dst.tmp_idx not in used_tmps:
-                        continue
+                if type(stmt.dst) is Tmp and stmt.dst.tmp_idx not in used_tmps:
+                    continue
 
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
@@ -404,8 +398,7 @@ class BlockSimplifier(Analysis):
 
             new_statements.append(stmt)
 
-        new_block = block.copy(statements=new_statements)
-        return new_block
+        return block.copy(statements=new_statements)
 
     #
     # Peephole optimization
@@ -418,17 +411,13 @@ class BlockSimplifier(Analysis):
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
 
-        if stmts_updated:
-            new_block = block.copy(statements=statements)
-        else:
-            new_block = block
+        new_block = block.copy(statements=statements) if stmts_updated else block
 
         statements, multi_stmts_updated = peephole_optimize_multistmts(new_block, self._multistmt_peephole_opts)
 
         if not multi_stmts_updated:
             return new_block
-        new_block = new_block.copy(statements=statements)
-        return new_block
+        return new_block.copy(statements=statements)
 
 
 register_analysis(BlockSimplifier, "AILBlockSimplifier")

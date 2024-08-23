@@ -1,3 +1,4 @@
+from __future__ import annotations
 import ailment
 
 
@@ -16,4 +17,4 @@ class CCallRewriterBase:
         self.result: ailment.Expr.Expression | None = self._rewrite(ccall)
 
     def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
-        raise NotImplementedError()
+        raise NotImplementedError

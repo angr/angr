@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import time
 import os
@@ -85,7 +86,7 @@ class Server:
         self._active_workers = state["_active_workers"]
 
     def __getstate__(self):
-        s = {
+        return {
             "project": self.project,
             "spill_yard": self.spill_yard,
             "db_str": self.db_str,
@@ -98,7 +99,6 @@ class Server:
             "_stopped": self._stopped,
             "_active_workers": self._active_workers,
         }
-        return s
 
     #
     # Actions
@@ -183,7 +183,7 @@ class Server:
 
                 if self._worker_exit_callback and self._worker_exit_args:
                     with self._worker_exit_args_lock:
-                        for _, args in self._worker_exit_args.items():
+                        for args in self._worker_exit_args.values():
                             self._worker_exit_callback(*args)
 
             server_state["stopped"] = self.stopped

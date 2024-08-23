@@ -1,3 +1,4 @@
+from __future__ import annotations
 import copy
 from typing import Any
 
@@ -27,7 +28,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        r: "MemoryRegionMetaMixin" = super().copy(memo)
+        r: MemoryRegionMetaMixin = super().copy(memo)
         r.alocs = copy.deepcopy(self.alocs)
         r._related_function_addr = self._related_function_addr
         r._is_stack = self._is_stack
@@ -67,22 +68,17 @@ class MemoryRegionMetaMixin(MemoryMixin):
         return ret
 
     def store(self, addr, data, bbl_addr=None, stmt_id=None, ins_addr=None, endness=None, **kwargs):
-        if ins_addr is not None:
-            aloc_id = ins_addr
-        else:
-            # It comes from a SimProcedure. We'll use bbl_addr as the aloc_id
-            aloc_id = bbl_addr
+        # It comes from a SimProcedure. We'll use bbl_addr as the aloc_id
+        aloc_id = ins_addr if ins_addr is not None else bbl_addr
 
         if aloc_id not in self.alocs:
             self.alocs[aloc_id] = AbstractLocation(
                 bbl_addr, stmt_id, self.id, region_offset=addr, size=len(data) // self.state.arch.byte_width
             )
             return super().store(addr, data, endness=endness, **kwargs)
-        else:
-            if self.alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
-                return super().store(addr, data, endness=endness, **kwargs)
-            else:
-                return super().store(addr, data, endness=endness, **kwargs)
+        if self.alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
+            return super().store(addr, data, endness=endness, **kwargs)
+        return super().store(addr, data, endness=endness, **kwargs)
 
     def load(
         self, addr, size=None, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs

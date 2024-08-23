@@ -323,7 +323,9 @@ class SimulationManager:
             if isinstance(t, Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter", None)
                 if deviation_filter_saved is not None:
-                    t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s) or deviation_filter_saved(s)
+                    t.options["deviation_filter"] = (
+                        lambda s, dfs=deviation_filter_saved: tech.find(s) or tech.avoid(s) or dfs(s)
+                    )
                 else:
                     t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)
                 break
@@ -357,7 +359,7 @@ class SimulationManager:
         :return:            The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        for _ in itertools.count() if n is None else range(0, n):
+        for _ in itertools.count() if n is None else range(n):
             if not self.complete() and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
                 if not (until and until(self)):
@@ -796,7 +798,7 @@ class SimulationManager:
         merge_groups = []
         while to_merge:
             base_key = merge_key(to_merge[0])
-            g, to_merge = self._filter_states(lambda s: base_key == merge_key(s), to_merge)
+            g, to_merge = self._filter_states(lambda s, base_key=base_key: base_key == merge_key(s), to_merge)
             if len(g) <= 1:
                 not_to_merge.extend(g)
             else:
@@ -832,16 +834,15 @@ class SimulationManager:
     def _fetch_states(self, stash):
         if stash in self._stashes:
             return self._stashes[stash]
-        elif stash == SimulationManager.ALL:
+        if stash == SimulationManager.ALL:
             return list(itertools.chain.from_iterable(self._stashes.values()))
-        elif stash == "mp_" + SimulationManager.ALL:
+        if stash == "mp_" + SimulationManager.ALL:
             return mulpyplexer.MP(self._fetch_states(stash=SimulationManager.ALL))
-        elif stash.startswith("mp_"):
+        if stash.startswith("mp_"):
             return mulpyplexer.MP(self._stashes.get(stash[3:], []))
-        elif stash.startswith("one_"):
+        if stash.startswith("one_"):
             return self._stashes.get(stash[4:], [None])[0]
-        else:
-            raise AttributeError("No such stash: %s" % stash)
+        raise AttributeError(f"No such stash: {stash}")
 
     def _filter_states(self, filter_func, states):  # pylint:disable=no-self-use
         match, nomatch = [], []
@@ -889,8 +890,7 @@ class SimulationManager:
         if len(others):
             others.append(m)
             return self._merge_states(others)
-        else:
-            return m
+        return m
 
     #
     #   ...
@@ -964,7 +964,7 @@ class ErrorRecord:
         raise self.error.with_traceback(self.traceback)
 
     def __repr__(self):
-        return '<State errored with "%s">' % self.error
+        return f'<State errored with "{self.error}">'
 
     def __eq__(self, other):
         return self is other or self.state is other

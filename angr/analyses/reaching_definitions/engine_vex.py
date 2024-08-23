@@ -1,5 +1,6 @@
+from __future__ import annotations
 from itertools import chain
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from collections.abc import Iterable
 import logging
 
@@ -42,8 +43,8 @@ class SimEngineRDVEX(
     def __init__(self, project, functions=None, function_handler=None):
         super().__init__()
         self.project = project
-        self.functions: Optional["FunctionManager"] = functions
-        self._function_handler: Optional["FunctionHandler"] = function_handler
+        self.functions: FunctionManager | None = functions
+        self._function_handler: FunctionHandler | None = function_handler
         self._visited_blocks = None
         self._dep_graph = None
 
@@ -513,11 +514,9 @@ class SimEngineRDVEX(
 
         if claripy.is_true(cond_v):
             return iftrue
-        elif claripy.is_false(cond_v):
+        if claripy.is_false(cond_v):
             return iffalse
-        else:
-            data = iftrue.merge(iffalse)
-            return data
+        return iftrue.merge(iffalse)
 
     #
     # Unary operation handlers
@@ -598,15 +597,13 @@ class SimEngineRDVEX(
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _handle_16HLto32(self, expr):
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _handle_Add(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
@@ -727,10 +724,7 @@ class SimEngineRDVEX(
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                if expr1_v.concrete_value == 0:
-                    r = MultiValues(self.state.top(bits))
-                else:
-                    r = MultiValues(expr0_v / expr1_v)
+                r = MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)
 
         if r is None:
             r = MultiValues(self.state.top(bits))
@@ -741,9 +735,7 @@ class SimEngineRDVEX(
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
-        r = MultiValues(self.state.top(bits))
-
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _handle_And(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
@@ -854,10 +846,7 @@ class SimEngineRDVEX(
             if e1 > bits:
                 return claripy.BVV(0, bits)
 
-            if claripy.is_true(e0 >> (bits - 1) == 0):
-                head = claripy.BVV(0, bits)
-            else:
-                head = ((1 << e1) - 1) << (bits - e1)
+            head = claripy.BVV(0, bits) if claripy.is_true(e0 >> bits - 1 == 0) else (1 << e1) - 1 << bits - e1
             return head | (e0 >> e1)
 
         if expr0_v is None and expr1_v is None:
@@ -970,7 +959,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value == e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(1, 1))
             return MultiValues(self.state.top(1))
 
@@ -986,7 +975,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1000,7 +989,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value < e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1014,7 +1003,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value <= e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1028,7 +1017,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value > e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1042,7 +1031,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value >= e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1062,11 +1051,10 @@ class SimEngineRDVEX(
                 e1 = e1.concrete_value
                 if e0 < e1:
                     return MultiValues(claripy.BVV(0x8, bits))
-                elif e0 > e1:
+                if e0 > e1:
                     return MultiValues(claripy.BVV(0x4, bits))
-                else:
-                    return MultiValues(claripy.BVV(0x2, bits))
-            elif e0 is e1:
+                return MultiValues(claripy.BVV(0x2, bits))
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0x2, bits))
 
         return MultiValues(self.state.top(1))

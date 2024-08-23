@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 from typing import Any, TYPE_CHECKING
@@ -63,11 +65,11 @@ class TestJumpTableResolver(unittest.TestCase):
     @staticmethod
     def _compare(jump_tables, groundtruth):
         for j in groundtruth:
-            assert j.block_addr in jump_tables, "Jump table @ block %#x is not found in CFG." % j.block_addr
+            assert j.block_addr in jump_tables, f"Jump table @ block {j.block_addr:#x} is not found in CFG."
             jumptable_addr = jump_tables[j.block_addr].jumptable_addr
             assert j.table_addr == jumptable_addr, "Mismatch jump table addresses (expecting {}, got {}).".format(
-                ("%#x" % j.table_addr) if j.table_addr is not None else "None",
-                ("%#x" % jumptable_addr) if jumptable_addr is not None else "None",
+                (f"{j.table_addr:#x}") if j.table_addr is not None else "None",
+                (f"{jumptable_addr:#x}") if jumptable_addr is not None else "None",
             )
             expected = set(j.entries)
             recovered = set(jump_tables[j.block_addr].jumptable_entries)
@@ -2805,7 +2807,7 @@ class TestJumpTableResolver(unittest.TestCase):
         cfg = p.analyses.CFGFast()
 
         assert 0x46D710 in cfg.indirect_jumps
-        ij: "IndirectJump" = cfg.indirect_jumps[0x46D710]
+        ij: IndirectJump = cfg.indirect_jumps[0x46D710]
         assert ij.type == IndirectJumpType.Vtable
         assert len(ij.jumptable_entries) == 213
 
@@ -3074,7 +3076,7 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         """
         Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
         """
-        proj = compile_c_to_angr_project(c_code, cflags, dict(auto_load_libs=False))
+        proj = compile_c_to_angr_project(c_code, cflags, {"auto_load_libs": False})
 
         # Run initial CFG, without attempting indirect jump resolve
         cfg = proj.analyses.CFGFast(resolve_indirect_jumps=False)
@@ -3117,8 +3119,8 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         # XXX: On x86 with PIE, call get_pc_thunk() is used to calculate table address. Can't handle it yet.
         cflags = []
         for arch_flags in [[], ["-m32", "-fno-pie"]]:  # AMD64, x86
-            for opt_level in range(0, 3):
-                subtest_cflags = cflags + [f"-O{opt_level}"] + arch_flags
+            for opt_level in range(3):
+                subtest_cflags = [*cflags, f"-O{opt_level}", *arch_flags]
                 with self.subTest(cflags=subtest_cflags):
                     self._run_calltable_test(
                         c_code, "src_func", {f"dst_func_{i}" for i in range(4)}, cflags=subtest_cflags

@@ -1,4 +1,5 @@
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 import copy
 import logging
 
@@ -99,8 +100,9 @@ class CallSiteMaker(Analysis):
             if prototype_libname is not None:
                 prototype_lib = SIM_LIBRARIES[prototype_libname]
                 if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                    type_collections.extend(
+                        SIM_TYPE_COLLECTIONS[typelib_name] for typelib_name in prototype_lib.type_collection_names
+                    )
             if type_collections:
                 prototype = dereference_simtype(prototype, type_collections).with_arch(self.project.arch)
 
@@ -154,13 +156,16 @@ class CallSiteMaker(Analysis):
             # check if the last statement is storing the return address onto the top of the stack
             if len(new_stmts) >= 1:
                 the_stmt = new_stmts[-1]
-                if isinstance(the_stmt, Stmt.Store) and isinstance(the_stmt.data, Expr.Const):
-                    if (
+                if (
+                    isinstance(the_stmt, Stmt.Store)
+                    and isinstance(the_stmt.data, Expr.Const)
+                    and (
                         isinstance(the_stmt.addr, Expr.StackBaseOffset)
                         and the_stmt.data.value == self.block.addr + self.block.original_size
-                    ):
-                        # yes it is!
-                        new_stmts = new_stmts[:-1]
+                    )
+                ):
+                    # yes it is!
+                    new_stmts = new_stmts[:-1]
         else:
             # if there is an lr register...
             lr_offset = None
@@ -168,17 +173,16 @@ class CallSiteMaker(Analysis):
                 lr_offset = self.project.arch.registers["lr"][0]
             elif self.project.arch.name in {"MIPS32", "MIPS64"}:
                 lr_offset = self.project.arch.registers["ra"][0]
-            if lr_offset is not None:
-                # remove the assignment to the lr register
-                if len(new_stmts) >= 1:
-                    the_stmt = new_stmts[-1]
-                    if (
-                        isinstance(the_stmt, Stmt.Assignment)
-                        and isinstance(the_stmt.dst, Expr.Register)
-                        and the_stmt.dst.reg_offset == lr_offset
-                    ):
-                        # found it
-                        new_stmts = new_stmts[:-1]
+            # remove the assignment to the lr register
+            if lr_offset is not None and len(new_stmts) >= 1:
+                the_stmt = new_stmts[-1]
+                if (
+                    isinstance(the_stmt, Stmt.Assignment)
+                    and isinstance(the_stmt.dst, Expr.Register)
+                    and the_stmt.dst.reg_offset == lr_offset
+                ):
+                    # found it
+                    new_stmts = new_stmts[:-1]
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
@@ -230,7 +234,7 @@ class CallSiteMaker(Analysis):
 
         self.result_block = new_block
 
-    def _find_variable_from_definition(self, def_: "Definition"):
+    def _find_variable_from_definition(self, def_: Definition):
         """
 
         :param Definition def_: The reaching definition of a variable.
@@ -244,13 +248,12 @@ class CallSiteMaker(Analysis):
         stmt = self.block.statements[def_.codeloc.stmt_idx]
         if type(stmt) is Stmt.Assignment:
             return stmt.dst
-        elif type(stmt) is Stmt.Store:
+        if type(stmt) is Stmt.Store:
             return stmt.addr
-        else:
-            l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
-            return None
+        l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
+        return None
 
-    def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, "Definition"]]:
+    def _resolve_register_argument(self, call_stmt, arg_loc) -> set[tuple[int | None, Definition]]:
         size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
@@ -258,21 +261,18 @@ class CallSiteMaker(Analysis):
             # Find its definition
             ins_addr = call_stmt.tags["ins_addr"]
             try:
-                rd: "LiveDefinitions" = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
+                rd: LiveDefinitions = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
             except KeyError:
                 return set()
 
             try:
-                vs: "MultiValues" = rd.registers.load(offset, size=size)
+                vs: MultiValues = rd.registers.load(offset, size=size)
             except SimMemoryMissingError:
                 return set()
             values_and_defs_ = set()
             for values in vs.values():
                 for value in values:
-                    if value.concrete:
-                        concrete_value = value.concrete_value
-                    else:
-                        concrete_value = None
+                    concrete_value = value.concrete_value if value.concrete else None
                     for def_ in rd.extract_defs(value):
                         values_and_defs_.add((concrete_value, def_))
 
@@ -330,7 +330,7 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Optional["Function"], cc: SimCC, call_stmt) -> int | None:
+    def _determine_variadic_arguments(self, func: Function | None, cc: SimCC, call_stmt) -> int | None:
         if func is not None and "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None

@@ -1,4 +1,5 @@
 # pylint:disable=too-many-boolean-expressions
+from __future__ import annotations
 from ailment.expression import Load, BinaryOp, Register, Const
 
 from .base import PeepholeOptimizationExprBase

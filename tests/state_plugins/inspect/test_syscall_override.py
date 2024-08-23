@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.state_plugins.inspect"  # pylint:disable=redefined-builtin
 
 import os
@@ -63,9 +65,9 @@ class TestSyscallOverride(unittest.TestCase):
 
         results = p.factory.simulation_manager(thing=s).explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = results.found[0].posix.dumps(0)
-        assert b"SOSNEAKY" == stdin
+        assert stdin == b"SOSNEAKY"
         stdout = results.found[0].posix.dumps(1)
-        assert b"HAHA\0" == stdout
+        assert stdout == b"HAHA\0"
 
     def test_fauxware_override_x86_64(self):
         self._run_fauxware_override("x86_64")

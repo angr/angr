@@ -1,4 +1,5 @@
 # This module contains data structures for handling memory, code, and register references.
+from __future__ import annotations
 
 import logging
 
@@ -7,6 +8,7 @@ l = logging.getLogger(name=__name__)
 _noneset = frozenset()
 
 from .sim_event import SimEvent
+import contextlib
 
 
 class SimAction(SimEvent):
@@ -34,40 +36,38 @@ class SimAction(SimEvent):
 
     def __repr__(self):
         if self.sim_procedure is not None:
-            location = "%s()" % self.sim_procedure.display_name
+            location = f"{self.sim_procedure.display_name}()"
         else:
             if self.stmt_idx is not None:
                 location = "0x%x:%d" % (self.ins_addr, self.stmt_idx)  # TODO: Revert this!
             else:
-                location = "0x%x" % self.bbl_addr
+                location = f"0x{self.bbl_addr:x}"
         return f"<{self.__class__.__name__} {location} {self._desc()}>"
 
     def _desc(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def _make_object(v):
         if v is None:
             return None
-        elif isinstance(v, SimActionObject):
+        if isinstance(v, SimActionObject):
             return v
-        else:
-            return SimActionObject(v, reg_deps=None, tmp_deps=None)
+        return SimActionObject(v, reg_deps=None, tmp_deps=None)
 
     @staticmethod
     def _copy_object(v):
         if isinstance(v, SimActionObject):
             return v.copy()
-        else:
-            return None
+        return None
 
     @property
     def all_objects(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def is_symbolic(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def tmp_deps(self):
@@ -78,7 +78,7 @@ class SimAction(SimEvent):
         return frozenset.union(*[v.reg_deps for v in self.all_objects])
 
     def _copy_objects(self, c):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy(self):
         c = self._copy_event()
@@ -90,7 +90,6 @@ class SimAction(SimEvent):
         """
         Clears some low-level details (that take up memory) out of the SimAction.
         """
-        pass
 
 
 class SimActionExit(SimAction):
@@ -154,7 +153,7 @@ class SimActionConstraint(SimAction):
         c.condition = self._copy_object(self.condition)
 
     def _desc(self):
-        s = "%s" % str(self.constraint)
+        s = f"{self.constraint!s}"
         if self.condition is not None:
             s += " (cond)"
         return s
@@ -187,7 +186,7 @@ class SimActionOperation(SimAction):
         c.result = self.result
 
     def _desc(self):
-        return "operation/%s" % (self.op)
+        return f"operation/{self.op}"
 
 
 class SimActionData(SimAction):
@@ -278,10 +277,8 @@ class SimActionData(SimAction):
         def _repr(o):
             if type(o) in {bytes, str, int}:
                 return o
-            try:
+            with contextlib.suppress(AttributeError):
                 o = o.ast
-            except AttributeError:
-                pass
             if type(o) in {bytes, str, int}:
                 return o
             return o.shallow_repr()
@@ -301,10 +298,8 @@ class SimActionData(SimAction):
         def _repr(o):
             if type(o) in {bytes, str, int}:
                 return o
-            try:
+            with contextlib.suppress(AttributeError):
                 o = o.ast
-            except AttributeError:
-                pass
             if type(o) in {bytes, str, int}:
                 return o
             return o.shallow_repr()

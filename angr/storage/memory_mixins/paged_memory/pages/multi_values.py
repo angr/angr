@@ -1,4 +1,4 @@
-from typing import Union
+from __future__ import annotations
 from collections.abc import Iterator
 import archinfo
 
@@ -25,7 +25,7 @@ class MultiValues:
 
     def __init__(
         self,
-        v: Union[claripy.ast.Bits, "MultiValues", None, dict[int, set[claripy.ast.Bits]]] = None,
+        v: claripy.ast.Bits | MultiValues | None | dict[int, set[claripy.ast.Bits]] = None,
         offset_to_values=None,
     ):
         if v is not None and offset_to_values is not None:
@@ -46,10 +46,9 @@ class MultiValues:
             self._values = {}
 
         # if only one value is passed in, assign it to self._single_value
-        if self._values:
-            if len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
-                self._single_value = next(iter(self._values[0]))
-                self._values = None
+        if self._values and len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
+            self._single_value = next(iter(self._values[0]))
+            self._values = None
 
         if self._values:
             # sanity check
@@ -156,7 +155,7 @@ class MultiValues:
         max_len = max(x.size() for x in self._values[max_offset])
         return max_offset * 8 + max_len  # FIXME: we are assuming byte_width of 8
 
-    def merge(self, mv: "MultiValues") -> "MultiValues":
+    def merge(self, mv: MultiValues) -> MultiValues:
         new_values = {k: set(v) for k, v in self.items()}
         for off, vs in mv.items():
             if off not in new_values:
@@ -178,10 +177,7 @@ class MultiValues:
         assert other._values is not None
         if set(self._values.keys()) != set(other._values.keys()):
             return False
-        for k in self._values.keys():
-            if self._values[k] != other._values[k]:
-                return False
-        return True
+        return all(self._values[k] == other._values[k] for k in self._values)
 
     def __repr__(self):
         if self._single_value is not None:
@@ -197,9 +193,9 @@ class MultiValues:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
-            raise KeyError()
-        elif not self._values:
-            raise KeyError()
+            raise KeyError
+        if not self._values:
+            raise KeyError
         return self._values[offset]
 
     def keys(self) -> set[int]:
@@ -231,7 +227,7 @@ class MultiValues:
             return 0
         return len(self._values)
 
-    def extract(self, offset: int, length: int, endness: str) -> "MultiValues":
+    def extract(self, offset: int, length: int, endness: str) -> MultiValues:
         end = offset + length
         result = MultiValues(claripy.BVV(b""))
         for obj_offset, values in self.items():
@@ -250,7 +246,7 @@ class MultiValues:
 
         return result
 
-    def concat(self, other: Union["MultiValues", claripy.ast.Bits, bytes]) -> "MultiValues":
+    def concat(self, other: MultiValues | claripy.ast.Bits | bytes) -> MultiValues:
         if isinstance(other, bytes):
             other = claripy.BVV(other)
         if isinstance(other, claripy.ast.Bits):
@@ -276,14 +272,13 @@ class MultiValues:
         :return:        The adjacent offset as requested. If the requested adjacent offset does not exist, return None.
         """
 
-        sorted_offsets = list(sorted(self._values.keys())) if self._values is not None else [0]
+        sorted_offsets = sorted(self._values.keys()) if self._values is not None else [0]
 
         for i, off in enumerate(sorted_offsets):
             if off == offset:
                 if before:
                     return sorted_offsets[i - 1] if i > 0 else None
-                else:
-                    return sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
+                return sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
             if off > offset:
                 # we missed it...
                 return None

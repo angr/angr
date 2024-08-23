@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any
 
 import claripy
@@ -207,13 +208,13 @@ class MemoryObjectSetMixin(CooperationBase):
             return MultiValues(offset_to_values={0: elements[0]})
 
         if endness == "Iend_LE":
-            elements = list(reversed(elements))
+            elements = elements.reverse()
 
         mv = MultiValues()
         offset = 0
         start_offset = 0
         prev_value = ...
-        for i, value_set in enumerate(elements):
+        for value_set in elements:
             if len(value_set) == 1:
                 if prev_value is ...:
                     prev_value = next(iter(value_set))
@@ -258,7 +259,7 @@ class MemoryObjectSetMixin(CooperationBase):
                         )
                     )
 
-            sorted_offsets = list(sorted(offset_to_mos.keys()))
+            sorted_offsets = sorted(offset_to_mos.keys())
             pos = 0
             while pos < len(sorted_offsets):
                 mos = set(offset_to_mos[sorted_offsets[pos]])

@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -17,7 +18,7 @@ _l = logging.getLogger(name=__name__)
 
 
 class BlockWalker(AILBlockWalker):
-    def __init__(self, project: "Project"):
+    def __init__(self, project: Project):
         super().__init__()
         self._project = project
         self._new_block: Block | None = None  # output
@@ -59,13 +60,12 @@ class BlockWalker(AILBlockWalker):
         new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
 
         if new_dst is not None or new_src is not None:
-            new_stmt = Assignment(
+            return Assignment(
                 stmt.idx,
                 stmt.dst if new_dst is None else new_dst,
                 stmt.src if new_src is None else new_src,
                 **stmt.tags,
             )
-            return new_stmt
         return None
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
@@ -88,7 +88,7 @@ class BlockWalker(AILBlockWalker):
 
         if new_target is not None or new_args is not None:
             # create a new call expr
-            new_expr = Call(
+            return Call(
                 expr.idx,
                 expr.target if new_target is None else new_target,
                 calling_convention=expr.calling_convention,
@@ -97,7 +97,6 @@ class BlockWalker(AILBlockWalker):
                 ret_expr=expr.ret_expr,
                 **expr.tags,
             )
-            return new_expr
         return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block):
@@ -120,7 +119,7 @@ class BlockWalker(AILBlockWalker):
 
         if new_target is not None or new_args is not None:
             # create a new statement
-            new_stmt = Call(
+            return Call(
                 stmt.idx,
                 stmt.target if new_target is None else new_target,
                 calling_convention=stmt.calling_convention,
@@ -129,7 +128,6 @@ class BlockWalker(AILBlockWalker):
                 ret_expr=stmt.ret_expr,
                 **stmt.tags,
             )
-            return new_stmt
         return None
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block):
@@ -147,35 +145,38 @@ class BlockWalker(AILBlockWalker):
                 except KeyError:
                     # we don't have enough bytes to read out
                     w = None
-                if w is not None:
-                    if not (is_got and w == 0):
-                        # nice! replace it with the actual value
-                        return Const(None, None, w, expr.bits, **expr.tags)
-        elif isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
-            if isinstance(expr.addr.addr, Const):
+                if w is not None and not (is_got and w == 0):
+                    # nice! replace it with the actual value
+                    return Const(None, None, w, expr.bits, **expr.tags)
+        elif (
+            isinstance(expr.addr, Load)
+            and expr.addr.bits == self._project.arch.bits
+            and isinstance(expr.addr.addr, Const)
+            and (
                 # *(*(const_addr))
                 # does it belong to a read-only section/segment?
-                if self._addr_belongs_to_got(expr.addr.addr.value) or self._addr_belongs_to_ro_region(
-                    expr.addr.addr.value
-                ):
-                    w = self._project.loader.memory.unpack_word(
-                        expr.addr.addr.value,
-                        expr.addr.addr.bits // self._project.arch.byte_width,
-                        endness=self._project.arch.memory_endness,
-                    )
-                    if w is not None and self._addr_belongs_to_object(w):
-                        # nice! replace it with a load from that address
-                        return Load(
-                            expr.idx,
-                            Const(None, None, w, expr.addr.size, **expr.addr.addr.tags),
-                            expr.size,
-                            expr.endness,
-                            variable=expr.variable,
-                            variable_offset=expr.variable_offset,
-                            guard=expr.guard,
-                            alt=expr.alt,
-                            **expr.tags,
-                        )
+                self._addr_belongs_to_got(expr.addr.addr.value)
+                or self._addr_belongs_to_ro_region(expr.addr.addr.value)
+            )
+        ):
+            w = self._project.loader.memory.unpack_word(
+                expr.addr.addr.value,
+                expr.addr.addr.bits // self._project.arch.byte_width,
+                endness=self._project.arch.memory_endness,
+            )
+            if w is not None and self._addr_belongs_to_object(w):
+                # nice! replace it with a load from that address
+                return Load(
+                    expr.idx,
+                    Const(None, None, w, expr.addr.size, **expr.addr.addr.tags),
+                    expr.size,
+                    expr.endness,
+                    variable=expr.variable,
+                    variable_offset=expr.variable_offset,
+                    guard=expr.guard,
+                    alt=expr.alt,
+                    **expr.tags,
+                )
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -261,5 +262,4 @@ class ConstantDereferencesSimplifier(OptimizationPass):
         walker.walk()
 
     def _walk_block(self, block: Block) -> Block | None:
-        new_block = self._block_walker.walk(block)
-        return new_block
+        return self._block_walker.walk(block)

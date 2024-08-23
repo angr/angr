@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 # pylint: disable=arguments-differ,unused-argument,no-self-use,inconsistent-return-statements
@@ -34,12 +35,10 @@ class pthread_create(angr.SimProcedure):
         callfunc = self.cc.get_args(state, self.prototype)[2]
         retaddr = state.memory.load(state.regs.sp, size=self.arch.bytes)
 
-        all_exits = [
+        return [
             {"address": callfunc, "jumpkind": "Ijk_Call", "namehint": "thread_entry"},
             {"address": retaddr, "jumpkind": "Ijk_Ret", "namehint": None},
         ]
-
-        return all_exits
 
 
 class pthread_cond_signal(angr.SimProcedure):
@@ -80,6 +79,7 @@ class pthread_once(angr.SimProcedure):
         controlword |= 2
         self.state.mem[control].char = controlword
         self.call(func, (), "retsite", prototype="void x()")
+        return None
 
     def retsite(self, control, func):
         return 0

@@ -1,4 +1,5 @@
 # pylint:disable=arguments-renamed,global-statement
+from __future__ import annotations
 import copy
 import os
 import logging
@@ -25,8 +26,8 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-SIM_LIBRARIES: dict[str, "SimLibrary"] = {}
-SIM_TYPE_COLLECTIONS: dict[str, "SimTypeCollection"] = {}
+SIM_LIBRARIES: dict[str, SimLibrary] = {}
+SIM_TYPE_COLLECTIONS: dict[str, SimTypeCollection] = {}
 
 
 class SimTypeCollection:
@@ -36,14 +37,14 @@ class SimTypeCollection:
 
     def __init__(self):
         self.names: list[str] | None = None
-        self.types: dict[str, "SimType"] = {}
+        self.types: dict[str, SimType] = {}
 
     def set_names(self, *names):
         self.names = names
         for name in names:
             SIM_TYPE_COLLECTIONS[name] = self
 
-    def add(self, name: str, t: "SimType") -> None:
+    def add(self, name: str, t: SimType) -> None:
         """
         Add a type to the collection.
 
@@ -53,7 +54,7 @@ class SimTypeCollection:
 
         self.types[name] = t
 
-    def get(self, name: str, bottom_on_missing: bool = False) -> "SimType":
+    def get(self, name: str, bottom_on_missing: bool = False) -> SimType:
         """
         Get a SimType object from the collection as identified by the name.
 
@@ -273,8 +274,7 @@ class SimLibrary:
             proc = copy.deepcopy(self.procedures[name])
             self._apply_metadata(proc, arch)
             return proc
-        else:
-            return self.get_stub(name, arch)
+        return self.get_stub(name, arch)
 
     def get_stub(self, name, arch):
         """
@@ -470,7 +470,7 @@ class SimSyscallLibrary(SimLibrary):
         super().__init__()
         self.syscall_number_mapping: dict[str, dict[int, str]] = defaultdict(dict)  # keyed by abi
         self.syscall_name_mapping: dict[str, dict[str, int]] = defaultdict(dict)  # keyed by abi
-        self.default_cc_mapping: dict[str, type["SimCCSyscall"]] = {}  # keyed by abi
+        self.default_cc_mapping: dict[str, type[SimCCSyscall]] = {}  # keyed by abi
         self.syscall_prototypes: dict[str, dict[str, SimTypeFunction]] = defaultdict(dict)  # keyed by abi
         self.fallback_proc = stub_syscall
 
@@ -743,9 +743,7 @@ def load_win32api_definitions():
         for _ in autoimport.auto_import_modules(
             "angr.procedures.definitions",
             _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith("win32_")
-            or module_name.startswith("wdk_")
-            or module_name in {"ntoskrnl", "ntdll", "user32"},
+            filter_func=lambda module_name: module_name.startswith(("win32_", "wdk_")) or module_name in {"ntoskrnl", "ntdll", "user32"},
         ):
             pass
 

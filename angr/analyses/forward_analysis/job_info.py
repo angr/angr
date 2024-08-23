@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Generic, TypeVar
 
 JobType = TypeVar("JobType")
@@ -16,14 +17,13 @@ class JobInfo(Generic[JobType, JobKey]):
         self.narrowing_count = 0  # not used
 
     def __hash__(self):
-        return hash((self.key,) + tuple(self.jobs))
+        return hash((self.key, *tuple(self.jobs)))
 
     def __eq__(self, o):
         return type(self) == type(o) and self.key == o.key and self.job == o.job
 
     def __repr__(self):
-        s = "<JobInfo %s>" % (str(self.key))
-        return s
+        return f"<JobInfo {self.key!s}>"
 
     @property
     def job(self) -> JobType:

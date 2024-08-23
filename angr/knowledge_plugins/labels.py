@@ -1,3 +1,4 @@
+from __future__ import annotations
 from archinfo.arch_arm import is_arm_arch
 import cle
 
@@ -83,8 +84,8 @@ class Labels(KnowledgeBasePlugin):
 
     def copy(self):
         o = Labels(self._kb)
-        o._labels = {k: v for k, v in self._labels.items()}
-        o._reverse_labels = {k: v for k, v in self._reverse_labels.items()}
+        o._labels = dict(self._labels.items())
+        o._reverse_labels = dict(self._reverse_labels.items())
 
     def get_unique_label(self, label):
         """

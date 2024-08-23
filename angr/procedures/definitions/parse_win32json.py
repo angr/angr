@@ -1,4 +1,5 @@
 # Based on https://github.com/dfraze/binja_winmd/blob/main/main.py. Thank you, Dustin Fraze!
+from __future__ import annotations
 
 from typing import Set
 import json
@@ -32,47 +33,45 @@ def is_anonymous_struct(s_name: str) -> bool:
 def get_angr_type_from_name(name):
     if name == "Byte":
         return angr.types.SimTypeChar(signed=False, label="Byte")
-    elif name == "SByte":
+    if name == "SByte":
         return angr.types.SimTypeChar(signed=True, label="SByte")
-    elif name == "Char":
+    if name == "Char":
         return angr.types.SimTypeChar(signed=True, label="Char")
-    elif name == "UInt16":
+    if name == "UInt16":
         return angr.types.SimTypeShort(signed=False, label="UInt16")
-    elif name == "Int16":
+    if name == "Int16":
         return angr.types.SimTypeShort(signed=True, label="Int16")
-    elif name == "Int64":
+    if name == "Int64":
         return angr.types.SimTypeLongLong(signed=True, label="Int64")
-    elif name == "UInt32":
+    if name == "UInt32":
         return angr.types.SimTypeInt(signed=False, label="UInt32")
-    elif name == "UInt64":
+    if name == "UInt64":
         return angr.types.SimTypeLongLong(signed=False, label="UInt64")
-    elif name == "Int32":
+    if name == "Int32":
         return angr.types.SimTypeInt(signed=True, label="Int32")
-    elif name == "Single":
+    if name == "Single":
         return angr.types.SimTypeFloat(size=32)
-    elif name == "Double":
+    if name == "Double":
         return angr.types.SimTypeFloat(size=64)
-    elif name == "UIntPtr":
+    if name == "UIntPtr":
         return angr.types.SimTypePointer(angr.types.SimTypeInt(signed=False, label="UInt"), label="UIntPtr")
-    elif name == "IntPtr":
+    if name == "IntPtr":
         return angr.types.SimTypePointer(angr.types.SimTypeInt(signed=True, label="Int"), label="IntPtr")
-    elif name == "Void":
+    if name == "Void":
         return angr.types.SimTypeBottom(label="Void")
-    elif name == "Boolean":
+    if name == "Boolean":
         return angr.types.SimTypeBool(label="Boolean")
-    elif name == "Guid":
+    if name == "Guid":
         # FIXME
         return angr.types.SimTypeBottom(label="Guid")
-    else:
-        print(f"Unhandled Native Type: {name}")
-        sys.exit(-1)
+    print(f"Unhandled Native Type: {name}")
+    sys.exit(-1)
 
 
 def get_typeref_from_struct_type(t: angr.types.SimType) -> angr.types.SimType:
-    if isinstance(t, angr.types.SimStruct):
-        if t.name and not is_anonymous_struct(t.name):
-            # replace it with a SimTypeRef to avoid duplicate definition
-            t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
+    if isinstance(t, angr.types.SimStruct) and t.name and not is_anonymous_struct(t.name):
+        # replace it with a SimTypeRef to avoid duplicate definition
+        t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
     return t
 
 
@@ -86,8 +85,7 @@ def handle_json_type(t, create_missing: bool = False):
         elem = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
         if t["Shape"]:
             return angr.types.SimTypeFixedSizeArray(elem, length=int(t["Shape"]["Size"]))
-        else:
-            return angr.types.SimTypePointer(elem)
+        return angr.types.SimTypePointer(elem)
     if t["Kind"] == "ApiRef":
         try:
             named_type = typelib.get(t["Name"], bottom_on_missing=create_missing)
@@ -117,9 +115,8 @@ def handle_json_type(t, create_missing: bool = False):
         return angr.types.SimUnion(members)
     if t["Kind"] == "MissingClrType":
         return angr.types.SimTypeBottom(label="MissingClrType")
-    else:
-        print(f"Unhandled type: {t}")
-        sys.exit(0)
+    print(f"Unhandled type: {t}")
+    sys.exit(0)
 
 
 def create_angr_type_from_json(t):
@@ -149,11 +146,11 @@ def create_angr_type_from_json(t):
         # TODO: Handle Com
         typelib.add(t["Name"], angr.types.SimTypeBottom(label=t["Name"]))
     elif t["Kind"] == "ComClassID":
-        return None
+        return
     elif t["Kind"] == "Union":
         real_new_type = handle_json_type(t)
         typelib.add(t["Name"], real_new_type)
-        return None
+        return
     else:
         print(f"Found unknown type kind: {t['Kind']}")
 
@@ -210,7 +207,7 @@ def do_it(in_dir, out_file):
         for f in funcs:
             libname = f["DllImport"].lower()
             suffix = ""
-            if libname.endswith(".dll") or libname.endswith(".exe") or libname.endswith(".sys"):
+            if libname.endswith((".dll", ".exe", ".sys")):
                 suffix = libname[-3:]
                 libname = libname[:-4]
             # special case: put all wdk_ntdll.dll APIs under ntoskrnl.exe to avoid conflict with user-space ntdll.dll

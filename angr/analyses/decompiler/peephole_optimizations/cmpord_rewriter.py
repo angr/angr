@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.statement import ConditionalJump
 from ailment.expression import BinaryOp, Const
 
@@ -14,7 +15,7 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
     NAME = "CmpORD rewriter"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump, stmt_idx: int = None, block=None, **kwargs):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
         # example:
         # 05 | 0x4011d4 | if ((((gpr9<4> CmpORD 0x0<32>) & 0x2<32>) != 0x0<32>)) { Goto ... } else { Goto ... }
         # or
@@ -59,7 +60,7 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
 
         # generate the new comparison
         new_cond = BinaryOp(stmt.condition.idx, cmp_op, real_cmp.operands[::], real_cmp.signed, **real_cmp.tags)
-        new_stmt = ConditionalJump(
+        return ConditionalJump(
             stmt.idx,
             new_cond,
             stmt.true_target,
@@ -68,5 +69,3 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
             stmt.false_target_idx,
             **stmt.tags,
         )
-
-        return new_stmt

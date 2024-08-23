@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import os
 import types
@@ -139,7 +140,7 @@ class Project:
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
         elif not isinstance(thing, (str, Path)) or not os.path.exists(thing) or not os.path.isfile(thing):
-            raise Exception("Not a valid binary file: %s" % repr(thing))
+            raise Exception(f"Not a valid binary file: {thing!r}")
         else:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
@@ -202,10 +203,9 @@ class Project:
             )
             self.selfmodifying_code = bool(support_selfmodifying_code)
 
-        if self.selfmodifying_code:
-            if self._translation_cache is True:
-                self._translation_cache = False
-                l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
+        if self.selfmodifying_code and self._translation_cache is True:
+            self._translation_cache = False
+            l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry
         self.storage = defaultdict(list)
@@ -248,7 +248,7 @@ class Project:
             # If we execute a Java archive that includes native JNI libraries,
             # we need to use the arch of the native simos for all (native) sim
             # procedures.
-            sim_proc_arch = getattr(self.simos, "native_arch")
+            sim_proc_arch = self.simos.native_arch
         else:
             sim_proc_arch = self.arch
         for obj in self.loader.initial_load_objects:
@@ -258,14 +258,14 @@ class Project:
         self.simos.configure_project()
 
     @property
-    def analyses(self) -> "AnalysesHubWithDefault":
+    def analyses(self) -> AnalysesHubWithDefault:
         result = self._analyses
         if result is None:
             raise ValueError("Cannot access analyses this early in project lifecycle")
         return result
 
     @analyses.setter
-    def analyses(self, v: "AnalysesHubWithDefault"):
+    def analyses(self, v: AnalysesHubWithDefault):
         self._analyses = v
 
     def _initialize_analyses_hub(self):
@@ -428,11 +428,7 @@ class Project:
         for lib in hinted_libs:
             if SIM_LIBRARIES[lib].has_implementation(f.name):
                 l.debug("Found implementation for %s in %s", f, lib)
-                if f.resolvedby:
-                    hook_at = f.resolvedby.rebased_addr
-                else:
-                    # ????
-                    hook_at = f.relative_addr
+                hook_at = f.resolvedby.rebased_addr if f.resolvedby else f.relative_addr  # ????
                 self.hook_symbol(hook_at, (SIM_LIBRARIES[lib].get(f.name, self.arch)))
                 return True
 
@@ -453,7 +449,7 @@ class Project:
 
     @staticmethod
     def _addr_to_str(addr):
-        return "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
+        return f"{addr!r}" if isinstance(addr, SootAddressDescriptor) else f"{addr:#x}"
 
     #
     # Public methods
@@ -505,7 +501,7 @@ class Project:
                 l.warning(
                     "Address is already hooked, during hook(%s, %s). Not re-hooking.", self._addr_to_str(addr), hook
                 )
-                return
+                return None
             else:
                 l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", self._addr_to_str(addr), hook)
 
@@ -524,6 +520,7 @@ class Project:
         #    l.error("Consider also using angr.SIM_LIBRARIES instead of angr.SIM_PROCEDURES or angr.procedures.")
 
         self._sim_procedures[addr] = hook
+        return None
 
     def is_hooked(self, addr) -> bool:
         """
@@ -709,10 +706,7 @@ class Project:
         simulation manager.
         """
 
-        if args:
-            state = args[0]
-        else:
-            state = self.factory.full_init_state(**kwargs)
+        state = args[0] if args else self.factory.full_init_state(**kwargs)
 
         pg = self.factory.simulation_manager(state)
         self._executing = True
@@ -751,7 +745,7 @@ class Project:
             self.store_function, self.load_function = None, None
             # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
             # added analyses classes
-            d = {
+            return {
                 k: v
                 for k, v in self.__dict__.items()
                 if k
@@ -759,7 +753,6 @@ class Project:
                     "analyses",
                 }
             }
-            return d
         finally:
             self.store_function, self.load_function = store_func, load_func
 

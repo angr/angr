@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import translate_expr
 from ..values import translate_value
 
@@ -11,12 +12,10 @@ class SimSootExpr:
         self._execute()
 
     def _execute(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _translate_expr(self, expr):
-        expr_ = translate_expr(expr, self.state)
-        return expr_
+        return translate_expr(expr, self.state)
 
     def _translate_value(self, value):
-        value_ = translate_value(value, self.state)
-        return value_
+        return translate_value(value, self.state)

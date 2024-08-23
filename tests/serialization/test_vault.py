@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
 import os
@@ -27,7 +29,7 @@ class TestVault(unittest.TestCase):
         c.n = 2
 
         aid = v.store(a)
-        assert len(v.keys()) == 1, "Current keys: %s" % v.keys()
+        assert len(v.keys()) == 1, f"Current keys: {v.keys()}"
         bid = v.store(b)
         assert len(v.keys()) == 2
         cid = v.store(c)
@@ -61,7 +63,7 @@ class TestVault(unittest.TestCase):
         c.n = 2
 
         aid = v.store(a)
-        assert len(v.keys()) == 1, "Current keys: %s" % v.keys()
+        assert len(v.keys()) == 1, f"Current keys: {v.keys()}"
         bid = v.store(b)
         assert len(v.keys()) == 2
         cid = v.store(c)
@@ -145,12 +147,12 @@ class TestVault(unittest.TestCase):
         ps = v.store(p)
         pp = v.load(ps)
         assert p is pp
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
 
         pstring = v.dumps(p)
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
         pp2 = v.loads(pstring)
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
         assert p is pp
 
         p._asdf = "fdsa"
@@ -162,7 +164,7 @@ class TestVault(unittest.TestCase):
         gc.collect()
 
         v.load(ps)
-        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
+        assert sum(1 for k in v if k.startswith("Project")) == 1
 
 
 if __name__ == "__main__":

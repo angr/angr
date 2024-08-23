@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import json
 import pickle
@@ -18,7 +19,7 @@ class StructuredCodeManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb: "DbKnowledgeBase", code_manager: StructuredCodeManager):
+    def dump(session, db_kb: DbKnowledgeBase, code_manager: StructuredCodeManager):
         """
 
         :param session:
@@ -76,7 +77,7 @@ class StructuredCodeManagerSerializer:
         return new_d
 
     @staticmethod
-    def load(session, db_kb: "DbKnowledgeBase", kb: "KnowledgeBase") -> StructuredCodeManager:
+    def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase) -> StructuredCodeManager:
         """
 
         :param session:
@@ -102,15 +103,9 @@ class StructuredCodeManagerSerializer:
                 stmt_comments = json.loads(db_code.stmt_comments.decode("utf-8"))
                 stmt_comments = StructuredCodeManagerSerializer.dict_strkey_to_intkey(stmt_comments)
 
-            if not db_code.const_formats:
-                const_formats = None
-            else:
-                const_formats = pickle.loads(db_code.const_formats)
+            const_formats = None if not db_code.const_formats else pickle.loads(db_code.const_formats)
 
-            if not db_code.ite_exprs:
-                ite_exprs = None
-            else:
-                ite_exprs = pickle.loads(db_code.ite_exprs)
+            ite_exprs = None if not db_code.ite_exprs else pickle.loads(db_code.ite_exprs)
 
             configuration = None
             dummy_codegen = DummyStructuredCodeGenerator(

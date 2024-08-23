@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import inspect
 
@@ -152,8 +153,8 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
 
             super_to_og_nodes = {n: self._supergraph.nodes[n]["original_nodes"] for n in self._supergraph.nodes}
             og_to_super_nodes = {og: super_n for super_n, ogs in super_to_og_nodes.items() for og in ogs}
-            super_src = og_to_super_nodes.get(src, None)
-            super_dst = og_to_super_nodes.get(dst, None)
+            super_src = og_to_super_nodes.get(src)
+            super_dst = og_to_super_nodes.get(dst)
             if super_src is None or super_dst is None:
                 return False
 

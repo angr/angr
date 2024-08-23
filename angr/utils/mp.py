@@ -1,4 +1,5 @@
-from typing import NamedTuple, Optional, Any
+from __future__ import annotations
+from typing import NamedTuple, Any
 from collections.abc import Callable
 import multiprocessing
 import platform
@@ -20,10 +21,10 @@ class Initializer:
     A singleton class with global state used to initialize a multiprocessing.Process
     """
 
-    _single: Optional["Initializer"] = None
+    _single: Initializer | None = None
 
     @classmethod
-    def get(cls) -> "Initializer":
+    def get(cls) -> Initializer:
         """
         A wrapper around init since this class is a singleton
         """

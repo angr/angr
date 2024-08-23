@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 import claripy
 import logging
@@ -42,7 +43,7 @@ class LoadLibraryExW(LoadLibraryA):
 class GetProcAddress(angr.SimProcedure):
     def run(self, lib_handle, name_addr):
         if lib_handle.symbolic:
-            raise angr.errors.SimValueError("GetProcAddress called with symbolic library handle %s" % lib_handle)
+            raise angr.errors.SimValueError(f"GetProcAddress called with symbolic library handle {lib_handle}")
         lib_handle = self.state.solver.eval(lib_handle)
 
         if lib_handle == 0:

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from . import Analysis
@@ -20,8 +21,8 @@ class StaticHooker(Analysis):
         self.results = {}
         try:
             lib = SIM_LIBRARIES[library]
-        except KeyError:
-            raise AngrValueError("No such library %s" % library)
+        except KeyError as err:
+            raise AngrValueError(f"No such library {library}") from err
 
         if binary is None:
             binary = self.project.loader.main_object

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TypeVar, Generic
 
 from angr.errors import AngrNoPluginError
@@ -74,8 +75,8 @@ class PluginHub(Generic[P]):
     def __getattr__(self, name: str) -> P:
         try:
             return self.get_plugin(name)
-        except AngrNoPluginError:
-            raise AttributeError(name)
+        except AngrNoPluginError as err:
+            raise AttributeError(name) from err
 
     def __dir__(self):
         out = set(self.__dict__)
@@ -87,9 +88,7 @@ class PluginHub(Generic[P]):
         while q:
             cls = q.pop(0)
             out.update(cls.__dict__)
-            for base in cls.__bases__:
-                if base is not object:
-                    q.append(base)
+            q.extend([base for base in cls.__bases__ if base is not object])
 
         return sorted(out)
 
@@ -120,11 +119,11 @@ class PluginHub(Generic[P]):
         if isinstance(preset, str):
             try:
                 preset = self._presets[preset]
-            except (AttributeError, KeyError):
-                raise AngrNoPluginError("There is no preset named %s" % preset)
+            except (AttributeError, KeyError) as err:
+                raise AngrNoPluginError(f"There is no preset named {preset}") from err
 
         elif not isinstance(preset, PluginPreset):
-            raise ValueError("Argument must be an instance of PluginPreset: %s" % preset)
+            raise ValueError(f"Argument must be an instance of PluginPreset: {preset}")
 
         if self._active_preset:
             l.warning("Overriding active preset %s with %s", self._active_preset, preset)
@@ -156,7 +155,7 @@ class PluginHub(Generic[P]):
         if name in self._active_plugins:
             return self._active_plugins[name]
 
-        elif self._active_preset is not None:
+        if self._active_preset is not None:
             plugin_cls: type[P] = self._active_preset.request_plugin(name)
             plugin = self._init_plugin(plugin_cls)
 
@@ -166,8 +165,7 @@ class PluginHub(Generic[P]):
             self.register_plugin(name, plugin)
             return plugin
 
-        else:
-            raise AngrNoPluginError("No such plugin: %s" % name)
+        raise AngrNoPluginError(f"No such plugin: {name}")
 
     def _init_plugin(self, plugin_cls: type[P]) -> P:  # pylint: disable=no-self-use
         """
@@ -250,8 +248,8 @@ class PluginPreset:
         """
         try:
             return self._default_plugins[name]
-        except KeyError:
-            raise AngrNoPluginError("There is no plugin named %s" % name)
+        except KeyError as err:
+            raise AngrNoPluginError(f"There is no plugin named {name}") from err
 
     def copy(self):
         """
@@ -287,5 +285,3 @@ class VendorPreset(PluginPreset):
     """
     A specialized preset class for use with the PluginVendor.
     """
-
-    ...

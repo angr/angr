@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootArgument, SootMethodDescriptor
@@ -95,8 +96,8 @@ class CallMethodBase(JNISimProcedure):
             ret_value = self.state.javavm_registers.load("invoke_return_value")
             if self.return_ty == "reference":
                 return self.state.jni_references.create_new_reference(ret_value)
-            else:
-                return ret_value
+            return ret_value
+        return None
 
 
 #

@@ -1,6 +1,7 @@
 # pylint:disable=unnecessary-pass
+from __future__ import annotations
 import logging
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from ailment.statement import ConditionalJump, Assignment, Statement
 from ailment.expression import Const, ITE, Expression
@@ -25,8 +26,6 @@ class NodeFoundNotification(Exception):
     A notification that the target node has been found.
     """
 
-    pass
-
 
 class BlockLocator(RegionWalker):
     """
@@ -44,7 +43,7 @@ class BlockLocator(RegionWalker):
     def walk_node(self, region, node):
         if node == self._block:
             self.region = region
-            raise NodeFoundNotification()
+            raise NodeFoundNotification
 
 
 class ExpressionReplacer(AILBlockWalker):
@@ -59,11 +58,10 @@ class ExpressionReplacer(AILBlockWalker):
         self._callback = callback
 
     def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Optional["AILBlock"]
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if expr == self._target_expr:
-            new_expr = self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
-            return new_expr
+            return self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -116,10 +114,7 @@ class ITEExprConverter(OptimizationPass):
 
         # go through all blocks in the graph to find the corresponding blocks
         def_block_addrs = {defs[0].codeloc.block_addr, defs[1].codeloc.block_addr}
-        blocks = []
-        for node in self._graph.nodes():
-            if node.addr in def_block_addrs:
-                blocks.append(node)
+        blocks = [node for node in self._graph.nodes() if node.addr in def_block_addrs]
 
         if len(blocks) != 2:
             return None
@@ -129,10 +124,10 @@ class ITEExprConverter(OptimizationPass):
         #
 
         # find their regions
-        block_0 = [b for b in blocks if b.addr == defs[0].codeloc.block_addr][0]
+        block_0 = next(b for b in blocks if b.addr == defs[0].codeloc.block_addr)
         region_0 = self._locate_block(block_0)
 
-        block_1 = [b for b in blocks if b.addr == defs[1].codeloc.block_addr][0]
+        block_1 = next(b for b in blocks if b.addr == defs[1].codeloc.block_addr)
         region_1 = self._locate_block(block_1)
 
         if region_0 is None or region_1 is None or region_0 != region_1:
@@ -217,7 +212,7 @@ class ITEExprConverter(OptimizationPass):
 
         return new_expr
 
-    def _locate_block(self, block: "AILBlock"):
+    def _locate_block(self, block: AILBlock):
         locator = BlockLocator(block)
         try:
             locator.walk(self._ri.region)

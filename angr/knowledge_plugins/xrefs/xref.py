@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...serializable import Serializable
 from ...protos import primitives_pb2
 from .xref_types import XRefType
@@ -30,7 +31,7 @@ class XRef(Serializable):
         xref_type=None,
     ):
         if dst is not None and not isinstance(dst, int):
-            raise TypeError("XRefs must be pointing to a constant target. Target %r is not supported." % dst)
+            raise TypeError(f"XRefs must be pointing to a constant target. Target {dst!r} is not supported.")
 
         # src
         self.ins_addr: int | None = ins_addr
@@ -52,17 +53,14 @@ class XRef(Serializable):
 
     def __repr__(self):
         if self.dst is not None:
-            if isinstance(self.dst, int):
-                dst_str = hex(self.dst)
-            else:
-                dst_str = str(self.dst)
+            dst_str = hex(self.dst) if isinstance(self.dst, int) else str(self.dst)
         elif self.memory_data is not None:
             dst_str = hex(self.memory_data.addr)
         else:
             dst_str = "unknown"
         return "<XRef {}: {}->{}>".format(
             self.type_string,
-            "%#x" % self.ins_addr if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
+            f"{self.ins_addr:#x}" if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
             dst_str,
         )
 
@@ -131,7 +129,7 @@ class XRef(Serializable):
         else:
             dst = cmsg.data_ea
 
-        cr = XRef(
+        return XRef(
             ins_addr=cmsg.ea,
             block_addr=cmsg.block_ea,
             stmt_idx=cmsg.stmt_idx,
@@ -139,10 +137,9 @@ class XRef(Serializable):
             dst=dst,
             xref_type=cmsg.ref_type,
         )
-        return cr
 
     def copy(self):
-        cr = XRef(
+        return XRef(
             ins_addr=self.ins_addr,
             block_addr=self.block_addr,
             stmt_idx=self.stmt_idx,
@@ -151,7 +148,6 @@ class XRef(Serializable):
             dst=self.dst,
             xref_type=self.type,
         )
-        return cr
 
 
 from ..cfg.memory_data import MemoryDataSort

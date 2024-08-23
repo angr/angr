@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import importlib
 import importlib.machinery
@@ -23,7 +24,7 @@ def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=()
         l.debug("Loading %s.%s", base_module, lib_module_name)
 
         try:
-            package = importlib.import_module(".%s" % lib_module_name, base_module)
+            package = importlib.import_module(f".{lib_module_name}", base_module)
         except ImportError:
             l.warning("Unable to autoimport package %s.%s", base_module, lib_module_name, exc_info=True)
         else:
@@ -47,7 +48,7 @@ def auto_import_modules(base_module, base_path, ignore_files=(), filter_func: Ca
             continue
 
         try:
-            proc_module = importlib.import_module(".%s" % proc_module_name, base_module)
+            proc_module = importlib.import_module(f".{proc_module_name}", base_module)
         except ImportError:
             l.warning("Unable to autoimport module %s.%s", base_module, proc_module_name, exc_info=True)
             continue

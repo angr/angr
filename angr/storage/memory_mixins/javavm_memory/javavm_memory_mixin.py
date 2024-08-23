@@ -1,3 +1,4 @@
+from __future__ import annotations
 import binascii
 import logging
 import os
@@ -64,11 +65,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         return binascii.hexlify(os.urandom(4))
 
     def store(self, addr, data, frame=0):  # pylint: disable=arguments-differ
-        if type(addr) is SimSootValue_Local:
-            cstack = self._stack[-1 + (-1 * frame)]
-            cstack.store(addr.id, data, type_=addr.type)
-
-        elif type(addr) is SimSootValue_ParamRef:
+        if type(addr) is SimSootValue_Local or type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1 + (-1 * frame)]
             cstack.store(addr.id, data, type_=addr.type)
 
@@ -78,10 +75,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
 
-        elif type(addr) is SimSootValue_InstanceFieldRef:
-            self.heap.store(addr.id, data, type_=addr.type)
-
-        elif type(addr) is SimSootValue_StringRef:
+        elif type(addr) is SimSootValue_InstanceFieldRef or type(addr) is SimSootValue_StringRef:
             self.heap.store(addr.id, data, type_=addr.type)
 
         else:
@@ -92,14 +86,14 @@ class JavaVmMemoryMixin(MemoryMixin):
             cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
-        elif type(addr) is SimSootValue_ArrayRef:
+        if type(addr) is SimSootValue_ArrayRef:
             return self.load_array_element(addr.base, addr.index)
 
-        elif type(addr) is SimSootValue_ParamRef:
+        if type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
-        elif type(addr) is SimSootValue_StaticFieldRef:
+        if type(addr) is SimSootValue_StaticFieldRef:
             value = self.vm_static_table.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
@@ -108,7 +102,7 @@ class JavaVmMemoryMixin(MemoryMixin):
                 self.store(addr, value)
             return value
 
-        elif type(addr) is SimSootValue_InstanceFieldRef:
+        if type(addr) is SimSootValue_InstanceFieldRef:
             value = self.heap.load(addr.id, none_if_missing=none_if_missing)
             if value is None:
                 # initialize field
@@ -117,12 +111,11 @@ class JavaVmMemoryMixin(MemoryMixin):
                 self.store(addr, value)
             return value
 
-        elif type(addr) is SimSootValue_StringRef:
+        if type(addr) is SimSootValue_StringRef:
             return self.heap.load(addr.id, none_if_missing=none_if_missing)
 
-        else:
-            l.error("Unknown addr type %s", addr)
-            return None
+        l.error("Unknown addr type %s", addr)
+        return None
 
     def push_stack_frame(self):
         from .. import KeyValueMemory
@@ -299,7 +292,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             if idxes:
                 return idxes
 
-        raise SimMemoryAddressError("Unable to concretize index %s" % idx)
+        raise SimMemoryAddressError(f"Unable to concretize index {idx}")
 
     def concretize_store_idx(self, idx, strategies=None):
         """
@@ -313,7 +306,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         """
         if isinstance(idx, int):
             return [idx]
-        elif not self.state.solver.symbolic(idx):
+        if not self.state.solver.symbolic(idx):
             return [self.state.solver.eval(idx)]
 
         strategies = self.store_strategies if strategies is None else strategies
@@ -331,7 +324,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         """
         if isinstance(idx, int):
             return [idx]
-        elif not self.state.solver.symbolic(idx):
+        if not self.state.solver.symbolic(idx):
             return [self.state.solver.eval(idx)]
 
         strategies = self.load_strategies if strategies is None else strategies
@@ -374,7 +367,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: "JavaVmMemoryMixin" = super().copy(memo)
+        o: JavaVmMemoryMixin = super().copy(memo)
         o._stack = [stack_frame.copy() for stack_frame in self._stack]
         o.heap = self.heap.copy()
         o.vm_static_table = self.vm_static_table.copy()
@@ -393,4 +386,4 @@ class JavaVmMemoryMixin(MemoryMixin):
         self, addr, what, max_search=None, max_symbolic_bytes=None, default=None
     ):  # pylint: disable=unused-argument
         l.warning("Find is not implemented for JavaVM memory!")
-        return None
+        return

@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 
 from ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset
 from ailment.statement import Call, Store
@@ -72,10 +73,13 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
 
     @staticmethod
     def _is_inlined_strcpy(stmt: Call):
-        if isinstance(stmt.target, str) and stmt.target == "strncpy":
-            if len(stmt.args) == 3 and isinstance(stmt.args[1], Const) and hasattr(stmt.args[1], "custom_string"):
-                return True
-        return False
+        return (
+            isinstance(stmt.target, str)
+            and stmt.target == "strncpy"
+            and len(stmt.args) == 3
+            and isinstance(stmt.args[1], Const)
+            and hasattr(stmt.args[1], "custom_string")
+        )
 
     @staticmethod
     def _parse_addr(addr: Expression) -> tuple[Expression, int]:

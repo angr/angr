@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from ...state_plugins.sim_action import SimActionData, SimActionObject

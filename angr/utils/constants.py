@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 DEFAULT_STATEMENT = -2
 SWITCH_MISSING_DEFAULT_NODE_ADDR = 0xFFFF_FFFE
 MAX_POINTSTO_BITS = -1330 * 8

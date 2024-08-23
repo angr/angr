@@ -1,4 +1,5 @@
 # pylint:disable=no-else-break
+from __future__ import annotations
 import logging
 
 from angr.errors import AngrCFGError, AngrRuntimeError
@@ -27,8 +28,7 @@ class Segment:
         self.sort = sort
 
     def __repr__(self):
-        s = f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
-        return s
+        return f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
 
     @property
     def size(self):
@@ -274,7 +274,7 @@ class SegmentList:
                     # |-- address + size --|
                     # no overlap
                     break
-                elif segment.start < address + size <= segment.start + segment.size:
+                if segment.start < address + size <= segment.start + segment.size:
                     #            |---- segment ----|
                     # |-- address + size --|
                     #
@@ -284,7 +284,7 @@ class SegmentList:
                         # remove the segment
                         self._list.remove(segment)
                     break
-                elif address + size > segment.start + segment.size:
+                if address + size > segment.start + segment.size:
                     #            |---- segment ----|
                     # |--------- address + size ----------|
                     self._list.remove(segment)
@@ -303,9 +303,7 @@ class SegmentList:
         :rtype: str
         """
         s = "["
-        lst = []
-        for segment in self._list:
-            lst.append(repr(segment))
+        lst = [repr(segment) for segment in self._list]
         s += ", ".join(lst)
         s += "]"
         return s
@@ -432,10 +430,8 @@ class SegmentList:
             return False
         if self._list[idx].start <= address < self._list[idx].end:
             return True
-        if idx > 0 and address < self._list[idx - 1].end:
-            # TODO: It seems that this branch is never reached. Should it be removed?
-            return True
-        return False
+        # TODO: It seems that this is never True. Should it be removed?
+        return idx > 0 and address < self._list[idx - 1].end
 
     def occupied_by_sort(self, address: int) -> str | None:
         """
@@ -521,7 +517,7 @@ class SegmentList:
 
         # self._debug_check()
 
-    def copy(self) -> "SegmentList":
+    def copy(self) -> SegmentList:
         """
         Make a copy of the SegmentList.
 

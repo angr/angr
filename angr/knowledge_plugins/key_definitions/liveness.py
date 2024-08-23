@@ -1,4 +1,5 @@
-from typing import DefaultDict, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
 
 from collections import defaultdict
 from itertools import chain
@@ -26,23 +27,23 @@ class Liveness:
     """
 
     def __init__(self):
-        self.curr_live_defs: set["Definition"] = set()
+        self.curr_live_defs: set[Definition] = set()
         self.curr_loc: LocationType | None = None
         self.curr_block: BlockAddrType | None = None
         self.curr_stmt_idx: int | None = None
-        self.blockstart_to_defs: DefaultDict[BlockAddrType, set["Definition"]] = defaultdict(set)
-        self.blockend_to_defs: DefaultDict[BlockAddrType, set["Definition"]] = defaultdict(set)
-        self.loc_to_killed_defs: DefaultDict[BlockAddrType, dict[int, set["Definition"]]] = defaultdict(dict)
-        self.loc_to_added_defs: DefaultDict[BlockAddrType, dict[int, set["Definition"]]] = defaultdict(dict)
-        self._node_max_stmt_id: DefaultDict[BlockAddrType, int] = defaultdict(int)
+        self.blockstart_to_defs: defaultdict[BlockAddrType, set[Definition]] = defaultdict(set)
+        self.blockend_to_defs: defaultdict[BlockAddrType, set[Definition]] = defaultdict(set)
+        self.loc_to_killed_defs: defaultdict[BlockAddrType, dict[int, set[Definition]]] = defaultdict(dict)
+        self.loc_to_added_defs: defaultdict[BlockAddrType, dict[int, set[Definition]]] = defaultdict(dict)
+        self._node_max_stmt_id: defaultdict[BlockAddrType, int] = defaultdict(int)
 
-    def add_def(self, d: "Definition") -> None:
+    def add_def(self, d: Definition) -> None:
         self.curr_live_defs.add(d)
         if self.curr_stmt_idx not in self.loc_to_added_defs[self.curr_block]:
             self.loc_to_added_defs[self.curr_block][self.curr_stmt_idx] = set()
         self.loc_to_added_defs[self.curr_block][self.curr_stmt_idx].add(d)
 
-    def kill_def(self, d: "Definition") -> None:
+    def kill_def(self, d: Definition) -> None:
         self.curr_live_defs.discard(d)
         if self.curr_stmt_idx not in self.loc_to_killed_defs[self.curr_block]:
             self.loc_to_killed_defs[self.curr_block][self.curr_stmt_idx] = set()
@@ -52,7 +53,7 @@ class Liveness:
         if self.curr_block is not None:
             self.blockend_to_defs[self.curr_block] |= self.curr_live_defs
 
-    def at_new_stmt(self, code_loc: "CodeLocation") -> None:
+    def at_new_stmt(self, code_loc: CodeLocation) -> None:
         """
         Only support moving from a statement to the next statement within one basic block.
         """
@@ -65,7 +66,7 @@ class Liveness:
         ):
             self._node_max_stmt_id[(code_loc.block_addr, code_loc.block_idx)] = code_loc.stmt_idx
 
-    def at_new_block(self, code_loc: "CodeLocation", pred_codelocs: list["CodeLocation"]) -> None:
+    def at_new_block(self, code_loc: CodeLocation, pred_codelocs: list[CodeLocation]) -> None:
         """
         Only support moving to a new block from one or more blocks.
         """
@@ -87,31 +88,25 @@ class Liveness:
         self.curr_loc = loc
         self.curr_stmt_idx = 0
 
-    def find_defs_at(self, code_loc: "CodeLocation", op: int = OP_BEFORE) -> set["Definition"]:
+    def find_defs_at(self, code_loc: CodeLocation, op: int = OP_BEFORE) -> set[Definition]:
         return self.find_defs_at_raw(code_loc.block_addr, code_loc.block_idx, code_loc.stmt_idx, op=op)
 
     def find_defs_at_raw(
         self, block_addr: int, block_idx: int | None, stmt_idx: int | None, op: int = OP_BEFORE
-    ) -> set["Definition"]:
+    ) -> set[Definition]:
         block: BlockAddrType = block_addr, block_idx
-        if block not in self.blockstart_to_defs:
-            defs = set()
-        else:
-            defs = self.blockstart_to_defs[block].copy()
+        defs = set() if block not in self.blockstart_to_defs else self.blockstart_to_defs[block].copy()
 
         if stmt_idx is None:
             return defs
 
-        added_defs = self.loc_to_added_defs[block] if block in self.loc_to_added_defs else None
+        added_defs = self.loc_to_added_defs.get(block, None)
         killed_defs = self.loc_to_killed_defs[block] if block in self.loc_to_added_defs else None
 
         if stmt_idx == DEFAULT_STATEMENT:
             end_stmt_idx = self._node_max_stmt_id[block] + 1
         else:
-            if op == OP_BEFORE:
-                end_stmt_idx = stmt_idx
-            else:
-                end_stmt_idx = stmt_idx + 1
+            end_stmt_idx = stmt_idx if op == OP_BEFORE else stmt_idx + 1
 
         if added_defs is not None and killed_defs is not None:
             indices = chain(added_defs, killed_defs)
@@ -122,23 +117,15 @@ class Liveness:
         else:
             indices = []
 
-        tmp_indices = []
         if killed_defs is not None and None in killed_defs:
             # External codeloc
             defs.difference_update(killed_defs[None])
-            for idx in indices:
-                if idx is not None:
-                    tmp_indices.append(idx)
-            indices = tmp_indices
+            indices = [idx for idx in indices if idx is not None]
 
-        tmp_indices = []
         if added_defs is not None and None in added_defs:
             # External codeloc
             defs.update(added_defs[None])
-            for idx in indices:
-                if idx is not None:
-                    tmp_indices.append(idx)
-            indices = tmp_indices
+            indices = [idx for idx in indices if idx is not None]
 
         for idx in sorted(indices):
             if idx >= end_stmt_idx:
@@ -156,7 +143,7 @@ class Liveness:
 
         return defs
 
-    def copy(self) -> "Liveness":
+    def copy(self) -> Liveness:
         o = Liveness()
         o.curr_live_defs = self.curr_live_defs.copy()
         o.curr_loc = self.curr_loc

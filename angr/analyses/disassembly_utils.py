@@ -1,6 +1,8 @@
-import capstone as cs
+from __future__ import annotations
+
 import logging
 
+import capstone as cs
 from archinfo.arch_arm import is_arm_arch
 
 from ..misc.ux import once
@@ -31,16 +33,11 @@ INS_GROUP_INFO["ARMHF"] = INS_GROUP_INFO["ARM"]
 INS_GROUP_INFO["ARMCortexM"] = INS_GROUP_INFO["ARM"]
 
 
-try:
-    INS_GROUP_INFO["MIPS32"] = {
-        cs.mips.MIPS_GRP_CALL: "call",
-        cs.mips.MIPS_GRP_JUMP: "branch",
-        cs.mips.MIPS_GRP_RET: "return",
-    }
-except AttributeError:
-    # The installed capstone is too old - it does not support cs.mips.MIPS_GRP_*
-    pass
-
+INS_GROUP_INFO["MIPS32"] = {
+    cs.mips.MIPS_GRP_CALL: "call",
+    cs.mips.MIPS_GRP_JUMP: "branch",
+    cs.mips.MIPS_GRP_RET: "return",
+}
 
 INS_INFO = {
     "MIPS32": {
@@ -59,7 +56,7 @@ def decode_instruction(arch, instr):
 
     insn_info = None
 
-    info = INS_GROUP_INFO.get(arch_name, None)
+    info = INS_GROUP_INFO.get(arch_name)
     if info is not None:
         for group in instr.insn.insn.groups:
             insn_info = info.get(group, None)
@@ -67,7 +64,7 @@ def decode_instruction(arch, instr):
                 break
 
     if insn_info is None:
-        info = INS_INFO.get(arch_name, None)
+        info = INS_INFO.get(arch_name)
         if info is not None:
             insn_info = info.get(instr.insn.insn.id, None)
 

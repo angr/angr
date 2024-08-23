@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,arguments-differ
+from __future__ import annotations
 import logging
 
 import pyvex
@@ -40,7 +41,7 @@ class DisassemblerBlock:
         return "\n".join(map(str, self.insns))
 
     def __repr__(self):
-        return "<DisassemblerBlock for %#x>" % self.addr
+        return f"<DisassemblerBlock for {self.addr:#x}>"
 
 
 class DisassemblerInsn:
@@ -52,19 +53,19 @@ class DisassemblerInsn:
 
     @property
     def size(self) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def address(self) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def mnemonic(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def op_str(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __str__(self):
         return f"{self.address:#x}:\t{self.mnemonic}\t{self.op_str}"
@@ -113,7 +114,7 @@ class CapstoneInsn(DisassemblerInsn):
             return self.__getattribute__(item)
         if hasattr(self.insn, item):
             return getattr(self.insn, item)
-        raise AttributeError()
+        raise AttributeError
 
 
 class Block(Serializable):
@@ -321,8 +322,7 @@ class Block(Serializable):
     def _vex_engine(self):
         if self._project is None:
             return DEFAULT_VEX_ENGINE
-        else:
-            return self._project.factory.default_engine
+        return self._project.factory.default_engine
 
     @property
     def vex(self) -> IRSB:
@@ -402,13 +402,8 @@ class Block(Serializable):
 
         cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb
 
-        insns = []
-
-        block_bytes = self.bytes
-        if self.size is not None:
-            block_bytes = block_bytes[: self.size]
-        for cs_insn in cs.disasm(block_bytes, self.addr):
-            insns.append(CapstoneInsn(cs_insn))
+        block_bytes = self.bytes[self.size or 0 : self.size]
+        insns = [CapstoneInsn(cs_insn) for cs_insn in cs.disasm(block_bytes, self.addr)]
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
         self._capstone = block
@@ -461,12 +456,11 @@ class Block(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg):
-        obj = cls(
+        return cls(
             cmsg.ea,
             size=cmsg.size,
             byte_string=cmsg.bytes,
         )
-        return obj
 
 
 class SootBlock:
@@ -493,8 +487,7 @@ class SootBlock:
     @property
     def size(self):
         stmts = None if self.soot is None else self.soot.statements
-        stmts_len = len(stmts) if stmts else 0
-        return stmts_len
+        return len(stmts) if stmts else 0
 
     @property
     def codenode(self):

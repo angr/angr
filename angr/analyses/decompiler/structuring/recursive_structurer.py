@@ -1,5 +1,6 @@
+from __future__ import annotations
 import itertools
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import networkx
@@ -32,7 +33,7 @@ class RecursiveStructurer(Analysis):
         self,
         region,
         cond_proc=None,
-        func: Optional["Function"] = None,
+        func: Function | None = None,
         structurer_cls: type | None = None,
         **kwargs,
     ):
@@ -80,7 +81,7 @@ class RecursiveStructurer(Analysis):
                 stack.pop()
 
                 # Get the parent region
-                parent_region = parent_map.get(current_region, None)
+                parent_region = parent_map.get(current_region)
                 # structure this region
                 st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
                     current_region.copy(),

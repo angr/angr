@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -66,34 +67,33 @@ class __getdelim(angr.SimProcedure):
         # case 2: the data is symbolic, the delimiter could be anywhere. Read some maximum number of bytes
         # and add a constraint to assert the delimiter nonsense.
         # caveat: there could also be no delimiter and the file could EOF.
-        else:
-            # Just a guess as to a good value for a max size
-            size = 1024
+        # Just a guess as to a good value for a max size
+        size = 1024
 
-            data, real_size = simfd.read_data(size - 1)
-            delim_byte = chr(self.state.solver.eval(delim))
+        data, real_size = simfd.read_data(size - 1)
+        delim_byte = chr(self.state.solver.eval(delim))
 
-            for i, byte in enumerate(data.chop(8)):
-                self.state.add_constraints(
-                    claripy.If(
-                        i + 1 != real_size,
-                        byte != delim_byte,  # if not last byte returned, not newline
-                        claripy.Or(  # otherwise one of the following must be true:
-                            i + 2 == size,  # - we ran out of space, or
-                            simfd.eof(),  # - the file is at EOF, or
-                            byte == delim_byte,  # - it is a newline
-                        ),
-                    )
+        for i, byte in enumerate(data.chop(8)):
+            self.state.add_constraints(
+                claripy.If(
+                    i + 1 != real_size,
+                    byte != delim_byte,  # if not last byte returned, not newline
+                    claripy.Or(  # otherwise one of the following must be true:
+                        i + 2 == size,  # - we ran out of space, or
+                        simfd.eof(),  # - the file is at EOF, or
+                        byte == delim_byte,  # - it is a newline
+                    ),
                 )
+            )
 
-            malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
+        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
 
-            dst = self.inline_call(malloc, real_size).ret_expr
+        dst = self.inline_call(malloc, real_size).ret_expr
 
-            self.state.memory.store(dst, data, size=real_size)
-            self.state.memory.store(dst + real_size, b"\0")
+        self.state.memory.store(dst, data, size=real_size)
+        self.state.memory.store(dst + real_size, b"\0")
 
-            self.state.memory.store(len_ptr, real_size)
-            self.state.memory.store(line_ptrptr, dst)
+        self.state.memory.store(len_ptr, real_size)
+        self.state.memory.store(line_ptrptr, dst)
 
-            return real_size
+        return real_size

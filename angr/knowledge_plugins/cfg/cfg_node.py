@@ -117,10 +117,9 @@ class CFGNode(Serializable):
         else:
             self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
 
-        if not instruction_addrs and not self.is_simprocedure:
+        if not instruction_addrs and not self.is_simprocedure and irsb is not None:
             # We have to collect instruction addresses by ourselves
-            if irsb is not None:
-                self.instruction_addrs = irsb.instruction_addresses
+            self.instruction_addrs = irsb.instruction_addresses
 
         self.irsb = None
         self.soot_block = soot_block
@@ -229,31 +228,24 @@ class CFGNode(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
-        if len(cmsg.block_id) == 0:
-            block_id = None
-        else:
-            block_id = cmsg.block_id[0]
+        block_id = None if len(cmsg.block_id) == 0 else cmsg.block_id[0]
 
-        if not cmsg.instr_addrs:
-            instruction_addrs = None
-        else:
-            instruction_addrs = list(cmsg.instr_addrs)
+        instruction_addrs = None if not cmsg.instr_addrs else list(cmsg.instr_addrs)
 
-        obj = cls(
+        return cls(
             cmsg.ea,
             cmsg.size,
             cfg=cfg,
             block_id=block_id,
             instruction_addrs=instruction_addrs,
         )
-        return obj
 
     #
     # Pickling
     #
 
     def __getstate__(self):
-        s = {
+        return {
             "addr": self.addr,
             "size": self.size,
             "simprocedure_name": self.simprocedure_name,
@@ -267,7 +259,6 @@ class CFGNode(Serializable):
             "is_syscall": self.is_syscall,
             "has_return": self.has_return,
         }
-        return s
 
     def __setstate__(self, state):
         self.__init__(
@@ -291,7 +282,7 @@ class CFGNode(Serializable):
     #
 
     def copy(self):
-        c = CFGNode(
+        return CFGNode(
             self.addr,
             self.size,
             self._cfg_model,
@@ -306,7 +297,6 @@ class CFGNode(Serializable):
             is_syscall=self.is_syscall,
             name=self._name,
         )
-        return c
 
     def merge(self, other):
         """
@@ -363,8 +353,7 @@ class CFGNode(Serializable):
         if self.is_simprocedure or self.is_syscall:
             return None
         project = self._cfg_model.project  # everything in angr is connected with everything...
-        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
-        return b
+        return project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
 
 
 class CFGENode(CFGNode):

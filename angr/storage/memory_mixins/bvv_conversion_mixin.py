@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import claripy
 
@@ -50,25 +51,23 @@ class DataNormalizationMixin(MemoryMixin):
             thing = thing.encode("utf-8")
         if type(thing) in (bytes, bytearray, memoryview):
             return claripy.BVV(thing)
-        elif type(thing) is int:
+        if type(thing) is int:
             if bits is None:
                 l.warning("Unknown size for memory data %#x. Default to arch.bits.", thing)
                 bits = self.state.arch.bits
             return claripy.BVV(thing, bits)
-        elif type(thing) is float:
+        if type(thing) is float:
             if bits == 32:
                 return claripy.FPV(thing, claripy.FSORT_FLOAT).raw_to_bv()
-            elif bits == 64:
+            if bits == 64:
                 return claripy.FPV(thing, claripy.FSORT_DOUBLE).raw_to_bv()
-            else:
-                raise TypeError("Passed float size which is not a float or a double", size)
+            raise TypeError("Passed float size which is not a float or a double", size)
+        try:
+            raw_to_bv = thing.raw_to_bv
+        except AttributeError:
+            raise TypeError("Bad value passed to memory", thing) from None
         else:
-            try:
-                raw_to_bv = thing.raw_to_bv
-            except AttributeError:
-                raise TypeError("Bad value passed to memory", thing) from None
-            else:
-                return raw_to_bv()
+            return raw_to_bv()
 
 
 from ...errors import SimMemoryError

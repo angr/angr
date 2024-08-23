@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -81,6 +82,5 @@ class SimSootExpr_NewMultiArray(SimSootExpr):
                     s, element_type, inner_sizes
                 ),
             )
-        else:
-            # otherwise, we allocate a simple Array
-            return SimSootExpr_NewArray.new_array(state, element_type, size)
+        # otherwise, we allocate a simple Array
+        return SimSootExpr_NewArray.new_array(state, element_type, size)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -15,7 +16,7 @@ class ReturnUnconstrained(angr.SimProcedure):
                 o = None
             else:
                 o = self.state.solver.Unconstrained(
-                    "unconstrained_ret_%s" % self.display_name, size, key=("api", "?", self.display_name)
+                    f"unconstrained_ret_{self.display_name}", size, key=("api", "?", self.display_name)
                 )
         else:
             o = return_val

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
@@ -72,14 +73,9 @@ class ARMCmpF(PeepholeOptimizationExprBase):
                 if isinstance(irRes, BinaryOp) and irRes.op == "CmpF":
                     # everything matches
                     if bit_mask == 1:
-                        if negate:
-                            # GT
-                            op = "CmpGT"
-                        else:
-                            # LE
-                            op = "CmpLE"
+                        op = "CmpGT" if negate else "CmpLE"
                     else:
-                        raise NotImplementedError()
+                        raise NotImplementedError
                     return BinaryOp(
                         expr.idx,
                         op,
@@ -99,24 +95,26 @@ class ARMCmpF(PeepholeOptimizationExprBase):
             chunk1, chunk2 = expr.operands[1].operands
 
             if (
-                isinstance(chunk0, BinaryOp)
-                and chunk0.op == "Shr"
-                and isinstance(chunk0.operands[1], Const)
-                and chunk0.operands[1].value == 0x1E
-            ):
-                if (
+                (
+                    isinstance(chunk0, BinaryOp)
+                    and chunk0.op == "Shr"
+                    and isinstance(chunk0.operands[1], Const)
+                    and chunk0.operands[1].value == 0x1E
+                )
+                and (
                     isinstance(chunk1, BinaryOp)
                     and chunk1.op == "Shr"
                     and isinstance(chunk1.operands[1], Const)
                     and chunk1.operands[1].value == 0x1F
-                ):
-                    if (
-                        isinstance(chunk2, BinaryOp)
-                        and chunk2.op == "Shr"
-                        and isinstance(chunk2.operands[1], Const)
-                        and chunk2.operands[1].value == 0x1C
-                    ):
-                        return True, chunk0.operands[0], chunk1.operands[0], chunk2.operands[0]
+                )
+                and (
+                    isinstance(chunk2, BinaryOp)
+                    and chunk2.op == "Shr"
+                    and isinstance(chunk2.operands[1], Const)
+                    and chunk2.operands[1].value == 0x1C
+                )
+            ):
+                return True, chunk0.operands[0], chunk1.operands[0], chunk2.operands[0]
         return False, None, None, None
 
     @staticmethod
@@ -129,13 +127,16 @@ class ARMCmpF(PeepholeOptimizationExprBase):
                 # ignore the first operand because it might be optimized away
                 inner = inner.operands[1]
             if (
-                isinstance(inner, BinaryOp)
-                and inner.op == "Shl"
-                and isinstance(inner.operands[1], Const)
-                and inner.operands[1].value == 0x1C
+                (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "Shl"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == 0x1C
+                )
+                and isinstance(inner.operands[0], BinaryOp)
+                and inner.operands[0].op == "Sub"
             ):
-                if isinstance(inner.operands[0], BinaryOp) and inner.operands[0].op == "Sub":
-                    return True, inner.operands[0].operands[0], inner.operands[0].operands[1]
+                return True, inner.operands[0].operands[0], inner.operands[0].operands[1]
         return False, None, None
 
     @staticmethod

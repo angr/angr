@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 
 TESTER_MODULE_NAMES = ["unittest", "pytest", "_pytest", "nose", "nose2"]
@@ -14,7 +15,7 @@ def detect_test_env():
 
         if frame_module == "__main__" or frame_module == "__console__":
             return False
-        elif frame_module is not None and any(
+        if frame_module is not None and any(
             frame_module.startswith(module_name + ".") for module_name in TESTER_MODULE_NAMES
         ):
             return True

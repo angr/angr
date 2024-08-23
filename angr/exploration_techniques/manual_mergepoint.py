@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from . import ExplorationTechnique
@@ -13,7 +14,7 @@ class ManualMergepoint(ExplorationTechnique):
         self.prune = prune
         self.wait_counter = 0
         self.stash = f"merge_waiting_{self.address:#x}_{id(self):x}"
-        self.filter_marker = "skip_next_filter_%#x" % self.address
+        self.filter_marker = f"skip_next_filter_{self.address:#x}"
 
     def setup(self, simgr):
         simgr.stashes[self.stash] = []
@@ -71,7 +72,7 @@ class ManualMergepoint(ExplorationTechnique):
         while len(simgr.stashes[self.stash]):
             num_unique += 1
             exemplar_callstack = simgr.stashes[self.stash][0].callstack
-            simgr.move(self.stash, "merge_tmp", lambda s: s.callstack == exemplar_callstack)
+            simgr.move(self.stash, "merge_tmp", lambda s, ec=exemplar_callstack: s.callstack == ec)
             l.debug("...%d with unique callstack #%d", len(simgr.merge_tmp), num_unique)
             if len(simgr.merge_tmp) > 1:
                 simgr = simgr.merge(stash="merge_tmp", prune=self.prune)

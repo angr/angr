@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 import logging
 
@@ -8,18 +9,18 @@ class mprotect(angr.SimProcedure):
     def run(self, addr, length, prot):  # pylint:disable=arguments-differ,unused-argument
         try:
             addr = self.state.solver.eval_one(addr)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimValueError("mprotect can't handle symbolic addr")
+        except angr.errors.SimValueError as err:
+            raise angr.errors.SimValueError("mprotect can't handle symbolic addr") from err
 
         try:
             length = self.state.solver.eval_one(length)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimValueError("mprotect can't handle symbolic length")
+        except angr.errors.SimValueError as err:
+            raise angr.errors.SimValueError("mprotect can't handle symbolic length") from err
 
         try:
             prot = self.state.solver.eval_one(prot)
-        except angr.errors.SimValueError:
-            raise angr.errors.SimValueError("mprotect can't handle symbolic prot")
+        except angr.errors.SimValueError as err:
+            raise angr.errors.SimValueError("mprotect can't handle symbolic prot") from err
 
         l.debug("mprotect(%#x, %#x, %#x) = ...", addr, length, prot)
 

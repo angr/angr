@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
 
 import unittest
 
@@ -40,7 +41,7 @@ class TestVariableRegistration(unittest.TestCase):
 
         assert list(s.solver.describe_variables(a1)) == [(1,)]
         assert list(s.solver.describe_variables(b1)) == [(2, 1)]
-        assert sorted(list(s.solver.describe_variables(a1 + b1))) == [(1,), (2, 1)]
+        assert sorted(s.solver.describe_variables(a1 + b1)) == [(1,), (2, 1)]
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 # pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
+from __future__ import annotations
 import pathlib
 import copy
-from typing import Any, Union
+from typing import Any
 from collections.abc import Iterable
 import logging
 
@@ -23,12 +24,7 @@ def remove_last_statement(node):
     elif type(node) is ailment.Block:
         stmt = node.statements[-1]
         node.statements = node.statements[:-1]
-    elif type(node) is MultiNode:
-        if node.nodes:
-            stmt = remove_last_statement(node.nodes[-1])
-            if BaseNode.test_empty_node(node.nodes[-1]):
-                node.nodes = node.nodes[:-1]
-    elif type(node) is SequenceNode:
+    elif type(node) is MultiNode or type(node) is SequenceNode:
         if node.nodes:
             stmt = remove_last_statement(node.nodes[-1])
             if BaseNode.test_empty_node(node.nodes[-1]):
@@ -43,7 +39,7 @@ def remove_last_statement(node):
     elif type(node) is LoopNode:
         stmt = remove_last_statement(node.sequence_node)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     return stmt
 
@@ -59,16 +55,16 @@ def append_statement(node, stmt):
         if node.nodes:
             append_statement(node.nodes[-1], stmt)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
         return
     if type(node) is SequenceNode:
         if node.nodes:
             append_statement(node.nodes[-1], stmt)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
         return
 
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def replace_last_statement(node, old_stmt, new_stmt):
@@ -94,7 +90,7 @@ def replace_last_statement(node, old_stmt, new_stmt):
             replace_last_statement(node.false_node, old_stmt, new_stmt)
         return
 
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def extract_jump_targets(stmt):
@@ -228,12 +224,12 @@ def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] |
             elif insert_location == "before":
                 new_nodes = [node, parent.default_node]
             else:
-                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+                raise TypeError(f"Unsupported 'insert_location' value {insert_location!r}.")
             seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.default_node = seq
         else:
             raise TypeError(
-                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, ' f"default."
+                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, default.'
             )
     elif isinstance(parent, LoopNode):
         if label == "condition":
@@ -243,9 +239,9 @@ def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] |
                 parent.sequence_node = SequenceNode(parent.sequence_node.addr, nodes=[parent.sequence_node])
             insert_node(parent.sequence_node, insert_location, node, node_idx)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ailment.Block:
@@ -337,7 +333,7 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> ailment.Stmt.Statement | None:
+def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
             stmt = first_nonlabel_statement(n)
@@ -358,12 +354,9 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
     return None
 
 
-def first_nonlabel_node(seq: "SequenceNode") -> Union["BaseNode", ailment.Block] | None:
+def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
-        if isinstance(node, CodeNode):
-            inner_node = node.node
-        else:
-            inner_node = node
+        inner_node = node.node if isinstance(node, CodeNode) else node
         if isinstance(inner_node, ailment.Block) and not has_nonlabel_statements(inner_node):
             continue
         return node
@@ -391,7 +384,7 @@ def add_labels(graph: networkx.DiGraph):
     for node in graph:
         lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
         node_copy = node.copy()
-        node_copy.statements = [lbl] + node_copy.statements
+        node_copy.statements = [lbl, *node_copy.statements]
         nodes_map[node] = node_copy
 
     new_graph.add_nodes_from(nodes_map.values())
@@ -410,7 +403,7 @@ def update_labels(graph: networkx.DiGraph):
 
 
 def structured_node_is_simple_return(
-    node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph, use_packed_successors=False
+    node: SequenceNode | MultiNode, graph: networkx.DiGraph, use_packed_successors=False
 ) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
@@ -424,7 +417,7 @@ def structured_node_is_simple_return(
     Returns true on any block ending in linear statements and a return.
     """
 
-    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> list[ailment.Block]:
+    def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 
@@ -541,9 +534,7 @@ def peephole_optimize_expr(expr, expr_opts):
     # run expression optimizers
     walker = ailment.AILBlockWalker()
     walker._handle_expr = _handle_expr
-    new_expr = walker._handle_expr(0, expr, 0, None, None)
-
-    return new_expr
+    return walker._handle_expr(0, expr, 0, None, None)
 
 
 def copy_graph(graph: networkx.DiGraph):
@@ -666,16 +657,13 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
 
     # collect all functions when None are provided
     if functions is None:
-        functions = list(sorted(cfg.kb.functions))
+        functions = sorted(cfg.kb.functions)
 
     # normalize the functions that could be ints as names
     normalized_functions: list[int | str] = []
     for func in functions:
         try:
-            if isinstance(func, str):
-                normalized_name = int(func, 0)
-            else:
-                normalized_name = func
+            normalized_name = int(func, 0) if isinstance(func, str) else func
         except ValueError:
             normalized_name = func
         normalized_functions.append(normalized_name)
@@ -748,7 +736,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr: int):
     raise KeyError("The block is not in the graph!")
 
 
-def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
+def sequence_to_blocks(seq: BaseNode) -> list[ailment.Block]:
     """
     Converts a sequence node (BaseNode) to a list of ailment blocks contained in it and all its children.
     """
@@ -758,7 +746,7 @@ def sequence_to_blocks(seq: "BaseNode") -> list[ailment.Block]:
 
 
 def sequence_to_statements(
-    seq: "BaseNode", exclude=(ailment.statement.Jump, ailment.statement.Jump)
+    seq: BaseNode, exclude=(ailment.statement.Jump, ailment.statement.Jump)
 ) -> list[ailment.statement.Statement]:
     """
     Converts a sequence node (BaseNode) to a list of ailment Statements contained in it and all its children.

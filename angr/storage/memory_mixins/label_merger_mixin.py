@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Iterable
 
 from . import MemoryMixin
@@ -27,5 +28,4 @@ class LabelMergerMixin(MemoryMixin):
         return new_label
 
     def copy(self, memo=None):
-        copied = super().copy(memo)
-        return copied
+        return super().copy(memo)

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class SimActLocation:
     """
     Structure-like class used to bundle the instruction address and statement index of a given SimAction in order to

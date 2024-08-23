@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 from unittest import TestCase, skipUnless, main
 import os
 
@@ -74,7 +75,7 @@ class TestPcodeEngine(TestCase):
 
         grant_paths = [s for s in simgr.deadended if b"trusted" in s.posix.dumps(1)]
         assert len(grant_paths) == 2
-        assert sum(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == s.posix.dumps(0) for s in grant_paths) == 1
+        assert sum(s.posix.dumps(0) == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" for s in grant_paths) == 1
 
         deny_paths = [s for s in simgr.deadended if b"Go away!" in s.posix.dumps(1)]
         assert len(deny_paths) == 1

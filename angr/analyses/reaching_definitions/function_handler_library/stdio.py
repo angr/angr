@@ -1,3 +1,4 @@
+from __future__ import annotations
 import re
 import random
 import logging
@@ -217,9 +218,8 @@ def handle_printf(
             _l.warning("Unimplemented printf format string %s", fmt)
             buf_atoms = set()
             buf_data = None
-        if result is not None:
-            if buf_data is not None:
-                result = result.concat(buf_data)
+        if result is not None and buf_data is not None:
+            result = result.concat(buf_data)
         source_atoms.update(buf_atoms)
     if result is not None:
         result = result.concat(b"\0")
@@ -250,9 +250,7 @@ def handle_scanf(
         if fmt == "%s":
             buf_atom = state.deref(atom, 1)
             buf_data = b"\0"
-        elif fmt == "%u":
-            buf_atom = state.deref(atom, 4, state.arch.memory_endness)
-        elif fmt == "%d":
+        elif fmt == "%u" or fmt == "%d":
             buf_atom = state.deref(atom, 4, state.arch.memory_endness)
         elif fmt == "%c":
             buf_atom = state.deref(atom, 1, state.arch.memory_endness)

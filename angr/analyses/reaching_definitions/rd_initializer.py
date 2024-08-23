@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
@@ -38,7 +39,7 @@ class RDAStateInitializer:
         self.project = project
 
     def initialize_function_state(
-        self, state: "ReachingDefinitionsState", cc: SimCC | None, func_addr: int, rtoc_value: int | None = None
+        self, state: ReachingDefinitionsState, cc: SimCC | None, func_addr: int, rtoc_value: int | None = None
     ) -> None:
         """
         This is the entry point to the state initialization logic.
@@ -68,7 +69,7 @@ class RDAStateInitializer:
 
     def initialize_all_function_arguments(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         cc: SimCC | None,
@@ -92,7 +93,7 @@ class RDAStateInitializer:
 
     def initialize_one_function_argument(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         argument_location: SimFunctionArgument,
@@ -117,10 +118,10 @@ class RDAStateInitializer:
         elif isinstance(argument_location, SimStackArg):
             self._initialize_function_argument_stack(state, func_addr, ex_loc, argument_location)
         else:
-            raise TypeError("Unsupported parameter type %s." % type(argument_location).__name__)
+            raise TypeError(f"Unsupported parameter type {type(argument_location).__name__}.")
 
     def initialize_stack_pointer(
-        self, state: "ReachingDefinitionsState", _func_addr: int, ex_loc: ExternalCodeLocation
+        self, state: ReachingDefinitionsState, _func_addr: int, ex_loc: ExternalCodeLocation
     ) -> None:
         # initialize stack pointer
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
@@ -130,7 +131,7 @@ class RDAStateInitializer:
 
     def initialize_architectural_state(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         rtoc_value: int | None = None,
@@ -173,21 +174,24 @@ class RDAStateInitializer:
             state.registers.store(t9_offset, t9)
 
         # project-specific initialization
-        if self.project is not None:
-            if self.project.simos is not None and self.project.simos.function_initial_registers:
-                for reg_name, reg_value in self.project.simos.function_initial_registers.items():
-                    reg_offset = self.arch.registers[reg_name][0]
-                    reg_atom = Register(reg_offset, self.arch.registers[reg_name][1])
-                    reg_def = Definition(reg_atom, ex_loc, tags={InitialValueTag()})
-                    state.all_definitions.add(reg_def)
-                    if state.analysis is not None:
-                        state.analysis.model.add_def(reg_def)
-                    reg = state.annotate_with_def(claripy.BVV(reg_value, self.arch.registers[reg_name][1]), reg_def)
-                    state.registers.store(reg_offset, reg)
+        if (
+            self.project is not None
+            and self.project.simos is not None
+            and self.project.simos.function_initial_registers
+        ):
+            for reg_name, reg_value in self.project.simos.function_initial_registers.items():
+                reg_offset = self.arch.registers[reg_name][0]
+                reg_atom = Register(reg_offset, self.arch.registers[reg_name][1])
+                reg_def = Definition(reg_atom, ex_loc, tags={InitialValueTag()})
+                state.all_definitions.add(reg_def)
+                if state.analysis is not None:
+                    state.analysis.model.add_def(reg_def)
+                reg = state.annotate_with_def(claripy.BVV(reg_value, self.arch.registers[reg_name][1]), reg_def)
+                state.registers.store(reg_offset, reg)
 
     def _initialize_function_argument_register(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         arg: SimRegArg,
@@ -206,7 +210,7 @@ class RDAStateInitializer:
         state.registers.store(reg_offset, reg)
 
     def _initialize_function_argument_stack(
-        self, state: "ReachingDefinitionsState", func_addr: int, ex_loc: ExternalCodeLocation, arg: SimStackArg
+        self, state: ReachingDefinitionsState, func_addr: int, ex_loc: ExternalCodeLocation, arg: SimStackArg
     ):
         ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
         ml_def = Definition(ml_atom, ex_loc, tags={ParameterTag(function=func_addr)})
@@ -221,15 +225,13 @@ class RDAStateInitializer:
     def _generate_call_string(subject: Subject, current_address: int) -> tuple[int, ...] | None:
         if isinstance(subject.content, Function):
             return (subject.content.addr,)
-        elif isinstance(subject.content, CallTrace):
+        if isinstance(subject.content, CallTrace):
             if any(current_address == x.caller_func_addr for x in subject.content.callsites):
                 callsites = iter(reversed([x.caller_func_addr for x in subject.content.callsites]))
                 for call_addr in callsites:
                     if current_address == call_addr:
                         break
                 return tuple(callsites)
-            else:
-                return tuple(x.caller_func_addr for x in subject.content.callsites)
-        else:
-            l.warning("Subject with unknown content-type")
-            return None
+            return tuple(x.caller_func_addr for x in subject.content.callsites)
+        l.warning("Subject with unknown content-type")
+        return None

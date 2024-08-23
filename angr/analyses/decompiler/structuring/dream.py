@@ -1,5 +1,6 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -67,7 +68,7 @@ class DreamStructurer(StructurerBase):
         region,
         parent_map=None,
         condition_processor=None,
-        func: Optional["Function"] = None,
+        func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         **kwargs,
@@ -214,9 +215,7 @@ class DreamStructurer(StructurerBase):
         loop_body = self._to_loop_body_sequence(loop_head, loop_subgraph, loop_successors)
 
         # create a while(true) loop with sequence node being the loop body
-        loop_node = LoopNode("while", None, loop_body, addr=loop_head.addr)
-
-        return loop_node
+        return LoopNode("while", None, loop_body, addr=loop_head.addr)
 
     def _refine_loop(self, loop_node):
         while True:
@@ -240,10 +239,7 @@ class DreamStructurer(StructurerBase):
         if loop_node.sort == "while" and loop_node.condition is None and loop_node.sequence_node.nodes:
             # it's an endless loop
             first_node = first_nonlabel_node(loop_node.sequence_node)
-            if type(first_node) is CodeNode:
-                inner_first_node = first_node.node
-            else:
-                inner_first_node = first_node
+            inner_first_node = first_node.node if type(first_node) is CodeNode else first_node
             if type(inner_first_node) is ConditionalBreakNode:
                 while_cond = ConditionProcessor.simplify_condition(claripy.Not(inner_first_node.condition))
                 new_seq = loop_node.sequence_node.copy()
@@ -338,9 +334,7 @@ class DreamStructurer(StructurerBase):
                 continue
             break
 
-        seq = EmptyNodeRemover(seq).result
-
-        return seq
+        return EmptyNodeRemover(seq).result
 
     def _make_sequence(self):
         seq = SequenceNode(None)
@@ -572,11 +566,8 @@ class DreamStructurer(StructurerBase):
         cases, node_default, to_remove = self._switch_build_cases(
             seq, cmp_lb, jump_table.jumptable_entries, i, node_b_addr, addr2nodes
         )
-        if node_default is None:
-            switch_end_addr = node_b_addr
-        else:
-            # we don't know what the end address of this switch-case structure is. let's figure it out
-            switch_end_addr = None
+        # if we don't know what the end address of this switch-case structure is, let's figure it out
+        switch_end_addr = node_b_addr if node_default is None else None
         self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         self._make_switch_cases_core(
@@ -714,15 +705,12 @@ class DreamStructurer(StructurerBase):
 
         jumptable_entries = jumptable.jumptable_entries
 
-        if isinstance(node_a.node, SequenceNode):
-            node_a_block_addrs = {n.addr for n in node_a.node.nodes}
-        else:
-            node_a_block_addrs = set()
+        node_a_block_addrs = {n.addr for n in node_a.node.nodes} if isinstance(node_a.node, SequenceNode) else set()
         #
         # if that is the case, we un-structure it here
         if all(entry_addr in addr2nodes for entry_addr in jumptable_entries):
             return True, node_a
-        elif self._switch_check_existence_of_jumptable_entries(
+        if self._switch_check_existence_of_jumptable_entries(
             jumptable_entries, node_a_block_addrs, set(addr2nodes.keys()), node_a.addr, node_b_addr
         ):
             # unpacking is needed
@@ -847,20 +835,16 @@ class DreamStructurer(StructurerBase):
                     for _, dst, data in self.function.graph.out_edges(entry_node, data=True):
                         if data.get("type", "transition") != "call":
                             successors.append(dst)
-                    if len(successors) == 1:
+                    if len(successors) == 1 and successors[0].addr in all_node_addrs:
                         # found the single successor
-                        if successors[0].addr in all_node_addrs:
-                            expected_node_a_addrs.add(successors[0].addr)
-                            continue
+                        expected_node_a_addrs.add(successors[0].addr)
+                        continue
             # it's also possible that this is just a jump that breaks out of the switch-case. we simply ignore it.
             continue
 
         # finally, make sure all expected nodes exist
-        if node_a_block_addrs.issuperset((expected_node_a_addrs | {node_a_addr}) - {node_b_addr}):
-            return True
-
-        # not sure what is going on...
-        return False
+        # not sure what is going on... if it's false
+        return node_a_block_addrs.issuperset((expected_node_a_addrs | {node_a_addr}) - {node_b_addr})
 
     def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: dict[int, set[CodeNode]]) -> Any | None:
         """
@@ -923,7 +907,7 @@ class DreamStructurer(StructurerBase):
 
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
-        node_default = addr2nodes.get(node_b_addr, None)
+        node_default = addr2nodes.get(node_b_addr)
         if node_default is not None:
             node_default = next(iter(node_default))
 
@@ -1139,8 +1123,7 @@ class DreamStructurer(StructurerBase):
             )
             new_nodes.append(new_node)
 
-        new_node = SequenceNode(None if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
-        return new_node
+        return SequenceNode(None if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
 
     def _replace_complex_reaching_conditions(self, seq: SequenceNode):
         for i in range(len(seq.nodes)):

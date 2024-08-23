@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint:disable=no-self-use
+from __future__ import annotations
 
 import struct
 import unittest
@@ -23,9 +24,8 @@ class TestSolverEvalCasting(unittest.TestCase):
     def test_eval_cast_bvv_to_bytes__non_8bit_length_multiple(self):
         s = angr.SimState(arch="AMD64", mode="symbolic")
         for nbits in [1, 2, 7]:
-            with self.subTest(nbits=nbits):
-                with self.assertRaises(ValueError):
-                    s.solver.eval(claripy.BVV(0, nbits), cast_to=bytes)
+            with self.subTest(nbits=nbits), self.assertRaises(ValueError):
+                s.solver.eval(claripy.BVV(0, nbits), cast_to=bytes)
 
     def test_eval_cast_fpv_to_bytes(self):
         s = angr.SimState(arch="AMD64", mode="symbolic")

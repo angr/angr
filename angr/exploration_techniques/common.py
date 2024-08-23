@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .. import engines
 from ..errors import SimError, AngrError, AngrExplorationTechniqueError
 
@@ -44,13 +45,12 @@ def condition_to_lambda(condition, default=False):
             except (AngrError, SimError):
                 return False
 
-    elif hasattr(condition, "__call__"):
+    elif callable(condition):
         condition_function = condition
         static_addrs = None
     else:
         raise AngrExplorationTechniqueError(
-            "ExplorationTechnique is unable to convert given type (%s) to a callable condition function."
-            % condition.__class__
+            f"ExplorationTechnique is unable to convert given type ({condition.__class__}) to a callable condition function."
         )
 
     return condition_function, static_addrs

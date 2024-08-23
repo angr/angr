@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from capstone.x86_const import X86_REG_RIP
@@ -18,9 +19,7 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not (jumpkind == "Ijk_Call" or (jumpkind == "Ijk_Boring" and addr == func_addr)):
-            return False
-        return True
+        return jumpkind == "Ijk_Call" or jumpkind == "Ijk_Boring" and addr == func_addr
 
     def resolve(  # pylint:disable=unused-argument
         self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs

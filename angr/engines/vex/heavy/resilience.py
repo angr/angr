@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pyvex
 
 from angr import sim_options as o
@@ -12,8 +13,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def __make_default(ty, symbolic, name):
         if symbolic:
             return symbol(ty, name)
-        else:
-            return value(ty, 0)
+        return value(ty, 0)
 
     def _check_unsupported_ccall(self, func_name, retty, args, **kwargs):
         if o.BYPASS_UNSUPPORTED_IRCCALL not in self.state.options:

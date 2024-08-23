@@ -1,3 +1,4 @@
+from __future__ import annotations
 import threading
 
 import rpyc
@@ -17,16 +18,16 @@ class AngrServer(threading.Thread):
 
             def on_connect(self):
                 self._conn._config.update(
-                    dict(
-                        allow_all_attrs=True,
-                        allow_pickle=True,
-                        allow_getattr=True,
-                        allow_setattr=True,
-                        allow_delattr=True,
-                        import_custom_exceptions=True,
-                        instantiate_custom_exceptions=True,
-                        instantiate_oldstyle_exceptions=True,
-                    )
+                    {
+                        "allow_all_attrs": True,
+                        "allow_pickle": True,
+                        "allow_getattr": True,
+                        "allow_setattr": True,
+                        "allow_delattr": True,
+                        "import_custom_exceptions": True,
+                        "instantiate_custom_exceptions": True,
+                        "instantiate_oldstyle_exceptions": True,
+                    }
                 )
 
         self.service = AngrService

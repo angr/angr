@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Type
 
 from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst

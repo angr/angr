@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from . import JNISimProcedure
@@ -17,9 +18,8 @@ class GetSuperclass(JNISimProcedure):
         superclass = self.state.javavm_classloader.get_superclass(class_descriptor)
         if superclass:
             return self.state.jni_references.create_new_reference(superclass)
-        else:
-            l.error("Couldn't identify superclass of %r", class_descriptor)
-            return 0
+        l.error("Couldn't identify superclass of %r", class_descriptor)
+        return 0
 
 
 class FindClass(JNISimProcedure):

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
@@ -12,7 +13,7 @@ class SpilledRegisterFinder(RegisterSaveAreaSimplifier):
     """
 
     @staticmethod
-    def _modify_statement(old_block, stmt_idx_: int, updated_blocks_, stack_offset: int = None):
+    def _modify_statement(old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None):
         old_stmt = old_block.statements[stmt_idx_]
         pseudoreg = 0x1000000 - stack_offset
         old_stmt.tags["pseudoreg"] = pseudoreg

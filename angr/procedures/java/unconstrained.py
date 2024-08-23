@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from . import JavaSimProcedure
@@ -55,10 +56,10 @@ class UnconstrainedMethod(JavaSimProcedure):
                 return this_ref.get_field(self.state, field_name, method_descriptor.ret)
             # We define a setter as a method that starts with set
             # and has only one parameter (other than 'this' reference)
-            elif method_descriptor.name.startswith("set") and len(method_descriptor.params) == 1 and len(args) == 1:
+            if method_descriptor.name.startswith("set") and len(method_descriptor.params) == 1 and len(args) == 1:
                 field_name = method_descriptor.name.replace("set", "")
                 field_name = field_name[0].lower() + field_name[1:]
                 this_ref.set_field(self.state, field_name, method_descriptor.params[0], args[0])
-                return
+                return None
 
         return ret_value

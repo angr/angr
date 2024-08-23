@@ -1,4 +1,5 @@
 # pylint:disable=bad-builtin
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
@@ -34,8 +35,8 @@ class Typehoon(Analysis):
         constraints,
         func_var,
         ground_truth=None,
-        var_mapping: dict["SimVariable", set["TypeVariable"]] | None = None,
-        must_struct: set["TypeVariable"] | None = None,
+        var_mapping: dict[SimVariable, set[TypeVariable]] | None = None,
+        must_struct: set[TypeVariable] | None = None,
     ):
         """
 
@@ -46,9 +47,9 @@ class Typehoon(Analysis):
         :param must_struct:
         """
 
-        self.func_var: "TypeVariable" = func_var
-        self._constraints: dict["TypeVariable", set["TypeConstraint"]] = constraints
-        self._ground_truth: dict["TypeVariable", "SimType"] | None = ground_truth
+        self.func_var: TypeVariable = func_var
+        self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
+        self._ground_truth: dict[TypeVariable, SimType] | None = ground_truth
         self._var_mapping = var_mapping
         self._must_struct = must_struct
 
@@ -123,10 +124,7 @@ class Typehoon(Analysis):
         print(f"### {len(self.solution)} solutions")
         for typevar in sorted(self.solution.keys(), key=str):
             sol = self.solution[typevar]
-            if typevar in typevar_to_var:
-                var_and_typevar = f"{typevar_to_var[typevar]} ({typevar})"
-            else:
-                var_and_typevar = typevar
+            var_and_typevar = f"{typevar_to_var[typevar]} ({typevar})" if typevar in typevar_to_var else typevar
             print(f"    {var_and_typevar} -> {sol}")
         print("### end of solutions ###")
 
@@ -190,7 +188,7 @@ class Typehoon(Analysis):
             return tc.new(specialized)
 
         if isinstance(tc, Struct) and tc.fields and min(tc.fields) >= 0:
-            offsets: list[int] = sorted(list(tc.fields.keys()))  # get a sorted list of offsets
+            offsets: list[int] = sorted(tc.fields.keys())  # get a sorted list of offsets
             offset0 = offsets[0]
             field0: TypeConstant = tc.fields[offset0]
 

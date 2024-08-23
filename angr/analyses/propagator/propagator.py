@@ -1,5 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 import logging
 import time
 
@@ -17,6 +18,7 @@ from .. import register_analysis
 from ..analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
+import contextlib
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
@@ -65,7 +67,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         gp: int | None = None,
         cache_results: bool = False,
         key_prefix: str | None = None,
-        reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
+        reaching_definitions: ReachingDefinitionsModel | None = None,
         immediate_stmt_removal: bool = False,
         profiling: bool = False,
     ):
@@ -79,10 +81,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise ValueError("Unsupported analysis target.")
 
-        if profiling:
-            start = time.perf_counter_ns() / 1000000
-        else:
-            start = 0
+        start = time.perf_counter_ns() / 1000000 if profiling else 0
 
         self._base_state = base_state
         self._function = func
@@ -161,10 +160,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             the_func = self._function
         else:
             if self._func_addr is not None:
-                try:
+                with contextlib.suppress(KeyError):
                     the_func = self.kb.functions.get_by_addr(self._func_addr)
-                except KeyError:
-                    pass
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 
@@ -231,7 +228,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _node_key(self, node: ailment.Block | pyvex.IRSB) -> Any:
         if type(node) is ailment.Block:
             return node.addr, node.idx
-        elif type(node) is pyvex.IRSB:
+        if type(node) is pyvex.IRSB:
             return node.addr
         # fallback
         return node
@@ -324,8 +321,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         if self.model.node_iterations[block_key] < self._max_iterations:
             return None, state
-        else:
-            return False, state
+        return False, state
 
     def _process_input_state_for_successor(self, node, successor, input_state: PropagatorAILState | PropagatorVEXState):
         if self._only_consts:

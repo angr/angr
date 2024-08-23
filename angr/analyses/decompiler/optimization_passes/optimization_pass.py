@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument
+from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 from collections.abc import Generator
@@ -63,7 +64,7 @@ class BaseOptimizationPass:
     DESCRIPTION = "N/A"
 
     def __init__(self, func):
-        self._func: "Function" = func
+        self._func: Function = func
 
     @property
     def project(self):
@@ -85,7 +86,7 @@ class BaseOptimizationPass:
         :returns: a tuple of (does_apply, cache) where cache is a way to pass
                   information to _analyze so it does not have to be recalculated
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _analyze(self, cache=None):
         """
@@ -95,7 +96,7 @@ class BaseOptimizationPass:
                       recalculated
         :returns: None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _simplify_graph(self, graph):
         simp = self.project.analyses.AILSimplifier(
@@ -165,30 +166,26 @@ class OptimizationPass(BaseOptimizationPass):
 
         :return:    The block address.
         """
-        if self._new_block_addrs:
-            new_addr = max(self._new_block_addrs) + 1
-        else:
-            new_addr = max(self.blocks_by_addr) + 2048
+        new_addr = max(self._new_block_addrs) + 1 if self._new_block_addrs else max(self.blocks_by_addr) + 2048
         self._new_block_addrs.add(new_addr)
         return new_addr
 
     def _get_block(self, addr, idx=None) -> ailment.Block | None:
         if not self._blocks_by_addr:
             return None
+        if idx is None:
+            blocks = self._blocks_by_addr.get(addr, None)
         else:
-            if idx is None:
-                blocks = self._blocks_by_addr.get(addr, None)
-            else:
-                blocks = [self._blocks_by_addr_and_idx.get((addr, idx), None)]
-            if not blocks:
-                return None
-            if len(blocks) == 1:
-                return next(iter(blocks))
-            raise MultipleBlocksException(
-                "There are %d blocks at address %#x.%s but only one is requested." % (len(blocks), addr, idx)
-            )
+            blocks = [self._blocks_by_addr_and_idx.get((addr, idx), None)]
+        if not blocks:
+            return None
+        if len(blocks) == 1:
+            return next(iter(blocks))
+        raise MultipleBlocksException(
+            "There are %d blocks at address %#x.%s but only one is requested." % (len(blocks), addr, idx)
+        )
 
-    def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block, None, None]:
+    def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block]:
         if not self._blocks_by_addr:
             return
         else:
@@ -308,7 +305,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._current_structure_counter = None
 
     def _analyze(self, cache=None) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def analyze(self):
         """
@@ -468,7 +465,4 @@ class StructuringOptimizationPass(OptimizationPass):
         # Note: this check is only for _trading_, meaning the total number of loops must be the same.
         #
         # 1. We traded to remove a for-loop
-        if curr_floops < prev_floops and total_curr_loops == total_prev_loops:
-            return False
-
-        return True
+        return not (curr_floops < prev_floops and total_curr_loops == total_prev_loops)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 from .clinic import Clinic
@@ -31,7 +32,7 @@ class DecompilationCache:
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.clinic: Clinic | None = None
         self.ite_exprs: set[tuple[int, Any]] | None = None
-        self.binop_operators: dict["OpDescriptor", str] | None = None
+        self.binop_operators: dict[OpDescriptor, str] | None = None
 
     @property
     def local_types(self):

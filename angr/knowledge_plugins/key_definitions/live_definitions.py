@@ -1,4 +1,5 @@
-from typing import Optional, Union, Any, TYPE_CHECKING, overload
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING, overload
 from collections.abc import Iterable, Generator
 import weakref
 import logging
@@ -69,14 +70,13 @@ class DefinitionAnnotation(Annotation):
     def __hash__(self):
         return self._hash
 
-    def __eq__(self, other: "object"):
+    def __eq__(self, other: object):
         if type(other) is DefinitionAnnotation:
             return self.definition == other.definition
-        else:
-            return False
+        return False
 
     def __repr__(self):
-        return f"<{self.__class__.__name__}({repr(self.definition)})"
+        return f"<{self.__class__.__name__}({self.definition!r})"
 
 
 # pylint: disable=W1116
@@ -131,7 +131,7 @@ class LiveDefinitions:
         element_limit=5,
         merge_into_tops: bool = True,
     ):
-        self.project: Optional["Project"] = None
+        self.project: Project | None = None
         self.arch = arch
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
@@ -231,9 +231,9 @@ class LiveDefinitions:
         ctnt = "LiveDefs"
         if self.tmps:
             ctnt += ", %d tmpdefs" % len(self.tmps)
-        return "<%s>" % ctnt
+        return f"<{ctnt}>"
 
-    def copy(self, discard_tmpdefs=False) -> "LiveDefinitions":
+    def copy(self, discard_tmpdefs=False) -> LiveDefinitions:
         rd = LiveDefinitions(
             self.arch,
             track_tmps=self.track_tmps,
@@ -267,8 +267,8 @@ class LiveDefinitions:
 
     @staticmethod
     def _mo_cmp(
-        mo_self: Union["SimMemoryObject", set["SimMemoryObject"]],
-        mo_other: Union["SimMemoryObject", set["SimMemoryObject"]],
+        mo_self: SimMemoryObject | set[SimMemoryObject],
+        mo_other: SimMemoryObject | set[SimMemoryObject],
         addr: int,
         size: int,
     ):  # pylint:disable=unused-argument
@@ -344,7 +344,7 @@ class LiveDefinitions:
         if "stack_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
-            elif addr.op == "__add__":
+            if addr.op == "__add__":
                 if len(addr.args) == 2:
                     off0 = LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True)
                     off1 = LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
@@ -369,22 +369,19 @@ class LiveDefinitions:
         """
 
         # strip existing definition annotations
-        annotations_to_remove = []
-        for anno in symvar.annotations:
-            if isinstance(anno, DefinitionAnnotation):
-                annotations_to_remove.append(anno)
+        annotations_to_remove = [anno for anno in symvar.annotations if isinstance(anno, DefinitionAnnotation)]
 
         # annotate with the new definition annotation
         return symvar.annotate(DefinitionAnnotation(definition), remove_annotations=annotations_to_remove)
 
     @staticmethod
-    def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition, None, None]:
+    def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition]:
         for anno in symvar.annotations:
             if isinstance(anno, DefinitionAnnotation):
                 yield anno.definition
 
     @staticmethod
-    def extract_defs_from_annotations(annos: Iterable["Annotation"]) -> set[Definition]:
+    def extract_defs_from_annotations(annos: Iterable[Annotation]) -> set[Definition]:
         defs = set()
         for anno in annos:
             if isinstance(anno, DefinitionAnnotation):
@@ -392,7 +389,7 @@ class LiveDefinitions:
         return defs
 
     @staticmethod
-    def extract_defs_from_mv(mv: MultiValues) -> Generator[Definition, None, None]:
+    def extract_defs_from_mv(mv: MultiValues) -> Generator[Definition]:
         for vs in mv.values():
             for v in vs:
                 yield from LiveDefinitions.extract_defs(v)
@@ -427,11 +424,9 @@ class LiveDefinitions:
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
             assert len({self.get_stack_offset(v) for v in values}) == 1
-            result = self.get_stack_offset(values[0])
-            return result
+            return self.get_stack_offset(values[0])
 
-        result = self.get_stack_offset(sp_v)
-        return result
+        return self.get_stack_offset(sp_v)
 
     def get_stack_address(self, offset: claripy.ast.Base) -> int | None:
         offset_int = self.get_stack_offset(offset)
@@ -450,7 +445,7 @@ class LiveDefinitions:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
         return (base_v + offset) & mask
 
-    def merge(self, *others: "LiveDefinitions") -> tuple["LiveDefinitions", bool]:
+    def merge(self, *others: LiveDefinitions) -> tuple[LiveDefinitions, bool]:
         state = self.copy()
 
         merge_occurred = state.registers.merge([other.registers for other in others], None)
@@ -477,7 +472,7 @@ class LiveDefinitions:
 
         return state, merge_occurred
 
-    def compare(self, other: "LiveDefinitions") -> bool:
+    def compare(self, other: LiveDefinitions) -> bool:
         r0 = self.registers.compare(other.registers)
         if r0 is False:
             return False
@@ -669,7 +664,7 @@ class LiveDefinitions:
                 for v in vs:
                     defs.update(LiveDefinitions.extract_defs_from_annotations(v.annotations))
             return defs
-        elif isinstance(thing, Atom):
+        if isinstance(thing, Atom):
             pass
         elif isinstance(thing, Definition):
             thing = thing.atom
@@ -681,29 +676,26 @@ class LiveDefinitions:
 
         if isinstance(thing, Register):
             return self.get_register_definitions(thing.reg_offset, thing.size)
-        elif isinstance(thing, MemoryLocation):
+        if isinstance(thing, MemoryLocation):
             if isinstance(thing.addr, SpOffset):
                 return self.get_stack_definitions(thing.addr.offset, thing.size)
-            elif isinstance(thing.addr, HeapAddress):
+            if isinstance(thing.addr, HeapAddress):
                 return self.get_heap_definitions(thing.addr.value, size=thing.size)
-            elif isinstance(thing.addr, int):
+            if isinstance(thing.addr, int):
                 return self.get_memory_definitions(thing.addr, thing.size)
-            else:
-                return set()
-        elif isinstance(thing, Tmp):
+            return set()
+        if isinstance(thing, Tmp):
             return self.get_tmp_definitions(thing.tmp_idx)
-        else:
-            defs = set()
-            mv = self.others.get(thing, None)
-            if mv is not None:
-                defs |= self.get_definitions(mv)
-            return defs
+        defs = set()
+        mv = self.others.get(thing, None)
+        if mv is not None:
+            defs |= self.get_definitions(mv)
+        return defs
 
     def get_tmp_definitions(self, tmp_idx: int) -> set[Definition]:
         if tmp_idx in self.tmps:
             return self.tmps[tmp_idx]
-        else:
-            return set()
+        return set()
 
     def get_register_definitions(self, reg_offset: int, size: int) -> set[Definition]:
         try:
@@ -825,10 +817,7 @@ class LiveDefinitions:
                 r = self.get_values(atom)
                 if r is None:
                     continue
-                if result is None:
-                    result = r
-                else:
-                    result = result.merge(r)
+                result = r if result is None else result.merge(r)
             return result
 
         if isinstance(atom, Register):
@@ -858,10 +847,9 @@ class LiveDefinitions:
                         bytestring = self.project.loader.memory.load(atom.addr, atom.size)
                         if atom.endness == archinfo.Endness.LE:
                             bytestring = bytes(reversed(bytestring))
-                        mv = MultiValues(
+                        return MultiValues(
                             self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
                         )
-                        return mv
                     except KeyError:
                         pass
                 return None
@@ -926,7 +914,7 @@ class LiveDefinitions:
 
     def add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if not isinstance(atom.addr, SpOffset):
-            raise TypeError("Atom %r is not a stack location atom." % atom)
+            raise TypeError(f"Atom {atom!r} is not a stack location atom.")
 
         for current_def in self.get_definitions(atom):
             self.add_stack_use_by_def(current_def, code_loc, expr=expr)
@@ -937,7 +925,7 @@ class LiveDefinitions:
 
     def add_heap_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if not isinstance(atom.addr, HeapAddress):
-            raise TypeError("Atom %r is not a heap location atom." % atom)
+            raise TypeError(f"Atom {atom!r} is not a heap location atom.")
 
         current_defs = self.get_definitions(atom)
 
@@ -974,7 +962,7 @@ class LiveDefinitions:
 
     def add_tmp_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
         if not isinstance(def_.atom, Tmp):
-            raise TypeError("Atom %r is not a Tmp atom." % def_.atom)
+            raise TypeError(f"Atom {def_.atom!r} is not a Tmp atom.")
 
         self.tmp_uses[def_.atom.tmp_idx].add(code_loc)
         self.uses_by_codeloc[code_loc].add(def_)
@@ -1063,7 +1051,7 @@ class LiveDefinitions:
         if "heap_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
-            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+            if addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
                 return addr.args[1].concrete_value
         return None
 

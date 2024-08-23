@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -25,11 +26,14 @@ class DefaultFillerMixin(MemoryMixin):
 
         bits = size * self.state.arch.byte_width
 
-        if type(addr) is int:
-            if self.category == "mem" and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
-                return claripy.BVV(0, bits)
-            elif self.category == "reg" and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
-                return claripy.BVV(0, bits)
+        if (
+            type(addr) is int
+            and self.category == "mem"
+            and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options
+            or self.category == "reg"
+            and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options
+        ):
+            return claripy.BVV(0, bits)
 
         if self.category == "reg" and type(addr) is int and addr == self.state.arch.ip_offset:
             # short-circuit this pathological case
@@ -101,14 +105,9 @@ class DefaultFillerMixin(MemoryMixin):
                     name = "reg_" + reg_str
 
         if name is None:
-            if type(addr) is int:
-                name = f"{self.id}_{addr:x}"
-            else:
-                name = self.category
+            name = f"{self.id}_{addr:x}" if type(addr) is int else self.category
 
-        r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
-
-        return r
+        return self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events)
 
 
 class SpecialFillerMixin(MemoryMixin):
@@ -139,8 +138,7 @@ class ExplicitFillerMixin(MemoryMixin):
     def _default_value(self, addr, size, inspect=True, events=True, **kwargs):
         if self._uninitialized_read_handler is not None:
             return self._uninitialized_read_handler(addr, size, inspect=inspect, events=events)
-        else:
-            return super()._default_value(addr, size, inspect=inspect, events=events, **kwargs)
+        return super()._default_value(addr, size, inspect=inspect, events=events, **kwargs)
 
     def copy(self, memo):
         o = super().copy(memo)

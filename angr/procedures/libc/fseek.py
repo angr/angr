@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
@@ -14,8 +15,8 @@ class fseek(angr.SimProcedure):
         # Make sure whence can only be one of the three values: SEEK_SET(0), SEEK_CUR(1), and SEEK_END(2)
         try:
             whence = self.state.solver.eval_one(whence)
-        except SimSolverError:
-            raise angr.SimProcedureError('multi-valued "whence" is not supported in fseek.')
+        except SimSolverError as err:
+            raise angr.SimProcedureError('multi-valued "whence" is not supported in fseek.') from err
 
         try:
             whence = {0: "start", 1: "current", 2: "end"}[whence]

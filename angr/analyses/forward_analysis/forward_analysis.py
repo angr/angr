@@ -1,5 +1,6 @@
+from __future__ import annotations
 from collections import defaultdict
-from typing import Any, Optional, Generic, TypeVar, TYPE_CHECKING
+from typing import Any, Generic, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
 import networkx
@@ -42,8 +43,8 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         order_jobs=False,
         allow_merging=False,
         allow_widening=False,
-        status_callback: Callable[[type["ForwardAnalysis"]], Any] | None = None,
-        graph_visitor: "Optional[GraphVisitor[NodeType]]" = None,
+        status_callback: Callable[[type[ForwardAnalysis]], Any] | None = None,
+        graph_visitor: GraphVisitor[NodeType] | None = None,
     ):
         """
         Constructor
@@ -506,7 +507,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         if pos < len(self._job_info_queue):
             return self._job_info_queue[pos].job
 
-        raise IndexError()
+        raise IndexError
 
     def _remove_job(self, predicate: Callable) -> None:
         """
@@ -515,10 +516,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         :param predicate:   A method that determines if a job should be removed or not.
         """
 
-        to_remove = []
-        for job_info in self._job_info_queue:
-            if predicate(job_info.job):
-                to_remove.append(job_info)
+        to_remove = [job_info for job_info in self._job_info_queue if predicate(job_info.job)]
 
         for job_info in to_remove:
             self._job_info_queue.remove(job_info)

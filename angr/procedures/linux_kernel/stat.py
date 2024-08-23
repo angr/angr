@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 from ...storage.file import Flags

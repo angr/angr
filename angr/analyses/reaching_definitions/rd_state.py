@@ -1,4 +1,5 @@
-from typing import Optional, Any, TYPE_CHECKING, overload
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING, overload
 from collections.abc import Iterable, Iterator
 import logging
 
@@ -84,7 +85,7 @@ class ReachingDefinitionsState:
         subject: Subject,
         track_tmps: bool = False,
         track_consts: bool = False,
-        analysis: Optional["ReachingDefinitionsAnalysis"] = None,
+        analysis: ReachingDefinitionsAnalysis | None = None,
         rtoc_value=None,
         live_definitions: LiveDefinitions | None = None,
         canonical_size: int = 8,
@@ -92,7 +93,7 @@ class ReachingDefinitionsState:
         environment: Environment = None,
         sp_adjusted: bool = False,
         all_definitions: set[Definition[A]] | None = None,
-        initializer: Optional["RDAStateInitializer"] = None,
+        initializer: RDAStateInitializer | None = None,
         element_limit: int = 5,
         merge_into_tops: bool = True,
     ):
@@ -179,10 +180,9 @@ class ReachingDefinitionsState:
     def _initial_stack_pointer(self):
         if self.arch.bits == 32:
             return claripy.BVS("stack_base", 32, explicit_name=True)
-        elif self.arch.bits == 64:
+        if self.arch.bits == 64:
             return claripy.BVS("stack_base", 64, explicit_name=True)
-        else:
-            raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+        raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
 
     def _to_signed(self, n):
         if n >= 2 ** (self.arch.bits - 1):
@@ -276,8 +276,8 @@ class ReachingDefinitionsState:
         return self.analysis.dep_graph
 
     def __repr__(self):
-        ctnt = "RDState-%r" % (self.live_definitions)
-        return "{%s}" % ctnt
+        ctnt = f"RDState-{self.live_definitions!r}"
+        return f"{{{ctnt}}}"
 
     def _set_initialization_values(
         self,
@@ -306,8 +306,8 @@ class ReachingDefinitionsState:
 
         return self
 
-    def copy(self, discard_tmpdefs=False) -> "ReachingDefinitionsState":
-        rd = ReachingDefinitionsState(
+    def copy(self, discard_tmpdefs=False) -> ReachingDefinitionsState:
+        return ReachingDefinitionsState(
             self.codeloc,
             self.arch,
             self._subject,
@@ -323,18 +323,16 @@ class ReachingDefinitionsState:
             element_limit=self._element_limit,
         )
 
-        return rd
-
-    def merge(self, *others) -> tuple["ReachingDefinitionsState", bool]:
+    def merge(self, *others) -> tuple[ReachingDefinitionsState, bool]:
         state = self.copy()
-        others: Iterable["ReachingDefinitionsState"]
+        others: Iterable[ReachingDefinitionsState]
 
         state.live_definitions, merged_0 = state.live_definitions.merge(*[other.live_definitions for other in others])
         state._environment, merged_1 = state.environment.merge(*[other.environment for other in others])
 
         return state, merged_0 or merged_1
 
-    def compare(self, other: "ReachingDefinitionsState") -> bool:
+    def compare(self, other: ReachingDefinitionsState) -> bool:
         r0 = self.live_definitions.compare(other.live_definitions)
         r1 = self.environment.compare(other.environment)
 
@@ -362,7 +360,7 @@ class ReachingDefinitionsState:
         atom: Atom,
         data: MultiValues,
         dummy=False,
-        tags: set[Tag] = None,
+        tags: set[Tag] | None = None,
         endness=None,  # XXX destroy
         annotated: bool = False,
         uses: set[Definition[A]] | None = None,

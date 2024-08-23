@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -16,8 +17,7 @@ class StringConcat(JavaSimProcedure):
         log.debug(f"Called SimProcedure java.string.concat with args: {str_1_ref} {str_2_ref}")
         str_1 = self.state.memory.load(str_1_ref)
         str_2 = self.state.memory.load(str_2_ref)
-        result = claripy.StrConcat(str_1, str_2)
-        return result
+        return claripy.StrConcat(str_1, str_2)
 
 
 class StringEquals(JavaSimProcedure):

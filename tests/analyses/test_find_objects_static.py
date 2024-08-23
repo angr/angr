@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
@@ -19,10 +21,7 @@ class TestFindObjectsStatic(unittest.TestCase):
         object_identifier_analysis = p.analyses.StaticObjectFinder()
         possible_objects_dict = object_identifier_analysis.possible_objects
         possible_constructors = object_identifier_analysis.possible_constructors
-        class_labels = []
-
-        for possible_object in possible_objects_dict.values():
-            class_labels.append(possible_object.class_name)
+        class_labels = [possible_object.class_name for possible_object in possible_objects_dict.values()]
 
         assert "C" in class_labels
         assert len(possible_objects_dict) == 2

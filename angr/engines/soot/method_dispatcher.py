@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import SootMethodDescriptor
@@ -25,10 +26,7 @@ def resolve_method(
     :rtype: archinfo.arch_soot.SootMethodDescriptor
     """
     base_class = state.javavm_classloader.get_class(class_name)
-    if include_superclasses:
-        class_hierarchy = state.javavm_classloader.get_class_hierarchy(base_class)
-    else:
-        class_hierarchy = [base_class]
+    class_hierarchy = state.javavm_classloader.get_class_hierarchy(base_class) if include_superclasses else [base_class]
     # walk up in class hierarchy, until method is found
     for class_descriptor in class_hierarchy:
         java_binary = state.project.loader.main_object
@@ -44,6 +42,5 @@ def resolve_method(
     # => fallback: continue with infos available from the invocation, so we
     #              still can use SimProcedures
     if raise_exception_if_not_found:
-        raise SootMethodNotLoadedException()
-    else:
-        return SootMethodDescriptor(class_name, method_name, params, ret_type=ret_type)
+        raise SootMethodNotLoadedException
+    return SootMethodDescriptor(class_name, method_name, params, ret_type=ret_type)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 
 import claripy
@@ -191,10 +192,9 @@ def concretize_prem(state, args):
         quotient = math.floor((dividend / divisor) / pow(2, exp_dividend - exp_divisor - N))
         result = dividend - (divisor * quotient * pow(2, exp_dividend - exp_divisor - N))
 
-    if result == 0.0:
-        if math.copysign(1.0, dividend) < 0:
-            # According to Intel manual, if result is 0, its sign should be same as that of dividend.
-            return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
+    if result == 0.0 and math.copysign(1.0, dividend) < 0:
+        # According to Intel manual, if result is 0, its sign should be same as that of dividend.
+        return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
 
     return state.solver.FPV(result, claripy.FSORT_DOUBLE)
 
@@ -335,12 +335,11 @@ def concretize_yl2x(state, args):
     if arg_x == 0:
         if abs(arg_y) == math.inf:
             return state.solver.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
-        elif arg_y == 0:
+        if arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
             return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
-        else:
-            # TODO: Indicate floating-point zero-division exception
-            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+        # TODO: Indicate floating-point zero-division exception
+        return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
     if arg_x == 1:
         if abs(arg_y) == math.inf:

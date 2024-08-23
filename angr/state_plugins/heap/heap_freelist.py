@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import SimHeapLibc
 from .utils import concretize
 from ...errors import SimHeapError
@@ -106,8 +107,7 @@ class Chunk:
     def _compare(self, other, comparison):
         if self.state is other.state:
             return comparison
-        else:
-            raise SimHeapError("Chunks must originate from the same simulation state to be compared!")
+        raise SimHeapError("Chunks must originate from the same simulation state to be compared!")
 
     def __lt__(self, other):
         """

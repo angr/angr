@@ -1,3 +1,4 @@
+from __future__ import annotations
 import functools
 import itertools
 import contextlib
@@ -26,8 +27,7 @@ def arch_overrideable(f):
         if hasattr(self.arch, f.__name__):
             arch_f = getattr(self.arch, f.__name__)
             return arch_f(self, *args, **kwargs)
-        else:
-            return f(self, *args, **kwargs)
+        return f(self, *args, **kwargs)
 
     return wrapped_f
 
@@ -63,17 +63,17 @@ class SimState(PluginHub):
     """
 
     # Type Annotations for default plugins to allow type inference
-    solver: "SimSolver"
-    posix: "SimSystemPosix"
-    registers: "DefaultMemory"
-    regs: "SimRegNameView"
-    memory: "DefaultMemory"
-    callstack: "CallStack"
-    mem: "SimMemView"
-    history: "SimStateHistory"
-    inspect: "SimInspector"
-    jni_references: "SimStateJNIReferences"
-    scratch: "SimStateScratch"
+    solver: SimSolver
+    posix: SimSystemPosix
+    registers: DefaultMemory
+    regs: SimRegNameView
+    memory: DefaultMemory
+    callstack: CallStack
+    mem: SimMemView
+    history: SimStateHistory
+    inspect: SimInspector
+    jni_references: SimStateJNIReferences
+    scratch: SimStateScratch
 
     def __init__(
         self,
@@ -260,7 +260,7 @@ class SimState(PluginHub):
     def __getstate__(self):
         # Don't pickle attributes for plugins. These will be pickled
         # through self._active_plugins.
-        s = {k: v for k, v in self.__dict__.items() if k not in self._active_plugins.keys()}
+        s = {k: v for k, v in self.__dict__.items() if k not in self._active_plugins}
         s["_active_plugins"] = {k: v for k, v in s["_active_plugins"].items() if k not in ("inspect", "regs", "mem")}
         return s
 
@@ -280,14 +280,11 @@ class SimState(PluginHub):
     def __repr__(self):
         try:
             addr = self.addr
-            if type(addr) is int:
-                ip_str = "%#x" % addr
-            else:
-                ip_str = repr(addr)
+            ip_str = f"{addr:#x}" if type(addr) is int else repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
-        return "<SimState @ %s>" % ip_str
+        return f"<SimState @ {ip_str}>"
 
     def __setattr__(self, key, value):
         if key == "options":
@@ -303,7 +300,7 @@ class SimState(PluginHub):
         elif isinstance(v, SimStateOptions):
             super().__setattr__("options", v)
         else:
-            raise SimStateError("Unsupported type '%s' in SimState.options.setter()." % type(v))
+            raise SimStateError(f"Unsupported type '{type(v)}' in SimState.options.setter().")
 
     #
     # Easier access to some properties
@@ -382,8 +379,7 @@ class SimState(PluginHub):
     def arch(self) -> Arch:
         if self._is_java_jni_project:
             return self._arch["soot"] if self.ip_is_soot_addr else self._arch["vex"]
-        else:
-            return self._arch
+        return self._arch
 
     @arch.setter
     def arch(self, v):
@@ -400,9 +396,8 @@ class SimState(PluginHub):
     T = TypeVar("T")
 
     def _inspect_getattr(self, attr: str, default_value: T):
-        if self.supports_inspect:
-            if hasattr(self.inspect, attr):
-                return getattr(self.inspect, attr)
+        if self.supports_inspect and hasattr(self.inspect, attr):
+            return getattr(self.inspect, attr)
 
         return default_value
 
@@ -455,8 +450,7 @@ class SimState(PluginHub):
         """
         if self._is_java_jni_project:
             return self.get_plugin("memory_soot")
-        else:
-            return self.get_plugin("memory")
+        return self.get_plugin("memory")
 
     @property
     def javavm_registers(self):
@@ -468,8 +462,7 @@ class SimState(PluginHub):
         """
         if self._is_java_jni_project:
             return self.get_plugin("registers_soot")
-        else:
-            return self.get_plugin("registers")
+        return self.get_plugin("registers")
 
     #
     # Constraint pass-throughs
@@ -491,10 +484,7 @@ class SimState(PluginHub):
             raise Exception("Tuple or list passed to add_constraints!")
 
         if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
-            if o.SIMPLIFY_CONSTRAINTS in self.options:
-                constraints = [self.simplify(a) for a in args]
-            else:
-                constraints = args
+            constraints = [self.simplify(a) for a in args] if o.SIMPLIFY_CONSTRAINTS in self.options else args
 
             self._inspect("constraints", BP_BEFORE, added_constraints=constraints)
             constraints = self._inspect_getattr("added_constraints", constraints)
@@ -580,8 +570,7 @@ class SimState(PluginHub):
                     return False
 
             return self._satisfiable
-        else:
-            return self.solver.satisfiable(**kwargs)
+        return self.solver.satisfiable(**kwargs)
 
     def downsize(self):
         """
@@ -680,7 +669,7 @@ class SimState(PluginHub):
         common_ancestor_history = kwargs.pop("common_ancestor_history", None)
 
         if len(kwargs) != 0:
-            raise ValueError("invalid arguments: %s" % kwargs.keys())
+            raise ValueError(f"invalid arguments: {kwargs.keys()}")
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
@@ -709,8 +698,8 @@ class SimState(PluginHub):
 
         # plugins
         for p in all_plugins:
-            our_plugin = merged.plugins[p] if p in merged.plugins else None
-            their_plugins = [(pl.plugins[p] if p in pl.plugins else None) for pl in others]
+            our_plugin = merged.plugins.get(p, None)
+            their_plugins = [(pl.plugins.get(p, None)) for pl in others]
 
             plugin_classes = ({our_plugin.__class__} | {pl.__class__ for pl in their_plugins}) - {None.__class__}
             if len(plugin_classes) != 1:
@@ -861,7 +850,7 @@ class SimState(PluginHub):
         strings = []
         for stack_value in stack_values:
             if self.solver.symbolic(stack_value):
-                concretized_value = "SYMBOLIC - %s" % repr(stack_value)
+                concretized_value = f"SYMBOLIC - {stack_value!r}"
             else:
                 if len(self.solver.eval_upto(stack_value, 2)) == 2:
                     concretized_value = repr(stack_value)
@@ -888,7 +877,7 @@ class SimState(PluginHub):
         else:
             sp_value = sp if sp is not None else self.solver.eval(sp_sim)
             if self.solver.symbolic(bp_sim):
-                result = "SP = 0x%08x, BP is symbolic\n" % (sp_value)
+                result = f"SP = 0x{sp_value:08x}, BP is symbolic\n"
                 bp_value = None
             else:
                 bp_value = self.solver.eval(bp_sim)
@@ -945,9 +934,8 @@ class SimState(PluginHub):
             new_state.add_constraints(new_state.regs.ip % 2 == 1, new_state.regs.ip % 2 != 0)
             return new_state.satisfiable()
 
-        else:
-            concrete_ip = self.solver.eval(self.regs.ip)
-            return concrete_ip % 2 == 1
+        concrete_ip = self.solver.eval(self.regs.ip)
+        return concrete_ip % 2 == 1
 
     #
     # Some pretty fancy global condition stuff!
@@ -970,18 +958,16 @@ class SimState(PluginHub):
     def _adjust_condition(self, c):
         if self._global_condition is None:
             return c
-        elif c is None:
+        if c is None:
             return self._global_condition
-        else:
-            return claripy.And(self._global_condition, c)
+        return claripy.And(self._global_condition, c)
 
     def _adjust_condition_list(self, conditions):
         if self._global_condition is None:
             return conditions
-        elif len(conditions) == 0:
+        if len(conditions) == 0:
             return conditions.__class__((self._global_condition,))
-        else:
-            return conditions.__class__((self._adjust_condition(claripy.And(*conditions)),))
+        return conditions.__class__((self._adjust_condition(claripy.And(*conditions)),))
 
 
 default_state_plugin_preset = PluginPreset()

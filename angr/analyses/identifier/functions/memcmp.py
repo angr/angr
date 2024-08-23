@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 
 from ..func import Func, TestData
@@ -63,7 +64,4 @@ class memcmp(Func):
 
         outval2 = s.solver.eval(s.regs.eax)
 
-        if outval1 != 0 or outval2 == 0:
-            return False
-
-        return True
+        return not (outval1 != 0 or outval2 == 0)

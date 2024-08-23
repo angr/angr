@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import SimSyscallLibrary
 from .. import SIM_PROCEDURES as P
 

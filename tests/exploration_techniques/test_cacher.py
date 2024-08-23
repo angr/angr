@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
 import tempfile
@@ -23,7 +25,7 @@ class TestCacher(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), load_options={"auto_load_libs": False})
 
         tmp_dir = tempfile.mkdtemp(prefix="test_cacher_container")
-        container = os.path.join(tmp_dir, "%s.cache" % os.path.basename(p.filename))
+        container = os.path.join(tmp_dir, f"{os.path.basename(p.filename)}.cache")
 
         pg = p.factory.simulation_manager()
         pg.use_technique(angr.exploration_techniques.Cacher(when=0x4006EE, container=container))

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import networkx
@@ -68,8 +69,7 @@ class CDG(Analysis):
         """
         if run in self._graph.nodes():
             return list(self._graph.successors(run))
-        else:
-            return []
+        return []
 
     def get_guardians(self, run):
         """
@@ -77,8 +77,7 @@ class CDG(Analysis):
         """
         if run in self._graph.nodes():
             return list(self._graph.predecessors(run))
-        else:
-            return []
+        return []
 
     #
     # Private methods
@@ -163,14 +162,8 @@ class CDG(Analysis):
 
     @staticmethod
     def _pd_graph_successors(graph, node):
-        if type(node) is TemporaryNode:
-            # This is for testing
-            successors = graph.graph.successors(node)
-        else:
-            # Real CFGNode!
-            successors = graph.model.get_successors(node)
-
-        return successors
+        # The true condition is for testing
+        return graph.graph.successors(node) if type(node) is TemporaryNode else graph.model.get_successors(node)
 
     def _pd_post_process(self, cfg):
         """

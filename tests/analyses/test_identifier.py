@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import logging
@@ -20,9 +22,7 @@ class TestIdentifier(unittest.TestCase):
         p = angr.Project(os.path.join(bin_location, "tests", "i386", "identifiable"))
         idfer = p.analyses.Identifier(require_predecessors=False)
 
-        seen = {}
-        for addr, symbol in idfer.run():
-            seen[addr] = symbol
+        seen = dict(idfer.run())
 
         for addr, symbol in true_symbols.items():
             assert symbol == seen[addr]

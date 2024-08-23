@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Literal, TYPE_CHECKING
 import logging
 from collections import defaultdict
@@ -70,7 +71,7 @@ class VariableManagerInternal(Serializable):
     """
 
     def __init__(self, manager, func_addr=None):
-        self.manager: "VariableManager" = manager
+        self.manager: VariableManager = manager
 
         self.func_addr = func_addr
 
@@ -154,7 +155,7 @@ class VariableManagerInternal(Serializable):
         d["types"].kb = None
         return d
 
-    def set_manager(self, manager: "VariableManager"):
+    def set_manager(self, manager: VariableManager):
         self.manager = manager
         self.types.kb = manager._kb
 
@@ -180,7 +181,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
         for variable in self._phi_variables:
             vc = variable.serialize_to_cmessage()
             vc.base.is_phi = True
@@ -191,18 +192,16 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         cmsg.regvars.extend(register_variables)
         cmsg.stackvars.extend(stack_variables)
         cmsg.memvars.extend(memory_variables)
 
         # accesses
-        accesses = []
-        for variable_accesses in self._variable_accesses.values():
-            for variable_access in variable_accesses:
-                accesses.append(variable_access.serialize_to_cmessage())
-        cmsg.accesses.extend(accesses)
+        cmsg.extend(
+            variable_access.serialize_to_cmessage() for variable_access in chain(*self._variable_accesses.values())
+        )
 
         # unified variables
         unified_register_variables = []
@@ -219,7 +218,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimMemoryVariable):
                 unified_memory_variables.append(variable.serialize_to_cmessage())
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         cmsg.unified_regvars.extend(unified_register_variables)
         cmsg.unified_stackvars.extend(unified_stack_variables)
@@ -261,20 +260,17 @@ class VariableManagerInternal(Serializable):
     @classmethod
     def parse_from_cmessage(
         cls, cmsg, variable_manager=None, func_addr=None, **kwargs
-    ) -> "VariableManagerInternal":  # pylint:disable=arguments-differ
+    ) -> VariableManagerInternal:  # pylint:disable=arguments-differ
         model = VariableManagerInternal(variable_manager, func_addr=func_addr)
 
         variable_by_ident = {}
 
         # variables
-        all_vars = []
+        all_vars = [
+            (var.base.is_phi, SimVariable.parse_from_cmessage(var))
+            for var in chain(cmsg.regvars, cmsg.stackvars, cmsg.memvars)
+        ]
 
-        for regvar_pb2 in cmsg.regvars:
-            all_vars.append((regvar_pb2.base.is_phi, SimRegisterVariable.parse_from_cmessage(regvar_pb2)))
-        for stackvar_pb2 in cmsg.stackvars:
-            all_vars.append((stackvar_pb2.base.is_phi, SimStackVariable.parse_from_cmessage(stackvar_pb2)))
-        for memvar_pb2 in cmsg.memvars:
-            all_vars.append((memvar_pb2.base.is_phi, SimMemoryVariable.parse_from_cmessage(memvar_pb2)))
         for is_phi, var in all_vars:
             variable_by_ident[var.ident] = var
             if is_phi:
@@ -358,7 +354,7 @@ class VariableManagerInternal(Serializable):
                 region = model._global_region
                 offset = var.addr
             else:
-                raise ValueError("Unsupported sort %s in parse_from_cmessage()." % type(var))
+                raise ValueError(f"Unsupported sort {type(var)} in parse_from_cmessage().")
 
             region.add_variable(offset, var)
 
@@ -372,7 +368,7 @@ class VariableManagerInternal(Serializable):
 
     def next_variable_ident(self, sort):
         if sort not in self._variable_counters:
-            raise ValueError("Unsupported variable sort %s" % sort)
+            raise ValueError(f"Unsupported variable sort {sort}")
 
         if sort == "register":
             prefix = "r"
@@ -385,8 +381,7 @@ class VariableManagerInternal(Serializable):
         else:
             prefix = "m"
 
-        ident = "i%s_%d" % (prefix, next(self._variable_counters[sort]))
-        return ident
+        return "i%s_%d" % (prefix, next(self._variable_counters[sort]))
 
     def add_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
@@ -396,7 +391,7 @@ class VariableManagerInternal(Serializable):
         elif sort == "global":
             region = self._global_region
         else:
-            raise ValueError("Unsupported sort %s in add_variable()." % sort)
+            raise ValueError(f"Unsupported sort {sort} in add_variable().")
 
         # find if there is already an existing variable with the same identifier
         if variable.ident in self._ident_to_variable:
@@ -417,7 +412,7 @@ class VariableManagerInternal(Serializable):
         elif sort == "global":
             region = self._global_region
         else:
-            raise ValueError("Unsupported sort %s in set_variable()." % sort)
+            raise ValueError(f"Unsupported sort {sort} in set_variable().")
         # find if there is already an existing variable with the same identifier
         if variable.ident in self._ident_to_variable:
             existing_var = self._ident_to_variable[variable.ident]
@@ -448,7 +443,7 @@ class VariableManagerInternal(Serializable):
         sort: int,
         variable,
         offset,
-        location: "CodeLocation",
+        location: CodeLocation,
         overwrite=False,
         atom=None,
     ):
@@ -461,7 +456,7 @@ class VariableManagerInternal(Serializable):
         if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
             self._variables_without_writes.discard(variable)
 
-    def record_variable(self, location: "CodeLocation", variable, offset, overwrite=False, atom=None):
+    def record_variable(self, location: CodeLocation, variable, offset, overwrite=False, atom=None):
         if variable.ident not in self._ident_to_variable:
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
@@ -485,7 +480,7 @@ class VariableManagerInternal(Serializable):
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash].add(var_and_offset)
 
-    def remove_variable_by_atom(self, location: "CodeLocation", variable: SimVariable, atom):
+    def remove_variable_by_atom(self, location: CodeLocation, variable: SimVariable, atom):
         key = (
             (location.block_addr, location.stmt_idx)
             if location.block_idx is None
@@ -552,7 +547,7 @@ class VariableManagerInternal(Serializable):
             ident_sort = "stack"
             a = SimStackVariable(repre.offset, repre_size, ident=self.next_variable_ident(ident_sort))
         else:
-            raise TypeError('make_phi_node(): Unsupported variable type "%s".' % type(repre))
+            raise TypeError(f'make_phi_node(): Unsupported variable type "{type(repre)}".')
 
         # Keep a record of all phi variables
         self._phi_variables[a] = set(variables)
@@ -607,15 +602,15 @@ class VariableManagerInternal(Serializable):
             return []
 
         if sort == "memory":
-            var_and_offsets = list(
+            var_and_offsets = [
                 (var, offset)
                 for var, offset in self._stmt_to_variable[key]
                 if isinstance(var, (SimStackVariable, SimMemoryVariable))
-            )
+            ]
         elif sort == "register":
-            var_and_offsets = list(
+            var_and_offsets = [
                 (var, offset) for var, offset in self._stmt_to_variable[key] if isinstance(var, SimRegisterVariable)
-            )
+            ]
         else:
             l.error('find_variables_by_stmt(): Unsupported variable sort "%s".', sort)
             return []
@@ -628,10 +623,7 @@ class VariableManagerInternal(Serializable):
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom, block_idx: int | None = None
     ) -> set[tuple[SimVariable, int]]:
-        if block_idx is None:
-            key = block_addr, stmt_idx
-        else:
-            key = block_addr, block_idx, stmt_idx
+        key = (block_addr, stmt_idx) if block_idx is None else (block_addr, block_idx, stmt_idx)
 
         if key not in self._atom_to_variable:
             return set()
@@ -652,24 +644,11 @@ class VariableManagerInternal(Serializable):
 
     def get_variable_accesses(self, variable: SimVariable, same_name: bool = False) -> list[VariableAccess]:
         if not same_name:
-            if variable in self._variable_accesses:
-                return list(self._variable_accesses[variable])
-
-            return []
+            return list(self._variable_accesses.get(variable, []))
 
         # find all variables with the same variable name
-
-        vars_list = []
-
-        for var in self._variable_accesses.keys():
-            if variable.name == var.name:
-                vars_list.append(var)
-
-        accesses = []
-        for var in vars_list:
-            accesses.extend(self.get_variable_accesses(var))
-
-        return accesses
+        vars_list = [var for var in self._variables if var.name == variable.name]
+        return [self.get_variable_accesses(var for var in chain(*vars_list))]
 
     def get_variables(
         self, sort: Literal["stack", "reg"] | None = None, collapse_same_ident=False
@@ -682,19 +661,15 @@ class VariableManagerInternal(Serializable):
         :return:                    A list of variables.
         """
 
-        variables = []
-
         if collapse_same_ident:
-            raise NotImplementedError()
+            raise NotImplementedError
 
-        for var in self._variables:
-            if sort == "stack" and not isinstance(var, SimStackVariable):
-                continue
-            if sort == "reg" and not isinstance(var, SimRegisterVariable):
-                continue
-            variables.append(var)
-
-        return variables
+        return [
+            var
+            for var in self._variables
+            if (sort == "stack" and isinstance(var, SimStackVariable))
+            or (sort == "reg" and isinstance(var, SimRegisterVariable))
+        ]
 
     def get_unified_variables(
         self, sort: Literal["stack", "reg"] | None = None
@@ -706,16 +681,12 @@ class VariableManagerInternal(Serializable):
         :return:        A list of variables.
         """
 
-        variables = []
-
-        for var in self._unified_variables:
-            if sort == "stack" and not isinstance(var, SimStackVariable):
-                continue
-            if sort == "reg" and not isinstance(var, SimRegisterVariable):
-                continue
-            variables.append(var)
-
-        return variables
+        return [
+            var
+            for var in self._unified_variables
+            if (sort == "stack" and isinstance(var, SimStackVariable))
+            or (sort == "reg" and isinstance(var, SimRegisterVariable))
+        ]
 
     def get_global_variables(self, addr):
         """
@@ -759,12 +730,11 @@ class VariableManagerInternal(Serializable):
         :rtype:                 dict
         """
 
-        if block_addr not in self._phi_variables_by_block:
-            return {}
-        variables = {}
-        for phi in self._phi_variables_by_block[block_addr]:
-            variables[phi] = self._phi_variables[phi]
-        return variables
+        return (
+            {phi: self._phi_variables[phi] for phi in self._phi_variables_by_block[block_addr]}
+            if block_addr in self._phi_variables_by_block
+            else {}
+        )
 
     def get_variables_without_writes(self) -> list[SimVariable]:
         """
@@ -776,16 +746,11 @@ class VariableManagerInternal(Serializable):
         def has_write_access(accesses):
             return any(acc for acc in accesses if acc.access_type == VariableAccessSort.WRITE)
 
-        input_variables = []
-
-        for variable, accesses in self._variable_accesses.items():
-            if variable in self._phi_variables:
-                # a phi variable is definitely not an input variable
-                continue
-            if not has_write_access(accesses):
-                input_variables.append(variable)
-
-        return input_variables
+        return [
+            variable
+            for variable, accesses in self._variable_accesses.items()
+            if not (variable in self._phi_variables or has_write_access(accesses))
+        ]
 
     def input_variables(self, exclude_specials: bool = True):
         """
@@ -805,9 +770,8 @@ class VariableManagerInternal(Serializable):
                 continue
             if variable in self._variable_accesses:
                 accesses = self._variable_accesses[variable]
-                if has_read_access(accesses):
-                    if not exclude_specials or not variable.category:
-                        input_variables.append(variable)
+                if has_read_access(accesses) and (not exclude_specials or not variable.category):
+                    input_variables.append(variable)
 
         return input_variables
 
@@ -824,7 +788,7 @@ class VariableManagerInternal(Serializable):
                 if var.name is not None:
                     continue
                 if var.ident.startswith("iarg"):
-                    var.name = "arg_%x" % var.offset
+                    var.name = f"arg_{var.offset:x}"
                 else:
                     var.name = "s_%x" % (-var.offset)
                     # var.name = var.ident
@@ -840,11 +804,11 @@ class VariableManagerInternal(Serializable):
                     if "@@" in var.name:
                         var.name = var.name[: var.name.index("@@")]
                 elif isinstance(var.addr, int):
-                    var.name = "g_%x" % var.addr
+                    var.name = f"g_{var.addr:x}"
                 elif var.ident is not None:
                     var.name = var.ident
                 else:
-                    var.name = "g_%s" % var.addr
+                    var.name = f"g_{var.addr}"
 
     def assign_unified_variable_names(
         self, labels=None, arg_names: list[str] | None = None, reset: bool = False
@@ -903,9 +867,7 @@ class VariableManagerInternal(Serializable):
             idx = next(var_ctr)
             if var.name is not None and not reset:
                 continue
-            if isinstance(var, SimStackVariable):
-                var.name = f"v{idx}"
-            elif isinstance(var, SimRegisterVariable):
+            if isinstance(var, (SimStackVariable, SimRegisterVariable)):
                 var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None
@@ -940,17 +902,16 @@ class VariableManagerInternal(Serializable):
         all_unified: bool = False,
         mark_manual: bool = False,
     ) -> None:
-        if isinstance(ty, SimTypeBottom) and override_bot:
-            # we fall back to assigning a default unsigned integer type for the variable
-            if var.size is not None:
-                size_to_type = {
-                    1: SimTypeChar,
-                    2: SimTypeShort,
-                    4: SimTypeInt,
-                    8: SimTypeLong,
-                }
-                if var.size in size_to_type:
-                    ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
+        # we fall back to assigning a default unsigned integer type for the variable
+        if isinstance(ty, SimTypeBottom) and override_bot and var.size is not None:
+            size_to_type = {
+                1: SimTypeChar,
+                2: SimTypeShort,
+                4: SimTypeInt,
+                8: SimTypeLong,
+            }
+            if var.size in size_to_type:
+                ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
 
         if name:
             if name not in self.types:
@@ -1017,7 +978,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(v, SimRegisterVariable):
                 reg_vars.add(v)
 
-        for _, vs in stack_vars.items():
+        for vs in stack_vars.values():
             unified = vs[0].copy()
             for v in vs:
                 self.set_unified_variable(v, unified)
@@ -1051,7 +1012,7 @@ class VariableManagerInternal(Serializable):
             if len(nodes) <= 1:
                 continue
             # side effect of sorting: arg_x variables are always in the front of the list
-            nodes = list(sorted(nodes, key=lambda x: x.ident))
+            nodes = sorted(nodes, key=lambda x: x.ident)
             unified = nodes[0].copy()
             for v in nodes:
                 self.set_unified_variable(v, unified)
@@ -1117,9 +1078,8 @@ class VariableManager(KnowledgeBasePlugin):
         if key == "global":  # pylint:disable=no-else-return
             return self.global_manager
 
-        else:
-            # key refers to a function address
-            return self.get_function_manager(key)
+        # key refers to a function address
+        return self.get_function_manager(key)
 
     def __delitem__(self, key) -> None:
         """
@@ -1167,7 +1127,7 @@ class VariableManager(KnowledgeBasePlugin):
         if variable.region == "global":
             return self.global_manager.get_variable_accesses(variable, same_name=same_name)
 
-        elif variable.region in self.function_managers:
+        if variable.region in self.function_managers:
             return self.function_managers[variable.region].get_variable_accesses(variable, same_name=same_name)
 
         l.warning("get_variable_accesses(): Region %s is not found.", variable.region)
@@ -1195,7 +1155,7 @@ class VariableManager(KnowledgeBasePlugin):
             simv.name = v.name
             manager.add_variable(v.sort, v.addr, simv)
 
-    def load_from_dwarf(self, cu_list: list[CompilationUnit] = None):
+    def load_from_dwarf(self, cu_list: list[CompilationUnit] | None = None):
         cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
         if cu_list is None:
             l.warning("no CompilationUnit found")

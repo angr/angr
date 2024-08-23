@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import SimConcretizationStrategy
 
 
@@ -14,5 +15,4 @@ class SimConcretizationStrategyEval(SimConcretizationStrategy):
         self._limit = limit
 
     def _concretize(self, memory, addr, **kwargs):
-        addrs = self._eval(memory, addr, self._limit, **kwargs)
-        return addrs
+        return self._eval(memory, addr, self._limit, **kwargs)

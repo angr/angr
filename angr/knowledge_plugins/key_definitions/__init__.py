@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .rd_model import ReachingDefinitionsModel
 from .key_definition_manager import KeyDefinitionManager
 from .live_definitions import LiveDefinitions, DerefSize

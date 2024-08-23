@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import logging
 import struct
@@ -94,11 +95,10 @@ class SimLinux(SimUserland):
 
             # TODO: what the hell is this
             _rtld_global_ro = self.project.loader.find_symbol("_rtld_global_ro")
-            if _rtld_global_ro is not None:
-                if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.pack_word(
-                        _rtld_global_ro.rebased_addr + 0x0D0, 2
-                    )  # cpu features: kind = amd
+            if _rtld_global_ro is not None and isinstance(self.project.arch, ArchAMD64):
+                self.project.loader.memory.pack_word(
+                    _rtld_global_ro.rebased_addr + 0x0D0, 2
+                )  # cpu features: kind = amd
 
             try:
                 tls_obj = self.project.loader.tls.new_thread()
@@ -150,37 +150,39 @@ class SimLinux(SimUserland):
 
         super().configure_project(syscall_abis)
 
-        if not self._is_core:
-            # Only set up ifunc resolution if we are using the ELF backend on AMD64
-            if isinstance(self.project.loader.main_object, MetaELF):
-                if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
-                    for binary in self.project.loader.all_objects:
-                        if not isinstance(binary, MetaELF):
+        # Only set up ifunc resolution if we are using the ELF backend on AMD64
+        if (
+            not self._is_core
+            and isinstance(self.project.loader.main_object, MetaELF)
+            and isinstance(self.project.arch, (ArchAMD64, ArchX86))
+        ):
+            for binary in self.project.loader.all_objects:
+                if not isinstance(binary, MetaELF):
+                    continue
+                for reloc in binary.relocs:
+                    if reloc.symbol is None or reloc.resolvedby is None:
+                        continue
+                    try:
+                        if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
                             continue
-                        for reloc in binary.relocs:
-                            if reloc.symbol is None or reloc.resolvedby is None:
-                                continue
-                            try:
-                                if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
-                                    continue
-                            except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
-                                continue
-                            gotaddr = reloc.rebased_addr
-                            gotvalue = self.project.loader.memory.unpack_word(gotaddr)
-                            if self.project.is_hooked(gotvalue):
-                                continue
-                            if self.project._eager_ifunc_resolution:
-                                # Resolve it!
-                                resolver = self.project.factory.callable(gotvalue, "void *x()", concrete_only=True)
-                                result = resolver().concrete_value
-                                self.project.loader.memory.pack_word(gotaddr, result)
-                            else:
-                                # Replace it with an ifunc-resolve simprocedure!
-                                proc = P["linux_loader"]["IFuncResolver"](
-                                    display_name="IFuncResolver." + reloc.symbol.name,
-                                    funcaddr=gotvalue,
-                                )
-                                self.project.hook(gotvalue, proc, replace=True)
+                    except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
+                        continue
+                    gotaddr = reloc.rebased_addr
+                    gotvalue = self.project.loader.memory.unpack_word(gotaddr)
+                    if self.project.is_hooked(gotvalue):
+                        continue
+                    if self.project._eager_ifunc_resolution:
+                        # Resolve it!
+                        resolver = self.project.factory.callable(gotvalue, "void *x()", concrete_only=True)
+                        result = resolver().concrete_value
+                        self.project.loader.memory.pack_word(gotaddr, result)
+                    else:
+                        # Replace it with an ifunc-resolve simprocedure!
+                        proc = P["linux_loader"]["IFuncResolver"](
+                            display_name="IFuncResolver." + reloc.symbol.name,
+                            funcaddr=gotvalue,
+                        )
+                        self.project.hook(gotvalue, proc, replace=True)
 
     def syscall_abi(self, state):
         if state.arch.name != "AMD64":
@@ -191,10 +193,9 @@ class SimLinux(SimUserland):
             jk = state.history.parent.jumpkind
         if jk == "Ijk_Sys_int128":
             return "i386"
-        elif jk == "Ijk_Sys_syscall":
+        if jk == "Ijk_Sys_syscall":
             return "amd64"
-        else:
-            raise AngrSyscallError("Unknown syscall jumpkind %s" % jk)
+        raise AngrSyscallError(f"Unknown syscall jumpkind {jk}")
 
     # pylint: disable=arguments-differ
     def state_blank(
@@ -240,26 +241,20 @@ class SimLinux(SimUserland):
             if isinstance(fs[name], claripy.Bits):
                 fs[name] = SimFile(name, content=fs[name])
             if not isinstance(fs[name], SimFileBase):
-                raise TypeError("Provided fs initializer with unusable type %r" % type(fs[name]))
+                raise TypeError(f"Provided fs initializer with unusable type {type(fs[name])!r}")
 
         mounts = {}
         if concrete_fs:
             if fs:
                 raise TypeError("Providing both fs and concrete_fs doesn't make sense")
-            if chroot is not None:
-                chroot = os.path.abspath(chroot)
-            else:
-                chroot = os.path.sep
+            chroot = os.path.abspath(chroot) if chroot is not None else os.path.sep
             mounts[pathsep] = SimHostFilesystem(chroot)
             if cwd is None:
                 cwd = os.getcwd()
 
                 if chroot != os.path.sep:
                     # try to translate the cwd into the chroot
-                    if cwd.startswith(chroot):
-                        cwd = cwd[len(chroot) :]
-                    else:
-                        cwd = os.path.sep
+                    cwd = cwd[len(chroot) :] if cwd.startswith(chroot) else os.path.sep
                 cwd = cwd.encode()
         else:
             if cwd is None:
@@ -305,7 +300,7 @@ class SimLinux(SimUserland):
         # Prepare the auxiliary vector and add it to the end of the string table
         # TODO: Actually construct a real auxiliary vector
         # current vector is an AT_RANDOM entry where the "random" value is 0xaec0aec0aec0...
-        aux = [(25, b"\xAE\xC0" * 8)]
+        aux = [(25, b"\xae\xc0" * 8)]
         for a, b in aux:
             table.add_pointer(a)
             if isinstance(b, bytes):
@@ -324,10 +319,7 @@ class SimLinux(SimUserland):
 
         # Put argc on stack and fix the stack pointer
         newsp = argv - state.arch.bytes
-        if len(argc) < state.arch.bits:
-            argc_bvv = claripy.ZeroExt(state.arch.bits - len(argc), argc)
-        else:
-            argc_bvv = argc
+        argc_bvv = claripy.ZeroExt(state.arch.bits - len(argc), argc) if len(argc) < state.arch.bits else argc
         state.memory.store(newsp, argc_bvv, endness=state.arch.memory_endness)
         state.regs.sp = newsp
 
@@ -355,11 +347,10 @@ class SimLinux(SimUserland):
                 byte = state.mem[progname_cur].byte.resolved
                 if byte.symbolic:
                     break
-                else:
-                    if state.solver.eval(byte) == ord("/"):
-                        progname = progname_cur + 1
-                    elif state.solver.eval(byte) == 0:
-                        break
+                if state.solver.eval(byte) == ord("/"):
+                    progname = progname_cur + 1
+                elif state.solver.eval(byte) == 0:
+                    break
 
                 progname_cur += 1
 
@@ -441,10 +432,9 @@ class SimLinux(SimUserland):
                 AT.from_mva(pseudo_toc, self.project.loader.extern_object).to_rva(), pseudo_hookaddr
             )
             return pseudo_hookaddr, pseudo_toc
-        else:
-            if basic_addr is None:
-                basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
-            return basic_addr, basic_addr
+        if basic_addr is None:
+            basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
+        return basic_addr, basic_addr
 
     def initialize_segment_register_x64(self, state, concrete_target):
         """
@@ -489,7 +479,7 @@ class SimLinux(SimUserland):
         # register used to read the value of the segment register
         exfiltration_reg = "rax"
         # instruction to inject for reading the value at segment value = offset
-        read_fs0_x64 = b"\x64\x48\x8B\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
+        read_fs0_x64 = b"\x64\x48\x8b\x04\x25\x00\x00\x00\x00\x90\x90\x90\x90"  # mov rax, fs:[0]
 
         return concrete_target.execute_shellcode(read_fs0_x64, exfiltration_reg)
 
@@ -504,7 +494,7 @@ class SimLinux(SimUserland):
         # register used to read the value of the segment register
         exfiltration_reg = "eax"
         # instruction to inject for reading the value at segment value = offset
-        read_gs0_x64 = b"\x65\xA1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
+        read_gs0_x64 = b"\x65\xa1\x00\x00\x00\x00\x90\x90\x90\x90"  # mov eax, gs:[0]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
 
     def get_segment_register_name(self):

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from sortedcontainers import SortedDict
 
 import claripy
@@ -72,9 +73,7 @@ class RegionDescriptor:
         self.related_function_address = related_function_address
 
     def __repr__(self):
-        return "<{} - {:#x}>".format(
-            self.region_id, self.related_function_address if self.related_function_address is not None else 0
-        )
+        return f"<{self.region_id} - {self.related_function_address if self.related_function_address is not None else 0:#x}>"
 
 
 class RegionMap:
@@ -149,16 +148,12 @@ class RegionMap:
                 raise SimRegionMapError('Received a non-stack memory ID "%d" in a stack region map' % region_id)
 
             # Remove all stack regions that are lower than the one to add
-            while True:
-                try:
-                    addr = next(self._address_to_region_id.irange(maximum=absolute_address, reverse=True))
-                    descriptor = self._address_to_region_id[addr]
-                    # Remove this mapping
-                    del self._address_to_region_id[addr]
-                    # Remove this region ID from the other mapping
-                    del self._region_id_to_address[descriptor.region_id]
-                except StopIteration:
-                    break
+            for addr in self._address_to_region_id.irange(maximum=absolute_address, reverse=True):
+                descriptor = self._address_to_region_id[addr]
+                # Remove this mapping
+                del self._address_to_region_id[addr]
+                # Remove this region ID from the other mapping
+                del self._region_id_to_address[descriptor.region_id]
 
         else:
             if absolute_address in self._address_to_region_id:
@@ -199,7 +194,7 @@ class RegionMap:
             return relative_address
 
         if region_id not in self._region_id_to_address:
-            raise SimRegionMapError('Non-existent region ID "%s"' % region_id)
+            raise SimRegionMapError(f'Non-existent region ID "{region_id}"')
 
         base_address = self._region_id_to_address[region_id].base_address
         return base_address + relative_address
@@ -239,7 +234,7 @@ class RegionMap:
                 return "global", absolute_address, None
 
             if target_region_id not in self._region_id_to_address:
-                raise SimRegionMapError('Trying to relativize to a non-existent region "%s"' % target_region_id)
+                raise SimRegionMapError(f'Trying to relativize to a non-existent region "{target_region_id}"')
 
             descriptor = self._region_id_to_address[target_region_id]
             base_address = descriptor.base_address

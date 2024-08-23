@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -20,5 +21,4 @@ class ParseDouble(JavaSimProcedure):
             double_val = float(str_value)
             return claripy.FPV(double_val, claripy.FSORT_DOUBLE)
 
-        else:
-            return claripy.StrToInt(str_, self.arch.bits)
+        return claripy.StrToInt(str_, self.arch.bits)

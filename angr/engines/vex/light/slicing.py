@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .light import VEXMixin
 from ....utils.constants import DEFAULT_STATEMENT
 

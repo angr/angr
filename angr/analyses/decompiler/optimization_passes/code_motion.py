@@ -1,3 +1,4 @@
+from __future__ import annotations
 import itertools
 import logging
 
@@ -116,9 +117,9 @@ class CodeMotionOptimization(OptimizationPass):
             original_graph.remove_nodes_from(original_blocks)
             original_graph.add_node(new_super)
             for pred in first_node_preds:
-                original_graph.add_edge(og_to_super[pred] if pred in og_to_super else pred, new_super)
+                original_graph.add_edge(og_to_super.get(pred, pred), new_super)
             for succ in last_node_preds:
-                original_graph.add_edge(new_super, og_to_super[succ] if succ in og_to_super else succ)
+                original_graph.add_edge(new_super, og_to_super.get(succ, succ))
 
         return False
 
