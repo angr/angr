@@ -367,7 +367,7 @@ class SimJavaVM(SimOS):
 
         # determine size of Soot bitvector and resize bitvector
         # Note: smaller types than int's are stored in a 32-bit BV
-        value_soot_size = value_size if value_size >= 32 else 32
+        value_soot_size = max(value_size, 32)
         if to_type in ["char", "boolean"]:
             # unsigned extend
             return value_extracted.zero_extend(value_soot_size - value_extracted.size())

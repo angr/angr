@@ -872,7 +872,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         for x in range(256):
             p_x = float(data.count(x)) / size
             if p_x > 0:
-                entropy += -p_x * math.log(p_x, 2)
+                entropy += -p_x * math.log2(p_x)
         return entropy
 
     #
