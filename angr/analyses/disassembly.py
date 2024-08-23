@@ -827,11 +827,11 @@ class MemoryOperand(Operand):
 
                 # combine values and offsets according to self.offset_location
                 if self.offset_location == "prefix":
-                    value_str = "".join([offset_str, left_paren, value_str, right_paren])
+                    value_str = f"{offset_str}{left_paren}{value_str}{right_paren}"
                 elif self.offset_location == "before_value":
-                    value_str = "".join([left_paren, offset_str, value_str, right_paren])
+                    value_str = f"{left_paren}{offset_str}{value_str}{right_paren}"
                 else:  # after_value
-                    value_str = "".join([left_paren, value_str, offset_str, right_paren])
+                    value_str = f"{left_paren}{value_str}{offset_str}{right_paren}"
             else:
                 value_str = left_paren + value_str + right_paren
 

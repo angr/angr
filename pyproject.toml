@@ -20,10 +20,12 @@ exclude = [
 
 [tool.ruff.lint]
 extend-select = [
+	"FLY",
 	"I002",
 	"RUF",
 	"SIM",
 	"UP",
+	"YTT",
 ]
 extend-ignore = [
 	"E402", # Bottom imports
