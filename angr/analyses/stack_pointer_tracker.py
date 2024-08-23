@@ -540,24 +540,24 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 if expr.op.startswith("Iop_Add"):
                     arg0_expr = _resolve_expr(arg0)
                     if arg0_expr is None:
-                        raise CouldNotResolveException()
+                        raise CouldNotResolveException
                     if arg0_expr is BOTTOM:
                         return BOTTOM
                     arg1_expr = _resolve_expr(arg1)
                     if arg1_expr is None:
-                        raise CouldNotResolveException()
+                        raise CouldNotResolveException
                     if arg1_expr is BOTTOM:
                         return BOTTOM
                     return arg0_expr + arg1_expr
                 elif expr.op.startswith("Iop_Sub"):
                     arg0_expr = _resolve_expr(arg0)
                     if arg0_expr is None:
-                        raise CouldNotResolveException()
+                        raise CouldNotResolveException
                     if arg0_expr is BOTTOM:
                         return BOTTOM
                     arg1_expr = _resolve_expr(arg1)
                     if arg1_expr is None:
-                        raise CouldNotResolveException()
+                        raise CouldNotResolveException
                     if arg1_expr is BOTTOM:
                         return BOTTOM
                     return arg0_expr - arg1_expr
@@ -582,7 +582,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     arg1_expr = _resolve_expr(arg1)
                     if isinstance(arg0_expr, (Register, OffsetVal)) and isinstance(arg1_expr, (Register, OffsetVal)):
                         return Eq(arg0_expr, arg1_expr)
-                raise CouldNotResolveException()
+                raise CouldNotResolveException
             elif type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
                 return tmps[expr.tmp]
             elif type(expr) is pyvex.IRExpr.Const:
@@ -608,7 +608,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     return TOP
             elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
                 return state.load(_resolve_expr(expr.addr))
-            raise CouldNotResolveException()
+            raise CouldNotResolveException
 
         def resolve_expr(expr):
             try:
@@ -626,7 +626,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     return
                 state.put(stmt.offset, resolve_expr(stmt.data))
             else:
-                raise CouldNotResolveException()
+                raise CouldNotResolveException
 
         exit_observed = False
         for stmt in vex_block.statements:
@@ -705,12 +705,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             elif varnode.space.name == "unique":
                 key = (varnode.offset, varnode.size)
                 if key not in unique:
-                    raise CouldNotResolveException()
+                    raise CouldNotResolveException
                 return unique[key]
             elif varnode.space.name == "const":
                 return Constant(varnode.offset)
             else:
-                raise CouldNotResolveException()
+                raise CouldNotResolveException
 
         def resolve_expr(varnode: pypcode.Varnode):
             try:
@@ -726,12 +726,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 if isinstance(input0_v, (Register, OffsetVal)) and isinstance(input1_v, Constant):
                     v = input0_v + input1_v
                 else:
-                    raise CouldNotResolveException()
+                    raise CouldNotResolveException
             elif op.opcode == pypcode.OpCode.COPY:
                 v = resolve_expr(op.inputs[0])
             else:
                 # unsupported opcode
-                raise CouldNotResolveException()
+                raise CouldNotResolveException
 
             # write the output
             if op.output.space.name == "unique":
@@ -740,7 +740,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             elif op.output.space.name == "register":
                 state.put(op.output.offset, v)
             else:
-                raise CouldNotResolveException()
+                raise CouldNotResolveException
 
         is_call = False
         for op in pcode_irsb._ops:

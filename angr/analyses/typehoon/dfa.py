@@ -60,7 +60,7 @@ class DFAConstraintSolver:
         # networkx.drawing.nx_pydot.write_dot(graph, "d:/enfa.dot")
 
         if enfa.is_empty():
-            raise EmptyEpsilonNFAError()
+            raise EmptyEpsilonNFAError
         return enfa
 
     def generate_constraints_between(self, graph: networkx.DiGraph, starts: set, ends: set) -> set:

@@ -196,7 +196,7 @@ class GraphRegion:
     ):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
-            raise Exception()
+            raise Exception
 
         if sub_region is self.head:
             self.head = replace_with
@@ -247,7 +247,7 @@ class GraphRegion:
     def replace_region_with_region(self, sub_region: GraphRegion, replace_with: GraphRegion):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
-            raise Exception()
+            raise Exception
 
         if sub_region is self.head:
             self.head = replace_with.head

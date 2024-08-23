@@ -45,7 +45,7 @@ class SimEngineLightMixin:
         :param size:    The size (in bits) of the TOP value.
         :return:        A TOP value.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def sp_offset(bits: int, offset: int):
@@ -114,7 +114,7 @@ class SimEngineLight(
         self._process(state, None, block=kwargs.pop("block", None), whitelist=kwargs.pop("whitelist", None))
 
     def _process(self, new_state, successors, *args, **kwargs):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _check(self, state, *args, **kwargs):
         return True

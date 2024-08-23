@@ -39,7 +39,7 @@ class BaseGoal:
         :rtype: bool
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def check_state(self, state):
         """
@@ -50,7 +50,7 @@ class BaseGoal:
         :rtype: bool
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Private methods

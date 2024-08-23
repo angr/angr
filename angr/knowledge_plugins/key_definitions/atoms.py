@@ -39,7 +39,7 @@ class Atom:
         self._hash = None
 
     def __repr__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def bits(self) -> int:
@@ -141,7 +141,7 @@ class Atom:
     memory = mem
 
     def _identity(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __hash__(self):
         if self._hash is None:

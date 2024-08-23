@@ -128,7 +128,7 @@ class AnalysisTask:
 
     @property
     def done(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class FunctionAnalysis(AnalysisTask):
@@ -632,13 +632,13 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         if self._final_address is not None and job.addr == self._final_address:
             # our analysis should be termianted here
             l.debug("%s is viewed as a final state. Skip.", job)
-            raise AngrSkipJobNotice()
+            raise AngrSkipJobNotice
 
         l.debug("Handling VFGJob %s", job)
 
         if not self._top_task:
             l.debug("No more tasks available. Skip the job.")
-            raise AngrSkipJobNotice()
+            raise AngrSkipJobNotice
 
         assert isinstance(self._top_task, FunctionAnalysis)
 
@@ -653,7 +653,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
             if unwind_count is None:
                 l.debug("%s is not recorded. Skip the job.", job)
-                raise AngrSkipJobNotice()
+                raise AngrSkipJobNotice
             else:
                 # unwind the stack till the target, unless we see any pending jobs for each new top task
                 for i in range(unwind_count):
@@ -669,7 +669,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                                 self._top_task.function_address,
                                 job,
                             )
-                            raise AngrDelayJobNotice()
+                            raise AngrDelayJobNotice
 
                     task = self._task_stack.pop()
 
@@ -682,7 +682,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         if self._final_state_callback is not None and self._final_state_callback(job.state, job.call_stack):
             l.debug("%s.state is considered as a final state. Skip the job.", job)
             self.final_states.append(job.state)
-            raise AngrSkipJobNotice()
+            raise AngrSkipJobNotice
 
         # increment the execution counter
         self._execution_counter[job.addr] += 1
@@ -702,7 +702,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         if self._tracing_times[block_id] > self._max_iterations:
             l.debug("%s has been traced too many times. Skip", job)
-            raise AngrSkipJobNotice()
+            raise AngrSkipJobNotice
 
         self._tracing_times[block_id] += 1
 
@@ -723,13 +723,13 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         if restart_analysis:
             # We should restart the analysis because of something must be changed in the very initial state
-            raise AngrVFGRestartAnalysisNotice()
+            raise AngrVFGRestartAnalysisNotice
 
         if job.sim_successors is None:
             # Ouch, we cannot get the SimSuccessors for some reason
             # Skip this guy
             l.debug("Cannot create SimSuccessors for %s. Skip.", job)
-            raise AngrSkipJobNotice()
+            raise AngrSkipJobNotice
 
         self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, src_exit_stmt_idx=src_exit_stmt_idx)
 
@@ -1061,7 +1061,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         addr = jobs[0].addr
 
         if self.project.is_hooked(addr) and self.project.hooked_by(addr).is_continuation:
-            raise AngrJobMergingFailureNotice()
+            raise AngrJobMergingFailureNotice
 
         # update jobs
         for job in jobs:

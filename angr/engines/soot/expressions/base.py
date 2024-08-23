@@ -12,7 +12,7 @@ class SimSootExpr:
         self._execute()
 
     def _execute(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _translate_expr(self, expr):
         expr_ = translate_expr(expr, self.state)

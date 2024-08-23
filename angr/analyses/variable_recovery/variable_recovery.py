@@ -378,7 +378,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 annotated = [True for annotated, _ in parsed if annotated is True]
                 if len(annotated) != 1:
                     # either nothing is annotated, or more than one element is annotated
-                    raise ValueError()
+                    raise ValueError
 
                 return True, sum(off for _, off in parsed)
             elif addr.op == "__sub__":
@@ -388,10 +388,10 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 first_annotated, first_offset = parsed[0]
                 if first_annotated is False:
                     # the first argument is not annotated. we don't support it.
-                    raise ValueError()
+                    raise ValueError
                 if any(annotated for annotated, _ in parsed[1:]):
                     # more than one argument is annotated. we don't support it.
-                    raise ValueError()
+                    raise ValueError
 
                 return True, first_offset - sum(off for _, off in parsed[1:])
             else:
@@ -399,7 +399,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 if anno is None:
                     if addr.op == "BVV":
                         return False, addr.concrete_value
-                    raise ValueError()
+                    raise ValueError
                 return True, anno.offset
 
         # find the annotated AST

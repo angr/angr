@@ -16,7 +16,7 @@ class Serializable:
         :return:    The correct cmessage object.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def serialize_to_cmessage(self):
         """
@@ -26,7 +26,7 @@ class Serializable:
         :rtype:     protobuf.cmessage
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def serialize(self):
         """
@@ -48,7 +48,7 @@ class Serializable:
         :rtype:         cls
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def parse(cls, s, **kwargs):

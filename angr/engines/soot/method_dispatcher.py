@@ -42,6 +42,6 @@ def resolve_method(
     # => fallback: continue with infos available from the invocation, so we
     #              still can use SimProcedures
     if raise_exception_if_not_found:
-        raise SootMethodNotLoadedException()
+        raise SootMethodNotLoadedException
     else:
         return SootMethodDescriptor(class_name, method_name, params, ret_type=ret_type)

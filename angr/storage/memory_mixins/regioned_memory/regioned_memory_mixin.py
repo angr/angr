@@ -351,7 +351,7 @@ class RegionedMemoryMixin(MemoryMixin):
         is_write: bool = False,
         target_region: str | None = None,
     ) -> Generator[AddressWrapper]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _normalize_address(self, addr: claripy.ast.Bits, condition=None) -> AbstractAddressDescriptor:
         """

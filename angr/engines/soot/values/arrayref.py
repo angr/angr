@@ -45,7 +45,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class SimSootValue_ArrayRef(SimSootValue):

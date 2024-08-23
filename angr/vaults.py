@@ -61,19 +61,19 @@ class Vault(collections.abc.MutableMapping):
         """
         Should be a context that yields a pickle-read()able file object for the given id i.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _write_context(self, i):
         """
         Should be a context that yields a pickle-write()able file object for the given id i.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def keys(self):
         """
         Should return the IDs stored by the vault.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Persistance managers

@@ -54,7 +54,7 @@ class BaseDepNode:
         return self._type
 
     def __repr__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __eq__(self, other):
         return self.type == other.type and self.ins_addr == other.ins_addr and self.action_id == other.action_id
