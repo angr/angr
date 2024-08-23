@@ -439,9 +439,7 @@ class DataDependencyGraphAnalysis(Analysis):
             and nxt_act.ins_addr == sim_act.ins_addr
             and nxt_act.stmt_idx == sim_act.stmt_idx
         ):
-            raise AngrAnalysisError(
-                "Statement must end with a write," f"but {self._peek(1)} follows a write!", self._peek(1)
-            )
+            raise AngrAnalysisError(f"Statement must end with a write, but {self._peek(1)} follows a write!")
 
         if sim_act.type == SimActionData.MEM:
             return self._parse_mem_statement(read_nodes)

@@ -180,7 +180,7 @@ class Definition(Generic[A]):
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
-        return f"Definition:\n" f"Atom: {self.atom}\n" f"CodeLoc: {self.codeloc}\n" f"Tags: {pretty_tags}"
+        return f"Definition:\nAtom: {self.atom}\nCodeLoc: {self.codeloc}\nTags: {pretty_tags}"
 
     def __hash__(self):
         if self._hash is None:

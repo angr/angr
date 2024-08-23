@@ -450,7 +450,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if not isinstance(max_loop_unrolling_times, int) or max_loop_unrolling_times < 0:
             raise AngrCFGError(
                 "Max loop unrolling times must be set to an integer greater than or equal to 0 if "
-                + "loop unrolling is enabled."
+                "loop unrolling is enabled."
             )
 
         def _unroll(graph: networkx.DiGraph, loop: Loop):
@@ -508,7 +508,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if not isinstance(max_loop_unrolling_times, int) or max_loop_unrolling_times < 0:
             raise AngrCFGError(
                 "Max loop unrolling times must be set to an integer greater than or equal to 0 if "
-                + "loop unrolling is enabled."
+                "loop unrolling is enabled."
             )
 
         # Traverse the CFG and try to find the beginning of loops

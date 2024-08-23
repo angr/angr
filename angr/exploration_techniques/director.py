@@ -187,7 +187,7 @@ class CallFunctionGoal(BaseGoal):
                     if len(arg) != 2:
                         raise AngrDirectorError(
                             "Each argument must be either None or a 2-tuple contains argument "
-                            + "type and the expected value."
+                            "type and the expected value."
                         )
 
                     arg_type, expected_value = arg

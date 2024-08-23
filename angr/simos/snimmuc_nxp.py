@@ -23,7 +23,7 @@ class SimSnimmucNxp(SimOS):
     def configure_project(self):
         # pattern match the entry point to figure out if we support parsing this binary
         entry_bytes = self.project.loader.memory.load(self.project.entry, 3 * 4)
-        if entry_bytes != b"\x94!\xff\xf0" b"|\x08\x02\xa6" b"\x90\x01\x00\x14":
+        if entry_bytes != b"\x94!\xff\xf0|\x08\x02\xa6\x90\x01\x00\x14":
             return
 
         entry_block = self.project.factory.block(self.project.entry)

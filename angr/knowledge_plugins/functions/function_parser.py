@@ -45,7 +45,7 @@ class FunctionParser:
                 obj.matched_from = function_pb2.Function.FLIRT
             else:
                 raise ValueError(
-                    f"Cannot convert from_signature {function.from_signature} into a SignatureSource " f"enum."
+                    f"Cannot convert from_signature {function.from_signature} into a SignatureSource enum."
                 )
 
         # blocks

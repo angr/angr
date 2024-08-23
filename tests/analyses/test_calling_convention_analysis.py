@@ -207,9 +207,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cc = cca.cc
         prototype = cca.prototype
 
-        assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x80494f0."
-        )
+        assert (
+            cc is not None
+        ), "Calling convention analysis failed to determine the calling convention of function 0x80494f0."
         assert isinstance(cc, SimCCCdecl)
         assert len(prototype.args) == 3
         arg_locs = cc.arg_locs(prototype)
@@ -225,9 +225,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         prototype = cca.prototype
 
         assert func_exit.returning is False
-        assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x804a1a9."
-        )
+        assert (
+            cc is not None
+        ), "Calling convention analysis failed to determine the calling convention of function 0x804a1a9."
         assert isinstance(cc, SimCCCdecl)
         assert len(prototype.args) == 1
         assert cc.arg_locs(prototype)[0] == SimStackArg(4, 4)
