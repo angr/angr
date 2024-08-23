@@ -843,7 +843,7 @@ class SimEngineVRBase(SimEngineLight):
                 self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
             else:
                 # FIXME: This is a hack
-                for i in range(0, 4):
+                for i in range(4):
                     concrete_offset = size * i
                     load_typevar = self._create_access_typevar(typevar, True, size, concrete_offset)
                     self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))

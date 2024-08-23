@@ -26,7 +26,7 @@ class poll(angr.SimProcedure):
         offset_revents = 6
 
         pollfd_array = []
-        for offset in range(0, nfds_v):
+        for offset in range(nfds_v):
             pollfd = {
                 "fd": self.state.memory.load(
                     fds + offset * size_of_pollfd + offset_fd, 4, endness=self.arch.memory_endness

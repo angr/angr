@@ -149,7 +149,7 @@ class BackwardSlice(Analysis):
             vex_block = self.project.factory.block(run_addr).vex
 
             statements = vex_block.statements
-            for i in range(0, len(statements)):
+            for i in range(len(statements)):
                 line = "+" if i in chosen_statements else "-"
                 line += "[% 3d] " % i
                 line += str(statements[i])

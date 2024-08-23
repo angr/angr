@@ -26,6 +26,7 @@ extend-select = [
 	"ISC",
 	"I002",
 	"LOG",
+	"PIE",
 	"RUF",
 	"SIM",
 	"UP",

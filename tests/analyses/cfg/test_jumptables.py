@@ -3119,7 +3119,7 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         # XXX: On x86 with PIE, call get_pc_thunk() is used to calculate table address. Can't handle it yet.
         cflags = []
         for arch_flags in [[], ["-m32", "-fno-pie"]]:  # AMD64, x86
-            for opt_level in range(0, 3):
+            for opt_level in range(3):
                 subtest_cflags = [*cflags, f"-O{opt_level}", *arch_flags]
                 with self.subTest(cflags=subtest_cflags):
                     self._run_calltable_test(

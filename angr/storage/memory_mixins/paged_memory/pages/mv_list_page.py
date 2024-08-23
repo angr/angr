@@ -243,7 +243,7 @@ class MVListPage(
                     for mo in mo_set:
                         min_size = min(min_size, mo.length - ((b + page_addr - mo.base) & mask))
                 for um, _ in unconstrained_in:
-                    for i in range(0, min_size):
+                    for i in range(min_size):
                         if um._contains(b + i, page_addr):
                             min_size = i
                             break

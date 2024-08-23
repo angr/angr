@@ -81,7 +81,6 @@ class SimConcretizationStrategy:
         Merges this strategy with others (if there is data that should be kept separate between
         states. If not, is a no-op.
         """
-        pass
 
 
 from .any import SimConcretizationStrategyAny

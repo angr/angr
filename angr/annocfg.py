@@ -227,7 +227,7 @@ class AnnotatedCFG:
         vex_block = project.factory.block(irsb_addr).vex
         statements = vex_block.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
-        for i in range(0, len(statements)):
+        for i in range(len(statements)):
             line = "+" if whitelist is True or i in whitelist else "-"
             line += "[% 3d] " % i
             # We cannot get data returned by pp(). WTF?

@@ -237,7 +237,7 @@ class RegionedMemoryMixin(MemoryMixin):
         if region_id not in region_ids:
             return region_id
         else:
-            for i in range(0, 2000):
+            for i in range(2000):
                 new_region_id = region_id + "_%d" % i
                 if new_region_id not in region_ids:
                     return new_region_id

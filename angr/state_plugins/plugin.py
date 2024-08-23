@@ -153,4 +153,3 @@ class SimStatePlugin:
         """
         Use this function to perform any initialization on the state at plugin-add time
         """
-        pass

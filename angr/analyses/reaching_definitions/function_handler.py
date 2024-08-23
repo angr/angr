@@ -98,7 +98,7 @@ class FunctionCallData:
     ret_atoms: set[Atom] | None = None
     redefine_locals: bool = True
     visited_blocks: set[int] | None = None
-    effects: list[FunctionEffect] = field(default_factory=lambda: [])
+    effects: list[FunctionEffect] = field(default_factory=list)
     ret_values: MultiValues | None = None
     ret_values_deps: set[Definition] | None = None
     caller_will_handle_single_ret: bool = False

@@ -302,7 +302,7 @@ class SimSystemPosix(SimStatePlugin):
                 sock_pair[1].set_state(state)
 
     def _pick_fd(self):
-        for fd in range(0, max_fds):
+        for fd in range(max_fds):
             if fd not in self.fd:
                 return fd
         raise SimPosixError("exhausted file descriptors")

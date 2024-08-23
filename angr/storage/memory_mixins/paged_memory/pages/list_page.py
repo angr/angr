@@ -202,7 +202,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                     if min_size is None or mo_size < min_size:
                         min_size = mo_size
                 for um, _ in unconstrained_in:
-                    for i in range(0, min_size):
+                    for i in range(min_size):
                         if um._contains(b + i, page_addr):
                             min_size = i
                             break

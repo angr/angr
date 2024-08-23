@@ -509,7 +509,7 @@ class Identifier(Analysis):
         # find the end of the preamble
         num_preamble_inst = None
         succ = None
-        for i in range(0, self.project.factory.block(func.startpoint.addr).instructions):
+        for i in range(self.project.factory.block(func.startpoint.addr).instructions):
             if i == 0:
                 succ = initial_state
             if i != 0:

@@ -26,8 +26,6 @@ class NodeFoundNotification(Exception):
     A notification that the target node has been found.
     """
 
-    pass
-
 
 class BlockLocator(RegionWalker):
     """
