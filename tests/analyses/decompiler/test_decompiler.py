@@ -42,7 +42,7 @@ from ...common import bin_location, slow_test
 
 test_location = os.path.join(bin_location, "tests")
 
-l = logging.Logger(__name__)
+l = logging.getLogger(__name__)
 
 WORKER = is_testing or bool(
     os.environ.get("WORKER", False)

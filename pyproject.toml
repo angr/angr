@@ -25,6 +25,7 @@ extend-select = [
 	"FLY",
 	"ISC",
 	"I002",
+	"LOG",
 	"RUF",
 	"SIM",
 	"UP",
