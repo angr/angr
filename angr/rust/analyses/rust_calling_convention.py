@@ -175,6 +175,9 @@ class RustCallingConventionAnalysis(Analysis):
             self.model = self.kb.rust_calling_conventions.cache[self.func.addr]
             return
 
+        if not self.func.normalized or not self.func.size:
+            return
+
         if not self.clinic:
             cfg = self.kb.cfgs.get_most_accurate()
             self.clinic = self.project.analyses.Clinic(self.func, cfg=cfg, optimization_passes=[])
