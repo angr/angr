@@ -26,6 +26,9 @@ class TransformationPass(OptimizationPass):
             stmt = stmt.ret_exprs[0]
             if isinstance(stmt, Convert):
                 stmt = stmt.operand
+        if isinstance(stmt, Call) and isinstance(stmt.target, str):
+            name = normalize(stmt.target, remove_polymorphism=True)
+            return name in func_list
         if isinstance(stmt, Call) and isinstance(stmt.target, Const) and stmt.target.value in self.kb.functions:
             func = self.kb.functions[stmt.target.value]
             name = normalize(func.name, remove_polymorphism=True)

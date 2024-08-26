@@ -16,8 +16,9 @@ librust.set_library_names("librust")
 
 prototypes = {
     "String::from": RustSimTypeFunction(
-        args=[RustSimTypeReference(RustSimTypeStr())],
-        returnty=RustSimTypeString(),
+        args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeStr())],
+        returnty=None,
+        is_returnty_struct=True,
     ),
     "Vec::with_capacity": RustSimTypeFunction(
         args=[RustSimTypeSize()],
