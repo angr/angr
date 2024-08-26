@@ -1,12 +1,19 @@
+from enum import IntEnum
+
 import ailment
 from ailment import Const
-from ailment.expression import StackBaseOffset, BinaryOp, Register
+from ailment.expression import StackBaseOffset, BinaryOp, Register, Tmp, VirtualVariable, VirtualVariableCategory
 from ailment.statement import Store
 
 from .base import TransformationPass
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ..ailment.expression import String
+
+
+class InitialData:
+    def __init__(self):
+        pass
 
 
 class AllocSimplifierState:
@@ -79,6 +86,10 @@ class AllocSimplifier(TransformationPass):
                 self.state.removed_stmts.append(call)
                 return True
             return False
+        if self.match_call(self.state.init_block, ["String::from"]):
+            import ipdb
+
+            ipdb.set_trace()
         offset_to_bytes = {}
         for stmt in self.state.init_block.statements:
             if isinstance(stmt, ailment.statement.Store):
@@ -135,8 +146,8 @@ class AllocSimplifier(TransformationPass):
                     idx=addr.idx,
                     target="String::from",
                     prototype=self.librust.get_prototype("String::from").with_arch(self.project.arch),
-                    args=[data],
-                    ret_expr=addr,
+                    args=[addr, data],
+                    ret_expr=None,
                     **self.state.alloc_call.tags,
                 )
                 return new_stmt
@@ -253,18 +264,22 @@ class AllocSimplifier(TransformationPass):
         if not alloc_var or not alloc_length or not alloc_capacity:
             return False
 
-        new_stmt = self._try_simplify_string(alloc_var)
-        if not new_stmt:
-            new_stmt = self._try_simplify_vec(alloc_var)
-        if new_stmt:
-            self._do_simplify(new_stmt)
-            return True
+        # Finalize simplification
+        # Try to match potential high-level API calls (String::from, vec!)
+        finalizers = [self._try_simplify_string, self._try_simplify_vec]
+        for func in finalizers:
+            new_stmt = func(alloc_var)
+            if new_stmt:
+                self._do_simplify(new_stmt)
+                return True
+        return False
 
     def _try_simplify(self):
         funcs = [self._try_simplify_vec_like]
         for func in funcs:
             if func():
-                break
+                return True
+        return False
 
     def _do_simplify(self, new_stmt):
         blocks = [self.state.alloc_block, self.state.init_block]
@@ -276,25 +291,38 @@ class AllocSimplifier(TransformationPass):
                     block.statements.remove(stmt)
         self.state.alloc_block.statements.append(new_stmt)
 
-    def _analyze(self, cache=None):
-        for block in list(self._graph.nodes()):
+    def simplify_alloc(self, block):
+        # Is this block trying to allocate new heap memory?
+        if self.match_call(block, RUST_ALLOC_FUNCTIONS):
             self.state = AllocSimplifierState()
-            # Is this block trying to allocate new heap memory?
+            self.state.alloc_call = block.statements[-1]
+        else:
+            return False
+        # Can we identify the region that contains all the blocks of the initialization process?
+        if not self._try_identify_region(block):
+            return False
+
+        if not self._try_simplify_alloc_block():
+            return False
+
+        # Can we extract the initial bytes from init_block?
+        # This step may change the AIL graph, so we save the original AIL graph
+        if not self._try_simplify_init_block():
+            return False
+
+        # Sanity check passed! Let's try to match a specific type
+        return self._try_simplify()
+
+    def _analyze(self, cache=None):
+        return
+        blocks = []
+        pending_blocks = []
+        for block in self._graph.nodes:
             if self.match_call(block, RUST_ALLOC_FUNCTIONS):
-                self.state.alloc_call = block.statements[-1]
-            else:
-                continue
-            # Can we identify the region that contains all the blocks of the initialization process?
-            if not self._try_identify_region(block):
-                continue
-
-            if not self._try_simplify_alloc_block():
-                continue
-
-            # Can we extract the initial bytes from init_block?
-            # This step may change the AIL graph, so we save the original AIL graph
-            if not self._try_simplify_init_block():
-                continue
-
-            # Sanity check passed! Let's try to match a specific type
-            self._try_simplify()
+                pending_blocks.append(block)
+        while len(blocks) != len(pending_blocks):
+            blocks = pending_blocks
+            pending_blocks = []
+            for block in blocks:
+                if not self.simplify_alloc(block):
+                    pending_blocks.append(block)

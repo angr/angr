@@ -91,7 +91,13 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         argstrs = [str(a) for a in self.args]
         if self.variadic:
             argstrs.append("...")
-        return "({}) -> {}".format(", ".join(argstrs), self.returnty)
+        returnty = self.returnty
+        if self.is_returnty_struct:
+            returnty = self.args[0]
+            if isinstance(returnty, RustSimTypeReference):
+                returnty = returnty.pts_to
+            argstrs = argstrs[1:]
+        return "({}) -> {}".format(", ".join(argstrs), returnty)
 
     def _repr(self, name=None, full=0, memo=None, indent=0):
         formatted_args = [

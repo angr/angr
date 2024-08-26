@@ -62,8 +62,10 @@ class RustTypeTranslator(TypeTranslator):
         return RustSimTypeInt(size=128, signed=False).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array):
+        # TODO: Maybe array should be translated to struct?
         elem_type = self._tc2simtype(tc.element)
-        return RustSimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
+        # return RustSimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
+        return RustSimTypeInt(size=64, signed=False).with_arch(self.arch)
 
     def _translate_Struct(self, tc):
         if tc in self.structs:

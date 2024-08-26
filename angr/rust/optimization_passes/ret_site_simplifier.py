@@ -5,6 +5,7 @@ from ailment.expression import Convert
 from ailment.statement import Store, Return, Jump
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.calling_conventions import SimRegArg
 from angr.rust.ailment.expression import Struct
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeInt, RustSimStruct, RustSimTypeReference
 
@@ -101,10 +102,9 @@ class RetSiteSimplifier(OptimizationPass):
         return False
 
     def _analyze(self, cache=None):
-        if not len(self._func.arguments):
-            return
-        for block in self._graph.nodes:
-            if block.statements and isinstance(block.statements[-1], Return):
-                if not self.simplify_ret_site(block):
-                    for pred in self._graph.predecessors(block):
-                        self.simplify_ret_site(pred)
+        if len(self._func.arguments) and isinstance(self._func.arguments[0], SimRegArg):
+            for block in self._graph.nodes:
+                if block.statements and isinstance(block.statements[-1], Return):
+                    if not self.simplify_ret_site(block):
+                        for pred in self._graph.predecessors(block):
+                            self.simplify_ret_site(pred)

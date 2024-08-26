@@ -1,3 +1,4 @@
+from .call_site_simplifier import CallSiteSimplifier
 from .calling_convention_recovery import CallingConventionRecovery
 from .error_handling_simplifier import ErrorHandlingSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
@@ -15,7 +16,8 @@ from .ownership_simplifier import OwnershipSimplifier
 _all_optimization_passes.extend(
     [
         # Before type recovery
-        (LibFunctionIdentifier, True),
+        # (LibFunctionIdentifier, True),
+        (CallSiteSimplifier, True),
         (EpilogueSimplifier, True),
         (ErrorHandlingSimplifier, True),
         (RetSiteSimplifier, True),
@@ -23,7 +25,7 @@ _all_optimization_passes.extend(
         (OwnershipSimplifier, True),
         (AllocSimplifier, True),
         # After type recovery
-        (StructInstantiationSimplifier, True),
+        # (StructInstantiationSimplifier, True),
         (UnwrapSimplifier, True),
         (LifetimeSimplifier, True),
         # (StringSimplifier, True),

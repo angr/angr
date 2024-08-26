@@ -1286,6 +1286,8 @@ class RustFunctionCall(RustStatement, RustExpression):
                 ret_expr = args[0]
                 if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
                     ret_expr = ret_expr.operand
+                else:
+                    ret_expr = RustUnaryOp("Dereference", ret_expr, codegen=self.codegen)
                 args = args[1:]
             # Special handling for Rust calling convention - it's a class member function
             if prototype.is_class_member_function:
@@ -1293,6 +1295,8 @@ class RustFunctionCall(RustStatement, RustExpression):
                 object_expr = args[0]
                 if isinstance(object_expr, RustUnaryOp) and object_expr.op == "Reference":
                     object_expr = object_expr.operand
+                else:
+                    object_expr = RustUnaryOp("Dereference", object_expr, codegen=self.codegen)
                 args = args[1:]
 
         indent_str = self.indent_str(indent=indent)
