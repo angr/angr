@@ -23,7 +23,7 @@ class time(angr.SimProcedure):
             ts = int(py_time.time())
             result = claripy.BVV(ts, self.state.arch.bits)
         else:
-            result = claripy.BVS("sys_time", self.state.arch.bits, key=("api", "time"))
+            result = self.state.solver.BVS("sys_time", self.state.arch.bits, key=("api", "time"))
             if self.last_time is not None:
                 self.state.add_constraints(result.SGE(self.last_time))
             else:
