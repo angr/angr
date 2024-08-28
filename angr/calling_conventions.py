@@ -1276,6 +1276,8 @@ class SimCCMicrosoftAMD64(SimCC):
 
     ArgSession = MicrosoftAMD64ArgSession
 
+    STRUCT_RETURN_THRESHOLD = 64
+
     def next_arg(self, session, arg_type):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
@@ -1301,7 +1303,27 @@ class SimCCMicrosoftAMD64(SimCC):
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, SimTypeBottom):
             return False
-        return not isinstance(ty, SimTypeFloat) and ty.size > 64
+        return not isinstance(ty, SimTypeFloat) and ty.size > self.STRUCT_RETURN_THRESHOLD
+
+    def return_val(self, ty, perspective_returned=False):
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        if not isinstance(ty, SimStruct):
+            return super().return_val(ty, perspective_returned)
+
+        if ty.size > self.STRUCT_RETURN_THRESHOLD:
+            # TODO this code is duplicated a ton of places. how should it be a function?
+            byte_size = ty.size // self.arch.byte_width
+            referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+            referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
+            if perspective_returned:
+                ptr_loc = self.RETURN_VAL
+            else:
+                ptr_loc = SimStackArg(0, 8)
+            reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
+            return reference_loc
+
+        return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
 
 
 class SimCCSyscall(SimCC):
