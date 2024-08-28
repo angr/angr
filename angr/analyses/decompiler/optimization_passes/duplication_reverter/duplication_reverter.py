@@ -17,7 +17,6 @@ from .similarity import longest_ail_graph_subseq
 
 from .utils import (
     replace_node_in_graph,
-    dominates,
     find_block_in_successors_by_addr,
     copy_graph_and_nodes,
     correct_jump_targets,
@@ -30,6 +29,7 @@ from ...block_similarity import is_similar, index_of_similar_stmts, longest_ail_
 from ...utils import to_ail_supergraph, remove_labels
 from ...counters.boolean_counter import BooleanCounter
 from .....knowledge_plugins.key_definitions.atoms import MemoryLocation
+from .....utils.graph import dominates
 
 l = logging.getLogger(name=__name__)
 _DEBUG = False
