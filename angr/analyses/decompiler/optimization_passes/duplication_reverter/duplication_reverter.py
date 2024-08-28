@@ -878,7 +878,12 @@ class DuplicationReverter(StructuringOptimizationPass):
             elif sink in self._ri.cond_proc.reaching_conditions:
                 condition = self._ri.cond_proc.reaching_conditions[sink]
             else:
-                raise Exception(f"Unable to find the conditions for target: {sink}")
+                # TODO: this should be better fixed
+                self.candidate_blacklist.add(tuple(sinks))
+                raise SAILRSemanticError(
+                    f"Unable to find the conditions for target: {sink}. "
+                    f"This is likely caused by unsupported statements, like Switches, being in the graph."
+                )
 
             condition = self._ri.cond_proc.simplify_condition(condition)
             if condition.is_true() or condition.is_false():

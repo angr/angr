@@ -450,7 +450,8 @@ class AILMergeGraph:
                 graph.add_edge(new_pred, new_node)
 
             # re-add every out_edge
-            for succ in graph.successors(original_node):
+            blk = original_node if original_node not in updated_blocks else updated_blocks[original_node]
+            for succ in graph.successors(blk):
                 graph.add_edge(new_node, succ)
 
             # finally, kill the original
