@@ -419,8 +419,9 @@ class PCodeIRSBConverter(Converter):
         """
         spc = self._current_op.inputs[0].getSpaceFromConst()
         out = self._current_op.output
-        assert spc.name in {"ram", "mem", "register"}
-        if spc.name == "register":
+        spc_name = spc.name.lower()
+        assert spc_name in {"ram", "mem", "register"}
+        if spc_name == "register":
             # load from register
             res = self._get_value(self._current_op.inputs[1])
             stmt = self._set_value(out, res)
@@ -442,8 +443,9 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code store operation
         """
         spc = self._current_op.inputs[0].getSpaceFromConst()
-        assert spc.name in {"ram", "mem", "register"}
-        if spc.name == "register":
+        spc_name = spc.name.lower()
+        assert spc_name in {"ram", "mem", "register"}
+        if spc_name == "register":
             # store to register
             out = self._current_op.inputs[2]
             res = self._get_value(self._current_op.inputs[1])
