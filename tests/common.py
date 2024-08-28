@@ -9,6 +9,10 @@ from tempfile import NamedTemporaryFile
 
 from unittest import skipIf, skipUnless, skip, SkipTest
 
+from angr import load_shellcode
+from angr.analyses import CongruencyCheck
+import angr.sim_options as so
+
 l = logging.getLogger("angr.tests.common")
 
 try:
@@ -126,3 +130,24 @@ def has_32_bit_compiler_support() -> bool:
         return True
     except subprocess.CalledProcessError:
         return False
+
+
+def run_simple_unicorn_congruency_check(shellcode: bytes | str, arch: str = "AMD64", depth: int = 1):
+    base = 0x100000
+    p = load_shellcode(shellcode, arch, load_address=base, start_offset=base)
+    ca = p.analyses[CongruencyCheck].prep()(throw=True)
+    ca.set_state_options(
+        left_add_options=so.unicorn,
+        left_remove_options={
+            so.LAZY_SOLVES,
+            so.TRACK_MEMORY_MAPPING,
+            so.COMPOSITE_SOLVER,
+        },
+        right_add_options={so.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        right_remove_options={
+            so.LAZY_SOLVES,
+            so.TRACK_MEMORY_MAPPING,
+            so.COMPOSITE_SOLVER,
+        },
+    )
+    ca.run(depth=depth)
