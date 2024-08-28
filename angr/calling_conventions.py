@@ -2253,7 +2253,7 @@ ARCH_NAME_ALIASES = {
     "PPC32": ["powerpc32"],
     "PPC64": ["powerpc64"],
     "Soot": [],
-    "AVR8": [],
+    "AVR8": ["avr8"],
     "MSP": [],
     "S390X": [],
 }
