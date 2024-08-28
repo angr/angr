@@ -482,14 +482,12 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 
 
 def pc_actions_SHL(state, nbits, remaining, shifted, cc_ndep, platform=None):
-    cf = ((remaining >> (nbits - 1)) & data[platform]["CondBitMasks"]["G_CC_MASK_C"])[
-        data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]
-    ]
+    cf = shifted[nbits - 1]
     pf = calc_paritybit(remaining[7:0])
     af = claripy.BVV(0, 1)
     zf = calc_zerobit(remaining)
     sf = remaining[nbits - 1]
-    of = (remaining[0] ^ shifted[0])[0]
+    of = (sf ^ cf)[0]
     return pc_make_rdata(data[platform]["size"], cf, pf, af, zf, sf, of, platform=platform)
 
 
