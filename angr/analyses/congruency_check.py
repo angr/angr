@@ -33,12 +33,10 @@ class CongruencyCheck(Analysis):
         s_right = self.project.factory.full_init_state(
             add_options=right_add_options,
             remove_options=right_remove_options,
-            args=[],
         )
         s_left = self.project.factory.full_init_state(
             add_options=left_add_options,
             remove_options=left_remove_options,
-            args=[],
         )
 
         return self.set_states(s_left, s_right)
