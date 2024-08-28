@@ -80,7 +80,8 @@ class SimEngineUnicorn(SuccessorsMixin):
         # should the countdown still be updated if we're not stepping a whole block?
         # current decision: leave it updated, since we are moving forward
         if num_inst is not None:
-            # we don't support single stepping with unicorn
+            if once("unicorn_num_inst_warning"):
+                l.warning("unicorn engine doesn't support stepping with num_inst")
             return False
 
         unicorn = state.unicorn  # shorthand
