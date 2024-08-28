@@ -540,9 +540,9 @@ def pc_actions_UMULQ(*args, **kwargs):
 
 
 def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    lo = (cc_dep1 * cc_dep2)[nbits - 1 : 0]
-    rr = lo
-    hi = (rr >> nbits)[nbits - 1 : 0]
+    ir = cc_dep1.sign_extend(nbits) * cc_dep2.sign_extend(nbits)
+    hi = ir[2 * nbits - 1 : nbits]
+    lo = ir[nbits - 1 : 0]
     cf = claripy.If(hi != (lo >> (nbits - 1)), claripy.BVV(1, 1), claripy.BVV(0, 1))
     zf = calc_zerobit(lo)
     pf = calc_paritybit(lo)
