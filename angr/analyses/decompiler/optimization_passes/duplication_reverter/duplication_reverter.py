@@ -17,7 +17,7 @@ from .similarity import longest_ail_graph_subseq
 
 from .utils import (
     replace_node_in_graph,
-    shared_common_conditional_dom,
+    dominates,
     find_block_in_successors_by_addr,
     copy_graph_and_nodes,
     correct_jump_targets,
@@ -72,6 +72,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         self.binary_name = self.project.loader.main_object.binary_basename
         self.target_name = f"{self.binary_name}.{self.func_name}"
 
+        self._idom_cache = {}
+        self._entry_node_cache = {}
         self.analyze()
 
     def _check(self):
@@ -403,7 +405,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
     def _construct_best_condition_block_for_merge(self, blocks, graph) -> tuple[Block, Block]:
         # find the conditions that block both of these blocks
-        common_cond = shared_common_conditional_dom(blocks, graph)
+        common_cond = self.shared_common_conditional_dom(blocks, graph)
         conditions_by_start = self.collect_conditions_between_nodes(graph, common_cond, blocks)
 
         best_condition_pair = None
@@ -849,10 +851,11 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         return bad_gotos
 
-    def collect_conditions_between_nodes(self, graph, source: Block, sinks: list[Block]):
+    def collect_conditions_between_nodes(self, graph, source: Block, sinks: list[Block], max_depth=15):
         graph_nodes = set(sinks)
-        for sink in sinks:
-            paths_between = nx.all_simple_paths(graph, source=source, target=sink)
+        for sink in set(sinks):
+            # we need to cutoff the maximum number of nodes that can be included in this search
+            paths_between = nx.all_simple_paths(graph, source=source, target=sink, cutoff=max_depth)
             graph_nodes.update({node for path in paths_between for node in path})
 
         full_condition_graph: nx.DiGraph = nx.DiGraph(nx.subgraph(graph, graph_nodes))
@@ -906,7 +909,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         removed_node_map = defaultdict(list)
 
         # create a subgraph for every merge_start and the dom
-        shared_conditional_dom = shared_common_conditional_dom(merge_start_nodes, graph)
+        shared_conditional_dom = self.shared_common_conditional_dom(merge_start_nodes, graph)
         for merge_start in merge_start_nodes:
             paths_between = nx.all_simple_paths(graph, source=shared_conditional_dom, target=merge_start)
             nodes_between = {node for path in paths_between for node in path}
@@ -993,10 +996,10 @@ class DuplicationReverter(StructuringOptimizationPass):
         if not self._share_subregion([b0, b1]):
             return False
 
-        # must share a common dominator
-        if not shared_common_conditional_dom([b0, b1], self.read_graph):
-            return False
+        # if not self.shared_common_conditional_dom([b0, b1], self.read_graph):
+        #    return False
 
+        stmt_in_common = False
         # special case: when we only have a single stmt
         if len(b0.statements) == len(b1.statements) == 1:
             # Case 1:
@@ -1018,36 +1021,32 @@ class DuplicationReverter(StructuringOptimizationPass):
                 pass
 
             if stmt_is_similar:
-                return True
-
-        # check if these nodes share any stmt in common
-        stmt_in_common = False
-        for stmt0 in b0.statements:
-            # jumps don't count
-            if isinstance(stmt0, Jump):
-                continue
-
-            # Most Assignments don't count just by themselves:
-            # register = register
-            # TOP = const | register
-            if isinstance(stmt0, Assignment):
-                src = stmt0.src.operand if isinstance(stmt0.dst, Convert) else stmt0.src
-                if isinstance(src, Register) or (isinstance(src, Const) and src.bits > 2):
+                stmt_in_common = True
+        else:
+            # check if these nodes share any stmt in common
+            for stmt0 in b0.statements:
+                # jumps don't count
+                if isinstance(stmt0, Jump):
                     continue
 
-            for stmt1 in b1.statements:
-                if is_similar(stmt0, stmt1, graph=self.write_graph):
-                    stmt_in_common = True
+                # Most Assignments don't count just by themselves:
+                # register = register
+                # TOP = const | register
+                if isinstance(stmt0, Assignment):
+                    src = stmt0.src.operand if isinstance(stmt0.dst, Convert) else stmt0.src
+                    if isinstance(src, Register) or (isinstance(src, Const) and src.bits > 2):
+                        continue
+
+                for stmt1 in b1.statements:
+                    if is_similar(stmt0, stmt1, graph=self.write_graph):
+                        stmt_in_common = True
+                        break
+
+                if stmt_in_common:
                     break
 
-            if stmt_in_common:
-                break
-
-        if stmt_in_common:
-            if shared_common_conditional_dom((b0, b1), self.write_graph) is not None:
-                return True
-
-        return False
+        # must share a common dominator
+        return stmt_in_common and self.shared_common_conditional_dom((b0, b1), self.write_graph) is not None
 
     def _construct_goto_related_subgraph(self, base: Block, graph: networkx.DiGraph, max_ancestors=5):
         """
@@ -1200,6 +1199,64 @@ class DuplicationReverter(StructuringOptimizationPass):
             candidates = sorted(candidates, key=lambda x: sum([c.addr for c in x]))
 
         return candidates
+
+    def shared_common_conditional_dom(self, nodes, graph: nx.DiGraph):
+        """
+        Takes n nodes and returns True only if all the nodes are dominated by the same node, which must be
+        a ConditionalJump
+
+        @param nodes:
+        @param graph:
+        @return:
+        """
+
+        if graph not in self._entry_node_cache:
+            entry_blocks = [node for node in graph.nodes if graph.in_degree(node) == 0]
+            if len(entry_blocks) != 1:
+                entry_block = None
+            else:
+                entry_block = entry_blocks[0]
+
+            self._entry_node_cache[graph] = entry_block
+            if entry_block is None:
+                return None
+
+        entry_blk = self._entry_node_cache[graph]
+
+        if graph not in self._idom_cache:
+            self._idom_cache[graph] = nx.algorithms.immediate_dominators(graph, entry_blk)
+
+        idoms = self._idom_cache[graph]
+
+        # first check if any of the node pairs could be a dominating loop
+        b0, b1 = nodes[:]
+        if dominates(idoms, b0, b1) or dominates(idoms, b1, b0):
+            return None
+
+        node = nodes[0]
+        node_level = [node]
+        seen_nodes = set()
+        while node_level:
+            # check if any of the nodes on the current level are dominaters to all nodes
+            for cnode in node_level:
+                if not cnode.statements:
+                    continue
+
+                if (
+                    isinstance(cnode.statements[-1], ConditionalJump)
+                    and all(dominates(idoms, cnode, node) for node in nodes)
+                    and cnode not in nodes
+                ):
+                    return cnode
+
+            # if no dominators found, move up a level
+            seen_nodes.update(set(node_level))
+            next_level = list(itertools.chain.from_iterable([list(graph.predecessors(cnode)) for cnode in node_level]))
+            # only add nodes we have never seen
+            node_level = set(next_level).difference(seen_nodes)
+
+        else:
+            return None
 
     #
     # Simple Optimizations (for cleanup)

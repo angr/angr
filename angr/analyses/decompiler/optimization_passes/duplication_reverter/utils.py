@@ -1,4 +1,3 @@
-import itertools
 import logging
 
 import networkx
@@ -11,7 +10,6 @@ from ailment.statement import Statement, ConditionalJump, Jump
 
 from .errors import UnsupportedAILNodeError
 from ...structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
-from .....utils.graph import dominates
 
 
 _l = logging.getLogger(name=__name__)
@@ -93,64 +91,6 @@ def copy_graph_and_nodes(graph: nx.DiGraph, new_idx=False):
         new_graph.add_edge(nodes_map[src], nodes_map[dst])
 
     return new_graph
-
-
-def shared_common_conditional_dom(nodes, graph: nx.DiGraph):
-    """
-    Takes n nodes and returns True only if all the nodes are dominated by the same node, which must be
-    a ConditionalJump
-
-    @param nodes:
-    @param graph:
-    @return:
-    """
-    try:
-        entry_blk = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
-    except IndexError:
-        return None
-
-    idoms = nx.algorithms.immediate_dominators(graph, entry_blk)
-    """
-    ancestors = {
-        node: list(nx.ancestors(graph, node)) for node in nodes
-    }
-
-    # no node for merging can be an ancestor to the other
-    for node in nodes:
-        other_ancestors = itertools.chain.from_iterable([ances for n, ances in ancestors.items() if n != node])
-        if node in other_ancestors:
-          return None
-    """
-
-    # first check if any of the node pairs could be a dominating loop
-    b0, b1 = nodes[:]
-    if dominates(idoms, b0, b1) or dominates(idoms, b1, b0):
-        return None
-
-    node = nodes[0]
-    node_level = [node]
-    seen_nodes = set()
-    while node_level:
-        # check if any of the nodes on the current level are dominaters to all nodes
-        for cnode in node_level:
-            if not cnode.statements:
-                continue
-
-            if (
-                isinstance(cnode.statements[-1], ConditionalJump)
-                and all(dominates(idoms, cnode, node) for node in nodes)
-                and cnode not in nodes
-            ):
-                return cnode
-
-        # if no dominators found, move up a level
-        seen_nodes.update(set(node_level))
-        next_level = list(itertools.chain.from_iterable([list(graph.predecessors(cnode)) for cnode in node_level]))
-        # only add nodes we have never seen
-        node_level = set(next_level).difference(seen_nodes)
-
-    else:
-        return None
 
 
 #
