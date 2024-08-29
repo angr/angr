@@ -351,7 +351,7 @@ class RegisterComparisonAnnotation(claripy.Annotation):
 
     def __eq__(self, other):
         return (
-            type(other) is RegisterAnnotation
+            type(other) is RegisterComparisonAnnotation
             and self.offset == other.offset
             and self.size == other.size
             and self.cmp_op == other.cmp_op
