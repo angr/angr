@@ -440,7 +440,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         self._node_iterations[block_key] += 1
 
-        if state.ret_val_size is not None and self.ret_val_size is None or self.ret_val_size < state.ret_val_size:
+        if state.ret_val_size is not None and (self.ret_val_size is None or self.ret_val_size < state.ret_val_size):
             self.ret_val_size = state.ret_val_size
 
         state.downsize()

@@ -1513,10 +1513,8 @@ class Clinic(Analysis):
 
                 # if we are accessing the variable directly (offset == 0), we link the variable onto this expression
                 if (
-                    offset == 0
-                    or (isinstance(offset, ailment.Expr.Const) and offset.value == 0)
-                    and "reference_variable" in base_addr.tags
-                ):
+                    offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0)
+                ) and "reference_variable" in base_addr.tags:
                     expr.variable = base_addr.reference_variable
                     expr.variable_offset = base_addr.reference_variable_offset
 

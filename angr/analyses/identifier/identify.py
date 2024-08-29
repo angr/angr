@@ -622,10 +622,8 @@ class Identifier(Analysis):
             written_regs = set()
             # we can get stack variables via memory actions
             for a in succ.history.recent_actions:
-                if (
-                    a.type == "mem"
-                    and "sym_sp" in a.addr.ast.variables
-                    or (bp_based and "sym_bp" in a.addr.ast.variables)
+                if a.type == "mem" and (
+                    "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variablest)
                 ):
                     possible_stack_vars.append((addr, a.addr.ast, a.action))
                 if a.type == "reg" and a.action == "write":
