@@ -26,6 +26,9 @@ class SimStateGlobals(SimStatePlugin):
         l.warning("Widening is unimplemented for globals")
         return False
 
+    def __iter__(self):
+        return iter(self._backer)
+
     def __getitem__(self, k):
         return self._backer[k]
 

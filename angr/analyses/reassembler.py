@@ -1929,10 +1929,10 @@ class Reassembler(Analysis):
         least_limbo = None
 
         for start, end in self.main_nonexecutable_regions:
-            if start - tolerance_before <= addr < start and least_limbo is None or start - addr < least_limbo:
+            if (start - tolerance_before <= addr < start) and (least_limbo is None or start - addr < least_limbo):
                 closest_region = (True, start)
                 least_limbo = start - addr
-            if end <= addr < end + tolerance_after and (least_limbo is None or addr - end < least_limbo):
+            if (end <= addr < end + tolerance_after) and (least_limbo is None or addr - end < least_limbo):
                 closest_region = (True, end)
                 least_limbo = addr - end
 
