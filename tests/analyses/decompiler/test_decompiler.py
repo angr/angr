@@ -3732,14 +3732,7 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["schedule_job"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        # TODO: CrossJumpReverter should be enabled, fix me before merging
-        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts={CrossJumpReverter}
-        )
-
-        d = proj.analyses[Decompiler](
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
-        )
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         text = d.codegen.text
@@ -3789,7 +3782,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = d.codegen.text
         assert text.count("malloc") == 2
-        # TODO: there is som inconsistency in generating the conditions to bound the successors of this region
+        # TODO: there is some inconsistency in generating the conditions to bound the successors of this region
         #   so this can most-likely be re-enabled with virtual variable insertion
         # assert text.count("sub_404860") == 1
 
