@@ -1,3 +1,4 @@
+from __future__ import annotations
 from sortedcontainers import SortedDict
 
 from ....sim_variable import SimVariable

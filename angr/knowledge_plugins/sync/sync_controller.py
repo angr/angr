@@ -1,6 +1,6 @@
 # pylint:disable=import-outside-toplevel
+from __future__ import annotations
 from functools import wraps
-from typing import Optional
 
 from ... import knowledge_plugins
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -91,7 +91,7 @@ class SyncController(KnowledgeBasePlugin):
 
         super().__init__(kb=kb)
 
-        self.client: Optional["binsync.client.Client"] = None
+        self.client: binsync.client.Client | None = None
 
     #
     # Public methods
@@ -172,7 +172,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     # pylint:disable=unused-argument,no-self-use
-    def push_comments(self, comments: list["binsync.data.Comment"], user=None, state=None):
+    def push_comments(self, comments: list[binsync.data.Comment], user=None, state=None):
         """
         Push a bunch of comments upwards.
 
@@ -226,7 +226,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_ro_state
     # pylint:disable=unused-argument
-    def pull_function(self, addr, user=None, state=None) -> Optional["binsync.data.Function"]:
+    def pull_function(self, addr, user=None, state=None) -> binsync.data.Function | None:
         """
         Pull a function downwards.
 
@@ -245,7 +245,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_ro_state
     # pylint:disable=unused-argument
-    def pull_comment(self, addr, user=None, state=None) -> Optional["binsync.data.Comment"]:
+    def pull_comment(self, addr, user=None, state=None) -> binsync.data.Comment | None:
         """
         Pull a comment downwards.
 

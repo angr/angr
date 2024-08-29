@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.procedures.stubs.format_parser import ScanfFormatParser
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch

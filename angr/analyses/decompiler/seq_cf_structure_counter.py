@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode, LoopNode
 

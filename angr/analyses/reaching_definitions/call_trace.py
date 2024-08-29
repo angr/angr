@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class CallSite:
     """
     Describes a call site on a CFG.
@@ -52,7 +55,7 @@ class CallTrace:
             return self.target
         return self.callsites[-1].caller_func_addr
 
-    def step_back(self, caller_func_addr: int, block_addr: int | None, callee_func_addr) -> "CallTrace":
+    def step_back(self, caller_func_addr: int, block_addr: int | None, callee_func_addr) -> CallTrace:
         # create a new CallSite object
         site = CallSite(caller_func_addr, block_addr, callee_func_addr)
         t = self.copy()
@@ -66,7 +69,7 @@ class CallTrace:
             return True
         return False
 
-    def copy(self) -> "CallTrace":
+    def copy(self) -> CallTrace:
         t = CallTrace(self.target)
         t.callsites = self.callsites[::]
         return t

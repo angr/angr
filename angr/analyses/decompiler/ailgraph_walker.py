@@ -1,3 +1,4 @@
+from __future__ import annotations
 import networkx  # pylint:disable=unused-import
 
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import MemoryMixin
 from ... import sim_options as options
 

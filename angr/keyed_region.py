@@ -1,6 +1,7 @@
+from __future__ import annotations
 import logging
 import weakref
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
@@ -17,7 +18,7 @@ class StoredObject:
     def __init__(self, start, obj, size):
         self.start = start
         self.obj = obj
-        self.size: Union["UnknownSize", int] = size
+        self.size: UnknownSize | int = size
 
     def __eq__(self, other):
         assert type(other) is StoredObject
@@ -375,7 +376,7 @@ class KeyedRegion:
     # Private methods
     #
 
-    def _canonicalize_size(self, size: Union[int, "UnknownSize"]) -> int:
+    def _canonicalize_size(self, size: int | UnknownSize) -> int:
         # delayed import
         from .knowledge_plugins.key_definitions.unknown_size import (
             UnknownSize,

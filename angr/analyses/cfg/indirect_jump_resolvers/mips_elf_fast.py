@@ -1,4 +1,5 @@
 # pylint:disable=too-many-boolean-expressions,global-statement
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -494,7 +495,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
     @staticmethod
     def _is_gp_used_on_slice(project, b: Blade) -> bool:
         gp_offset = project.arch.registers["gp"][0]
-        blocks_on_slice: dict[int, "Block"] = {}
+        blocks_on_slice: dict[int, Block] = {}
         for block_addr, block_stmt_idx in b.slice.nodes():
             if block_addr not in blocks_on_slice:
                 blocks_on_slice[block_addr] = project.factory.block(block_addr, cross_insn_opt=False)

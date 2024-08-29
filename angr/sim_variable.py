@@ -1,3 +1,4 @@
+from __future__ import annotations
 import collections.abc
 from typing import TYPE_CHECKING
 
@@ -37,7 +38,7 @@ class SimVariable(Serializable):
     def copy(self):
         raise NotImplementedError()
 
-    def loc_repr(self, arch: "archinfo.Arch"):
+    def loc_repr(self, arch: archinfo.Arch):
         """
         The representation that shows up in a GUI
         """
@@ -114,7 +115,7 @@ class SimConstantVariable(SimVariable):
             self._hash = hash(("const", self.value, self.ident, self.region, self.ident))
         return self._hash
 
-    def copy(self) -> "SimConstantVariable":
+    def copy(self) -> SimConstantVariable:
         r = SimConstantVariable(ident=self.ident, value=self.value, region=self.region, size=self.size)
         r._hash = self._hash
         return r
@@ -147,7 +148,7 @@ class SimTemporaryVariable(SimVariable):
 
         return False
 
-    def copy(self) -> "SimTemporaryVariable":
+    def copy(self) -> SimTemporaryVariable:
         r = SimTemporaryVariable(self.tmp_id, size=self.size)
         r._hash = self._hash
         return r
@@ -209,7 +210,7 @@ class SimRegisterVariable(SimVariable):
 
         return False
 
-    def copy(self) -> "SimRegisterVariable":
+    def copy(self) -> SimRegisterVariable:
         s = SimRegisterVariable(
             self.reg, self.size, ident=self.ident, name=self.name, region=self.region, category=self.category
         )
@@ -285,7 +286,7 @@ class SimMemoryVariable(SimVariable):
     def bits(self):
         return self.size * 8
 
-    def copy(self) -> "SimMemoryVariable":
+    def copy(self) -> SimMemoryVariable:
         r = SimMemoryVariable(
             self.addr, self.size, ident=self.ident, name=self.name, region=self.region, category=self.category
         )
@@ -380,7 +381,7 @@ class SimStackVariable(SimMemoryVariable):
     def __hash__(self):
         return hash((self.ident, self.base, self.offset, self.size))
 
-    def copy(self) -> "SimStackVariable":
+    def copy(self) -> SimStackVariable:
         s = SimStackVariable(
             self.offset,
             self.size,

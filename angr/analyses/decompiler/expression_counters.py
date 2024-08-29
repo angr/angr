@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, DefaultDict, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
@@ -65,12 +66,12 @@ class OperatorCounter(AILBlockWalkerBase):
         else:
             raise TypeError(f"Unsupported argument type {type(expr_or_stmt)}")
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: "BinaryOp", stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         if expr.op in self.operators:
             self.count += 1
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         if expr.op in self.operators:
             self.count += 1
         return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)

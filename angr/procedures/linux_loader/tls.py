@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 from angr.errors import SimValueError
 

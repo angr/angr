@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import math
 import types
@@ -286,7 +287,7 @@ class NormalizedBlock:
 
 class NormalizedFunction:
     # a more normalized function
-    def __init__(self, function: "Function"):
+    def __init__(self, function: Function):
         # start by copying the graph
         self.graph: networkx.DiGraph = function.graph.copy()
         self.project = function._function_manager._kb._project
@@ -349,7 +350,7 @@ class FunctionDiff:
     This class computes the a diff between two functions.
     """
 
-    def __init__(self, function_a: "Function", function_b: "Function", bindiff=None):
+    def __init__(self, function_a: Function, function_b: Function, bindiff=None):
         """
         :param function_a: The first angr Function object to diff.
         :param function_b: The second angr Function object.

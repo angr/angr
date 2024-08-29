@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 import resource
 import time

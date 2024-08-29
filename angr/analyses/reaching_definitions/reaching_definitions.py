@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Optional, DefaultDict, Any, Union, TYPE_CHECKING
+from typing import DefaultDict, Any, Union, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
 
@@ -59,12 +60,12 @@ class ReachingDefinitionsAnalysis(
         max_iterations=30,
         track_tmps=False,
         track_consts=True,
-        observation_points: "Iterable[ObservationPoint]" = None,
+        observation_points: Iterable[ObservationPoint] = None,
         init_state: ReachingDefinitionsState = None,
         init_context=None,
-        state_initializer: Optional["RDAStateInitializer"] = None,
+        state_initializer: RDAStateInitializer | None = None,
         cc=None,
-        function_handler: "Optional[FunctionHandler]" = None,
+        function_handler: FunctionHandler | None = None,
         observe_all=False,
         visited_blocks=None,
         dep_graph: DepGraph | bool | None = True,

@@ -19,11 +19,13 @@ exclude = [
 ]
 
 [tool.ruff.lint]
+extend-select = [
+	"I002",
+]
 extend-ignore = [
 	"E402", # Bottom imports
 	"E721", # Type comparisons
 	"E741", # Variable names
-
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -42,3 +44,6 @@ extend-ignore = [
 	"F401",
 	"F403",
 ]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]

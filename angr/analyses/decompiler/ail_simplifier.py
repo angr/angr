@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Any, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -77,7 +78,7 @@ class AILSimplifier(Analysis):
         remove_dead_memdefs=False,
         stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
-        ail_manager: Optional["Manager"] = None,
+        ail_manager: Manager | None = None,
         gp: int | None = None,
         narrow_expressions=False,
         only_consts=False,
@@ -87,7 +88,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions: Optional["ReachingDefinitionsModel"] = None
+        self._reaching_definitions: ReachingDefinitionsModel | None = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -177,7 +178,7 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
+    def _compute_reaching_definitions(self) -> ReachingDefinitionsModel:
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions

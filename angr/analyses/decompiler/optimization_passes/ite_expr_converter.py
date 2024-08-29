@@ -1,6 +1,7 @@
 # pylint:disable=unnecessary-pass
+from __future__ import annotations
 import logging
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from ailment.statement import ConditionalJump, Assignment, Statement
 from ailment.expression import Const, ITE, Expression
@@ -59,7 +60,7 @@ class ExpressionReplacer(AILBlockWalker):
         self._callback = callback
 
     def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Optional["AILBlock"]
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if expr == self._target_expr:
             new_expr = self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
@@ -217,7 +218,7 @@ class ITEExprConverter(OptimizationPass):
 
         return new_expr
 
-    def _locate_block(self, block: "AILBlock"):
+    def _locate_block(self, block: AILBlock):
         locator = BlockLocator(block)
         try:
             locator.walk(self._ri.region)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from ...engines.light.engine import SimEngineLightMixin

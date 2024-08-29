@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ,unused-argument,no-member
+from __future__ import annotations
 
 from angr.storage.memory_mixins import MemoryMixin
 from angr.utils.segment_list import SegmentList

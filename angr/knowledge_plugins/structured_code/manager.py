@@ -1,5 +1,6 @@
 # pylint:disable=import-outside-toplevel
-from typing import Any, Union, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 
 from .. import KnowledgeBasePlugin
 
@@ -11,7 +12,7 @@ if TYPE_CHECKING:
 class StructuredCodeManager(KnowledgeBasePlugin):
     def __init__(self, kb):
         super().__init__(kb=kb)
-        self.cached: dict[Any, "DecompilationCache"] = {}
+        self.cached: dict[Any, DecompilationCache] = {}
 
     def _normalize_key(self, item):
         if type(item) is not tuple:
@@ -20,10 +21,10 @@ class StructuredCodeManager(KnowledgeBasePlugin):
             item = (self._kb.labels.lookup(item[0]), *item[1:])
         return item
 
-    def __getitem__(self, item) -> "DecompilationCache":
+    def __getitem__(self, item) -> DecompilationCache:
         return self.cached[self._normalize_key(item)]
 
-    def __setitem__(self, key, value: Union["DecompilationCache", "BaseStructuredCodeGenerator"]):
+    def __setitem__(self, key, value: DecompilationCache | BaseStructuredCodeGenerator):
         from ...analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
         from ...analyses.decompiler.decompilation_cache import DecompilationCache
 

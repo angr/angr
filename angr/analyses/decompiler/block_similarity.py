@@ -1,3 +1,4 @@
+from __future__ import annotations
 import networkx as nx
 from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump

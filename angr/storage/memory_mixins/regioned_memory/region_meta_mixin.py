@@ -1,3 +1,4 @@
+from __future__ import annotations
 import copy
 from typing import Any
 
@@ -27,7 +28,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        r: "MemoryRegionMetaMixin" = super().copy(memo)
+        r: MemoryRegionMetaMixin = super().copy(memo)
         r.alocs = copy.deepcopy(self.alocs)
         r._related_function_addr = self._related_function_addr
         r._is_stack = self._is_stack

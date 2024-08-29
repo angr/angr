@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
@@ -26,7 +27,7 @@ class OuterWalker(SequenceWalker):
         super().__init__()
         self.desc: dict[OpDescriptor, str] = desc
 
-    def _handle_Condition(self, node: "ConditionNode", **kwargs):
+    def _handle_Condition(self, node: ConditionNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
                 hasattr(node.condition, "ins_addr")
@@ -36,7 +37,7 @@ class OuterWalker(SequenceWalker):
                 node.condition = self._swap_expr_op(new_op, node.condition)
         return super()._handle_Condition(node, **kwargs)
 
-    def _handle_Loop(self, node: "LoopNode", **kwargs):
+    def _handle_Loop(self, node: LoopNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
                 hasattr(node.condition, "ins_addr")
@@ -46,7 +47,7 @@ class OuterWalker(SequenceWalker):
                 node.condition = self._swap_expr_op(new_op, node.condition)
         return super()._handle_Loop(node, **kwargs)
 
-    def _handle_ConditionalBreak(self, node: "ConditionalBreakNode", **kwargs):
+    def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
                 hasattr(node.condition, "ins_addr")

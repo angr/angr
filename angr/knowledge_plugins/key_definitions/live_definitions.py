@@ -1,4 +1,5 @@
-from typing import Optional, Union, Any, TYPE_CHECKING, overload
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING, overload
 from collections.abc import Iterable, Generator
 import weakref
 import logging
@@ -69,7 +70,7 @@ class DefinitionAnnotation(Annotation):
     def __hash__(self):
         return self._hash
 
-    def __eq__(self, other: "object"):
+    def __eq__(self, other: object):
         if type(other) is DefinitionAnnotation:
             return self.definition == other.definition
         else:
@@ -131,7 +132,7 @@ class LiveDefinitions:
         element_limit=5,
         merge_into_tops: bool = True,
     ):
-        self.project: Optional["Project"] = None
+        self.project: Project | None = None
         self.arch = arch
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
@@ -233,7 +234,7 @@ class LiveDefinitions:
             ctnt += ", %d tmpdefs" % len(self.tmps)
         return "<%s>" % ctnt
 
-    def copy(self, discard_tmpdefs=False) -> "LiveDefinitions":
+    def copy(self, discard_tmpdefs=False) -> LiveDefinitions:
         rd = LiveDefinitions(
             self.arch,
             track_tmps=self.track_tmps,
@@ -267,8 +268,8 @@ class LiveDefinitions:
 
     @staticmethod
     def _mo_cmp(
-        mo_self: Union["SimMemoryObject", set["SimMemoryObject"]],
-        mo_other: Union["SimMemoryObject", set["SimMemoryObject"]],
+        mo_self: SimMemoryObject | set[SimMemoryObject],
+        mo_other: SimMemoryObject | set[SimMemoryObject],
         addr: int,
         size: int,
     ):  # pylint:disable=unused-argument
@@ -378,13 +379,13 @@ class LiveDefinitions:
         return symvar.annotate(DefinitionAnnotation(definition), remove_annotations=annotations_to_remove)
 
     @staticmethod
-    def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition, None, None]:
+    def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition]:
         for anno in symvar.annotations:
             if isinstance(anno, DefinitionAnnotation):
                 yield anno.definition
 
     @staticmethod
-    def extract_defs_from_annotations(annos: Iterable["Annotation"]) -> set[Definition]:
+    def extract_defs_from_annotations(annos: Iterable[Annotation]) -> set[Definition]:
         defs = set()
         for anno in annos:
             if isinstance(anno, DefinitionAnnotation):
@@ -392,7 +393,7 @@ class LiveDefinitions:
         return defs
 
     @staticmethod
-    def extract_defs_from_mv(mv: MultiValues) -> Generator[Definition, None, None]:
+    def extract_defs_from_mv(mv: MultiValues) -> Generator[Definition]:
         for vs in mv.values():
             for v in vs:
                 yield from LiveDefinitions.extract_defs(v)
@@ -450,7 +451,7 @@ class LiveDefinitions:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
         return (base_v + offset) & mask
 
-    def merge(self, *others: "LiveDefinitions") -> tuple["LiveDefinitions", bool]:
+    def merge(self, *others: LiveDefinitions) -> tuple[LiveDefinitions, bool]:
         state = self.copy()
 
         merge_occurred = state.registers.merge([other.registers for other in others], None)
@@ -477,7 +478,7 @@ class LiveDefinitions:
 
         return state, merge_occurred
 
-    def compare(self, other: "LiveDefinitions") -> bool:
+    def compare(self, other: LiveDefinitions) -> bool:
         r0 = self.registers.compare(other.registers)
         if r0 is False:
             return False

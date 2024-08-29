@@ -1,5 +1,7 @@
 """Representing the artifacts of a project."""
 
+from __future__ import annotations
+
 from itertools import count
 import logging
 
@@ -30,15 +32,15 @@ class KnowledgeBase:
     Contains things like a CFG, data references, etc.
     """
 
-    functions: "FunctionManager"
-    variables: "VariableManager"
-    structured_code: "StructuredCodeManager"
-    defs: "KeyDefinitionManager"
-    cfgs: "CFGManager"
-    _project: "Project"
-    types: "TypesStore"
-    propagations: "PropagationManager"
-    xrefs: "XRefManager"
+    functions: FunctionManager
+    variables: VariableManager
+    structured_code: StructuredCodeManager
+    defs: KeyDefinitionManager
+    cfgs: CFGManager
+    _project: Project
+    types: TypesStore
+    propagations: PropagationManager
+    xrefs: XRefManager
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:

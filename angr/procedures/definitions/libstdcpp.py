@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...sim_type import SimTypeFunction, SimTypePointer, SimTypeChar, SimTypeBottom
 from .. import SIM_PROCEDURES as P
 from . import SimCppLibrary

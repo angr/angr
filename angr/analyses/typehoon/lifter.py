@@ -1,4 +1,5 @@
-from typing import Union, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from ...sim_type import (
     SimType,
@@ -56,7 +57,7 @@ class TypeLifter:
             return Pointer64(self.lift(ty.pts_to))
         raise ValueError("Unsupported bits %s." % self.bits)
 
-    def _lift_SimStruct(self, ty: SimStruct) -> Union["TypeConstant", BottomType]:
+    def _lift_SimStruct(self, ty: SimStruct) -> TypeConstant | BottomType:
         if ty in self.memo:
             return BottomType()
 

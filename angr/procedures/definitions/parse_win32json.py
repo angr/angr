@@ -1,4 +1,5 @@
 # Based on https://github.com/dfraze/binja_winmd/blob/main/main.py. Thank you, Dustin Fraze!
+from __future__ import annotations
 
 from typing import Set
 import json

@@ -1,4 +1,4 @@
-from typing import Union
+from __future__ import annotations
 from collections.abc import Iterator
 import archinfo
 
@@ -25,7 +25,7 @@ class MultiValues:
 
     def __init__(
         self,
-        v: Union[claripy.ast.Bits, "MultiValues", None, dict[int, set[claripy.ast.Bits]]] = None,
+        v: claripy.ast.Bits | MultiValues | None | dict[int, set[claripy.ast.Bits]] = None,
         offset_to_values=None,
     ):
         if v is not None and offset_to_values is not None:
@@ -156,7 +156,7 @@ class MultiValues:
         max_len = max(x.size() for x in self._values[max_offset])
         return max_offset * 8 + max_len  # FIXME: we are assuming byte_width of 8
 
-    def merge(self, mv: "MultiValues") -> "MultiValues":
+    def merge(self, mv: MultiValues) -> MultiValues:
         new_values = {k: set(v) for k, v in self.items()}
         for off, vs in mv.items():
             if off not in new_values:
@@ -231,7 +231,7 @@ class MultiValues:
             return 0
         return len(self._values)
 
-    def extract(self, offset: int, length: int, endness: str) -> "MultiValues":
+    def extract(self, offset: int, length: int, endness: str) -> MultiValues:
         end = offset + length
         result = MultiValues(claripy.BVV(b""))
         for obj_offset, values in self.items():
@@ -250,7 +250,7 @@ class MultiValues:
 
         return result
 
-    def concat(self, other: Union["MultiValues", claripy.ast.Bits, bytes]) -> "MultiValues":
+    def concat(self, other: MultiValues | claripy.ast.Bits | bytes) -> MultiValues:
         if isinstance(other, bytes):
             other = claripy.BVV(other)
         if isinstance(other, claripy.ast.Bits):

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Disable some pylint warnings: no-self-use, missing-docstring
 # pylint: disable=R0201, C0111
+from __future__ import annotations
+
 __package__ = __package__ or "tests.procedures.posix"  # pylint:disable=redefined-builtin
 
 import os

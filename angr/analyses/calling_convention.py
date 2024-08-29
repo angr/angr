@@ -1,6 +1,7 @@
 # pylint:disable=no-self-use
+from __future__ import annotations
 from collections import defaultdict
-from typing import Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import networkx
@@ -87,8 +88,8 @@ class CallingConventionAnalysis(Analysis):
 
     def __init__(
         self,
-        func: Union["Function", int, str] | None,
-        cfg: Optional["CFGModel"] = None,
+        func: Function | int | str | None,
+        cfg: CFGModel | None = None,
         analyze_callsites: bool = False,
         caller_func_addr: int | None = None,
         callsite_block_addr: int | None = None,
@@ -406,7 +407,7 @@ class CallingConventionAnalysis(Analysis):
         facts = []
         in_edges = self._cfg.graph.in_edges(node, data=True)
 
-        call_sites_by_function: dict["Function", list[tuple[int, int]]] = defaultdict(list)
+        call_sites_by_function: dict[Function, list[tuple[int, int]]] = defaultdict(list)
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
             if edge_type != "Ijk_Call":
@@ -448,7 +449,7 @@ class CallingConventionAnalysis(Analysis):
 
     def _generate_callsite_subgraph(
         self,
-        func: "Function",
+        func: Function,
         callsite_block_addr: int,
         include_preds: bool = False,
     ) -> networkx.DiGraph | None:
@@ -512,7 +513,7 @@ class CallingConventionAnalysis(Analysis):
     def _analyze_callsite_return_value_uses(
         self, cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-        all_defs: set["Definition"] = {
+        all_defs: set[Definition] = {
             def_
             for def_ in rda.all_uses._uses_by_definition.keys()
             if (
@@ -521,7 +522,7 @@ class CallingConventionAnalysis(Analysis):
                 or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
             )
         }
-        all_uses: "Uses" = rda.all_uses
+        all_uses: Uses = rda.all_uses
 
         # determine if the return value is used
         return_val = cc.RETURN_VAL
@@ -556,9 +557,9 @@ class CallingConventionAnalysis(Analysis):
     ) -> None:
         # determine if potential register and stack arguments are set
         state = rda.observed_results[("insn", call_insn_addr, OP_BEFORE)]
-        defs_by_reg_offset: dict[int, list["Definition"]] = defaultdict(list)
-        all_reg_defs: set["Definition"] = get_all_definitions(state.registers)
-        all_stack_defs: set["Definition"] = get_all_definitions(state.stack)
+        defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
+        all_reg_defs: set[Definition] = get_all_definitions(state.registers)
+        all_stack_defs: set[Definition] = get_all_definitions(state.stack)
         for d in all_reg_defs:
             if (
                 isinstance(d.atom, Register)
@@ -886,7 +887,7 @@ class CallingConventionAnalysis(Analysis):
         return SimTypeInt() if cc.arch.bits == 32 else SimTypeLongLong()
 
     @staticmethod
-    def _likely_saving_temp_reg(ail_block: ailment.Block, d: "Definition", all_reg_defs: set["Definition"]) -> bool:
+    def _likely_saving_temp_reg(ail_block: ailment.Block, d: Definition, all_reg_defs: set[Definition]) -> bool:
         if d.codeloc.block_addr == ail_block.addr and d.codeloc.stmt_idx < len(ail_block.statements):
             stmt = ail_block.statements[d.codeloc.stmt_idx]
             if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Register):

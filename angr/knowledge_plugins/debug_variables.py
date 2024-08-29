@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -26,7 +27,7 @@ class DebugVariableContainer:
         """
         self.less_visible_vars = []
 
-    def _insertvar(self, var: "DebugVariable"):
+    def _insertvar(self, var: DebugVariable):
         for i, v in enumerate(self.less_visible_vars):
             if var.test_unsupported_overlap(v):
                 if var.cle_variable.declaration_only:
@@ -102,10 +103,10 @@ class DebugVariable(DebugVariableContainer):
                 return var.from_pc(pc)
         return self.cle_variable
 
-    def contains(self, dvar: "DebugVariable") -> bool:
+    def contains(self, dvar: DebugVariable) -> bool:
         return self.low_pc <= dvar.low_pc and dvar.high_pc <= self.high_pc
 
-    def test_unsupported_overlap(self, dvar: "DebugVariable") -> bool:
+    def test_unsupported_overlap(self, dvar: DebugVariable) -> bool:
         """
         Test for an unsupported overlapping
 
@@ -130,7 +131,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
     Structure to manage and access variables with different visibility scopes.
     """
 
-    def __init__(self, kb: "KnowledgeBase"):
+    def __init__(self, kb: KnowledgeBase):
         super().__init__(kb=kb)
         self._dvar_containers = {}
 

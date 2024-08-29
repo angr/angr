@@ -1,4 +1,5 @@
 # pylint:disable=consider-using-in
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from collections.abc import Callable
 
@@ -24,11 +25,11 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         expr,
         expr_defat: CodeLocation,
         current_loc: CodeLocation,
-        state: "PropagatorAILState",
-        arch: "Arch",
+        state: PropagatorAILState,
+        arch: Arch,
         avoid: Expr.Expression | None = None,
         extract_offset_to_sp: Callable = None,
-        rda: "ReachingDefinitionsModel" = None,
+        rda: ReachingDefinitionsModel = None,
     ):
         super().__init__()
         self.expr = expr

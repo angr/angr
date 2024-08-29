@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 from typing import Any, TYPE_CHECKING
@@ -2805,7 +2807,7 @@ class TestJumpTableResolver(unittest.TestCase):
         cfg = p.analyses.CFGFast()
 
         assert 0x46D710 in cfg.indirect_jumps
-        ij: "IndirectJump" = cfg.indirect_jumps[0x46D710]
+        ij: IndirectJump = cfg.indirect_jumps[0x46D710]
         assert ij.type == IndirectJumpType.Vtable
         assert len(ij.jumptable_entries) == 213
 

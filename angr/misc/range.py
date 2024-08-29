@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class IRange:
     """
     A simple range object for testing inclusion. Like range but works for huge numbers.

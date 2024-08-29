@@ -1,4 +1,5 @@
 # This module contains data structures for handling memory, code, and register references.
+from __future__ import annotations
 
 import logging
 

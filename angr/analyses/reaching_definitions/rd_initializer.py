@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
@@ -38,7 +39,7 @@ class RDAStateInitializer:
         self.project = project
 
     def initialize_function_state(
-        self, state: "ReachingDefinitionsState", cc: SimCC | None, func_addr: int, rtoc_value: int | None = None
+        self, state: ReachingDefinitionsState, cc: SimCC | None, func_addr: int, rtoc_value: int | None = None
     ) -> None:
         """
         This is the entry point to the state initialization logic.
@@ -68,7 +69,7 @@ class RDAStateInitializer:
 
     def initialize_all_function_arguments(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         cc: SimCC | None,
@@ -92,7 +93,7 @@ class RDAStateInitializer:
 
     def initialize_one_function_argument(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         argument_location: SimFunctionArgument,
@@ -120,7 +121,7 @@ class RDAStateInitializer:
             raise TypeError("Unsupported parameter type %s." % type(argument_location).__name__)
 
     def initialize_stack_pointer(
-        self, state: "ReachingDefinitionsState", _func_addr: int, ex_loc: ExternalCodeLocation
+        self, state: ReachingDefinitionsState, _func_addr: int, ex_loc: ExternalCodeLocation
     ) -> None:
         # initialize stack pointer
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
@@ -130,7 +131,7 @@ class RDAStateInitializer:
 
     def initialize_architectural_state(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         rtoc_value: int | None = None,
@@ -187,7 +188,7 @@ class RDAStateInitializer:
 
     def _initialize_function_argument_register(
         self,
-        state: "ReachingDefinitionsState",
+        state: ReachingDefinitionsState,
         func_addr: int,
         ex_loc: ExternalCodeLocation,
         arg: SimRegArg,
@@ -206,7 +207,7 @@ class RDAStateInitializer:
         state.registers.store(reg_offset, reg)
 
     def _initialize_function_argument_stack(
-        self, state: "ReachingDefinitionsState", func_addr: int, ex_loc: ExternalCodeLocation, arg: SimStackArg
+        self, state: ReachingDefinitionsState, func_addr: int, ex_loc: ExternalCodeLocation, arg: SimStackArg
     ):
         ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
         ml_def = Definition(ml_atom, ex_loc, tags={ParameterTag(function=func_addr)})

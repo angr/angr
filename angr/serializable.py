@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class Serializable:
     """
     The base class of all protobuf-serializable classes in angr.

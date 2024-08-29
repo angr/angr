@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Reversible
 import operator
 import logging
@@ -361,11 +362,11 @@ class SimStateHistory(SimStatePlugin):
             yield from self.parent.lineage
 
     @property
-    def events(self) -> Reversible["SimEvent"]:
+    def events(self) -> Reversible[SimEvent]:
         return LambdaIterIter(self, operator.attrgetter("recent_events"))
 
     @property
-    def actions(self) -> Reversible["SimAction"]:
+    def actions(self) -> Reversible[SimAction]:
         return LambdaIterIter(self, operator.attrgetter("recent_actions"))
 
     @property

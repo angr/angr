@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,unused-argument
+from __future__ import annotations
 from collections import defaultdict
-from typing import Optional, Any, DefaultDict, TYPE_CHECKING
+from typing import Any, DefaultDict, TYPE_CHECKING
 from collections.abc import Iterable
 
 import ailment
@@ -140,7 +141,7 @@ class MultiStatementExpressionAssignmentFinder(AILBlockWalker):
         self._stmt_handler = stmt_handler
 
     def _handle_MultiStatementExpression(
-        self, expr_idx, expr: "MultiStatementExpression", stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         for idx, stmt_ in enumerate(expr.stmts):
             self._stmt_handler(idx, stmt_, block)
@@ -214,12 +215,12 @@ class ExpressionCounter(SequenceWalker):
         # indicates if ExpressionUseFinder has succeeded or not)
         self.assignments: DefaultDict[Any, set[tuple]] = defaultdict(set)
         self.uses: dict[SimVariable, set[tuple[Expression, LocationBase | None]]] = {}
-        self._variable_manager: "VariableManagerInternal" = variable_manager
+        self._variable_manager: VariableManagerInternal = variable_manager
 
         super().__init__(handlers)
         self.walk(node)
 
-    def _u(self, v) -> Optional["SimVariable"]:
+    def _u(self, v) -> SimVariable | None:
         """
         Get unified variable for a given variable.
         """
@@ -334,16 +335,16 @@ class ExpressionReplacer(AILBlockWalker):
         super().__init__()
         self._assignments = assignments
         self._uses = uses
-        self._variable_manager: "VariableManagerInternal" = variable_manager
+        self._variable_manager: VariableManagerInternal = variable_manager
 
-    def _u(self, v) -> Optional["SimVariable"]:
+    def _u(self, v) -> SimVariable | None:
         """
         Get unified variable for a given variable.
         """
         return self._variable_manager.unified_variable(v)
 
     def _handle_MultiStatementExpression(
-        self, expr_idx, expr: "MultiStatementExpression", stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         changed = False
         new_statements = []
@@ -434,7 +435,7 @@ class ExpressionFolder(SequenceWalker):
         self._variable_manager = variable_manager
         self.walk(node)
 
-    def _u(self, v) -> Optional["SimVariable"]:
+    def _u(self, v) -> SimVariable | None:
         """
         Get unified variable for a given variable.
         """

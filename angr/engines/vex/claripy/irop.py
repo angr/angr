@@ -2,6 +2,8 @@
 This module contains symbolic implementations of VEX operations.
 """
 
+from __future__ import annotations
+
 from functools import partial
 import collections
 import itertools

@@ -8,6 +8,7 @@
 # operating system to make things easier.
 #
 # If these tests break, contact @subwire (or, likely, he will find you)
+from __future__ import annotations
 
 from common import bin_priv_location, slow_test
 import os

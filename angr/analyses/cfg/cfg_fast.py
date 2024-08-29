@@ -1,4 +1,5 @@
 # pylint:disable=superfluous-parens,too-many-boolean-expressions,line-too-long
+from __future__ import annotations
 import itertools
 import logging
 import math

@@ -2,6 +2,7 @@
 """
 All type constants used in type inference. They can be mapped, translated, or rewritten to C-style types.
 """
+from __future__ import annotations
 
 import functools
 

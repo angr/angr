@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import pickle
 import sys
@@ -87,7 +88,7 @@ def do_trace(proj, test_name, input_data, **kwargs):
 
 
 @skipUnless(tracer, "tracer is not installed")
-def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
+def load_cgc_pov(pov_file: str) -> tracer.TracerPoV:
     return tracer.TracerPoV(pov_file)
 
 

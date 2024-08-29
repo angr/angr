@@ -1,3 +1,4 @@
+from __future__ import annotations
 import binascii
 import logging
 import os
@@ -374,7 +375,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: "JavaVmMemoryMixin" = super().copy(memo)
+        o: JavaVmMemoryMixin = super().copy(memo)
         o._stack = [stack_frame.copy() for stack_frame in self._stack]
         o.heap = self.heap.copy()
         o.vm_static_table = self.vm_static_table.copy()

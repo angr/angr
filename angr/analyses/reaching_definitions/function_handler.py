@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING, cast, Literal
 from collections.abc import Iterable, Callable
 from dataclasses import dataclass, field
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 l = logging.getLogger(__name__)
 
 
-def get_exit_livedefinitions(func: Function, rda_model: "ReachingDefinitionsModel"):
+def get_exit_livedefinitions(func: Function, rda_model: ReachingDefinitionsModel):
     """
     Get LiveDefinitions at all exits of a function, merge them, and return.
     """
@@ -187,7 +188,7 @@ class FunctionCallData:
             )
 
     def reset_prototype(
-        self, prototype: SimTypeFunction, state: "ReachingDefinitionsState", soft_reset: bool = False
+        self, prototype: SimTypeFunction, state: ReachingDefinitionsState, soft_reset: bool = False
     ) -> set[Atom]:
         self.prototype = prototype.with_arch(state.arch)
         if not soft_reset:
@@ -241,14 +242,14 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     @staticmethod
     @wraps
     def decorate(
-        f: Callable[["FunctionHandler", "ReachingDefinitionsState", "FunctionCallDataUnwrapped"], None]
-    ) -> Callable[["FunctionHandler", "ReachingDefinitionsState", FunctionCallData], None]:
+        f: Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallDataUnwrapped], None]
+    ) -> Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallData], None]:
         """
         Decorate a function handler method with this to make it take a FunctionCallDataUnwrapped instead of a
         FunctionCallData.
         """
 
-        def inner(self: "FunctionHandler", state: "ReachingDefinitionsState", data: FunctionCallData):
+        def inner(self: FunctionHandler, state: ReachingDefinitionsState, data: FunctionCallData):
             f(self, state, FunctionCallDataUnwrapped(data))
 
         return inner
@@ -264,7 +265,7 @@ class FunctionHandler:
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable["FunctionHandler"] | None = None):
+    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[FunctionHandler] | None = None):
         self.interfunction_level: int = interfunction_level
 
         if extra_impls is not None:
@@ -273,7 +274,7 @@ class FunctionHandler:
                     if name.startswith("handle_impl_"):
                         setattr(self, name, _mk_wrapper(func, self))
 
-    def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
+    def hook(self, analysis: ReachingDefinitionsAnalysis) -> FunctionHandler:
         """
         Attach this instance of the function handler to an instance of RDA.
         """
@@ -302,7 +303,7 @@ class FunctionHandler:
                 "Please implement FunctionHandler.make_function_codeloc for your special context sensitivity"
             )
 
-    def handle_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+    def handle_function(self, state: ReachingDefinitionsState, data: FunctionCallData):
         """
         The main entry point for the function handler. Called with a RDA state and a FunctionCallData, it is expected
         to update the state and the data as per the contracts described on FunctionCallData.
@@ -485,7 +486,7 @@ class FunctionHandler:
         # move the current codeloc back to the callsite
         state.move_codelocs(data.callsite_codeloc)
 
-    def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+    def handle_generic_function(self, state: ReachingDefinitionsState, data: FunctionCallData):
         assert data.cc is not None
         assert data.prototype is not None
         if data.prototype.returnty is not None:
@@ -511,10 +512,10 @@ class FunctionHandler:
             for atom in data.ret_atoms:
                 data.depends(atom, *sources, apply_at_callsite=True)
 
-    def handle_indirect_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+    def handle_indirect_function(self, state: ReachingDefinitionsState, data: FunctionCallData) -> None:
         self.handle_generic_function(state, data)
 
-    def handle_local_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+    def handle_local_function(self, state: ReachingDefinitionsState, data: FunctionCallData) -> None:
         if self.interfunction_level > 0 and data.function is not None and state.analysis is not None:
             self.interfunction_level -= 1
             try:
@@ -524,10 +525,10 @@ class FunctionHandler:
         else:
             self.handle_generic_function(state, data)
 
-    def handle_external_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+    def handle_external_function(self, state: ReachingDefinitionsState, data: FunctionCallData) -> None:
         self.handle_generic_function(state, data)
 
-    def recurse_analysis(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+    def recurse_analysis(self, state: ReachingDefinitionsState, data: FunctionCallData) -> None:
         """
         Precondition: ``data.function`` MUST NOT BE NONE in order to call this method.
         """
@@ -567,7 +568,7 @@ class FunctionHandler:
         data.retaddr_popped = True
 
     @staticmethod
-    def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> list[set[Atom]]:
+    def c_args_as_atoms(state: ReachingDefinitionsState, cc: SimCC, prototype: SimTypeFunction) -> list[set[Atom]]:
         if not prototype.variadic:
             sp_value = state.get_one_value(Register(state.arch.sp_offset, state.arch.bytes), strip_annotations=True)
             sp = state.get_stack_offset(sp_value) if sp_value is not None else None
@@ -590,7 +591,7 @@ class FunctionHandler:
         return [{Register(*state.arch.registers[arg_name], arch=state.arch)} for arg_name in cc.ARG_REGS]
 
     @staticmethod
-    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
+    def c_return_as_atoms(state: ReachingDefinitionsState, cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
             retval = cc.return_val(prototype.returnty)
             if retval is not None:
@@ -601,7 +602,7 @@ class FunctionHandler:
         return set()
 
     @staticmethod
-    def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> set[Register]:
+    def caller_saved_regs_as_atoms(state: ReachingDefinitionsState, cc: SimCC) -> set[Register]:
         return (
             {Register(*state.arch.registers[reg], arch=state.arch) for reg in cc.CALLER_SAVED_REGS}
             if cc.CALLER_SAVED_REGS is not None

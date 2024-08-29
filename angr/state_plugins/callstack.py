@@ -1,7 +1,7 @@
+from __future__ import annotations
 import collections
 from itertools import dropwhile
 import logging
-from typing import Optional
 from collections.abc import Iterator
 
 from .plugin import SimStatePlugin
@@ -23,7 +23,7 @@ class CallStack(SimStatePlugin):
         stack_ptr=0,
         ret_addr=0,
         jumpkind="Ijk_Call",
-        next_frame: Optional["CallStack"] = None,
+        next_frame: CallStack | None = None,
         invoke_return_variable=None,
     ):
         super().__init__()
@@ -78,7 +78,7 @@ class CallStack(SimStatePlugin):
     def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening not implemented for callstacks")
 
-    def __iter__(self) -> Iterator["CallStack"]:
+    def __iter__(self) -> Iterator[CallStack]:
         """
         Iterate through the callstack, from top to bottom
         (most recent first).

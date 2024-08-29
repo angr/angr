@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Convert, Const, ITE
 
 from .base import PeepholeOptimizationExprBase

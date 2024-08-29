@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class XRefType:
     Offset = 0
     Read = 1

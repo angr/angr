@@ -1,4 +1,5 @@
 # pylint:disable=unused-argument,no-self-use
+from __future__ import annotations
 from collections import OrderedDict
 
 import claripy

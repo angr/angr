@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
@@ -125,7 +126,7 @@ class CFGJobBase:
     def __init__(
         self,
         addr,
-        state: "SimState",
+        state: SimState,
         context_sensitivity_level,
         block_id=None,
         src_block_id=None,

@@ -1,4 +1,5 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
+from __future__ import annotations
 
 import ailment
 import claripy

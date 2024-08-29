@@ -3,6 +3,7 @@
 """
 This is the first of many syscall tests
 """
+from __future__ import annotations
 
 import logging
 

@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from ailment import Block
 from ailment.block_walker import AILBlockWalkerBase
@@ -16,11 +17,11 @@ class AILBlockCallCounter(AILBlockWalkerBase):
 
     calls = 0
 
-    def _handle_CallExpr(self, expr_idx: int, expr: "Call", stmt_idx: int, stmt, block: Optional["Block"]):
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block: Block | None):
         self.calls += 1
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: "Call", block: Optional["Block"]):
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         self.calls += 1
         super()._handle_Call(stmt_idx, stmt, block)
 

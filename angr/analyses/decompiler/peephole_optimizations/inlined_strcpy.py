@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 import string
 
 from archinfo import Endness

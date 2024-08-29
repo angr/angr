@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 import logging
 from typing import Any
 from collections.abc import Iterable
@@ -217,7 +218,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: list["UltraPage"],
+        others: list[UltraPage],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,  # pylint: disable=arguments-differ
@@ -242,7 +243,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             memory_objects: list[tuple[SimMemoryObject, Any]] = []
             concretes: list[tuple[int, Any]] = []
-            unconstrained_in: list[tuple["UltraPage", Any]] = []
+            unconstrained_in: list[tuple[UltraPage, Any]] = []
             our_mo: SimMemoryObject | None = None
 
             # first get a list of all memory objects at that location, and

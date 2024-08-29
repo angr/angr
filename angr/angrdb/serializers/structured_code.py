@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import json
 import pickle
@@ -18,7 +19,7 @@ class StructuredCodeManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb: "DbKnowledgeBase", code_manager: StructuredCodeManager):
+    def dump(session, db_kb: DbKnowledgeBase, code_manager: StructuredCodeManager):
         """
 
         :param session:
@@ -76,7 +77,7 @@ class StructuredCodeManagerSerializer:
         return new_d
 
     @staticmethod
-    def load(session, db_kb: "DbKnowledgeBase", kb: "KnowledgeBase") -> StructuredCodeManager:
+    def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase) -> StructuredCodeManager:
         """
 
         :param session:

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Expression, Convert
 from ailment.statement import Call
 

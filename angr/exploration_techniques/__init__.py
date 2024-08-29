@@ -1,4 +1,5 @@
 # pylint:disable=unused-import,missing-class-docstring,wrong-import-position
+from __future__ import annotations
 import angr  # For type annotations
 
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .engine import SuccessorsMixin
 from .procedure import ProcedureMixin
 

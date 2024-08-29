@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...knowledge_base import KnowledgeBase
 from ..models import DbKnowledgeBase
 from .cfg_model import CFGModelSerializer

@@ -1,5 +1,6 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
-from typing import Optional, Any, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -67,7 +68,7 @@ class DreamStructurer(StructurerBase):
         region,
         parent_map=None,
         condition_processor=None,
-        func: Optional["Function"] = None,
+        func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         **kwargs,

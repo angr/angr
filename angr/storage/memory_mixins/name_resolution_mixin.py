@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 from archinfo.arch_arm import is_arm_arch
 from . import MemoryMixin

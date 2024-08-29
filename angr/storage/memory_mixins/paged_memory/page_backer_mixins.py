@@ -1,3 +1,4 @@
+from __future__ import annotations
 from mmap import mmap
 from typing import Union
 from collections.abc import Generator
@@ -118,7 +119,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         addr: int,
         backer: bytes | bytearray,
         backer_start: int,
-        backer_iter: Generator[tuple[int, bytes | bytearray], None, None],
+        backer_iter: Generator[tuple[int, bytes | bytearray]],
     ) -> claripy.ast.BV:
         if backer_start <= addr and backer_start + len(backer) >= addr + self.page_size:
             # fast case
@@ -145,7 +146,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         return data
 
     def _data_from_lists_backer(
-        self, addr: int, backer: list[int], backer_start: int, backer_iter: Generator[tuple[int, list[int]], None, None]
+        self, addr: int, backer: list[int], backer_start: int, backer_iter: Generator[tuple[int, list[int]]]
     ) -> claripy.ast.BV:
         page_data = [0] * self.page_size
         while backer_start < addr + self.page_size:

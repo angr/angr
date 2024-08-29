@@ -1,4 +1,5 @@
 # pylint:disable=no-self-use,isinstance-second-argument-not-valid-type,unused-argument
+from __future__ import annotations
 from typing import Any
 import struct
 import re

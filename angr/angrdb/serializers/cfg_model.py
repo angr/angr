@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 from ..models import DbCFGModel
 from ...knowledge_plugins.cfg.cfg_model import CFGModel
 

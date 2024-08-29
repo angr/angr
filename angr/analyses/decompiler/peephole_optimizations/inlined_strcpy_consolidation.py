@@ -1,4 +1,5 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 
 from ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset
 from ailment.statement import Call, Store

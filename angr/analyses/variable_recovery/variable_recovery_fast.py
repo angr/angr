@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
+from __future__ import annotations
 from typing import DefaultDict, TYPE_CHECKING
 import logging
 from collections import defaultdict
@@ -102,9 +103,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         return state
 
-    def merge(
-        self, others: tuple["VariableRecoveryFastState"], successor=None
-    ) -> tuple["VariableRecoveryFastState", bool]:
+    def merge(self, others: tuple[VariableRecoveryFastState], successor=None) -> tuple[VariableRecoveryFastState, bool]:
         """
         Merge two abstract states.
 
@@ -278,7 +277,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._node_to_cc = {}
         self.var_to_typevars: DefaultDict[SimVariable, set[TypeVariable]] = defaultdict(set)
         self.typevars = None
-        self.type_constraints: dict["TypeVariable", set["TypeConstraint"]] | None = None
+        self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
         self.func_typevar = TypeVariable(name=func.name)
         self.delayed_type_constraints = None
         self.ret_val_size = None

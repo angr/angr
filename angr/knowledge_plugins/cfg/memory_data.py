@@ -1,4 +1,5 @@
 # pylint:disable=no-member
+from __future__ import annotations
 from ...protos import cfg_pb2
 from ...serializable import Serializable
 
@@ -71,7 +72,7 @@ class MemoryData(Serializable):
 
         self.content: bytes | None = None  # temporary annotation
 
-    def __eq__(self, other: "MemoryData"):
+    def __eq__(self, other: MemoryData):
         return (
             self.addr == other.addr
             and self.size == other.size

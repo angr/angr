@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Any
 from collections import defaultdict
@@ -75,7 +76,7 @@ class GraphRegion:
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
-    def copy(self) -> "GraphRegion":
+    def copy(self) -> GraphRegion:
         return GraphRegion(
             self.head,
             networkx.DiGraph(self.graph) if self.graph is not None else None,
@@ -194,8 +195,8 @@ class GraphRegion:
 
     def replace_region(
         self,
-        sub_region: "GraphRegion",
-        updated_sub_region: "GraphRegion",
+        sub_region: GraphRegion,
+        updated_sub_region: GraphRegion,
         replace_with,
         virtualized_edges: set[tuple[Any, Any]],
     ):
@@ -250,7 +251,7 @@ class GraphRegion:
         self._node_to_replaced_regions[replace_with] = sub_region
         self._replaced_regions[sub_region] = replace_with
 
-    def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
+    def replace_region_with_region(self, sub_region: GraphRegion, replace_with: GraphRegion):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception()

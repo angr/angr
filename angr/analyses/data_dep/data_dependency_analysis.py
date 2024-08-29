@@ -1,8 +1,10 @@
 """Defines analysis that will generate a dynamic data-dependency graph"""
 
+from __future__ import annotations
+
 import logging
 import math
-from typing import Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from networkx import DiGraph
 
@@ -28,7 +30,7 @@ class NodalAnnotation(claripy.Annotation):
     Allows a node to be stored as an annotation to a BV in a DefaultMemory instance
     """
 
-    def __init__(self, node: "BaseDepNode"):
+    def __init__(self, node: BaseDepNode):
         self.node = node
 
     @property
@@ -53,7 +55,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
     def __init__(
         self,
-        end_state: "SimState",
+        end_state: SimState,
         start_from: int | None = None,
         end_at: int | None = None,
         block_addrs: list[int] | None = None,
@@ -79,7 +81,7 @@ class DataDependencyGraphAnalysis(Analysis):
         self._memory_map.set_state(self._end_state)
         self._tmp_nodes: dict[str, TmpDepNode] = {}  # Per-block: Maps temp name to its current node
         self._constant_nodes: dict[int, ConstantDepNode] = {}  # Per program: Maps values to their ConstantDepNodes
-        self._actions: list["SimActionData"] = []
+        self._actions: list[SimActionData] = []
 
         # Used by parser to track instruction addresses processed
         self._parsed_ins_addrs: list[ParsedInstruction] = []  # Instruction address, min stmt_idx, max stmt_idx
@@ -102,13 +104,13 @@ class DataDependencyGraphAnalysis(Analysis):
     def sub_graph(self) -> DiGraph | None:
         return self._sub_graph
 
-    def _pop(self) -> Optional["SimActionData"]:
+    def _pop(self) -> SimActionData | None:
         """
         Safely pops the first action, if it exists.
         """
         return self._actions.pop(0) if self._actions else None
 
-    def _peek(self, idx: int = 0) -> Optional["SimActionData"]:
+    def _peek(self, idx: int = 0) -> SimActionData | None:
         """
         Safely returns the first action, if it exists, without removing it
 
@@ -128,7 +130,7 @@ class DataDependencyGraphAnalysis(Analysis):
         """
         return self._actions[0].action if self._actions else ""
 
-    def _set_active_node(self, node: "BaseDepNode"):
+    def _set_active_node(self, node: BaseDepNode):
         arch_bw = self._end_state.arch.bits
         if isinstance(node, RegDepNode):
             annotated_bv = node.ast.annotate(NodalAnnotation(node))
@@ -144,7 +146,7 @@ class DataDependencyGraphAnalysis(Analysis):
         else:
             raise TypeError(f"{str(node)} is node a DepNode")
 
-    def _get_active_node(self, node: "BaseDepNode") -> Optional["BaseDepNode"]:
+    def _get_active_node(self, node: BaseDepNode) -> BaseDepNode | None:
         """
         Retrieves the currently active node from the provided node type's storage data structure
         :param node: Node to retrieve the ancestor of
@@ -170,10 +172,10 @@ class DataDependencyGraphAnalysis(Analysis):
     def _get_or_create_graph_node(
         self,
         type_: int,
-        sim_act: "SimActionData",
-        val: tuple["BV", int],
+        sim_act: SimActionData,
+        val: tuple[BV, int],
         *constructor_params,
-    ) -> "BaseDepNode":
+    ) -> BaseDepNode:
         """
         If the node already exists in the graph, that node is returned. Otherwise, a new node is created
         :param _type: Type of node to check/create
@@ -212,9 +214,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
         return ret_node
 
-    def _get_dep_node(
-        self, dep_type: int, sim_act: SimActionData, var_src: Union[int, "BV"], val: int | BV
-    ) -> "BaseDepNode":
+    def _get_dep_node(self, dep_type: int, sim_act: SimActionData, var_src: int | BV, val: int | BV) -> BaseDepNode:
         if isinstance(var_src, BV):
             var_src = self._end_state.solver.eval(var_src)
 
@@ -226,7 +226,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
         return var_node
 
-    def _get_generic_node(self, action: SimActionData) -> "BaseDepNode":
+    def _get_generic_node(self, action: SimActionData) -> BaseDepNode:
         def node_attributes(act: SimActionData) -> tuple:
             ac = act.action
             ty = act.type
@@ -251,7 +251,7 @@ class DataDependencyGraphAnalysis(Analysis):
         dep_type, var_src, val = node_attributes(action)
         return self._get_dep_node(dep_type, action, var_src, val)
 
-    def _node_value_cmp(self, n1: "BaseDepNode", n2: "BaseDepNode") -> bool:
+    def _node_value_cmp(self, n1: BaseDepNode, n2: BaseDepNode) -> bool:
         """
         Performs a BV based comparison on the values of the nodes
         :param n1: First node to compare
@@ -284,10 +284,10 @@ class DataDependencyGraphAnalysis(Analysis):
             logger.error(s_val_err)
             return False
 
-    def _parse_action(self) -> "BaseDepNode":
+    def _parse_action(self) -> BaseDepNode:
         return self._get_generic_node(self._pop())
 
-    def _parse_read_statement(self, read_nodes: dict[int, list["BaseDepNode"]] | None = None) -> "BaseDepNode":
+    def _parse_read_statement(self, read_nodes: dict[int, list[BaseDepNode]] | None = None) -> BaseDepNode:
         act = self._peek()
         read_node = self._parse_action()
         ancestor_node = self._get_active_node(read_node)
@@ -310,7 +310,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
         return read_node
 
-    def _create_dep_edges(self, act, write_node, read_nodes: dict[int, list["BaseDepNode"]]) -> bool:
+    def _create_dep_edges(self, act, write_node, read_nodes: dict[int, list[BaseDepNode]]) -> bool:
         """Last resort for linking dependencies"""
         # Check tmp and reg deps
         var_read_nodes = []
@@ -337,7 +337,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
         return dep_found
 
-    def _parse_var_statement(self, read_nodes: dict[int, list["BaseDepNode"]] | None = None) -> SimActLocation:
+    def _parse_var_statement(self, read_nodes: dict[int, list[BaseDepNode]] | None = None) -> SimActLocation:
         act = self._peek()
         act_loc = SimActLocation(act.bbl_addr, act.ins_addr, act.stmt_idx)
 
@@ -383,7 +383,7 @@ class DataDependencyGraphAnalysis(Analysis):
                 self._parse_statement(read_nodes) if self._peek() and act.stmt_idx == self._peek().stmt_idx else act_loc
             )
 
-    def _parse_mem_statement(self, read_nodes: dict[int, list["BaseDepNode"]] | None = None) -> SimActLocation:
+    def _parse_mem_statement(self, read_nodes: dict[int, list[BaseDepNode]] | None = None) -> SimActLocation:
         act = self._peek()
         act_loc = SimActLocation(act.bbl_addr, act.ins_addr, act.stmt_idx)
 
@@ -416,7 +416,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
         return ret_val if ret_val else self._parse_statement(read_nodes)
 
-    def _parse_statement(self, read_nodes: dict[int, list["BaseDepNode"]] | None = None) -> SimActLocation:
+    def _parse_statement(self, read_nodes: dict[int, list[BaseDepNode]] | None = None) -> SimActLocation:
         """
         statement -> write_var | write_mem
         statement -> read_var | write_mem statement
@@ -574,7 +574,7 @@ class DataDependencyGraphAnalysis(Analysis):
         return g0
 
     @staticmethod
-    def _get_related_nodes(G: DiGraph, curr_node: "BaseDepNode", nodes: set["BaseDepNode"], get_ancestors: bool):
+    def _get_related_nodes(G: DiGraph, curr_node: BaseDepNode, nodes: set[BaseDepNode], get_ancestors: bool):
         nodes.add(curr_node)
 
         next_nodes = G.predecessors(curr_node) if get_ancestors else G.successors(curr_node)
@@ -587,7 +587,7 @@ class DataDependencyGraphAnalysis(Analysis):
         else:
             return
 
-    def get_data_dep(self, g_node: "BaseDepNode", include_tmp_nodes: bool, backwards: bool) -> DiGraph | None:
+    def get_data_dep(self, g_node: BaseDepNode, include_tmp_nodes: bool, backwards: bool) -> DiGraph | None:
         # We have a matching node and can proceed to build a subgraph
         if g_node in self._graph:
             relevant_nodes = set()

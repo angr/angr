@@ -1,4 +1,5 @@
 # pylint:disable=consider-using-with
+from __future__ import annotations
 import json
 import subprocess
 import argparse

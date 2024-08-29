@@ -1,4 +1,5 @@
 # pylint:disable=no-else-break
+from __future__ import annotations
 import logging
 
 from angr.errors import AngrCFGError, AngrRuntimeError
@@ -521,7 +522,7 @@ class SegmentList:
 
         # self._debug_check()
 
-    def copy(self) -> "SegmentList":
+    def copy(self) -> SegmentList:
         """
         Make a copy of the SegmentList.
 

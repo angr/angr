@@ -1,4 +1,5 @@
 # pylint:disable=abstract-method,arguments-differ
+from __future__ import annotations
 import logging
 
 import claripy
@@ -113,7 +114,7 @@ class ListPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: list["ListPage"],
+        others: list[ListPage],
         merge_conditions,
         common_ancestor=None,
         page_addr: int = None,
@@ -125,7 +126,7 @@ class ListPage(MemoryObjectMixin, PageBase):
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: list["ListPage"] = [self] + others
+        all_pages: list[ListPage] = [self] + others
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -240,7 +241,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def changed_bytes(self, other: "ListPage", page_addr: int = None):
+    def changed_bytes(self, other: ListPage, page_addr: int = None):
         candidates = super().changed_bytes(other)
         if candidates is None:
             candidates: set[int] = set()

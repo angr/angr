@@ -1,4 +1,5 @@
 # pylint:disable=no-member
+from __future__ import annotations
 import logging
 
 l = logging.getLogger(name=__name__)
