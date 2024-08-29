@@ -12,10 +12,9 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
-from angr.utils.graph import GraphUtils
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges
+from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges, GraphUtils
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,
@@ -25,7 +24,7 @@ from ..utils import (
     has_nonlabel_statements,
     first_nonlabel_statement,
 )
-from angr.analyses.decompiler.counters.call_counter import AILCallCounter
+from ..counters.call_counter import AILCallCounter
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,

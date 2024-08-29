@@ -20,6 +20,15 @@ _l = logging.getLogger(name=__name__)
 
 
 class AILBlockSplit:
+    """
+    This class represents a block that has been split into three parts, which is best explained in the
+    AILMergeGraph class example. See that class for more information.
+
+    The up_split, is all statements above the matched Longest Common Sequence (LCS), the match_split is the LCS,
+    and the down_split is all statements below the matched LCS. This class should only be used in the context of
+    the AILMergeGraph class.
+    """
+
     def __init__(self, original=None, up_split=None, match_split=None, down_split=None):
         """
 
@@ -57,13 +66,56 @@ class AILBlockSplit:
         return up_split, match_split, down_split
 
     def __str__(self):
-        return f"<AILBlockSplit: OG: {self.original.__repr__()} | Up: {self.up_split.__repr__()} | Match: {self.match_split.__repr__()} | Down: {self.down_split.__repr__()}>"
+        return (
+            f"<AILBlockSplit: OG: {self.original.__repr__()} | Up: {self.up_split.__repr__()} | "
+            f"Match: {self.match_split.__repr__()} | Down: {self.down_split.__repr__()}>"
+        )
 
     def __repr__(self):
         return self.__str__()
 
 
 class AILMergeGraph:
+    """
+    This class represents the merged results of two AIL graphs that have been found to be similar. We can reference
+    these graphs as G1 and G2. The two graphs are of the following form, where any node other than D can be empty:
+
+        A
+       / \
+      B   C
+      \\  /
+       D
+      / \
+     E   F
+
+    The D node can be a subgraph, but in both G1 and G2, this D-subgraph are exact duplicates of each
+    other, except their top and bottom statements. This class is the result of merging those two D subgraphs.
+
+    To explain that last part about statements differing at the ends, see this example:
+
+    D1:
+    -----
+    a = 10;
+    puts(a);
+    puts("bye");
+    -----
+
+    D2:
+    -----
+    a = 11;
+    puts(a);
+    puts("cya");
+    -----
+
+    In this case, the merged D would contain just `puts(a)`. The statements above it, referred to as up_split in
+    the code, and the statements below it, referred to as down_split in the code, would be moved out of the block
+    and bounded by the conditions that lead to those statements. This creates a graph even in the case of a single
+    block being the original D.
+
+    Lastly, since this class will deal a lot with splitting blocks into pieces, we keep a mapping of how the original
+    blocks turned into the new ones and vice versa.
+    """
+
     def __init__(
         self, graph=None, original_graph=None, conditional_block=None, original_blocks=None, original_split_blocks=None
     ):
@@ -162,9 +214,8 @@ class AILMergeGraph:
             # fix the condition edges
             cond_jump_stmt: ConditionalJump = cond_copy.statements[-1]
             if not merge_end_pair:
-                _l.info(f"Encountered a conditional jump that has no successors on {self.starts}!")
                 raise SAILRSemanticError("Encountered a conditional jump that has no successors! This can be bad!")
-            elif len(merge_end_pair) == 1:
+            if len(merge_end_pair) == 1:
                 b0 = merge_end_pair[0]
                 b0_og = list(self.merge_blocks_to_originals[b0])[0]
                 if isinstance(b0_og, AILBlockSplit):
@@ -172,7 +223,6 @@ class AILMergeGraph:
 
                 b1_og = self._find_block_pair_in_originals(b0_og)
                 if b1_og is None:
-                    _l.info(f"Encountered a conditional jump that has only 1 successor on {self.starts}!")
                     raise SAILRSemanticError(
                         f"Encountered a conditional jump that has only 1 successor on {self.starts}!"
                     )
@@ -243,7 +293,7 @@ class AILMergeGraph:
                     if base_split != getattr(base_sblock, attr):
                         continue
 
-                    self.merge_blocks_to_originals[base_split].add(sblock)
+                    base_sblocks.add(sblock)
 
         # remove any extra block that will not be in the graph because it was split up
         deletable_blocks = set()
@@ -288,7 +338,7 @@ class AILMergeGraph:
             self.original_ends = start_blocks
 
         # moved here
-        for unsplit_block, pair in merge_to_end_pair.items():
+        for _, pair in merge_to_end_pair.items():
             for block in pair:
                 other_block = pair[0] if pair[1] is block else pair[1]
                 while True:
@@ -299,13 +349,13 @@ class AILMergeGraph:
                         if len(originals) == 1:
                             og = list(originals)[0]
                             if isinstance(og, Block) and og == block:
-                                self.merge_blocks_to_originals[merge].add(other_block)
+                                originals.add(other_block)
                                 break
 
                         found = False
                         for og in originals:
                             if isinstance(og, AILBlockSplit) and og.original == block and merge == og.match_split:
-                                self.merge_blocks_to_originals[merge].add(other_block)
+                                originals.add(other_block)
                                 found = True
                                 break
 
@@ -319,7 +369,7 @@ class AILMergeGraph:
 
     def merged_is_split_type(self, merge_block: Block, split_type: str):
         if split_type not in ["up_split", "down_split", "match_split"]:
-            raise Exception("Can't call like this!")
+            raise ValueError("Must use a supported split type (up_split, down_split, match_split)")
 
         for oblock in self.merge_blocks_to_originals[merge_block]:
             if not isinstance(oblock, AILBlockSplit):
@@ -327,15 +377,15 @@ class AILMergeGraph:
 
             if getattr(oblock, split_type) == merge_block:
                 return True
-        else:
-            return False
+
+        return False
 
     #
     # Private Functions
     #
 
     def _find_block_pair_in_originals(self, block: Block):
-        for merge, originals in self.merge_blocks_to_originals.items():
+        for _, originals in self.merge_blocks_to_originals.items():
             # need at least 2 for a pair
             if len(originals) < 2:
                 continue
@@ -344,7 +394,7 @@ class AILMergeGraph:
             for og in originals:
                 if isinstance(og, Block) and og == block:
                     break
-                elif isinstance(og, AILBlockSplit) and og.original == block:
+                if isinstance(og, AILBlockSplit) and og.original == block:
                     break
             else:
                 return None
@@ -358,18 +408,6 @@ class AILMergeGraph:
                     return other_block.original
 
         return None
-
-    def _block_in_any_blocks(self, block: Block, any_blocks):
-        for any_block in any_blocks:
-            if block == any_block:
-                return True
-
-            if isinstance(block, AILBlockSplit) and (
-                block.up_split == block or block.match_split == block or block.down_split == block
-            ):
-                return True
-
-        return False
 
     def _block_in_originals(self, merge_block: Block, target_block: Block):
         for original in self.merge_blocks_to_originals[merge_block]:
@@ -408,20 +446,20 @@ class AILMergeGraph:
 
                 if isinstance(og, Block) and og == block:
                     return merge_block
-        else:
-            _l.warning(f"Error in finding the merge block from the original block on {block}")
-            return None
 
-    def _find_split_block_by_original(self, block: Block):
+        _l.warning("Error in finding the merge block from the original block on %s", block)
+        return None
+
+    def _find_split_block_by_original(self, block: Block) -> AILBlockSplit | None:
         for _, split_blocks in self.original_split_blocks.items():
             for split_block in split_blocks:
                 if split_block.original == block:
                     return split_block
-        else:
-            _l.warning(f"Error in finding split block by original on {block}")
-            return None
 
-    def _find_og_start_by_merge_end(self, merge_end: Block):
+        _l.warning("Error in finding split block by original on %s", block)
+        return None
+
+    def _find_og_start_by_merge_end(self, merge_end: Block) -> Block | None:
         original = list(self.merge_blocks_to_originals[merge_end])[0]
         if isinstance(original, AILBlockSplit):
             original = original.original
@@ -429,6 +467,8 @@ class AILMergeGraph:
         for og_start, og_blocks in self.original_blocks.items():
             if original in og_blocks:
                 return og_start
+
+        return None
 
     @staticmethod
     def clone_graph_replace_splits(graph: nx.DiGraph, split_map: dict[Block, Block]):

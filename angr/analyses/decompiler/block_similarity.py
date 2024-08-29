@@ -21,11 +21,20 @@ def has_similar_stmt(blk1: Block, blk2: Block):
 
 
 def is_similar(
-    ail_obj1: Block | Statement, ail_obj2: Block | Statement, graph: nx.DiGraph = None, partial: bool = True
+    ail_obj1: Block | Statement,
+    ail_obj2: Block | Statement,
+    graph: nx.DiGraph = None,
+    partial: bool = True,
+    max_depth: int = 10,
+    curr_depth: int = 0,
 ):
     """
     Returns True if the two AIL objects are similar, False otherwise.
     """
+    if curr_depth >= max_depth:
+        _l.warning("Reached maximum depth while comparing AIL objects, assuming true!")
+        return True
+
     if type(ail_obj1) is not type(ail_obj2):
         return False
 
@@ -38,14 +47,15 @@ def is_similar(
             return False
 
         for stmt1, stmt2 in zip(ail_obj1.statements, ail_obj2.statements):
-            if not is_similar(stmt1, stmt2, graph=graph):
+            if not is_similar(stmt1, stmt2, graph=graph, max_depth=max_depth, curr_depth=curr_depth + 1):
                 return False
         return True
 
     # AIL Statements
     elif isinstance(ail_obj1, Statement):
-        # if all(barr in [0x404530, 0x404573] for barr in [ail_obj1.ins_addr, ail_obj2.ins_addr]):
-        #    do a breakpoint
+        # must be likeable
+        if not hasattr(ail_obj2, "likes"):
+            return False
 
         # ConditionalJump Handler
         if isinstance(ail_obj1, ConditionalJump):
@@ -81,7 +91,7 @@ def is_similar(
                 if partial and t1_blk.statements[0].likes(t2_blk.statements[0]):
                     continue
 
-                if not is_similar(t1_blk, t2_blk, graph=graph):
+                if not is_similar(t1_blk, t2_blk, graph=graph, curr_depth=curr_depth + 1, max_depth=max_depth):
                     return False
             return True
 

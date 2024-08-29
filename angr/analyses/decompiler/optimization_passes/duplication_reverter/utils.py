@@ -1,6 +1,5 @@
 import logging
 
-import networkx
 import networkx as nx
 
 import ailment
@@ -20,15 +19,15 @@ _l = logging.getLogger(name=__name__)
 #
 
 
-def find_block_in_successors_by_addr(addr: int, block: ailment.Block, graph: nx.DiGraph):
+def find_block_in_successors_by_addr(addr: int, block: ailment.Block, graph: nx.DiGraph) -> Block | None:
     for succ in graph.successors(block):
-        if succ.addr == addr or succ.statements[0].ins_addr == addr:
+        if addr in (succ.addr, succ.statements[0].ins_addr):
             return succ
-    else:
-        return None
+
+    return None
 
 
-def replace_node_in_graph(graph: networkx.DiGraph, node, replace_with):
+def replace_node_in_graph(graph: nx.DiGraph, node, replace_with):
     in_edges = list(graph.in_edges(node))
     out_edges = list(graph.out_edges(node))
 
@@ -81,7 +80,7 @@ def copy_graph_and_nodes(graph: nx.DiGraph, new_idx=False):
     nodes_map = {}
     for node in graph.nodes:
         node_copy = node.copy()
-        node_copy.statements = [stmt for stmt in node_copy.statements]
+        node_copy.statements = list(node_copy.statements)
         if new_idx:
             node_copy.idx = node_copy.idx + 1 if isinstance(node_copy.idx, int) else 1
         nodes_map[node] = node_copy
@@ -107,7 +106,7 @@ def ail_block_from_stmts(stmts, idx=None, block_addr=None) -> Block | None:
     return Block(
         first_stmt.ins_addr if not block_addr else block_addr,
         0,
-        statements=[stmt for stmt in stmts],
+        statements=list(stmts),
         idx=idx or 1,
     )
 
@@ -139,7 +138,7 @@ def deepcopy_ail_anyjump(stmt: Jump | ConditionalJump, idx=1):
     elif isinstance(stmt, ConditionalJump):
         return deepcopy_ail_condjump(stmt, idx=idx)
     else:
-        raise Exception(
+        raise ValueError(
             "Attempting to deepcopy non-jump stmt, likely happen to a "
             "block ending in no jump. Place a jump there to fix it."
         )

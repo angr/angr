@@ -3,7 +3,6 @@ import logging
 from itertools import combinations
 import itertools
 
-import networkx
 import networkx as nx
 
 import ailment
@@ -61,19 +60,13 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         self.max_guarding_conditions = max_guarding_conditions
         self.write_graph: nx.DiGraph | None = None
+        self.read_graph: nx.DiGraph | None = None
         self.candidate_blacklist = set()
 
-        self._starting_goto_count = None
-        self._unique_fake_addr = 0
-        self._round = 0
-
-        self.prev_graph = None
-        self.func_name = self._func.name
-        self.binary_name = self.project.loader.main_object.binary_basename
-        self.target_name = f"{self.binary_name}.{self.func_name}"
-
+        # cache items
         self._idom_cache = {}
         self._entry_node_cache = {}
+
         self.analyze()
 
     def _check(self):
@@ -87,7 +80,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         try:
             fake_deduplication, success = self._deduplication_round()
         except SAILRSemanticError as e:
-            l.info(f"Skipping this round because of {e}...")
+            l.info("Skipping this round because of %s...", e)
             return True
 
         # post-deduplication
@@ -101,7 +94,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         new_gotos = [goto for goto in self._goto_manager.gotos if goto not in future_irreducible_gotos]
         return new_gotos
 
-    def _deduplication_round(self, max_guarding_conditions=10):
+    def _deduplication_round(self):
         #
         # 0: Find candidates with duplicated AIL statements
         #
@@ -118,17 +111,17 @@ class DuplicationReverter(StructuringOptimizationPass):
             l.info("There are no duplicate blocks in this function, stopping analysis")
             return False, False
 
-        candidates = sorted(candidates, key=lambda x: len(x))
-        l.info(f"Located {len(candidates)} candidates for merging: {candidates}")
+        candidates = sorted(candidates, key=len)
+        l.info("Located {len(candidates)} candidates for merging: %s", candidates)
 
         candidate = sorted(candidates.pop(), key=lambda x: x.addr)
-        l.info(f"Selecting the candidate: {candidate}")
+        l.info("Selecting the candidate: %s", candidate)
 
         try:
             ail_merge_graph = self.create_merged_subgraph(candidate, self.write_graph)
         except SAILRSemanticError as e:
             self.candidate_blacklist.add(tuple(candidate))
-            l.info(f"Skipping this candidate because of {e}...")
+            l.info("Skipping this candidate because of %s...", e)
             return True, False
 
         candidate = ail_merge_graph.starts
@@ -139,7 +132,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 break
         else:
             self.candidate_blacklist.add(tuple(candidate))
-            l.info(f"Candidate {candidate} had no connecting gotos...")
+            l.info("Candidate %s had no connecting gotos...", candidate)
             return True, False
 
         og_succs, og_preds = {}, {}
@@ -161,8 +154,9 @@ class DuplicationReverter(StructuringOptimizationPass):
             curr_succs = list(self.write_graph.successors(merged_node))
 
             # skip any nodes that already have enough successors
+            broken_conditional_jump = not isinstance(last_stmt, (ConditionalJump, Jump)) and len(curr_succs) == 1
             if (
-                (not isinstance(last_stmt, (ConditionalJump, Jump)) and len(curr_succs) == 1)
+                broken_conditional_jump
                 or (isinstance(last_stmt, Jump) and len(curr_succs) == 1)
                 or (isinstance(last_stmt, ConditionalJump) and len(curr_succs) == 2)
             ):
@@ -200,19 +194,18 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         for orig_pred in all_preds:
             last_stmt = orig_pred.statements[-1]
-            if isinstance(last_stmt, Jump) or isinstance(last_stmt, ConditionalJump):
+            if isinstance(last_stmt, (Jump, ConditionalJump)):
+                target_addrs = []
                 if isinstance(last_stmt, Jump):
                     if not isinstance(last_stmt.target, Const):
                         self.candidate_blacklist.add(tuple(candidate))
-                        l.info(f"Candidate {candidate} is a child of an indirect-jump, which is not supported")
+                        l.info("Candidate %s is a child of an indirect-jump, which is not supported", candidate)
                         self.write_graph = self.read_graph.copy()
                         return True, False
 
                     target_addrs = [last_stmt.target.value] if isinstance(last_stmt.target, Const) else []
                 elif isinstance(last_stmt, ConditionalJump):
                     target_addrs = [last_stmt.true_target.value, last_stmt.false_target.value]
-                else:
-                    raise Exception("Encountered a last statement that was neither a jump nor if")
 
                 replacement_map = {}
                 for target_addr in target_addrs:
@@ -261,7 +254,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                                 break
 
                         if new_target is None:
-                            raise Exception("Unable to correct a predecessor, this is a bug!")
+                            raise RuntimeError("Unable to correct a predecessor, this is a bug!")
 
                     replacement_map[target_addr] = new_target.addr
                     self.write_graph.add_edge(orig_pred, new_target)
@@ -290,7 +283,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                         break
 
                 if new_succ is None:
-                    raise Exception("Unable to find the successor for block with no jump or condition!")
+                    raise RuntimeError("Unable to find the successor for block with no jump or condition!")
 
                 self.write_graph.add_edge(orig_pred, new_succ)
 
@@ -306,7 +299,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         for node in graph.nodes:
             nodes_by_addr[node.addr].append(node)
 
-        for addr, nodes in nodes_by_addr.items():
+        for _, nodes in nodes_by_addr.items():
             if len(nodes) == 1:
                 continue
 
@@ -533,7 +526,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         prev_moved = set()
         while updates:
             updates = False
-            lcs, lcs_idxs = longest_ail_subseq([new_block1.statements, new_block2.statements])
+            _, lcs_idxs = longest_ail_subseq([new_block1.statements, new_block2.statements])
             lcs_idx_by_block = {new_block1: lcs_idxs[0], new_block2: lcs_idxs[1]}
             if any(v is None for v in lcs_idx_by_block.values()):
                 break
@@ -722,11 +715,10 @@ class DuplicationReverter(StructuringOptimizationPass):
             for src, dst in block_map.items():
                 # create a new nop block
                 nop_blk = Block(
-                    self._unique_fake_addr,
+                    self.new_block_addr(),
                     0,
-                    statements=[Jump(0, Const(0, 0, 0, self.project.arch.bits), 0, ins_addr=self._unique_fake_addr)],
+                    statements=[Jump(0, Const(0, 0, 0, self.project.arch.bits), 0, ins_addr=self.new_block_addr())],
                 )
-                self._unique_fake_addr += 1
                 # point src -> nop -> dst
                 graph.add_edge(src, nop_blk)
                 graph.add_edge(nop_blk, dst)
@@ -738,7 +730,8 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         return True
 
-    def _has_single_successor_path(self, source, target, graph):
+    @staticmethod
+    def _has_single_successor_path(source, target, graph):
         if source not in graph or target not in graph:
             return []
 
@@ -984,8 +977,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         for region in self._ri.regions_by_block_addrs:
             if all(block.addr in region for block in blocks):
                 return True
-        else:
-            return False
+
+        return False
 
     def _is_valid_candidate(self, b0, b1):
         # blocks must have statements
@@ -1007,19 +1000,14 @@ class DuplicationReverter(StructuringOptimizationPass):
             #
             # we must use the more expensive `similar` function to tell on the graph if they are
             # stmts that result in the same successors
-            try:
-                stmt_is_similar = is_similar(b0, b1, graph=self.read_graph)
-            except Exception:
-                return False
+            stmt_is_similar = is_similar(b0, b1, graph=self.read_graph)
 
             # Case 2:
             # [if(a)] == [if(a)]
             # and at least one child for the correct target type matches
-            if not stmt_is_similar:
-                # TODO: fix this and add it back
-                # is_similar = self.similar_conditional_when_single_corrected(b0, b1, self.write_graph)
-                pass
+            # TODO: this not not yet supported
 
+            # update ether we resolved in the above cases
             if stmt_is_similar:
                 stmt_in_common = True
         else:
@@ -1048,7 +1036,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         # must share a common dominator
         return stmt_in_common and self.shared_common_conditional_dom((b0, b1), self.write_graph) is not None
 
-    def _construct_goto_related_subgraph(self, base: Block, graph: networkx.DiGraph, max_ancestors=5):
+    @staticmethod
+    def _construct_goto_related_subgraph(base: Block, graph: nx.DiGraph, max_ancestors=5):
         """
         Creates a subgraph of the large graph starting from the base block and working upwards (predecessors)
         for max_ancestors amount of nodes
@@ -1196,7 +1185,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
             candidates = list(set(candidates))
             candidates = [tuple(sorted(candidate, key=lambda x: x.addr)) for candidate in candidates]
-            candidates = sorted(candidates, key=lambda x: sum([c.addr for c in x]))
+            candidates = sorted(candidates, key=lambda x: sum(c.addr for c in x))
 
         return candidates
 
@@ -1315,7 +1304,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
                         outdated_blk = outdated_blks[0]
                         graph.remove_edge(target_blk, outdated_blk)
-                        l.info(f"Removing simple redundant jump/cond: {(target_blk, outdated_blk)}")
+                        l.info("Removing simple redundant jump/cond: %s", (target_blk, outdated_blk))
                         # restart the search because we fixed edges
                         change |= True
                         break
@@ -1337,7 +1326,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     graph.add_edge(pred, successor)
 
                 graph.remove_node(target_blk)
-                l.debug(f"removing node in simple redundant: {target_blk}")
+                l.debug("removing node in simple redundant: %s", target_blk)
                 change |= True
                 break
             else:
@@ -1368,7 +1357,8 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         return new_graph
 
-    def simple_optimize_graph(self, graph):
+    @staticmethod
+    def simple_optimize_graph(graph):
         def _to_ail_supergraph(graph_):
             # make supergraph conversion always say no change
             return to_ail_supergraph(graph_, allow_fake=True), False

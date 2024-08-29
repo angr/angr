@@ -22,7 +22,7 @@ class BooleanCounter(AILBlockWalkerBase):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: "BinaryOp", stmt_idx: int, stmt: "Statement", block: Optional["Block"]
     ):
-        if expr.op == "LogicalAnd" or expr.op == "LogicalOr":
+        if expr.op in {"LogicalAnd", "LogicalOr"}:
             self.boolean_cnt += 1
 
         self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
