@@ -1245,8 +1245,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             # only add nodes we have never seen
             node_level = set(next_level).difference(seen_nodes)
 
-        else:
-            return None
+        return None
 
     #
     # Simple Optimizations (for cleanup)
