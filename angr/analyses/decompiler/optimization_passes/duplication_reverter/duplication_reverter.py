@@ -20,7 +20,6 @@ from .utils import (
     find_block_in_successors_by_addr,
     copy_graph_and_nodes,
     correct_jump_targets,
-    ail_block_from_stmts,
     deepcopy_ail_anyjump,
 )
 from ..optimization_pass import StructuringOptimizationPass
@@ -49,7 +48,6 @@ class DuplicationReverter(StructuringOptimizationPass):
             func,
             prevent_new_gotos=True,
             strictly_less_gotos=False,
-            # TODO: this should be False, but there is a bug in true_a
             recover_structure_fails=True,
             must_improve_rel_quality=True,
             max_opt_iters=30,
@@ -70,16 +68,29 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         self.analyze()
 
+    #
+    # Superclass methods
+    #
+
     def _check(self):
         return True, {}
+
+    def _get_new_gotos(self):
+        future_irreducible_gotos = self._find_future_irreducible_gotos()
+        new_gotos = [goto for goto in self._goto_manager.gotos if goto not in future_irreducible_gotos]
+        return new_gotos
+
+    #
+    # Main Analysis
+    #
 
     def _analyze(self, cache=None) -> bool:
         # pre-deduplication
         graph = self.out_graph or self._graph
-        self.write_graph = self.simple_optimize_graph(remove_labels(to_ail_supergraph(copy_graph_and_nodes(graph))))
+        self.write_graph = remove_labels(to_ail_supergraph(copy_graph_and_nodes(graph), allow_fake=True))
 
         try:
-            fake_deduplication, success = self._deduplication_round()
+            fake_deduplication, success = self._attempt_deduplication()
         except SAILRSemanticError as e:
             l.info("Skipping this round because of %s...", e)
             return True
@@ -90,12 +101,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         return success | fake_deduplication
 
-    def _get_new_gotos(self):
-        future_irreducible_gotos = self._find_future_irreducible_gotos()
-        new_gotos = [goto for goto in self._goto_manager.gotos if goto not in future_irreducible_gotos]
-        return new_gotos
-
-    def _deduplication_round(self):
+    def _attempt_deduplication(self):
         #
         # 0: Find candidates with duplicated AIL statements
         #
@@ -894,86 +900,6 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Search Stages
     #
 
-    def copy_cond_graph(self, merge_start_nodes, graph, idx=1):
-        # [merge_node, nx.DiGraph: pre_graph]
-        pre_graphs_maps = {}
-        # [merge_node, nx.DiGraph: full_graph]
-        graph_maps = {}
-        # [merge_node, removed_nodes]
-        removed_node_map = defaultdict(list)
-
-        # create a subgraph for every merge_start and the dom
-        shared_conditional_dom = self.shared_common_conditional_dom(merge_start_nodes, graph)
-        for merge_start in merge_start_nodes:
-            paths_between = nx.all_simple_paths(graph, source=shared_conditional_dom, target=merge_start)
-            nodes_between = {node for path in paths_between for node in path}
-            graph_maps[merge_start] = nx.subgraph(graph, nodes_between)
-
-        # create remove nodes for nodes that are shared among all graphs (conditional nodes)
-        for block0, graph0 in graph_maps.items():
-            for node in graph0.nodes:
-                for block1, graph1 in graph_maps.items():
-                    if block0 == block1:
-                        continue
-
-                    if node in graph1.nodes:
-                        removed_node_map[block0].append(node)
-
-        # make the pre-graph from removing the nodes
-        for block, blocks_graph in graph_maps.items():
-            pre_graph = blocks_graph.copy()
-            pre_graph.remove_nodes_from(removed_node_map[block])
-            pre_graphs_maps[block] = pre_graph
-
-        # make a conditional graph from any remove_nodes map (no deepcopy)
-        temp_cond_graph: nx.DiGraph = nx.subgraph(graph, removed_node_map[merge_start_nodes[0]])
-
-        # deep copy the graph and remove instructions that are not control flow altering
-        cond_graph = nx.DiGraph()
-
-        block_to_insn_map = {node.addr: node.statements[-1].ins_addr for node in temp_cond_graph.nodes()}
-        for merge_start in merge_start_nodes:
-            for node in pre_graphs_maps[merge_start].nodes:
-                block_to_insn_map[node.addr] = merge_start.addr
-
-        # fix nodes that don't end in a jump
-        for node in temp_cond_graph:
-            successors = list(temp_cond_graph.successors(node))
-            if not isinstance(node.statements[-1], (ConditionalJump, Jump)) and len(successors) == 1:
-                node.statements += [
-                    Jump(
-                        None, Const(None, None, successors[0].addr, self.project.arch.bits), ins_addr=successors[0].addr
-                    )
-                ]
-
-        # deepcopy every node in the conditional graph with a unique address
-        crafted_blocks = {}
-        for edge in temp_cond_graph.edges:
-            new_edge = ()
-            for block in edge:
-                last_stmt = block.statements[-1]
-
-                try:
-                    new_block = crafted_blocks[block.addr]
-                except KeyError:
-                    new_block = ail_block_from_stmts([deepcopy_ail_anyjump(last_stmt, idx=idx)])
-                    crafted_blocks[block.addr] = new_block
-
-                new_edge += (new_block,)
-            cond_graph.add_edge(*new_edge)
-
-        # graphs with no edges but only nodes
-        if len(list(cond_graph.nodes)) == 0:
-            for node in temp_cond_graph.nodes:
-                last_stmt = node.statements[-1]
-                cond_graph.add_node(ail_block_from_stmts([deepcopy_ail_anyjump(last_stmt, idx=idx)]))
-
-        # correct every jump target
-        for node in cond_graph.nodes:
-            node.statements[-1] = correct_jump_targets(node.statements[-1], block_to_insn_map)
-
-        return cond_graph, pre_graphs_maps
-
     def _share_subregion(self, blocks: list[Block]) -> bool:
         for region in self._ri.regions_by_block_addrs:
             if all(block.addr in region for block in blocks):
@@ -1246,134 +1172,3 @@ class DuplicationReverter(StructuringOptimizationPass):
             node_level = set(next_level).difference(seen_nodes)
 
         return None
-
-    #
-    # Simple Optimizations (for cleanup)
-    #
-
-    @staticmethod
-    def remove_redundant_jumps(graph: nx.DiGraph):
-        """
-        This can destroy ConditionalJumps with 2 successors but only one is a real target
-
-        @param graph:
-        @return:
-        """
-        change = False
-        while True:
-            for target_blk in graph.nodes:
-                if not target_blk.statements:
-                    continue
-
-                # must end in a jump of some sort
-                last_stmt = target_blk.statements[-1]
-                if not isinstance(last_stmt, (Jump, ConditionalJump)):
-                    continue
-
-                # never remove jumps that could have statements that are executed before them
-                # OR
-                # stmts that have a non-const jump (like a switch statement)
-                if isinstance(last_stmt, Jump) and (
-                    len(target_blk.statements) > 1 or not isinstance(last_stmt.target, ailment.expression.Const)
-                ):
-                    continue
-
-                # must have successors otherwise we could be removing a final jump out of the function
-                target_successors = list(graph.successors(target_blk))
-                if not target_successors:
-                    continue
-
-                if isinstance(last_stmt, ConditionalJump):
-                    if len(target_successors) > 2:
-                        continue
-
-                    if len(target_successors) == 2:
-                        # skip real ConditionalJumps (ones with two different true/false target)
-                        if last_stmt.true_target.value != last_stmt.false_target.value:
-                            continue
-                        # XXX: removed for now
-                        # two successors, verify one is outdated and one matches the true_target value
-                        # which gauntnees we can remove the other
-                        if last_stmt.true_target.value not in [succ.addr for succ in target_successors]:
-                            continue
-
-                        # remove the outdated successor edge
-                        outdated_blks = [blk for blk in target_successors if blk.addr != last_stmt.true_target.value]
-                        if len(outdated_blks) != 1:
-                            continue
-
-                        outdated_blk = outdated_blks[0]
-                        graph.remove_edge(target_blk, outdated_blk)
-                        l.info("Removing simple redundant jump/cond: %s", (target_blk, outdated_blk))
-                        # restart the search because we fixed edges
-                        change |= True
-                        break
-
-                # At this point we have two situation:
-                # - a single stmt node ending in a Jump
-                # - a (possibly) multi-stmt node ending in a conditional Jump w/ 1 successor
-                successor = target_successors[0]
-
-                # In the case of the conditional jump with multiple statements before the jump, we just transfer this
-                # block's statements over to the next block, excluding the jump
-                if len(target_blk.statements) > 1:
-                    successor.statements = target_blk.statements[:-1] + successor.statements
-
-                # All the predecessors need to now point to the successor of the node that is about to be removed
-                for pred in graph.predecessors(target_blk):
-                    last_pred_stmt = pred.statements[-1]
-                    pred.statements[-1] = correct_jump_targets(last_pred_stmt, {target_blk.addr: successor.addr})
-                    graph.add_edge(pred, successor)
-
-                graph.remove_node(target_blk)
-                l.debug("removing node in simple redundant: %s", target_blk)
-                change |= True
-                break
-            else:
-                # Finishing the loop without every breaking out of the loop means we did not change
-                # anything in this iteration, which means we hit the Fixedpoint
-                break
-
-        return graph, change
-
-    @staticmethod
-    def remove_broken_jumps(graph: nx.DiGraph):
-        """
-        Removes jumps found in the middle of nodes from merging them into a single node
-        """
-        new_graph = nx.DiGraph()
-        nodes_map = {}
-        for node in graph:
-            node_copy = node.copy()
-            # remove Jumps from everything except the last node in the statements list
-            node_copy.statements = [
-                stmt for stmt in node_copy.statements[:-1] if not isinstance(stmt, Jump)
-            ] + node_copy.statements[-1:]
-            nodes_map[node] = node_copy
-
-        new_graph.add_nodes_from(nodes_map.values())
-        for src, dst in graph.edges:
-            new_graph.add_edge(nodes_map[src], nodes_map[dst])
-
-        return new_graph
-
-    @staticmethod
-    def simple_optimize_graph(graph):
-        def _to_ail_supergraph(graph_):
-            # make supergraph conversion always say no change
-            return to_ail_supergraph(graph_, allow_fake=True), False
-
-        new_graph = graph.copy()
-        opts = [
-            # self.remove_redundant_jumps,
-            _to_ail_supergraph,
-        ]
-
-        change = True
-        while change:
-            change = False
-            for opt in opts:
-                new_graph, has_changed = opt(new_graph)
-                change |= has_changed
-
-        return new_graph
