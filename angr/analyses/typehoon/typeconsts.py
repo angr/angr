@@ -177,7 +177,7 @@ class Array(TypeConstant):
     @memoize
     def __repr__(self, memo=None):
         if self.count is None:
-            return "%r[?]" % self.element
+            return f"{self.element!r}[?]"
         else:
             return "%r[%d]" % (self.element, self.count)
 
@@ -259,7 +259,7 @@ class TypeVariableReference(TypeConstant):
         self.typevar = typevar
 
     def __repr__(self, memo=None):
-        return "ref(%s)" % self.typevar
+        return f"ref({self.typevar})"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.typevar == other.typevar

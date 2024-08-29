@@ -261,7 +261,7 @@ class CFBlanket(Analysis):
                 if section.memsize == 0:
                     continue
                 min_addr, max_addr = section.min_addr, section.max_addr
-                output.append("### Object %s" % repr(section))
+                output.append(f"### Object {repr(section)}")
                 output.append(f"### Range {min_addr:#x}-{max_addr:#x}")
 
                 pos = min_addr

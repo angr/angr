@@ -233,9 +233,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
         d = dict(inner.__dict__)
         annotations = type(self).__annotations__  # pylint: disable=no-member
         for k, v in d.items():
-            assert v is not None or k not in annotations, (
-                "Failed to unwrap field %s - this function is more complicated than you're ready for!" % k
-            )
+            assert (
+                v is not None or k not in annotations
+            ), f"Failed to unwrap field {k} - this function is more complicated than you're ready for!"
             assert v is not None, "Members of FunctionCallDataUnwrapped may not be None"
         super().__init__(**d)
 

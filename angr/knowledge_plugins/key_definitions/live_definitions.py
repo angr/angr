@@ -232,7 +232,7 @@ class LiveDefinitions:
         ctnt = "LiveDefs"
         if self.tmps:
             ctnt += ", %d tmpdefs" % len(self.tmps)
-        return "<%s>" % ctnt
+        return f"<{ctnt}>"
 
     def copy(self, discard_tmpdefs=False) -> LiveDefinitions:
         rd = LiveDefinitions(
@@ -927,7 +927,7 @@ class LiveDefinitions:
 
     def add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if not isinstance(atom.addr, SpOffset):
-            raise TypeError("Atom %r is not a stack location atom." % atom)
+            raise TypeError(f"Atom {atom!r} is not a stack location atom.")
 
         for current_def in self.get_definitions(atom):
             self.add_stack_use_by_def(current_def, code_loc, expr=expr)
@@ -938,7 +938,7 @@ class LiveDefinitions:
 
     def add_heap_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if not isinstance(atom.addr, HeapAddress):
-            raise TypeError("Atom %r is not a heap location atom." % atom)
+            raise TypeError(f"Atom {atom!r} is not a heap location atom.")
 
         current_defs = self.get_definitions(atom)
 
@@ -975,7 +975,7 @@ class LiveDefinitions:
 
     def add_tmp_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
         if not isinstance(def_.atom, Tmp):
-            raise TypeError("Atom %r is not a Tmp atom." % def_.atom)
+            raise TypeError(f"Atom {def_.atom!r} is not a Tmp atom.")
 
         self.tmp_uses[def_.atom.tmp_idx].add(code_loc)
         self.uses_by_codeloc[code_loc].add(def_)

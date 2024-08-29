@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import DefaultDict, Any
+from typing import Any
 from collections import defaultdict
 
 import claripy
@@ -31,10 +31,10 @@ class PropagationModel(Serializable):
     def __init__(
         self,
         prop_key: tuple,
-        node_iterations: DefaultDict[Any, int] | None = None,
+        node_iterations: defaultdict[Any, int] | None = None,
         states: dict | None = None,
         block_initial_reg_values: dict | None = None,
-        replacements: DefaultDict[Any, dict] | None = None,
+        replacements: defaultdict[Any, dict] | None = None,
         equivalence: set | None = None,
         function: Function | None = None,
         input_states: dict | None = None,

@@ -421,10 +421,10 @@ class CFGBase(Analysis):
             raise TypeError("self.graph does not exist.")
 
         if block_from not in self.graph:
-            raise ValueError("%r is not in CFG." % block_from)
+            raise ValueError(f"{block_from!r} is not in CFG.")
 
         if block_to not in self.graph:
-            raise ValueError("%r is not in CFG." % block_to)
+            raise ValueError(f"{block_to!r} is not in CFG.")
 
         if block_to not in self.graph[block_from]:
             raise ValueError(f"Edge {block_from!r}->{block_to!r} does not exist.")
@@ -1357,7 +1357,7 @@ class CFGBase(Analysis):
                         thumb=n.thumb,
                     )
                 else:
-                    raise ValueError("Unknown tag %s." % self.tag)
+                    raise ValueError(f"Unknown tag {self.tag}.")
 
                 # Copy instruction addresses
                 new_node.instruction_addrs = [

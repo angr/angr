@@ -86,7 +86,7 @@ class SimplifierAILEngine(
 
     # handle stmt
     def _ail_handle_Stmt(self, stmt):
-        handler = "_ail_handle_%s" % type(stmt).__name__
+        handler = f"_ail_handle_{type(stmt).__name__}"
         if hasattr(self, handler):
             return getattr(self, handler)(stmt)
         else:
@@ -171,7 +171,7 @@ class SimplifierAILEngine(
     # handle expr
 
     def _expr(self, expr):
-        handler = "_ail_handle_%s" % type(expr).__name__
+        handler = f"_ail_handle_{type(expr).__name__}"
         if hasattr(self, handler):
             v = getattr(self, handler)(expr)
             if v is None:

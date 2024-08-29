@@ -738,7 +738,7 @@ class ConditionProcessor:
                 cond_tags = {}
             return _mapping[cond.op](cond, cond_tags)
         raise NotImplementedError(
-            ("Condition variable %s has an unsupported operator %s. Consider implementing.") % (cond, cond.op)
+            f"Condition variable {cond} has an unsupported operator {cond.op}. Consider implementing."
         )
 
     def claripy_ast_from_ail_condition(self, condition, nobool: bool = False) -> claripy.ast.Bool:
@@ -806,20 +806,19 @@ class ConditionProcessor:
             lambda_expr = _ail2claripy_op_mapping.get(condition.op, None)
         if lambda_expr is None:
             raise NotImplementedError(
-                "Unsupported AIL expression operation %s or %s. Consider implementing."
-                % (condition.op, condition.verbose_op)
+                f"Unsupported AIL expression operation {condition.op} or {condition.verbose_op}. Consider implementing."
             )
         r = lambda_expr(condition, self.claripy_ast_from_ail_condition, self._condition_mapping)
 
         if isinstance(r, claripy.ast.Bool) and nobool:
-            r = claripy.BVS("ailexpr_from_bool_%r" % r, 1, explicit_name=True)
+            r = claripy.BVS(f"ailexpr_from_bool_{r!r}", 1, explicit_name=True)
             self._condition_mapping[r.args[0]] = condition
 
         if r is NotImplemented:
             if condition.bits == 1:
-                r = claripy.BoolS("ailexpr_%r" % condition, explicit_name=True)
+                r = claripy.BoolS(f"ailexpr_{condition!r}", explicit_name=True)
             else:
-                r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
+                r = claripy.BVS(f"ailexpr_{condition!r}", condition.bits, explicit_name=True)
             self._condition_mapping[r.args[0]] = condition
         # don't lose tags
         self._ast2annotations[r] = condition.tags
@@ -1188,4 +1187,4 @@ class ConditionProcessor:
     #
 
     def create_jump_target_var(self, jumptable_head_addr: int):
-        return claripy.BVS("jump_table_%x" % jumptable_head_addr, self.arch.bits, explicit_name=True)
+        return claripy.BVS(f"jump_table_{jumptable_head_addr:x}", self.arch.bits, explicit_name=True)

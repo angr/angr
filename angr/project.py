@@ -140,7 +140,7 @@ class Project:
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
         elif not isinstance(thing, (str, Path)) or not os.path.exists(thing) or not os.path.isfile(thing):
-            raise Exception("Not a valid binary file: %s" % repr(thing))
+            raise Exception(f"Not a valid binary file: {repr(thing)}")
         else:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
@@ -454,7 +454,7 @@ class Project:
 
     @staticmethod
     def _addr_to_str(addr):
-        return "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
+        return f"{repr(addr)}" if isinstance(addr, SootAddressDescriptor) else f"{addr:#x}"
 
     #
     # Public methods

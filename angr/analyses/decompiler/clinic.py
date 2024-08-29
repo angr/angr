@@ -1193,7 +1193,7 @@ class Clinic(Analysis):
                             size=arg.size,
                         )
                     else:
-                        raise TypeError("Unsupported function argument type %s." % type(arg))
+                        raise TypeError(f"Unsupported function argument type {type(arg)}.")
                     arg_vars.append(argvar)
             return arg_vars
         return []

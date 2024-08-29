@@ -267,7 +267,7 @@ class SimIROp:
         for k, v in self.op_attrs.items():
             if v is not None and ("size" in k or "count" in k):
                 v = int(v)
-            setattr(self, "_%s" % k, v)
+            setattr(self, f"_{k}", v)
 
         # determine the output size
         # pylint:disable=no-member
@@ -387,8 +387,8 @@ class SimIROp:
 
         # TODO: clean up this mess
         # specifically-implemented generics
-        elif self._float and hasattr(self, "_op_fgeneric_%s" % self._generic_name):
-            calculate = getattr(self, "_op_fgeneric_%s" % self._generic_name)
+        elif self._float and hasattr(self, f"_op_fgeneric_{self._generic_name}"):
+            calculate = getattr(self, f"_op_fgeneric_{self._generic_name}")
             if self._vector_size is not None and not hasattr(calculate, "supports_vector"):
                 # NOTE: originally this branch just marked the op as unsupported but I think we can do better
                 # "marking unsupported" seems to include adding the op to the vector_operations list? why
@@ -396,8 +396,8 @@ class SimIROp:
             else:
                 self._calculate = calculate
 
-        elif not self._float and hasattr(self, "_op_generic_%s" % self._generic_name):
-            calculate = getattr(self, "_op_generic_%s" % self._generic_name)
+        elif not self._float and hasattr(self, f"_op_generic_{self._generic_name}"):
+            calculate = getattr(self, f"_op_generic_{self._generic_name}")
             if self._vector_size is not None and not hasattr(calculate, "supports_vector"):
                 # NOTE: same as above
                 self._calculate = partial(self._auto_vectorize, calculate)
@@ -410,13 +410,13 @@ class SimIROp:
 
         # if we're here and calculate is None, we don't support this
         if self._calculate is None:
-            raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
+            raise UnsupportedIROpError(f"no calculate function identified for {self.name}")
 
     def __repr__(self):
-        return "<SimIROp %s>" % self.name
+        return f"<SimIROp {self.name}>"
 
     def _dbg_print_attrs(self):
-        print("Operation: %s" % self.name)
+        print(f"Operation: {self.name}")
         for k, v in self.op_attrs.items():
             if v is not None and v != "":
                 print(f"... {k}: {v}")
@@ -436,7 +436,7 @@ class SimIROp:
         except (ZeroDivisionError, claripy.ClaripyZeroDivisionError) as e:
             raise SimZeroDivisionException("divide by zero!") from e
         except (TypeError, ValueError, SimValueError, claripy.ClaripyError) as e:
-            raise SimOperationError("%s._calculate() raised exception" % self.name) from e
+            raise SimOperationError(f"{self.name}._calculate() raised exception") from e
 
     def extend_size(self, o):
         cur_size = o.size()
@@ -459,7 +459,7 @@ class SimIROp:
 
         # if cur_size > target_size:
         # it should never happen!
-        raise SimOperationError("output of %s is too big" % self.name)
+        raise SimOperationError(f"output of {self.name} is too big")
 
     @property
     def is_signed(self):
@@ -483,14 +483,14 @@ class SimIROp:
                     else:
                         sized_args.append(claripy.ZeroExt(self._from_size - s, a))
                 elif s > self._from_size:
-                    raise SimOperationError("operation %s received too large an argument" % self.name)
+                    raise SimOperationError(f"operation {self.name} received too large an argument")
         else:
             sized_args = args
 
         if self._generic_name in operation_map:  # bitwise/arithmetic/shift operations
             o = operation_map[self._generic_name]
         else:
-            raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
+            raise SimOperationError(f"op_mapped called with invalid mapping, for {self.name}")
 
         if o == "__floordiv__" and self.is_signed:
             # yikes!!!!!!!
@@ -1067,9 +1067,9 @@ class SimIROp:
         So far as I know plain saturating conversion should only ever have to be performed on vectors.
         """
         if src_size <= 0 or dst_size <= 0:
-            raise SimOperationError("Can't pack from or to zero or negative size: %s" % self.name)
+            raise SimOperationError(f"Can't pack from or to zero or negative size: {self.name}")
         if src_size < dst_size:
-            raise SimOperationError("Can't pack from small size into larger size: %s" % self.name)
+            raise SimOperationError(f"Can't pack from small size into larger size: {self.name}")
         result = None
 
         max_value = 2**dst_size - 1

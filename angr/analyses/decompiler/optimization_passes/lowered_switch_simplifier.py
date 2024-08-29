@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import DefaultDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 import logging
 
@@ -381,7 +381,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 variable_comparisons[node] = ("c",) + r
                 continue
 
-        varhash_to_caselists: DefaultDict[int, list[tuple[list[Case], list]]] = defaultdict(list)
+        varhash_to_caselists: defaultdict[int, list[tuple[list[Case], list]]] = defaultdict(list)
         used_nodes = set()
 
         for head in variable_comparisons:

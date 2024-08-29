@@ -24,9 +24,7 @@ class ConstantPropagation:
         self.constant_consuming_loc = constant_consuming_loc
 
     def __repr__(self):
-        s = "<Constant {:#x} propagates from {:#x} to {:#x}>".format(
-            self.constant, self.constant_assignment_loc.ins_addr, self.constant_consuming_loc.ins_addr
-        )
+        s = f"<Constant {self.constant:#x} propagates from {self.constant_assignment_loc.ins_addr:#x} to {self.constant_consuming_loc.ins_addr:#x}>"
 
         return s
 
@@ -105,7 +103,7 @@ class DeadAssignment:
         self.pv = pv
 
     def __repr__(self):
-        s = "<DeadAssignmentElimination %s>" % self.pv
+        s = f"<DeadAssignmentElimination {self.pv}>"
         return s
 
 

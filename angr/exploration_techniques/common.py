@@ -50,8 +50,7 @@ def condition_to_lambda(condition, default=False):
         static_addrs = None
     else:
         raise AngrExplorationTechniqueError(
-            "ExplorationTechnique is unable to convert given type (%s) to a callable condition function."
-            % condition.__class__
+            f"ExplorationTechnique is unable to convert given type ({condition.__class__}) to a callable condition function."
         )
 
     return condition_function, static_addrs

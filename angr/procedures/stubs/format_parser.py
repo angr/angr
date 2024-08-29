@@ -110,7 +110,7 @@ class FormatString:
                     elif fmt_spec.spec_type == b"p":
                         s_val = hex(c_val)
                     else:
-                        raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+                        raise SimProcedureError(f"Unimplemented format specifier '{fmt_spec.spec_type}'")
 
                     if isinstance(fmt_spec.length_spec, int):
                         s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
@@ -296,7 +296,7 @@ class FormatString:
                         i = i.zero_extend(bits - 8)
                         position += 1
                     else:
-                        raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
+                        raise SimProcedureError(f"unsupported format spec '{fmt_spec.spec_type}' in interpret")
 
                     i = claripy.Extract(fmt_spec.size * 8 - 1, 0, i)
                     self.parser.state.memory.store(
@@ -347,7 +347,7 @@ class FormatSpecifier:
         return self.string[-1:].lower()
 
     def __str__(self):
-        return "%%%s" % self.string.decode()
+        return f"%{self.string.decode()}"
 
     def __len__(self):
         return len(self.string)
@@ -501,7 +501,7 @@ class FormatParser(SimProcedure):
                 try:
                     typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
                 except Exception:
-                    raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
+                    raise SimProcedureError(f"format specifier uses unknown type '{repr(nugtype)}'")
                 return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None

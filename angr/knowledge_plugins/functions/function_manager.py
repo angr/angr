@@ -38,7 +38,7 @@ class FunctionDict(SortedDict):
             return super().__getitem__(addr)
         except KeyError as ex:
             if not isinstance(addr, self._key_types):
-                raise TypeError("FunctionDict only supports %s as key type" % self._key_types) from ex
+                raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
 
             if isinstance(addr, SootMethodDescriptor):
                 t = SootFunction(self._backref, addr)
@@ -316,7 +316,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         elif type(k) is str:
             f = self.function(name=k)
         else:
-            raise ValueError("FunctionManager.__getitem__ does not support keys of type %s" % type(k))
+            raise ValueError(f"FunctionManager.__getitem__ does not support keys of type {type(k)}")
 
         if f is None:
             raise KeyError(k)

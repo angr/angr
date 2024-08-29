@@ -248,9 +248,9 @@ class VEXLifter(SimEngineBase):
 
         if isinstance(buff, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
             if len(buff) == 0:
-                raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
+                raise SimEngineError(f"No bytes in memory for block starting at {addr:#x}.")
         elif not buff:
-            raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
+            raise SimEngineError(f"No bytes in memory for block starting at {addr:#x}.")
 
         # phase 5: call into pyvex
         l.debug("Creating IRSB of %s at %#x", arch, addr)
@@ -332,7 +332,7 @@ class VEXLifter(SimEngineBase):
                                 "think you ought to be able to, open an issue."
                             )
                         else:
-                            raise TypeError("Unsupported backer type %s." % type(backer))
+                            raise TypeError(f"Unsupported backer type {type(backer)}.")
             elif state:
                 if state.memory.SUPPORTS_CONCRETE_LOAD:
                     buff = state.memory.concrete_load(addr, max_size)

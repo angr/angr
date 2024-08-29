@@ -59,7 +59,7 @@ class RichR:
         return None
 
     def __repr__(self):
-        return "R{%r}" % self.data
+        return f"R{{{self.data!r}}}"
 
 
 class SimEngineVRBase(SimEngineLight):

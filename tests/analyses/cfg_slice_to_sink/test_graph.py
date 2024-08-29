@@ -11,7 +11,7 @@ class _MockCFGNode:
         self.addr = addr
 
     def __repr__(self):
-        return "%s" % self.addr
+        return f"{self.addr}"
 
 
 def _a_graph_and_its_nodes():

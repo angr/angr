@@ -450,7 +450,7 @@ def x86g_dirtyhelper_RDMSR(state, msr):
     except errors.SimSolverError:
         return state.solver.BVS("rdmsr_?", 64, key=("cpu", "rdmsr", "?")), []
     else:
-        return state.solver.BVS("rdmsr_%#x" % msr_conc, 64, key=("cpu", "rdmsr", msr_conc), eternal=True), []
+        return state.solver.BVS(f"rdmsr_{msr_conc:#x}", 64, key=("cpu", "rdmsr", msr_conc), eternal=True), []
 
 
 def x86g_dirtyhelper_XGETBV(state, reg):
@@ -459,7 +459,7 @@ def x86g_dirtyhelper_XGETBV(state, reg):
     except errors.SimSolverError:
         return state.solver.BVS("xgetbv_?", 64, key=("cpu", "xgetbv", "?")), []
     else:
-        return state.solver.BVS("xgetbv_%#x" % reg_conc, 64, key=("cpu", "xgetbv", reg_conc), eternal=True), []
+        return state.solver.BVS(f"xgetbv_{reg_conc:#x}", 64, key=("cpu", "xgetbv", reg_conc), eternal=True), []
 
 
 amd64g_dirtyhelper_RDMSR = x86g_dirtyhelper_RDMSR

@@ -396,7 +396,7 @@ class DDGViewInstruction:
             cfg_node = self._cfg.model.get_any_node(self._insn_addr, anyaddr=True)
             if cfg_node is None:
                 # not found
-                raise KeyError("CFGNode for instruction %#x is not found." % self._insn_addr)
+                raise KeyError(f"CFGNode for instruction {self._insn_addr:#x} is not found.")
 
             # determine the statement ID
             vex_block = self._project.factory.block(
@@ -913,7 +913,7 @@ class DDG(Analysis):
             elif isinstance(variable, SimRegisterVariable):
                 type_ = "reg"
             else:
-                raise AngrDDGError("Unknown variable type %s" % type(variable))
+                raise AngrDDGError(f"Unknown variable type {type(variable)}")
 
             prevdefs[code_loc] = {"type": type_, "data": variable}
 

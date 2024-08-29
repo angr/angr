@@ -184,7 +184,7 @@ class AddressConcretizationMixin(MemoryMixin):
                 return a
 
         # well, we tried
-        raise SimMemoryAddressError("Unable to concretize address for %s with the provided strategies." % action)
+        raise SimMemoryAddressError(f"Unable to concretize address for {action} with the provided strategies.")
 
     def concretize_write_addr(self, addr, strategies=None, condition=None):
         """

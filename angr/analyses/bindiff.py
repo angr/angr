@@ -645,8 +645,8 @@ class FunctionDiff:
         # get the attributes for all blocks
         l.debug(
             "Computing diff of functions: %s, %s",
-            ("%#x" % self._function_a.startpoint.addr) if self._function_a.startpoint is not None else "None",
-            ("%#x" % self._function_b.startpoint.addr) if self._function_b.startpoint is not None else "None",
+            (f"{self._function_a.startpoint.addr:#x}") if self._function_a.startpoint is not None else "None",
+            (f"{self._function_b.startpoint.addr:#x}") if self._function_b.startpoint is not None else "None",
         )
         self.attributes_a = self._compute_block_attributes(self._function_a)
         self.attributes_b = self._compute_block_attributes(self._function_b)

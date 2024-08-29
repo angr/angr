@@ -1250,7 +1250,7 @@ class SimStateLibc(SimStatePlugin):
         try:
             ival = getattr(self.state.posix, val)
         except AttributeError as e:
-            raise ValueError("Invalid errno constant %s" % val) from e
+            raise ValueError(f"Invalid errno constant {val}") from e
 
         if self.state.scratch.sim_procedure.is_syscall:
             return -ival

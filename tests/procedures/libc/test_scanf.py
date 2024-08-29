@@ -123,7 +123,7 @@ class TestScanf(unittest.TestCase):
         for path in pg.found:
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
-                assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
+                assert expected_outputs[test_output].check(path), f"Test case failed. Output is {test_output}."
 
             total_outputs += 1
 
@@ -195,7 +195,7 @@ class TestScanf(unittest.TestCase):
             path.posix.dumps(0)
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
-                assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
+                assert expected_outputs[test_output].check(path), f"Test case failed. Output is {test_output}."
 
             total_outputs += 1
 

@@ -277,8 +277,8 @@ class ReachingDefinitionsState:
         return self.analysis.dep_graph
 
     def __repr__(self):
-        ctnt = "RDState-%r" % (self.live_definitions)
-        return "{%s}" % ctnt
+        ctnt = f"RDState-{self.live_definitions!r}"
+        return f"{{{ctnt}}}"
 
     def _set_initialization_values(
         self,

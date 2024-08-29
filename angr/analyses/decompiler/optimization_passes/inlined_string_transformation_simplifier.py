@@ -1,6 +1,6 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use
 from __future__ import annotations
-from typing import Any, DefaultDict
+from typing import Any
 from collections import defaultdict
 
 from archinfo import Endness
@@ -90,7 +90,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         self.MASK = 0xFFFF_FFFF if self.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
         state = InlinedStringTransformationState(project)
-        self.stack_accesses: DefaultDict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
+        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
         self.finished: bool = False
 
         i = 0

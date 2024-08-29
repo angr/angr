@@ -71,13 +71,13 @@ class TLSMixin:
         super().__init_subclass__(**kwargs)
 
         for subcls in cls.mro():
-            for attr in subcls.__dict__.get("_%s__tls" % subcls.__name__, ()):
+            for attr in subcls.__dict__.get(f"_{subcls.__name__}__tls", ()):
                 if attr.startswith("__"):
                     attr = f"_{subcls.__name__}{attr}"
 
                 if hasattr(cls, attr):
                     if type(getattr(cls, attr, None)) is not TLSProperty:
-                        raise Exception("Programming error: %s is both in __tls and __class__" % attr)
+                        raise Exception(f"Programming error: {attr} is both in __tls and __class__")
                 else:
                     setattr(cls, attr, TLSProperty(attr))
 

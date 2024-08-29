@@ -2057,7 +2057,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 )
                 state.inspect.add_breakpoint("reg_write", bp)
             else:
-                raise NotImplementedError("Unsupported sort %s in stmts_to_instrument." % sort)
+                raise NotImplementedError(f"Unsupported sort {sort} in stmts_to_instrument.")
 
         reg_val = 0x13370000
 
@@ -2132,7 +2132,7 @@ class JumpTableResolver(IndirectJumpResolver):
             irsb = self.project.factory.block(addr, cross_insn_opt=True, backup_state=self.base_state).vex
 
             print("  ####")
-            print("  #### Block %#x" % addr)
+            print(f"  #### Block {addr:#x}")
             print("  ####")
 
             for i, stmt in enumerate(irsb.statements):
@@ -2140,7 +2140,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 display = stmt_taken if in_slice_stmts_only else True
                 if display:
                     s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
-                    s += "%s " % stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)
+                    s += f"{stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)} "
                     if stmt_taken:
                         s += "IN: %d" % blade.slice.in_degree((addr, i))
                     print(s)
@@ -2257,7 +2257,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 jump_target_addr = load_stmt.addr.con.value
                 return claripy.BVV(jump_target_addr, state.arch.bits)
         else:
-            raise TypeError("Unsupported address loading statement type %s." % type(load_stmt))
+            raise TypeError(f"Unsupported address loading statement type {type(load_stmt)}.")
 
         if state.scratch.temps[load_addr_tmp] is None:
             # the tmp variable is not there... umm...

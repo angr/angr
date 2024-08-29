@@ -113,11 +113,11 @@ class SimStateHistory(SimStatePlugin):
         if addr is None:
             addr_str = "Unknown"
         elif isinstance(addr, int):
-            addr_str = "%#x" % addr
+            addr_str = f"{addr:#x}"
         else:
             addr_str = repr(addr)
 
-        return "<StateHistory @ %s>" % addr_str
+        return f"<StateHistory @ {addr_str}>"
 
     def set_strongref_state(self, state):
         if sim_options.EFFICIENT_STATE_MERGING in state.options:

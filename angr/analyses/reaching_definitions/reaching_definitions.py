@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import DefaultDict, Any, Union, TYPE_CHECKING
+from typing import Any, Union, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
 
@@ -173,7 +173,7 @@ class ReachingDefinitionsAnalysis(
         if self._observation_points and any(type(op) is not tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        self._node_iterations: DefaultDict[int, int] = defaultdict(int)
+        self._node_iterations: defaultdict[int, int] = defaultdict(int)
 
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None,
@@ -257,8 +257,8 @@ class ReachingDefinitionsAnalysis(
         key = "insn", ins_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                "Reaching definitions are not available at observation point %s. "
-                "Did you specify that observation point?" % str(key)
+                f"Reaching definitions are not available at observation point {str(key)}. "
+                "Did you specify that observation point?"
             )
 
         return self.observed_results[key]
@@ -267,8 +267,8 @@ class ReachingDefinitionsAnalysis(
         key = "node", node_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                "Reaching definitions are not available at observation point %s. "
-                "Did you specify that observation point?" % str(key)
+                f"Reaching definitions are not available at observation point {str(key)}. "
+                "Did you specify that observation point?"
             )
 
         return self.observed_results[key]

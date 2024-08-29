@@ -28,7 +28,7 @@ class DataGraphMeta:
         for n in self._vfg._nodes.values():
             if n.addr == addr:
                 return n
-        raise DataGraphError("No VFG node at 0x%x" % addr)
+        raise DataGraphError(f"No VFG node at 0x{addr:x}")
 
     def get_irsb_at(self, addr):
         n = self._vfg_node(addr)
@@ -53,7 +53,7 @@ class DataGraphMeta:
             if imarks is False or stmt[1] == -1:  # SimProcedure
                 s = "(0x%x, %d)" % (stmt[0], stmt[1])
             else:
-                s = "[0x%x]" % self._imarks[stmt]
+                s = f"[0x{self._imarks[stmt]:x}]"
             pp.append(s)
 
         print(pp[0] + " -> " + pp[1] + " : " + str(data))
@@ -73,12 +73,12 @@ class DataGraphMeta:
         if isinstance(irsb, SimProcedure):
             self._simproc_map[irsb.addr] = repr(irsb)
 
-        l.debug("--> Branch: running block 0x%x" % irsb.addr)
+        l.debug(f"--> Branch: running block 0x{irsb.addr:x}")
         block = self._make_block(irsb, live_defs)
         self._imarks.update(block._imarks)
         if block.stop is True:
             # l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
-            l.debug(" ### End of path %s" % path)
+            l.debug(f" ### End of path {path}")
             return irsb.addr
         succ = self._vfg._graph.successors(node)
 

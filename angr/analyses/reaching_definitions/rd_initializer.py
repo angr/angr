@@ -118,7 +118,7 @@ class RDAStateInitializer:
         elif isinstance(argument_location, SimStackArg):
             self._initialize_function_argument_stack(state, func_addr, ex_loc, argument_location)
         else:
-            raise TypeError("Unsupported parameter type %s." % type(argument_location).__name__)
+            raise TypeError(f"Unsupported parameter type {type(argument_location).__name__}.")
 
     def initialize_stack_pointer(
         self, state: ReachingDefinitionsState, _func_addr: int, ex_loc: ExternalCodeLocation

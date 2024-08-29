@@ -46,10 +46,10 @@ def timed_function(f):
                     location = "bbl {:#x}, stmt {} (inst {})".format(
                         s.scratch.bbl_addr,
                         s.scratch.stmt_idx,
-                        ("%s" % s.scratch.ins_addr if s.scratch.ins_addr is None else "%#x" % s.scratch.ins_addr),
+                        (f"{s.scratch.ins_addr}" if s.scratch.ins_addr is None else f"{s.scratch.ins_addr:#x}"),
                     )
                 elif s.scratch.sim_procedure is not None:
-                    location = "sim_procedure %s" % s.scratch.sim_procedure
+                    location = f"sim_procedure {s.scratch.sim_procedure}"
                 else:
                     location = "unknown"
             except Exception:  # pylint:disable=broad-except
