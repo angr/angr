@@ -65,11 +65,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         return binascii.hexlify(os.urandom(4))
 
     def store(self, addr, data, frame=0):  # pylint: disable=arguments-differ
-        if type(addr) is SimSootValue_Local:
-            cstack = self._stack[-1 + (-1 * frame)]
-            cstack.store(addr.id, data, type_=addr.type)
-
-        elif type(addr) is SimSootValue_ParamRef:
+        if type(addr) is SimSootValue_Local or type(addr) is SimSootValue_ParamRef:
             cstack = self._stack[-1 + (-1 * frame)]
             cstack.store(addr.id, data, type_=addr.type)
 
@@ -79,10 +75,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         elif type(addr) is SimSootValue_StaticFieldRef:
             self.vm_static_table.store(addr.id, data, type_=addr.type)
 
-        elif type(addr) is SimSootValue_InstanceFieldRef:
-            self.heap.store(addr.id, data, type_=addr.type)
-
-        elif type(addr) is SimSootValue_StringRef:
+        elif type(addr) is SimSootValue_InstanceFieldRef or type(addr) is SimSootValue_StringRef:
             self.heap.store(addr.id, data, type_=addr.type)
 
         else:

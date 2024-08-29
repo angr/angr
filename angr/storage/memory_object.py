@@ -69,9 +69,13 @@ class SimMemoryObject:
         return self.base + self.length - 1
 
     def concrete_bytes(self, offset: int, size: int) -> bytes | None:
-        if self._concrete_bytes is None:
-            if isinstance(self.object, claripy.ast.Bits) and self.object.op == "BVV" and not self.object.annotations:
-                self._concrete_bytes = self.object.concrete_value.to_bytes(len(self.object) // self._byte_width, "big")
+        if (
+            self._concrete_bytes is None
+            and isinstance(self.object, claripy.ast.Bits)
+            and self.object.op == "BVV"
+            and not self.object.annotations
+        ):
+            self._concrete_bytes = self.object.concrete_value.to_bytes(len(self.object) // self._byte_width, "big")
 
         if self._concrete_bytes is None:
             return None

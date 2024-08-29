@@ -124,10 +124,7 @@ class Typehoon(Analysis):
         print(f"### {len(self.solution)} solutions")
         for typevar in sorted(self.solution.keys(), key=str):
             sol = self.solution[typevar]
-            if typevar in typevar_to_var:
-                var_and_typevar = f"{typevar_to_var[typevar]} ({typevar})"
-            else:
-                var_and_typevar = typevar
+            var_and_typevar = f"{typevar_to_var[typevar]} ({typevar})" if typevar in typevar_to_var else typevar
             print(f"    {var_and_typevar} -> {sol}")
         print("### end of solutions ###")
 

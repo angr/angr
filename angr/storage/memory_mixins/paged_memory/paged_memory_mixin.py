@@ -424,18 +424,12 @@ class PagedMemoryMixin(MemoryMixin):
                     bitmap_out[byte_idx] = 1
                     continue
 
-                if bit_idx % byte_width != 0:
-                    # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
-                    hi_chop = byte_width - (bit_idx % byte_width)
-                else:
-                    hi_chop = 0
+                # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
+                hi_chop = byte_width - bit_idx % byte_width if bit_idx % byte_width != 0 else 0
 
-                if (bit_idx + len(element)) % byte_width != 0:
-                    # if the current element does not have enough bits to extend to the next byte boundary, the
-                    # bottom `lo_chop` bits should be removed
-                    lo_chop = (bit_idx + len(element)) % byte_width
-                else:
-                    lo_chop = 0
+                # if the current element does not have enough bits to extend to the next byte boundary, the
+                # bottom `lo_chop` bits should be removed
+                lo_chop = (bit_idx + len(element)) % byte_width if (bit_idx + len(element)) % byte_width != 0 else 0
 
                 if hi_chop + lo_chop == len(element):
                     # the entire element will be removed
@@ -573,9 +567,7 @@ class PagedMemoryMixin(MemoryMixin):
 
             if (my_page is None) ^ (other_page is None):
                 changes.update(range(pageno * self.page_size, (pageno + 1) * self.page_size))
-            elif my_page is None:
-                pass
-            elif my_page is other_page:
+            elif my_page is None or my_page is other_page:
                 pass
             else:
                 changes.update(
@@ -598,9 +590,7 @@ class PagedMemoryMixin(MemoryMixin):
 
             if (my_page is None) ^ (other_page is None):
                 changes[pageno] = None
-            elif my_page is None:
-                pass
-            elif my_page is other_page:
+            elif my_page is None or my_page is other_page:
                 pass
             else:
                 changed_offsets = my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)

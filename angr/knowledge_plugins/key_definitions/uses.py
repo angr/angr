@@ -70,15 +70,14 @@ class Uses:
         :param expr:        The expression that uses the definition at the given location.
         :return:            None
         """
-        if definition in self._uses_by_definition:
-            if codeloc in self._uses_by_definition[definition]:
-                self._uses_by_definition = self._uses_by_definition.clean()
-                if expr is None:
-                    for codeloc_, expr_ in list(self._uses_by_definition[definition]):
-                        if codeloc_ == codeloc:
-                            self._uses_by_definition[definition].remove((codeloc_, expr_))
-                else:
-                    self._uses_by_definition[definition].remove((codeloc, expr))
+        if definition in self._uses_by_definition and codeloc in self._uses_by_definition[definition]:
+            self._uses_by_definition = self._uses_by_definition.clean()
+            if expr is None:
+                for codeloc_, expr_ in list(self._uses_by_definition[definition]):
+                    if codeloc_ == codeloc:
+                        self._uses_by_definition[definition].remove((codeloc_, expr_))
+            else:
+                self._uses_by_definition[definition].remove((codeloc, expr))
 
         if codeloc in self._uses_by_location:
             self._uses_by_location = self._uses_by_location.clean()

@@ -826,10 +826,7 @@ class LiveDefinitions:
                 r = self.get_values(atom)
                 if r is None:
                     continue
-                if result is None:
-                    result = r
-                else:
-                    result = result.merge(r)
+                result = r if result is None else result.merge(r)
             return result
 
         if isinstance(atom, Register):

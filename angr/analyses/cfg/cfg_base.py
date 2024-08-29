@@ -579,24 +579,23 @@ class CFGBase(Analysis):
                 val = stmt.data
                 if val.tag == "Iex_Const":
                     conc_temps[stmt.tmp] = val.con.value
-            elif stmt.tag == "Ist_Put":
-                if stmt.offset == self.project.arch.registers["itstate"][0]:
-                    val = stmt.data
-                    if val.tag == "Iex_RdTmp":
-                        if val.tmp in conc_temps:
-                            # We found an IT instruction!!
-                            # Determine how many instructions are conditional
-                            it_counter = 0
-                            itstate = conc_temps[val.tmp]
-                            while itstate != 0:
-                                it_counter += 1
-                                itstate >>= 8
-                    elif val.tag == "Iex_Const":
+            elif stmt.tag == "Ist_Put" and stmt.offset == self.project.arch.registers["itstate"][0]:
+                val = stmt.data
+                if val.tag == "Iex_RdTmp":
+                    if val.tmp in conc_temps:
+                        # We found an IT instruction!!
+                        # Determine how many instructions are conditional
                         it_counter = 0
-                        itstate = val.con.value
+                        itstate = conc_temps[val.tmp]
                         while itstate != 0:
                             it_counter += 1
                             itstate >>= 8
+                elif val.tag == "Iex_Const":
+                    it_counter = 0
+                    itstate = val.con.value
+                    while itstate != 0:
+                        it_counter += 1
+                        itstate >>= 8
 
         if it_counter != 0:
             l.debug("Basic block ends before calculated IT block (%#x)", irsb.addr)
@@ -739,10 +738,7 @@ class CFGBase(Analysis):
         :return: A sorted list of tuples (beginning_address, end_address)
         """
 
-        if objects is None:
-            binaries = self.project.loader.all_objects
-        else:
-            binaries = objects
+        binaries = self.project.loader.all_objects if objects is None else objects
 
         memory_regions = []
 
@@ -842,10 +838,7 @@ class CFGBase(Analysis):
         :rtype: bool
         """
 
-        for start, end in self._exec_mem_regions:
-            if start <= addr < end:
-                return True
-        return False
+        return any(start <= addr < end for start, end in self._exec_mem_regions)
 
     def _addrs_belong_to_same_section(self, addr_a, addr_b):
         """
@@ -863,9 +856,7 @@ class CFGBase(Analysis):
         if obj is None:
             # test if addr_b also does not belong to any object
             obj_b = self.project.loader.find_object_containing(addr_b, membership_check=False)
-            if obj_b is None:
-                return True
-            return False
+            return obj_b is None
 
         src_section = obj.find_section_containing(addr_a)
         if src_section is None:
@@ -893,17 +884,13 @@ class CFGBase(Analysis):
         if obj is None:
             # test if addr_b also does not belong to any object
             obj_b = self.project.loader.find_object_containing(addr_b, membership_check=False)
-            if obj_b is None:
-                return True
-            return False
+            return obj_b is None
 
         src_segment = obj.find_segment_containing(addr_a)
         if src_segment is None:
             # test if addr_b also does not belong to any section
             dst_segment = obj.find_segment_containing(addr_b)
-            if dst_segment is None:
-                return True
-            return False
+            return dst_segment is None
 
         return src_segment.contains_addr(addr_b)
 
@@ -1173,15 +1160,14 @@ class CFGBase(Analysis):
                 func.returning = False
                 changes["functions_do_not_return"].append(func)
 
-            if returning is not None:
+            if returning is not None and func.addr in functions.callgraph:
                 # Add all callers of this function to all_functions list
-                if func.addr in functions.callgraph:
-                    callers = functions.callgraph.predecessors(func.addr)
-                    for caller in callers:
-                        if caller in analyzed_functions:
-                            continue
-                        if functions.contains_addr(caller):
-                            all_functions.append(functions.get_by_addr(caller))
+                callers = functions.callgraph.predecessors(func.addr)
+                for caller in callers:
+                    if caller in analyzed_functions:
+                        continue
+                    if functions.contains_addr(caller):
+                        all_functions.append(functions.get_by_addr(caller))
 
         return changes
 
@@ -1267,7 +1253,7 @@ class CFGBase(Analysis):
                 for k, node in smallest_nodes.items():
                     _, callstack_key = k
                     sorted_smallest_nodes[callstack_key].append(node)
-                for k in sorted_smallest_nodes.keys():
+                for k in sorted_smallest_nodes:
                     sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
 
                 for callstack_key, lst in sorted_smallest_nodes.items():
@@ -1329,9 +1315,8 @@ class CFGBase(Analysis):
             # when there are more than one node with that key.
             if key in end_addresses_to_nodes:
                 new_node = next((i for i in end_addresses_to_nodes[key] if i.addr == n.addr), None)
-            if new_node is None:
-                if key in smallest_nodes and smallest_nodes[key].addr == n.addr:
-                    new_node = smallest_nodes[key]
+            if new_node is None and key in smallest_nodes and smallest_nodes[key].addr == n.addr:
+                new_node = smallest_nodes[key]
 
             if new_node is None:
                 # Create a new one
@@ -1534,7 +1519,7 @@ class CFGBase(Analysis):
         if not self.project.arch.capstone_support:
             return
 
-        for func_addr in self.kb.functions.keys():
+        for func_addr in self.kb.functions:
             function = self.kb.functions[func_addr]
             if function.is_simprocedure or function.is_syscall:
                 continue
@@ -1728,16 +1713,14 @@ class CFGBase(Analysis):
             if self._is_noop_block(arch_, block):
                 # alignments
                 return False
-            if (
+
+            # TODO: We may want to add support for filtering dummy PLT stubs for other architectures, but I haven't
+            # TODO: seen any need for those.
+            return not (
                 arch_.name in {"X86", "AMD64"}
                 and len(block.vex.instruction_addresses) == 2
                 and block.vex.jumpkind == "Ijk_Boring"
-            ):
-                # push ordinal; jump _resolve
-                return False
-            # TODO: We may want to add support for filtering dummy PLT stubs for other architectures, but I haven't
-            # TODO: seen any need for those.
-            return True
+            )
 
         to_remove = set()
 
@@ -1751,10 +1734,14 @@ class CFGBase(Analysis):
         for fn_addr in sorted_func_addrs:
             fn = functions.get_by_addr(fn_addr)
             addr = fn.addr - (fn.addr % 16)
-            if addr != fn.addr:
-                if addr in functions and functions[addr].is_plt and not _is_function_a_plt_stub(arch, fn):
-                    to_remove.add(fn.addr)
-                    continue
+            if (
+                addr != fn.addr
+                and addr in functions
+                and functions[addr].is_plt
+                and not _is_function_a_plt_stub(arch, fn)
+            ):
+                to_remove.add(fn.addr)
+                continue
 
             if fn.is_plt:
                 met_plts = True
@@ -1951,7 +1938,7 @@ class CFGBase(Analysis):
         """
 
         addrs = sorted(
-            k for k in functions.keys() if not self.project.is_hooked(k) and not self.project.simos.is_syscall_addr(k)
+            k for k in functions if not self.project.is_hooked(k) and not self.project.simos.is_syscall_addr(k)
         )
         functions_to_remove = set()
         adjusted_cfgnodes = set()
@@ -2087,7 +2074,7 @@ class CFGBase(Analysis):
 
         functions_to_remove = set()
 
-        for func_addr in functions.keys():
+        for func_addr in functions:
             if func_addr in predetermined_function_addrs:
                 continue
             if func_addr in jumptable_entries:
@@ -2132,10 +2119,7 @@ class CFGBase(Analysis):
             is_syscall = self.project.simos.is_syscall_addr(addr)
 
             n = self.model.get_any_node(addr, is_syscall=is_syscall)
-            if n is None:
-                node = addr
-            else:
-                node = self._to_snippet(n)
+            node = addr if n is None else self._to_snippet(n)
 
             if isinstance(addr, SootAddressDescriptor):
                 addr = addr.method
@@ -2147,16 +2131,14 @@ class CFGBase(Analysis):
             blockaddr_to_function[addr] = f
 
             function_is_returning = False
-            if addr in known_functions:
-                if known_functions.function(addr).returning:
-                    f.returning = True
-                    function_is_returning = True
+            if addr in known_functions and known_functions.function(addr).returning:
+                f.returning = True
+                function_is_returning = True
 
-            if not function_is_returning:
+            if not function_is_returning and self._updated_nonreturning_functions is not None:
                 # We will rerun function feature analysis on this function later. Add it to
                 # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
-                if self._updated_nonreturning_functions is not None:
-                    self._updated_nonreturning_functions.add(addr)
+                self._updated_nonreturning_functions.add(addr)
 
         return f
 
@@ -2288,9 +2270,10 @@ class CFGBase(Analysis):
                     callback(g, src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
 
                     jumpkind = data.get("jumpkind", "")
-                    if not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys")):
-                        if dst not in stack and dst not in traversed:
-                            stack.add(dst)
+                    if (not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys"))) and (
+                        dst not in stack and dst not in traversed
+                    ):
+                        stack.add(dst)
 
     def _graph_traversal_handler(self, g, src, dst, data, blockaddr_to_function, known_functions, all_edges):
         """
@@ -2312,10 +2295,7 @@ class CFGBase(Analysis):
 
         if src_addr not in src_function.block_addrs_set:
             n = self.model.get_any_node(src_addr)
-            if n is None:
-                node = src_addr
-            else:
-                node = self._to_snippet(n)
+            node = src_addr if n is None else self._to_snippet(n)
             self.kb.functions._add_node(src_function.addr, node)
 
         if data is None:
@@ -2326,10 +2306,7 @@ class CFGBase(Analysis):
 
         if jumpkind == "Ijk_Ret":
             n = self.model.get_any_node(src_addr)
-            if n is None:
-                from_node = src_addr
-            else:
-                from_node = self._to_snippet(n)
+            from_node = src_addr if n is None else self._to_snippet(n)
             self.kb.functions._add_return_from(src_function.addr, from_node, None)
 
         if dst is None:
@@ -2357,15 +2334,12 @@ class CFGBase(Analysis):
             # For now, assume UnresolvedTarget returns if we're calling to it
 
             # If the function doesn't return, don't add a fakeret!
-            if not all_edges or (dst_function.returning is False and not dst_function.name == "UnresolvableCallTarget"):
+            if not all_edges or (dst_function.returning is False and dst_function.name != "UnresolvableCallTarget"):
                 fakeret_node = None
             else:
                 fakeret_node = self._one_fakeret_node(all_edges)
 
-            if fakeret_node is None:
-                fakeret_snippet = None
-            else:
-                fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
+            fakeret_snippet = None if fakeret_node is None else self._to_snippet(cfg_node=fakeret_node)
 
             if isinstance(dst_addr, SootAddressDescriptor):
                 dst_addr = dst_addr.method
@@ -2408,16 +2382,10 @@ class CFGBase(Analysis):
         elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
             # convert src_addr and dst_addr to CodeNodes
             n = self.model.get_any_node(src_addr)
-            if n is None:
-                src_node = src_addr
-            else:
-                src_node = self._to_snippet(cfg_node=n)
+            src_node = src_addr if n is None else self._to_snippet(cfg_node=n)
 
             n = self.model.get_any_node(dst_addr)
-            if n is None:
-                dst_node = dst_addr
-            else:
-                dst_node = self._to_snippet(cfg_node=n)
+            dst_node = dst_addr if n is None else self._to_snippet(cfg_node=n)
 
             if self._skip_unmapped_addrs:
                 # pre-check: if source and destination do not belong to the same section, it must be jumping to another
@@ -2426,19 +2394,18 @@ class CFGBase(Analysis):
                 if not belong_to_same_section:
                     _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
-            if self._detect_tail_calls:
-                if self._is_tail_call_optimization(
-                    g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_function
-                ):
-                    l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
-                    # it's (probably) a tail-call optimization. we should make the destination node a new function
-                    # instead.
-                    blockaddr_to_function.pop(dst_addr, None)
-                    _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
-                    self.kb.functions._add_outside_transition_to(
-                        src_function.addr, src_node, dst_node, to_function_addr=dst_addr
-                    )
-                    self._tail_calls.add(dst_addr)
+            if self._detect_tail_calls and self._is_tail_call_optimization(
+                g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_function
+            ):
+                l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
+                # it's (probably) a tail-call optimization. we should make the destination node a new function
+                # instead.
+                blockaddr_to_function.pop(dst_addr, None)
+                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                self.kb.functions._add_outside_transition_to(
+                    src_function.addr, src_node, dst_node, to_function_addr=dst_addr
+                )
+                self._tail_calls.add(dst_addr)
 
             # is it a jump to another function?
             if isinstance(dst_addr, SootAddressDescriptor):
@@ -2484,16 +2451,10 @@ class CFGBase(Analysis):
         elif jumpkind == "Ijk_FakeRet":
             # convert src_addr and dst_addr to CodeNodes
             n = self.model.get_any_node(src_addr)
-            if n is None:
-                src_node = src_addr
-            else:
-                src_node = self._to_snippet(n)
+            src_node = src_addr if n is None else self._to_snippet(n)
 
             n = self.model.get_any_node(dst_addr)
-            if n is None:
-                dst_node = dst_addr
-            else:
-                dst_node = self._to_snippet(n)
+            dst_node = dst_addr if n is None else self._to_snippet(n)
 
             if dst_addr not in blockaddr_to_function:
                 if isinstance(dst_addr, SootAddressDescriptor):
@@ -2518,11 +2479,10 @@ class CFGBase(Analysis):
             called_function_addr = None
             # Try to find the call that this fakeret goes with
             for _, d, e in all_edges:
-                if e["jumpkind"] == "Ijk_Call":
-                    if d.addr in blockaddr_to_function:
-                        called_function = blockaddr_to_function[d.addr]
-                        called_function_addr = d.addr
-                        break
+                if e["jumpkind"] == "Ijk_Call" and d.addr in blockaddr_to_function:
+                    called_function = blockaddr_to_function[d.addr]
+                    called_function_addr = d.addr
+                    break
             # We may have since figured out that the called function doesn't ret.
             # It's important to assume that all unresolved targets do return
             if called_function is not None and called_function.returning is False:
@@ -2558,10 +2518,7 @@ class CFGBase(Analysis):
         :rtype: bool
         """
 
-        if arch.name == "X86":
-            if set(block.bytes) == {"b\x90"}:
-                return True
-        elif arch.name == "AMD64":
+        if arch.name == "X86" or arch.name == "AMD64":
             if set(block.bytes) == {"b\x90"}:
                 return True
         elif arch.name == "MIPS32":
@@ -2613,22 +2570,30 @@ class CFGBase(Analysis):
         # will generate such blocks when opt_level==1 and cross_insn_opt is True
         fallthrough_addr = block.addr + block.size
         next_ = block.vex.next
-        if isinstance(next_, pyvex.IRExpr.Const) and next_.con.value == fallthrough_addr:
-            if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
-                return True
+        if (
+            isinstance(next_, pyvex.IRExpr.Const)
+            and next_.con.value == fallthrough_addr
+            and all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements)
+        ):
+            return True
 
         # the block is a noop block if it only has IMark statements and IP-setting statements that set the IP to the
         # next location. VEX will generate such blocks when opt_level==1 and cross_insn_opt is False
         ip_offset = arch.ip_offset
-        if all(
-            (type(stmt) is pyvex.IRStmt.IMark or (type(stmt) is pyvex.IRStmt.Put and stmt.offset == ip_offset))
-            for stmt in block.vex.statements
+        if (
+            all(
+                (type(stmt) is pyvex.IRStmt.IMark or (type(stmt) is pyvex.IRStmt.Put and stmt.offset == ip_offset))
+                for stmt in block.vex.statements
+            )
+            and block.vex.statements
         ):
-            if block.vex.statements:
-                last_stmt = block.vex.statements[-1]
-                if isinstance(last_stmt, pyvex.IRStmt.IMark):
-                    if isinstance(next_, pyvex.IRExpr.Const) and next_.con.value == fallthrough_addr:
-                        return True
+            last_stmt = block.vex.statements[-1]
+            if (
+                isinstance(last_stmt, pyvex.IRStmt.IMark)
+                and isinstance(next_, pyvex.IRExpr.Const)
+                and next_.con.value == fallthrough_addr
+            ):
+                return True
         return False
 
     @staticmethod
@@ -2648,10 +2613,9 @@ class CFGBase(Analysis):
         elif insn_name == "lea":
             # lea reg, [reg + 0]
             op0, op1 = insn.operands
-            if op0.type == 1 and op1.type == 3:
-                # reg and mem
-                if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
-                    return True
+            # reg and mem
+            if op0.type == 1 and op1.type == 3 and op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
+                return True
         elif insn_name == "mov":
             if len(insn.operands) > 2:
                 # mov reg_a, imm1, shift imm2
@@ -2659,10 +2623,9 @@ class CFGBase(Analysis):
                 return False
             # mov reg_a, reg_a
             op0, op1 = insn.operands
-            if op0.type == 1 and op1.type == 1:
-                # reg and reg
-                if op0.reg == op1.reg:
-                    return True
+            # reg and reg
+            if op0.type == 1 and op1.type == 1 and op0.reg == op1.reg:
+                return True
         elif insn_name in {"ud0", "ud1", "ud2"}:
             return True
 

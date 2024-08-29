@@ -107,10 +107,7 @@ class GraphRegion:
             new_graph_with_successors = None
             successors = None
 
-        if self.full_graph is not None:
-            new_full_graph = self._recursive_copy(self.full_graph, nodes_map)
-        else:
-            new_full_graph = None
+        new_full_graph = self._recursive_copy(self.full_graph, nodes_map) if self.full_graph is not None else None
 
         return GraphRegion(
             nodes_map[self.head],
@@ -160,10 +157,7 @@ class GraphRegion:
 
     @staticmethod
     def dbg_get_repr(obj, ident=0):
-        if type(obj) is GraphRegion:
-            s = obj.dbg_print(ident=ident)
-        else:
-            s = " " * ident + str(obj)
+        s = obj.dbg_print(ident=ident) if type(obj) is GraphRegion else " " * ident + str(obj)
 
         return s
 
@@ -243,9 +237,8 @@ class GraphRegion:
                     if succ not in updated_sub_region.successors:
                         # find the corresponding node in graph_with_successors
                         real_succ = next(iter(nn for nn in real_succs if nn.addr == succ.addr), None)
-                        if real_succ is not None:
-                            if real_succ not in self.graph:
-                                self.graph_with_successors.remove_edge(sub_region, real_succ)
+                        if real_succ is not None and real_succ not in self.graph:
+                            self.graph_with_successors.remove_edge(sub_region, real_succ)
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with, edges_to_remove)
 
         self._node_to_replaced_regions[replace_with] = sub_region
@@ -263,13 +256,12 @@ class GraphRegion:
         # successor in self.successors is a graph region (with the AIL block as its head). we handle this case here by
         # creating a new graph_with_successors for the replace_with region
         successor_map = {}
-        if self.successors:
-            if any(succ not in self.successors for succ in replace_with.successors):
-                for succ in replace_with.successors:
-                    if succ not in self.successors:
-                        for succ_ in self.successors:
-                            if isinstance(succ_, GraphRegion) and succ_.addr == succ.addr:
-                                successor_map[succ] = succ_
+        if self.successors and any(succ not in self.successors for succ in replace_with.successors):
+            for succ in replace_with.successors:
+                if succ not in self.successors:
+                    for succ_ in self.successors:
+                        if isinstance(succ_, GraphRegion) and succ_.addr == succ.addr:
+                            successor_map[succ] = succ_
         if successor_map:
             replace_with_graph_with_successors = networkx.DiGraph()
             for nn in replace_with.graph_with_successors:
@@ -352,10 +344,7 @@ class GraphRegion:
             if known_successors is not None and dst in known_successors:
                 continue
 
-            if dst in self._node_to_replaced_regions:
-                dst_in_subgraph = self._node_to_replaced_regions[dst]
-            else:
-                dst_in_subgraph = dst
+            dst_in_subgraph = self._node_to_replaced_regions.get(dst, dst)
 
             # find the correct source
             if isinstance(dst_in_subgraph, GraphRegion) and dst_in_subgraph not in sub_graph:

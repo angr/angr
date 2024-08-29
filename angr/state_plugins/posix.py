@@ -331,10 +331,7 @@ class SimSystemPosix(SimStatePlugin):
             return -1
 
         # TODO: speed this up (editor's note: ...really? this is fine)
-        if preferred_fd is not None and preferred_fd not in self.fd:
-            fd = preferred_fd
-        else:
-            fd = self._pick_fd()
+        fd = preferred_fd if preferred_fd is not None and preferred_fd not in self.fd else self._pick_fd()
 
         flags = self.state.solver.eval(flags)
         create_file = (flags & Flags.O_ACCMODE) in (Flags.O_RDWR, Flags.O_WRONLY)
@@ -445,10 +442,7 @@ class SimSystemPosix(SimStatePlugin):
 
         new_filename = b"/tmp/angr_implicit_%d" % self.autotmp_counter
         self.autotmp_counter += 1
-        if create_file:
-            flags = Flags.O_RDWR
-        else:
-            flags = Flags.O_RDONLY
+        flags = Flags.O_RDWR if create_file else Flags.O_RDONLY
         concr_fd = self._pick_fd()
         if not self.state.satisfiable(extra_constraints=(concr_fd == fd,)):
             l.error("Could not look up a partially constrained symbolic fd")

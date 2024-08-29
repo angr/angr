@@ -69,7 +69,6 @@ class IndirectJumpResolver:
         if cfg._addr_in_exec_memory_regions(target):
             # the jump target is executable
             return True
-        if self.project.is_hooked(target):
-            # the jump target is hooked
-            return True
-        return False
+
+        # if true, the jump target is hooked
+        return bool(self.project.is_hooked(target))

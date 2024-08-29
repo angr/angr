@@ -155,13 +155,16 @@ class CallSiteMaker(Analysis):
             # check if the last statement is storing the return address onto the top of the stack
             if len(new_stmts) >= 1:
                 the_stmt = new_stmts[-1]
-                if isinstance(the_stmt, Stmt.Store) and isinstance(the_stmt.data, Expr.Const):
-                    if (
+                if (
+                    isinstance(the_stmt, Stmt.Store)
+                    and isinstance(the_stmt.data, Expr.Const)
+                    and (
                         isinstance(the_stmt.addr, Expr.StackBaseOffset)
                         and the_stmt.data.value == self.block.addr + self.block.original_size
-                    ):
-                        # yes it is!
-                        new_stmts = new_stmts[:-1]
+                    )
+                ):
+                    # yes it is!
+                    new_stmts = new_stmts[:-1]
         else:
             # if there is an lr register...
             lr_offset = None
@@ -169,17 +172,16 @@ class CallSiteMaker(Analysis):
                 lr_offset = self.project.arch.registers["lr"][0]
             elif self.project.arch.name in {"MIPS32", "MIPS64"}:
                 lr_offset = self.project.arch.registers["ra"][0]
-            if lr_offset is not None:
-                # remove the assignment to the lr register
-                if len(new_stmts) >= 1:
-                    the_stmt = new_stmts[-1]
-                    if (
-                        isinstance(the_stmt, Stmt.Assignment)
-                        and isinstance(the_stmt.dst, Expr.Register)
-                        and the_stmt.dst.reg_offset == lr_offset
-                    ):
-                        # found it
-                        new_stmts = new_stmts[:-1]
+            # remove the assignment to the lr register
+            if lr_offset is not None and len(new_stmts) >= 1:
+                the_stmt = new_stmts[-1]
+                if (
+                    isinstance(the_stmt, Stmt.Assignment)
+                    and isinstance(the_stmt.dst, Expr.Register)
+                    and the_stmt.dst.reg_offset == lr_offset
+                ):
+                    # found it
+                    new_stmts = new_stmts[:-1]
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
@@ -270,10 +272,7 @@ class CallSiteMaker(Analysis):
             values_and_defs_ = set()
             for values in vs.values():
                 for value in values:
-                    if value.concrete:
-                        concrete_value = value.concrete_value
-                    else:
-                        concrete_value = None
+                    concrete_value = value.concrete_value if value.concrete else None
                     for def_ in rd.extract_defs(value):
                         values_and_defs_.add((concrete_value, def_))
 

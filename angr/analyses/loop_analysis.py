@@ -53,7 +53,7 @@ class Condition:
             "!=": cls.NotEqual,
         }
 
-        return mapping.get(opstr, None)
+        return mapping.get(opstr)
 
 
 class SootBlockProcessor:
@@ -88,10 +88,7 @@ class SootBlockProcessor:
 
         # TODO: This is slow. Fix the performance issue
 
-        for node in self.loop.body_nodes:
-            if node.addr.stmt_idx <= stmt_idx < node.addr.stmt_idx + node.size:
-                return True
-        return False
+        return any(node.addr.stmt_idx <= stmt_idx < node.addr.stmt_idx + node.size for node in self.loop.body_nodes)
 
     def _expr(self, expr):
         func_name = f"_handle_{expr.__class__.__name__}"

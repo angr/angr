@@ -492,10 +492,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
             for _, int_var in chall_resp_plugin.str_to_int_pairs:
                 vars_to_solve.append(int_var)
 
-            if require_same_length:
-                extra_constraints = chall_resp_plugin.get_same_length_constraints()
-            else:
-                extra_constraints = []
+            extra_constraints = chall_resp_plugin.get_same_length_constraints() if require_same_length else []
 
             solns = state.solver._solver.batch_eval(vars_to_solve, 1, extra_constraints=extra_constraints)
             if len(solns) == 0:
@@ -528,9 +525,8 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
 
             # filter for same start with value 0
             for i in list(stdin_replacements):
-                if any(ii[0] == i[0] and ii[2] != i[2] for ii in stdin_replacements):
-                    if int(i[2]) == 0:
-                        stdin_replacements.remove(i)
+                if any(ii[0] == i[0] and ii[2] != i[2] for ii in stdin_replacements) and int(i[2]) == 0:
+                    stdin_replacements.remove(i)
 
             # now do the replacing
             offset = 0
@@ -732,10 +728,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
 
     @staticmethod
     def prep_tracer(state):
-        if state.has_plugin("zen_plugin"):
-            zen_plugin = state.get_plugin("zen_plugin")
-        else:
-            zen_plugin = ZenPlugin()
+        zen_plugin = state.get_plugin("zen_plugin") if state.has_plugin("zen_plugin") else ZenPlugin()
 
         state.register_plugin("zen_plugin", zen_plugin)
         state.inspect.b("reg_write", angr.BP_BEFORE, action=zen_register_write)

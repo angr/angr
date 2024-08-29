@@ -22,9 +22,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         if not isinstance(self.project.arch, archinfo.ArchARM):
             return False
-        if jumpkind not in ("Ijk_Boring", "Ijk_Call"):
-            return False
-        return True
+        return not jumpkind not in ("Ijk_Boring", "Ijk_Call")
 
     def _resolve_default(self, stmt, block, source, cfg, blade):
         """
@@ -75,7 +73,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
         # Get the value of r12 register
         if not isinstance(stmt.data, pyvex.IRExpr.Const):
             return False, []
-        if not self.project.arch.register_names[stmt.offset] == "r12":
+        if self.project.arch.register_names[stmt.offset] != "r12":
             return False, []
         load_addr = stmt.data.con.value
         load_size = stmt.data.result_size(block.tyenv) // 8
@@ -96,7 +94,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
 
         next_target = next(iter(blade.slice.successors(source)))
 
-        if not next_target[0] == block.addr:
+        if next_target[0] != block.addr:
             return False, []
 
         # load the address to jump to

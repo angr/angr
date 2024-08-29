@@ -336,10 +336,9 @@ class JumpTableProcessor(
                     delta = expr.args[1].concrete_value
                     sp_offset += delta
                     return sp_offset
-        elif expr.op == "__and__":
-            if len(expr.args) == 2 and expr.args[1].op == "BVV":
-                # ignore all masking on SpOffsets
-                return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
+        elif expr.op == "__and__" and len(expr.args) == 2 and expr.args[1].op == "BVV":
+            # ignore all masking on SpOffsets
+            return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
         return None
 
     @staticmethod
@@ -367,10 +366,9 @@ class JumpTableProcessor(
                     delta = expr.args[1].concrete_value
                     reg_offset += delta
                     return reg_offset
-        elif expr.op == "__and__":
-            if len(expr.args) == 2 and expr.args[1].op == "BVV":
-                # ignore all masking on SpOffsets
-                return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
+        elif expr.op == "__and__" and len(expr.args) == 2 and expr.args[1].op == "BVV":
+            # ignore all masking on SpOffsets
+            return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
         return None
 
     def _handle_WrTmp(self, stmt):
@@ -384,10 +382,7 @@ class JumpTableProcessor(
         self._tsrc = set()
         offset = stmt.offset
         data = self._expr(stmt.data)
-        if self._tsrc is not None:
-            r = (self._tsrc, data)
-        else:
-            r = ((self.block.addr, self.stmt_idx), data)
+        r = (self._tsrc, data) if self._tsrc is not None else ((self.block.addr, self.stmt_idx), data)
         self.state._registers[offset] = r
 
     def _handle_Store(self, stmt):
@@ -497,19 +492,13 @@ class JumpTableProcessor(
         if isinstance(arg0, pyvex.IRExpr.RdTmp):
             if arg0.tmp in self.state._tmpvar_source:
                 arg0_src = self.state._tmpvar_source[arg0.tmp]
-                if not arg0_src or len(arg0_src) > 1:
-                    arg0_src = None
-                else:
-                    arg0_src = next(iter(arg0_src))
+                arg0_src = None if not arg0_src or len(arg0_src) > 1 else next(iter(arg0_src))
         elif isinstance(arg0, pyvex.IRExpr.Const):
             arg0_src = "const"
         if isinstance(arg1, pyvex.IRExpr.RdTmp):
             if arg1.tmp in self.state._tmpvar_source:
                 arg1_src = self.state._tmpvar_source[arg1.tmp]
-                if not arg1_src or len(arg1_src) > 1:
-                    arg1_src = None
-                else:
-                    arg1_src = next(iter(arg1_src))
+                arg1_src = None if not arg1_src or len(arg1_src) > 1 else next(iter(arg1_src))
         elif isinstance(arg1, pyvex.IRExpr.Const):
             arg1_src = "const"
 
@@ -817,9 +806,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if jumpkind == "Ijk_Boring":
             return True
-        if self.resolve_calls and jumpkind == "Ijk_Call":
-            return True
-        return False
+        return bool(self.resolve_calls and jumpkind == "Ijk_Call")
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):
         """
@@ -1632,22 +1619,21 @@ class JumpTableResolver(IndirectJumpResolver):
                 l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 return jump_target
 
-        elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
-            if type(load_stmt.addr) is pyvex.IRExpr.Const:
-                # It's directly loading from a constant address
-                # e.g.,
-                #  4352c     SUB     R1, R11, #0x1000
-                #  43530     LDRHI   R3, =loc_45450
-                #  ...
-                #  43540     MOV     PC, R3
-                #
-                # It's not a jump table, but we resolve it anyway
-                # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
-                # value of R3 is. Some intensive data-flow analysis is required in this case.
-                jump_target_addr = load_stmt.addr.con.value
-                jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
-                l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
-                return jump_target
+        elif isinstance(load_stmt, pyvex.IRStmt.LoadG) and type(load_stmt.addr) is pyvex.IRExpr.Const:
+            # It's directly loading from a constant address
+            # e.g.,
+            #  4352c     SUB     R1, R11, #0x1000
+            #  43530     LDRHI   R3, =loc_45450
+            #  ...
+            #  43540     MOV     PC, R3
+            #
+            # It's not a jump table, but we resolve it anyway
+            # Note that this block has two branches: One goes to 45450, the other one goes to whatever the original
+            # value of R3 is. Some intensive data-flow analysis is required in this case.
+            jump_target_addr = load_stmt.addr.con.value
+            jump_target = cfg._fast_memory_load_pointer(jump_target_addr)
+            l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
+            return jump_target
 
         return None
 
@@ -1817,18 +1803,22 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # Both the min jump target and the max jump target should be within a mapped memory region
         # i.e., we shouldn't be jumping to the stack or somewhere unmapped
-        if not project.loader.find_segment_containing(min_jumptable_addr) or not project.loader.find_segment_containing(
-            max_jumptable_addr
+        if not (
+            (
+                project.loader.find_segment_containing(min_jumptable_addr)
+                and project.loader.find_segment_containing(max_jumptable_addr)
+            )
+            or (
+                project.loader.find_section_containing(min_jumptable_addr)
+                and project.loader.find_section_containing(max_jumptable_addr)
+            )
         ):
-            if not project.loader.find_section_containing(
-                min_jumptable_addr
-            ) or not project.loader.find_section_containing(max_jumptable_addr):
-                l.debug(
-                    "Jump table %#x might have jump targets outside mapped memory regions. "
-                    "Continue to resolve it from the next data source.",
-                    addr,
-                )
-                return None
+            l.debug(
+                "Jump table %#x might have jump targets outside mapped memory regions. "
+                "Continue to resolve it from the next data source.",
+                addr,
+            )
+            return None
 
         # Load the jump table from memory
         should_skip = False
@@ -2294,9 +2284,7 @@ class JumpTableResolver(IndirectJumpResolver):
             return False
         if vex_block.jumpkind == "Ijk_NoDecode":
             return False
-        if vex_block.size == 0:
-            return False
-        return True
+        return vex_block.size != 0
 
     def _is_address_mapped(self, addr: int) -> bool:
         return (

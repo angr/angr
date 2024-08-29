@@ -310,9 +310,12 @@ class SimWindows(SimOS):
         if engine is not self.project.factory.default_engine:
             raise exception
         # don't bother handling symbolic-address exceptions
-        if type(exception) is SimSegfaultException:
-            if exception.original_addr is not None and exception.original_addr.symbolic:
-                raise exception
+        if (
+            type(exception) is SimSegfaultException
+            and exception.original_addr is not None
+            and exception.original_addr.symbolic
+        ):
+            raise exception
 
         _l.debug("Handling exception from block at %#x: %r", successors.addr, exception)
 
@@ -509,7 +512,7 @@ class SimWindows(SimOS):
         """
         exfiltration_reg = "eax"
         # instruction to inject for reading the value at segment value = offset
-        read_fs0_x86 = b"\x64\xA1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
+        read_fs0_x86 = b"\x64\xa1\x18\x00\x00\x00\x90\x90\x90\x90"  # mov eax, fs:[0x18]
         return concrete_target.execute_shellcode(read_fs0_x86, exfiltration_reg)
 
     @staticmethod
@@ -523,7 +526,7 @@ class SimWindows(SimOS):
         """
         exfiltration_reg = "rax"
         # instruction to inject for reading the value at segment value = offset
-        read_gs0_x64 = b"\x65\x48\x8B\x04\x25\x30\x00\x00\x00\x90\x90\x90\x90"  # mov rax, gs:[0x30]
+        read_gs0_x64 = b"\x65\x48\x8b\x04\x25\x30\x00\x00\x00\x90\x90\x90\x90"  # mov rax, gs:[0x30]
         return concrete_target.execute_shellcode(read_gs0_x64, exfiltration_reg)
 
     def get_segment_register_name(self):

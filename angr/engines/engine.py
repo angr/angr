@@ -135,10 +135,7 @@ class SuccessorsMixin(SimEngine):
         )
 
         # make a copy of the initial state for actual processing, if needed
-        if not inline and o.COPY_STATES in state.options:
-            new_state = state.copy()
-        else:
-            new_state = state
+        new_state = state.copy() if not inline and o.COPY_STATES in state.options else state
         # enforce this distinction
         old_state = state
         del state

@@ -148,27 +148,20 @@ class VEXLifter(SimEngineBase):
         if num_inst is None and self._single_step:
             num_inst = 1
         if opt_level is None:
-            if state and o.OPTIMIZE_IR in state.options:
-                opt_level = 1
-            else:
-                opt_level = self._default_opt_level
+            opt_level = 1 if state and o.OPTIMIZE_IR in state.options else self._default_opt_level
         if cross_insn_opt is None:
-            if state and o.NO_CROSS_INSN_OPT in state.options:
-                cross_insn_opt = False
-            else:
-                cross_insn_opt = True
+            cross_insn_opt = not (state and o.NO_CROSS_INSN_OPT in state.options)
         if strict_block_end is None:
             strict_block_end = self.default_strict_block_end
-        if self.selfmodifying_code:
-            if opt_level > 0:
-                if once("vex-engine-smc-opt-warning"):
-                    l.warning(
-                        "Self-modifying code is not always correctly optimized by PyVEX. "
-                        "To guarantee correctness, VEX optimizations have been disabled."
-                    )
-                opt_level = 0
-                if state and o.OPTIMIZE_IR in state.options:
-                    state.options.remove(o.OPTIMIZE_IR)
+        if self.selfmodifying_code and opt_level > 0:
+            if once("vex-engine-smc-opt-warning"):
+                l.warning(
+                    "Self-modifying code is not always correctly optimized by PyVEX. "
+                    "To guarantee correctness, VEX optimizations have been disabled."
+                )
+            opt_level = 0
+            if state and o.OPTIMIZE_IR in state.options:
+                state.options.remove(o.OPTIMIZE_IR)
         if skip_stmts is not True:
             skip_stmts = False
         if offset is None:
@@ -390,11 +383,12 @@ class VEXLifter(SimEngineBase):
         return None
 
     def __is_stop_point(self, addr, extra_stop_points=None):
-        if self.project is not None and addr in self.project._sim_procedures:
-            return True
-        elif extra_stop_points is not None and addr in extra_stop_points:
-            return True
-        return False
+        return bool(
+            self.project is not None
+            and addr in self.project._sim_procedures
+            or extra_stop_points is not None
+            and addr in extra_stop_points
+        )
 
     def __getstate__(self):
         ostate = super().__getstate__()

@@ -121,14 +121,14 @@ def is_function_likely_security_init_cookie(func: Function) -> bool:
 
     callees = [node for node in func.transition_graph if isinstance(node, Function)]
     callee_names = {callee.name for callee in callees}
-    if callee_names.issuperset(
-        {
-            "GetSystemTimeAsFileTime",
-            "GetCurrentProcessId",
-            "GetCurrentThreadId",
-            "GetTickCount",
-            "QueryPerformanceCounter",
-        }
-    ):
-        return True
-    return False
+    return bool(
+        callee_names.issuperset(
+            {
+                "GetSystemTimeAsFileTime",
+                "GetCurrentProcessId",
+                "GetCurrentThreadId",
+                "GetTickCount",
+                "QueryPerformanceCounter",
+            }
+        )
+    )

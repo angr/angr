@@ -206,9 +206,13 @@ class FunctionCallData:
                 args_atoms_from_values |= atoms_set
         elif self.args_atoms is None and self.cc is not None and self.prototype is not None:
             self.args_atoms = FunctionHandler.c_args_as_atoms(state, self.cc, self.prototype)
-        if self.ret_atoms is None and self.cc is not None and self.prototype is not None:
-            if self.prototype.returnty is not None:
-                self.ret_atoms = FunctionHandler.c_return_as_atoms(state, self.cc, self.prototype)
+        if (
+            self.ret_atoms is None
+            and self.cc is not None
+            and self.prototype is not None
+            and self.prototype.returnty is not None
+        ):
+            self.ret_atoms = FunctionHandler.c_return_as_atoms(state, self.cc, self.prototype)
         return args_atoms_from_values
 
 
@@ -288,10 +292,7 @@ class FunctionHandler:
         """
         if isinstance(target, MultiValues):
             target_bv = target.one_value()
-            if target_bv is not None and target_bv.op == "BVV":
-                target_int = target_bv.args[0]
-            else:
-                target_int = None
+            target_int = target_bv.args[0] if target_bv is not None and target_bv.op == "BVV" else None
         else:
             target_int = target
         if callsite.context is None:

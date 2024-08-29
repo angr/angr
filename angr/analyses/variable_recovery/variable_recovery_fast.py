@@ -22,6 +22,7 @@ from ..typehoon.typevars import Equivalence, TypeVariable, TypeVariables
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
+import contextlib
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
@@ -172,10 +173,9 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         ret_val_size = self.ret_val_size
         for o in others:
-            if o.ret_val_size is not None:
-                if ret_val_size is None or o.ret_val_size > ret_val_size:
-                    ret_val_size = o.ret_val_size
-                    merge_occurred = True
+            if o.ret_val_size is not None and (ret_val_size is None or o.ret_val_size > ret_val_size):
+                ret_val_size = o.ret_val_size
+                merge_occurred = True
 
         # clean up
         self.phi_variables = {}
@@ -247,10 +247,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         call_info = defaultdict(list)
         for node_from, node_to, data in func_graph_with_calls.edges(data=True):
             if data.get("type", None) == "call" or data.get("outside", False):
-                try:
+                with contextlib.suppress(KeyError):
                     call_info[node_from.addr].append(self.kb.functions.get_by_addr(node_to.addr))
-                except KeyError:
-                    pass
 
         function_graph_visitor = visitors.FunctionGraphVisitor(func, graph=func_graph)
 
@@ -442,9 +440,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         self._node_iterations[block_key] += 1
 
-        if state.ret_val_size is not None:
-            if self.ret_val_size is None or self.ret_val_size < state.ret_val_size:
-                self.ret_val_size = state.ret_val_size
+        if state.ret_val_size is not None and (self.ret_val_size is None or self.ret_val_size < state.ret_val_size):
+            self.ret_val_size = state.ret_val_size
 
         state.downsize()
         self._outstates[block_key] = state
@@ -521,20 +518,21 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                         tmp0 = stmt0.tmp
                         tmp1 = stmt1.tmp
                         stmt2 = block.vex.statements[i + 2]
-                        if isinstance(stmt2, pyvex.IRStmt.WrTmp) and isinstance(stmt2.data, pyvex.IRExpr.Binop):
-                            if (
-                                isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp)
-                                and isinstance(stmt2.data.args[1], pyvex.IRExpr.RdTmp)
-                                and {stmt2.data.args[0].tmp, stmt2.data.args[1].tmp} == {tmp0, tmp1}
-                                and vexop_to_simop(stmt2.data.op)._generic_name == "Xor"
-                            ):
-                                # found it!
-                                # make a copy so we don't trash the cached VEX IRSB
-                                block._vex = block.vex.copy()
-                                block.vex.statements[i] = pyvex.IRStmt.NoOp()
-                                block.vex.statements[i + 1] = pyvex.IRStmt.NoOp()
-                                zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))
-                                block.vex.statements[i + 2] = pyvex.IRStmt.Put(zero, reg_offset)
+                        if (
+                            isinstance(stmt2, pyvex.IRStmt.WrTmp)
+                            and isinstance(stmt2.data, pyvex.IRExpr.Binop)
+                            and isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp)
+                            and isinstance(stmt2.data.args[1], pyvex.IRExpr.RdTmp)
+                            and {stmt2.data.args[0].tmp, stmt2.data.args[1].tmp} == {tmp0, tmp1}
+                            and vexop_to_simop(stmt2.data.op)._generic_name == "Xor"
+                        ):
+                            # found it!
+                            # make a copy so we don't trash the cached VEX IRSB
+                            block._vex = block.vex.copy()
+                            block.vex.statements[i] = pyvex.IRStmt.NoOp()
+                            block.vex.statements[i + 1] = pyvex.IRStmt.NoOp()
+                            zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))
+                            block.vex.statements[i + 2] = pyvex.IRStmt.Put(zero, reg_offset)
             i = next_i
         return block
 
@@ -572,12 +570,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
             adjusted = False
 
-            if not adjusted:
-                # make a guess
-                # of course, this will fail miserably if the function called is not cdecl
-                if self.project.arch.call_pushes_ret:
-                    sp_v += self.project.arch.bytes
-                    adjusted = True
+            # make a guess
+            # of course, this will fail miserably if the function called is not cdecl
+            if not adjusted and self.project.arch.call_pushes_ret:
+                sp_v += self.project.arch.bytes
+                adjusted = True
 
             if adjusted:
                 state.register_region.store(self.project.arch.sp_offset, sp_v)

@@ -111,9 +111,7 @@ def error_converter(f):
 def _concrete_bool(e):
     if isinstance(e, bool):
         return e
-    elif isinstance(e, claripy.ast.Base) and e.op == "BoolV":
-        return e.args[0]
-    elif isinstance(e, SimActionObject) and e.op == "BoolV":
+    elif isinstance(e, claripy.ast.Base) and e.op == "BoolV" or isinstance(e, SimActionObject) and e.op == "BoolV":
         return e.args[0]
     else:
         return None
@@ -123,9 +121,12 @@ def _concrete_value(e):
     # shortcuts for speed improvement
     if isinstance(e, (int, float, bool)):
         return e
-    elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
-        return e.args[0]
-    elif isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
+    elif (
+        isinstance(e, claripy.ast.Base)
+        and e.op in claripy.operations.leaf_operations_concrete
+        or isinstance(e, SimActionObject)
+        and e.op in claripy.operations.leaf_operations_concrete
+    ):
         return e.args[0]
     else:
         return None
@@ -318,9 +319,11 @@ class SimSolver(SimStatePlugin):
             self._stored_solver = claripy.SolverCacheless(track=track)
         elif o.SYMBOLIC in self.state.options and o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite(track=track)
-        elif o.SYMBOLIC in self.state.options and any(opt in self.state.options for opt in o.approximation):
-            self._stored_solver = claripy.SolverHybrid(track=track, approximate_first=approximate_first)
-        elif o.HYBRID_SOLVER in self.state.options:
+        elif (
+            o.SYMBOLIC in self.state.options
+            and any(opt in self.state.options for opt in o.approximation)
+            or o.HYBRID_SOLVER in self.state.options
+        ):
             self._stored_solver = claripy.SolverHybrid(track=track, approximate_first=approximate_first)
         elif o.SYMBOLIC in self.state.options:
             self._stored_solver = claripy.Solver(track=track)
@@ -1071,9 +1074,11 @@ class SimSolver(SimStatePlugin):
         """
         if e is None:
             return self._solver.simplify()
-        elif isinstance(e, (int, float, bool)):
-            return e
-        elif isinstance(e, claripy.ast.Base) and e.op in claripy.operations.leaf_operations_concrete:
+        elif (
+            isinstance(e, (int, float, bool))
+            or isinstance(e, claripy.ast.Base)
+            and e.op in claripy.operations.leaf_operations_concrete
+        ):
             return e
         elif isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
             return e.ast

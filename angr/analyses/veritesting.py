@@ -449,10 +449,7 @@ class Veritesting(Analysis):
         if n is None:
             return True
 
-        if n.simprocedure_name == "PathTerminator":
-            return True
-
-        return False
+        return n.simprocedure_name == "PathTerminator"
 
     def _get_successors(self, state):
         """
@@ -547,9 +544,8 @@ class Veritesting(Analysis):
         if self.project.arch.name == "X86":
             if not state.solver.symbolic(state.regs.eax):
                 cfg_initial_state.regs.eax = state.regs.eax
-        elif self.project.arch.name == "AMD64":
-            if not state.solver.symbolic(state.regs.rax):
-                cfg_initial_state.regs.rax = state.regs.rax
+        elif self.project.arch.name == "AMD64" and not state.solver.symbolic(state.regs.rax):
+            cfg_initial_state.regs.rax = state.regs.rax
 
         # generate the cfg and perform loop unrolling
         cfg = self.project.analyses[CFGEmulated].prep(kb=KnowledgeBase(self.project))(

@@ -45,6 +45,7 @@ from ..backward_slice import BackwardSlice
 from ..loopfinder import LoopFinder, Loop
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
+import contextlib
 
 l = logging.getLogger(name=__name__)
 
@@ -534,10 +535,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
                 if n in cycle:
                     idx = cycle.index(n)
-                    if idx == 0:
-                        loop_backedge = (cycle[-1], cycle[idx])
-                    else:
-                        loop_backedge = (cycle[idx - 1], cycle[idx])
+                    loop_backedge = (cycle[-1], cycle[idx]) if idx == 0 else (cycle[idx - 1], cycle[idx])
                     break
 
             if loop_backedge not in loop_backedges:
@@ -1173,9 +1171,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # Should we skip tracing this block?
         should_skip = False
-        if self._traced_addrs[job.call_stack_suffix][addr] >= self._max_iterations:
-            should_skip = True
-        elif (
+        if self._traced_addrs[job.call_stack_suffix][addr] >= self._max_iterations or (
             self._is_call_jumpkind(job.jumpkind)
             and self._call_depth is not None
             and len(job.call_stack) > self._call_depth
@@ -1290,11 +1286,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
-        if self._enable_function_hints:
-            if sim_successors.sort == "IRSB" and sim_successors.all_successors:
-                function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
-                for f in function_hints:
-                    self._pending_function_hints.add(f)
+        if self._enable_function_hints and sim_successors.sort == "IRSB" and sim_successors.all_successors:
+            function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
+            for f in function_hints:
+                self._pending_function_hints.add(f)
 
         self._graph_add_edge(
             src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx, ins_addr=src_ins_addr
@@ -1510,9 +1505,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         """
 
         # Finally, post-process CFG Node and log the return target
-        if job.extra_info:
-            if job.extra_info["is_call_jump"] and job.extra_info["return_target"] is not None:
-                job.cfg_node.return_target = job.extra_info["return_target"]
+        if job.extra_info and job.extra_info["is_call_jump"] and job.extra_info["return_target"] is not None:
+            job.cfg_node.return_target = job.extra_info["return_target"]
 
         # Debugging output if needed
         if l.level == logging.DEBUG:
@@ -1598,10 +1592,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         for suc in successors:
             jumpkind = suc.history.jumpkind
-            if jumpkind == "Ijk_FakeRet":
-                exit_type_str = "Simulated Ret"
-            else:
-                exit_type_str = "-"
+            exit_type_str = "Simulated Ret" if jumpkind == "Ijk_FakeRet" else "-"
             try:
                 l.debug(
                     "|    target: %#x %s [%s] %s",
@@ -1710,9 +1701,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             del self._pending_jobs[block_id]
 
-        if pending_exits_to_remove:
-            return True
-        return False
+        return bool(pending_exits_to_remove)
 
     # Successor handling
 
@@ -1768,12 +1757,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             return []
 
         call_target = job.extra_info["call_target"]
-        if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
+        if suc_jumpkind == "Ijk_FakeRet" and call_target is not None and self.project.is_hooked(call_target):
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
-            if self.project.is_hooked(call_target):
-                sim_proc = self.project._sim_procedures[call_target]
-                if sim_proc.NO_RET:
-                    return []
+            sim_proc = self.project._sim_procedures[call_target]
+            if sim_proc.NO_RET:
+                return []
 
         # Get target address
         try:
@@ -1796,10 +1784,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             target_addr |= 1
 
         # see if the target successor is in our whitelist
-        if self._address_whitelist is not None:
-            if target_addr not in self._address_whitelist:
-                l.debug("Successor %#x is not in the address whitelist. Skip.", target_addr)
-                return []
+        if self._address_whitelist is not None and target_addr not in self._address_whitelist:
+            l.debug("Successor %#x is not in the address whitelist. Skip.", target_addr)
+            return []
 
         # see if this edge is in the base graph
         if self._base_graph is not None:
@@ -2163,12 +2150,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             src_obj = self.project.loader.find_object_containing(src_node.addr)
             dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 
-            if src_obj is dest_obj:
-                # Jump/branch within the same object. Might be an outside jump.
-                to_outside = src_node.function_address != dst_node_func_addr
-            else:
-                # Jump/branch between different objects. Must be an outside jump.
-                to_outside = True
+            # if true: Jump/branch within the same object. Might be an outside jump.
+            # if false: Jump/branch between different objects. Must be an outside jump.
+            to_outside = src_node.function_address != dst_node_func_addr if src_obj is dest_obj else True
 
             if not to_outside:
                 self.kb.functions._add_transition_to(
@@ -2226,13 +2210,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 if sim_successors.sort == "IRSB":
                     base_state = sim_successors.all_successors[0].copy()
                 else:
-                    if successors:
-                        # We try to use the first successor.
-                        base_state = successors[0].copy()
-                    else:
-                        # The SimProcedure doesn't have any successor (e.g. it's a PathTerminator)
-                        # We'll use its input state instead
-                        base_state = input_state
+                    # If true, we try to use the first successor.
+                    # If false, the SimProcedure doesn't have any successor (e.g. it's a PathTerminator)
+                    # We'll use its input state instead
+                    base_state = successors[0].copy() if successors else input_state
                 base_state.ip = dst
                 # TODO: Allow for sp adjustments
                 successors.append(base_state)
@@ -2374,7 +2355,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 if legit_successors:
                     legit_successor = legit_successors[0]
                     if legit_successor.ip.symbolic:
-                        if not legit_successor.history.jumpkind == "Ijk_Call":
+                        if legit_successor.history.jumpkind != "Ijk_Call":
                             should_resolve = False
                     else:
                         if legit_successor.history.jumpkind == "Ijk_Call":
@@ -3029,10 +3010,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         except AngrError:
             exception_info = sys.exc_info()
             section = self.project.loader.main_object.find_section_containing(addr)
-            if section is None:
-                sec_name = "No section"
-            else:
-                sec_name = section.name
+            sec_name = "No section" if section is None else section.name
             # AngrError shouldn't really happen though
             l.debug("Caught an AngrError during CFG recovery at %#x (%s)", addr, sec_name, exc_info=True)
             # We might be on a wrong branch, and is likely to encounter the
@@ -3089,10 +3067,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         elif jumpkind == "Ijk_Ret":
             # Normal return
             new_call_stack = job.call_stack_copy()
-            try:
+            with contextlib.suppress(SimEmptyCallStackError):
                 new_call_stack = new_call_stack.ret(exit_target)
-            except SimEmptyCallStackError:
-                pass
 
             se = all_jobs[-1].solver
             sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
@@ -3415,11 +3391,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             return False
 
         default_jumpkind = sim_successors.artifacts["irsb_default_jumpkind"]
-        if default_jumpkind not in ("Ijk_Call", "Ijk_Boring", "Ijk_InvalICache"):
-            # It's something else, like a ret of a syscall... we don't care about it
-            return False
 
-        return True
+        # If false, it's something else, like a ret of a syscall... we don't care about it
+        return not (default_jumpkind not in ("Ijk_Call", "Ijk_Boring", "Ijk_InvalICache"))
 
     @staticmethod
     def _generate_block_id(call_stack_suffix, block_addr, is_syscall):
@@ -3459,9 +3433,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
     @staticmethod
     def _is_call_jumpkind(jumpkind):
-        if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys_"):
-            return True
-        return False
+        return bool(jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys_"))
 
     def _push_unresolvable_run(self, block_address):
         """
@@ -3479,10 +3451,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :return: True if it's in an executable range, False otherwise
         """
 
-        for r in self._executable_address_ranges:
-            if r[0] <= address < r[1]:
-                return True
-        return False
+        return any(r[0] <= address < r[1] for r in self._executable_address_ranges)
 
     def _update_thumb_addrs(self, simsuccessors, state):
         """

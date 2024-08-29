@@ -10,10 +10,7 @@ import functools
 def memoize(f):
     @functools.wraps(f)
     def wrapped_repr(self, *args, **kwargs):
-        if not kwargs or "memo" not in kwargs:
-            memo = set()
-        else:
-            memo = kwargs.pop("memo")
+        memo = set() if not kwargs or "memo" not in kwargs else kwargs.pop("memo")
         if self in memo:
             return "..."
         memo.add(self)

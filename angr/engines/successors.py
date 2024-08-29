@@ -71,10 +71,7 @@ class SimSuccessors:
             if len(self.unconstrained_successors) != 0:
                 successor_strings.append(f"{len(self.unconstrained_successors)} unconstrained")
 
-            if len(successor_strings) == 0:
-                result = "empty"
-            else:
-                result = " ".join(successor_strings)
+            result = "empty" if len(successor_strings) == 0 else " ".join(successor_strings)
         else:
             result = "failure"
 
@@ -261,18 +258,19 @@ class SimSuccessors:
 
         # categorize the state
         if o.APPROXIMATE_GUARDS in state.options and state.solver.is_false(state.scratch.guard, exact=False):
-            if o.VALIDATE_APPROXIMATIONS in state.options:
-                if state.satisfiable():
-                    raise Exception("WTF")
+            if o.VALIDATE_APPROXIMATIONS in state.options and state.satisfiable():
+                raise Exception("WTF")
             self.unsat_successors.append(state)
         elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
-            if o.VALIDATE_APPROXIMATIONS in state.options:
-                if state.solver.satisfiable():
-                    raise Exception("WTF")
+            if o.VALIDATE_APPROXIMATIONS in state.options and state.solver.satisfiable():
+                raise Exception("WTF")
             self.unsat_successors.append(state)
-        elif not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard):
-            self.unsat_successors.append(state)
-        elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
+        elif (
+            not state.scratch.guard.symbolic
+            and state.solver.is_false(state.scratch.guard)
+            or o.LAZY_SOLVES not in state.options
+            and not state.satisfiable()
+        ):
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):
             self.unconstrained_successors.append(state)

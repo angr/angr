@@ -217,10 +217,14 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
     @staticmethod
     def _optimize_convert(expr: Convert):
-        if isinstance(expr.operand, Const) and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT:
-            if expr.from_bits > expr.to_bits:
-                # truncation
-                mask = (1 << expr.to_bits) - 1
-                v = expr.operand.value & mask
-                return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
+        if (
+            isinstance(expr.operand, Const)
+            and expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and expr.from_bits > expr.to_bits
+        ):
+            # truncation
+            mask = (1 << expr.to_bits) - 1
+            v = expr.operand.value & mask
+            return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
         return None

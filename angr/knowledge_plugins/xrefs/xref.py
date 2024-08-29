@@ -53,10 +53,7 @@ class XRef(Serializable):
 
     def __repr__(self):
         if self.dst is not None:
-            if isinstance(self.dst, int):
-                dst_str = hex(self.dst)
-            else:
-                dst_str = str(self.dst)
+            dst_str = hex(self.dst) if isinstance(self.dst, int) else str(self.dst)
         elif self.memory_data is not None:
             dst_str = hex(self.memory_data.addr)
         else:

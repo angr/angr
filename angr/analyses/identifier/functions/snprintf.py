@@ -109,7 +109,4 @@ class snprintf(Func):
                         self.string_spec_char = cc
                         break
 
-        if self.format_spec_char is None:
-            return False
-
-        return True
+        return self.format_spec_char is not None

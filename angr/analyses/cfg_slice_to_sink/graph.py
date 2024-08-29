@@ -38,7 +38,7 @@ def slice_cfg_graph(graph, cfg_slice_to_sink):
     """
 
     def _edge_in_slice_transitions(transitions, edge):
-        if edge[0].addr not in transitions.keys():
+        if edge[0].addr not in transitions:
             return False
         return edge[1].addr in cfg_slice_to_sink.transitions[edge[0].addr]
 

@@ -71,12 +71,12 @@ class TestFunctionManager(unittest.TestCase):
         }
 
         self.project.analyses.CFGEmulated()
-        assert {k for k in self.project.kb.functions.keys() if k < 0x500000} == expected_functions
+        assert {k for k in self.project.kb.functions if k < 0x500000} == expected_functions
 
         main = self.project.kb.functions.function(name="main")
         assert main.startpoint.addr == 0x40071D
         assert set(main.block_addrs) == expected_blocks
-        assert [0x4007D3] == [bl.addr for bl in main.endpoints]
+        assert [bl.addr for bl in main.endpoints] == [0x4007D3]
         assert set(main.get_call_sites()) == expected_callsites
         assert set(map(main.get_call_target, main.get_call_sites())) == expected_callsite_targets
         assert set(map(main.get_call_return, main.get_call_sites())) == expected_callsite_returns
@@ -120,8 +120,8 @@ class TestFunctionManager(unittest.TestCase):
         self.project.arch = ArchAMD64()
 
         self.project.kb.functions._add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
-        assert 0x400000 in self.project.kb.functions.keys()
-        assert 0x400420 in self.project.kb.functions.keys()
+        assert 0x400000 in self.project.kb.functions
+        assert 0x400420 in self.project.kb.functions
 
     def test_query(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")

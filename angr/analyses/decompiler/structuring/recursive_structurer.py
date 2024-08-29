@@ -81,7 +81,7 @@ class RecursiveStructurer(Analysis):
                 stack.pop()
 
                 # Get the parent region
-                parent_region = parent_map.get(current_region, None)
+                parent_region = parent_map.get(current_region)
                 # structure this region
                 st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
                     current_region.copy(),

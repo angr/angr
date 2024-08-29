@@ -184,9 +184,8 @@ class DepGraph:
         for v in values:
             if isinstance(v, claripy.ast.Base) and v.concrete:
                 v = v.concrete_value
-            if isinstance(v, int):
-                if v not in concrete_known_pred_addresses:
-                    unknown_concrete_addresses.add(v)
+            if isinstance(v, int) and v not in concrete_known_pred_addresses:
+                unknown_concrete_addresses.add(v)
 
         for address in unknown_concrete_addresses:
             data_at_address = cfg.memory_data.get(address, None) if cfg is not None else None

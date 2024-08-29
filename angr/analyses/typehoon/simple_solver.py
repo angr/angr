@@ -305,10 +305,7 @@ class ConstraintGraphNode:
                 prefix = self.typevar.type_var
             else:
                 prefix = DerivedTypeVariable(self.typevar.type_var, None, labels=self.typevar.labels[:-1])
-            if self.variance == last_label.variance:
-                variance = Variance.COVARIANT
-            else:
-                variance = Variance.CONTRAVARIANT
+            variance = Variance.COVARIANT if self.variance == last_label.variance else Variance.CONTRAVARIANT
             return (
                 ConstraintGraphNode(prefix, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN),
                 self.typevar.labels[-1],
@@ -319,22 +316,13 @@ class ConstraintGraphNode:
         if isinstance(self.typevar, DerivedTypeVariable):
             labels = self.typevar.labels + (label,)
             typevar = self.typevar.type_var
-        elif isinstance(self.typevar, TypeVariable):
-            labels = (label,)
-            typevar = self.typevar
-        elif isinstance(self.typevar, TypeConstant):
+        elif isinstance(self.typevar, (TypeVariable, TypeConstant)):
             labels = (label,)
             typevar = self.typevar
         else:
             raise TypeError(f"Unsupported type {type(self.typevar)}")
-        if self.variance == label.variance:
-            variance = Variance.COVARIANT
-        else:
-            variance = Variance.CONTRAVARIANT
-        if not labels:
-            var = typevar
-        else:
-            var = DerivedTypeVariable(typevar, None, labels=labels)
+        variance = Variance.COVARIANT if self.variance == label.variance else Variance.CONTRAVARIANT
+        var = typevar if not labels else DerivedTypeVariable(typevar, None, labels=labels)
         return ConstraintGraphNode(var, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN)
 
     def inverse(self) -> ConstraintGraphNode:
@@ -345,10 +333,7 @@ class ConstraintGraphNode:
         else:
             tag = ConstraintGraphTag.UNKNOWN
 
-        if self.variance == Variance.COVARIANT:
-            variance = Variance.CONTRAVARIANT
-        else:
-            variance = Variance.COVARIANT
+        variance = Variance.CONTRAVARIANT if self.variance == Variance.COVARIANT else Variance.COVARIANT
 
         return ConstraintGraphNode(self.typevar, variance, tag, self.forgotten)
 
@@ -356,10 +341,7 @@ class ConstraintGraphNode:
         """
         Invert the variance only.
         """
-        if self.variance == Variance.COVARIANT:
-            variance = Variance.CONTRAVARIANT
-        else:
-            variance = Variance.COVARIANT
+        variance = Variance.CONTRAVARIANT if self.variance == Variance.COVARIANT else Variance.COVARIANT
 
         return ConstraintGraphNode(self.typevar, variance, self.tag, self.forgotten)
 
@@ -429,9 +411,8 @@ class SimpleSolver:
                     if isinstance(t, DerivedTypeVariable):
                         if t.type_var in typevars:
                             constrained_typevars.add(t.type_var)
-                    elif isinstance(t, TypeVariable):
-                        if t in typevars:
-                            constrained_typevars.add(t)
+                    elif isinstance(t, TypeVariable) and t in typevars:
+                        constrained_typevars.add(t)
 
         equivalence_classes, sketches = self.infer_shapes(typevars, constraints)
         # TODO: Handle global variables
@@ -720,15 +701,21 @@ class SimpleSolver:
             if not isinstance(constraint, Existence):
                 continue
             inner = constraint.type_
-            if isinstance(inner, DerivedTypeVariable) and isinstance(inner.one_label(), IsArray):
-                if inner.type_var in self.solution:
-                    curr_type = self.solution[inner.type_var]
-                    if isinstance(curr_type, Pointer) and isinstance(curr_type.basetype, Struct):
-                        # replace all fields with the first field
-                        if 0 in curr_type.basetype.fields:
-                            first_field = curr_type.basetype.fields[0]
-                            for offset in curr_type.basetype.fields.keys():
-                                curr_type.basetype.fields[offset] = first_field
+            if (
+                isinstance(inner, DerivedTypeVariable)
+                and isinstance(inner.one_label(), IsArray)
+                and inner.type_var in self.solution
+            ):
+                curr_type = self.solution[inner.type_var]
+                if (
+                    isinstance(curr_type, Pointer)
+                    and isinstance(curr_type.basetype, Struct)
+                    and 0 in curr_type.basetype.fields
+                ):
+                    # replace all fields with the first field
+                    first_field = curr_type.basetype.fields[0]
+                    for offset in curr_type.basetype.fields:
+                        curr_type.basetype.fields[offset] = first_field
 
     #
     # Constraint graph
@@ -916,9 +903,7 @@ class SimpleSolver:
     def _to_typevar_or_typeconst(obj: TypeVariable | DerivedTypeVariable | TypeConstant) -> TypeVariable | TypeConstant:
         if isinstance(obj, DerivedTypeVariable):
             return SimpleSolver._to_typevar_or_typeconst(obj.type_var)
-        elif isinstance(obj, TypeVariable):
-            return obj
-        elif isinstance(obj, TypeConstant):
+        elif isinstance(obj, (TypeVariable, TypeConstant)):
             return obj
         raise TypeError(f"Unsupported type {type(obj)}")
 
@@ -1158,9 +1143,8 @@ class SimpleSolver:
                 if isinstance(last_label, HasField):
                     for start_offset, sizes in candidate_bases.items():
                         for size in sizes:
-                            if last_label.offset > start_offset:
-                                if last_label.offset < start_offset + size:  # ???
-                                    node_to_base[succ] = start_offset
+                            if last_label.offset > start_offset and last_label.offset < start_offset + size:  # ???
+                                node_to_base[succ] = start_offset
 
             node_by_offset = defaultdict(set)
 

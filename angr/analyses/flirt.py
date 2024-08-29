@@ -11,6 +11,7 @@ from ..analyses import AnalysesHub
 from ..errors import AngrRuntimeError
 from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
+import contextlib
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -85,7 +86,7 @@ class FlirtAnalysis(Analysis):
                     max_suggestions = len(suggestion)
 
             if max_suggestion_sig_path is not None:
-                sig_ = path_to_sig.get(max_suggestion_sig_path, None)
+                sig_ = path_to_sig.get(max_suggestion_sig_path)
                 _l.info("Applying FLIRT signature %s for library %s.", sig_, lib)
                 self._apply_changes(
                     sig_.sig_name if not self._temporary_sig else None, sig_to_suggestions[max_suggestion_sig_path]
@@ -154,10 +155,8 @@ class FlirtAnalysis(Analysis):
             except KeyError:
                 # the function is not found. Try the THUMB version
                 if self._is_arm:
-                    try:
+                    with contextlib.suppress(KeyError):
                         func = self.kb.functions.get_by_addr(func_addr + 1)
-                    except KeyError:
-                        pass
 
             if func is None:
                 _l.debug(
@@ -169,10 +168,7 @@ class FlirtAnalysis(Analysis):
             # set the function name
             # TODO: Make sure function names do not conflict with existing ones
             _l.debug("Identified %s @ %#x (%#x-%#x)", flirt_func.name, func_addr, base_addr, flirt_func.offset)
-            if flirt_func.name != "?":
-                func_name = flirt_func.name
-            else:
-                func_name = f"unknown_function_{func.addr:x}"
+            func_name = flirt_func.name if flirt_func.name != "?" else f"unknown_function_{func.addr:x}"
             self._suggestions[func.addr] = func_name
 
     def _apply_changes(self, library_name: str | None, suggestion: dict[int, str]) -> None:

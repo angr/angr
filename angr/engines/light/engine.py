@@ -16,6 +16,7 @@ from ...engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError,
 from ...code_location import CodeLocation
 from ...utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
+import contextlib
 
 
 class SimEngineLightMixin:
@@ -199,9 +200,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         handler = f"_handle_{type(stmt).__name__}"
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
-        elif type(stmt).__name__ not in ("IMark", "AbiHint"):
-            if self.l is not None:
-                self.l.error("Unsupported statement type %s.", type(stmt).__name__)
+        elif type(stmt).__name__ not in ("IMark", "AbiHint") and self.l is not None:
+            self.l.error("Unsupported statement type %s.", type(stmt).__name__)
 
     # synchronize with function _handle_WrTmpData()
     def _handle_WrTmp(self, stmt):
@@ -247,9 +247,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Triop(self, expr: pyvex.IRExpr.Triop):  # pylint: disable=useless-return
         handler = None
-        if expr.op.startswith("Iop_AddF"):
-            handler = "_handle_AddF"
-        elif expr.op.startswith("Iop_SubF"):
+        if expr.op.startswith("Iop_AddF") or expr.op.startswith("Iop_SubF"):
             handler = "_handle_AddF"
         elif expr.op.startswith("Iop_MulF"):
             handler = "_handle_MulF"
@@ -330,10 +328,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         # All conversions are handled by the Conversion handler
         simop = None
-        try:
+        with contextlib.suppress(UnsupportedIROpError, SimOperationError):
             simop = vexop_to_simop(expr.op)
-        except (UnsupportedIROpError, SimOperationError):
-            pass
 
         if simop is not None and simop.op_attrs.get("conversion", None):
             handler = "_handle_Conversion"
@@ -1133,14 +1129,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _ail_handle_Sub(self, expr):
         arg0, arg1 = expr.operands
 
-        if not isinstance(arg0, claripy.ast.Base):
-            expr_0 = self._expr(arg0)
-        else:
-            expr_0 = arg0
-        if not isinstance(arg1, claripy.ast.Base):
-            expr_1 = self._expr(arg1)
-        else:
-            expr_1 = self._expr(arg1)
+        expr_0 = self._expr(arg0) if not isinstance(arg0, claripy.ast.Base) else arg0
+        expr_1 = self._expr(arg1) if not isinstance(arg1, claripy.ast.Base) else self._expr(arg1)
 
         if expr_0 is None:
             expr_0 = arg0
@@ -1416,9 +1406,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _ail_handle_Convert(self, expr):
         data = self._expr(expr.operand)
-        if data is not None:
-            if type(data) is int:
-                return data
+        if data is not None and type(data) is int:
+            return data
         return None
 
     def _ail_handle_Not(self, expr):

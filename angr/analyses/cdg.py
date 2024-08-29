@@ -164,14 +164,8 @@ class CDG(Analysis):
 
     @staticmethod
     def _pd_graph_successors(graph, node):
-        if type(node) is TemporaryNode:
-            # This is for testing
-            successors = graph.graph.successors(node)
-        else:
-            # Real CFGNode!
-            successors = graph.model.get_successors(node)
-
-        return successors
+        # The true condition is for testing
+        return graph.graph.successors(node) if type(node) is TemporaryNode else graph.model.get_successors(node)
 
     def _pd_post_process(self, cfg):
         """

@@ -59,15 +59,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(
-            self.project.arch,
-            (
-                archinfo.ArchMIPS32,
-                archinfo.ArchMIPS64,
-            ),
-        ):
-            return False
-        return True
+        return isinstance(self.project.arch, (archinfo.ArchMIPS32, archinfo.ArchMIPS64))
 
     def resolve(  # pylint:disable=unused-argument
         self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
@@ -369,7 +361,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         stmt = end_block.statements[previous_node[1]]
         if (
             not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or not stmt.tmp == t9_tmp_G
+            or stmt.tmp != t9_tmp_G
             or not isinstance(stmt.data, pyvex.IRExpr.Binop)
             or stmt.data.op != "Iop_Add32"
             or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
@@ -474,23 +466,26 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Load from memory to a tmp - assuming it's loading from the stack
                     tmps[stmt.tmp] = "stack"
-                elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset:
-                    if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                        tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                        if tmps.get(tmp_offset, None) == "stack":
-                            # found the load from stack
-                            # we must make sure value of that temporary variable equals to the correct gp value
-                            state.inspect.make_breakpoint(
-                                "tmp_write",
-                                when=BP_BEFORE,
-                                condition=(
-                                    lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
-                                    == bbl_addr_
-                                    and s.inspect.tmp_write_num == tmp_offset_
-                                ),
-                                action=OverwriteTmpValueCallback(gp_value).overwrite_tmp_value,
-                            )
-                            break
+                elif (
+                    isinstance(stmt, pyvex.IRStmt.Put)
+                    and stmt.offset == gp_offset
+                    and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                ):
+                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
+                    if tmps.get(tmp_offset) == "stack":
+                        # found the load from stack
+                        # we must make sure value of that temporary variable equals to the correct gp value
+                        state.inspect.make_breakpoint(
+                            "tmp_write",
+                            when=BP_BEFORE,
+                            condition=(
+                                lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
+                                == bbl_addr_
+                                and s.inspect.tmp_write_num == tmp_offset_
+                            ),
+                            action=OverwriteTmpValueCallback(gp_value).overwrite_tmp_value,
+                        )
+                        break
 
     @staticmethod
     def _is_gp_used_on_slice(project, b: Blade) -> bool:

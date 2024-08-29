@@ -201,15 +201,9 @@ class SequenceWalker:
         return None
 
     def _handle_Condition(self, node, **kwargs):
-        if node.true_node is not None:
-            new_true_node = self._handle(node.true_node, parent=node, index=0)
-        else:
-            new_true_node = None
+        new_true_node = self._handle(node.true_node, parent=node, index=0) if node.true_node is not None else None
 
-        if node.false_node is not None:
-            new_false_node = self._handle(node.false_node, parent=node, index=1)
-        else:
-            new_false_node = None
+        new_false_node = self._handle(node.false_node, parent=node, index=1) if node.false_node is not None else None
 
         if new_true_node is None and new_false_node is None:
             return None

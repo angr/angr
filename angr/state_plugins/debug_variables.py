@@ -129,10 +129,7 @@ class SimDebugVariable:
             return unpacked.member(member_name)
         elif isinstance(self.type, StructType):
             member = self.type[member_name]
-            if self.addr is None:
-                addr = None
-            else:
-                addr = self.addr + member.addr_offset
+            addr = None if self.addr is None else self.addr + member.addr_offset
             return SimDebugVariable(self.state, addr, member.type)
 
         raise Exception(f"{self.type} object has no members")

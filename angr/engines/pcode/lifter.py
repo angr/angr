@@ -435,10 +435,7 @@ class IRSB:
             else:
                 sa.append(f"   {i:02d} | {pypcode.PcodePrettyPrinter.fmt_op(op)}")
 
-        if isinstance(self.next, int):
-            next_str = f"{self.next:x}"
-        else:
-            next_str = str(self.next)
+        next_str = f"{self.next:x}" if isinstance(self.next, int) else str(self.next)
         sa.append(f"   NEXT: {next_str}; {self.jumpkind}")
         sa.append("}")
         return "\n".join(sa)
@@ -772,10 +769,7 @@ def lift(
         next_addr = addr + final_irsb.size
         if max_bytes is not None:
             max_bytes -= final_irsb.size
-        if isinstance(data, (str, bytes, bytearray)):
-            data_left = data[final_irsb.size :]
-        else:
-            data_left = data + final_irsb.size
+        data_left = data[final_irsb.size :] if isinstance(data, (str, bytes, bytearray)) else data + final_irsb.size
         if max_inst is not None:
             max_inst -= final_irsb.instructions
         if (max_bytes is None or max_bytes > 0) and (max_inst is None or max_inst > 0) and data_left:
@@ -919,9 +913,8 @@ class PcodeBasicBlockLifter:
                 elif op.opcode == pypcode.OpCode.CALLIND:
                     if next_block is None:
                         next_block = (None, "Ijk_Call")
-                elif op.opcode == pypcode.OpCode.RETURN:
-                    if next_block is None:
-                        next_block = (None, "Ijk_Ret")
+                elif op.opcode == pypcode.OpCode.RETURN and next_block is None:
+                    next_block = (None, "Ijk_Ret")
 
             # FIXME: Do this lazily
             disasm = self.context.disassemble(
@@ -1146,23 +1139,19 @@ class PcodeLifterEngineMixin(SimEngineBase):
         if num_inst is None and self._single_step:
             num_inst = 1
         if opt_level is None:
-            if state and o.OPTIMIZE_IR in state.options:
-                opt_level = 1
-            else:
-                opt_level = self._default_opt_level
+            opt_level = 1 if state and o.OPTIMIZE_IR in state.options else self._default_opt_level
         if strict_block_end is None:
             strict_block_end = self.default_strict_block_end
-        if self.selfmodifying_code:
-            if opt_level > 0:
-                if once("vex-engine-smc-opt-warning"):
-                    l.warning(
-                        "Self-modifying code is not always correctly optimized by"
-                        " PyVEX. To guarantee correctness, VEX optimizations have been"
-                        " disabled."
-                    )
-                opt_level = 0
-                if state and o.OPTIMIZE_IR in state.options:
-                    state.options.remove(o.OPTIMIZE_IR)
+        if self.selfmodifying_code and opt_level > 0:
+            if once("vex-engine-smc-opt-warning"):
+                l.warning(
+                    "Self-modifying code is not always correctly optimized by"
+                    " PyVEX. To guarantee correctness, VEX optimizations have been"
+                    " disabled."
+                )
+            opt_level = 0
+            if state and o.OPTIMIZE_IR in state.options:
+                state.options.remove(o.OPTIMIZE_IR)
         if skip_stmts is not True:
             skip_stmts = False
 
@@ -1374,19 +1363,19 @@ class PcodeLifterEngineMixin(SimEngineBase):
 
         first_imark = True
         for addr in irsb.instruction_addresses:
-            if not first_imark:
-                if self.__is_stop_point(addr, extra_stop_points):
-                    # could this part be moved by pyvex?
-                    return addr
+            if not first_imark and self.__is_stop_point(addr, extra_stop_points):
+                # could this part be moved by pyvex?
+                return addr
             first_imark = False
         return None
 
     def __is_stop_point(self, addr: int, extra_stop_points: Sequence[int] | None = None) -> bool:
-        if self.project is not None and addr in self.project._sim_procedures:
-            return True
-        elif extra_stop_points is not None and addr in extra_stop_points:
-            return True
-        return False
+        return bool(
+            self.project is not None
+            and addr in self.project._sim_procedures
+            or extra_stop_points is not None
+            and addr in extra_stop_points
+        )
 
     def __getstate__(self):
         ostate = super().__getstate__()

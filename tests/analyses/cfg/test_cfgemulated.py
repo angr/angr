@@ -121,7 +121,8 @@ class TestCfgemulate(unittest.TestCase):
 
         if cfg_path is not None and os.path.isfile(cfg_path):
             # Compare the graph with a predefined CFG
-            info = pickle.load(open(cfg_path, "rb"))
+            with open(cfg_path, "rb") as f:
+                info = pickle.load(f)
             standard = info["cfg"]
             functions = info["functions"]
             graph = cfg.graph

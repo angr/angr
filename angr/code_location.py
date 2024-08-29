@@ -123,9 +123,8 @@ class CodeLocation:
                 return False
             # elif self.stmt_idx is not None and other.stmt_idx is not None
             return self.stmt_idx < other.stmt_idx
-        if self.ins_addr is not None and other.ins_addr is not None:
-            if self.ins_addr != other.ins_addr:
-                return self.ins_addr < other.ins_addr
+        if self.ins_addr is not None and other.ins_addr is not None and self.ins_addr != other.ins_addr:
+            return self.ins_addr < other.ins_addr
         return False
 
     def __hash__(self):

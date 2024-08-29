@@ -17,10 +17,7 @@ class memcmp(angr.SimProcedure):
         definite_size = self.state.solver.min_int(n)
         conditional_s1_start = s1_addr + definite_size
         conditional_s2_start = s2_addr + definite_size
-        if self.state.solver.symbolic(n):
-            conditional_size = int(max(max_memcmp_size - definite_size, 0))
-        else:
-            conditional_size = 0
+        conditional_size = int(max(max_memcmp_size - definite_size, 0)) if self.state.solver.symbolic(n) else 0
 
         l.debug("Definite size %s and conditional size: %s", definite_size, conditional_size)
 

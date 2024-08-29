@@ -20,8 +20,8 @@ class PCAP:
             self.initialize(self.path)
 
     def initialize(self, path):
-        f = open(path)
-        pcap = dpkt.pcap.Reader(f)
+        with open(path) as f:
+            pcap = dpkt.pcap.Reader(f)
         for _, buf in pcap:
             ip = dpkt.ethernet.Ethernet(buf).ip
             tcp = ip.data
@@ -30,7 +30,6 @@ class PCAP:
                 self.out_streams.append((len(tcp.data), tcp.data))
             elif len(tcp.data) != 0:
                 self.in_streams.append((len(tcp.data), tcp.data))
-        f.close()
 
     def recv(self, length):
         temp = 0

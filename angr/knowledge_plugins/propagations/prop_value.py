@@ -55,11 +55,10 @@ class PropValue:
         Get the expression that starts at offset 0 and covers the entire PropValue. Returns None if there are no
         expressions or multiple expressions.
         """
-        if self.offset_and_details and len(self.offset_and_details) == 1:
-            if 0 in self.offset_and_details:
-                detail = self.offset_and_details[0]
-                if detail.size == self.value.size() // 8:
-                    return detail.expr
+        if self.offset_and_details and len(self.offset_and_details) == 1 and 0 in self.offset_and_details:
+            detail = self.offset_and_details[0]
+            if detail.size == self.value.size() // 8:
+                return detail.expr
         return None
 
     @property
@@ -68,11 +67,10 @@ class PropValue:
         Get the definition location of the expression that starts at offset 0 and covers the entire PropValue. Returns
         None if there are no expressions or multiple expressions.
         """
-        if self.offset_and_details and len(self.offset_and_details) == 1:
-            if 0 in self.offset_and_details:
-                detail = self.offset_and_details[0]
-                if detail.size == self.value.size() // 8:
-                    return detail.def_at
+        if self.offset_and_details and len(self.offset_and_details) == 1 and 0 in self.offset_and_details:
+            detail = self.offset_and_details[0]
+            if detail.size == self.value.size() // 8:
+                return detail.def_at
         return None
 
     def to_label(self):

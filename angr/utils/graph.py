@@ -184,10 +184,7 @@ def dominates(idom, dominator_node, node):
     while n:
         if n == dominator_node:
             return True
-        if n in idom and n != idom[n]:
-            n = idom[n]
-        else:
-            n = None
+        n = idom[n] if n in idom and n != idom[n] else None
     return False
 
 
@@ -260,9 +257,7 @@ class TemporaryNode:
         return f"TN[{self._label}]"
 
     def __eq__(self, other):
-        if isinstance(other, TemporaryNode) and other._label == self._label:
-            return True
-        return False
+        return bool(isinstance(other, TemporaryNode) and other._label == self._label)
 
     def __hash__(self):
         return hash(("TemporaryNode", self._label))

@@ -261,7 +261,7 @@ class SimState(PluginHub):
     def __getstate__(self):
         # Don't pickle attributes for plugins. These will be pickled
         # through self._active_plugins.
-        s = {k: v for k, v in self.__dict__.items() if k not in self._active_plugins.keys()}
+        s = {k: v for k, v in self.__dict__.items() if k not in self._active_plugins}
         s["_active_plugins"] = {k: v for k, v in s["_active_plugins"].items() if k not in ("inspect", "regs", "mem")}
         return s
 
@@ -281,10 +281,7 @@ class SimState(PluginHub):
     def __repr__(self):
         try:
             addr = self.addr
-            if type(addr) is int:
-                ip_str = f"{addr:#x}"
-            else:
-                ip_str = repr(addr)
+            ip_str = f"{addr:#x}" if type(addr) is int else repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
@@ -401,9 +398,8 @@ class SimState(PluginHub):
     T = TypeVar("T")
 
     def _inspect_getattr(self, attr: str, default_value: T):
-        if self.supports_inspect:
-            if hasattr(self.inspect, attr):
-                return getattr(self.inspect, attr)
+        if self.supports_inspect and hasattr(self.inspect, attr):
+            return getattr(self.inspect, attr)
 
         return default_value
 
@@ -492,10 +488,7 @@ class SimState(PluginHub):
             raise Exception("Tuple or list passed to add_constraints!")
 
         if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
-            if o.SIMPLIFY_CONSTRAINTS in self.options:
-                constraints = [self.simplify(a) for a in args]
-            else:
-                constraints = args
+            constraints = [self.simplify(a) for a in args] if o.SIMPLIFY_CONSTRAINTS in self.options else args
 
             self._inspect("constraints", BP_BEFORE, added_constraints=constraints)
             constraints = self._inspect_getattr("added_constraints", constraints)
@@ -710,8 +703,8 @@ class SimState(PluginHub):
 
         # plugins
         for p in all_plugins:
-            our_plugin = merged.plugins[p] if p in merged.plugins else None
-            their_plugins = [(pl.plugins[p] if p in pl.plugins else None) for pl in others]
+            our_plugin = merged.plugins.get(p, None)
+            their_plugins = [(pl.plugins.get(p, None)) for pl in others]
 
             plugin_classes = ({our_plugin.__class__} | {pl.__class__ for pl in their_plugins}) - {None.__class__}
             if len(plugin_classes) != 1:

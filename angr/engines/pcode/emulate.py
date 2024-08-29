@@ -10,11 +10,10 @@ from .lifter import IRSB
 from .behavior import OpBehavior
 from ...errors import AngrError
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
+import contextlib
 
-try:
+with contextlib.suppress(ImportError):
     from pypcode import OpCode, Varnode, PcodeOp
-except ImportError:
-    pass
 
 
 l = logging.getLogger(__name__)

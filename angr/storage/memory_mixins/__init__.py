@@ -54,10 +54,7 @@ class MemoryMixin(SimStatePlugin):
 
     def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):
         if add_constraints:
-            if condition is not None:
-                to_add = (c & condition) | ~condition
-            else:
-                to_add = c
+            to_add = c & condition | ~condition if condition is not None else c
             self.state.add_constraints(to_add)
 
     def load(self, addr, size=None, **kwargs):

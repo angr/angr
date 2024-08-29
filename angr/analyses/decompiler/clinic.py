@@ -756,17 +756,20 @@ class Clinic(Analysis):
                         )
                         if callsite_ail_block is not None and callsite_ail_block.statements:
                             last_stmt = callsite_ail_block.statements[-1]
-                            if isinstance(last_stmt, ailment.Stmt.Call) and last_stmt.ret_expr is None:
-                                if isinstance(cc.cc.RETURN_VAL, SimRegArg):
-                                    reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
-                                    last_stmt.ret_expr = ailment.Expr.Register(
-                                        None,
-                                        None,
-                                        reg_offset,
-                                        reg_size * 8,
-                                        ins_addr=callsite_ins_addr,
-                                        reg_name=cc.cc.RETURN_VAL.reg_name,
-                                    )
+                            if (
+                                isinstance(last_stmt, ailment.Stmt.Call)
+                                and last_stmt.ret_expr is None
+                                and isinstance(cc.cc.RETURN_VAL, SimRegArg)
+                            ):
+                                reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
+                                last_stmt.ret_expr = ailment.Expr.Register(
+                                    None,
+                                    None,
+                                    reg_offset,
+                                    reg_size * 8,
+                                    ins_addr=callsite_ins_addr,
+                                    reg_name=cc.cc.RETURN_VAL.reg_name,
+                                )
 
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
@@ -1133,7 +1136,7 @@ class Clinic(Analysis):
 
         # Run each pass
         for pass_ in self._optimization_passes:
-            if pass_.STAGE != stage:
+            if stage != pass_.STAGE:
                 continue
 
             if pass_ in DUPLICATING_OPTS + CONDENSING_OPTS and self.unoptimized_graph is None:
@@ -1226,17 +1229,16 @@ class Clinic(Analysis):
             )
             if csm.stack_arg_offsets is not None:
                 TempClass.stack_arg_offsets |= csm.stack_arg_offsets
-            if csm.result_block:
-                if csm.result_block != block:
-                    ail_block = csm.result_block
-                    simp = self.project.analyses.AILBlockSimplifier(
-                        ail_block,
-                        self.function.addr,
-                        stack_pointer_tracker=stack_pointer_tracker,
-                        peephole_optimizations=self.peephole_optimizations,
-                        stack_arg_offsets=csm.stack_arg_offsets,
-                    )
-                    return simp.result_block
+            if csm.result_block and csm.result_block != block:
+                ail_block = csm.result_block
+                simp = self.project.analyses.AILBlockSimplifier(
+                    ail_block,
+                    self.function.addr,
+                    stack_pointer_tracker=stack_pointer_tracker,
+                    peephole_optimizations=self.peephole_optimizations,
+                    stack_arg_offsets=csm.stack_arg_offsets,
+                )
+                return simp.result_block
             return None
 
         # rewriting call-sites at this point, pre-inlining, causes issues with incorrect call signatures
@@ -1510,10 +1512,11 @@ class Clinic(Analysis):
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, base_addr)
 
                 # if we are accessing the variable directly (offset == 0), we link the variable onto this expression
-                if offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0):
-                    if "reference_variable" in base_addr.tags:
-                        expr.variable = base_addr.reference_variable
-                        expr.variable_offset = base_addr.reference_variable_offset
+                if (
+                    offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0)
+                ) and "reference_variable" in base_addr.tags:
+                    expr.variable = base_addr.reference_variable
+                    expr.variable_offset = base_addr.reference_variable_offset
 
                 if base_addr is None and offset is None:
                     # this is a local variable
@@ -1588,17 +1591,16 @@ class Clinic(Analysis):
             else:
                 # global variable?
                 global_vars = global_variables.get_global_variables(expr.value)
-                if not global_vars:
-                    # detect if there is a related symbol
-                    if self.project.loader.find_object_containing(expr.value):
-                        symbol = self.project.loader.find_symbol(expr.value)
-                        if symbol is not None:
-                            # Create a new global variable if there isn't one already
-                            global_vars = global_variables.get_global_variables(symbol.rebased_addr)
-                            if not global_vars:
-                                global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
-                                global_variables.add_variable("global", global_var.addr, global_var)
-                                global_vars = {global_var}
+                # detect if there is a related symbol
+                if not global_vars and self.project.loader.find_object_containing(expr.value):
+                    symbol = self.project.loader.find_symbol(expr.value)
+                    if symbol is not None:
+                        # Create a new global variable if there isn't one already
+                        global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                        if not global_vars:
+                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                            global_variables.add_variable("global", global_var.addr, global_var)
+                            global_vars = {global_var}
                 if global_vars:
                     global_var = next(iter(global_vars))
                     expr.tags["reference_variable"] = global_var
@@ -1638,9 +1640,12 @@ class Clinic(Analysis):
 
             ite_ins_addrs = []
             for stmt in block.statements:
-                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
-                    if stmt.ins_addr not in ite_ins_addrs:
-                        ite_ins_addrs.append(stmt.ins_addr)
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.src, ailment.Expr.ITE)
+                    and stmt.ins_addr not in ite_ins_addrs
+                ):
+                    ite_ins_addrs.append(stmt.ins_addr)
 
             if ite_ins_addrs:
                 block_addr = block.addr
@@ -1979,20 +1984,19 @@ class Clinic(Analysis):
     def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any] | None:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0
-        if isinstance(addr, ailment.Expr.BinaryOp):
-            if addr.op == "Add":
-                op0, op1 = addr.operands
-                if (
-                    isinstance(op0, ailment.Expr.Const)
-                    and self.project.loader.find_object_containing(op0.value) is not None
-                ):
-                    return op0, op1
-                elif (
-                    isinstance(op1, ailment.Expr.Const)
-                    and self.project.loader.find_object_containing(op1.value) is not None
-                ):
-                    return op1, op0
-                return op0, op1  # best-effort guess
+        if isinstance(addr, ailment.Expr.BinaryOp) and addr.op == "Add":
+            op0, op1 = addr.operands
+            if (
+                isinstance(op0, ailment.Expr.Const)
+                and self.project.loader.find_object_containing(op0.value) is not None
+            ):
+                return op0, op1
+            elif (
+                isinstance(op1, ailment.Expr.Const)
+                and self.project.loader.find_object_containing(op1.value) is not None
+            ):
+                return op1, op0
+            return op0, op1  # best-effort guess
         return None, None
 
     def new_block_addr(self) -> int:
@@ -2115,50 +2119,49 @@ class Clinic(Analysis):
         for node in ail_graph:
             if ail_graph.in_degree[node] == 2 and ail_graph.out_degree[node] == 2:
                 succs = ail_graph.successors(node)
-                if node in succs:
+                if node in succs and len(node.statements) >= 6:
                     # self loop!
-                    if len(node.statements) >= 6:
-                        stmt0 = node.statements[1]  # skip the LABEL statement
-                        stmt1 = node.statements[2]
-                        last_stmt = node.statements[-1]
-                        if (
+                    stmt0 = node.statements[1]  # skip the LABEL statement
+                    stmt1 = node.statements[2]
+                    last_stmt = node.statements[-1]
+                    if (
+                        (
                             isinstance(stmt0, ailment.Stmt.Assignment)
                             and isinstance(stmt0.dst, ailment.Expr.Register)
                             and isinstance(stmt0.src, ailment.Expr.StackBaseOffset)
                             and stmt0.src.offset == -0x1000
-                        ):
-                            if (
-                                isinstance(stmt1, ailment.Stmt.Store)
-                                and isinstance(stmt1.addr, ailment.Expr.StackBaseOffset)
-                                and stmt1.addr.offset == -0x1000
-                                and isinstance(stmt1.data, ailment.Expr.Load)
-                                and isinstance(stmt1.data.addr, ailment.Expr.StackBaseOffset)
-                                and stmt1.data.addr.offset == -0x1000
-                            ):
-                                if (
-                                    isinstance(last_stmt, ailment.Stmt.ConditionalJump)
-                                    and isinstance(last_stmt.condition, ailment.Expr.BinaryOp)
-                                    and last_stmt.condition.op == "CmpEQ"
-                                    and isinstance(last_stmt.condition.operands[0], ailment.Expr.StackBaseOffset)
-                                    and last_stmt.condition.operands[0].offset == -0x1000
-                                    and isinstance(last_stmt.condition.operands[1], ailment.Expr.Register)
-                                    and isinstance(last_stmt.false_target, ailment.Expr.Const)
-                                    and last_stmt.false_target.value == node.addr
-                                ):
-                                    # found it!
-                                    alloca_node = node
-                                    sp_equal_to = ailment.Expr.BinaryOp(
-                                        None,
-                                        "Sub",
-                                        [
-                                            ailment.Expr.Register(
-                                                None, None, self.project.arch.sp_offset, self.project.arch.bits
-                                            ),
-                                            last_stmt.condition.operands[1],
-                                        ],
-                                        False,
-                                    )
-                                    break
+                        )
+                        and (
+                            isinstance(stmt1, ailment.Stmt.Store)
+                            and isinstance(stmt1.addr, ailment.Expr.StackBaseOffset)
+                            and stmt1.addr.offset == -0x1000
+                            and isinstance(stmt1.data, ailment.Expr.Load)
+                            and isinstance(stmt1.data.addr, ailment.Expr.StackBaseOffset)
+                            and stmt1.data.addr.offset == -0x1000
+                        )
+                        and (
+                            isinstance(last_stmt, ailment.Stmt.ConditionalJump)
+                            and isinstance(last_stmt.condition, ailment.Expr.BinaryOp)
+                            and last_stmt.condition.op == "CmpEQ"
+                            and isinstance(last_stmt.condition.operands[0], ailment.Expr.StackBaseOffset)
+                            and last_stmt.condition.operands[0].offset == -0x1000
+                            and isinstance(last_stmt.condition.operands[1], ailment.Expr.Register)
+                            and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                            and last_stmt.false_target.value == node.addr
+                        )
+                    ):
+                        # found it!
+                        alloca_node = node
+                        sp_equal_to = ailment.Expr.BinaryOp(
+                            None,
+                            "Sub",
+                            [
+                                ailment.Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits),
+                                last_stmt.condition.operands[1],
+                            ],
+                            False,
+                        )
+                        break
 
         if alloca_node is not None:
             stmt0 = alloca_node.statements[1]

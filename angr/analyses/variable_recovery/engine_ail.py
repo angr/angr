@@ -144,10 +144,7 @@ class SimEngineVRAIL(
                 prototype_libname = func.prototype_libname
 
         # dump the type of the return value
-        if prototype is not None:
-            ret_ty = typevars.TypeVariable()  # TypeLifter(self.arch.bits).lift(prototype.returnty)
-        else:
-            ret_ty = typevars.TypeVariable()
+        ret_ty = typevars.TypeVariable() if prototype is not None else typevars.TypeVariable()
         if isinstance(ret_ty, typeconsts.BottomType):
             ret_ty = typevars.TypeVariable()
 
@@ -160,10 +157,7 @@ class SimEngineVRAIL(
         else:
             if ret_expr is not None:
                 # update the return value register
-                if return_value_use_full_width_reg:
-                    expr_bits = self.state.arch.bits
-                else:
-                    expr_bits = ret_expr_bits
+                expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
                 self._assign_to_register(
                     ret_reg_offset,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
@@ -351,11 +345,8 @@ class SimEngineVRAIL(
         r1 = self._expr(arg1)
 
         type_constraints = set()
-        if r0.typevar is not None:
-            r0_typevar = r0.typevar
-        else:
-            # create a new type variable and add constraints accordingly
-            r0_typevar = typevars.TypeVariable()
+        # create a new type variable and add constraints accordingly
+        r0_typevar = r0.typevar if r0.typevar is not None else typevars.TypeVariable()
 
         if r1.data.concrete:
             # addition with constants. create a derived type variable

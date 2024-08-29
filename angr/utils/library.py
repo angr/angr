@@ -197,11 +197,8 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
 
 
 def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
-    if not specialized:
-        # remove "<???>"s
-        name = normalize_cpp_function_name(demangled_name)
-    else:
-        name = demangled_name
+    # remove "<???>"s
+    name = normalize_cpp_function_name(demangled_name) if not specialized else demangled_name
 
     if not qualified:
         # remove leading namespaces

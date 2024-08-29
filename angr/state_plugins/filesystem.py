@@ -125,7 +125,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         deck = [self] + others
         all_files = set.union(*(set(o._files.keys()) for o in deck))
         for fname in all_files:
-            subdeck = [o._files[fname] if fname in o._files else None for o in deck]
+            subdeck = [o._files.get(fname, None) for o in deck]
             representative = next(x for x in subdeck if x is not None)
             for i, v in enumerate(subdeck):
                 if v is None:
@@ -159,9 +159,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         keys = path.split(self.pathsep)
         i = 0
         while i < len(keys):
-            if keys[i] == b"":
-                keys.pop(i)
-            elif keys[i] == b".":
+            if keys[i] == b"" or keys[i] == b".":
                 keys.pop(i)
             elif keys[i] == b"..":
                 keys.pop(i)

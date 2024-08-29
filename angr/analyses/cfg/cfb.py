@@ -107,7 +107,7 @@ class CFBlanket(Analysis):
 
         self._on_object_added_callback = on_object_added
         self._regions = []
-        self._exclude_region_types = set() if not exclude_region_types else exclude_region_types
+        self._exclude_region_types = exclude_region_types if exclude_region_types else set()
 
         self._init_regions()
 
@@ -165,10 +165,7 @@ class CFBlanket(Analysis):
                     mr = MemoryRegion(obj.min_addr, size, "tls", obj, None)
                     self._regions.append(mr)
             else:
-                if hasattr(obj, "size"):
-                    size = obj.size
-                else:
-                    size = obj.max_addr - obj.min_addr
+                size = obj.size if hasattr(obj, "size") else obj.max_addr - obj.min_addr
                 type_ = "TODO"
                 mr = MemoryRegion(obj.min_addr, size, type_, obj, obj)
                 self._regions.append(mr)
@@ -394,11 +391,8 @@ class CFBlanket(Analysis):
                 # impossible
                 raise Exception("Impossible")
 
-            if last_item.size == 0 or last_item.size is None:
-                # Make sure everything has a non-zero size
-                last_item_size = 1
-            else:
-                last_item_size = last_item.size
+            # Make sure everything has a non-zero size
+            last_item_size = 1 if last_item.size == 0 or last_item.size is None else last_item.size
             end_addr = last_addr + last_item_size
             if end_addr < max_addr:
                 try:

@@ -728,10 +728,7 @@ class SimEngineRDVEX(
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                if expr1_v.concrete_value == 0:
-                    r = MultiValues(self.state.top(bits))
-                else:
-                    r = MultiValues(expr0_v / expr1_v)
+                r = MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)
 
         if r is None:
             r = MultiValues(self.state.top(bits))
@@ -855,10 +852,7 @@ class SimEngineRDVEX(
             if e1 > bits:
                 return claripy.BVV(0, bits)
 
-            if claripy.is_true(e0 >> (bits - 1) == 0):
-                head = claripy.BVV(0, bits)
-            else:
-                head = ((1 << e1) - 1) << (bits - e1)
+            head = claripy.BVV(0, bits) if claripy.is_true(e0 >> bits - 1 == 0) else (1 << e1) - 1 << bits - e1
             return head | (e0 >> e1)
 
         if expr0_v is None and expr1_v is None:

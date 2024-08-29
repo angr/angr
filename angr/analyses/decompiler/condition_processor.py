@@ -228,13 +228,12 @@ class ConditionProcessor:
         terminating_nodes = []
         for node in sorted_nodes:
             # create special conditions for all nodes that are jump table entries
-            if case_entry_to_switch_head:
-                if node.addr in case_entry_to_switch_head:
-                    jump_target_var = self.create_jump_target_var(case_entry_to_switch_head[node.addr])
-                    cond = jump_target_var == claripy.BVV(node.addr, self.arch.bits)
-                    reaching_conditions[node] = cond
-                    self.jump_table_conds[case_entry_to_switch_head[node.addr]].add(cond)
-                    continue
+            if case_entry_to_switch_head and node.addr in case_entry_to_switch_head:
+                jump_target_var = self.create_jump_target_var(case_entry_to_switch_head[node.addr])
+                cond = jump_target_var == claripy.BVV(node.addr, self.arch.bits)
+                reaching_conditions[node] = cond
+                self.jump_table_conds[case_entry_to_switch_head[node.addr]].add(cond)
+                continue
 
             preds = _g.predecessors(node)
             reaching_condition = None
@@ -987,10 +986,7 @@ class ConditionProcessor:
     @staticmethod
     def _extract_common_subexpressions(cond):
         def _expr_inside_collection(expr_, coll_) -> bool:
-            for ex_ in coll_:
-                if expr_ is ex_:
-                    return True
-            return False
+            return any(expr_ is ex_ for ex_ in coll_)
 
         # (A && B) || (A && C) => A && (B || C)
         if cond.op == "And":
@@ -1038,10 +1034,7 @@ class ConditionProcessor:
 
     @staticmethod
     def _extract_terms(ast: claripy.ast.Bool) -> Generator[claripy.ast.Bool]:
-        if ast.op == "And":
-            for arg in ast.args:
-                yield from ConditionProcessor._extract_terms(arg)
-        elif ast.op == "Or":
+        if ast.op == "And" or ast.op == "Or":
             for arg in ast.args:
                 yield from ConditionProcessor._extract_terms(arg)
         elif ast.op == "Not":
@@ -1104,7 +1097,7 @@ class ConditionProcessor:
 
         solver = claripy.SolverCacheless()
         for term in all_terms_without_negs:
-            neg = negations.get(term, None)
+            neg = negations.get(term)
 
             replaced_with_true = ConditionProcessor._replace_term_in_ast(cond, term, claripy.true, neg, claripy.false)
             sat0 = solver.satisfiable(

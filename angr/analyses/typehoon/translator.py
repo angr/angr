@@ -99,10 +99,7 @@ class TypeTranslator:
         if tc in self.structs:
             return self.structs[tc]
 
-        if tc.name:
-            name = tc.name
-        else:
-            name = self.struct_name()
+        name = tc.name if tc.name else self.struct_name()
 
         s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s
@@ -122,10 +119,7 @@ class TypeTranslator:
                 # for now, we replace it with an unsigned char
                 translated_type = sim_type.SimTypeChar(signed=False).with_arch(self.arch)
 
-            if tc.field_names and offset in tc.field_names:
-                field_name = tc.field_names[offset]
-            else:
-                field_name = f"field_{offset:x}"
+            field_name = tc.field_names[offset] if tc.field_names and offset in tc.field_names else f"field_{offset:x}"
             s.fields[field_name] = translated_type
 
             if isinstance(translated_type, SimTypeTempRef):

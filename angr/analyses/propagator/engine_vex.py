@@ -34,13 +34,12 @@ class SimEnginePropagatorVEX(
 
     def _process_block_end(self):
         super()._process_block_end()
-        if self.block.vex.jumpkind == "Ijk_Call":
-            if self.arch.call_pushes_ret:
-                # pop ret from the stack
-                sp_offset = self.arch.sp_offset
-                sp_value = self.state.load_register(sp_offset, self.arch.bytes)
-                if sp_value is not None:
-                    self.state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
+        if self.block.vex.jumpkind == "Ijk_Call" and self.arch.call_pushes_ret:
+            # pop ret from the stack
+            sp_offset = self.arch.sp_offset
+            sp_value = self.state.load_register(sp_offset, self.arch.bytes)
+            if sp_value is not None:
+                self.state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
 
         if self.block.vex.jumpkind == "Ijk_Call" or self.block.vex.jumpkind.startswith("Ijk_Sys"):
             self._handle_return_from_call()
@@ -55,16 +54,21 @@ class SimEnginePropagatorVEX(
     def _expr(self, expr):
         v = super()._expr(expr)
 
-        if v is not None and type(v) not in {Bottom, Top} and v is not expr:
+        if (
+            v is not None
+            and type(v) not in {Bottom, Top}
+            and v is not expr
+            and type(expr) is pyvex.IRExpr.Get
+            and expr.offset
+            not in (
+                self.arch.sp_offset,
+                self.arch.ip_offset,
+            )
+        ):
             # Record the replacement
-            if type(expr) is pyvex.IRExpr.Get:
-                if expr.offset not in (
-                    self.arch.sp_offset,
-                    self.arch.ip_offset,
-                ):
-                    self.state.add_replacement(
-                        self._codeloc(block_only=False), VEXReg(expr.offset, expr.result_size(self.tyenv) // 8), v
-                    )
+            self.state.add_replacement(
+                self._codeloc(block_only=False), VEXReg(expr.offset, expr.result_size(self.tyenv) // 8), v
+            )
         return v
 
     def _load_data(self, addr, size, endness):
@@ -96,21 +100,20 @@ class SimEnginePropagatorVEX(
     #
 
     def _handle_function(self, addr):
-        if self.arch.name == "X86":
-            if isinstance(addr, claripy.ast.Base) and addr.op == "BVV":
-                try:
-                    b = self._project.loader.memory.load(addr.args[0], 4)
-                except KeyError:
-                    return
-                except TypeError:
-                    return
+        if self.arch.name == "X86" and isinstance(addr, claripy.ast.Base) and addr.op == "BVV":
+            try:
+                b = self._project.loader.memory.load(addr.args[0], 4)
+            except KeyError:
+                return
+            except TypeError:
+                return
 
-                if b == b"\x8b\x1c\x24\xc3":
-                    # getpc:
-                    #   mov ebx, [esp]
-                    #   ret
-                    ebx_offset = self.arch.registers["ebx"][0]
-                    self.state.store_register(ebx_offset, 4, claripy.BVV(self.block.addr + self.block.size, 32))
+            if b == b"\x8b\x1c\x24\xc3":
+                # getpc:
+                #   mov ebx, [esp]
+                #   ret
+                ebx_offset = self.arch.registers["ebx"][0]
+                self.state.store_register(ebx_offset, 4, claripy.BVV(self.block.addr + self.block.size, 32))
 
     def _handle_return_from_call(self):
         # FIXME: Handle the specific function calling convention when known
@@ -318,11 +321,10 @@ class SimEnginePropagatorVEX(
             dst = self._expr(stmt.dst)
             if dst is not None and dst.concrete:
                 anno = guard.annotations[0]
-                if isinstance(anno, RegisterComparisonAnnotation):
-                    if anno.cmp_op == "eq":
-                        v = (anno.offset, anno.size, anno.value)
-                        if v not in self.state.block_initial_reg_values[self.block.addr, dst.concrete_value]:
-                            self.state.block_initial_reg_values[self.block.addr, dst.concrete_value].append(v)
+                if isinstance(anno, RegisterComparisonAnnotation) and anno.cmp_op == "eq":
+                    v = (anno.offset, anno.size, anno.value)
+                    if v not in self.state.block_initial_reg_values[self.block.addr, dst.concrete_value]:
+                        self.state.block_initial_reg_values[self.block.addr, dst.concrete_value].append(v)
 
         super()._handle_Exit(stmt)
 

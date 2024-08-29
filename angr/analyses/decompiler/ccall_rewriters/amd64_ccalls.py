@@ -323,41 +323,45 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             **ccall.tags,
                         )
                         return r
-                elif cond_v == AMD64_CondTypes["CondS"]:
-                    if op_v in {
+                elif (
+                    cond_v == AMD64_CondTypes["CondS"]
+                    and op_v
+                    in {
                         AMD64_OpTypes["G_CC_OP_LOGICB"],
                         AMD64_OpTypes["G_CC_OP_LOGICW"],
                         AMD64_OpTypes["G_CC_OP_LOGICL"],
                         AMD64_OpTypes["G_CC_OP_LOGICQ"],
-                    }:
-                        if isinstance(dep_2, Expr.Const) and dep_2.value == 0:
-                            # dep_1 < 0
+                    }
+                    and isinstance(dep_2, Expr.Const)
+                    and dep_2.value == 0
+                ):
+                    # dep_1 < 0
 
-                            dep_1 = self._fix_size(
-                                dep_1,
-                                op_v,
-                                AMD64_OpTypes["G_CC_OP_LOGICB"],
-                                AMD64_OpTypes["G_CC_OP_LOGICW"],
-                                AMD64_OpTypes["G_CC_OP_LOGICL"],
-                                ccall.tags,
-                            )
-                            dep_2 = self._fix_size(
-                                dep_2,
-                                op_v,
-                                AMD64_OpTypes["G_CC_OP_LOGICB"],
-                                AMD64_OpTypes["G_CC_OP_LOGICW"],
-                                AMD64_OpTypes["G_CC_OP_LOGICL"],
-                                ccall.tags,
-                            )
+                    dep_1 = self._fix_size(
+                        dep_1,
+                        op_v,
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        ccall.tags,
+                    )
+                    dep_2 = self._fix_size(
+                        dep_2,
+                        op_v,
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        ccall.tags,
+                    )
 
-                            r = Expr.BinaryOp(
-                                ccall.idx,
-                                "CmpLT",
-                                (dep_1, dep_2),
-                                True,
-                                **ccall.tags,
-                            )
-                            return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    r = Expr.BinaryOp(
+                        ccall.idx,
+                        "CmpLT",
+                        (dep_1, dep_2),
+                        True,
+                        **ccall.tags,
+                    )
+                    return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
         elif ccall.cee_name == "amd64g_calculate_rflags_c":
             # calculate the carry flag

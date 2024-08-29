@@ -442,10 +442,7 @@ class RegionedMemoryMixin(MemoryMixin):
         :rtype: dict
         """
 
-        if isinstance(addr, int):
-            addr_e = claripy.BVV(addr, bits)
-        else:
-            addr_e = _raw_ast(addr)
+        addr_e = claripy.BVV(addr, bits) if isinstance(addr, int) else _raw_ast(addr)
 
         if isinstance(addr_e, (claripy.bv.BVV, claripy.vsa.StridedInterval, claripy.vsa.ValueSet)):
             raise SimMemoryError("_normalize_address_type() does not take claripy models.")

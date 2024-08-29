@@ -629,10 +629,7 @@ class VariableManagerInternal(Serializable):
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom, block_idx: int | None = None
     ) -> set[tuple[SimVariable, int]]:
-        if block_idx is None:
-            key = block_addr, stmt_idx
-        else:
-            key = block_addr, block_idx, stmt_idx
+        key = (block_addr, stmt_idx) if block_idx is None else (block_addr, block_idx, stmt_idx)
 
         if key not in self._atom_to_variable:
             return set()
@@ -662,7 +659,7 @@ class VariableManagerInternal(Serializable):
 
         vars_list = []
 
-        for var in self._variable_accesses.keys():
+        for var in self._variable_accesses:
             if variable.name == var.name:
                 vars_list.append(var)
 
@@ -806,9 +803,8 @@ class VariableManagerInternal(Serializable):
                 continue
             if variable in self._variable_accesses:
                 accesses = self._variable_accesses[variable]
-                if has_read_access(accesses):
-                    if not exclude_specials or not variable.category:
-                        input_variables.append(variable)
+                if has_read_access(accesses) and (not exclude_specials or not variable.category):
+                    input_variables.append(variable)
 
         return input_variables
 
@@ -904,9 +900,7 @@ class VariableManagerInternal(Serializable):
             idx = next(var_ctr)
             if var.name is not None and not reset:
                 continue
-            if isinstance(var, SimStackVariable):
-                var.name = f"v{idx}"
-            elif isinstance(var, SimRegisterVariable):
+            if isinstance(var, (SimStackVariable, SimRegisterVariable)):
                 var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None
@@ -941,17 +935,16 @@ class VariableManagerInternal(Serializable):
         all_unified: bool = False,
         mark_manual: bool = False,
     ) -> None:
-        if isinstance(ty, SimTypeBottom) and override_bot:
-            # we fall back to assigning a default unsigned integer type for the variable
-            if var.size is not None:
-                size_to_type = {
-                    1: SimTypeChar,
-                    2: SimTypeShort,
-                    4: SimTypeInt,
-                    8: SimTypeLong,
-                }
-                if var.size in size_to_type:
-                    ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
+        # we fall back to assigning a default unsigned integer type for the variable
+        if isinstance(ty, SimTypeBottom) and override_bot and var.size is not None:
+            size_to_type = {
+                1: SimTypeChar,
+                2: SimTypeShort,
+                4: SimTypeInt,
+                8: SimTypeLong,
+            }
+            if var.size in size_to_type:
+                ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
 
         if name:
             if name not in self.types:

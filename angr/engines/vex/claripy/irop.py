@@ -1075,10 +1075,7 @@ class SimIROp:
         max_value = 2**dst_size - 1
         if dst_signed:
             max_value >>= 1
-        if not dst_signed or not src_signed:
-            min_value = 0
-        else:
-            min_value = -(2 ** (dst_size - 1))
+        min_value = 0 if not dst_signed or not src_signed else -(2 ** (dst_size - 1))
 
         gt = claripy.SGT if src_signed else claripy.UGT
         lt = claripy.SLT if src_signed else claripy.ULT
@@ -1090,10 +1087,7 @@ class SimIROp:
                     max_value,
                     claripy.If(lt(src_value, min_value), min_value, src_value[dst_size - 1 : 0]),
                 )
-                if result is None:
-                    result = dst_value
-                else:
-                    result = self._op_concat((result, dst_value))
+                result = dst_value if result is None else self._op_concat((result, dst_value))
         return result
 
     @supports_vector
