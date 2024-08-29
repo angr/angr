@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class SAILRSemanticError(Exception):
     """
     These types of errors may not kill the entire analysis, but they do kill the current working round.
