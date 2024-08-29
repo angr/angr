@@ -1,6 +1,5 @@
 from __future__ import annotations
 import typing
-from typing import Optional
 
 from ailment import AILBlockWalkerBase
 
@@ -20,9 +19,7 @@ class BooleanCounter(AILBlockWalkerBase):
         super().__init__()
         self.boolean_cnt = 0
 
-    def _handle_BinaryOp(
-        self, expr_idx: int, expr: "BinaryOp", stmt_idx: int, stmt: "Statement", block: Optional["Block"]
-    ):
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         if expr.op in {"LogicalAnd", "LogicalOr"}:
             self.boolean_cnt += 1
 
