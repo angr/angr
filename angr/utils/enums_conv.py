@@ -1,10 +1,11 @@
 # pylint:disable=no-member
 from __future__ import annotations
+
 import logging
 
-l = logging.getLogger(name=__name__)
-
 from ..protos.primitives_pb2 import Edge
+
+l = logging.getLogger(name=__name__)
 
 
 _CFG_JUMPKINDS = {

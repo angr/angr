@@ -16,7 +16,7 @@ from ..common import bin_location
 
 @unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestIdentifier(unittest.TestCase):
-    def test_comparison_identification(self):
+    def test_comparison_identification(self):  # pylint:disable=no-member
         true_symbols = {0x804A3D0: "strncmp", 0x804A0F0: "strcmp", 0x8048E60: "memcmp", 0x8049F40: "strcasecmp"}
 
         p = angr.Project(os.path.join(bin_location, "tests", "i386", "identifiable"))

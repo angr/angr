@@ -15,7 +15,7 @@ test_location = os.path.join(bin_location, "tests")
 
 
 # pylint: disable=missing-class-docstring
-# pylint: disable=no-self-use
+# pylint: disable=no-self-use,no-member
 class TestClassIdentifier(unittest.TestCase):
     def test_class_identification_x86_64(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "cpp_classes"), auto_load_libs=False)

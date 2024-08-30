@@ -16,7 +16,7 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestFindObjectsStatic(unittest.TestCase):
-    def test_object_identification_x86_64(self):
+    def test_object_identification_x86_64(self):  # pylint:disable=no-member
         p = angr.Project(os.path.join(test_location, "x86_64", "cpp_classes"), auto_load_libs=False)
         object_identifier_analysis = p.analyses.StaticObjectFinder()
         possible_objects_dict = object_identifier_analysis.possible_objects

@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 import string
 
-import angr
 import claripy
+
+import angr
 
 
 l = logging.getLogger(name=__name__)
@@ -716,7 +717,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
             state.memory.permissions(state.solver.eval(buf))
         except angr.SimMemoryError:
             l.warning("detected possible arbitary transmit to fd %d", fd)
-            if fd == 0 or fd == 1:
+            if fd in {0, 1}:
                 self.controlled_transmits.append((state.copy(), buf))
 
     @staticmethod

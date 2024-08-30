@@ -4,12 +4,13 @@ import re
 from typing import TYPE_CHECKING
 from collections import defaultdict
 
+from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_base import KnowledgeBase
 from angr.codenode import HookNode
 from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 from angr import SIM_PROCEDURES
 
-from . import Analysis, CFGEmulated, DDG
+from . import CFGEmulated, DDG
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
@@ -24,7 +25,10 @@ class ConstantPropagation:
         self.constant_consuming_loc = constant_consuming_loc
 
     def __repr__(self):
-        return f"<Constant {self.constant:#x} propagates from {self.constant_assignment_loc.ins_addr:#x} to {self.constant_consuming_loc.ins_addr:#x}>"
+        return (
+            f"<Constant {self.constant:#x} propagates from {self.constant_assignment_loc.ins_addr:#x} "
+            f"to {self.constant_consuming_loc.ins_addr:#x}>"
+        )
 
 
 class RedundantStackVariable:
@@ -671,7 +675,5 @@ class BinaryOptimizer(Analysis):
                 da = DeadAssignment(reg)
                 self.dead_assignments.append(da)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BinaryOptimizer", BinaryOptimizer)

@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
+from itertools import chain
 
 from ...serializable import Serializable
 from ...protos import xrefs_pb2
@@ -61,14 +63,8 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         Will only return absolute xrefs, not relative ones (like SP offsets)
         """
 
-        def f(x):
-            return isinstance(x, int) and start <= x <= end
-
-        addrs = filter(f, self.xrefs_by_dst.keys())
-        refs = set()
-        for addr in addrs:
-            refs = refs.union(self.xrefs_by_dst[addr])
-        return refs
+        addrs = [addr for addr in self.xrefs_by_dst if isinstance(addr, int) and start <= addr <= end]
+        return set(chain(*[self.xrefs_by_dst[addr] for addr in addrs] or []))
 
     def get_xrefs_by_ins_addr_region(self, start, end) -> set[XRef]:
         """
@@ -76,14 +72,8 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         bounded by start and end.  Useful for finding references from a basic block or function.
         """
 
-        def f(x):
-            return isinstance(x, int) and start <= x <= end
-
-        addrs = filter(f, self.xrefs_by_ins_addr.keys())
-        refs = set()
-        for addr in addrs:
-            refs = refs.union(self.xrefs_by_ins_addr[addr])
-        return refs
+        addrs = [addr for addr in self.xrefs_by_ins_addr if isinstance(addr, int) and start <= addr <= end]
+        return set(chain(*[self.xrefs_by_ins_addr[addr] for addr in addrs] or []))
 
     # TODO: Maybe add some helpers that accept Function or Block objects for the sake of clean analyses.
 
