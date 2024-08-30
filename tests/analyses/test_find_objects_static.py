@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,disable=no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,no-member
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
@@ -16,7 +16,7 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestFindObjectsStatic(unittest.TestCase):
-    def test_object_identification_x86_64(self):  # pylint:disable=no-member
+    def test_object_identification_x86_64(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "cpp_classes"), auto_load_libs=False)
         object_identifier_analysis = p.analyses.StaticObjectFinder()
         possible_objects_dict = object_identifier_analysis.possible_objects

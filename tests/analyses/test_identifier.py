@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,disable=no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,no-member
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
@@ -16,7 +16,7 @@ from ..common import bin_location
 
 @unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestIdentifier(unittest.TestCase):
-    def test_comparison_identification(self):  # pylint:disable=no-member
+    def test_comparison_identification(self):
         true_symbols = {0x804A3D0: "strncmp", 0x804A0F0: "strcmp", 0x8048E60: "memcmp", 0x8049F40: "strcasecmp"}
 
         p = angr.Project(os.path.join(bin_location, "tests", "i386", "identifiable"))
