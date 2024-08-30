@@ -219,9 +219,12 @@ class DuplicationReverter(StructuringOptimizationPass):
                     target_candidates = []
                     for mblock, oblocks in ail_merge_graph.merge_blocks_to_originals.items():
                         for oblock in oblocks:
-                            if isinstance(oblock, AILBlockSplit) and oblock.original.addr == target_addr:
-                                target_candidates.append(mblock)
-                            elif isinstance(oblock, Block) and oblock.addr == target_addr:
+                            if (
+                                isinstance(oblock, AILBlockSplit)
+                                and oblock.original.addr == target_addr
+                                or isinstance(oblock, Block)
+                                and oblock.addr == target_addr
+                            ):
                                 target_candidates.append(mblock)
 
                     if not target_candidates:
