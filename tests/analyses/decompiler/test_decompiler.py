@@ -443,7 +443,7 @@ class TestDecompiler(unittest.TestCase):
         # disable it for this since we want to test the decompiler's ability to handle this case when it has
         # these messed up loops
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=DUPLICATING_OPTS + [DuplicationReverter]
+            "AMD64", "linux", disable_opts=[*DUPLICATING_OPTS, DuplicationReverter]
         )
 
         f = cfg.functions[0x404410]

@@ -72,7 +72,7 @@ def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
             else:
                 blocks += [children[1], children[0]]
 
-    blocks = [start_block] + blocks
+    blocks = [start_block, *blocks]
     return blocks
 
 
@@ -105,7 +105,7 @@ def ail_block_from_stmts(stmts, idx=None, block_addr=None) -> Block | None:
     first_stmt = stmts[0]
 
     return Block(
-        first_stmt.ins_addr if not block_addr else block_addr,
+        block_addr if block_addr else first_stmt.ins_addr,
         0,
         statements=list(stmts),
         idx=idx or 1,

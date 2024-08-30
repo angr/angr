@@ -218,7 +218,7 @@ class AILMergeGraph:
                 raise SAILRSemanticError("Encountered a conditional jump that has no successors! This can be bad!")
             if len(merge_end_pair) == 1:
                 b0 = merge_end_pair[0]
-                b0_og = list(self.merge_blocks_to_originals[b0])[0]
+                b0_og = next(iter(self.merge_blocks_to_originals[b0]))
                 if isinstance(b0_og, AILBlockSplit):
                     b0_og = b0_og.original
 
@@ -285,7 +285,7 @@ class AILMergeGraph:
                     if len(base_sblocks) > 1:
                         continue
 
-                    base_sblock = list(base_sblocks)[0]
+                    base_sblock = next(iter(base_sblocks))
                     # the original base must match
                     if base_sblock.original != base_original:
                         continue
@@ -322,7 +322,7 @@ class AILMergeGraph:
         self.merge_end_to_start = {merge_end: self._find_og_start_by_merge_end(merge_end) for merge_end in merge_ends}
         merge_end_pairs = defaultdict(list)
         for merge_end, split_blocks in merge_ends.items():
-            split_block = list(split_blocks)[0]
+            split_block = next(iter(split_blocks))
             if split_block.original in self.original_blocks[merge_base]:
                 merge_end_pairs[split_block.match_split].append(merge_end)
                 continue
@@ -348,7 +348,7 @@ class AILMergeGraph:
                             continue
 
                         if len(originals) == 1:
-                            og = list(originals)[0]
+                            og = next(iter(originals))
                             if isinstance(og, Block) and og == block:
                                 originals.add(other_block)
                                 break
@@ -412,12 +412,10 @@ class AILMergeGraph:
 
     def _block_in_originals(self, merge_block: Block, target_block: Block):
         for original in self.merge_blocks_to_originals[merge_block]:
-            if isinstance(original, Block):
-                if original == target_block:
-                    return True
-            elif isinstance(original, AILBlockSplit):
-                if original.original == target_block:
-                    return True
+            if (isinstance(original, Block) and original == target_block) or (
+                isinstance(original, AILBlockSplit) and original.original == target_block
+            ):
+                return True
 
         return False
 
@@ -461,7 +459,7 @@ class AILMergeGraph:
         return None
 
     def _find_og_start_by_merge_end(self, merge_end: Block) -> Block | None:
-        original = list(self.merge_blocks_to_originals[merge_end])[0]
+        original = next(iter(self.merge_blocks_to_originals[merge_end]))
         if isinstance(original, AILBlockSplit):
             original = original.original
 
@@ -491,7 +489,7 @@ class AILMergeGraph:
                 graph.add_edge(new_pred, new_node)
 
             # re-add every out_edge
-            blk = original_node if original_node not in updated_blocks else updated_blocks[original_node]
+            blk = updated_blocks.get(original_node, original_node)
             for succ in graph.successors(blk):
                 graph.add_edge(new_node, succ)
 
