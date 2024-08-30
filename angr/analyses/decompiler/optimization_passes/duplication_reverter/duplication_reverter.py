@@ -771,7 +771,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 graph.remove_edge(src, dst)
                 # correct the targets of the src
                 target = getattr(src.statements[-1], target_type)
-                setattr(target, "value", nop_blk.addr)
+                target.value = nop_blk.addr
 
         return True
 
