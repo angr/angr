@@ -280,11 +280,7 @@ class PagedMemoryMixin(MemoryMixin):
             l.debug("... on page %x", page_no)
 
             page = self._get_page(page_no, True)
-            other_pages = []
-
-            for o in others:
-                if page_no in o._pages:
-                    other_pages.append(o._get_page(page_no, False))
+            other_pages = [o._get_page(page_no, False) for o in others if page_no in o._pages]
 
             page_addr = page_no * self.page_size
             changed_offsets = changed_pages_and_offsets[page_no]

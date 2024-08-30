@@ -33,9 +33,7 @@ class TestDwarfVariables(TestCase):
 
     def test_resolve_a(self):
         a = self.s.dvars["a"]
-        computed_result = []
-        for i in range(9):
-            computed_result.append(a.array(i).mem.concrete)
+        computed_result = [a.array(i).mem.concrete for i in range(9)]
         expected_result = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         self.assertEqual(computed_result, expected_result, 'global variable "a" array values is computed wrong')
 
@@ -70,10 +68,8 @@ class TestDwarfVariables(TestCase):
     def test_resolve_global_struct(self):
         global_struct = self.s.dvars["global_struct"]
 
-        computed_struct_array = []
         a = global_struct.member("struct_array")
-        for i in range(3):
-            computed_struct_array.append(a.array(i).mem.concrete)
+        computed_struct_array = [a.array(i).mem.concrete for i in range(3)]
 
         computed_result = [
             global_struct.member("struct_fun").mem.concrete,
@@ -196,10 +192,8 @@ class TestDwarfVariables(TestCase):
         s = simgr.found[0]
         local_struct = s.dvars["local_struct"]
 
-        computed_struct_array = []
         a = local_struct.member("struct_array")
-        for i in range(3):
-            computed_struct_array.append(a.array(i).mem.concrete)
+        computed_struct_array = [a.array(i).mem.concrete for i in range(3)]
 
         computed_result = [
             local_struct.member("struct_fun").mem.concrete,

@@ -1249,8 +1249,7 @@ class Disassembly(Analysis):
                 lines.append(s)
 
                 # Add additional lines of instruction bytes
-                for i in range(1, len(insn_bytes)):
-                    lines.append(" " * bytes_column + format_bytes(insn_bytes[i]))
+                lines.extend(" " * bytes_column + format_bytes(insn_bytes[i]) for i in range(1, len(insn_bytes)))
 
                 # Add additional lines of comments
                 if comment is not None:

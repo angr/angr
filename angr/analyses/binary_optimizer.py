@@ -255,12 +255,13 @@ class BinaryOptimizer(Analysis):
 
         # check if there is any stack pointer being stored into any register other than esp
         # basically check all consumers of stack pointers
-        stack_ptrs = []
         sp_offset = self.project.arch.registers["esp"][0]
         bp_offset = self.project.arch.registers["ebp"][0]
-        for n in data_graph.nodes():
-            if isinstance(n.variable, SimRegisterVariable) and n.variable.reg in (sp_offset, bp_offset):
-                stack_ptrs.append(n)
+        stack_ptrs = [
+            n
+            for n in data_graph.nodes()
+            if isinstance(n.variable, SimStackVariable) and n.variable.reg in (sp_offset, bp_offset)
+        ]
 
         # for each stack pointer variable, make sure none of its consumers is a general purpose register
         for stack_ptr in stack_ptrs:
@@ -280,17 +281,14 @@ class BinaryOptimizer(Analysis):
                     )
                     return
 
-        argument_variables = []
-
-        for n in data_graph.nodes():
-            if isinstance(n.variable, SimStackVariable) and n.variable.base == "bp" and n.variable.offset >= 0:
-                argument_variables.append(n)
+        argument_variables = [
+            n
+            for n in data_graph.nodes()
+            if isinstance(n.variable, SimStackVariable) and n.variable.base == "bp" and n.variable.offset >= 0
+        ]
 
         if not argument_variables:
             return
-
-        # print function
-        # print argument_variables
 
         argument_to_local = {}
         argument_register_as_retval = set()
@@ -430,10 +428,11 @@ class BinaryOptimizer(Analysis):
         # make sure esp is not used anywhere else - all stack variables must be indexed using ebp
         esp_offset = self.project.arch.registers["esp"][0]
         ebp_offset = self.project.arch.registers["ebp"][0]
-        esp_variables = []
-        for n in data_graph.nodes():
-            if isinstance(n.variable, SimRegisterVariable) and n.variable.reg == esp_offset:
-                esp_variables.append(n)
+        esp_variables = [
+            n
+            for n in data_graph.nodes()
+            if isinstance(n.variable, SimRegisterVariable) and n.variable.reg == esp_offset
+        ]
 
         # find out all call instructions
         call_insns = set()

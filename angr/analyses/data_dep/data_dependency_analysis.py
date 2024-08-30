@@ -311,11 +311,7 @@ class DataDependencyGraphAnalysis(Analysis):
     def _create_dep_edges(self, act, write_node, read_nodes: dict[int, list[BaseDepNode]]) -> bool:
         """Last resort for linking dependencies"""
         # Check tmp and reg deps
-        var_read_nodes = []
-        for nodes in read_nodes.values():
-            for node in nodes:
-                if isinstance(node, VarDepNode):
-                    var_read_nodes.append(node)
+        var_read_nodes = [node for nodes in read_nodes.values() for node in nodes if isinstance(node, VarDepNode)]
 
         possible_dep_nodes = {node.reg: node for node in var_read_nodes}
 

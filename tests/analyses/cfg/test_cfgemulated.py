@@ -379,9 +379,8 @@ class TestCfgemulate(unittest.TestCase):
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(keep_state=True, fail_fast=True)
 
-        string_references = []
         for f in cfg.functions.values():
-            string_references.append(list(f.string_references()))
+            f.string_references()
 
         # test passes if hasn't thrown an exception
 

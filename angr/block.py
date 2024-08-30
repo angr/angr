@@ -402,13 +402,10 @@ class Block(Serializable):
 
         cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb
 
-        insns = []
-
         block_bytes = self.bytes
         if self.size is not None:
             block_bytes = block_bytes[: self.size]
-        for cs_insn in cs.disasm(block_bytes, self.addr):
-            insns.append(CapstoneInsn(cs_insn))
+        insns = [CapstoneInsn(cs_insn) for cs_insn in cs.disasm(block_bytes, self.addr)]
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
         self._capstone = block

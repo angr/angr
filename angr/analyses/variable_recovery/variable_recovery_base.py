@@ -129,7 +129,7 @@ class VariableRecoveryBase(Analysis):
         stack_vars_by_offset = defaultdict(list)
         for sv in stack_vars:
             stack_vars_by_offset[sv.offset].append(sv)
-        for _offset, var_list in stack_vars_by_offset.items():
+        for var_list in stack_vars_by_offset.values():
             if len(var_list) < 2:
                 continue
             single_byte_vars = [v for v in var_list if v.size == 1]

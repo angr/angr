@@ -239,16 +239,17 @@ class DuplicationReverter(StructuringOptimizationPass):
 
                 replacement_map = {}
                 for target_addr in target_addrs:
-                    target_candidates = []
-                    for mblock, oblocks in ail_merge_graph.merge_blocks_to_originals.items():
-                        for oblock in oblocks:
-                            if (
-                                isinstance(oblock, AILBlockSplit)
-                                and oblock.original.addr == target_addr
-                                or isinstance(oblock, Block)
-                                and oblock.addr == target_addr
-                            ):
-                                target_candidates.append(mblock)
+                    target_candidates = [
+                        mblock
+                        for mblock, oblocks in ail_merge_graph.merge_blocks_to_originals.items()
+                        for oblock in oblocks
+                        if (
+                            isinstance(oblock, AILBlockSplit)
+                            and oblock.original.addr == target_addr
+                            or isinstance(oblock, Block)
+                            and oblock.addr == target_addr
+                        )
+                    ]
 
                     if not target_candidates:
                         continue
@@ -336,7 +337,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         for node in graph.nodes:
             nodes_by_addr[node.addr].append(node)
 
-        for _, nodes in nodes_by_addr.items():
+        for nodes in nodes_by_addr.values():
             if len(nodes) == 1:
                 continue
 

@@ -880,14 +880,18 @@ class AILSimplifier(Analysis):
             for def_, use_and_expr in all_uses_with_def:
                 u, used_expr = use_and_expr
 
-                use_expr_defns = []
-                for d in rd.all_uses.get_uses_by_location(u):
+                use_expr_defns = [
+                    d
+                    for d in rd.all_uses.get_uses_by_location(u)
                     if (
-                        isinstance(d.atom, RegisterAtom)
-                        and isinstance(def_.atom, RegisterAtom)
-                        and d.atom.reg_offset == def_.atom.reg_offset
-                    ) or d.atom == def_.atom:
-                        use_expr_defns.append(d)
+                        (
+                            isinstance(d.atom, RegisterAtom)
+                            and isinstance(def_.atom, RegisterAtom)
+                            and d.atom.reg_offset == def_.atom.reg_offset
+                        )
+                        or d.atom == def_.atom
+                    )
+                ]
                 # you can never replace a use with dependencies from outside the checked defn
                 if len(use_expr_defns) != 1 or next(iter(use_expr_defns)) != def_:
                     if not use_expr_defns:

@@ -1117,7 +1117,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._update_function_callsites(functions_do_not_return)
 
         # Create all pending edges
-        for _, edges in self._pending_edges.items():
+        for edges in self._pending_edges.values():
             for src_node, dst_node, data in edges:
                 self._graph_add_edge(src_node, dst_node, **data)
 

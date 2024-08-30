@@ -116,10 +116,7 @@ class ITEExprConverter(OptimizationPass):
 
         # go through all blocks in the graph to find the corresponding blocks
         def_block_addrs = {defs[0].codeloc.block_addr, defs[1].codeloc.block_addr}
-        blocks = []
-        for node in self._graph.nodes():
-            if node.addr in def_block_addrs:
-                blocks.append(node)
+        blocks = [node for node in self._graph.nodes() if node.addr in def_block_addrs]
 
         if len(blocks) != 2:
             return None

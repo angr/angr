@@ -689,9 +689,8 @@ class Clinic(Analysis):
             if target_func.calling_convention is not None and target_func.prototype is not None:
                 continue
 
-            call_sites = []
-            for pred in self.function.transition_graph.predecessors(node):
-                call_sites.append(pred)
+            call_sites = list(self.function.transition_graph.predecessors(node))
+
             # case 1: calling conventions and prototypes are available at every single call site
             if call_sites and all(self.kb.callsite_prototypes.has_prototype(callsite.addr) for callsite in call_sites):
                 continue

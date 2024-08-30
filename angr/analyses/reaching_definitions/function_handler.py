@@ -246,7 +246,7 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     @staticmethod
     @wraps
     def decorate(
-        f: Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallDataUnwrapped], None]
+        f: Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallDataUnwrapped], None],
     ) -> Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallData], None]:
         """
         Decorate a function handler method with this to make it take a FunctionCallDataUnwrapped instead of a
@@ -378,8 +378,9 @@ class FunctionHandler:
             if prototype_libname is not None:
                 prototype_lib = SIM_LIBRARIES[prototype_libname]
                 if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                    type_collections.extend(
+                        SIM_TYPE_COLLECTIONS[typelib_name] for typelib_name in prototype_lib.type_collection_names
+                    )
             if type_collections:
                 data.prototype = dereference_simtype(data.prototype, type_collections).with_arch(state.arch)
 

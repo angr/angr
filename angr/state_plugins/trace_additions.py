@@ -655,11 +655,9 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
     @staticmethod
     def get_flag_rand_args(expr):
         symbolic_args = tuple(a for a in expr.args if isinstance(a, claripy.ast.Base) and a.symbolic)
-        flag_args = []
-        for a in symbolic_args:
-            if any(v.startswith("cgc-flag") or v.startswith("random") for v in a.variables):
-                flag_args.append(a)
-        return flag_args
+        return [
+            a for a in symbolic_args if any(v.startswith("cgc-flag") or v.startswith("random") for v in a.variables)
+        ]
 
     def get_expr_depth(self, expr):
         flag_args = self.get_flag_rand_args(expr)
@@ -702,15 +700,15 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
 
     def filter_constraints(self, constraints):
         zen_cache_keys = {x.cache_key for x in self.zen_constraints}
-        new_cons = []
-        for con in constraints:
+        return [
+            con
+            for con in constraints
             if (
                 con.cache_key in zen_cache_keys
                 or not all(v.startswith("cgc-flag") or v.startswith("random") for v in con.variables)
                 or len(con.variables) == 0
-            ):
-                new_cons.append(con)
-        return new_cons
+            )
+        ]
 
     def analyze_transmit(self, state, buf):
         fd = state.solver.eval(state.regs.ebx)

@@ -95,11 +95,7 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         # pylint:disable=no-member
         cmsg = self._get_cmsg()
         # references
-        refs = []
-        for ref_set in self.xrefs_by_ins_addr.values():
-            for ref in ref_set:
-                refs.append(ref.serialize_to_cmessage())
-        cmsg.xrefs.extend(refs)
+        cmsg.extend(ref.serialize_to_cmessage() for ref_set in self.xrefs_by_ins_addr.values() for ref in ref_set)
         return cmsg
 
     @classmethod

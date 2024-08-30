@@ -172,8 +172,7 @@ class ReturnDuplicatorBase:
             except EmptyBlockNotice:
                 pass
 
-            for succ in region.successors(node):
-                queue.append((node_copy, succ))
+            queue.extend((node_copy, succ) for succ in region.successors(node))
 
         for pred_node in pred_nodes:
             # delete the old edge to the return node
@@ -194,13 +193,14 @@ class ReturnDuplicatorBase:
                 continue
 
             # find components that have a node that should be duplicated
-            candidate_components = []
-            for nodes in multi_node_components:
+            candidate_components = [
+                nodes
+                for nodes in multi_node_components
                 if any(
                     self._should_duplicate_dst(n, region_head, graph, dst_is_const_ret=is_single_const_ret_region)
                     for n in nodes
-                ):
-                    candidate_components.append(nodes)
+                )
+            ]
             if not candidate_components:
                 continue
 
