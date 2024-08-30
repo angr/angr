@@ -34,7 +34,7 @@ from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
-from .expression_counters import SingleExpressionCounter
+from .counters.expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
     from ailment.manager import Manager

@@ -55,7 +55,7 @@ class SimEnginePropagatorAIL(
     def _handle_Stmt(self, stmt):
         # walk stmt.src to find all cases where a register appears above a threshold (so we don't incorrectly
         # replace the first one)
-        from angr.analyses.decompiler.expression_counters import (
+        from angr.analyses.decompiler.counters.expression_counters import (
             RegisterExpressionCounter,
             OperatorCounter,
         )  # pylint:disable=wrong-import-position
@@ -1542,7 +1542,9 @@ class SimEnginePropagatorAIL(
         if isinstance(stmt, (Stmt.Jump, Stmt.Return)):
             return True
 
-        from angr.analyses.decompiler.expression_counters import OperatorCounter  # pylint:disable=wrong-import-position
+        from angr.analyses.decompiler.counters.expression_counters import (
+            OperatorCounter,
+        )  # pylint:disable=wrong-import-position
 
         octr0 = OperatorCounter(["Shr", "Sar"], stmt)
         octr1 = OperatorCounter(["Shr", "Sar"], new_expr)

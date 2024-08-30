@@ -6,7 +6,7 @@ import logging
 import inspect
 
 from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
-from ..call_counter import AILBlockCallCounter
+from ..counters import AILBlockCallCounter
 
 l = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
         node_idx_start: int = 0,
         # settings
         max_opt_iters: int = 3,
-        max_call_duplications: int = 2,
+        max_call_duplications: int = 1,
         **kwargs,
     ):
         super().__init__(func, max_opt_iters=max_opt_iters, strictly_less_gotos=True, **kwargs)

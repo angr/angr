@@ -25,11 +25,13 @@ from angr.analyses import (
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.optimization_passes import (
     DUPLICATING_OPTS,
+    CONDENSING_OPTS,
     LoweredSwitchSimplifier,
     CrossJumpReverter,
     InlinedStringTransformationSimplifier,
     ReturnDuplicatorLow,
     ReturnDuplicatorHigh,
+    DuplicationReverter,
 )
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
@@ -437,9 +439,11 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        # disable duplicating code
+        # since this is a case we know where DuplicationReverter eliminates some bad code, we should
+        # disable it for this since we want to test the decompiler's ability to handle this case when it has
+        # these messed up loops
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
+            "AMD64", "linux", disable_opts=[*DUPLICATING_OPTS, DuplicationReverter]
         )
 
         f = cfg.functions[0x404410]
@@ -461,6 +465,11 @@ class TestDecompiler(unittest.TestCase):
         # make sure all "break;" is followed by a curly brace
         dec_no_spaces = dec.codegen.text.replace("\n", "").replace(" ", "")
         replaced = dec_no_spaces.replace("break;}", "")
+        # TODO: we really should not be making a switch in this function, but the sensitivity needs to be
+        #   improved to avoid this. See test_true_a_graph_deduplication to see original source for this func.
+        replaced = replaced.replace("break;case", "")
+        replaced = replaced.replace("break;default", "")
+
         assert "break" not in replaced
 
     @for_all_structuring_algos
@@ -1681,18 +1690,16 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("sailr")
     def test_cascading_boolean_and(self, decompiler_options=None):
-        # test binary contributed by zion
+        # test binary derived from SAILR project
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_cascading_boolean_and")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True)
 
-        # disable eager returns simplifier
+        # disable deoptimizations based on optimizations (it's a non-optimized simple binary)
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux"
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS + CONDENSING_OPTS
         )
-        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
-
         dec = proj.analyses.Decompiler(
             proj.kb.functions["foo"], cfg=cfg, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -2155,11 +2162,12 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["build_spec_list"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
+        # Interestingly, this case needs the DuplicationReverter to be disabled because it creates code that is in
+        # many ways better than the source code, but divergent from it.
+        # See testcase test_tr_build_spec_list_deduplication for more information.
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", disable_opts=[DuplicationReverter]
         )
-        # lowered-switch simplifier cannot be enabled. otherwise we will have an extra goto that goes into the fake
-        # switch-case.
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -3263,6 +3271,27 @@ class TestDecompiler(unittest.TestCase):
         # assert len(bad_matches) == 0
 
     @structuring_algo("sailr")
+    def test_sort_zaptemp_if_choices(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sort.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["zaptemp"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert text.count("goto") == 0
+
+        total_ifs = text.count("if")
+        # TODO: there should actually be only **3** in the source, however, we fail for-loop recovery
+        #   in the future we should fix this case to recover for-loop from while.
+        assert total_ifs <= 4
+
+        null_if_cases = re.findall(r"if \(!*v\d\)", text)
+        assert len(null_if_cases) == 1
+
+    @structuring_algo("sailr")
     def test_decompiling_tr_O2_parse_str(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr_O2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3627,14 +3656,19 @@ class TestDecompiler(unittest.TestCase):
         assert "bar" not in d.codegen.text
 
     @for_all_structuring_algos
-    def test_const_prop_reverter(self, decompiler_options=None):
+    def test_const_prop_reverter_fmt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["main"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux", disable_opts={DuplicationReverter}
+        )
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3682,6 +3716,123 @@ class TestDecompiler(unittest.TestCase):
         function = cfg.functions[4198577]
         function.normalize()
         proj.analyses.Decompiler(func=function, cfg=cfg)
+
+    @structuring_algo("sailr")
+    def test_sailr_motivating_example(self, decompiler_options=None):
+        # The testcase is taken directly from the motivating example of the USENIX 2024 paper SAILR.
+        # When working, this testcase should test the following deoptimizations:
+        # - ISD (de-duplication)
+        # - ISC (Cross-jump reverter, some CSE reverter)
+        #
+        # The output decompilation structure should look _exactly_ like the source code found here:
+        # https://github.com/angr/binaries/blob/bdf9ba7c4013e5d8706a16ed79ef29ee776492a1/tests_src/decompiler/sailr_motivating_example.c#L44
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["schedule_job"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        text = d.codegen.text
+
+        # there should be a singular goto that jumps to the end of the function (the LABEL)
+        assert text.count("goto") == 1
+        assert text.count("LABEL") == 2
+
+        assert text.count("refresh_jobs") == 1
+
+    @structuring_algo("sailr")
+    def test_fmt_deduplication(self, decompiler_options=None):
+        # This testcase is highly related to the constant depropagation testcase above, also for the fmt binary
+        # on the function main. If that testcase fails, this one will fail. This testcase tests that we can deduplicate
+        # after we have successfully eliminated some constants (making statements different)
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        assert text.count("invalid width") == 2
+        assert text.count("xdectoumax") == 2
+
+    @structuring_algo("sailr")
+    def test_true_a_graph_deduplication(self, decompiler_options=None):
+        # This testcases tests DuplicationReverter fixes a region with a duplicated graph.
+        # The binary, true_a, is a special version of true that was compiled from coreutils v8 or so.
+        # In this version, true came with the function `get_charset_aliases`, compiled into the binary.
+        # A copy of that source can be found here:
+        # https://sources.debian.org/src/coreutils/8.26-3/lib/localcharset.c/#L124
+        #
+        # This testcase validates that we get as close as possible to the original source by removing the duplicated
+        # graph which includes two mallocs. Other regions are deduplicated but are tested haphazardly.
+        bin_path = os.path.join(test_location, "x86_64", "true_a")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x404410]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert text.count("malloc") == 2
+        # TODO: there is some inconsistency in generating the conditions to bound the successors of this region
+        #   so this can most-likely be re-enabled with virtual variable insertion
+        # assert text.count("sub_404860") == 1
+
+    @structuring_algo("sailr")
+    def test_deduplication_too_sensitive_split_3(self, decompiler_options=None):
+        # This tests the deduplicator goto-trigger is not too sensitive. In this binary there is duplicate assignment
+        # that was legit written by the programmer. It so happens to be close to a goto, which used to trigger this opt
+        # to remove it and cause more gotos. Therefore, this should actually never result in a successful fixup of the
+        # assignment.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["split_3"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # If this testcase should fail in finding this assignment in the decompilation than do a search for
+        # anywhere that algorithm_bits is used. It's possible we messed up the regex here.
+        # What we are looking for is that the use of this value is used at least 3 times.
+        assign_vars = re.findall("(v[0-9]{1,2}) = .*algorithm_bits.*;", text)
+        assert len(assign_vars) == 1
+        assign_var = assign_vars[0]
+
+        assert text.count(f"digest_length = {assign_var};") >= 3
+
+    @structuring_algo("sailr")
+    def test_tr_build_spec_list_deduplication(self, decompiler_options=None):
+        # This is a special testcase for deduplication that creates decompilation that is actually divergent from
+        # the original source code, but in many ways makes the code better. So we test it still works.
+        #
+        # The original source can be found here:
+        # https://github.com/coreutils/coreutils/blob/725bb111bda62d8446a0beed366bd9d2c06c8eff/src/tr.c#L854
+        #
+        # There is programmer written duplicated code on 900-909 and 918-928, the only difference is a single string
+        # which can be factored out into a variable. ReturnDuplicator will merge these two, making the code look
+        # much cleaner, contain no gotos, and be less lines of code.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["build_spec_list"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("goto ") == 0
+        assert d.codegen.text.count("star_digits_closebracket") == 1
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
 from .deadblock_remover import DeadblockRemover
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .const_prop_reverter import ConstPropOptReverter
+from .duplication_reverter import DuplicationReverter
 
 # order matters!
 _all_optimization_passes = [
@@ -50,6 +51,7 @@ _all_optimization_passes = [
     (DeadblockRemover, True),
     (SwitchDefaultCaseDuplicator, True),
     (ConstPropOptReverter, True),
+    (DuplicationReverter, True),
     (LoweredSwitchSimplifier, True),
     (ReturnDuplicatorLow, True),
     (ReturnDeduplicator, True),
@@ -62,7 +64,7 @@ _all_optimization_passes = [
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicatorLow, ReturnDuplicatorHigh, CrossJumpReverter]
 # these passes may destroy blocks by merging them into semantically equivalent blocks
-CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator]
+CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator, DuplicationReverter]
 
 
 def get_optimization_passes(arch, platform):
