@@ -499,7 +499,7 @@ class SimProcedure:
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
+        saved_local_vars = list(zip(self.local_vars, (getattr(self, name) for name in self.local_vars)))
         simcallstack_entry = (
             self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
             self.arguments,

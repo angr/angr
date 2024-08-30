@@ -658,9 +658,7 @@ class SimIROp:
         elements = dReg.chop(vector_size)
 
         # Generate new elements
-        new_elements = map(
-            lambda i: claripy.If(vector_count - 1 - i == index, element, elements[i]), range(vector_count)
-        )
+        new_elements = (claripy.If(vector_count - 1 - i == index, element, elements[i]) for i in range(vector_count))
         return claripy.Concat(*new_elements)
 
     def _op_generic_Mull(self, args):

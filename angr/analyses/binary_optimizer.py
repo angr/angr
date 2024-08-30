@@ -152,7 +152,7 @@ class BinaryOptimizer(Analysis):
                 SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"],
                 SIM_PROCEDURES["stubs"]["UnresolvableCallTarget"],
             )
-            if any([n.sim_procedure in unresolvable_targets for n in f.graph.nodes() if isinstance(n, HookNode)]):
+            if any(n.sim_procedure in unresolvable_targets for n in f.graph.nodes() if isinstance(n, HookNode)):
                 continue
 
             if len(f.block_addrs_set) > self.BLOCKS_THRESHOLD:

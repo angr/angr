@@ -94,7 +94,7 @@ class PatchManager(KnowledgeBasePlugin):
 
     def apply_patches_to_binary(self, binary_bytes: bytes | None = None, patches: list[Patch] | None = None) -> bytes:
         if patches is None:
-            patches = sorted(list(self._patches.values()), key=lambda x: x.addr)
+            patches = sorted(self._patches.values(), key=lambda x: x.addr)
 
         if binary_bytes is None:
             with open(self._kb._project.loader.main_object.binary, "rb") as f:

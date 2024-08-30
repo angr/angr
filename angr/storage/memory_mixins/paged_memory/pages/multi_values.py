@@ -272,7 +272,7 @@ class MultiValues:
         :return:        The adjacent offset as requested. If the requested adjacent offset does not exist, return None.
         """
 
-        sorted_offsets = list(sorted(self._values.keys())) if self._values is not None else [0]
+        sorted_offsets = sorted(self._values.keys()) if self._values is not None else [0]
 
         for i, off in enumerate(sorted_offsets):
             if off == offset:

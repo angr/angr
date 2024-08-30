@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Disable some pylint warnings: no-self-use, missing-docstring
-# pylint: disable=R0201,C0111,bad-builtin
+# pylint: disable=R0201,C0111,bad-builtin,expression-not-assigned,no-member
 from __future__ import annotations
 
 import os
@@ -29,23 +29,17 @@ from angr.utils.constants import DEFAULT_STATEMENT
 class InsnAndNodeObserveTestingUtils:
     @staticmethod
     def assert_for_live_definitions(assertion, live_definition_1, live_definition_2):
-        list(
-            map(
-                lambda attr: {
-                    assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)
-                },
-                ["registers", "stack", "memory"],
-            )
-        )
+        [
+            {assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)}
+            for attr in ["registers", "stack", "memory"]
+        ]
         assertion(live_definition_1.tmps, live_definition_2.tmps)
 
     @staticmethod
     def filter(observed_results, observation_points):
         # Return only the observed results associated with the observation points,
         # and do not fail if an observation point do not appear in the observed results.
-        return list(
-            map(lambda key: observed_results[key], filter(lambda key: key in observed_results, observation_points))
-        )
+        return [observed_results[key] for key in filter(lambda key: key in observed_results, observation_points)]
 
     @staticmethod
     def setup(observation_points):
@@ -117,23 +111,20 @@ class TestReachingDefinitions(TestCase):
 
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
-            unsorted_result = map(
-                lambda x: {
+            unsorted_result = (
+                {
                     "key": x[0],
                     "register_definitions": self._extract_all_definitions_from_storage(x[1].registers),
                     "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack),
                     "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory),
-                },
-                [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"],
+                }
+                for x in [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"]
             )
-            return list(sorted(unsorted_result, key=lambda x: x["key"]))
+            return sorted(unsorted_result, key=lambda x: x["key"])
 
-        binaries_and_results = list(
-            map(
-                lambda binary: (_binary_path(binary), _result_path(binary + "_definitions")),
-                ["all", "fauxware", "loop"],
-            )
-        )
+        binaries_and_results = [
+            (_binary_path(binary), _result_path(binary + "_definitions")) for binary in ["all", "fauxware", "loop"]
+        ]
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={"auto_load_libs": False})
@@ -144,14 +135,11 @@ class TestReachingDefinitions(TestCase):
 
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
-            return list(sorted(rda.visited_blocks, key=lambda b: b.addr))
+            return sorted(rda.visited_blocks, key=lambda b: b.addr)
 
-        binaries_and_results = list(
-            map(
-                lambda binary: (_binary_path(binary), _result_path(binary + "_visited_blocks")),
-                ["all", "fauxware", "loop"],
-            )
-        )
+        binaries_and_results = [
+            (_binary_path(binary), _result_path(binary + "_visited_blocks")) for binary in ["all", "fauxware", "loop"]
+        ]
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={"auto_load_libs": False})
@@ -189,12 +177,10 @@ class TestReachingDefinitions(TestCase):
         expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
-        list(
-            map(
-                lambda x: InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1]),
-                zip(results, expected_results),
-            )
-        )
+        [
+            InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
+            for x in zip(results, expected_results)
+        ]
 
     def test_insn_observe_before_an_imark_pyvex_statement(self):
         # Create several different observation points
@@ -212,12 +198,10 @@ class TestReachingDefinitions(TestCase):
         expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
-        list(
-            map(
-                lambda x: InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1]),
-                zip(results, expected_results),
-            )
-        )
+        [
+            InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
+            for x in zip(results, expected_results)
+        ]
 
     def test_insn_observe_after_a_pyvex_statement(self):
         # Create several different observation points
@@ -237,12 +221,10 @@ class TestReachingDefinitions(TestCase):
         expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
-        list(
-            map(
-                lambda x: InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1]),
-                zip(results, expected_results),
-            )
-        )
+        [
+            InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
+            for x in zip(results, expected_results)
+        ]
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path("all")

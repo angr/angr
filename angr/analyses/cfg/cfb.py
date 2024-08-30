@@ -171,7 +171,7 @@ class CFBlanket(Analysis):
                 self._regions.append(mr)
 
         # Sort them just in case
-        self._regions = list(sorted(self._regions, key=lambda x: x.addr))
+        self._regions = sorted(self._regions, key=lambda x: x.addr)
 
     @property
     def regions(self):

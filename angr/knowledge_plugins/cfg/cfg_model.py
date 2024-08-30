@@ -102,7 +102,7 @@ class CFGModel(Serializable):
     #
 
     def __getstate__(self):
-        state = dict(map(lambda x: (x, self.__getattribute__(x)), self.__slots__))
+        state = {x: self.__getattribute__(x) for x in self.__slots__}
 
         return state
 
@@ -178,7 +178,7 @@ class CFGModel(Serializable):
                     "The resulting graph may be broken."
                 )
 
-        model._node_addrs = list(sorted(model._nodes_by_addr.keys()))
+        model._node_addrs = sorted(model._nodes_by_addr.keys())
 
         # edges
         for edge_pb2 in cmsg.edges:
