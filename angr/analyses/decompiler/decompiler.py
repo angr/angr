@@ -218,7 +218,13 @@ class Decompiler(Analysis):
         delay_graph_updates = any(
             pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
         )
-        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates, variable_creator=variable_creator)
+        ri = self._recover_regions(
+            clinic.graph,
+            cond_proc,
+            update_graph=not delay_graph_updates,
+            variable_creator=variable_creator,
+            loop_successor_tree_type=loop_successor_tree_type,
+        )
 
         # run optimizations that may require re-RegionIdentification
         clinic.graph, ri = self._run_region_simplification_passes(
@@ -244,9 +250,9 @@ class Decompiler(Analysis):
                 cond_proc=cond_proc,
                 func=self.func,
                 variable_creator=variable_creator,
-            **self._recursive_structurer_params,
-        )
-        self._update_progress(80.0, text="Simplifying regions")
+                **self._recursive_structurer_params,
+            )
+            self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it
             s = self.project.analyses.RegionSimplifier(
@@ -289,7 +295,14 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
-    def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True, variable_creator=None):
+    def _recover_regions(
+        self,
+        graph: networkx.DiGraph,
+        condition_processor,
+        update_graph: bool = True,
+        variable_creator=None,
+        loop_successor_tree_type=None,
+    ):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func,
             graph=graph,
@@ -297,6 +310,7 @@ class Decompiler(Analysis):
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             complete_successors=self._complete_successors,
+            loop_successor_tree_type=loop_successor_tree_type,
             variable_creator=variable_creator,
             **self.options_to_params(self.options_by_class["region_identifier"]),
         )
