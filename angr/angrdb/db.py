@@ -40,10 +40,10 @@ class AngrDB:
             Base.metadata.create_all(engine)
             Session = sessionmaker(bind=engine)
             yield Session
-        except DatabaseError:
-            raise AngrCorruptDBError("The target file may not be an angr database or it is corrupted.")
+        except DatabaseError as ex:
+            raise AngrCorruptDBError("The target file may not be an angr database or it is corrupted.") from ex
         except Exception as ex:
-            raise AngrDBError(str(ex))
+            raise AngrDBError(str(ex)) from ex
 
     @staticmethod
     @contextmanager

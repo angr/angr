@@ -75,14 +75,14 @@ class SimUserland(SimOS):
         sym_num = cc.syscall_num(state)
         try:
             num = state.solver.eval_one(sym_num)
-        except SimSolverError:
+        except SimSolverError as err:
             if allow_unsupported:
                 num = self.unknown_syscall_number
             else:
                 if not state.solver.satisfiable():
-                    raise AngrUnsupportedSyscallError("The program state is not satisfiable")
+                    raise AngrUnsupportedSyscallError("The program state is not satisfiable") from err
                 else:
-                    raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
+                    raise AngrUnsupportedSyscallError("Got a symbolic syscall number") from err
 
         proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported, abi=abi)
         proc.cc = cc

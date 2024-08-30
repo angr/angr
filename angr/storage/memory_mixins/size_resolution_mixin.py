@@ -113,9 +113,9 @@ class SizeConcretizationMixin(MemoryMixin):
                 conc_sizes = list(
                     self.state.solver.eval_upto(size, self._max_concretize_count, extra_constraints=(size <= max_size,))
                 )
-        except SimUnsatError:
+        except SimUnsatError as err:
             # size has to be greater than max_size
-            raise SimMemoryError("Not enough data for store")
+            raise SimMemoryError("Not enough data for store") from err
 
         # filter out all concrete sizes that are greater than max_size
         # Note that the VSA solver (used in static mode) cannot precisely handle extra constraints. As a result, we may

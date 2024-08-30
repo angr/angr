@@ -1159,8 +1159,8 @@ class SimPacketsSlots(SimFileBase):
 
         try:
             req_size = self.state.solver.eval_one(size)
-        except SimSolverError:
-            raise SimFileError("SimPacketsSlots can't handle multivalued read sizes")
+        except SimSolverError as err:
+            raise SimFileError("SimPacketsSlots can't handle multivalued read sizes") from err
 
         avail_size = self.read_sizes[0]
 

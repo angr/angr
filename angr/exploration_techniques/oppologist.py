@@ -86,9 +86,9 @@ class Oppologist(ExplorationTechnique):
                     return self._delayed_oppology(simgr, state, e, **kwargs)
                 else:
                     return self._oppologize(simgr, state, state.copy(), **kwargs)
-            except exc_list:  # pylint:disable=broad-except
+            except exc_list as err:
                 l.error("Oppologizer hit an error while trying to perform repairs", exc_info=True)
-                raise e
+                raise e from err
         except Exception:  # pylint:disable=broad-except
             l.error("Original block hit an unsupported error", exc_info=True)
             raise

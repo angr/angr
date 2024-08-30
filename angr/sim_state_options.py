@@ -109,8 +109,8 @@ class SimStateOptions:
 
         try:
             return self.OPTIONS[key]
-        except KeyError:
-            raise SimStateOptionsError(f"The state option '{key}' does not exist.")
+        except KeyError as err:
+            raise SimStateOptionsError(f"The state option '{key}' does not exist.") from err
 
     def __repr__(self):
         s = "<SimStateOptions>"

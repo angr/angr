@@ -273,7 +273,7 @@ class CallFunctionGoal(BaseGoal):
         cc = default_cc(arch.name, platform=state.project.simos.name if state.project.simos is not None else None)(arch)
         real_args = cc.get_args(state, cc.guess_prototype([0] * len(self.arguments)))
 
-        for i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):
+        for _i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):
             if expected_arg is None:
                 continue
 

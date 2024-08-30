@@ -144,8 +144,8 @@ class FunctionParser:
                     project,
                     all_func_addrs=all_func_addrs,
                 )
-            except KeyError:
-                raise KeyError(f"Address of the edge source {edge_cmsg.src_ea:#x} is not found.")
+            except KeyError as err:
+                raise KeyError(f"Address of the edge source {edge_cmsg.src_ea:#x} is not found.") from err
 
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
@@ -178,8 +178,8 @@ class FunctionParser:
                         project,
                         all_func_addrs=all_func_addrs,
                     )
-                except KeyError:
-                    raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.")
+                except KeyError as err:
+                    raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
             data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
             data["outside"] = edge_cmsg.is_outside

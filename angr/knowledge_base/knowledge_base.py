@@ -88,8 +88,8 @@ class KnowledgeBase:
     def __getattr__(self, v):
         try:
             return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
+        except KeyError as err:
+            raise AttributeError(v) from err
 
     def __setattr__(self, k, v):
         self.register_plugin(k, v)

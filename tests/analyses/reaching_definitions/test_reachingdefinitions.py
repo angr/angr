@@ -37,7 +37,7 @@ class InsnAndNodeObserveTestingUtils:
                 ["registers", "stack", "memory"],
             )
         )
-        assertion(getattr(live_definition_1, "tmps"), getattr(live_definition_2, "tmps"))
+        assertion(live_definition_1.tmps, live_definition_2.tmps)
 
     @staticmethod
     def filter(observed_results, observation_points):
