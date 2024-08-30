@@ -57,7 +57,7 @@ def ail_graph_similarity(block0: Block, block1: Block, graph: nx.DiGraph, only_b
             all_match = True
             for pred1 in preds:
                 for pred2 in preds:
-                    if set(list(graph.successors(pred1))) != set(list(graph.successors(pred2))):
+                    if set(graph.successors(pred1)) != set(graph.successors(pred2)):
                         all_match = False
                         break
 
@@ -76,7 +76,7 @@ def ail_graph_similarity(block0: Block, block1: Block, graph: nx.DiGraph, only_b
         # verify all the blocks end in that statement or exclude its children
         for idx, b in enumerate([b0, b1]):
             if len(lcs) + lcs_idxs[idx] != len(b.statements):
-                discontinuity_blocks.update(set(list(graph.successors(b))))
+                discontinuity_blocks.update(set(graph.successors(b)))
 
         # can output blocks only if needed
         similarity += lcs if not only_blocks else [(b0, b1)]
