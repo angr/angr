@@ -238,7 +238,7 @@ def compute_dominance_frontier(graph, domtree):
 
 def dump_graph(graph: networkx.DiGraph, path: str) -> None:
     def unique_repr(nn):
-        return f'"{repr(nn)}_{str(id(nn))[-4:]}"'
+        return f'"{nn!r}_{str(id(nn))[-4:]}"'
 
     graph_with_str = networkx.DiGraph()
 

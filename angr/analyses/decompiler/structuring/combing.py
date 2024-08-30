@@ -1,4 +1,6 @@
-from typing import Dict, Optional, Any, Tuple, List, DefaultDict, OrderedDict as ODict, Set, Union, TYPE_CHECKING
+from __future__ import annotations
+from typing import Optional, Any, DefaultDict, TYPE_CHECKING
+from collections import OrderedDict as ODict
 from itertools import count
 from collections import defaultdict, OrderedDict
 import logging
@@ -98,8 +100,8 @@ class CombingStructurer(StructurerBase):
         region,
         parent_map=None,
         condition_processor=None,
-        func: Optional["Function"] = None,
-        case_entry_to_switch_head: Optional[Dict[int, int]] = None,
+        func: Optional[Function] = None,
+        case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         improve_structurer: bool = False,
         **kwargs,
@@ -156,7 +158,7 @@ class CombingStructurer(StructurerBase):
 
         return has_cycles
 
-    def _elect_region_head(self) -> Tuple[Any, List[Tuple[Any, Any]]]:
+    def _elect_region_head(self) -> tuple[Any, list[tuple[Any, Any]]]:
         """
         Find all retreating edges, and then return the node with the highest number of retreating edges as the
         destination node.
@@ -185,7 +187,7 @@ class CombingStructurer(StructurerBase):
 
         return elected_loop_head, abnormal_retreating_edges
 
-    def _normalize_retreating_edges(self, region_head: Any, abnormal_retreating_edges: List[Tuple[Any, Any]]):
+    def _normalize_retreating_edges(self, region_head: Any, abnormal_retreating_edges: list[tuple[Any, Any]]):
         """
         Create a new variable and assign a unique identifier for each node with an incoming retreating edge. The region
         head is always assigned 0 as its unique identifier.
@@ -378,7 +380,7 @@ class CombingStructurer(StructurerBase):
             g.remove_node(dummy_exit_node)
 
     @staticmethod
-    def _ensure_one_exit_node(g: networkx.DiGraph) -> Tuple[Any, Any]:
+    def _ensure_one_exit_node(g: networkx.DiGraph) -> tuple[Any, Any]:
         if "Dummy" in g:
             # we have already added a Dummy node
             return "Dummy", "Dummy"
@@ -399,7 +401,7 @@ class CombingStructurer(StructurerBase):
         return exit_node, dummy_exit_node
 
     def _comb_core(
-        self, g: networkx.DiGraph, full_g: networkx.DiGraph, exit_node: Any, dummy_exit_node: Optional[str]
+        self, g: networkx.DiGraph, full_g: networkx.DiGraph, exit_node: Any, dummy_exit_node: str | None
     ) -> bool:
         """
         Comb a conditional node.
@@ -467,7 +469,7 @@ class CombingStructurer(StructurerBase):
         return combed, exit_node, dummy_exit_node
 
     def _ensure_two_predecessors(
-        self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, dummy_node: Optional[str]
+        self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, dummy_node: str | None
     ) -> bool:
         """
         Insert dummy nodes to ensure the two-predecessor property.
@@ -507,13 +509,15 @@ class CombingStructurer(StructurerBase):
             _l.debug("... enforced")
         return bool(nodes_with_more_than_two_preds)
 
-    def _match_constructs(self, has_cycles: bool) -> Optional[BaseNode]:
+    def _match_constructs(self, has_cycles: bool) -> BaseNode | None:
         while True:
             any_matched = self._match_acyclic_schemas(
                 self._region.graph,
-                self._region.graph_with_successors
-                if self._region.graph_with_successors is not None
-                else networkx.DiGraph(self._region.graph),
+                (
+                    self._region.graph_with_successors
+                    if self._region.graph_with_successors is not None
+                    else networkx.DiGraph(self._region.graph)
+                ),
             )
             if len(self._region.graph) == 1:
                 break
@@ -800,7 +804,7 @@ class CombingStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
-        case_entries: Dict[int, int] = {}
+        case_entries: dict[int, int] = {}
         for _, case_value, case_target_addr, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
@@ -993,7 +997,7 @@ class CombingStructurer(StructurerBase):
         return True
 
     def _match_acyclic_incomplete_switch_cases(
-        self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: Dict
+        self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: dict
     ) -> bool:
         # sanity checks
         if node.addr not in jump_tables:
@@ -1024,9 +1028,9 @@ class CombingStructurer(StructurerBase):
         return False
 
     def _switch_build_cases(
-        self, case_and_entryaddrs: Dict[int, int], head_node, node_a: BaseNode, node_b_addr, graph, full_graph
-    ) -> Tuple[ODict, Any, Set[Any]]:
-        cases: ODict[Union[int, Tuple[int]], SequenceNode] = OrderedDict()
+        self, case_and_entryaddrs: dict[int, int], head_node, node_a: BaseNode, node_b_addr, graph, full_graph
+    ) -> tuple[ODict, Any, set[Any]]:
+        cases: ODict[int | tuple[int], SequenceNode] = OrderedDict()
         to_remove = set()
 
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
@@ -1034,11 +1038,11 @@ class CombingStructurer(StructurerBase):
         # successor to node_a
         default_node_candidates = [nn for nn in graph.nodes if nn.addr == node_b_addr]
         if len(default_node_candidates) == 0:
-            node_default: Optional[BaseNode] = None
+            node_default: BaseNode | None = None
         elif len(default_node_candidates) == 1:
-            node_default: Optional[BaseNode] = default_node_candidates[0]
+            node_default: BaseNode | None = default_node_candidates[0]
         else:
-            node_default: Optional[BaseNode] = next(
+            node_default: BaseNode | None = next(
                 iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
             )
 
@@ -1050,8 +1054,8 @@ class CombingStructurer(StructurerBase):
             node_default = new_node
 
         # entry_addrs_set = set(jumptable_entries)
-        converted_nodes: Dict[int, Any] = {}
-        entry_addr_to_ids: DefaultDict[int, Set[int]] = defaultdict(set)
+        converted_nodes: dict[int, Any] = {}
+        entry_addr_to_ids: DefaultDict[int, set[int]] = defaultdict(set)
 
         # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
@@ -1119,7 +1123,7 @@ class CombingStructurer(StructurerBase):
         cases: ODict,
         node_default,
         addr,
-        to_remove: Set,
+        to_remove: set,
         graph: networkx.DiGraph,
         full_graph: networkx.DiGraph,
         node_a=None,
@@ -1212,7 +1216,7 @@ class CombingStructurer(StructurerBase):
         return True
 
     def _apply_node_duplication(
-        self, g: networkx.DiGraph, full_g: Optional[networkx.DiGraph], idoms: Dict, head: Any, nn: Any
+        self, g: networkx.DiGraph, full_g: networkx.DiGraph | None, idoms: dict, head: Any, nn: Any
     ) -> bool:
         # split the edges into two sets
         preds = list(g.predecessors(nn))
@@ -1251,7 +1255,7 @@ class CombingStructurer(StructurerBase):
         return True
 
     @staticmethod
-    def _find_nodes_between(g: networkx.DiGraph, start_node: Any, end_node: Any) -> List[Any]:
+    def _find_nodes_between(g: networkx.DiGraph, start_node: Any, end_node: Any) -> list[Any]:
         nodes_in_between = []
         visited = {start_node}
 
@@ -1269,7 +1273,7 @@ class CombingStructurer(StructurerBase):
         return nodes_in_between
 
     @staticmethod
-    def idoms_and_ipostdoms(graph: networkx.DiGraph, head: Any, end: Any) -> Tuple[Dict, Dict]:
+    def idoms_and_ipostdoms(graph: networkx.DiGraph, head: Any, end: Any) -> tuple[dict, dict]:
         inverted_g = networkx.DiGraph()
         inverted_g.add_nodes_from(graph)
         inverted_g.add_edges_from([(dst, src) for src, dst in graph.edges])

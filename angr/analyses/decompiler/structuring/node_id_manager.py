@@ -1,4 +1,4 @@
-from typing import Dict
+from __future__ import annotations
 
 
 class NodeIdManager:
@@ -13,7 +13,7 @@ class NodeIdManager:
 
     def __init__(self, base_id: int = 1):
         self.base_id = base_id
-        self.next_id: Dict[int, int] = {}
+        self.next_id: dict[int, int] = {}
 
     def next_node_id(self, addr: int) -> int:
         if addr not in self.next_id:

@@ -2,7 +2,7 @@ from __future__ import annotations
 from itertools import count
 from collections import defaultdict
 import logging
-from typing import List, Optional, Union, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import networkx
 
@@ -47,7 +47,7 @@ class RegionIdentifier(Analysis):
         force_loop_single_exit=True,
         loop_successor_tree_type=None,
         complete_successors=False,
-        variable_creator: "VariableCreator" = None,
+        variable_creator: VariableCreator = None,
     ):
         self.function = func
         self.cond_proc = (
@@ -605,7 +605,7 @@ class RegionIdentifier(Analysis):
 
     def _create_loop_successor_tree_conditioned(
         self, region
-    ) -> Tuple[networkx.DiGraph, Block, List[Tuple[Block, int]]]:
+    ) -> tuple[networkx.DiGraph, Block, list[tuple[Block, int]]]:
         # recover reaching conditions
         self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
@@ -650,7 +650,7 @@ class RegionIdentifier(Analysis):
 
         return g, head, edges
 
-    def _create_loop_successor_tree_statevars(self, region) -> Tuple[networkx.DiGraph, Block, List[Tuple[Block, int]]]:
+    def _create_loop_successor_tree_statevars(self, region) -> tuple[networkx.DiGraph, Block, list[tuple[Block, int]]]:
         # create a new (and unique to this entire function) status variable
         state_var_offset, _ = self._variable_creator.next_variable()
         # FIXME: Using state_var_offset as the ID for Register is incorrect and may cause ID conflicts in large functions
