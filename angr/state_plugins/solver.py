@@ -328,7 +328,16 @@ class SimSolver(SimStatePlugin):
     # Get unconstrained stuff
     #
     def Unconstrained(
-        self, name, bits, uninitialized=True, inspect=True, events=True, key=None, eternal=False, **kwargs
+        self,
+        name,
+        bits,
+        uninitialized=True,
+        inspect=True,
+        events=True,
+        key=None,
+        eternal=False,
+        uc_alloc_depth=None,
+        **kwargs,
     ):
         """
         Creates an unconstrained symbol or a default concrete value (0), based on the state options.
@@ -355,28 +364,18 @@ class SimSolver(SimStatePlugin):
                 r = claripy.TSI(bits=bits, name=name, uninitialized=uninitialized, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
-                if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(
-                        name,
-                        bits,
-                        uninitialized=uninitialized,
-                        key=key,
-                        eternal=eternal,
-                        inspect=inspect,
-                        events=events,
-                        **kwargs,
-                    )
-                else:
-                    r = self.BVS(
-                        name,
-                        bits,
-                        uninitialized=uninitialized,
-                        key=key,
-                        eternal=eternal,
-                        inspect=inspect,
-                        events=events,
-                        **kwargs,
-                    )
+                r = self.BVS(
+                    name,
+                    bits,
+                    uninitialized=uninitialized,
+                    key=key,
+                    eternal=eternal,
+                    inspect=inspect,
+                    events=events,
+                    **kwargs,
+                )
+                if uc_alloc_depth is not None:
+                    self.state.uc_manager.set_alloc_depth(r, uc_alloc_depth)
 
             return r
         # Return a default value, aka. 0

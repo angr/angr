@@ -10,6 +10,8 @@ l = logging.getLogger(name=__name__)
 
 
 class SimUCManager(SimStatePlugin):
+    _uc_alloc_depth: dict[claripy.ast.Base, int]
+
     def __init__(self, man=None):
         SimStatePlugin.__init__(self)
 
@@ -33,6 +35,8 @@ class SimUCManager(SimStatePlugin):
         # The maximum allocation depth
         self._max_alloc_depth = 20
 
+        self._uc_alloc_depth = {}
+
     def assign(self, dst_addr_ast):
         """
         Assign a new region for under-constrained symbolic execution.
@@ -41,17 +45,17 @@ class SimUCManager(SimStatePlugin):
         :return: as ast of memory address that points to a new region
         """
 
-        if dst_addr_ast.uc_alloc_depth > self._max_alloc_depth:
+        dst_uc_alloc_depth = self._uc_alloc_depth[dst_addr_ast]
+        if dst_uc_alloc_depth > self._max_alloc_depth:
             raise SimUCManagerAllocationError(
-                "Current allocation depth %d is greater than the cap (%d)"
-                % (dst_addr_ast.uc_alloc_depth, self._max_alloc_depth)
+                "Current allocation depth %d is greater than the cap (%d)" % (dst_uc_alloc_depth, self._max_alloc_depth)
             )
 
         abs_addr = self._region_base + self._pos
         ptr = claripy.BVV(abs_addr, self.state.arch.bits)
         self._pos += self._region_size
 
-        self._alloc_depth_map[(abs_addr - self._region_base) // self._region_size] = dst_addr_ast.uc_alloc_depth
+        self._alloc_depth_map[(abs_addr - self._region_base) // self._region_size] = dst_uc_alloc_depth
 
         l.debug("Assigned new memory region %s", ptr)
         return ptr
@@ -60,13 +64,15 @@ class SimUCManager(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         return SimUCManager(man=self)
 
-    def get_alloc_depth(self, addr):
+    def get_alloc_depth(self, addr: int | claripy.ast.Base) -> int | None:
+        if isinstance(addr, claripy.ast.Base):
+            return self._uc_alloc_depth.get(addr, None)
+
         block_pos = (addr - self._region_base) // self._region_size
+        return self._alloc_depth_map.get(block_pos, None)
 
-        if block_pos not in self._alloc_depth_map:
-            return None
-
-        return self._alloc_depth_map[block_pos]
+    def set_alloc_depth(self, addr: claripy.ast.Base, depth: int):
+        self._uc_alloc_depth[addr] = depth
 
     def is_bounded(self, ast):
         """
