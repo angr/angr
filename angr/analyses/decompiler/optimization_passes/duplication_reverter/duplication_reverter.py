@@ -388,7 +388,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_node = node
             if graph.out_degree(node) == 1:
                 last_stmt = node.statements[-1]
-                successor = list(graph.successors(node))[0]
+                successor = next(iter(graph.successors(node)))
                 if isinstance(last_stmt, Jump):
                     if last_stmt.target.value != successor.addr:
                         new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
@@ -558,6 +558,13 @@ class DuplicationReverter(StructuringOptimizationPass):
         return can_move
 
     def maximize_similarity_of_blocks(self, block1, block2, graph) -> tuple[Block, Block]:
+        """
+        This attempts to rearrange the order of statements in block1 and block2 to maximize the similarity between them.
+        This implementation is a little outdated since CodeMotion optimization was implemented, but it should
+        be disabled until we have a good SSA implementation.
+
+        TODO: reimplement me when we have better SSA
+        """
         new_block1, new_block2 = block1.copy(), block2.copy()
 
         updates = True
@@ -681,9 +688,9 @@ class DuplicationReverter(StructuringOptimizationPass):
         if len(ail_merge_graph.graph.nodes) == 1 and all(
             not splits for splits in ail_merge_graph.original_split_blocks.values()
         ):
-            new_node = list(ail_merge_graph.graph.nodes)[0]
-            base_successor = list(graph.successors(blocks[0]))[0]
-            other_successor = list(graph.successors(blocks[1]))[0]
+            new_node = next(iter(ail_merge_graph.graph.nodes))
+            base_successor = next(iter(graph.successors(blocks[0])))
+            other_successor = next(iter(graph.successors(blocks[1])))
             conditional_block, true_target = self._construct_best_condition_block_for_merge(blocks, graph)
             if true_target == blocks[0]:
                 conditional_block.statements[-1].true_target.value = base_successor.addr
@@ -731,7 +738,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         # check if at least one block in succesors match
         mismatched_blocks = {}
-        for target_type in block_to_target_map[block1].keys():
+        for target_type in block_to_target_map[block1]:
             t1_blk, t2_blk = block_to_target_map[block1][target_type], block_to_target_map[block2][target_type]
             if not is_similar(t1_blk, t2_blk, partial=True):
                 mismatched_blocks[target_type] = {block1: t1_blk, block2: t2_blk}
@@ -939,11 +946,7 @@ class DuplicationReverter(StructuringOptimizationPass):
     #
 
     def _share_subregion(self, blocks: list[Block]) -> bool:
-        for region in self._ri.regions_by_block_addrs:
-            if all(block.addr in region for block in blocks):
-                return True
-
-        return False
+        return any(all(block.addr in region for block in blocks) for region in self._ri.regions_by_block_addrs)
 
     def _is_valid_candidate(self, b0, b1):
         # blocks must have statements
@@ -1166,10 +1169,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         if graph not in self._entry_node_cache:
             entry_blocks = [node for node in graph.nodes if graph.in_degree(node) == 0]
-            if len(entry_blocks) != 1:
-                entry_block = None
-            else:
-                entry_block = entry_blocks[0]
+            entry_block = None if len(entry_blocks) != 1 else entry_blocks[0]
 
             self._entry_node_cache[graph] = entry_block
             if entry_block is None:
