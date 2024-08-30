@@ -1185,15 +1185,13 @@ class Clinic(Analysis):
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
-                    elif isinstance(arg, SimStructArg):
+                    else:
                         argvar = SimVariable(
                             ident="arg_%d" % idx,
                             name=arg_names[idx],
                             region=self.function.addr,
                             size=arg.size,
                         )
-                    else:
-                        raise TypeError(f"Unsupported function argument type {type(arg)}.")
                     arg_vars.append(argvar)
             return arg_vars
         return []
