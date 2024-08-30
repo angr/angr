@@ -662,8 +662,7 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
     if isinstance(rdata_all, tuple):
         return pc_make_rdata_if_necessary(data[platform]["size"], *rdata_all, platform=platform)
-    else:
-        return rdata_all
+    return rdata_all
 
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
@@ -724,59 +723,58 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             raise SimCCallError("Unrecognized condition in pc_calculate_condition. Panic.")
 
         return claripy.Concat(claripy.BVV(0, data[platform]["size"] - 1), r)
-    else:
-        rdata = rdata_all
-        v = op_concretize(cond)
-        inv = v & 1
-        l.debug("inv: %d", inv)
+    rdata = rdata_all
+    v = op_concretize(cond)
+    inv = v & 1
+    l.debug("inv: %d", inv)
 
-        # THIS IS A FUCKING HACK
-        if v == 0xE:
-            # jle
-            pass
-        if v in [data[platform]["CondTypes"]["CondO"], data[platform]["CondTypes"]["CondNO"]]:
-            l.debug("CondO")
-            of = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_O"])
-            return 1 & (inv ^ of)
+    # THIS IS A FUCKING HACK
+    if v == 0xE:
+        # jle
+        pass
+    if v in [data[platform]["CondTypes"]["CondO"], data[platform]["CondTypes"]["CondNO"]]:
+        l.debug("CondO")
+        of = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_O"])
+        return 1 & (inv ^ of)
 
-        if v in [data[platform]["CondTypes"]["CondZ"], data[platform]["CondTypes"]["CondNZ"]]:
-            l.debug("CondZ")
-            zf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_Z"])
-            return 1 & (inv ^ zf)
+    if v in [data[platform]["CondTypes"]["CondZ"], data[platform]["CondTypes"]["CondNZ"]]:
+        l.debug("CondZ")
+        zf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_Z"])
+        return 1 & (inv ^ zf)
 
-        if v in [data[platform]["CondTypes"]["CondB"], data[platform]["CondTypes"]["CondNB"]]:
-            l.debug("CondB")
-            cf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"])
-            return 1 & (inv ^ cf)
+    if v in [data[platform]["CondTypes"]["CondB"], data[platform]["CondTypes"]["CondNB"]]:
+        l.debug("CondB")
+        cf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"])
+        return 1 & (inv ^ cf)
 
-        if v in [data[platform]["CondTypes"]["CondBE"], data[platform]["CondTypes"]["CondNBE"]]:
-            l.debug("CondBE")
-            cf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"])
-            zf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_Z"])
-            return 1 & (inv ^ (cf | zf))
+    if v in [data[platform]["CondTypes"]["CondBE"], data[platform]["CondTypes"]["CondNBE"]]:
+        l.debug("CondBE")
+        cf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"])
+        zf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_Z"])
+        return 1 & (inv ^ (cf | zf))
 
-        if v in [data[platform]["CondTypes"]["CondS"], data[platform]["CondTypes"]["CondNS"]]:
-            l.debug("CondS")
-            sf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_S"])
-            return 1 & (inv ^ sf)
+    if v in [data[platform]["CondTypes"]["CondS"], data[platform]["CondTypes"]["CondNS"]]:
+        l.debug("CondS")
+        sf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_S"])
+        return 1 & (inv ^ sf)
 
-        if v in [data[platform]["CondTypes"]["CondP"], data[platform]["CondTypes"]["CondNP"]]:
-            l.debug("CondP")
-            pf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_P"])
-            return 1 & (inv ^ pf)
+    if v in [data[platform]["CondTypes"]["CondP"], data[platform]["CondTypes"]["CondNP"]]:
+        l.debug("CondP")
+        pf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_P"])
+        return 1 & (inv ^ pf)
 
-        if v in [data[platform]["CondTypes"]["CondL"], data[platform]["CondTypes"]["CondNL"]]:
-            l.debug("CondL")
-            sf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_S"])
-            of = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_O"])
-            return 1 & (inv ^ (sf ^ of))
+    if v in [data[platform]["CondTypes"]["CondL"], data[platform]["CondTypes"]["CondNL"]]:
+        l.debug("CondL")
+        sf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_S"])
+        of = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_O"])
+        return 1 & (inv ^ (sf ^ of))
 
-        if v in [data[platform]["CondTypes"]["CondLE"], data[platform]["CondTypes"]["CondNLE"]]:
-            l.debug("CondLE")
-            sf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_S"])
-            of = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_O"])
-            zf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_Z"])
-            return 1 & (inv ^ ((sf ^ of) | zf))
+    if v in [data[platform]["CondTypes"]["CondLE"], data[platform]["CondTypes"]["CondNLE"]]:
+        l.debug("CondLE")
+        sf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_S"])
+        of = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_O"])
+        zf = claripy.LShR(rdata, data[platform]["CondBitOffsets"]["G_CC_SHIFT_Z"])
+        return 1 & (inv ^ ((sf ^ of) | zf))
 
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
     raise SimCCallError("Unrecognized condition in pc_calculate_condition")
@@ -953,7 +951,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 
     if cc_op == data[platform]["OpTypes"]["G_CC_OP_COPY"]:
         return claripy.LShR(cc_dep1, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]) & 1  # TODO: actual constraints
-    elif cc_op in (
+    if cc_op in (
         data[platform]["OpTypes"]["G_CC_OP_LOGICQ"],
         data[platform]["OpTypes"]["G_CC_OP_LOGICL"],
         data[platform]["OpTypes"]["G_CC_OP_LOGICW"],
@@ -966,8 +964,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
         return claripy.Concat(claripy.BVV(0, data[platform]["size"] - 1), cf & 1)
-    else:
-        return claripy.LShR(rdata_all, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]) & 1
+    return claripy.LShR(rdata_all, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]) & 1
 
 
 def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
@@ -1092,8 +1089,7 @@ def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
             of << data["AMD64"]["CondBitOffsets"]["G_CC_SHIFT_O"]
         )
         return eflags_out
-    else:
-        return arg_out
+    return arg_out
 
 
 def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
@@ -1115,8 +1111,7 @@ def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
             of << data["AMD64"]["CondBitOffsets"]["G_CC_SHIFT_O"]
         )
         return eflags_out
-    else:
-        return arg_out
+    return arg_out
 
 
 def amd64g_calculate_mmx_pmaddwd(_state, xx, yy):
@@ -1192,8 +1187,7 @@ def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
 def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
         return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform="X86")
-    else:
-        return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform="X86")
+    return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform="X86")
 
 
 def x86g_calculate_eflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
@@ -1285,7 +1279,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         r_C = claripy.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
 
-    result = (
+    return (
         ((r_O & 1) << (16 + data["X86"]["CondBitOffsets"]["G_CC_SHIFT_O"]))
         | ((r_S & 1) << (16 + data["X86"]["CondBitOffsets"]["G_CC_SHIFT_S"]))
         | ((r_Z & 1) << (16 + data["X86"]["CondBitOffsets"]["G_CC_SHIFT_Z"]))
@@ -1295,7 +1289,6 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         | ((r_AH & 0xFF) << 8)
         | ((r_AL & 0xFF) << 0)
     )
-    return result
 
 
 def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
@@ -1322,7 +1315,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
     r_Z = claripy.If(r_AL == 0, claripy.BVV(1, 32), claripy.BVV(0, 32))
     r_P = calc_paritybit(r_AL).zero_extend(31)
 
-    result = (
+    return (
         ((r_O & 1) << (16 + data["X86"]["CondBitOffsets"]["G_CC_SHIFT_O"]))
         | ((r_S & 1) << (16 + data["X86"]["CondBitOffsets"]["G_CC_SHIFT_S"]))
         | ((r_Z & 1) << (16 + data["X86"]["CondBitOffsets"]["G_CC_SHIFT_Z"]))
@@ -1332,7 +1325,6 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
         | ((r_AH & 0xFF) << 8)
         | ((r_AL & 0xFF) << 0)
     )
-    return result
 
 
 #
@@ -1356,8 +1348,7 @@ def get_segdescr_limit(state, descriptor):
     limit = claripy.Concat(hi, lo).zero_extend(12)
     if (granularity == 0).is_true():
         return limit
-    else:
-        return (limit << 12) | 0xFFF
+    return (limit << 12) | 0xFFF
 
 
 def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
@@ -2056,8 +2047,7 @@ def _concat_flags(nbits, flags_vec):
     for offset, bit in flags_vec:
         current_position = nbits - 1 - result.length
         result = result.concat(claripy.BVV(0, current_position - offset), bit)
-    result = result.concat(claripy.BVV(0, nbits - result.length))
-    return result
+    return result.concat(claripy.BVV(0, nbits - result.length))
 
 
 def _get_nbits(cc_str):

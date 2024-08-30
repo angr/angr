@@ -233,15 +233,14 @@ class CallFunctionGoal(BaseGoal):
                     # we do not care about arguments
                     return True
 
-                else:
-                    # check arguments
-                    arch = state.arch
-                    state = the_node.input_state
-                    same_arguments = self._check_arguments(arch, state)
+                # check arguments
+                arch = state.arch
+                state = the_node.input_state
+                same_arguments = self._check_arguments(arch, state)
 
-                    if same_arguments:
-                        # all arguments are the same!
-                        return True
+                if same_arguments:
+                    # all arguments are the same!
+                    return True
 
         l.debug("SimState %s will not reach function %s.", state, self.function)
         return False
@@ -310,8 +309,7 @@ class CallFunctionGoal(BaseGoal):
                 ptr = real_value
                 return CallFunctionGoal._compare_pointer_content(state, ptr, expected_value)
 
-            else:
-                l.error("Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.", arg_type)
+            l.error("Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.", arg_type)
 
         elif isinstance(arg_type, SimTypeString):
             # resolve the pointer and compare the content

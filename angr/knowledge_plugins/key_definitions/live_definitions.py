@@ -73,8 +73,7 @@ class DefinitionAnnotation(Annotation):
     def __eq__(self, other: object):
         if type(other) is DefinitionAnnotation:
             return self.definition == other.definition
-        else:
-            return False
+        return False
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.definition!r})"
@@ -345,7 +344,7 @@ class LiveDefinitions:
         if "stack_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
-            elif addr.op == "__add__":
+            if addr.op == "__add__":
                 if len(addr.args) == 2:
                     off0 = LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True)
                     off1 = LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
@@ -428,11 +427,9 @@ class LiveDefinitions:
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
             assert len({self.get_stack_offset(v) for v in values}) == 1
-            result = self.get_stack_offset(values[0])
-            return result
+            return self.get_stack_offset(values[0])
 
-        result = self.get_stack_offset(sp_v)
-        return result
+        return self.get_stack_offset(sp_v)
 
     def get_stack_address(self, offset: claripy.ast.Base) -> int | None:
         offset_int = self.get_stack_offset(offset)
@@ -670,7 +667,7 @@ class LiveDefinitions:
                 for v in vs:
                     defs.update(LiveDefinitions.extract_defs_from_annotations(v.annotations))
             return defs
-        elif isinstance(thing, Atom):
+        if isinstance(thing, Atom):
             pass
         elif isinstance(thing, Definition):
             thing = thing.atom
@@ -682,29 +679,26 @@ class LiveDefinitions:
 
         if isinstance(thing, Register):
             return self.get_register_definitions(thing.reg_offset, thing.size)
-        elif isinstance(thing, MemoryLocation):
+        if isinstance(thing, MemoryLocation):
             if isinstance(thing.addr, SpOffset):
                 return self.get_stack_definitions(thing.addr.offset, thing.size)
-            elif isinstance(thing.addr, HeapAddress):
+            if isinstance(thing.addr, HeapAddress):
                 return self.get_heap_definitions(thing.addr.value, size=thing.size)
-            elif isinstance(thing.addr, int):
+            if isinstance(thing.addr, int):
                 return self.get_memory_definitions(thing.addr, thing.size)
-            else:
-                return set()
-        elif isinstance(thing, Tmp):
+            return set()
+        if isinstance(thing, Tmp):
             return self.get_tmp_definitions(thing.tmp_idx)
-        else:
-            defs = set()
-            mv = self.others.get(thing, None)
-            if mv is not None:
-                defs |= self.get_definitions(mv)
-            return defs
+        defs = set()
+        mv = self.others.get(thing, None)
+        if mv is not None:
+            defs |= self.get_definitions(mv)
+        return defs
 
     def get_tmp_definitions(self, tmp_idx: int) -> set[Definition]:
         if tmp_idx in self.tmps:
             return self.tmps[tmp_idx]
-        else:
-            return set()
+        return set()
 
     def get_register_definitions(self, reg_offset: int, size: int) -> set[Definition]:
         try:
@@ -856,10 +850,9 @@ class LiveDefinitions:
                         bytestring = self.project.loader.memory.load(atom.addr, atom.size)
                         if atom.endness == archinfo.Endness.LE:
                             bytestring = bytes(reversed(bytestring))
-                        mv = MultiValues(
+                        return MultiValues(
                             self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
                         )
-                        return mv
                     except KeyError:
                         pass
                 return None
@@ -1061,7 +1054,7 @@ class LiveDefinitions:
         if "heap_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
-            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+            if addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
                 return addr.args[1].concrete_value
         return None
 

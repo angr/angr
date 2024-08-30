@@ -144,7 +144,6 @@ class ArmElfFastResolver(IndirectJumpResolver):
         stmt = block.statements[stmt_idx]
         if isinstance(stmt, pyvex.IRStmt.WrTmp):
             return self._resolve_default(stmt, block, source, cfg, b)
-        elif isinstance(stmt, pyvex.IRStmt.Put):
+        if isinstance(stmt, pyvex.IRStmt.Put):
             return self._resolve_put(stmt, block, source, cfg, b)
-        else:
-            return False, []
+        return False, []

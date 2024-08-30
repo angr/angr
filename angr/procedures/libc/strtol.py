@@ -254,9 +254,8 @@ class strtol(angr.SimProcedure):
 
             return value
 
-        else:
-            expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
-            self.state.memory.store(
-                endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
-            )
-            return claripy.If(expression, value, 0)
+        expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
+        self.state.memory.store(
+            endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
+        )
+        return claripy.If(expression, value, 0)

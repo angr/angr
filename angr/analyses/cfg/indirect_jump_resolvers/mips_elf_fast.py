@@ -296,8 +296,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         # matching complete
         addr = (gp + add_const) & 0xFFFF_FFFF
         try:
-            target = self.project.loader.memory.unpack_word(addr, size=4)
-            return target
+            return self.project.loader.memory.unpack_word(addr, size=4)
         except KeyError:
             return None
 
@@ -444,8 +443,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         addr = (gp + add_const) & 0xFFFF_FFFF
         try:
             target_0 = self.project.loader.memory.unpack_word(addr, size=4)
-            target = (target_0 + t9_add_const) & 0xFFFF_FFFF
-            return target
+            return (target_0 + t9_add_const) & 0xFFFF_FFFF
         except KeyError:
             return None
 

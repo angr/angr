@@ -93,9 +93,7 @@ class SimConstantVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        s = f"<{self.region}|const {self.value}>"
-
-        return s
+        return f"<{self.region}|const {self.value}>"
 
     def loc_repr(self, arch):
         return f"const {self.value}"
@@ -131,8 +129,7 @@ class SimTemporaryVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        s = "<tmp %d>" % (self.tmp_id,)
-        return s
+        return "<tmp %d>" % (self.tmp_id,)
 
     def loc_repr(self, arch):
         return f"tmp #{self.tmp_id}"
@@ -187,9 +184,7 @@ class SimRegisterVariable(SimVariable):
         ident_str = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
-        s = f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
-
-        return s
+        return f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
 
     def loc_repr(self, arch):
         return arch.translate_register_name(self.reg, self.size)
@@ -529,10 +524,9 @@ class SimVariableSet(collections.abc.MutableSet):
         if type(item) is SimRegisterVariable:
             return self.contains_register_variable(item)
 
-        elif type(item) is SimMemoryVariable:
+        if type(item) is SimMemoryVariable:
             # TODO: Make it better!
             return self.contains_memory_variable(item)
 
-        else:
-            __import__("ipdb").set_trace()
-            raise Exception("WTF is this variable?")
+        __import__("ipdb").set_trace()
+        raise Exception("WTF is this variable?")

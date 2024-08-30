@@ -68,17 +68,17 @@ class SimEngineLightMixin:
             # Local variable
             if spoffset_expr.op == "BVS":
                 return 0
-            elif spoffset_expr.op == "__add__":
+            if spoffset_expr.op == "__add__":
                 if len(spoffset_expr.args) == 1:
                     # Unexpected but fine
                     return 0
-                elif isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
+                if isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
                     return spoffset_expr.args[1].args[0]
             elif spoffset_expr.op == "__sub__":
                 if len(spoffset_expr.args) == 1:
                     # Unexpected but fine
                     return 0
-                elif isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
+                if isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
                     return -spoffset_expr.args[1].args[0] & ((1 << spoffset_expr.size()) - 1)
         return None
 
@@ -241,7 +241,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         handler = f"_handle_{type(expr).__name__}"
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
-        elif self.l is not None:
+        if self.l is not None:
             self.l.error("Unsupported expression type %s.", type(expr).__name__)
         return None
 
@@ -318,10 +318,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         cond = self._expr(expr.cond)
         if cond is True:
             return self._expr(expr.iftrue)
-        elif cond is False:
+        if cond is False:
             return self._expr(expr.iffalse)
-        else:
-            return None
+        return None
 
     def _handle_Unop(self, expr):
         handler = None
@@ -349,10 +348,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
-        else:
-            if self.l is not None:
-                self.l.error("Unsupported Unop %s.", expr.op)
-            return None
+        if self.l is not None:
+            self.l.error("Unsupported Unop %s.", expr.op)
+        return None
 
     def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
         handler = None
@@ -431,16 +429,15 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             if vector_size is not None and vector_count is not None:
                 return getattr(self, handler)(expr, vector_size, vector_count)
             return getattr(self, handler)(expr)
-        else:
-            if once(expr.op) and self.l is not None:
-                self.l.warning("Unsupported Binop %s.", expr.op)
+        if once(expr.op) and self.l is not None:
+            self.l.warning("Unsupported Binop %s.", expr.op)
 
         return None
 
     def _handle_CCall(self, expr):  # pylint:disable=useless-return
         if self.l is not None:
             self.l.warning("Unsupported expression type CCall with callee %s.", str(expr.cee))
-        return None
+        return
 
     #
     # Unary operation handlers
@@ -476,11 +473,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             if expr_.size() > to_size:
                 # truncation
                 return expr_[to_size - 1 : 0]
-            elif expr_.size() < to_size:
+            if expr_.size() < to_size:
                 # extension
                 return claripy.ZeroExt(to_size - expr_.size(), expr_)
-            else:
-                return expr_
+            return expr_
 
         return self._top(to_size)
 
@@ -619,14 +615,13 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             return claripy.Concat(
                 claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
             )
-        else:
-            quotient = expr_0 // claripy.ZeroExt(from_size - to_size, expr_1)
-            remainder = expr_0 % claripy.ZeroExt(from_size - to_size, expr_1)
-            quotient_size = to_size
-            remainder_size = to_size
-            return claripy.Concat(
-                claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
-            )
+        quotient = expr_0 // claripy.ZeroExt(from_size - to_size, expr_1)
+        remainder = expr_0 % claripy.ZeroExt(from_size - to_size, expr_1)
+        quotient_size = to_size
+        remainder_size = to_size
+        return claripy.Concat(
+            claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
+        )
 
     def _handle_Div(self, expr):
         args, r = self._binop_get_args(expr)
@@ -981,9 +976,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         ):
             # int -> float
             b = struct.pack("<I", arg)
-            f = struct.unpack("<f", b)[0]
-            return f
-        elif (
+            return struct.unpack("<f", b)[0]
+        if (
             isinstance(arg, float)
             and expr.from_bits == 32
             and expr.from_type == "F"
@@ -992,8 +986,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         ):
             # float -> int
             b = struct.pack("<f", arg)
-            v = struct.unpack("<I", b)[0]
-            return v
+            return struct.unpack("<I", b)[0]
 
         return expr
 

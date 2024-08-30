@@ -27,8 +27,7 @@ def arch_overrideable(f):
         if hasattr(self.arch, f.__name__):
             arch_f = getattr(self.arch, f.__name__)
             return arch_f(self, *args, **kwargs)
-        else:
-            return f(self, *args, **kwargs)
+        return f(self, *args, **kwargs)
 
     return wrapped_f
 
@@ -380,8 +379,7 @@ class SimState(PluginHub):
     def arch(self) -> Arch:
         if self._is_java_jni_project:
             return self._arch["soot"] if self.ip_is_soot_addr else self._arch["vex"]
-        else:
-            return self._arch
+        return self._arch
 
     @arch.setter
     def arch(self, v):
@@ -452,8 +450,7 @@ class SimState(PluginHub):
         """
         if self._is_java_jni_project:
             return self.get_plugin("memory_soot")
-        else:
-            return self.get_plugin("memory")
+        return self.get_plugin("memory")
 
     @property
     def javavm_registers(self):
@@ -465,8 +462,7 @@ class SimState(PluginHub):
         """
         if self._is_java_jni_project:
             return self.get_plugin("registers_soot")
-        else:
-            return self.get_plugin("registers")
+        return self.get_plugin("registers")
 
     #
     # Constraint pass-throughs
@@ -574,8 +570,7 @@ class SimState(PluginHub):
                     return False
 
             return self._satisfiable
-        else:
-            return self.solver.satisfiable(**kwargs)
+        return self.solver.satisfiable(**kwargs)
 
     def downsize(self):
         """
@@ -939,9 +934,8 @@ class SimState(PluginHub):
             new_state.add_constraints(new_state.regs.ip % 2 == 1, new_state.regs.ip % 2 != 0)
             return new_state.satisfiable()
 
-        else:
-            concrete_ip = self.solver.eval(self.regs.ip)
-            return concrete_ip % 2 == 1
+        concrete_ip = self.solver.eval(self.regs.ip)
+        return concrete_ip % 2 == 1
 
     #
     # Some pretty fancy global condition stuff!
@@ -964,18 +958,16 @@ class SimState(PluginHub):
     def _adjust_condition(self, c):
         if self._global_condition is None:
             return c
-        elif c is None:
+        if c is None:
             return self._global_condition
-        else:
-            return claripy.And(self._global_condition, c)
+        return claripy.And(self._global_condition, c)
 
     def _adjust_condition_list(self, conditions):
         if self._global_condition is None:
             return conditions
-        elif len(conditions) == 0:
+        if len(conditions) == 0:
             return conditions.__class__((self._global_condition,))
-        else:
-            return conditions.__class__((self._adjust_condition(claripy.And(*conditions)),))
+        return conditions.__class__((self._adjust_condition(claripy.And(*conditions)),))
 
 
 default_state_plugin_preset = PluginPreset()

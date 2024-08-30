@@ -43,7 +43,7 @@ class SimEnginePropagatorAIL(
     def extract_offset_to_sp(self, expr: claripy.ast.Base | Expr.StackBaseOffset) -> int | None:
         if isinstance(expr, Expr.StackBaseOffset):
             return expr.offset
-        elif isinstance(expr, Expr.Expression):
+        if isinstance(expr, Expr.Expression):
             # not supported
             return None
         return super().extract_offset_to_sp(expr)
@@ -618,13 +618,12 @@ class SimEnginePropagatorAIL(
             new_expr = Expr.Load(expr.idx, addr_expr, expr.size, expr.endness, **expr.tags)
         else:
             new_expr = expr
-        prop_value = PropValue.from_value_and_details(
+        return PropValue.from_value_and_details(
             self.state.top(expr.size * self.arch.byte_width),
             expr.size,
             new_expr,
             self._codeloc() if var_defat is None else var_defat,
         )
-        return prop_value
 
     def _ail_handle_Convert(self, expr: Expr.Convert) -> PropValue:
         o_value = self._expr(expr.operand)
@@ -689,7 +688,7 @@ class SimEnginePropagatorAIL(
 
             return PropValue(new_value, offset_and_details=offset_and_details)
 
-        elif o_value.offset_and_details:
+        if o_value.offset_and_details:
             # hard cases... we will keep certain labels and eliminate other labels
             start_offset = 0
             end_offset = expr.to_bits // self.arch.byte_width  # end_offset is exclusive
@@ -729,9 +728,8 @@ class SimEnginePropagatorAIL(
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
 
             return PropValue(new_value, offset_and_details=offset_and_details)
-        else:
-            # it's empty... no expression is available for whatever reason
-            return PropValue.from_value_and_details(new_value, expr.size, expr, self._codeloc())
+        # it's empty... no expression is available for whatever reason
+        return PropValue.from_value_and_details(new_value, expr.size, expr, self._codeloc())
 
     def _ail_handle_Const(self, expr: Expr.Const) -> PropValue:
         if isinstance(expr.value, float):
@@ -825,9 +823,8 @@ class SimEnginePropagatorAIL(
             if operand_0_oneexpr is expr.operands[0] and operand_1_oneexpr is expr.operands[1]:
                 # nothing changed
                 return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
-            else:
-                operand_0 = operand_0_oneexpr if operand_0_oneexpr is not None else expr.operands[0]
-                operand_1 = operand_1_oneexpr if operand_1_oneexpr is not None else expr.operands[1]
+            operand_0 = operand_0_oneexpr if operand_0_oneexpr is not None else expr.operands[0]
+            operand_1 = operand_1_oneexpr if operand_1_oneexpr is not None else expr.operands[1]
 
             new_expr = Expr.BinaryOp(expr.idx, expr.op, [operand_0, operand_1], expr.signed, **expr.tags)
         else:

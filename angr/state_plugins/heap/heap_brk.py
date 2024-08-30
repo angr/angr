@@ -125,8 +125,7 @@ class SimHeapBrk(SimHeapBase):
         if self.heap_location != new_heap_location:
             self.heap_location = new_heap_location
             return True
-        else:
-            return False
+        return False
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         return self._combine(others)

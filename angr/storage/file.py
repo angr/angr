@@ -44,8 +44,7 @@ class Flags:  # pylint: disable=W0232,
 def _deps_unpack(a):
     if isinstance(a, SimActionObject):
         return a.ast, a.reg_deps, a.tmp_deps
-    else:
-        return a, None, None
+    return a, None, None
 
 
 class SimFileBase(SimStatePlugin):
@@ -312,12 +311,11 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
                 real_size,
                 real_size + pos,
             )
-        else:
-            # it's not possible to EOF
-            # we don't need to constrain or min/max the output size because there are already constraints asserting
-            # that the total filesize is pretty big
-            # note: this assumes that constraints cannot be removed
-            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
+        # it's not possible to EOF
+        # we don't need to constrain or min/max the output size because there are already constraints asserting
+        # that the total filesize is pretty big
+        # note: this assumes that constraints cannot be removed
+        return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
 
     def write(self, pos, data, size=None, events=True, **kwargs):
         if events:
@@ -395,7 +393,7 @@ class SimFileStream(SimFile):
 
     def write(self, _, data, size=None, **kwargs):
         self.pos = super().write(self.pos, data, size, **kwargs)
-        return None
+        return
 
     @SimStatePlugin.memo
     def copy(self, memo):
@@ -513,9 +511,9 @@ class SimPackets(SimFileBase):
             pos = len(self.content)
         if pos < 0:
             raise SimFileError("SimPacket.read(%d): Negative packet number?" % pos)
-        elif pos > len(self.content):
+        if pos > len(self.content):
             raise SimFileError("SimPacket.read(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
-        elif pos != len(self.content):
+        if pos != len(self.content):
             _, realsize = self.content[pos]
             self.state.add_constraints(realsize <= size)  # assert that the packet fits within the read request
             if not self.state.solver.satisfiable():
@@ -605,9 +603,9 @@ class SimPackets(SimFileBase):
             pos = len(self.content)
         if pos < 0:
             raise SimFileError("SimPacket.write(%d): Negative packet number?" % pos)
-        elif pos > len(self.content):
+        if pos > len(self.content):
             raise SimFileError("SimPacket.write(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
-        elif pos != len(self.content):
+        if pos != len(self.content):
             realdata, realsize = self.content[pos]
             maxlen = max(len(realdata), len(data))
             self.state.add_constraints(realdata[maxlen - 1 : 0] == data[maxlen - 1 : 0])
@@ -632,7 +630,7 @@ class SimPackets(SimFileBase):
         for o in others:
             if o.write_mode is None:
                 continue
-            elif self.write_mode is None:
+            if self.write_mode is None:
                 self.write_mode = o.write_mode
             elif self.write_mode is not o.write_mode:
                 raise SimMergeError("Cannot merge SimPackets with disparate write_mode")
@@ -688,7 +686,7 @@ class SimPacketsStream(SimPackets):
 
     def write(self, _, data, size=None, **kwargs):
         self.pos = super().write(self.pos, data, size, **kwargs)
-        return None
+        return
 
     @SimStatePlugin.memo
     def copy(self, memo):

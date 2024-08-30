@@ -215,9 +215,7 @@ class DreamStructurer(StructurerBase):
         loop_body = self._to_loop_body_sequence(loop_head, loop_subgraph, loop_successors)
 
         # create a while(true) loop with sequence node being the loop body
-        loop_node = LoopNode("while", None, loop_body, addr=loop_head.addr)
-
-        return loop_node
+        return LoopNode("while", None, loop_body, addr=loop_head.addr)
 
     def _refine_loop(self, loop_node):
         while True:
@@ -336,9 +334,7 @@ class DreamStructurer(StructurerBase):
                 continue
             break
 
-        seq = EmptyNodeRemover(seq).result
-
-        return seq
+        return EmptyNodeRemover(seq).result
 
     def _make_sequence(self):
         seq = SequenceNode(None)
@@ -714,7 +710,7 @@ class DreamStructurer(StructurerBase):
         # if that is the case, we un-structure it here
         if all(entry_addr in addr2nodes for entry_addr in jumptable_entries):
             return True, node_a
-        elif self._switch_check_existence_of_jumptable_entries(
+        if self._switch_check_existence_of_jumptable_entries(
             jumptable_entries, node_a_block_addrs, set(addr2nodes.keys()), node_a.addr, node_b_addr
         ):
             # unpacking is needed
@@ -1127,8 +1123,7 @@ class DreamStructurer(StructurerBase):
             )
             new_nodes.append(new_node)
 
-        new_node = SequenceNode(None if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
-        return new_node
+        return SequenceNode(None if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
 
     def _replace_complex_reaching_conditions(self, seq: SequenceNode):
         for i in range(len(seq.nodes)):

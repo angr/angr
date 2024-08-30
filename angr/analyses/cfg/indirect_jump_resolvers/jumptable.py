@@ -318,8 +318,7 @@ class JumpTableProcessor(
         return "SpOffset" in expr.variables
 
     def _get_spoffset_expr(self, sp_offset: SpOffset) -> claripy.ast.BV:
-        v = self._SPOFFSET_BASE.annotate(RegOffsetAnnotation(sp_offset))
-        return v
+        return self._SPOFFSET_BASE.annotate(RegOffsetAnnotation(sp_offset))
 
     @staticmethod
     def _extract_spoffset_from_expr(expr: claripy.ast.Base) -> SpOffset | None:
@@ -330,7 +329,7 @@ class JumpTableProcessor(
         elif expr.op == "__add__":
             if len(expr.args) == 1:
                 return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
-            elif len(expr.args) == 2 and expr.args[1].op == "BVV":
+            if len(expr.args) == 2 and expr.args[1].op == "BVV":
                 sp_offset = JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
                 if sp_offset is not None:
                     delta = expr.args[1].concrete_value
@@ -348,8 +347,7 @@ class JumpTableProcessor(
     def _get_regoffset_expr(self, reg_offset: RegisterOffset, bits: int) -> claripy.ast.BV:
         if bits not in self._REGOFFSET_BASE:
             self._REGOFFSET_BASE[bits] = claripy.BVS("RegisterOffset", bits, explicit_name=True)
-        v = self._REGOFFSET_BASE[bits].annotate(RegOffsetAnnotation(reg_offset))
-        return v
+        return self._REGOFFSET_BASE[bits].annotate(RegOffsetAnnotation(reg_offset))
 
     @staticmethod
     def _extract_regoffset_from_expr(expr: claripy.ast.Base) -> RegisterOffset | None:
@@ -360,7 +358,7 @@ class JumpTableProcessor(
         elif expr.op == "__add__":
             if len(expr.args) == 1:
                 return JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
-            elif len(expr.args) == 2 and expr.args[1].op == "BVV":
+            if len(expr.args) == 2 and expr.args[1].op == "BVV":
                 reg_offset = JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
                 if reg_offset is not None:
                     delta = expr.args[1].concrete_value
@@ -444,10 +442,9 @@ class JumpTableProcessor(
         guard = self._expr(stmt.guard)
         if guard is True:
             return self._do_load(stmt.addr, stmt.addr.result_size(self.tyenv) // 8)
-        elif guard is False:
+        if guard is False:
             return self._do_load(stmt.alt, stmt.alt.result_size(self.tyenv) // 8)
-        else:
-            return None
+        return None
 
     def _handle_Const(self, expr):
         v = super()._handle_Const(expr)
@@ -580,8 +577,7 @@ class JumpTableProcessor(
         elif isinstance(addr, int):
             # Load data from memory if it is mapped
             try:
-                v = self.project.loader.memory.unpack_word(addr, size=size)
-                return v
+                return self.project.loader.memory.unpack_word(addr, size=size)
             except KeyError:
                 return None
         elif self._is_registeroffset(addr):
@@ -986,9 +982,8 @@ class JumpTableResolver(IndirectJumpResolver):
                     ij.jumptable = False
                     ij.resolved_targets = {jump_target}
                 return True, [jump_target]
-            else:
-                l.debug("Found single constant load, but it does not appear to be a valid target")
-                return False, None
+            l.debug("Found single constant load, but it does not appear to be a valid target")
+            return False, None
 
         # Well, we have a real jump table to resolve!
 
@@ -1202,7 +1197,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             AddressTransformationTypes.Assignment, [stmt.tmp, AddressSingleton]
                         )
                     continue
-                elif isinstance(stmt.data, pyvex.IRExpr.ITE):
+                if isinstance(stmt.data, pyvex.IRExpr.ITE):
                     # data transferring
                     #   t16 = if (t43) ILGop_Ident32(LDle(t29)) else 0x0000c844
                     # > t44 = ITE(t43,t16,0x0000c844)
@@ -1212,7 +1207,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             AddressTransformationTypes.Assignment, [stmt.tmp, AddressSingleton]
                         )
                     continue
-                elif isinstance(stmt.data, pyvex.IRExpr.Unop):
+                if isinstance(stmt.data, pyvex.IRExpr.Unop):
                     if stmt.data.op == "Iop_32Sto64":
                         # data transferring with conversion
                         # t11 = 32Sto64(t12)
@@ -1222,7 +1217,7 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.SignedExtension, [32, 64, AddressSingleton]
                             )
                         continue
-                    elif stmt.data.op == "Iop_64to32":
+                    if stmt.data.op == "Iop_64to32":
                         # data transferring with conversion
                         # t24 = 64to32(t21)
                         stmts_to_remove.append(stmt_loc)
@@ -1231,7 +1226,7 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.Truncation, [64, 32, AddressSingleton]
                             )
                         continue
-                    elif stmt.data.op == "Iop_32Uto64":
+                    if stmt.data.op == "Iop_32Uto64":
                         # data transferring with conversion
                         # t21 = 32Uto64(t22)
                         stmts_to_remove.append(stmt_loc)
@@ -1240,7 +1235,7 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.UnsignedExtension, [32, 64, AddressSingleton]
                             )
                         continue
-                    elif stmt.data.op == "Iop_16Uto32":
+                    if stmt.data.op == "Iop_16Uto32":
                         # data transferring with conversion
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -1248,7 +1243,7 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.UnsignedExtension, [16, 32, AddressSingleton]
                             )
                         continue
-                    elif stmt.data.op == "Iop_8Uto32":
+                    if stmt.data.op == "Iop_8Uto32":
                         # data transferring with conversion
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -1256,7 +1251,7 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.UnsignedExtension, [8, 32, AddressSingleton]
                             )
                         continue
-                    elif stmt.data.op == "Iop_8Uto64":
+                    if stmt.data.op == "Iop_8Uto64":
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
                             transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
@@ -1347,7 +1342,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             # not supported
                             pass
                         continue
-                    elif stmt.data.op.startswith("Iop_Or"):
+                    if stmt.data.op.startswith("Iop_Or"):
                         # this is sometimes used in VEX statements in THUMB mode code to adjust the address to an odd
                         # number
                         # e.g.
@@ -1398,7 +1393,6 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.ShiftLeft, [AddressSingleton, stmt.data.args[1].con.value]
                             )
                             continue
-                    elif stmt.data.op.startswith("Iop_Sar"):
                         # AArch64
                         #
                         # LDRB            W0, [X20,W26,UXTW]
@@ -1425,15 +1419,17 @@ class JumpTableResolver(IndirectJumpResolver):
                         #    15 | PUT(x0) = t4
                         #  + 16 | ------ IMark(0x51f858, 4, 0) ------
                         #  + Next: t4
-                        if isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) and isinstance(
-                            stmt.data.args[1], pyvex.IRExpr.Const
-                        ):
-                            # found it
-                            stmts_to_remove.append(stmt_loc)
-                            transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransformationTypes.ShiftRight, [AddressSingleton, stmt.data.args[1].con.value]
-                            )
-                            continue
+                    elif (
+                        stmt.data.op.startswith("Iop_Sar")
+                        and isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                        and isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
+                    ):
+                        # found it
+                        stmts_to_remove.append(stmt_loc)
+                        transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
+                            AddressTransformationTypes.ShiftRight, [AddressSingleton, stmt.data.args[1].con.value]
+                        )
+                        continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
                     load_stmt, load_stmt_loc, load_size = (

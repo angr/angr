@@ -55,7 +55,7 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
                     real_expr = real_expr.operands[0]
 
                 cvt = Convert(expr.idx, real_expr.bits, to_bits, False, real_expr, **expr.tags)
-                cmp = BinaryOp(
+                return BinaryOp(
                     None,
                     "CmpLT",
                     (
@@ -65,6 +65,5 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
                     True,
                     **expr.tags,
                 )
-                return cmp
 
         return None

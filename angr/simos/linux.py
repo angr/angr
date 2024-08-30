@@ -193,10 +193,9 @@ class SimLinux(SimUserland):
             jk = state.history.parent.jumpkind
         if jk == "Ijk_Sys_int128":
             return "i386"
-        elif jk == "Ijk_Sys_syscall":
+        if jk == "Ijk_Sys_syscall":
             return "amd64"
-        else:
-            raise AngrSyscallError(f"Unknown syscall jumpkind {jk}")
+        raise AngrSyscallError(f"Unknown syscall jumpkind {jk}")
 
     # pylint: disable=arguments-differ
     def state_blank(
@@ -348,11 +347,10 @@ class SimLinux(SimUserland):
                 byte = state.mem[progname_cur].byte.resolved
                 if byte.symbolic:
                     break
-                else:
-                    if state.solver.eval(byte) == ord("/"):
-                        progname = progname_cur + 1
-                    elif state.solver.eval(byte) == 0:
-                        break
+                if state.solver.eval(byte) == ord("/"):
+                    progname = progname_cur + 1
+                elif state.solver.eval(byte) == 0:
+                    break
 
                 progname_cur += 1
 
@@ -434,10 +432,9 @@ class SimLinux(SimUserland):
                 AT.from_mva(pseudo_toc, self.project.loader.extern_object).to_rva(), pseudo_hookaddr
             )
             return pseudo_hookaddr, pseudo_toc
-        else:
-            if basic_addr is None:
-                basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
-            return basic_addr, basic_addr
+        if basic_addr is None:
+            basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
+        return basic_addr, basic_addr
 
     def initialize_segment_register_x64(self, state, concrete_target):
         """

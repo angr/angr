@@ -208,7 +208,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             if isinstance(operand_0, Expr.Register):
                 new_operand = Expr.Const(operand_1.idx, None, 2**operand_1.value, operand_0.bits)
                 return Expr.BinaryOp(expr.idx, "Div", [operand_0, new_operand], expr.signed)
-            elif (
+            if (
                 isinstance(operand_0, Expr.BinaryOp)
                 and operand_0.op == "Shr"
                 and isinstance(operand_0.operands[1], Expr.Const)

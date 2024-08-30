@@ -931,8 +931,7 @@ class Unicorn(SimStatePlugin):
         if sysno in self.syscall_hooks:
             self.syscall_hooks[sysno](self.state)
             return True
-        else:
-            return False
+        return False
 
     def _handle_syscall(self, uc, user_data):  # pylint:disable=unused-argument
         # unicorn does not support syscall, we should giveup emulation
@@ -952,16 +951,13 @@ class Unicorn(SimStatePlugin):
     def _symbolic_passthrough(self, d):
         if not d.symbolic:
             return d
-        elif options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+        if options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
             return self._concretize(d)
-        elif len(d.variables & self.never_concretize) > 0:
+        if len(d.variables & self.never_concretize) > 0:
             return d
-        elif (
-            d.variables.issubset(self.always_concretize) or self.state.solver.eval(self.state.ip) in self.concretize_at
-        ):
+        if d.variables.issubset(self.always_concretize) or self.state.solver.eval(self.state.ip) in self.concretize_at:
             return self._concretize(d)
-        else:
-            return d
+        return d
 
     def _report_symbolic_blocker(self, d, from_where):
         if options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
@@ -997,10 +993,9 @@ class Unicorn(SimStatePlugin):
         if len(d.annotations):
             l.debug("Blocking annotated AST.")
             return None
-        elif not d.symbolic:
+        if not d.symbolic:
             return d
-        else:
-            l.debug("Processing AST with variables %s.", d.variables)
+        l.debug("Processing AST with variables %s.", d.variables)
 
         dd = self._symbolic_passthrough(d)
 
@@ -1008,12 +1003,11 @@ class Unicorn(SimStatePlugin):
             if d.symbolic:
                 l.debug("... concretized")
             return dd
-        elif from_where == "reg" and options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+        if from_where == "reg" and options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
             l.debug("... allowing symbolic register")
             return dd
-        else:
-            l.debug("... denied")
-            return None
+        l.debug("... denied")
+        return None
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data):  # pylint:disable=unused-argument
         """

@@ -76,11 +76,9 @@ class MemoryRegionMetaMixin(MemoryMixin):
                 bbl_addr, stmt_id, self.id, region_offset=addr, size=len(data) // self.state.arch.byte_width
             )
             return super().store(addr, data, endness=endness, **kwargs)
-        else:
-            if self.alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
-                return super().store(addr, data, endness=endness, **kwargs)
-            else:
-                return super().store(addr, data, endness=endness, **kwargs)
+        if self.alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
+            return super().store(addr, data, endness=endness, **kwargs)
+        return super().store(addr, data, endness=endness, **kwargs)
 
     def load(
         self, addr, size=None, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs

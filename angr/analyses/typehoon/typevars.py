@@ -74,11 +74,10 @@ class Existence(TypeConstraint):
         if self.type_ in replacements:
             return True, Existence(replacements[self.type_])
 
-        else:
-            replaced, new_type = self.type_.replace(replacements)
-            if replaced:
-                return True, Existence(new_type)
-            return False, self
+        replaced, new_type = self.type_.replace(replacements)
+        if replaced:
+            return True, Existence(new_type)
+        return False, self
 
 
 class Subtype(TypeConstraint):
@@ -128,8 +127,7 @@ class Subtype(TypeConstraint):
                 subtype if subtype is not None else self.sub_type,
                 supertype if supertype is not None else self.super_type,
             )
-        else:
-            return False, self
+        return False, self
 
 
 class Add(TypeConstraint):
@@ -196,8 +194,7 @@ class Add(TypeConstraint):
                 t1 if t1 is not None else self.type_1,
                 tr if tr is not None else self.type_r,
             )
-        else:
-            return False, self
+        return False, self
 
 
 class Sub(TypeConstraint):
@@ -264,8 +261,7 @@ class Sub(TypeConstraint):
                 t1 if t1 is not None else self.type_1,
                 tr if tr is not None else self.type_r,
             )
-        else:
-            return False, self
+        return False, self
 
 
 _typevariable_counter = count()
@@ -384,8 +380,7 @@ class DerivedTypeVariable(TypeVariable):
         if typevar is not None:
             # replacement has happened
             return True, DerivedTypeVariable(typevar, None, labels=self.labels, idx=self.idx)
-        else:
-            return False, self
+        return False, self
 
 
 class TypeVariables:

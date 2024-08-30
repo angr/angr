@@ -52,5 +52,4 @@ class poll(angr.SimProcedure):
                     fds + offset * size_of_pollfd + offset_revents, revents, endness=self.arch.memory_endness
                 )
 
-        retval = claripy.BVV(0, 1).concat(claripy.BVS("poll_ret", self.state.arch.bits - 1))
-        return retval
+        return claripy.BVV(0, 1).concat(claripy.BVS("poll_ret", self.state.arch.bits - 1))

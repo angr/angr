@@ -66,14 +66,12 @@ class Constant:
     def __add__(self, other):
         if type(self) is type(other):
             return Constant(self.val + other.val)
-        else:
-            return other + self
+        return other + self
 
     def __sub__(self, other):
         if type(self) is type(other):
             return Constant(self.val - other.val)
-        else:
-            raise CouldNotResolveException
+        raise CouldNotResolveException
 
 
 class Register:
@@ -124,8 +122,7 @@ class OffsetVal:
     def __add__(self, other):
         if type(other) is Constant:
             return OffsetVal(self._reg, (self._offset + other.val) & (2**self.reg.bitlen - 1))
-        else:
-            raise CouldNotResolveException
+        raise CouldNotResolveException
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -133,8 +130,7 @@ class OffsetVal:
     def __sub__(self, other):
         if type(other) is Constant:
             return OffsetVal(self._reg, self._offset - other.val & (2**self.reg.bitlen - 1))
-        else:
-            raise CouldNotResolveException
+        raise CouldNotResolveException
 
     def __rsub__(self, other):
         raise CouldNotResolveException
@@ -184,8 +180,7 @@ class FrozenStackPointerTrackerState:
     def __hash__(self):
         if self.is_tracking_memory:
             return hash((FrozenStackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory))
-        else:
-            return hash((FrozenStackPointerTrackerState, self.regs, self.is_tracking_memory))
+        return hash((FrozenStackPointerTrackerState, self.regs, self.is_tracking_memory))
 
     def merge(self, other):
         return self.unfreeze().merge(other.unfreeze()).freeze()
@@ -269,8 +264,7 @@ class StackPointerTrackerState:
     def __hash__(self):
         if self.is_tracking_memory:
             return hash((StackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory))
-        else:
-            return hash((StackPointerTrackerState, self.regs, self.is_tracking_memory))
+        return hash((StackPointerTrackerState, self.regs, self.is_tracking_memory))
 
     def merge(self, other):
         return StackPointerTrackerState(
@@ -365,11 +359,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             return TOP
         if regval is TOP or type(regval) is Constant:
             return TOP
-        elif regval is BOTTOM:
+        if regval is BOTTOM:
             # we don't really know what it should be. return TOP instead.
             return TOP
-        else:
-            return regval.offset
+        return regval.offset
 
     def offset_after(self, addr, reg):
         return self._offset_for(addr, "post", reg)
@@ -383,8 +376,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
-        else:
-            return self.offset_after(instr_addrs[-1], reg)
+        return self.offset_after(instr_addrs[-1], reg)
 
     def offset_before_block(self, block_addr, reg):
         if block_addr not in self._blocks:
@@ -392,8 +384,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
-        else:
-            return self.offset_before(instr_addrs[0], reg)
+        return self.offset_before(instr_addrs[0], reg)
 
     def _constant_for(self, addr, pre_or_post, reg):
         try:
@@ -419,8 +410,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
-        else:
-            return self.constant_after(instr_addrs[-1], reg)
+        return self.constant_after(instr_addrs[-1], reg)
 
     def constant_before_block(self, block_addr, reg):
         if block_addr not in self._blocks:
@@ -428,8 +418,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
-        else:
-            return self.constant_before(instr_addrs[0], reg)
+        return self.constant_before(instr_addrs[0], reg)
 
     @property
     def inconsistent(self):
@@ -549,7 +538,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     if arg1_expr is BOTTOM:
                         return BOTTOM
                     return arg0_expr + arg1_expr
-                elif expr.op.startswith("Iop_Sub"):
+                if expr.op.startswith("Iop_Sub"):
                     arg0_expr = _resolve_expr(arg0)
                     if arg0_expr is None:
                         raise CouldNotResolveException
@@ -561,7 +550,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     if arg1_expr is BOTTOM:
                         return BOTTOM
                     return arg0_expr - arg1_expr
-                elif expr.op.startswith("Iop_And"):
+                if expr.op.startswith("Iop_And"):
                     # handle stack pointer alignments
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
@@ -583,13 +572,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     if isinstance(arg0_expr, (Register, OffsetVal)) and isinstance(arg1_expr, (Register, OffsetVal)):
                         return Eq(arg0_expr, arg1_expr)
                 raise CouldNotResolveException
-            elif type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
+            if type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
                 return tmps[expr.tmp]
-            elif type(expr) is pyvex.IRExpr.Const:
+            if type(expr) is pyvex.IRExpr.Const:
                 return Constant(expr.con.value)
-            elif type(expr) is pyvex.IRExpr.Get:
+            if type(expr) is pyvex.IRExpr.Get:
                 return state.get(expr.offset)
-            elif type(expr) is pyvex.IRExpr.Unop:
+            if type(expr) is pyvex.IRExpr.Unop:
                 m = IROP_CONVERT_REGEX.match(expr.op)
                 if m is not None:
                     from_bits = int(m.group(1))
@@ -603,7 +592,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                             mask = (1 << to_bits) - 1
                             return Constant(v.val & mask)
                         return v
-                    elif isinstance(v, Eq):
+                    if isinstance(v, Eq):
                         return v
                     return TOP
             elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
@@ -702,15 +691,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         def _resolve_expr(varnode: pypcode.Varnode):
             if varnode.space.name == "register":
                 return state.get(varnode.offset)
-            elif varnode.space.name == "unique":
+            if varnode.space.name == "unique":
                 key = (varnode.offset, varnode.size)
                 if key not in unique:
                     raise CouldNotResolveException
                 return unique[key]
-            elif varnode.space.name == "const":
+            if varnode.space.name == "const":
                 return Constant(varnode.offset)
-            else:
-                raise CouldNotResolveException
+            raise CouldNotResolveException
 
         def resolve_expr(varnode: pypcode.Varnode):
             try:

@@ -241,11 +241,10 @@ class SootClassHierarchy(Analysis):
         if method.name == "<init>" or "PRIVATE" in method.attrs:
             return method
 
-        elif self.is_subclass(method_cls, container_cls):
+        if self.is_subclass(method_cls, container_cls):
             return self.resolve_concrete_dispatch(container_cls, method)
 
-        else:
-            return method
+        return method
 
     def resolve_invoke(self, invoke_expr, method, container):
         # Generic method to resolve invoke

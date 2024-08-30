@@ -361,6 +361,4 @@ class ConstPropOptReverter(OptimizationPass):
             return None
 
         # zip args of call 0 and 1 conflict if they are not like each other
-        conflicts = {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
-
-        return conflicts
+        return {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}

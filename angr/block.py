@@ -322,8 +322,7 @@ class Block(Serializable):
     def _vex_engine(self):
         if self._project is None:
             return DEFAULT_VEX_ENGINE
-        else:
-            return self._project.factory.default_engine
+        return self._project.factory.default_engine
 
     @property
     def vex(self) -> IRSB:
@@ -462,12 +461,11 @@ class Block(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg):
-        obj = cls(
+        return cls(
             cmsg.ea,
             size=cmsg.size,
             byte_string=cmsg.bytes,
         )
-        return obj
 
 
 class SootBlock:
@@ -494,8 +492,7 @@ class SootBlock:
     @property
     def size(self):
         stmts = None if self.soot is None else self.soot.statements
-        stmts_len = len(stmts) if stmts else 0
-        return stmts_len
+        return len(stmts) if stmts else 0
 
     @property
     def codenode(self):

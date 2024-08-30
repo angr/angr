@@ -188,11 +188,9 @@ class Blade:
                     raise BadJumpkindNotification
                 self._run_cache[v] = irsb
                 return irsb
-            else:
-                raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
+            raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
-        else:
-            raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
+        raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _get_cfgnode(self, thing):
         """
@@ -216,10 +214,9 @@ class Blade:
 
         if isinstance(v, CFGNode):
             return v.addr
-        elif type(v) is int:
+        if type(v) is int:
             return v
-        else:
-            raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
+        raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _in_graph(self, v):
         return self._get_cfgnode(v) in self._graph

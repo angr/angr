@@ -501,7 +501,7 @@ class Project:
                 l.warning(
                     "Address is already hooked, during hook(%s, %s). Not re-hooking.", self._addr_to_str(addr), hook
                 )
-                return
+                return None
             else:
                 l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", self._addr_to_str(addr), hook)
 
@@ -520,6 +520,7 @@ class Project:
         #    l.error("Consider also using angr.SIM_LIBRARIES instead of angr.SIM_PROCEDURES or angr.procedures.")
 
         self._sim_procedures[addr] = hook
+        return None
 
     def is_hooked(self, addr) -> bool:
         """
@@ -744,7 +745,7 @@ class Project:
             self.store_function, self.load_function = None, None
             # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
             # added analyses classes
-            d = {
+            return {
                 k: v
                 for k, v in self.__dict__.items()
                 if k
@@ -752,7 +753,6 @@ class Project:
                     "analyses",
                 }
             }
-            return d
         finally:
             self.store_function, self.load_function = store_func, load_func
 

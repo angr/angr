@@ -31,7 +31,7 @@ class InvertNegatedLogicalConjunctionsAndDisjunctions(PeepholeOptimizationExprBa
                     bits=expr.operand.bits,
                     **expr.tags,
                 )
-            elif expr.operand.op == "LogicalOr":
+            if expr.operand.op == "LogicalOr":
                 inner_operands = [
                     UnaryOp(None, "Not", expr.operand.operands[0], **expr.operand.operands[0].tags),
                     UnaryOp(None, "Not", expr.operand.operands[1], **expr.operand.operands[1].tags),

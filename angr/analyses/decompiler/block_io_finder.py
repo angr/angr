@@ -254,8 +254,7 @@ class BlockIOFinder(AILBlockWalkerBase):
     ):
         if self._as_atom:
             return None
-        else:
-            return expr
+        return expr
 
     # pylint: disable=unused-argument
     def _handle_Register(
@@ -263,8 +262,7 @@ class BlockIOFinder(AILBlockWalkerBase):
     ):
         if self._as_atom:
             return Register(expr.reg_offset, expr.size)
-        else:
-            return expr
+        return expr
 
     def _handle_Const(
         self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False

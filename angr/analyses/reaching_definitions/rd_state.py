@@ -180,10 +180,9 @@ class ReachingDefinitionsState:
     def _initial_stack_pointer(self):
         if self.arch.bits == 32:
             return claripy.BVS("stack_base", 32, explicit_name=True)
-        elif self.arch.bits == 64:
+        if self.arch.bits == 64:
             return claripy.BVS("stack_base", 64, explicit_name=True)
-        else:
-            raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+        raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
 
     def _to_signed(self, n):
         if n >= 2 ** (self.arch.bits - 1):
@@ -308,7 +307,7 @@ class ReachingDefinitionsState:
         return self
 
     def copy(self, discard_tmpdefs=False) -> ReachingDefinitionsState:
-        rd = ReachingDefinitionsState(
+        return ReachingDefinitionsState(
             self.codeloc,
             self.arch,
             self._subject,
@@ -323,8 +322,6 @@ class ReachingDefinitionsState:
             all_definitions=self.all_definitions.copy(),
             element_limit=self._element_limit,
         )
-
-        return rd
 
     def merge(self, *others) -> tuple[ReachingDefinitionsState, bool]:
         state = self.copy()

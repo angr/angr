@@ -386,8 +386,7 @@ class VariableManagerInternal(Serializable):
         else:
             prefix = "m"
 
-        ident = "i%s_%d" % (prefix, next(self._variable_counters[sort]))
-        return ident
+        return "i%s_%d" % (prefix, next(self._variable_counters[sort]))
 
     def add_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
@@ -1111,9 +1110,8 @@ class VariableManager(KnowledgeBasePlugin):
         if key == "global":  # pylint:disable=no-else-return
             return self.global_manager
 
-        else:
-            # key refers to a function address
-            return self.get_function_manager(key)
+        # key refers to a function address
+        return self.get_function_manager(key)
 
     def __delitem__(self, key) -> None:
         """
@@ -1161,7 +1159,7 @@ class VariableManager(KnowledgeBasePlugin):
         if variable.region == "global":
             return self.global_manager.get_variable_accesses(variable, same_name=same_name)
 
-        elif variable.region in self.function_managers:
+        if variable.region in self.function_managers:
             return self.function_managers[variable.region].get_variable_accesses(variable, same_name=same_name)
 
         l.warning("get_variable_accesses(): Region %s is not found.", variable.region)

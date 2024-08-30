@@ -76,9 +76,8 @@ class SimEnginePropagatorVEX(
             sp_offset = self.extract_offset_to_sp(addr)
             if sp_offset is not None:
                 # Local variable
-                v = self.state.load_local_variable(sp_offset, size, endness)
-                return v
-            elif addr.op == "BVV":
+                return self.state.load_local_variable(sp_offset, size, endness)
+            if addr.op == "BVV":
                 addr = addr.args[0]
                 # Try loading from the state
                 if self._allow_loading(addr, size):
@@ -284,16 +283,14 @@ class SimEnginePropagatorVEX(
         if not self.state.do_binops:
             return self.state.top(expr.result_size(self.tyenv))
 
-        r = super()._handle_Binop(expr)
+        return super()._handle_Binop(expr)
         # print(expr.op, r)
-        return r
 
     def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
         if not self.state.do_binops:
             return self.state.top(expr.result_size(self.tyenv))
 
-        r = super()._handle_Triop(expr)
-        return r
+        return super()._handle_Triop(expr)
 
     def _handle_Conversion(self, expr):
         expr_ = self._expr(expr.args[0])
@@ -307,11 +304,10 @@ class SimEnginePropagatorVEX(
             if expr_.size() > to_size:
                 # truncation
                 return expr_[to_size - 1 : 0]
-            elif expr_.size() < to_size:
+            if expr_.size() < to_size:
                 # extension
                 return claripy.ZeroExt(to_size - expr_.size(), expr_)
-            else:
-                return expr_
+            return expr_
 
         return self._top(to_size)
 

@@ -42,8 +42,7 @@ class strncpy(Func):
         test_output = [buf[:outlen], buf, None]
         max_steps = 5
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         # check only copies up to null

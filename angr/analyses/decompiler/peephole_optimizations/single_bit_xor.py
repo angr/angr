@@ -24,7 +24,6 @@ class SingleBitXor(PeepholeOptimizationExprBase):
                     and xor_expr.operands[0].from_bits == 1
                 )
             ):
-                new_expr = UnaryOp(None, "Not", expr.operand.operands[0].operand)
-                return new_expr
+                return UnaryOp(None, "Not", expr.operand.operands[0].operand)
 
         return expr

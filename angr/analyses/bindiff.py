@@ -189,8 +189,7 @@ def differing_constants(block_a, block_b):
         for d in differences:
             if d.type != DIFF_VALUE:
                 raise UnmatchedStatementsException("Instruction has changed")
-            else:
-                changes.append(ConstantChange(current_offset, d.value_a, d.value_b))
+            changes.append(ConstantChange(current_offset, d.value_a, d.value_b))
 
     return changes
 
@@ -215,8 +214,7 @@ def compare_statement_dict(statement_1, statement_2):
             or statement_1 == statement_2
         ):
             return []
-        else:
-            return [Difference(None, statement_1, statement_2)]
+        return [Difference(None, statement_1, statement_2)]
 
     # tuples/lists
     if isinstance(statement_1, (tuple, list)):
@@ -452,8 +450,7 @@ class FunctionDiff:
         if self._project_a.is_hooked(block_a) and self._project_b.is_hooked(block_b):
             if self._project_a._sim_procedures[block_a] == self._project_b._sim_procedures[block_b]:
                 return 1.0
-            else:
-                return 0.0
+            return 0.0
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
@@ -468,7 +465,7 @@ class FunctionDiff:
         # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
         if block_a is None and block_b is None:
             return 1.0
-        elif block_a is None or block_b is None:
+        if block_a is None or block_b is None:
             return 0.0
 
         # get all elements for computing similarity
@@ -495,9 +492,7 @@ class FunctionDiff:
         num_values += max(len(consts_a), len(consts_b))
         num_values += max(len(block_a.operations), len(block_b.operations))
         num_values += 1  # jumpkind
-        similarity = 1 - (float(total_dist) / num_values)
-
-        return similarity
+        return 1 - (float(total_dist) / num_values)
 
     def blocks_probably_identical(self, block_a, block_b, check_constants=False):
         """
@@ -523,7 +518,7 @@ class FunctionDiff:
         # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
         if block_a is None and block_b is None:
             return True
-        elif block_a is None or block_b is None:
+        if block_a is None or block_b is None:
             return False
 
         # if they represent a different number of blocks they are not the same
@@ -1082,9 +1077,7 @@ class BinDiff(Analysis):
         # remove ones that aren't in the interfunction graph, because these seem to not be consistent
         all_funcs_a = set(self.cfg_a.kb.callgraph.nodes())
         all_funcs_b = set(self.cfg_b.kb.callgraph.nodes())
-        plt_matches = [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
-
-        return plt_matches
+        return [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
 
     def _get_name_matches(self):
         names_to_addrs_a = defaultdict(list)

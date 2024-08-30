@@ -37,7 +37,6 @@ class ADivConstAddAMulNDivConst(PeepholeOptimizationExprBase):
                             False,
                             **op0.tags,
                         )
-                        div = BinaryOp(expr.idx, "Div", [mul, N0], False, **expr.tags)
-                        return div
+                        return BinaryOp(expr.idx, "Div", [mul, N0], False, **expr.tags)
 
         return None

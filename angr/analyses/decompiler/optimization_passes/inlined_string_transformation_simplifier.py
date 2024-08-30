@@ -189,10 +189,9 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 if not expr.is_signed:
                     return claripy.ZeroExt(expr.to_bits - expr.from_bits, v)
                 return claripy.SignExt(expr.to_bits - expr.from_bits, v)
-            elif expr.to_bits < expr.from_bits:
+            if expr.to_bits < expr.from_bits:
                 return claripy.Extract(expr.to_bits - 1, 0, v)
-            else:
-                return v
+            return v
         return None
 
     def _handle_CmpEQ(self, expr):

@@ -194,7 +194,7 @@ class MultiValues:
             if offset == 0:
                 return {self._single_value}
             raise KeyError
-        elif not self._values:
+        if not self._values:
             raise KeyError
         return self._values[offset]
 
@@ -278,8 +278,7 @@ class MultiValues:
             if off == offset:
                 if before:
                     return sorted_offsets[i - 1] if i > 0 else None
-                else:
-                    return sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
+                return sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
             if off > offset:
                 # we missed it...
                 return None

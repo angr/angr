@@ -419,8 +419,7 @@ class Identifier(Analysis):
         while reg_offset >= 0 and reg_offset >= original_offset - (arch.bytes):
             if reg_offset in arch.register_names:
                 return arch.register_names[reg_offset]
-            else:
-                reg_offset -= 1
+            reg_offset -= 1
         return None
 
     @staticmethod
@@ -771,6 +770,7 @@ class Identifier(Analysis):
     def _non_normal_args(stack_args):
         for i, arg in enumerate(stack_args):
             return arg != i * 4
+        return None
 
     @staticmethod
     def make_initial_state(project, stack_length):

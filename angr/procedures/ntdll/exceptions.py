@@ -37,7 +37,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
                 # self.state.mem[self.tib_ptr].uint32_t
                 self.jump(self.state.regs._ip)
                 return
-            elif disposition == 1:  # unhandled, continue search
+            if disposition == 1:  # unhandled, continue search
                 pass
             elif disposition == 2:
                 raise angr.errors.SimUnsupportedError("Exception disposition ExceptionNestedException is unsupported")

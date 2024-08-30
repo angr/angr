@@ -53,7 +53,7 @@ class TypeLifter:
     def _lift_SimTypePointer(self, ty: SimTypePointer):
         if self.bits == 32:
             return Pointer32(self.lift(ty.pts_to))
-        elif self.bits == 64:
+        if self.bits == 64:
             return Pointer64(self.lift(ty.pts_to))
         raise ValueError(f"Unsupported bits {self.bits}.")
 

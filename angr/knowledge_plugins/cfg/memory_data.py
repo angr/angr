@@ -148,10 +148,9 @@ class MemoryData(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        md = cls(
+        return cls(
             cmsg.ea,
             cmsg.size if cmsg.HasField("size") else None,
             _IDX_TO_SORT[cmsg.type],
             reference_size=cmsg.reference_size if cmsg.HasField("reference_size") else None,
         )
-        return md

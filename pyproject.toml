@@ -23,8 +23,9 @@ extend-select = [
 	"B",
 	"C4",
 	"I002",
+	"RET",
+	"RSE",
 	"RUF",
-        "RSE",
 	"SIM",
 	"UP",
 ]

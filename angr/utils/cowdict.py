@@ -27,8 +27,7 @@ class ChainMapCOW(ChainMap):
             ch = self.new_child()
             ch.collapse_threshold = self.collapse_threshold
             return ch
-        else:
-            return self
+        return self
 
 
 class DefaultChainMapCOW(ChainMapCOW):
@@ -61,5 +60,4 @@ class DefaultChainMapCOW(ChainMapCOW):
             r.default_factory = self.default_factory
             r.collapse_threshold = self.collapse_threshold
             return r
-        else:
-            return self
+        return self

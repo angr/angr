@@ -75,8 +75,7 @@ class IsInstanceOf(CallMethodBase):
         class_hierarchy = self.state.javavm_classloader.get_class_hierarchy(obj_class)
         if target_class in class_hierarchy:
             return self.JNI_TRUE
-        else:
-            return self.JNI_FALSE
+        return self.JNI_FALSE
 
 
 #
@@ -92,5 +91,4 @@ class IsSameObject(JNISimProcedure):
         ref2 = self.state.jni_references.lookup(ref2_)
         if ref1 == ref2:
             return self.JNI_TRUE
-        else:
-            return self.JNI_FALSE
+        return self.JNI_FALSE

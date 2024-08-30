@@ -515,9 +515,8 @@ class Dominators:
     def _pd_eval(self, v):
         if self._ancestor[v.index] is None:
             return v
-        else:
-            self._pd_compress(v)
-            return self._label[v.index]
+        self._pd_compress(v)
+        return self._label[v.index]
 
     def _pd_compress(self, v):
         if self._ancestor[self._ancestor[v.index].index] is not None:
@@ -591,8 +590,7 @@ class GraphUtils:
 
         ordered_merge_points = GraphUtils.quasi_topological_sort_nodes(graph, merge_points)
 
-        addrs = [n.addr for n in ordered_merge_points]
-        return addrs
+        return [n.addr for n in ordered_merge_points]
 
     @staticmethod
     def find_widening_points(function_addr, function_endpoints, graph):  # pylint: disable=unused-argument
@@ -737,8 +735,7 @@ class GraphUtils:
             return ordered_nodes
 
         nodes = set(nodes)
-        ordered_nodes = [n for n in ordered_nodes if n in nodes]
-        return ordered_nodes
+        return [n for n in ordered_nodes if n in nodes]
 
     @staticmethod
     def _components_index_node(components, node):

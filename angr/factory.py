@@ -59,12 +59,11 @@ class AngrObjectFactory:
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get("length", 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
-        elif self.project.simos.is_syscall_addr(addr):
+        if self.project.simos.is_syscall_addr(addr):
             syscall = self.project.simos.syscall_from_addr(addr)
             size = syscall.kwargs.get("length", 0)
             return SyscallNode(addr, size, syscall)
-        else:
-            return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
+        return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
 
     def successors(self, *args, engine=None, **kwargs):
         """

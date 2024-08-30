@@ -33,21 +33,20 @@ class DebugVariableContainer:
                 if var.cle_variable.declaration_only:
                     # ignore var
                     return
-                elif v.cle_variable.declaration_only:
+                if v.cle_variable.declaration_only:
                     # ignore v
                     self.less_visible_vars[i] = var
                     var.less_visible_vars = v.less_visible_vars
                     return
-                else:
-                    l.warning(
-                        'Unsupported variable with overlapping scopes. Have "%s" with %d-%d and ignore %d-%d.',
-                        v.cle_variable.name,
-                        v.low_pc,
-                        v.high_pc,
-                        var.low_pc,
-                        var.high_pc,
-                    )
-                    return
+                l.warning(
+                    'Unsupported variable with overlapping scopes. Have "%s" with %d-%d and ignore %d-%d.',
+                    v.cle_variable.name,
+                    v.low_pc,
+                    v.high_pc,
+                    var.low_pc,
+                    var.high_pc,
+                )
+                return
             if var.contains(v):
                 self.less_visible_vars[i] = var
                 var.less_visible_vars.append(v)

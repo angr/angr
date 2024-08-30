@@ -175,8 +175,7 @@ class Array(TypeConstant):
     def __repr__(self, memo=None):
         if self.count is None:
             return f"{self.element!r}[?]"
-        else:
-            return "%r[%d]" % (self.element, self.count)
+        return "%r[%d]" % (self.element, self.count)
 
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count
@@ -287,6 +286,6 @@ def int_type(bits: int) -> Int | None:
 def float_type(bits: int) -> FloatBase | None:
     if bits == 32:
         return Float()
-    elif bits == 64:
+    if bits == 64:
         return Double()
     return None

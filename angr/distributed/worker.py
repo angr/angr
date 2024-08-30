@@ -33,8 +33,7 @@ class BadStatesDropper(ExplorationTechnique):
                 _l.debug("Dropping states in stash %s.", k)
                 simgr.drop(stash=k)
 
-        simgr = simgr.step(stash="active", **kwargs)
-        return simgr
+        return simgr.step(stash="active", **kwargs)
 
 
 class ExplorationStatusNotifier(ExplorationTechnique):

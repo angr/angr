@@ -52,31 +52,30 @@ def op_attrs(p):
 
     if not m:
         return None
-    else:
-        attrs = m.groupdict()
+    attrs = m.groupdict()
 
-        attrs["from_signed"] = attrs["from_signed_back"] if attrs["from_signed"] is None else attrs["from_signed"]
-        attrs.pop("from_signed_back", None)
-        if attrs["generic_name"] == "CmpOR":
-            assert attrs["from_type"] == "D"
-            attrs["generic_name"] = "CmpORD"
-            attrs["from_type"] = None
+    attrs["from_signed"] = attrs["from_signed_back"] if attrs["from_signed"] is None else attrs["from_signed"]
+    attrs.pop("from_signed_back", None)
+    if attrs["generic_name"] == "CmpOR":
+        assert attrs["from_type"] == "D"
+        attrs["generic_name"] = "CmpORD"
+        attrs["from_type"] = None
 
-        # fix up vector stuff
-        vector_info = attrs.pop("vector_info", None)
-        if vector_info:
-            vm = re.match(
-                r"^(?P<vector_size>\d+)?"
-                r"(?P<vector_signed>[US])?"
-                r"(?P<vector_type>[FD])?"
-                r"(?P<vector_zero>0)?"
-                r"x"
-                r"(?P<vector_count>\d+)?$",
-                vector_info,
-            )
-            attrs.update(vm.groupdict())
+    # fix up vector stuff
+    vector_info = attrs.pop("vector_info", None)
+    if vector_info:
+        vm = re.match(
+            r"^(?P<vector_size>\d+)?"
+            r"(?P<vector_signed>[US])?"
+            r"(?P<vector_type>[FD])?"
+            r"(?P<vector_zero>0)?"
+            r"x"
+            r"(?P<vector_count>\d+)?$",
+            vector_info,
+        )
+        attrs.update(vm.groupdict())
 
-        return attrs
+    return attrs
 
 
 all_operations = list(pyvex.irop_enums_to_ints.keys())
@@ -431,8 +430,7 @@ class SimIROp:
         try:
             if self._vector_size is None:
                 return self.extend_size(self._calculate(args))
-            else:
-                return self._calculate(args)
+            return self._calculate(args)
         except (ZeroDivisionError, claripy.ClaripyZeroDivisionError) as e:
             raise SimZeroDivisionException("divide by zero!") from e
         except (TypeError, ValueError, SimValueError, claripy.ClaripyError) as e:
@@ -454,8 +452,7 @@ class SimIROp:
                 or (self._to_signed is None and self._vector_signed == "S")
             ):
                 return claripy.SignExt(ext_size, o)
-            else:
-                return claripy.ZeroExt(ext_size, o)
+            return claripy.ZeroExt(ext_size, o)
 
         # if cur_size > target_size:
         # it should never happen!
@@ -503,9 +500,8 @@ class SimIROp:
     def _translate_rm(self, rm_num):
         if not rm_num.symbolic:
             return rm_map[rm_num.concrete_value]
-        else:
-            l.warning("symbolic rounding mode found, using default")
-            return claripy.fp.RM.default()
+        l.warning("symbolic rounding mode found, using default")
+        return claripy.fp.RM.default()
 
     NO_RM = {"Neg", "Abs"}
 
@@ -737,8 +733,7 @@ class SimIROp:
                     )
                 )
             return claripy.Concat(*res_comps)
-        else:
-            return claripy.If(comparison(args[0], args[1]), claripy.BVV(1, 1), claripy.BVV(0, 1))
+        return claripy.If(comparison(args[0], args[1]), claripy.BVV(1, 1), claripy.BVV(0, 1))
 
     @supports_vector
     def _op_generic_CmpEQ(self, args):
@@ -800,8 +795,7 @@ class SimIROp:
                 left = claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, args[0])
                 shifted.append(op(left, shift_by))
             return claripy.Concat(*shifted)
-        else:
-            raise SimOperationError("you done fucked")
+        raise SimOperationError("you done fucked")
 
     @supports_vector
     def _op_generic_ShlN(self, args):
@@ -898,14 +892,13 @@ class SimIROp:
             return claripy.Concat(
                 claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
             )
-        else:
-            quotient = args[0] // claripy.ZeroExt(self._from_size - self._to_size, args[1])
-            remainder = args[0] % claripy.ZeroExt(self._from_size - self._to_size, args[1])
-            quotient_size = self._to_size
-            remainder_size = self._to_size
-            return claripy.Concat(
-                claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
-            )
+        quotient = args[0] // claripy.ZeroExt(self._from_size - self._to_size, args[1])
+        remainder = args[0] % claripy.ZeroExt(self._from_size - self._to_size, args[1])
+        quotient_size = self._to_size
+        remainder_size = self._to_size
+        return claripy.Concat(
+            claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
+        )
 
     # pylint:enable=no-self-use,unused-argument
 
@@ -943,17 +936,15 @@ class SimIROp:
 
         if not self._vector_size:
             return self._compute_fp_to_int(rm, arg.raw_to_fp(), self._to_size)
-        else:
-            vector_args = arg.chop(self._vector_size)
-            return claripy.Concat(
-                *[self._compute_fp_to_int(rm, varg.raw_to_fp(), self._vector_size) for varg in vector_args]
-            )
+        vector_args = arg.chop(self._vector_size)
+        return claripy.Concat(
+            *[self._compute_fp_to_int(rm, varg.raw_to_fp(), self._vector_size) for varg in vector_args]
+        )
 
     def _compute_fp_to_int(self, rm, arg, to_size):
         if self._to_signed == "S":
             return claripy.fpToSBV(rm, arg, to_size)
-        else:
-            return claripy.fpToUBV(rm, arg, to_size)
+        return claripy.fpToUBV(rm, arg, to_size)
 
     def _op_fgeneric_Cmp(self, args):  # pylint:disable=no-self-use
         # see https://github.com/angr/vex/blob/master/pub/libvex_ir.h#L580
@@ -994,19 +985,18 @@ class SimIROp:
             chopped = [arg[(self._vector_size - 1) : 0].raw_to_fp() for arg in args]
             result = f(*chopped).raw_to_bv()
             return claripy.Concat(args[0][(args[0].length - 1) : self._vector_size], result)
-        else:
-            # I'm changing this behavior because I think this branch was never used otherwise
-            # before it only chopped the first argument but I'm going to make it chop all of them
-            result = []
-            for lane_args in self.vector_args(args):
-                if self._float:
-                    # HACK HACK HACK
-                    # this is such a weird divergence. why do the fp generics take several args and the int generics
-                    # take a list?
-                    result.append(f(*lane_args).raw_to_bv())
-                else:
-                    result.append(f(lane_args))
-            return claripy.Concat(*result)
+        # I'm changing this behavior because I think this branch was never used otherwise
+        # before it only chopped the first argument but I'm going to make it chop all of them
+        result = []
+        for lane_args in self.vector_args(args):
+            if self._float:
+                # HACK HACK HACK
+                # this is such a weird divergence. why do the fp generics take several args and the int generics
+                # take a list?
+                result.append(f(*lane_args).raw_to_bv())
+            else:
+                result.append(f(lane_args))
+        return claripy.Concat(*result)
 
     @staticmethod
     def _fgeneric_minmax(cmp_op, a, b):
@@ -1022,10 +1012,9 @@ class SimIROp:
     def _op_fgeneric_Reinterp(self, args):
         if self._to_type == "I":
             return args[0].raw_to_bv()
-        elif self._to_type == "F":
+        if self._to_type == "F":
             return args[0].raw_to_fp()
-        else:
-            raise SimOperationError("unsupport Reinterp _to_type")
+        raise SimOperationError("unsupport Reinterp _to_type")
 
     @supports_vector
     def _op_fgeneric_Round(self, args):
@@ -1043,18 +1032,17 @@ class SimIROp:
                 left = claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, args[0]).raw_to_fp()
                 rounded.append(claripy.fpToSBV(rm, left, self._vector_size))
             return claripy.Concat(*rounded)
-        else:
-            rm = self._translate_rm(args[0])
-            rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
+        rm = self._translate_rm(args[0])
+        rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
 
-            # if exponent is large enough, floating points are always integers.
-            fsort = claripy.fp.FSort.from_size(args[1].length)
-            mantissa_bits = fsort.mantissa - 1  # -1 since FSort has mantissa value 1 higher than the number of bits
-            exp_bits = fsort.exp
-            rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, fsort)
-            exp_bv = args[1].raw_to_bv()[exp_bits + mantissa_bits - 1 : mantissa_bits]
-            exp_threshold = (2 ** (exp_bits - 1) - 1) + mantissa_bits
-            return claripy.If(exp_bv >= exp_threshold, args[1].raw_to_fp(), rounded_fp)
+        # if exponent is large enough, floating points are always integers.
+        fsort = claripy.fp.FSort.from_size(args[1].length)
+        mantissa_bits = fsort.mantissa - 1  # -1 since FSort has mantissa value 1 higher than the number of bits
+        exp_bits = fsort.exp
+        rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, fsort)
+        exp_bv = args[1].raw_to_bv()[exp_bits + mantissa_bits - 1 : mantissa_bits]
+        exp_threshold = (2 ** (exp_bits - 1) - 1) + mantissa_bits
+        return claripy.If(exp_bv >= exp_threshold, args[1].raw_to_fp(), rounded_fp)
 
     def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
         """
@@ -1182,8 +1170,7 @@ class SimIROp:
         if self._set_size in {32, 64}:
             if self._set_size != args[1].size():
                 raise SimOperationError(f"Unexpected args[1] size {args[1].size()}")
-            v = claripy.Concat(args[0][args[0].size() - 1 : self._set_size], args[1])
-            return v
+            return claripy.Concat(args[0][args[0].size() - 1 : self._set_size], args[1])
         raise NotImplementedError(f"Unsupported set_size {self._set_size}")
 
     # def _op_Iop_Yl2xF64(self, args):

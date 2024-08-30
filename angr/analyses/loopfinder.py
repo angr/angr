@@ -28,8 +28,7 @@ class Loop:
                     break
 
     def __repr__(self):
-        s = "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
-        return s
+        return "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
 
 
 class LoopFinder(Analysis):

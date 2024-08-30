@@ -74,7 +74,7 @@ class BaseNode:
         if type(node) is ailment.Block:
             # is it empty?
             return bool(not node.statements)
-        elif type(node) is CodeNode:
+        if type(node) is CodeNode:
             return BaseNode.test_empty_node(node.node)
         # unsupported node type. probably not empty?
         return False
@@ -111,8 +111,7 @@ class SequenceNode(BaseNode):
     def __repr__(self):
         if self.addr is None:
             return "<SequenceNode, %d nodes>" % len(self.nodes)
-        else:
-            return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
+        return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -153,15 +152,13 @@ class CodeNode(BaseNode):
             if self.idx is not None:
                 return f"<CodeNode {self.addr:#x}.{self.idx}>"
             return f"<CodeNode {self.addr:#x}>"
-        else:
-            return f"<CodeNode {self.node!r}>"
+        return f"<CodeNode {self.node!r}>"
 
     @property
     def addr(self):
         if hasattr(self.node, "addr"):
             return self.node.addr
-        else:
-            return None
+        return None
 
     @property
     def idx(self):
@@ -223,8 +220,7 @@ class ConditionNode(BaseNode):
     def __repr__(self):
         if self.addr is not None:
             return f"<ConditionNode {self.addr:#x}>"
-        else:
-            return f"<ConditionNode ({self.true_node!r}|{self.false_node!r})>"
+        return f"<ConditionNode ({self.true_node!r}|{self.false_node!r})>"
 
 
 class CascadingConditionNode(BaseNode):
@@ -274,15 +270,13 @@ class LoopNode(BaseNode):
     def addr(self):
         if self._addr is None:
             return self.sequence_node.addr
-        else:
-            return self._addr
+        return self._addr
 
     @property
     def continue_addr(self):
         if self._continue_addr is None:
             return self.addr
-        else:
-            return self._continue_addr
+        return self._continue_addr
 
     @continue_addr.setter
     def continue_addr(self, value):

@@ -1254,9 +1254,8 @@ class SimStateLibc(SimStatePlugin):
 
         if self.state.scratch.sim_procedure.is_syscall:
             return -ival
-        else:
-            self.errno = ival
-            return -1
+        self.errno = ival
+        return -1
 
 
 from angr.sim_state import SimState
