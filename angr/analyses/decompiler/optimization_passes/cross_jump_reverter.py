@@ -55,7 +55,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
             # only blocks that have a single outgoing goto are candidates
             # for duplicates
-            goto = list(gotos)[0]
+            goto = next(iter(gotos))
             for goto_target in self.out_graph.successors(node):
                 if goto_target.addr == goto.dst_addr:
                     break

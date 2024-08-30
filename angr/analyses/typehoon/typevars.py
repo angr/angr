@@ -285,7 +285,7 @@ class TypeVariable:
         varname = mapping.get(self, self.name)
         if varname is None:
             return repr(self)
-        return f"{varname} ({repr(self)})"
+        return f"{varname} ({self!r})"
 
     def __eq__(self, other):
         if type(other) is not TypeVariable:
@@ -333,7 +333,7 @@ class DerivedTypeVariable(TypeVariable):
             raise TypeError("You cannot specify both label and labels at the same time")
 
         if label is not None:
-            self.labels = existing_labels + (label,)
+            self.labels = (*existing_labels, label)
         else:
             self.labels: tuple[BaseLabel] = existing_labels + tuple(labels)
 
@@ -448,7 +448,7 @@ class BaseLabel:
         return type(self) is type(other) and hash(self) == hash(other)
 
     def __hash__(self):
-        return hash((type(self),) + tuple(getattr(self, k) for k in self.__slots__))
+        return hash((type(self), *tuple(getattr(self, k) for k in self.__slots__)))
 
     @property
     def variance(self) -> Variance:

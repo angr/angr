@@ -158,7 +158,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             all_stack_addr_typevar_offsets.update(other.stack_offset_typevars)
         for offset in all_stack_addr_typevar_offsets:
             all_typevars = set()
-            for state in (self,) + others:
+            for state in (self, *others):
                 typevar = state.stack_offset_typevars.get(offset, None)
                 if typevar is not None:
                     all_typevars.add(typevar)
@@ -254,7 +254,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         # Make sure the function is not empty
         if not func.block_addrs_set or func.startpoint is None:
-            raise AngrVariableRecoveryError(f"Function {repr(func)} is empty.")
+            raise AngrVariableRecoveryError(f"Function {func!r} is empty.")
 
         VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
         ForwardAnalysis.__init__(

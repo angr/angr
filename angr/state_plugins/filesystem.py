@@ -122,7 +122,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
             self._mountpoints[fname].merge(subdeck, merge_conditions, common_ancestor=common_mp)
 
         # this is a little messy
-        deck = [self] + others
+        deck = [self, *others]
         all_files = set.union(*(set(o._files.keys()) for o in deck))
         for fname in all_files:
             subdeck = [o._files.get(fname, None) for o in deck]
@@ -377,7 +377,7 @@ class SimConcreteFilesystem(SimMount):
             if o.deleted_list != self.deleted_list:
                 raise SimMergeError("Can't merge concrete filesystems with disparate deleted files")
 
-        deck = [self] + others
+        deck = [self, *others]
         all_files = set.union(*(set(o._files.keys()) for o in deck))
         for fname in all_files:
             subdeck = []

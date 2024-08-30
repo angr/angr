@@ -865,10 +865,10 @@ class StructurerBase(Analysis):
             if isinstance(node_1, SequenceNode):
                 return SequenceNode(addr, nodes=node_0.nodes + node_1.nodes)
             else:
-                return SequenceNode(addr, nodes=node_0.nodes + [node_1])
+                return SequenceNode(addr, nodes=[*node_0.nodes, node_1])
         else:
             if isinstance(node_1, SequenceNode):
-                return SequenceNode(addr, nodes=[node_0] + node_1.nodes)
+                return SequenceNode(addr, nodes=[node_0, *node_1.nodes])
             else:
                 return SequenceNode(addr, nodes=[node_0, node_1])
 

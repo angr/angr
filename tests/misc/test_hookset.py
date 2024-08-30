@@ -23,11 +23,11 @@ class TestHookSet(unittest.TestCase):
 
         class Bar:
             def blah(self, foo):  # pylint:disable=no-self-use
-                return ["bar"] + foo.blah()
+                return ["bar", *foo.blah()]
 
         class Baz:
             def blah(self, foo):  # pylint:disable=no-self-use
-                return ["baz"] + foo.blah()
+                return ["baz", *foo.blah()]
 
         class Coward:
             def blah(self, foo):  # pylint:disable=no-self-use,unused-argument

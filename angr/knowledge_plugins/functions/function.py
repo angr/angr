@@ -1221,7 +1221,7 @@ class Function(Serializable):
             # out_edges = subgraph.out_edges(n)
             # the first instruction address should be included
             if len(in_edges) > 1 and n.addr not in insns:
-                insns = [n.addr] + insns
+                insns = [n.addr, *insns]
 
             for src, _ in in_edges:
                 last_instr = block_addr_to_insns[src.addr][-1]
@@ -1460,7 +1460,7 @@ class Function(Serializable):
 
         self.normalized = True
 
-    def find_declaration(self, ignore_binary_name: bool = False, binary_name_hint: str = None) -> bool:
+    def find_declaration(self, ignore_binary_name: bool = False, binary_name_hint: str | None = None) -> bool:
         """
         Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
         and update self.calling_convention with the declaration.

@@ -396,8 +396,8 @@ class SimSystemPosix(SimStatePlugin):
                     sockpair = sockpair[0].copy(memo), sockpair[1].copy(memo)
 
             if sockpair is None:
-                read_file = SimPacketsStream(f"socket {str(ident)} read")
-                write_file = SimPacketsStream(f"socket {str(ident)} write")
+                read_file = SimPacketsStream(f"socket {ident!s} read")
+                write_file = SimPacketsStream(f"socket {ident!s} write")
                 sockpair = (read_file, write_file)
 
             self.sockets[ident] = sockpair

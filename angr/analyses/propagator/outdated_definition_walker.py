@@ -28,7 +28,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         state: PropagatorAILState,
         arch: Arch,
         avoid: Expr.Expression | None = None,
-        extract_offset_to_sp: Callable = None,
+        extract_offset_to_sp: Callable | None = None,
         rda: ReachingDefinitionsModel = None,
     ):
         super().__init__()

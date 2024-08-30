@@ -143,7 +143,7 @@ class MVListPage(
         others: list[MVListPage],
         merge_conditions,
         common_ancestor=None,
-        page_addr: int = None,
+        page_addr: int | None = None,
         memory=None,
         changed_offsets: set[int] | None = None,
     ):
@@ -152,7 +152,7 @@ class MVListPage(
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: list[MVListPage] = [self] + others
+        all_pages: list[MVListPage] = [self, *others]
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -215,7 +215,7 @@ class MVListPage(
                         to_merge.append((mo.object, fv))
 
                 # Update `merged_to`
-                mo_base = list(mo_bases)[0]
+                mo_base = next(iter(mo_bases))
                 mo_length = next(iter(mo_lengths))
                 size = min(mo_length - (page_addr + b - mo_base), len(self.content) - b)
                 merged_to = b + size
@@ -278,7 +278,7 @@ class MVListPage(
         return merged_offsets
 
     def compare(
-        self, other: MVListPage, page_addr: int = None, memory=None, changed_offsets=None
+        self, other: MVListPage, page_addr: int | None = None, memory=None, changed_offsets=None
     ) -> bool:  # pylint: disable=unused-argument
         compared_to = None
         for b in sorted(changed_offsets):
@@ -310,7 +310,7 @@ class MVListPage(
 
         return True
 
-    def changed_bytes(self, other: MVListPage, page_addr: int = None):
+    def changed_bytes(self, other: MVListPage, page_addr: int | None = None):
         candidates: set[int] = super().changed_bytes(other)
         if candidates is not None:
             # using the result from the history tracking mixin as an approximation

@@ -365,11 +365,11 @@ class Identifier(Analysis):
         addr_trace = []
         while len(list(calling_func.transition_graph.predecessors(start))) == 1:
             # stop at a call, could continue farther if no stack addr passed etc
-            prev_block = list(calling_func.transition_graph.predecessors(start))[0]
-            addr_trace = [start.addr] + addr_trace
+            prev_block = next(iter(calling_func.transition_graph.predecessors(start)))
+            addr_trace = [start.addr, *addr_trace]
             start = prev_block
 
-        addr_trace = [start.addr] + addr_trace
+        addr_trace = [start.addr, *addr_trace]
         succ_state = None
         while len(addr_trace):
             try:
@@ -472,7 +472,7 @@ class Identifier(Analysis):
         initial_state = self.base_symbolic_state.copy()
 
         reg_dict = {}
-        for r in self._reg_list + [self._bp_reg]:
+        for r in [*self._reg_list, self._bp_reg]:
             reg_dict[hash(initial_state.registers.load(r))] = r
 
         initial_state.regs.ip = func.startpoint.addr

@@ -98,7 +98,7 @@ class SimActionObject:
         self.ast, self.reg_deps, self.tmp_deps = data
 
     def _preserving_unbound(self, f, *args, **kwargs):
-        return ast_preserving_op(f, *((self,) + tuple(args)), **kwargs)
+        return ast_preserving_op(f, *((self, *tuple(args))), **kwargs)
 
     def _preserving_bound(self, f, *args, **kwargs):  # pylint:disable=no-self-use
         return ast_preserving_op(f, *args, **kwargs)

@@ -874,7 +874,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             for item in self._starts:
                 if isinstance(item, tuple):
                     if len(item) != 2:
-                        raise AngrCFGError(f'Unsupported item in "starts": {str(item)}')
+                        raise AngrCFGError(f'Unsupported item in "starts": {item!s}')
 
                     new_starts.append(item)
                 elif isinstance(item, int):
@@ -947,7 +947,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 self._reset_state_mode(state, "fastpath")
 
             else:
-                raise AngrCFGError(f"Unsupported CFG start type: {str(type(item))}.")
+                raise AngrCFGError(f"Unsupported CFG start type: {type(item)!s}.")
 
             self._symbolic_function_initial_state[ip] = state
             path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack)
@@ -2502,9 +2502,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # Let's slice backwards from the end of this exit
         next_tmp = irsb.next.tmp
-        stmt_id = [i for i, s in enumerate(irsb.statements) if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][
-            0
-        ]
+        stmt_id = next(
+            i for i, s in enumerate(irsb.statements) if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp
+        )
 
         cdg = self.project.analyses[CDG].prep(fail_fast=self._fail_fast)(cfg=self)
         ddg = self.project.analyses[DDG].prep(fail_fast=self._fail_fast)(
@@ -2746,7 +2746,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         for c in concrete_exits:
             unsat_state = current_block.unsat_successors[0].copy()
             unsat_state.history.jumpkind = c.history.jumpkind
-            for reg in unsat_state.arch.persistent_regs + ["ip"]:
+            for reg in [*unsat_state.arch.persistent_regs, "ip"]:
                 unsat_state.registers.store(reg, c.registers.load(reg))
             new_concrete_successors.append(unsat_state)
 

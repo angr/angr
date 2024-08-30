@@ -50,7 +50,7 @@ class RegionedMemoryMixin(MemoryMixin):
         stack_region_map: RegionMap | None = None,
         generic_region_map: RegionMap | None = None,
         stack_size: int = 65536,
-        cle_memory_backer: Optional = None,
+        cle_memory_backer: Optional | None = None,
         dict_memory_backer: dict | None = None,
         regioned_memory_cls: type | None = None,
         **kwargs,
@@ -252,7 +252,7 @@ class RegionedMemoryMixin(MemoryMixin):
         state: SimState,
         related_function_addr: int,
         endness,
-        cle_memory_backer: Optional = None,
+        cle_memory_backer: Optional | None = None,
         dict_memory_backer: dict | None = None,
     ):
         """

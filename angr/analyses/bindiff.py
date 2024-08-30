@@ -318,7 +318,7 @@ class NormalizedFunction:
                     and successors[0].addr > node.addr
                 ):
                     # add edges to the successors of its successor, and delete the original successors
-                    succ = list(self.graph.successors(node))[0]
+                    succ = next(iter(self.graph.successors(node)))
                     for s in self.graph.successors(succ):
                         self.graph.add_edge(node, s)
                     self.graph.remove_node(succ)

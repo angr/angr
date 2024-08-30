@@ -270,7 +270,7 @@ class SimWindows(SimOS):
                                 init_order.append(depo)
 
                 fuck_load(self.project.loader.main_object)
-                load_order = [self.project.loader.main_object] + init_order
+                load_order = [self.project.loader.main_object, *init_order]
 
                 def link(a, b):
                     state.mem[a].dword = b

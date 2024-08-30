@@ -3120,7 +3120,7 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         cflags = []
         for arch_flags in [[], ["-m32", "-fno-pie"]]:  # AMD64, x86
             for opt_level in range(0, 3):
-                subtest_cflags = cflags + [f"-O{opt_level}"] + arch_flags
+                subtest_cflags = [*cflags, f"-O{opt_level}", *arch_flags]
                 with self.subTest(cflags=subtest_cflags):
                     self._run_calltable_test(
                         c_code, "src_func", {f"dst_func_{i}" for i in range(4)}, cflags=subtest_cflags

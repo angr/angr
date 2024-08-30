@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import ClassVar, TYPE_CHECKING
 
 import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
@@ -94,7 +95,7 @@ class SimRegNameView(SimStatePlugin):
                 + ["flags", "eflags", "rflags"]
             )
         elif is_arm_arch(self.state.arch):
-            return list(self.state.arch.registers.keys()) + ["flags"]
+            return [*list(self.state.arch.registers.keys()), "flags"]
         return self.state.arch.registers.keys()
 
     @SimStatePlugin.memo
@@ -188,7 +189,7 @@ class SimMemView(SimStatePlugin):
     def __setitem__(self, k, v):
         self.__getitem__(k).store(v)
 
-    types = {}
+    types: ClassVar[dict] = {}
     state = None
 
     def __repr__(self):

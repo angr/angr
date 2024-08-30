@@ -889,7 +889,7 @@ class AILSimplifier(Analysis):
                     ) or d.atom == def_.atom:
                         use_expr_defns.append(d)
                 # you can never replace a use with dependencies from outside the checked defn
-                if len(use_expr_defns) != 1 or list(use_expr_defns)[0] != def_:
+                if len(use_expr_defns) != 1 or next(iter(use_expr_defns)) != def_:
                     if not use_expr_defns:
                         _l.warning("There was no use_expr_defns for %s, this is likely a bug", u)
                     # TODO: can you have multiple definitions which can all be eliminated?

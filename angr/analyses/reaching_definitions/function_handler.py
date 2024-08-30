@@ -298,7 +298,7 @@ class FunctionHandler:
         if callsite.context is None:
             return CodeLocation(target_int, stmt_idx=None, context=None)
         elif type(callsite.context) is tuple and callsite_func_addr is not None:
-            return CodeLocation(target_int, stmt_idx=None, context=(callsite.block_addr,) + callsite.context)
+            return CodeLocation(target_int, stmt_idx=None, context=(callsite.block_addr, *callsite.context))
         else:
             raise TypeError(
                 "Please implement FunctionHandler.make_function_codeloc for your special context sensitivity"

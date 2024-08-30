@@ -198,7 +198,7 @@ class BlockSimplifier(Analysis):
             propagator = self._compute_propagation(block)
             new_block = block
             if propagator.model.states:
-                prop_state = list(propagator.model.states.values())[0]
+                prop_state = next(iter(propagator.model.states.values()))
                 replacements = prop_state._replacements
                 if replacements:
                     _, new_block = self._replace_and_build(block, replacements, replace_registers=True)

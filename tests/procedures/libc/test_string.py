@@ -457,7 +457,7 @@ class TestStringSimProcedures(unittest.TestCase):
         # print "LENN:", s.solver.eval_upto(sln_res, 100)
 
         assert not s.solver.unique(ss_res)
-        assert sorted(s.solver.eval_upto(ss_res, 100)) == [0] + list(range(0x10, 0x10 + s.libc.buf_symbolic_bytes - 1))
+        assert sorted(s.solver.eval_upto(ss_res, 100)) == [0, *list(range(16, 16 + s.libc.buf_symbolic_bytes - 1))]
 
         s.add_constraints(ss_res != 0)
         ss2 = strstr(s, arguments=[addr_haystack, addr_needle])

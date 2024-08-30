@@ -139,7 +139,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         self,
         addr,
         data: int | SimMemoryObject,
-        size: int = None,
+        size: int | None = None,
         endness=None,
         memory=None,
         page_addr=None,  # pylint: disable=arguments-differ
@@ -217,11 +217,11 @@ class UltraPage(MemoryObjectMixin, PageBase):
         others: list[UltraPage],
         merge_conditions,
         common_ancestor=None,
-        page_addr: int = None,  # pylint: disable=arguments-differ
+        page_addr: int | None = None,  # pylint: disable=arguments-differ
         memory=None,
         changed_offsets: set[int] | None = None,
     ):
-        all_pages = [self] + others
+        all_pages = [self, *others]
         merged_to = None
         merged_objects = set()
         merged_offsets = set()
@@ -282,7 +282,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
-                merged_to = b + list(mo_lengths)[0]
+                merged_to = b + next(iter(mo_lengths))
 
                 merged_val = self._merge_values(to_merge, memory_objects[0][0].length, memory=memory)
                 if merged_val is None:
@@ -292,7 +292,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     # this object does not exist in the current page. do the store
                     new_object = SimMemoryObject(merged_val, page_addr + b, memory_objects[0][0].endness)
                     self.store(
-                        b, new_object, size=list(mo_lengths)[0], cooperate=True, page_addr=page_addr, memory=memory
+                        b, new_object, size=next(iter(mo_lengths)), cooperate=True, page_addr=page_addr, memory=memory
                     )
                     merged_objects.add(new_object)
                 else:

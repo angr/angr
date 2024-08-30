@@ -211,7 +211,7 @@ class SimEnginePropagatorVEX(
             self.tmps[stmt.dst] = None
 
         # add replacement
-        if stmt.dst in self.tmps and self.tmps[stmt.dst]:
+        if self.tmps.get(stmt.dst):
             self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.dst), self.tmps[stmt.dst])
 
     def _handle_StoreG(self, stmt):
