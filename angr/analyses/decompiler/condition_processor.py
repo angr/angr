@@ -413,17 +413,17 @@ class ConditionProcessor:
         if type(block) is SequenceNode:
             if block.nodes:
                 return cls.get_last_statement(block.nodes[-1])
-            raise EmptyBlockNotice()
+            raise EmptyBlockNotice
         if type(block) is CodeNode:
             return cls.get_last_statement(block.node)
         if type(block) is ailment.Block:
             if not block.statements:
-                raise EmptyBlockNotice()
+                raise EmptyBlockNotice
             return block.statements[-1]
         if type(block) is Block:
-            raise NotImplementedError()
+            raise NotImplementedError
         if type(block) is BlockNode:
-            raise NotImplementedError()
+            raise NotImplementedError
         if type(block) is MultiNode:
             # get the last node
             for the_block in reversed(block.nodes):
@@ -432,7 +432,7 @@ class ConditionProcessor:
                     return last_stmt
                 except EmptyBlockNotice:
                     continue
-            raise EmptyBlockNotice()
+            raise EmptyBlockNotice
         if type(block) is LoopNode:
             return cls.get_last_statement(block.sequence_node)
         if type(block) is ConditionalBreakNode:
@@ -469,7 +469,7 @@ class ConditionProcessor:
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def get_last_statements(cls, block) -> list[ailment.Stmt.Statement | None]:
@@ -482,18 +482,18 @@ class ConditionProcessor:
                     # the node is empty. try the next one
                     continue
 
-            raise EmptyBlockNotice()
+            raise EmptyBlockNotice
 
         if type(block) is CodeNode:
             return cls.get_last_statements(block.node)
         if type(block) is ailment.Block:
             if not block.statements:
-                raise EmptyBlockNotice()
+                raise EmptyBlockNotice
             return [block.statements[-1]]
         if type(block) is Block:
-            raise NotImplementedError()
+            raise NotImplementedError
         if type(block) is BlockNode:
-            raise NotImplementedError()
+            raise NotImplementedError
         if type(block) is MultiNode:
             # get the last node
             for the_block in reversed(block.nodes):
@@ -502,10 +502,10 @@ class ConditionProcessor:
                     return last_stmts
                 except EmptyBlockNotice:
                     continue
-            raise EmptyBlockNotice()
+            raise EmptyBlockNotice
         if type(block) is LoopNode:
             if block.sequence_node is None:
-                raise EmptyBlockNotice()
+                raise EmptyBlockNotice
             return cls.get_last_statements(block.sequence_node)
         if type(block) is ConditionalBreakNode:
             return [block]
@@ -561,7 +561,7 @@ class ConditionProcessor:
             # normally this should not happen. however, we have test cases that trigger this case.
             return []
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Path predicate

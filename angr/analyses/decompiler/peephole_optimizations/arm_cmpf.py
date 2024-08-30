@@ -75,7 +75,7 @@ class ARMCmpF(PeepholeOptimizationExprBase):
                     if bit_mask == 1:
                         op = "CmpGT" if negate else "CmpLE"
                     else:
-                        raise NotImplementedError()
+                        raise NotImplementedError
                     return BinaryOp(
                         expr.idx,
                         op,

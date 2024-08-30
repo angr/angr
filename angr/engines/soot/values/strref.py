@@ -17,7 +17,7 @@ class SimSootValue_StringRef(SimSootValue):
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def new_string(state, value):

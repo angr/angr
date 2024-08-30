@@ -39,11 +39,11 @@ class TypeConstant:
     @property
     def size(self) -> int:
         if self.SIZE is None:
-            raise NotImplementedError()
+            raise NotImplementedError
         return self.SIZE
 
     def __repr__(self, memo=None):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class TopType(TypeConstant):

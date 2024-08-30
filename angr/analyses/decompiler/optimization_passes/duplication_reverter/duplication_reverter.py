@@ -409,7 +409,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             elif graph.out_degree(node) == 2:
                 last_stmt = node.statements[-1]
                 if isinstance(last_stmt, ConditionalJump):
-                    real_successor_addrs = list(_n.addr for _n in graph.successors(node))
+                    real_successor_addrs = [_n.addr for _n in graph.successors(node)]
                     addr_map = {}
                     unmapped_addrs = []
                     for target in (last_stmt.true_target, last_stmt.false_target):

@@ -50,7 +50,7 @@ class ReturnDuplicatorBase:
     #
 
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # main analysis

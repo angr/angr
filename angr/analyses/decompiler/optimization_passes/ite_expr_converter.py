@@ -45,7 +45,7 @@ class BlockLocator(RegionWalker):
     def walk_node(self, region, node):
         if node == self._block:
             self.region = region
-            raise NodeFoundNotification()
+            raise NodeFoundNotification
 
 
 class ExpressionReplacer(AILBlockWalker):

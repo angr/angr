@@ -45,7 +45,7 @@ class SimAction(SimEvent):
         return f"<{self.__class__.__name__} {location} {self._desc()}>"
 
     def _desc(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def _make_object(v):
@@ -65,11 +65,11 @@ class SimAction(SimEvent):
 
     @property
     def all_objects(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def is_symbolic(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def tmp_deps(self):
@@ -80,7 +80,7 @@ class SimAction(SimEvent):
         return frozenset.union(*[v.reg_deps for v in self.all_objects])
 
     def _copy_objects(self, c):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy(self):
         c = self._copy_event()

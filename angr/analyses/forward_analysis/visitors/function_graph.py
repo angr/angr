@@ -80,7 +80,7 @@ class FunctionGraphVisitor(GraphVisitor):
             start_nodes = [node for node in self.graph if self.graph.in_degree(node) == 0]
 
         if not start_nodes:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         start_node = start_nodes[0]
         return list(dfs_back_edges(self.graph, start_node))

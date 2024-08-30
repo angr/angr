@@ -1301,7 +1301,7 @@ class AILSimplifier(Analysis):
                                 simplified = True
                     else:
                         # Should not happen!
-                        raise NotImplementedError()
+                        raise NotImplementedError
 
                 new_statements.append(stmt)
 
@@ -1359,7 +1359,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-            raise HasCallNotification()
+            raise HasCallNotification
 
         walker = AILBlockWalker()
         walker.expr_handlers[Call] = _handle_callexpr
@@ -1373,7 +1373,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _expression_has_call_exprs(expr: Expression) -> bool:
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-            raise HasCallNotification()
+            raise HasCallNotification
 
         walker = AILBlockWalker()
         walker.expr_handlers[Call] = _handle_callexpr

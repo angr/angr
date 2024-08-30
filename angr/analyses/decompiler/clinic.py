@@ -2041,7 +2041,7 @@ class Clinic(Analysis):
 
                     if value_updated:
                         graph.add_edge(pred, succ)
-                        raise RemoveNodeNotice()
+                        raise RemoveNodeNotice
                 elif len(preds) >= 1 and len(succs) == 1:
                     succ = succs[0]
                     branch_updates = 0
@@ -2076,9 +2076,9 @@ class Clinic(Analysis):
                                     and last_stmt.false_target.value == node.addr
                                 ):
                                     last_stmt.false_target.value = succ.addr
-                        raise RemoveNodeNotice()
+                        raise RemoveNodeNotice
                 elif not preds or not succs:
-                    raise RemoveNodeNotice()
+                    raise RemoveNodeNotice
 
         AILGraphWalker(graph, handle_node, replace_nodes=True).walk()
         return graph

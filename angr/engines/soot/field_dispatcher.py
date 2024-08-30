@@ -31,7 +31,7 @@ def resolve_field(state, field_class, field_name, field_type, raise_exception_if
     # field could not be found
     l.warning("Couldn't find field %s in classes %s.", field_name, class_hierarchy)
     if raise_exception_if_not_found:
-        raise SootFieldNotLoadedException()
+        raise SootFieldNotLoadedException
     else:
         return SootFieldDescriptor(field_class, field_name, field_type)
 

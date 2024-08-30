@@ -185,7 +185,7 @@ class Blade:
                     v, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
                 ).vex
                 if irsb.jumpkind == "Ijk_NoDecode":
-                    raise BadJumpkindNotification()
+                    raise BadJumpkindNotification
                 self._run_cache[v] = irsb
                 return irsb
             else:

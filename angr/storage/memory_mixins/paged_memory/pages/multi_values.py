@@ -193,9 +193,9 @@ class MultiValues:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
-            raise KeyError()
+            raise KeyError
         elif not self._values:
-            raise KeyError()
+            raise KeyError
         return self._values[offset]
 
     def keys(self) -> set[int]:

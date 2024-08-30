@@ -74,14 +74,14 @@ class StructurerBase(Analysis):
         self.result = None
 
     def _analyze(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Basic structuring methods
     #
 
     def _structure_sequence(self, seq: SequenceNode):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Util methods
@@ -608,7 +608,7 @@ class StructurerBase(Analysis):
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
             else:
                 _l.warning("None of the branches is jumping to outside of the loop")
-                raise Exception()
+                raise Exception
 
         return new_node
 

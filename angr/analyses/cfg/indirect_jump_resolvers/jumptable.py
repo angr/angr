@@ -1571,7 +1571,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 if state.is_jumptable:
                     return state.stmts_to_instrument, state.regs_to_initialize
                 if state.is_jumptable is False:
-                    raise NotAJumpTableNotification()
+                    raise NotAJumpTableNotification
 
                 # find the next block
                 src = None
@@ -1585,7 +1585,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             traced.add(block_addr_)
                             break
 
-        raise NotAJumpTableNotification()
+        raise NotAJumpTableNotification
 
     @staticmethod
     def _try_resolve_single_constant_loads(load_stmt, cfg, addr):
@@ -1614,7 +1614,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     l.info(
                         "Constant indirect jump %#x points outside of loaded memory to %#08x", addr, jump_target_addr
                     )
-                    raise NotAJumpTableNotification()
+                    raise NotAJumpTableNotification
 
                 l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 return jump_target

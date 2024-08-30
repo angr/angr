@@ -50,7 +50,7 @@ class GraphVisitor(Generic[NodeType]):
         :rtype:      list
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def predecessors(self, node: NodeType) -> list[NodeType]:
         """
@@ -60,7 +60,7 @@ class GraphVisitor(Generic[NodeType]):
         :return:     A list of predecessors.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def sort_nodes(self, nodes: Collection[NodeType] | None = None) -> list[NodeType]:
         """
@@ -70,7 +70,7 @@ class GraphVisitor(Generic[NodeType]):
         :return:               A list of sorted nodes.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def back_edges(self) -> list[tuple[NodeType, NodeType]]:
         """
@@ -79,7 +79,7 @@ class GraphVisitor(Generic[NodeType]):
 
         :return:                A list of back edges (source -> destination).
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Public methods

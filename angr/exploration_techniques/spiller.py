@@ -20,7 +20,7 @@ class PickledStatesBase:
         Sort pickled states.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def add(self, prio, sid):
         """
@@ -30,7 +30,7 @@ class PickledStatesBase:
         :param str sid:     Persistent ID of the state.
         :return:            None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def pop_n(self, n):
         """
@@ -39,7 +39,7 @@ class PickledStatesBase:
         :param int n:   Number of states to take.
         :return:        A list of states.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class PickledStatesList(PickledStatesBase):

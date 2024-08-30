@@ -507,7 +507,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         if pos < len(self._job_info_queue):
             return self._job_info_queue[pos].job
 
-        raise IndexError()
+        raise IndexError
 
     def _remove_job(self, predicate: Callable) -> None:
         """

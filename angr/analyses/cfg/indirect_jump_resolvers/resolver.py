@@ -27,7 +27,7 @@ class IndirectJumpResolver:
         :rtype:  bool
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):
         """
@@ -46,7 +46,7 @@ class IndirectJumpResolver:
         :rtype:                 tuple
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _is_target_valid(self, cfg, target):  # pylint:disable=no-self-use
         """

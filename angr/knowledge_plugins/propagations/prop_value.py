@@ -74,7 +74,7 @@ class PropValue:
         return None
 
     def to_label(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def with_details(self, size: int, expr: ailment.Expression, def_at: CodeLocation) -> PropValue:
         return PropValue(self.value, offset_and_details={0: Detail(size, expr, def_at)})

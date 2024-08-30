@@ -156,7 +156,7 @@ class SimType:
             return f"{str(self) if self.label is None else self.label} {name}"
 
     def copy(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def extract(self, state: SimState, addr, concrete: bool = False) -> Any:
         raise NotImplementedError
@@ -1826,7 +1826,7 @@ class SimTypeNumOffset(SimTypeNum):
         return n
 
     def store(self, state, addr, value):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy(self):
         return SimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
@@ -3409,7 +3409,7 @@ def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes
             t.name = decl  # pylint:disable=attribute-defined-outside-init
         return t
 
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def normalize_cpp_function_name(name: str) -> str:

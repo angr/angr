@@ -130,7 +130,7 @@ class PropagatorState:
         max_prop_expr_occurrence=None,
         initial_codeloc=None,
     ):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_weakref(self):
         return weakref.proxy(self)
@@ -244,7 +244,7 @@ class PropagatorState:
         return merge_occurred
 
     def copy(self) -> PropagatorState:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def merge(self, *others):
         state = self.copy()

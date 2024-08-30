@@ -260,7 +260,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
                     new_bb_idx,
                     SootMethodDescriptor.from_soot_method(method),
                 )
-                raise IncorrectLocationException()
+                raise IncorrectLocationException
 
     @classmethod
     def setup_callsite(cls, state, args, ret_addr, ret_var=None):
@@ -327,7 +327,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         state.history.add_event("terminate", exit_code=exit_code)
         successors.add_successor(state, state.regs.ip, claripy.true, "Ijk_Exit")
         successors.processed = True
-        raise BlockTerminationNotice()
+        raise BlockTerminationNotice
 
     #
     # JNI Native Interface

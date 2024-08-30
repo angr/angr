@@ -181,7 +181,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
         for variable in self._phi_variables:
             vc = variable.serialize_to_cmessage()
             vc.base.is_phi = True
@@ -192,7 +192,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         cmsg.regvars.extend(register_variables)
         cmsg.stackvars.extend(stack_variables)
@@ -220,7 +220,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimMemoryVariable):
                 unified_memory_variables.append(variable.serialize_to_cmessage())
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         cmsg.unified_regvars.extend(unified_register_variables)
         cmsg.unified_stackvars.extend(unified_stack_variables)
@@ -683,7 +683,7 @@ class VariableManagerInternal(Serializable):
         variables = []
 
         if collapse_same_ident:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         for var in self._variables:
             if sort == "stack" and not isinstance(var, SimStackVariable):

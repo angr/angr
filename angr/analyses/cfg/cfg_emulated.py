@@ -1280,7 +1280,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             )
 
             # We are good. Raise the exception and leave
-            raise AngrSkipJobNotice()
+            raise AngrSkipJobNotice
 
         self._update_thumb_addrs(sim_successors, job.state)
 

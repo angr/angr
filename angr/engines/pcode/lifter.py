@@ -331,7 +331,7 @@ class IRSB:
         """
         Return an iterator of all expressions contained in the IRSB.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     # FIXME: Rename this to num_instructions or something + fix pyvex IRSB.
     @property
@@ -367,7 +367,7 @@ class IRSB:
         """
         A list of all operations done by the IRSB, as libVEX enum names
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def all_constants(self):
@@ -375,14 +375,14 @@ class IRSB:
         Returns all constants in the block (including incrementing of the program counter) as
         :class:`pyvex.const.IRConst`.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def constants(self):
         """
         The constants (excluding updates of the program counter) in the IRSB as :class:`pyvex.const.IRConst`.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def constant_jump_targets(self):
@@ -616,7 +616,7 @@ class Lifter:
         Ijk_NoDecode, signalling to pyvex that other lifters should be used on the undecodable data.
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 # pylint:disable=unused-argument
@@ -818,7 +818,7 @@ class PcodeBasicBlockLifter:
             }
             if arch.name not in archinfo_to_lang_map:
                 l.error("Unknown mapping of %s to pcode languge id", arch.name)
-                raise NotImplementedError()
+                raise NotImplementedError
             langid = archinfo_to_lang_map[arch.name]
 
         self.context = pypcode.Context(langid)
