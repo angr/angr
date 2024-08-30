@@ -413,7 +413,7 @@ class SimEngineRDAIL(
         # bits = size * 8
 
         # Special handling for SP and BP
-        if self._stack_pointer_tracker is not None:
+        if self._stack_pointer_tracker is not None and size == self.arch.bytes:
             if reg_offset == self.arch.sp_offset:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
