@@ -30,14 +30,15 @@ from ...counters.boolean_counter import BooleanCounter
 from .....knowledge_plugins.key_definitions.atoms import MemoryLocation
 from .....utils.graph import dominates
 
-l = logging.getLogger(name=__name__)
-_DEBUG = False
-l.setLevel(logging.DEBUG)
+_l = logging.getLogger(name=__name__)
 
 
 class DuplicationReverter(StructuringOptimizationPass):
     """
-    Reverts the duplication of statements
+    This (de)optimization reverts the effects of many compiler optimizations that cause code duplication in
+    the decompilation. This deoptimization is the implementation of the USENIX 2024 paper SAILR's ISD
+    doptimization. As such, the main goal of this optimization is to remove code duplication by merging
+    semantically similar blocks in the AIL graph.
     """
 
     NAME = "Revert Statement Duplication Optimizations"
@@ -85,63 +86,87 @@ class DuplicationReverter(StructuringOptimizationPass):
     #
 
     def _analyze(self, cache=None) -> bool:
-        # pre-deduplication
+        """
+        This function is the main analysis function for this deoptimization which implements SAILR's ISD deoptimization.
+        There are generally three steps to this deoptimization:
+        1. Search for candidates to merge based on the ISD-schema
+        2. Construct the middle graph/node that is merged from the duplicate candidate
+        3. Reinsert the merged candidate into the original graph
+
+        Of these stages, the later two are the most complex. In stage 2, we create a new AILMergeGraph that represents
+        the merging of two subgraphs that are duplicates. This stage will also record how blocks map to the split forms
+        (see AILMergeGraph class string for more information). During this stage, semantic failures can happen, which
+        mean that while creating the merged graph we encounter a scenario that is non-verifiable to not harm the graph.
+        In these cases, we bail. In stage 3, we reinsert the merged candidate into the original graph. This stage is
+        also a little messy because need to correct every jump address.
+
+        Finally, the _analyze function returns True if the analysis was successful and a change was made to the graph.
+        In this case, we return True if this optimization requires another iteration, and False if it does not.
+        It can be True even if no changes were made to the graph.
+        """
+        # construct graphs for writing and reading so we can corrupt the write graph
+        # but still have a clean copy to read from
         graph = self.out_graph or self._graph
         self.write_graph = remove_labels(to_ail_supergraph(copy_graph_and_nodes(graph), allow_fake=True))
+        self.read_graph: nx.DiGraph = self.write_graph.copy()
 
+        # phase 1: search for candidates to merge based on the ISD-schema
+        candidate = self._search_for_deduplication_candidate()
+        if candidate is None:
+            return False
+
+        # phase 2: construct the middle graph/node that is merged from the duplicate candidate
         try:
-            fake_deduplication, success = self._attempt_deduplication()
+            ail_merge_graph, candidate = self._construct_merged_candidate(candidate)
         except SAILRSemanticError as e:
-            l.info("Skipping this round because of %s...", e)
+            _l.debug("Skipping this candidate because of %s...", e)
+            self.candidate_blacklist.add(tuple(candidate))
             return True
 
-        # post-deduplication
-        if success:
-            self.out_graph = to_ail_supergraph(self.write_graph)
+        # phase 3: reinsert the merged candidate into the original graph
+        success = self._reinsert_merged_candidate(ail_merge_graph, candidate)
+        if not success:
+            self.candidate_blacklist.add(tuple(candidate))
+            return True
 
-        return success | fake_deduplication
+        self.out_graph = to_ail_supergraph(self.write_graph)
+        return True
 
-    def _attempt_deduplication(self):
-        #
-        # 0: Find candidates with duplicated AIL statements
-        #
-
-        self.read_graph: nx.DiGraph = self.write_graph.copy()
+    def _search_for_deduplication_candidate(self) -> tuple[Block, Block] | None:
         candidates = self._find_initial_candidates()
         if not candidates:
-            l.info("There are no duplicate statements in this function, stopping analysis")
-            return False, False
+            _l.debug("There are no duplicate statements in this function, stopping analysis")
+            return None
 
         # with merge_candidates=False, max size for a candidate is 2
         candidates = self._filter_candidates(candidates, merge_candidates=False)
         if not candidates:
-            l.info("There are no duplicate blocks in this function, stopping analysis")
-            return False, False
+            _l.debug("There are no duplicate blocks in this function, stopping analysis")
+            return None
 
         candidates = sorted(candidates, key=len)
-        l.info("Located {len(candidates)} candidates for merging: %s", candidates)
+        _l.debug("Located %d candidates for merging: %s", len(candidates), candidates)
 
         candidate = sorted(candidates.pop(), key=lambda x: x.addr)
-        l.info("Selecting the candidate: %s", candidate)
+        _l.debug("Selecting the candidate: %s", candidate)
+        return candidate[0], candidate[1]
 
-        try:
-            ail_merge_graph = self.create_merged_subgraph(candidate, self.write_graph)
-        except SAILRSemanticError as e:
-            self.candidate_blacklist.add(tuple(candidate))
-            l.info("Skipping this candidate because of %s...", e)
-            return True, False
-
-        candidate = ail_merge_graph.starts
+    def _construct_merged_candidate(
+        self, candidate: tuple[Block, Block]
+    ) -> tuple[AILMergeGraph, tuple[Block, Block]] | None:
+        ail_merge_graph = self.create_merged_subgraph(candidate, self.write_graph)
+        new_candidate = ail_merge_graph.starts
         for block in ail_merge_graph.original_ends:
             if self._block_has_goto_edge(
                 block, [b for b in ail_merge_graph.original_ends if b is not block], graph=self.write_graph
             ):
                 break
         else:
-            self.candidate_blacklist.add(tuple(candidate))
-            l.info("Candidate %s had no connecting gotos...", candidate)
-            return True, False
+            raise SAILRSemanticError("An initial candidate was incorrectly reported to have gotos at it's ends!")
 
+        return ail_merge_graph, new_candidate
+
+    def _reinsert_merged_candidate(self, ail_merge_graph: AILMergeGraph, candidate: tuple[Block, Block]) -> bool:
         og_succs, og_preds = {}, {}
         for block, original_blocks in ail_merge_graph.original_blocks.items():
             # collect all the old edges
@@ -205,10 +230,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                 target_addrs = []
                 if isinstance(last_stmt, Jump):
                     if not isinstance(last_stmt.target, Const):
-                        self.candidate_blacklist.add(tuple(candidate))
-                        l.info("Candidate %s is a child of an indirect-jump, which is not supported", candidate)
+                        _l.debug("Candidate %s is a child of an indirect-jump, which is not supported", candidate)
                         self.write_graph = self.read_graph.copy()
-                        return True, False
+                        return False
 
                     target_addrs = [last_stmt.target.value] if isinstance(last_stmt.target, Const) else []
                 elif isinstance(last_stmt, ConditionalJump):
@@ -297,10 +321,14 @@ class DuplicationReverter(StructuringOptimizationPass):
 
                 self.write_graph.add_edge(orig_pred, new_succ)
 
-        l.info("| | | | Candidate merge successful!!!")
         self.write_graph = self._correct_all_broken_jumps(self.write_graph)
         self.write_graph = self._uniquify_addrs(self.write_graph)
-        return False, True
+        _l.info("Candidate merge successful on blocks: %s", candidate)
+        return True
+
+    #
+    # Helpers
+    #
 
     def _uniquify_addrs(self, graph):
         new_graph = nx.DiGraph()
@@ -609,9 +637,16 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         return block1, block2
 
-    def create_merged_subgraph(self, blocks, graph: nx.DiGraph) -> AILMergeGraph:
+    def create_merged_subgraph(self, blocks, graph: nx.DiGraph, maximize_similarity=False) -> AILMergeGraph:
         # Before creating a full graph LCS, optimize the common seq between the starting blocks
-        blocks = list(self.maximize_similarity_of_blocks(blocks[0], blocks[1], graph))
+        if maximize_similarity:
+            # TODO: this is disabled by default right now because it's both slow and incorrect. It should
+            #   be fixed one day when we have a good SSA implementation. To test this, use the following:
+            #   https://github.com/mahaloz/sailr-eval/blob/d9f99b3521b60b9a1fd862d106b77e5664a9d175
+            #   /tests/test_deoptimization.py#L130
+            blocks = list(self.maximize_similarity_of_blocks(blocks[0], blocks[1], graph))
+        else:
+            blocks = list(blocks)
 
         # Eliminate all cases that may only have returns (we should do that in a later pass)
         all_only_returns = True
