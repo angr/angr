@@ -63,7 +63,7 @@ class SimHeapBrk(SimHeapBase):
         """
         requested = self._conc_alloc_size(sim_size)
         used = self.heap_location - self.heap_base
-        released = requested if requested <= used else used
+        released = min(requested, used)
         self.heap_location -= released
         l.debug("Releasing %d bytes from the heap (%d bytes were requested to be released)", released, requested)
 

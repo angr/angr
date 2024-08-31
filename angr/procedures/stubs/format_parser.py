@@ -170,7 +170,7 @@ class FormatString:
                     spec_digits = component.length_spec
 
                     # how many bits can we specify as input?
-                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log(base, 2)
+                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log2(base)
                     not_enough_bits = available_bits < bits
 
                     # how many digits will we model this input as?

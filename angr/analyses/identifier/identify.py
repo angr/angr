@@ -553,7 +553,7 @@ class Identifier(Analysis):
                 addr = succ.solver.eval(a.addr.ast)
                 if min_sp <= addr <= initial_sp and hash(a.data.ast) in reg_dict:
                     pushed_regs.append(reg_dict[hash(a.data.ast)])
-        pushed_regs = pushed_regs[::-1]
+        pushed_regs.reverse()
         # found the preamble
 
         # find the ends of the function
