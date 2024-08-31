@@ -1225,7 +1225,7 @@ class Function(Serializable):
                 last_instr = block_addr_to_insns[src.addr][-1]
                 g.add_edge(last_instr, insns[0])
 
-            for i in range(0, len(insns) - 1):
+            for i in range(len(insns) - 1):
                 g.add_edge(insns[i], insns[i + 1])
 
         return g

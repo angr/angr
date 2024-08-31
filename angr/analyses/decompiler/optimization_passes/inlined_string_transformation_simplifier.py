@@ -139,7 +139,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 self.state.mem_store(addr, val, stmt.endness)
                 # log it
                 if addr_type == "stack":
-                    for i in range(0, val.size() // self.arch.byte_width):
+                    for i in range(val.size() // self.arch.byte_width):
                         byte_off = i
                         if self.arch.memory_endness == Endness.LE:
                             byte_off = val.size() // self.arch.byte_width - i - 1
@@ -171,7 +171,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
             v = self.state.mem_load(addr, expr.size, expr.endness)
             # log it
             if addr_type == "stack" and isinstance(v, claripy.ast.BV):
-                for i in range(0, expr.size):
+                for i in range(expr.size):
                     byte_off = i
                     if self.arch.memory_endness == Endness.LE:
                         byte_off = expr.size - i - 1

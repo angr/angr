@@ -90,7 +90,6 @@ class SimAction(SimEvent):
         """
         Clears some low-level details (that take up memory) out of the SimAction.
         """
-        pass
 
 
 class SimActionExit(SimAction):

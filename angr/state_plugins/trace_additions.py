@@ -284,7 +284,7 @@ def syscall_hook(state):
         stdin_min_stdout_reads = state.get_plugin("chall_resp_info").stdin_min_stdout_reads
         stdout_pos = state.solver.eval(state.posix.fd[1].write_pos)
         stdin_pos = state.solver.eval(state.posix.fd[0].read_pos)
-        for i in range(0, stdin_pos):
+        for i in range(stdin_pos):
             if i not in stdin_min_stdout_reads:
                 stdin_min_stdout_reads[i] = stdout_pos
 
@@ -657,14 +657,14 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         symbolic_args = tuple(a for a in expr.args if isinstance(a, claripy.ast.Base) and a.symbolic)
         flag_args = []
         for a in symbolic_args:
-            if any(v.startswith("cgc-flag") or v.startswith("random") for v in a.variables):
+            if any(v.startswith(("cgc-flag", "random")) for v in a.variables):
                 flag_args.append(a)
         return flag_args
 
     def get_expr_depth(self, expr):
         flag_args = self.get_flag_rand_args(expr)
         flag_arg_vars = set.union(*[set(v.variables) for v in flag_args])
-        flag_arg_vars = {v for v in flag_arg_vars if v.startswith("cgc-flag") or v.startswith("random")}
+        flag_arg_vars = {v for v in flag_arg_vars if v.startswith(("cgc-flag", "random"))}
         if len(flag_arg_vars) == 0:
             return 0
         return max(self.depths.get(v, 0) for v in flag_arg_vars) + 1
@@ -706,7 +706,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         for con in constraints:
             if (
                 con.cache_key in zen_cache_keys
-                or not all(v.startswith("cgc-flag") or v.startswith("random") for v in con.variables)
+                or not all(v.startswith(("cgc-flag", "random")) for v in con.variables)
                 or len(con.variables) == 0
             ):
                 new_cons.append(con)

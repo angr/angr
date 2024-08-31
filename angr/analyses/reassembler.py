@@ -810,7 +810,7 @@ class Instruction:
                         raise BinaryError("Unsupported operand type %d." % op.type)
 
                     if op.type != OP_TYPE_RAW and self.capstone_operand_types[i] == capstone.CS_OP_IMM:
-                        if mnemonic.startswith("j") or mnemonic.startswith("call") or mnemonic.startswith("loop"):
+                        if mnemonic.startswith(("j", "call", "loop")):
                             pass
                         else:
                             # mark the size of the variable

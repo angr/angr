@@ -287,5 +287,3 @@ class VendorPreset(PluginPreset):
     """
     A specialized preset class for use with the PluginVendor.
     """
-
-    ...
