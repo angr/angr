@@ -516,10 +516,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         :param predicate:   A method that determines if a job should be removed or not.
         """
 
-        to_remove = []
-        for job_info in self._job_info_queue:
-            if predicate(job_info.job):
-                to_remove.append(job_info)
+        to_remove = [job_info for job_info in self._job_info_queue if predicate(job_info.job)]
 
         for job_info in to_remove:
             self._job_info_queue.remove(job_info)

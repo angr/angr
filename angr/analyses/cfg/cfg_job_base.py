@@ -30,14 +30,13 @@ class BlockID:
         if self.callsite_tuples is None:
             return "None"
 
-        s = []
-
         def format_addr(addr):
             return "None" if addr is None else hex(addr)
 
-        for i in range(0, len(self.callsite_tuples), 2):
-            s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
-        return " -> ".join(s)
+        return " -> ".join(
+            "@".join(format_addr(addr) for addr in self.callsite_tuples[i : i + 2])
+            for i in range(0, len(self.callsite_tuples), 2)
+        )
 
     def __repr__(self):
         return f"<BlockID {self.addr:#08x} ({self.callsite_repr()}) % {self.jump_type}>"
@@ -90,14 +89,15 @@ class FunctionKey:
         if self.callsite_tuples is None:
             return "None"
 
-        s = []
-
         def format_addr(addr):
             return "None" if addr is None else hex(addr)
 
-        for i in range(0, len(self.callsite_tuples), 2):
-            s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
-        return " -> ".join(s)
+        return " -> ".join(
+            [
+                "@".join(format_addr(addr) for addr in self.callsite_tuples[i : i + 2])
+                for i in range(0, len(self.callsite_tuples), 2)
+            ]
+        )
 
     def __repr__(self):
         return f"<FuncKey {self.addr:#08x} ({self.callsite_repr()})>"

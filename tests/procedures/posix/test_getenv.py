@@ -67,10 +67,9 @@ class TestRunEcho(unittest.TestCase):
 
         assert len(simgr.deadended) == 2
 
-        solved_flag = []
-        for s in simgr.deadended:
-            if b"Bingo" in s.posix.dumps(1):
-                solved_flag.append(s.solver.eval(flag, cast_to=bytes).strip(b"\x00"))
+        solved_flag = [
+            s.solver.eval(flag, cast_to=bytes).strip(b"\x00") for s in simgr.deadended if b"Bingo" in s.posix.dumps(1)
+        ]
 
         assert len(solved_flag) == 1
         assert solved_flag[0].decode() == self.flag

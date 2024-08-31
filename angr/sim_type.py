@@ -1374,7 +1374,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
-        for _, ty in out.fields.items():
+        for ty in out.fields.values():
             if isinstance(ty, SimTypeNumOffset):
                 out._pack = True
                 ty.offset = offset_so_far % arch.byte_width
@@ -3039,7 +3039,7 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
 
             # Don't forget to update typedef types
             if isinstance(ty, (SimStruct, SimUnion)) and ty.name != "<anon>":
-                for _, i in extra_types.items():
+                for i in extra_types.values():
                     if isinstance(i, type(ty)) and i.name == ty.name:
                         if isinstance(ty, SimStruct):
                             assert isinstance(i, SimStruct)

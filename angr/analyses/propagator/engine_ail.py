@@ -265,7 +265,7 @@ class SimEnginePropagatorAIL(
                 and isinstance(cond_expr.operands[1], Expr.Const)
             ):
                 # is there a register that's equivalent to the variable?
-                for _, (reg_atom, reg_expr, _) in self.state.register_expressions.items():
+                for reg_atom, reg_expr, _ in self.state.register_expressions.values():
                     if cond_expr.operands[0] == reg_expr:
                         # found it!
                         key = self.block.addr, true_target.one_expr.value
@@ -296,7 +296,7 @@ class SimEnginePropagatorAIL(
             # very first step - if we can get rid of this tmp and replace it with another, we should
             if expr.tmp_idx in self.state.temp_expressions:
                 tmp_expr = self.state.temp_expressions[expr.tmp_idx]
-                for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
+                for reg_atom, reg_expr, def_at in self.state.register_expressions.values():
                     if reg_expr.likes(tmp_expr):
                         # make sure the register still holds the same value
                         current_reg_value = self.state.load_register(reg_atom)
@@ -438,7 +438,7 @@ class SimEnginePropagatorAIL(
             replaced = False
             outdated = False
             all_subexprs = list(new_expr.all_exprs())
-            for _, detail in new_expr.offset_and_details.items():
+            for detail in new_expr.offset_and_details.values():
                 if detail.expr is None:
                     break
                 outdated_, has_avoid_ = self.is_using_outdated_def(

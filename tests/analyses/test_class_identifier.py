@@ -15,17 +15,14 @@ test_location = os.path.join(bin_location, "tests")
 
 
 # pylint: disable=missing-class-docstring
-# pylint: disable=no-self-use
+# pylint: disable=no-self-use,no-member
 class TestClassIdentifier(unittest.TestCase):
     def test_class_identification_x86_64(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "cpp_classes"), auto_load_libs=False)
         class_identifier_analysis = p.analyses.ClassIdentifier()
         classes_found = class_identifier_analysis.classes
-        class_labels = []
+        class_labels = list(classes_found)
         vtable_ptr_c = [0x403CB0, 0x403CD8]
-
-        for class_str in classes_found:
-            class_labels.append(class_str)
 
         assert "A" in class_labels
         assert "B" in class_labels

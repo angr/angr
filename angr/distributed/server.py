@@ -183,7 +183,7 @@ class Server:
 
                 if self._worker_exit_callback and self._worker_exit_args:
                     with self._worker_exit_args_lock:
-                        for _, args in self._worker_exit_args.items():
+                        for args in self._worker_exit_args.values():
                             self._worker_exit_callback(*args)
 
             server_state["stopped"] = self.stopped

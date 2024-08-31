@@ -199,11 +199,13 @@ class VariableManagerInternal(Serializable):
         cmsg.memvars.extend(memory_variables)
 
         # accesses
-        accesses = []
-        for variable_accesses in self._variable_accesses.values():
-            for variable_access in variable_accesses:
-                accesses.append(variable_access.serialize_to_cmessage())
-        cmsg.accesses.extend(accesses)
+        cmsg.accesses.extend(
+            [
+                variable_access.serialize_to_cmessage()
+                for variable_accesses in self._variable_accesses.values()
+                for variable_access in variable_accesses
+            ]
+        )
 
         # unified variables
         unified_register_variables = []
@@ -270,12 +272,16 @@ class VariableManagerInternal(Serializable):
         # variables
         all_vars = []
 
-        for regvar_pb2 in cmsg.regvars:
-            all_vars.append((regvar_pb2.base.is_phi, SimRegisterVariable.parse_from_cmessage(regvar_pb2)))
-        for stackvar_pb2 in cmsg.stackvars:
-            all_vars.append((stackvar_pb2.base.is_phi, SimStackVariable.parse_from_cmessage(stackvar_pb2)))
-        for memvar_pb2 in cmsg.memvars:
-            all_vars.append((memvar_pb2.base.is_phi, SimMemoryVariable.parse_from_cmessage(memvar_pb2)))
+        all_vars.extend(
+            (regvar_pb2.base.is_phi, SimRegisterVariable.parse_from_cmessage(regvar_pb2)) for regvar_pb2 in cmsg.regvars
+        )
+        all_vars.extend(
+            (stackvar_pb2.base.is_phi, SimStackVariable.parse_from_cmessage(stackvar_pb2))
+            for stackvar_pb2 in cmsg.stackvars
+        )
+        all_vars.extend(
+            (memvar_pb2.base.is_phi, SimMemoryVariable.parse_from_cmessage(memvar_pb2)) for memvar_pb2 in cmsg.memvars
+        )
         for is_phi, var in all_vars:
             variable_by_ident[var.ident] = var
             if is_phi:
@@ -656,11 +662,7 @@ class VariableManagerInternal(Serializable):
 
         # find all variables with the same variable name
 
-        vars_list = []
-
-        for var in self._variable_accesses:
-            if variable.name == var.name:
-                vars_list.append(var)
+        vars_list = [var for var in self._variables if var.name == variable.name]
 
         accesses = []
         for var in vars_list:
@@ -1010,7 +1012,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(v, SimRegisterVariable):
                 reg_vars.add(v)
 
-        for _, vs in stack_vars.items():
+        for vs in stack_vars.values():
             unified = vs[0].copy()
             for v in vs:
                 self.set_unified_variable(v, unified)

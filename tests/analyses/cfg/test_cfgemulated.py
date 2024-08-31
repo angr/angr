@@ -3,17 +3,16 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import time
-import pickle
-import networkx
-
 import logging
 import os
+import pickle
+import time
 import unittest
+
+import networkx
 
 import angr
 from angr import options as o
-
 from ...common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgemulated")
@@ -379,9 +378,8 @@ class TestCfgemulate(unittest.TestCase):
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(keep_state=True, fail_fast=True)
 
-        string_references = []
         for f in cfg.functions.values():
-            string_references.append(list(f.string_references()))
+            f.string_references()
 
         # test passes if hasn't thrown an exception
 

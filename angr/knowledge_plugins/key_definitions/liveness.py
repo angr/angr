@@ -117,23 +117,15 @@ class Liveness:
         else:
             indices = []
 
-        tmp_indices = []
         if killed_defs is not None and None in killed_defs:
             # External codeloc
             defs.difference_update(killed_defs[None])
-            for idx in indices:
-                if idx is not None:
-                    tmp_indices.append(idx)
-            indices = tmp_indices
+            indices = [idx for idx in indices if idx is not None]
 
-        tmp_indices = []
         if added_defs is not None and None in added_defs:
             # External codeloc
             defs.update(added_defs[None])
-            for idx in indices:
-                if idx is not None:
-                    tmp_indices.append(idx)
-            indices = tmp_indices
+            indices = [idx for idx in indices if idx is not None]
 
         for idx in sorted(indices):
             if idx >= end_stmt_idx:

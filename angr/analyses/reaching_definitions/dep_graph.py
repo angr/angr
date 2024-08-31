@@ -276,12 +276,7 @@ class DepGraph:
         Parameters can be any valid keyword args to `DefinitionMatchPredicate`
         """
         predicate = DefinitionMatchPredicate.construct(**kwargs)
-        result = []
-        defn: Definition
-        for defn in self.nodes():
-            if predicate.matches(defn):
-                result.append(defn)
-        return result
+        return [defn for defn in self.nodes() if predicate.matches(defn)]
 
     @overload
     def find_all_predecessors(

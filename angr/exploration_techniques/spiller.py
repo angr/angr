@@ -123,9 +123,7 @@ class PickledStatesDb(PickledStatesBase):
         session = self.Session()
         q = session.query(PickledState).filter_by(stash=stash).order_by(PickledState.timestamp.desc()).limit(n).all()
 
-        ss = []
-        for r in q:
-            ss.append((r.timestamp, r.id))
+        ss = [(r.timestamp, r.id) for r in q]
         session.close()
         return ss
 

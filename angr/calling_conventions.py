@@ -403,9 +403,7 @@ class SimComboArg(SimFunctionArgument):
             cur += size_bits
 
     def get_value(self, state, **kwargs):  # pylint:disable=arguments-differ
-        vals = []
-        for loc in reversed(self.locations):
-            vals.append(loc.get_value(state, **kwargs))
+        vals = [loc.get_value(state, **kwargs) for loc in self.locations]
         return self.check_value_get(claripy.Concat(*vals))
 
 

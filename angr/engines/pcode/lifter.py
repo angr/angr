@@ -430,8 +430,7 @@ class IRSB:
         sa.append("IRSB {")
         for i, op in enumerate(self._ops):
             if op.opcode == pypcode.OpCode.IMARK:
-                for vn in op.inputs[:]:
-                    sa.append(f"   {i:02d} | ------ {vn.offset:08x}, {vn.size} ------")
+                sa.extend(f"   {i:02d} | ------ {vn.offset:08x}, {vn.size} ------" for vn in op.inputs)
             else:
                 sa.append(f"   {i:02d} | {pypcode.PcodePrettyPrinter.fmt_op(op)}")
 

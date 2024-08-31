@@ -193,7 +193,7 @@ class KeyedRegion:
         # TODO: is the current solution not optimal enough?
         _: RegionObject
         item: RegionObject
-        for _, item in other._storage.items():
+        for item in other._storage.values():
             so: StoredObject
             for so in item.stored_objects:
                 if replacements and so.obj in replacements:
@@ -214,7 +214,7 @@ class KeyedRegion:
 
         _: RegionObject
         item: RegionObject
-        for _, item in other._storage.items():
+        for item in other._storage.values():
             so: StoredObject
             for so in item.stored_objects:
                 if replacements and so.obj in replacements:
