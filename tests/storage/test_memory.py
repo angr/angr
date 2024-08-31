@@ -780,7 +780,7 @@ class TestMemory(unittest.TestCase):
 
         # test that under-constrained load is constrained
         ptr1 = state.memory.load(0x4141414141414000, size=8, endness="Iend_LE")
-        assert ptr1.uc_alloc_depth == 0
+        assert state.uc_manager.get_alloc_depth(ptr1) == 0
         assert ptr1.uninitialized
         state.memory.load(ptr1, size=1)
         # ptr1 should have been constrained
@@ -788,7 +788,7 @@ class TestMemory(unittest.TestCase):
 
         # test that under-constrained store is constrained
         ptr2 = state.memory.load(0x4141414141414008, size=8, endness="Iend_LE")
-        assert ptr2.uc_alloc_depth == 0
+        assert state.uc_manager.get_alloc_depth(ptr2) == 0
         assert ptr2.uninitialized
         state.memory.store(ptr2, b"\x41", size=1)
         # ptr2 should have been constrained
@@ -803,7 +803,7 @@ class TestMemory(unittest.TestCase):
             state.memory.load(0x4141414141414014, size=4, endness="Iend_LE"),
         )
         assert ptr3.uninitialized
-        assert ptr3.uc_alloc_depth is None  # because uc_alloc_depth doesn't carry across Concat
+        assert state.uc_manager.get_alloc_depth(ptr3) is None  # because uc_alloc_depth doesn't carry across Concat
         # we don't care what these do, as long as they don't crash
         state.memory.store(ptr3, b"\x41", size=1)
         state.memory.load(ptr3, size=1)

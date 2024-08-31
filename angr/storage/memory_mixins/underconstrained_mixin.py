@@ -51,7 +51,7 @@ class UnderconstrainedMixin(MemoryMixin):
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options
             and isinstance(addr, claripy.ast.Base)
             and addr.uninitialized
-            and addr.uc_alloc_depth is not None
+            and self.state.uc_manager.get_alloc_depth(addr) is not None
         ) and (
             not self.state.uc_manager.is_bounded(addr)
             or self.state.solver.max_int(addr) - self.state.solver.min_int(addr) >= self._unconstrained_range
