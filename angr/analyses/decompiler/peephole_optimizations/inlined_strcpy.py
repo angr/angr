@@ -136,7 +136,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                 if chr(byt) not in ASCII_PRINTABLES:
                     return False, None
                 chars.append(chr(byt))
-            chars = chars[::-1]
+            chars.reverse()
         else:
             # unsupported endness
             return False, None

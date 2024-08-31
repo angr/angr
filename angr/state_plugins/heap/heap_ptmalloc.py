@@ -358,7 +358,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
         """
         size = req_size
         size += 2 * self._chunk_size_t_size  # Two size fields
-        size = self._chunk_min_size if size < self._chunk_min_size else size
+        size = max(size, self._chunk_min_size)
         if size & self._chunk_align_mask:  # If the chunk would not be aligned
             size = (size & ~self._chunk_align_mask) + self._chunk_align_mask + 1  # Fix it
         return size

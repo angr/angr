@@ -208,7 +208,7 @@ class MemoryObjectSetMixin(CooperationBase):
             return MultiValues(offset_to_values={0: elements[0]})
 
         if endness == "Iend_LE":
-            elements = list(reversed(elements))
+            elements.reverse()
 
         mv = MultiValues()
         offset = 0
