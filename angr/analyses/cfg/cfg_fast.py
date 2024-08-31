@@ -869,7 +869,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             size = len(data)
 
         data = bytes(pyvex.ffi.buffer(data, size))
-        for x in range(0, 256):
+        for x in range(256):
             p_x = float(data.count(x)) / size
             if p_x > 0:
                 entropy += -p_x * math.log2(p_x)

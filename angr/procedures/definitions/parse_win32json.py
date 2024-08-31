@@ -207,7 +207,7 @@ def do_it(in_dir, out_file):
         for f in funcs:
             libname = f["DllImport"].lower()
             suffix = ""
-            if libname.endswith(".dll") or libname.endswith(".exe") or libname.endswith(".sys"):
+            if libname.endswith((".dll", ".exe", ".sys")):
                 suffix = libname[-3:]
                 libname = libname[:-4]
             # special case: put all wdk_ntdll.dll APIs under ntoskrnl.exe to avoid conflict with user-space ntdll.dll

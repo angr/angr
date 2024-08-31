@@ -308,7 +308,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 # the size of all memory objects and unallocated spaces.
                 min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
                 for um, _ in unconstrained_in:
-                    for i in range(0, min_size):
+                    for i in range(min_size):
                         if um._contains(b + i, page_addr):
                             min_size = i
                             break

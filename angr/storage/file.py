@@ -212,7 +212,6 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         elif isinstance(content, claripy.Bits):
             if concrete is None and not content.symbolic:
                 concrete = True
-            pass
         else:
             raise TypeError(f"Can't handle SimFile content of type {type(content)}")
 

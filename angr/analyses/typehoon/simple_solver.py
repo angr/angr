@@ -1084,7 +1084,7 @@ class SimpleSolver:
             input_args = []
             output_values = []
             for vals, out in [(func_inputs, input_args), (func_outputs, output_values)]:
-                for idx in range(0, max(vals) + 1):
+                for idx in range(max(vals) + 1):
                     if idx in vals:
                         sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=vals[idx])
                         out.append(sol)

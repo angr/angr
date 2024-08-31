@@ -743,9 +743,7 @@ def load_win32api_definitions():
         for _ in autoimport.auto_import_modules(
             "angr.procedures.definitions",
             _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith("win32_")
-            or module_name.startswith("wdk_")
-            or module_name in {"ntoskrnl", "ntdll", "user32"},
+            filter_func=lambda module_name: module_name.startswith(("win32_", "wdk_")) or module_name in {"ntoskrnl", "ntdll", "user32"},
         ):
             pass
 
