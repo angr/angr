@@ -23,7 +23,7 @@ WORKER = is_testing or bool(
 
 
 def run_cli(*args):
-    proc = subprocess.run(["angr", *args], text=True, check=True, capture_output=True)
+    proc = subprocess.run(["python3", "-m", "angr", *args], text=True, check=True, capture_output=True)
     return proc.stdout
 
 
