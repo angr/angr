@@ -1,4 +1,4 @@
-# pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports
+# pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports,import-outside-toplevel
 from __future__ import annotations
 import pathlib
 import copy

@@ -28,7 +28,7 @@ def run_cli(*args):
 
 
 class TestCommandLineInterface(unittest.TestCase):
-    def test_decompiling(self, decompiler_options=None):
+    def test_decompiling(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "schedule_job"
         f2 = "main"
