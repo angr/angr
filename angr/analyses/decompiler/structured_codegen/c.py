@@ -2240,7 +2240,10 @@ class CRegister(CExpression):
         return SimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        yield str(self.reg), None
+        if isinstance(self.reg, Expr.Register):
+            yield f"reg_{self.reg.reg_offset}", None
+        else:
+            yield str(self.reg), None
 
 
 class CITE(CExpression):

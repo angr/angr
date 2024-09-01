@@ -48,14 +48,24 @@ class MultiNode:
                 addrs.append(node.addr)
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
-        return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
+        return "<MultiNode %#x%s of %d nodes%s>" % (
+            self.addr,
+            "" if self.idx is None else f"-{self.idx}",
+            len(self.nodes),
+            s,
+        )
 
     def __hash__(self):
         # changing self.nodes does not change the hash, which enables in-place editing
         return hash((MultiNode, self.addr, self.idx))
 
     def __eq__(self, other):
-        return isinstance(other, MultiNode) and self.nodes == other.nodes
+        return (
+            isinstance(other, MultiNode)
+            and self.addr == other.addr
+            and self.idx == other.idx
+            and self.nodes == other.nodes
+        )
 
     def dbg_repr(self, indent=0):
         s = ""
@@ -101,11 +111,13 @@ class BaseNode:
 class SequenceNode(BaseNode):
     __slots__ = (
         "addr",
+        "idx",
         "nodes",
     )
 
-    def __init__(self, addr: int | None, nodes=None):
+    def __init__(self, addr: int | None, nodes=None, idx: Optional[int] = None):
         self.addr = addr
+        self.idx = idx
         self.nodes = nodes if nodes is not None else []
 
     def __repr__(self):
@@ -126,7 +138,7 @@ class SequenceNode(BaseNode):
         return self.nodes.index(node)
 
     def copy(self):
-        return SequenceNode(self.addr, nodes=self.nodes[::])
+        return SequenceNode(self.addr, nodes=self.nodes[::], idx=self.idx)
 
     def dbg_repr(self, indent=0):
         s = ""

@@ -4,6 +4,7 @@ from typing import Optional, Type
 from .dream import DreamStructurer
 from .phoenix import PhoenixStructurer
 from .sailr import SAILRStructurer
+from .combing import CombingStructurer
 from .recursive_structurer import RecursiveStructurer
 
 
@@ -11,6 +12,7 @@ STRUCTURER_CLASSES = {
     SAILRStructurer.NAME: SAILRStructurer,
     PhoenixStructurer.NAME: PhoenixStructurer,
     DreamStructurer.NAME: DreamStructurer,
+    "combing": CombingStructurer,
 }
 
 DEFAULT_STRUCTURER = SAILRStructurer

@@ -15,6 +15,7 @@ from ..redundant_label_remover import RedundantLabelRemover
 from .structurer_nodes import BaseNode
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
+from .node_id_manager import NodeIdManager
 
 
 if TYPE_CHECKING:
@@ -35,6 +36,7 @@ class RecursiveStructurer(Analysis):
         cond_proc=None,
         func: Function | None = None,
         structurer_cls: type | None = None,
+        variable_creator=None,
         **kwargs,
     ):
         self._region = region
@@ -42,6 +44,8 @@ class RecursiveStructurer(Analysis):
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.structurer_options = kwargs
+        self.variable_creator = variable_creator
+        self.node_id_manager = NodeIdManager()
 
         self.result = None
         self.result_incomplete: bool = False
@@ -90,6 +94,8 @@ class RecursiveStructurer(Analysis):
                     case_entry_to_switch_head=self._case_entry_to_switch_head,
                     func=self.function,
                     parent_region=parent_region,
+                    variable_creator=self.variable_creator,
+                    node_id_manager=self.node_id_manager,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan

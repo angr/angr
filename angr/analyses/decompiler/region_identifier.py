@@ -2,22 +2,26 @@ from __future__ import annotations
 from itertools import count
 from collections import defaultdict
 import logging
+from typing import TYPE_CHECKING
 
 import networkx
 
 import ailment
 from ailment import Block
-from ailment.statement import ConditionalJump, Jump
-from ailment.expression import Const
+from ailment.statement import ConditionalJump, Jump, Assignment
+from ailment.expression import Const, BinaryOp, Register
 
 from angr.utils.graph import GraphUtils
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from ...errors import AngrRuntimeError
 from .. import Analysis, register_analysis
-from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
+from .structuring.structurer_nodes import MultiNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
 from .utils import replace_last_statement, first_nonlabel_statement, copy_graph
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.structuring.variable_creator import VariableCreator
 
 l = logging.getLogger(name=__name__)
 
@@ -41,7 +45,9 @@ class RegionIdentifier(Analysis):
         update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
+        loop_successor_tree_type=None,
         complete_successors=False,
+        variable_creator: VariableCreator = None,
     ):
         self.function = func
         self.cond_proc = (
@@ -65,6 +71,15 @@ class RegionIdentifier(Analysis):
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
         self._complete_successors = complete_successors
+        self._variable_creator = variable_creator
+        self._loop_successor_tree_type = loop_successor_tree_type
+
+        allowed_tree_types = {None, "conditions", "state_vars"}
+        if self._loop_successor_tree_type not in allowed_tree_types:
+            raise ValueError(
+                f"Unsupported loop_successor_tree_type value {self._loop_successor_tree_type}. Must be "
+                f"one of the following: {allowed_tree_types}."
+            )
 
         self._analyze()
 
@@ -505,41 +520,23 @@ class RegionIdentifier(Analysis):
         if len(region.successors) <= 1:
             return
 
-        # recover reaching conditions
-        self.cond_proc.recover_reaching_conditions(region, with_successors=True)
-
-        successors = list(region.successors)
-
-        condnode_addr = next(CONDITIONNODE_ADDR)
-        # create a new successor
-        cond = ConditionNode(
-            condnode_addr,
-            None,
-            self.cond_proc.reaching_conditions[successors[0]],
-            successors[0],
-            false_node=None,
-        )
-        for succ in successors[1:]:
-            cond = ConditionNode(
-                condnode_addr,
-                None,
-                self.cond_proc.reaching_conditions[succ],
-                succ,
-                false_node=cond,
-            )
+        if self._loop_successor_tree_type == "conditions":
+            subgraph, new_successor, pending_edges = self._create_loop_successor_tree_conditioned(region)
+        elif self._loop_successor_tree_type == "state_vars":
+            subgraph, new_successor, pending_edges = self._create_loop_successor_tree_statevars(region)
+        else:
+            raise TypeError(f'Unsupported loop successor tree time "{self._loop_successor_tree_type}".')
 
         g = region.graph_with_successors
+        g.add_node(new_successor)
 
         # modify region in place
-        region.successors = {cond}
+        successors = list(region.successors)
+        region.successors = {new_successor}
         for succ in successors:
-            for src, _, data in list(g.in_edges(succ, data=True)):
-                removed_edges = []
-                for src2src, _, data_ in list(g.in_edges(src, data=True)):
-                    removed_edges.append((src2src, src, data_))
-                    g.remove_edge(src2src, src)
-                g.remove_edge(src, succ)
-
+            in_edges = list(g.in_edges(succ, data=True))
+            g.remove_node(succ)
+            for src, _, data in in_edges:
                 # TODO: rewrite the conditional jumps in src so that it goes to cond-node instead.
 
                 # modify the last statement of src so that it jumps to cond
@@ -554,7 +551,7 @@ class RegionIdentifier(Analysis):
                             new_last_stmt = ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(None, None, new_successor.addr, self.project.arch.bits),
                                 last_stmt.false_target,
                                 ins_addr=last_stmt.ins_addr,
                             )
@@ -566,7 +563,7 @@ class RegionIdentifier(Analysis):
                                 last_stmt.idx,
                                 last_stmt.condition,
                                 last_stmt.true_target,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(None, None, new_successor.addr, self.project.arch.bits),
                                 ins_addr=last_stmt.ins_addr,
                             )
                         else:
@@ -576,7 +573,7 @@ class RegionIdentifier(Analysis):
                         if isinstance(last_stmt.target, ailment.Expr.Const):
                             new_last_stmt = Jump(
                                 last_stmt.idx,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(None, None, new_successor.addr, self.project.arch.bits),
                                 ins_addr=last_stmt.ins_addr,
                             )
                         else:
@@ -591,18 +588,143 @@ class RegionIdentifier(Analysis):
                     l.warning("No statement was replaced. Is there anything wrong?")
                     # raise Exception()
 
-                # add src back
-                for src2src, _, data_ in removed_edges:
-                    g.add_edge(src2src, src, **data_)
+                g.add_edge(src, new_successor, **data)
 
-                g.add_edge(src, cond, **data)
+        # modify the full graph
+        graph.add_nodes_from(subgraph)
+        graph.add_edges_from(subgraph.edges)
+        graph.add_edge(region, new_successor)
 
-        # modify graph
-        graph.add_edge(region, cond)
-        for succ in successors:
+        # add all pending edges into the full graph, keeping the edge data as well
+        succ_addr_to_succ = {succ.addr: succ for succ in successors}
+        for src, dst_addr in pending_edges:
+            succ = succ_addr_to_succ[dst_addr]
             edge_data = graph.get_edge_data(region, succ)
             graph.remove_edge(region, succ)
-            graph.add_edge(cond, succ, **edge_data)
+            graph.add_edge(src, succ, **edge_data)
+
+    def _create_loop_successor_tree_conditioned(
+        self, region
+    ) -> tuple[networkx.DiGraph, Block, list[tuple[Block, int]]]:
+        # recover reaching conditions
+        self.cond_proc.recover_reaching_conditions(region, with_successors=True)
+
+        successors = list(region.successors)
+        assert len(successors) > 1
+
+        g = networkx.DiGraph()
+        edges = []
+        head = None
+        last_cond = None
+        for idx, succ in enumerate(successors):
+            if idx == len(successors) - 1:
+                # the last node
+                # simply back-patch the address into the last condition node
+                assert last_cond is not None
+                last_cond.statements[0].false_target = Const(None, None, succ.addr, self.project.arch.bits)
+                edges.append((last_cond, succ.addr))
+            else:
+                condnode_addr = next(CONDITIONNODE_ADDR)
+                cond = Block(
+                    condnode_addr,
+                    0,
+                    statements=[
+                        ConditionalJump(
+                            None,
+                            self.cond_proc.convert_claripy_bool_ast(self.cond_proc.reaching_conditions[succ]),
+                            Const(None, None, succ.addr, self.project.arch.bits),
+                            None,  # we back-patch the false addr into it later
+                            ins_addr=condnode_addr,
+                        )
+                    ],
+                )
+                edges.append((cond, succ.addr))
+                g.add_node(cond)
+                if last_cond is not None:
+                    # back-patch it
+                    last_cond.statements[0].false_target = Const(None, None, condnode_addr, self.project.arch.bits)
+                    g.add_edge(last_cond, cond)
+                if idx == 0:
+                    head = cond
+                last_cond = cond
+
+        return g, head, edges
+
+    def _create_loop_successor_tree_statevars(self, region) -> tuple[networkx.DiGraph, Block, list[tuple[Block, int]]]:
+        # create a new (and unique to this entire function) status variable
+        state_var_offset, _ = self._variable_creator.next_variable()
+        # FIXME: Using state_var_offset as the ID for Register is incorrect and may cause ID conflicts in large functions
+        status_variable = Register(state_var_offset, None, state_var_offset, self.project.arch.bits)
+
+        # TODO: Add the new state variable to variable manager
+
+        successors = list(region.successors)
+        assert len(successors) > 1
+
+        g = networkx.DiGraph()
+        edges = []
+        head = None
+        last_cond = None
+        for idx, succ in enumerate(successors):
+            if idx == len(successors) - 1:
+                # the last node
+                # simply back-patch the address into the last condition node
+                assert last_cond is not None
+                last_cond.statements[0].false_target = Const(None, None, succ.addr, self.project.arch.bits)
+                edges.append((last_cond, succ.addr))
+            else:
+                condnode_addr = next(CONDITIONNODE_ADDR)
+                cond = Block(
+                    condnode_addr,
+                    0,
+                    statements=[
+                        ConditionalJump(
+                            None,
+                            BinaryOp(
+                                None,
+                                "CmpEQ",
+                                [status_variable, Const(None, None, succ.addr, self.project.arch.bits)],
+                                False,
+                                bits=1,
+                                ins_addr=condnode_addr,
+                            ),
+                            Const(None, None, succ.addr, self.project.arch.bits),
+                            None,  # we back-patch the false addr into it later
+                            ins_addr=condnode_addr,
+                        )
+                    ],
+                )
+                edges.append((cond, succ.addr))
+                g.add_node(cond)
+                if last_cond is not None:
+                    # back-patch it
+                    last_cond.statements[0].false_target = Const(None, None, condnode_addr, self.project.arch.bits)
+                    g.add_edge(last_cond, cond)
+                if idx == 0:
+                    head = cond
+                last_cond = cond
+
+        # Update source nodes
+        for successor in successors:
+            for src_node in list(region.graph_with_successors.predecessors(successor)):
+                if src_node is successor:
+                    continue
+                if isinstance(src_node, MultiNode):
+                    src_block = src_node.nodes[-1]
+                else:
+                    src_block = src_node
+                src_block: Block
+                assert isinstance(src_block.statements[-1], (Jump, ConditionalJump))
+                insertion_pos = len(src_block.statements) - 2
+                new_stmt = Assignment(
+                    None,
+                    status_variable,
+                    Const(None, None, successor.addr, self.project.arch.bits),
+                    **src_block.statements[-1].tags,
+                )
+                src_block.statements.insert(insertion_pos, new_stmt)
+
+        return g, head, edges
 
     #
     # Acyclic regions
