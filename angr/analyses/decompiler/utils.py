@@ -640,7 +640,14 @@ def peephole_optimize_multistmts(block, stmt_opts):
     return statements, any_update
 
 
-def decompile_functions(path, functions=None, structurer=None, catch_errors=False) -> str | None:
+def decompile_functions(
+    path,
+    functions: list[int | str] | None = None,
+    structurer: str | None = None,
+    catch_errors: bool = False,
+    show_casts: bool = True,
+    base_address: int | None = None,
+) -> str | None:
     """
     Decompile a binary into a set of functions.
 
@@ -648,14 +655,22 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     :param functions:       The functions to decompile. If None, all functions will be decompiled.
     :param structurer:      The structuring algorithms to use.
     :param catch_errors:    The structuring algorithms to use.
+    :param show_casts:      Whether to show casts in the decompiled output.
+    :param base_address:    The base address of the binary.
     :return:                The decompilation of all functions appended in order.
     """
     # delayed imports to avoid circular imports
     from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
+    from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER
 
-    structurer = structurer or "phoenix"
+    structurer = structurer or DEFAULT_STRUCTURER.NAME
+
     path = pathlib.Path(path).resolve().absolute()
-    proj = angr.Project(path, auto_load_libs=False)
+    # resolve loader args
+    loader_main_opts_kwargs = {}
+    if base_address is not None:
+        loader_main_opts_kwargs["base_addr"] = base_address
+    proj = angr.Project(path, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
     cfg = proj.analyses.CFG(normalize=True, data_references=True)
     proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
 
@@ -686,6 +701,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     decompilation = ""
     dec_options = [
         (PARAM_TO_OPTION["structurer_cls"], structurer),
+        (PARAM_TO_OPTION["show_casts"], show_casts),
     ]
     for func in functions:
         f = cfg.functions[func]
