@@ -48,9 +48,6 @@ NO_SYMBOLIC_SYSCALL_RESOLUTION = "NO_SYMBOLIC_SYSCALL_RESOLUTION"
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = "SYMBOLIC"
 
-# This variable causes claripy to use a string solver (CVC4)
-STRINGS_ANALYSIS = "STRINGS_ANALYSIS"
-
 # Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default
 # concrete values (like 0)
 SYMBOLIC_INITIAL_VALUES = "SYMBOLIC_INITIAL_VALUES"
