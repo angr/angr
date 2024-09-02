@@ -108,7 +108,6 @@ class SimJavaVM(SimOS):
             kwargs["os_name"] = self.name
         # enable support for string analysis
         add_options = kwargs.get("add_options", set())
-        add_options.add(options.STRINGS_ANALYSIS)
         add_options.add(options.COMPOSITE_SOLVER)
         kwargs["add_options"] = add_options
 
