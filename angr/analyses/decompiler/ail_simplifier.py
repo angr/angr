@@ -869,6 +869,10 @@ class AILSimplifier(Analysis):
                     # stack_var == register or global_var == register
                     to_replace = eq.atom1
                     to_replace_is_def = False
+                elif isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter:
+                    # stack_var == parameter
+                    to_replace = eq.atom0
+                    to_replace_is_def = True
                 elif (
                     isinstance(eq.atom1, Convert)
                     and isinstance(eq.atom1.operand, VirtualVariable)
@@ -881,7 +885,7 @@ class AILSimplifier(Analysis):
                     continue
 
             elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
-                if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
+                if isinstance(eq.atom1, VirtualVariable) and (eq.atom1.was_reg or eq.atom1.was_parameter):
                     # register == register
                     if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
                         to_replace = eq.atom0
@@ -901,26 +905,8 @@ class AILSimplifier(Analysis):
                 # find defs
                 defs = []
                 for def_ in rd.all_definitions:
-                    if def_.codeloc == eq.codeloc:
-                        if isinstance(to_replace, VirtualVariable) and to_replace.was_stack:
-                            if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(
-                                def_.atom.addr, atoms.SpOffset
-                            ):
-                                if to_replace.offset == def_.atom.addr.offset:
-                                    defs.append(def_)
-                        elif isinstance(to_replace, VirtualVariable) and to_replace.was_reg:
-                            if (
-                                isinstance(def_.atom, atoms.VirtualVariable)
-                                and def_.atom.was_reg
-                                and to_replace.reg_offset == def_.atom.reg_offset
-                            ):
-                                defs.append(def_)
-                        elif (
-                            isinstance(to_replace, Register)
-                            and isinstance(def_.atom, atoms.Register)
-                            and to_replace.reg_offset == def_.atom.reg_offset
-                        ):
-                            defs.append(def_)
+                    if def_.atom.varid == to_replace.varid:
+                        defs.append(def_)
                 if len(defs) != 1:
                     continue
                 the_def = defs[0]
@@ -1035,16 +1021,29 @@ class AILSimplifier(Analysis):
                         continue
 
                 if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
-                    # create the memory loading expression
-                    new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
-                    replace_with = VirtualVariable(
-                        new_idx,
-                        eq.atom0.varid,
-                        eq.atom0.bits,
-                        category=eq.atom0.category,
-                        oident=eq.atom0.oident,
-                        **eq.atom0.tags,
-                    )
+                    # create the replacement expression
+                    if eq.atom1.was_parameter:
+                        # replacing atom0
+                        new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                        replace_with = VirtualVariable(
+                            new_idx,
+                            eq.atom1.varid,
+                            eq.atom1.bits,
+                            category=eq.atom1.category,
+                            oident=eq.atom1.oident,
+                            **eq.atom1.tags,
+                        )
+                    else:
+                        # replacing atom1
+                        new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                        replace_with = VirtualVariable(
+                            new_idx,
+                            eq.atom0.varid,
+                            eq.atom0.bits,
+                            category=eq.atom0.category,
+                            oident=eq.atom0.oident,
+                            **eq.atom0.tags,
+                        )
                 elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
                     # create the memory loading expression
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
@@ -1100,17 +1099,18 @@ class AILSimplifier(Analysis):
 
                 remove_initial_assignment = False  # expression folding will take care of it
 
-            # if any of the uses are phi assignments, we skip
-            used_in_phi_assignment = False
-            for _, use_and_expr in all_uses_with_def:
-                u = use_and_expr[0]
-                block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
-                stmt = block.statements[u.stmt_idx]
-                if is_phi_assignment(stmt):
-                    used_in_phi_assignment = True
-                    break
-            if used_in_phi_assignment:
-                continue
+            if any(not isinstance(use_and_expr[1], VirtualVariable) for _, use_and_expr in all_uses_with_def):
+                # if any of the uses are phi assignments, we skip
+                used_in_phi_assignment = False
+                for _, use_and_expr in all_uses_with_def:
+                    u = use_and_expr[0]
+                    block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
+                    stmt = block.statements[u.stmt_idx]
+                    if is_phi_assignment(stmt):
+                        used_in_phi_assignment = True
+                        break
+                if used_in_phi_assignment:
+                    continue
 
             # ensure the uses we consider are all after the eq location
             filtered_all_uses_with_def = []
