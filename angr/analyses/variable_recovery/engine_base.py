@@ -424,6 +424,15 @@ class SimEngineVRBase(SimEngineLight):
                     region=self.func_addr,
                 )
                 self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
+            elif vvar.was_parameter:
+                # FIXME: we assume all parameter vvars were registers
+                variable = SimRegisterVariable(
+                    vvar.reg_offset,
+                    vvar.size,
+                    ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
+                    region=self.func_addr,
+                )
+                self.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
             else:
                 raise NotImplementedError
         else:
