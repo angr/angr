@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 
 from ailment.expression import Phi, VirtualVariable
-from ailment.statement import Assignment, Jump, ConditionalJump, Label
+from ailment.statement import Assignment, Jump, ConditionalJump, Label, Call
 
 from angr.analyses import Analysis
 from angr.knowledge_plugins.functions import Function
@@ -300,6 +300,11 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     # special case handling for external vvars
                     if isinstance(stmt.src, VirtualVariable) and stmt.src.varid not in self._vvar_by_id:
                         self._vvar_by_id[stmt.src.varid] = stmt.src
+                elif isinstance(stmt, Call):
+                    if stmt.ret_expr is not None and isinstance(stmt.ret_expr, VirtualVariable):
+                        self._vvar_by_id[stmt.ret_expr.varid] = stmt.ret_expr
+                    if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, VirtualVariable):
+                        self._vvar_by_id[stmt.fp_ret_expr.varid] = stmt.fp_ret_expr
 
         return phi_to_src
 

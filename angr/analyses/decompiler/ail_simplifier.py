@@ -1506,10 +1506,17 @@ class AILSimplifier(Analysis):
                     )
 
         # find all phi variables that rely on variables that no longer exist
-        for phi_varid, phi_use_varids in rd.phivarid_to_varids.items():
-            if any(vvarid in self._removed_vvar_ids for vvarid in phi_use_varids):
-                loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
-                stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
+        removed_vvar_ids = self._removed_vvar_ids
+        while True:
+            new_removed_vvar_ids = set()
+            for phi_varid, phi_use_varids in rd.phivarid_to_varids.items():
+                if any(vvarid in removed_vvar_ids for vvarid in phi_use_varids):
+                    loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+                    stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
+                    new_removed_vvar_ids.add(phi_varid)
+            if not new_removed_vvar_ids:
+                break
+            removed_vvar_ids = new_removed_vvar_ids
 
         # find all phi variables that are only ever used by other phi variables
         redundant_phi_and_dirty_varids = self._find_cyclic_dependent_phis_and_dirty_vvars(rd)
