@@ -33,13 +33,9 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
         :param ail_graph:                       The AIL graph to transform.
         """
 
-        if isinstance(func, str):
-            self._function = self.kb.functions[func]
-        else:
-            self._function = func
         self._graph = ail_graph
 
-        super().__init__(vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite)
+        super().__init__(func, vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite)
 
         self._analyze()
 

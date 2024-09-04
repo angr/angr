@@ -15,6 +15,7 @@ from angr.utils.ssa import (
     is_const_assignment,
     is_const_and_vvar_assignment,
     is_const_vvar_load_assignment,
+    is_const_vvar_load_dirty_assignment,
     is_const_vvar_tmp_assignment,
     get_tmp_uselocs,
     get_tmp_deflocs,
@@ -237,7 +238,7 @@ class SPropagatorAnalysis(Analysis):
 
                     if len(tmp_uses) <= 2:
                         tmp_used, tmp_use_stmtidx = next(iter(tmp_uses))
-                        if is_const_vvar_load_assignment(stmt) and not any(
+                        if is_const_vvar_load_dirty_assignment(stmt) and not any(
                             isinstance(stmt_, Store)
                             for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx - 1]
                         ):

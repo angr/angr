@@ -1,4 +1,5 @@
+from .graph_vvar_mapping import GraphDephicationVVarMapping
 from .graph_dephication import GraphDephication
 from .seqnode_dephication import SeqNodeDephication
 
-__all__ = ["GraphDephication", "SeqNodeDephication"]
+__all__ = ["GraphDephicationVVarMapping", "GraphDephication", "SeqNodeDephication"]

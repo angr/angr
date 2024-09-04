@@ -74,11 +74,8 @@ class TestPropagatorLoops(unittest.TestCase):
             pop rbp
             ret"""
         )
-        # TODO: we should only get ir_X != 0 once we implement value numbering
-        assert (
-            re.match(r"\(ir_\d+ != 0x0<32>\)", str(cond)) is not None
-            or re.match(r"\(cc_dep1<4> != 0x0<32>\)", str(cond)) is not None
-        )
+        # TODO: we should only get vvar_\d+ != 0 once we implement value numbering
+        assert re.match(r"\(vvar_\d+{reg 40} != 0x1<32>\)", str(cond)) is not None
 
     def test_loop_counter_stack(self):
         cond = self._test_loop_variant_common(

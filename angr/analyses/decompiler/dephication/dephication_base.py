@@ -14,7 +14,12 @@ class DephicationBase(Analysis):
     AIL statement containers.
     """
 
-    def __init__(self, vvar_to_vvar_mapping: dict[int, int] | None = None, rewrite: bool = False):
+    def __init__(self, func, vvar_to_vvar_mapping: dict[int, int] | None = None, rewrite: bool = False):
+        if isinstance(func, str):
+            self._function = self.kb.functions[func]
+        else:
+            self._function = func
+
         self.vvar_to_vvar_mapping = vvar_to_vvar_mapping if vvar_to_vvar_mapping is not None else None
         self.rewrite = rewrite
         self.output = None

@@ -523,11 +523,8 @@ class Clinic(Analysis):
             cache=block_simplification_cache,
         )
 
-        # transform the graph to conventional SSA (CSSA) form
-        ail_graph = self._transform_to_cssa(ail_graph)
-
         # Get virtual variable mapping that can de-phi the SSA representation
-        vvar2vvar = self._collect_dephi_vvar_mapping(ail_graph)
+        vvar2vvar = self._collect_dephi_vvar_mapping_and_rewrite_blocks(ail_graph)
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
@@ -1246,13 +1243,11 @@ class Clinic(Analysis):
         return ssailification.out_graph
 
     @timethis
-    def _transform_to_cssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        # TODO: Implement me
-        return ail_graph
-
-    @timethis
-    def _collect_dephi_vvar_mapping(self, ail_graph: networkx.DiGraph) -> dict[int, int]:
-        dephication = self.project.analyses.GraphDephication(self.function, ail_graph, rewrite=False)
+    def _collect_dephi_vvar_mapping_and_rewrite_blocks(self, ail_graph: networkx.DiGraph) -> dict[int, int]:
+        dephication = self.project.analyses.GraphDephicationVVarMapping(
+            self.function, ail_graph, vvar_id_start=self.vvar_id_start
+        )
+        self.vvar_id_start = dephication.vvar_id_start + 1
         return dephication.vvar_to_vvar_mapping
 
     @timethis

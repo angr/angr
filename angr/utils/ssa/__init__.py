@@ -193,6 +193,28 @@ def is_const_vvar_load_assignment(stmt: Statement) -> bool:
     return False
 
 
+class ConstVVarLoadDirtyWalker(AILBlockWalkerBase):
+    def __init__(self):
+        super().__init__()
+        self.all_const_vvar_load_expr = True
+
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Any:
+        if isinstance(expr, (Tmp, Register, Phi, Call)):
+            self.all_const_vvar_load_expr = False
+            return
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
+    if isinstance(stmt, Assignment):
+        walker = ConstVVarLoadDirtyWalker()
+        walker.walk_expression(stmt.src)
+        return walker.all_const_vvar_load_expr
+    return False
+
+
 def is_phi_assignment(stmt: Statement) -> tuple[bool, Phi | None]:
     if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
         return True, stmt.src
@@ -207,6 +229,7 @@ __all__ = (
     "is_phi_assignment",
     "is_const_and_vvar_assignment",
     "is_const_vvar_load_assignment",
+    "is_const_vvar_load_dirty_assignment",
     "get_tmp_uselocs",
     "get_tmp_deflocs",
 )
