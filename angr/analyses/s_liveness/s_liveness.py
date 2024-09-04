@@ -127,13 +127,17 @@ class SLivenessAnalysis(Analysis):
         # second pass: Propagate live variables within loop bodies
         loop_head_to_loop_nodes = GraphUtils.loop_nesting_forest(graph, entry)
         for loop_head, loop_nodes in loop_head_to_loop_nodes.items():
-            self._looptree_dfs(graph, live_ins, live_outs, phi_defs, loop_nodes, loop_head, loop_head)
+            self._looptree_dfs(
+                graph, loop_head_to_loop_nodes, live_ins, live_outs, phi_defs, loop_nodes, loop_head, loop_head
+            )
 
         # set the model accordingly
         self.model.live_ins = live_ins
         self.model.live_outs = live_outs
 
-    def _looptree_dfs(self, graph: networkx.DiGraph, live_ins, live_outs, phi_defs, loop_nodes: set, loop_head, node):
+    def _looptree_dfs(
+        self, graph: networkx.DiGraph, loops, live_ins, live_outs, phi_defs, loop_nodes: set, loop_head, node
+    ):
         loop_head_key = loop_head.addr, loop_head.idx
         live_loop = live_ins[loop_head_key].difference(phi_defs[loop_head_key])
         for m in itertools.chain({node}, networkx.descendants(graph, node)):
@@ -141,8 +145,8 @@ class SLivenessAnalysis(Analysis):
                 m_key = m.addr, m.idx
                 live_ins[m_key] |= live_loop
                 live_outs[m_key] |= live_loop
-                if m is not node:
-                    self._looptree_dfs(graph, live_ins, live_outs, phi_defs, loop_nodes, loop_head, m)
+                if m is not node and m in loops:
+                    self._looptree_dfs(graph, loops, live_ins, live_outs, phi_defs, loop_nodes, m, m)
 
     def interference_graph(self) -> networkx.Graph:
         """
