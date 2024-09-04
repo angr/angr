@@ -108,6 +108,7 @@ class AILSimplifier(Analysis):
         fold_callexprs_into_conditions=False,
         use_callee_saved_regs_at_return=True,
         rewrite_ccalls=True,
+        removed_vvar_ids: set[int] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -124,6 +125,7 @@ class AILSimplifier(Analysis):
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._should_rewrite_ccalls = rewrite_ccalls
+        self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -1502,6 +1504,12 @@ class AILSimplifier(Analysis):
                     stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
                         def_.codeloc.stmt_idx
                     )
+
+        # find all phi variables that rely on variables that no longer exist
+        for phi_varid, phi_use_varids in rd.phivarid_to_varids.items():
+            if any(vvarid in self._removed_vvar_ids for vvarid in phi_use_varids):
+                loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+                stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
 
         # find all phi variables that are only ever used by other phi variables
         redundant_phi_and_dirty_varids = self._find_cyclic_dependent_phis_and_dirty_vvars(rd)

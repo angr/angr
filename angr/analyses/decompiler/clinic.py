@@ -473,7 +473,7 @@ class Clinic(Analysis):
 
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
-        _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
+        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2")
@@ -488,6 +488,7 @@ class Clinic(Analysis):
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            removed_vvar_ids=removed_vvar_ids,
         )
 
         # After global optimization, there might be more chances for peephole optimizations.
@@ -1071,6 +1072,7 @@ class Clinic(Analysis):
         only_consts=False,
         fold_callexprs_into_conditions=False,
         rewrite_ccalls=True,
+        removed_vvar_ids: set[int] | None = None,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -1087,6 +1089,7 @@ class Clinic(Analysis):
                 only_consts=only_consts,
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
                 rewrite_ccalls=rewrite_ccalls,
+                removed_vvar_ids=removed_vvar_ids,
             )
             if not simplified:
                 break
@@ -1102,6 +1105,7 @@ class Clinic(Analysis):
         only_consts=False,
         fold_callexprs_into_conditions=False,
         rewrite_ccalls=True,
+        removed_vvar_ids: set[int] | None = None,
     ):
         """
         Simplify the entire function once.
@@ -1122,6 +1126,7 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=fold_callexprs_into_conditions,
             use_callee_saved_regs_at_return=not self._register_save_areas_removed,
             rewrite_ccalls=rewrite_ccalls,
+            removed_vvar_ids=removed_vvar_ids,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -1290,8 +1295,6 @@ class Clinic(Analysis):
     def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
         """
         Simplify all function call statements.
-
-        :return:    None
         """
 
         # Computing reaching definitions
@@ -1303,6 +1306,7 @@ class Clinic(Analysis):
 
         class TempClass:  # pylint:disable=missing-class-docstring
             stack_arg_offsets = set()
+            removed_vvar_ids = set()
 
         def _handler(block):
             csm = self.project.analyses.AILCallSiteMaker(
@@ -1313,6 +1317,8 @@ class Clinic(Analysis):
             )
             if csm.stack_arg_offsets is not None:
                 TempClass.stack_arg_offsets |= csm.stack_arg_offsets
+            if csm.removed_vvar_ids:
+                TempClass.removed_vvar_ids |= csm.removed_vvar_ids
             if csm.result_block and csm.result_block != block:
                 ail_block = csm.result_block
                 simp = self.project.analyses.AILBlockSimplifier(
@@ -1328,7 +1334,7 @@ class Clinic(Analysis):
         if not self._inlining_parents:
             AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
-        return ail_graph, TempClass.stack_arg_offsets
+        return ail_graph, TempClass.stack_arg_offsets, TempClass.removed_vvar_ids
 
     @timethis
     def _make_returns(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:

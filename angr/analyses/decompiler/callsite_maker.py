@@ -36,6 +36,7 @@ class CallSiteMaker(Analysis):
 
         self.result_block = None
         self.stack_arg_offsets: set[tuple[int, int]] | None = None  # ins_addr, stack_offset
+        self.removed_vvar_ids: set[int] = set()
 
         self._analyze()
 
@@ -173,6 +174,7 @@ class CallSiteMaker(Analysis):
                     and the_stmt.src.value == self.block.addr + self.block.original_size
                 ):
                     # yes it is!
+                    self.removed_vvar_ids.add(the_stmt.dst.varid)
                     new_stmts = new_stmts[:-1]
         else:
             # if there is an lr register...
