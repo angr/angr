@@ -1609,8 +1609,7 @@ class Clinic(Analysis):
 
         elif type(expr) is ailment.Expr.VirtualVariable:
             vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
-            assert len(vars_) <= 1
-            if len(vars_) == 1:
+            if len(vars_) >= 1:
                 var, offset = next(iter(vars_))
                 expr.variable = var
                 expr.variable_offset = offset
