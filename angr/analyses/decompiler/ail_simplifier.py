@@ -1637,11 +1637,12 @@ class AILSimplifier(Analysis):
 
             bail = False
             for varid in scc:
-                # ensure this vvar does not use anything else outside the scc
-                preds = list(g.predecessors(varid))
-                if any(pred_varid not in scc for pred_varid in preds):
-                    bail = True
-                    break
+                # if this vvar is a phi var, ensure this vvar does not use anything else outside the scc
+                if varid in rd.phi_vvar_ids:
+                    preds = list(g.predecessors(varid))
+                    if any(pred_varid not in scc for pred_varid in preds):
+                        bail = True
+                        break
             if bail:
                 continue
 
