@@ -195,7 +195,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             new_vvar_ids = set()
 
             for src, vvar in list(phi_stmt.src.src_and_vvars):
-                if vvar.varid != varid:
+                if vvar is None or vvar.varid != varid:
                     continue
 
                 new_vvar_id = self.vvar_id_start
@@ -296,6 +296,10 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                                 phi_to_src[stmt.dst.varid].add((src, vvar.varid))
                     self._vvar_defloc[stmt.dst.varid] = (block.addr, block.idx), stmt_idx
                     self._vvar_by_id[stmt.dst.varid] = stmt.dst
+
+                    # special case handling for external vvars
+                    if isinstance(stmt.src, VirtualVariable) and stmt.src.varid not in self._vvar_by_id:
+                        self._vvar_by_id[stmt.src.varid] = stmt.src
 
         return phi_to_src
 
