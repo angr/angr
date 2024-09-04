@@ -304,15 +304,14 @@ class CallSiteMaker(Analysis):
                     value = view.get_vvar_value(vvar)
                     if value is not None:
                         return None, value
-                    else:
-                        return None, Expr.VirtualVariable(
-                            self._atom_idx(),
-                            vvar.varid,
-                            vvar.bits,
-                            vvar.category,
-                            oident=vvar.oident,
-                            ins_addr=call_stmt.ins_addr,
-                        )
+                    return None, Expr.VirtualVariable(
+                        self._atom_idx(),
+                        vvar.varid,
+                        vvar.bits,
+                        vvar.category,
+                        oident=vvar.oident,
+                        ins_addr=call_stmt.ins_addr,
+                    )
 
             return None, Expr.Load(
                 self._atom_idx(),

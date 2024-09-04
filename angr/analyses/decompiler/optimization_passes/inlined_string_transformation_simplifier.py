@@ -156,7 +156,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                 if isinstance(val, claripy.ast.BV):
                     self.state.mem_store(addr, val, self.arch.memory_endness)
                     # log it
-                    for i in range(0, val.size() // self.arch.byte_width):
+                    for i in range(val.size() // self.arch.byte_width):
                         byte_off = i
                         if self.arch.memory_endness == Endness.LE:
                             byte_off = val.size() // self.arch.byte_width - i - 1
@@ -222,13 +222,13 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
             v = self.state.mem_load(addr, expr.size, self.arch.memory_endness)
             if isinstance(v, claripy.Bits):
                 # log it
-                for i in range(0, expr.size):
+                for i in range(expr.size):
                     byte_off = i
                     if self.arch.memory_endness == Endness.LE:
                         byte_off = expr.size - i - 1
                     self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
             return v
-        elif expr.was_reg:
+        if expr.was_reg:
             return self.state.vvar_load(expr)
         return None
 

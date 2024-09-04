@@ -146,7 +146,7 @@ class SRDAView:
                 the_block = block
                 break
         else:
-            return None
+            return
 
         starting_stmt_idx = len(the_block.statements) if op_type == ObservationPointType.OP_AFTER else 0
         for stmt_idx, stmt in enumerate(the_block.statements):
@@ -157,10 +157,12 @@ class SRDAView:
                     starting_stmt_idx = stmt_idx
                 continue
 
-            if op_type == ObservationPointType.OP_BEFORE and stmt.ins_addr == addr:
-                starting_stmt_idx = stmt_idx
-                break
-            elif op_type == ObservationPointType.OP_AFTER and stmt.ins_addr > addr:
+            if (
+                op_type == ObservationPointType.OP_BEFORE
+                and stmt.ins_addr == addr
+                or op_type == ObservationPointType.OP_AFTER
+                and stmt.ins_addr > addr
+            ):
                 starting_stmt_idx = stmt_idx
                 break
 
@@ -201,7 +203,7 @@ class SRDAView:
             ):
                 vvars.add(stmt.dst)
                 return True
-            elif isinstance(stmt, Call):
+            if isinstance(stmt, Call):
                 if (
                     isinstance(stmt.ret_expr, VirtualVariable)
                     and stmt.ret_expr.was_reg
@@ -356,7 +358,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             case "function":
                 blocks = {(block.addr, block.idx): block for block in self.func_graph}
             case _:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         phi_vvars = {}
         # find all vvar definitions

@@ -130,7 +130,7 @@ class SimEngineSSARewriting(
                     )
                     self.state.registers[base_offset][base_size] = base_reg_vvar
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         if new_dst is not None or new_src is not None:
             new_stmt = Assignment(
@@ -376,7 +376,7 @@ class SimEngineSSARewriting(
         """
         if isinstance(thing, Register):
             return self._replace_def_reg(thing)
-        elif isinstance(thing, Store):
+        if isinstance(thing, Store):
             return self._replace_def_store(thing)
         return None
 

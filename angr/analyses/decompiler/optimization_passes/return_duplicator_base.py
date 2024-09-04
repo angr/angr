@@ -265,7 +265,7 @@ class ReturnDuplicatorBase:
 
     @staticmethod
     def _update_phi_variables_after_removing_predecessor(node: Block, pred: Block) -> None:
-        for idx in range(0, len(node.statements)):
+        for idx in range(len(node.statements)):
             stmt = node.statements[idx]
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
                 # remove the variable from the specified source

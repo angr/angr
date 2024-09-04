@@ -107,7 +107,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             # for stack variables, we collect all definitions and identify stack variable locations using heuristics
 
             stackvar_locs = self._synthesize_stackvar_locs([def_ for def_ in def_to_loc if isinstance(def_, Store)])
-            sorted_stackvar_offs = list(sorted(stackvar_locs))
+            sorted_stackvar_offs = sorted(stackvar_locs)
         else:
             stackvar_locs = {}
             sorted_stackvar_offs = []
@@ -139,7 +139,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         udef_to_defs[("stack", off, stackvar_locs[off])].add(def_)
                         udef_to_blockkeys[("stack", off, stackvar_locs[off])].add((loc.block_addr, loc.block_idx))
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
                 # other types are not supported yet
 
         phi_id_ctr = count()
@@ -180,10 +180,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 accesses[stack_off].add(def_.size)
                 offs.add(stack_off)
 
-        sorted_offs = list(sorted(offs))
+        sorted_offs = sorted(offs)
         locs: dict[int, int] = {}
         for idx, off in enumerate(sorted_offs):
-            sorted_sizes = list(sorted(accesses[off]))
+            sorted_sizes = sorted(accesses[off])
             if idx < len(sorted_offs) - 1:
                 next_off = sorted_offs[idx + 1]
                 allowed_sizes = [sz for sz in sorted_sizes if off + sz <= next_off]

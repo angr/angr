@@ -137,7 +137,7 @@ class ConstAndVVarWalker(AILBlockWalkerBase):
     ) -> Any:
         if isinstance(expr, (Tmp, Load, Register, Phi, Call, DirtyExpression)):
             self.all_const_and_vvar_expr = False
-            return
+            return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -159,7 +159,7 @@ class ConstVVarAndTmpWalker(AILBlockWalkerBase):
     ) -> Any:
         if isinstance(expr, (Load, Register, Phi, Call, DirtyExpression)):
             self.all_const_vvar_tmp_expr = False
-            return
+            return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -181,7 +181,7 @@ class ConstVVarAndLoadWalker(AILBlockWalkerBase):
     ) -> Any:
         if isinstance(expr, (Tmp, Register, Phi, Call, DirtyExpression)):
             self.all_const_vvar_load_expr = False
-            return
+            return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -203,7 +203,7 @@ class ConstVVarLoadDirtyWalker(AILBlockWalkerBase):
     ) -> Any:
         if isinstance(expr, (Tmp, Register, Phi, Call)):
             self.all_const_vvar_load_expr = False
-            return
+            return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 

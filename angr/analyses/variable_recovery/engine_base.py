@@ -425,7 +425,7 @@ class SimEngineVRBase(SimEngineLight):
                 )
                 self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
         else:
             variable, _ = next(iter(existing_vars))
 
@@ -1065,7 +1065,7 @@ class SimEngineVRBase(SimEngineLight):
                 elif vvar.category == ailment.Expr.VirtualVariableCategory.PARAMETER:
                     raise KeyError(f"Missing virtual variable for parameter {vvar}")
                 else:
-                    raise NotImplementedError()
+                    raise NotImplementedError
 
             self.vvar_region[vvar_id] = value
 

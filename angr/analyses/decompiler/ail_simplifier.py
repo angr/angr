@@ -613,7 +613,7 @@ class AILSimplifier(Analysis):
                     if vvarid in blacklist_varids:
                         narrowing_sizes.add(None)
                     else:
-                        narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid, None))
+                        narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid))
                 if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
                     # we can narrow this phi vvar!
                     narrowable_phivarids.add(def_vvarid)

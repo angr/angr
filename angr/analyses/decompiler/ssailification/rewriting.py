@@ -140,7 +140,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         oident=stack_offset,
                     )
                 case _:
-                    raise NotImplementedError()
+                    raise NotImplementedError
 
             phi_stmt = Assignment(
                 None,
@@ -296,7 +296,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                             vvar = self._follow_one_path_backward(self.graph, pred, stack_predicate)
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                     else:
-                        raise NotImplementedError()
+                        raise NotImplementedError
 
                     phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
                     new_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)

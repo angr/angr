@@ -81,7 +81,7 @@ class DephicationBase(Analysis):
         return vvar_to_vvar
 
     def _collect_phi_assignments(self) -> dict[int, set[int]]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _rewrite_container(self) -> Any:
-        raise NotImplementedError()
+        raise NotImplementedError

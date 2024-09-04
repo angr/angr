@@ -87,7 +87,7 @@ class SPropagatorAnalysis(Analysis):
             case "function":
                 blocks = {(block.addr, block.idx): block for block in self.func_graph}
             case _:
-                raise NotImplementedError()
+                raise NotImplementedError
 
         # find all vvar definitions
         vvar_deflocs = get_vvar_deflocs(blocks.values())
@@ -156,7 +156,7 @@ class SPropagatorAnalysis(Analysis):
                         replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                    elif is_const_vvar_load_assignment(stmt):
+                    if is_const_vvar_load_assignment(stmt):
                         replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
@@ -191,7 +191,7 @@ class SPropagatorAnalysis(Analysis):
                                     None, self.project.arch.bits, sb_offset
                                 )
                         continue
-                    elif not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
+                    if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                             sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
                             if sb_offset is not None:

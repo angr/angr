@@ -226,28 +226,27 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
             return 0, new_vvar_ids
 
-        else:
-            # it's the phi assignment destination vvar
+        # it's the phi assignment destination vvar
 
-            new_vvar_id = self.vvar_id_start
-            self.vvar_id_start += 1
+        new_vvar_id = self.vvar_id_start
+        self.vvar_id_start += 1
 
-            phi_vvar = self._vvar_by_id[phi_varid]
-            phi_block_addr, phi_block_idx = self._vvar_defloc[phi_varid][0]
-            the_block = next(iter(bb for bb in self._graph if bb.addr == phi_block_addr and bb.idx == phi_block_idx))
-            ins_addr = the_block.addr
-            new_vvar = VirtualVariable(
-                None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
-            )
-            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr)
+        phi_vvar = self._vvar_by_id[phi_varid]
+        phi_block_addr, phi_block_idx = self._vvar_defloc[phi_varid][0]
+        the_block = next(iter(bb for bb in self._graph if bb.addr == phi_block_addr and bb.idx == phi_block_idx))
+        ins_addr = the_block.addr
+        new_vvar = VirtualVariable(
+            None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
+        )
+        assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr)
 
-            phi_stmt = the_block.statements[phidef_stmt_idx]
-            replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
-            the_block.statements[phidef_stmt_idx] = phi_stmt
+        phi_stmt = the_block.statements[phidef_stmt_idx]
+        replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
+        the_block.statements[phidef_stmt_idx] = phi_stmt
 
-            self._record_stmt_for_prepending(the_block, assignment)
+        self._record_stmt_for_prepending(the_block, assignment)
 
-            return 1, {((phi_block_addr, phi_block_idx), phi_varid, new_vvar_id)}
+        return 1, {((phi_block_addr, phi_block_idx), phi_varid, new_vvar_id)}
 
     def _append_stmt(self, block, stmt):
         if block.statements and isinstance(block.statements[-1], (Jump, ConditionalJump)):

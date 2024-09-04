@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import Phi, VirtualVariable
 from ailment.statement import Assignment, Statement
 
