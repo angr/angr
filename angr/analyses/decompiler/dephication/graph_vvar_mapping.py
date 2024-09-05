@@ -2,10 +2,12 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
+from ailment.block import Block
 from ailment.expression import Phi, VirtualVariable
 from ailment.statement import Assignment, Jump, ConditionalJump, Label, Call
 
 from angr.analyses import Analysis
+from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
 from angr.utils.ssa import is_phi_assignment
@@ -39,11 +41,14 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             self._function = func
         self._graph = ail_graph
         self._vvar_defloc = {}
-        self._vvar_by_id = {}
         self.vvar_id_start = vvar_id_start
         self._stmts_to_prepend = defaultdict(list)
 
         self.vvar_to_vvar_mapping = None
+        self._rd: SRDAModel = self.project.analyses.SReachingDefinitions(
+            subject=self._function, func_graph=self._graph
+        ).model
+        self._blocks: dict[tuple[int, int | None], Block] = {(block.addr, block.idx): block for block in self._graph}
 
         self._analyze()
 
@@ -128,7 +133,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         phi_congruence_class[new_vvar_id] = {new_vvar_id}
                         live_outs[src].add(new_vvar_id)
 
-                        src_block = next(iter(bb for bb in self._graph if bb.addr == src[0] and bb.idx == src[1]))
+                        src_block = self._blocks[(src[0], src[1])]
                         for succ in self._graph.successors(src_block):
                             succ_key = succ.addr, succ.idx
                             if old_vvar_id not in live_ins[succ_key] and not self._used_in_phi(
@@ -154,9 +159,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
             # update phi_congruence_class
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
-            phi_block = next(
-                iter(bb for bb in self._graph if bb.addr == phidef_block_addr and bb.idx == phidef_block_idx)
-            )
+            phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             phi_stmt = phi_block.statements[phidef_stmt_idx]
 
             new_class = phi_congruence_class[phi_stmt.dst.varid]
@@ -187,9 +190,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         if varid != phi_varid:
             # it's one of the source vvars
 
-            phi_block = next(
-                iter(bb for bb in self._graph if bb.addr == phidef_block_addr and bb.idx == phidef_block_idx)
-            )
+            phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             phi_stmt = phi_block.statements[phidef_stmt_idx]
 
             new_vvar_ids = set()
@@ -201,12 +202,10 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 new_vvar_id = self.vvar_id_start
                 self.vvar_id_start += 1
 
-                vvar = self._vvar_by_id[varid]
+                vvar = self._rd.varid_to_vvar[varid]
                 src_block_addr, src_block_idx = src
 
-                the_block = next(
-                    iter(bb for bb in self._graph if bb.addr == src_block_addr and bb.idx == src_block_idx)
-                )
+                the_block = self._blocks[(src_block_addr, src_block_idx)]
                 ins_addr = the_block.addr + the_block.original_size - 1
                 new_vvar = VirtualVariable(
                     None, new_vvar_id, vvar.bits, vvar.category, oident=vvar.oident, ins_addr=ins_addr
@@ -231,9 +230,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         new_vvar_id = self.vvar_id_start
         self.vvar_id_start += 1
 
-        phi_vvar = self._vvar_by_id[phi_varid]
+        phi_vvar = self._rd.varid_to_vvar[phi_varid]
         phi_block_addr, phi_block_idx = self._vvar_defloc[phi_varid][0]
-        the_block = next(iter(bb for bb in self._graph if bb.addr == phi_block_addr and bb.idx == phi_block_idx))
+        the_block = self._blocks[(phi_block_addr, phi_block_idx)]
         ins_addr = the_block.addr
         new_vvar = VirtualVariable(
             None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
@@ -295,16 +294,6 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                             else:
                                 phi_to_src[stmt.dst.varid].add((src, vvar.varid))
                     self._vvar_defloc[stmt.dst.varid] = (block.addr, block.idx), stmt_idx
-                    self._vvar_by_id[stmt.dst.varid] = stmt.dst
-
-                    # special case handling for external vvars
-                    if isinstance(stmt.src, VirtualVariable) and stmt.src.varid not in self._vvar_by_id:
-                        self._vvar_by_id[stmt.src.varid] = stmt.src
-                elif isinstance(stmt, Call):
-                    if stmt.ret_expr is not None and isinstance(stmt.ret_expr, VirtualVariable):
-                        self._vvar_by_id[stmt.ret_expr.varid] = stmt.ret_expr
-                    if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, VirtualVariable):
-                        self._vvar_by_id[stmt.fp_ret_expr.varid] = stmt.fp_ret_expr
 
         return phi_to_src
 
