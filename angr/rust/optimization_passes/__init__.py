@@ -16,8 +16,8 @@ from .ownership_simplifier import OwnershipSimplifier
 _all_optimization_passes.extend(
     [
         # Before type recovery
-        # (LibFunctionIdentifier, True),
-        (CallSiteSimplifier, True),
+        (LibFunctionIdentifier, True),
+        # (CallSiteSimplifier, True),
         (EpilogueSimplifier, True),
         (ErrorHandlingSimplifier, True),
         (RetSiteSimplifier, True),
