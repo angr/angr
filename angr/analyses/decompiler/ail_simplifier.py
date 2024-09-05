@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+from typing import Any, Iterable, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -50,6 +50,12 @@ _l = logging.getLogger(__name__)
 class HasCallNotification(Exception):
     """
     Notifies the existence of a call statement.
+    """
+
+
+class HasVVarNotification(Exception):
+    """
+    Notifies the existence of a VirtualVariable.
     """
 
 
@@ -325,8 +331,21 @@ class AILSimplifier(Analysis):
             if not repeat:
                 break
 
+        replaced_vvar_ids = set()
+
         # let's narrow them (finally)
         for def_, narrow_info in narrowables:
+
+            # does any uses involve a previously replaced expressions? if so, we have to skip this one because the use
+            # expression may no longer exist.
+            should_skip = False
+            for _, _, (_, use_expr_tpl) in narrow_info.use_exprs:
+                if self._exprs_contain_vvar(use_expr_tpl, replaced_vvar_ids):
+                    should_skip = True
+                    break
+            if should_skip:
+                continue
+
             # replace the definition
             if not isinstance(def_.codeloc, ExternalCodeLocation):
                 old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
@@ -338,6 +357,7 @@ class AILSimplifier(Analysis):
                 the_block = self.blocks.get(old_block, old_block)
                 stmt = the_block.statements[def_.codeloc.stmt_idx]
                 r, new_block = False, None
+                replaced_vvar: VirtualVariable | None = None
                 if is_phi_assignment(stmt):
                     new_assignment_dst = VirtualVariable(
                         stmt.dst.idx,
@@ -367,6 +387,7 @@ class AILSimplifier(Analysis):
                         new_src_and_vvars,
                         **stmt.src.tags,
                     )
+                    replaced_vvar = stmt.dst
                     r, new_block = BlockSimplifier._replace_and_build(
                         the_block,
                         {
@@ -395,6 +416,7 @@ class AILSimplifier(Analysis):
                         stmt.src,
                         **stmt.src.tags,
                     )
+                    replaced_vvar = stmt.dst
                     r, new_block = BlockSimplifier._replace_and_build(
                         the_block,
                         {
@@ -412,6 +434,7 @@ class AILSimplifier(Analysis):
                         tags["reg_name"] = self.project.arch.translate_register_name(
                             def_.atom.reg_offset, size=narrow_info.to_size
                         )
+                        replaced_vvar = stmt.ret_expr
                         new_retexpr = VirtualVariable(
                             stmt.ret_expr.idx,
                             stmt.ret_expr.varid,
@@ -427,6 +450,8 @@ class AILSimplifier(Analysis):
                     # couldn't replace the definition...
                     continue
                 self.blocks[old_block] = new_block
+                if replaced_vvar is not None:
+                    replaced_vvar_ids.add(replaced_vvar.varid)
 
             use_exprs = list(narrow_info.use_exprs)
             if narrow_info.phi_vars:
@@ -1024,7 +1049,7 @@ class AILSimplifier(Analysis):
 
                 if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
                     # create the replacement expression
-                    if eq.atom1.was_parameter:
+                    if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter:
                         # replacing atom0
                         new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
                         replace_with = VirtualVariable(
@@ -1760,6 +1785,22 @@ class AILSimplifier(Analysis):
             if started and b.statements and isinstance(b.statements[-1], Call):
                 calls += 1
         return calls
+
+    @staticmethod
+    def _exprs_contain_vvar(exprs: Iterable[Expression], vvar_ids: set[int]) -> bool:
+        def _handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+            if expr.varid in vvar_ids:
+                raise HasVVarNotification()
+
+        walker = AILBlockWalker()
+        walker.expr_handlers[VirtualVariable] = _handle_VirtualVariable
+
+        for expr in exprs:
+            try:
+                walker.walk_expression(expr)
+            except HasVVarNotification:
+                return True
+        return False
 
 
 AnalysesHub.register_default("AILSimplifier", AILSimplifier)
