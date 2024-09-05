@@ -126,27 +126,26 @@ class SLivenessAnalysis(Analysis):
 
         # second pass: Propagate live variables within loop bodies
         loop_head_to_loop_nodes = GraphUtils.loop_nesting_forest(graph, entry)
-        for loop_head, loop_nodes in loop_head_to_loop_nodes.items():
-            self._looptree_dfs(
-                graph, loop_head_to_loop_nodes, live_ins, live_outs, phi_defs, loop_nodes, loop_head, loop_head
-            )
+        traversed_loopheads = set()
+        for loop_head, loop_nodes in reversed(loop_head_to_loop_nodes.items()):
+            if loop_head in traversed_loopheads:
+                continue
+            self._looptree_dfs(loop_head_to_loop_nodes, live_ins, live_outs, phi_defs, loop_head, traversed_loopheads)
 
         # set the model accordingly
         self.model.live_ins = live_ins
         self.model.live_outs = live_outs
 
-    def _looptree_dfs(
-        self, graph: networkx.DiGraph, loops, live_ins, live_outs, phi_defs, loop_nodes: set, loop_head, node
-    ):
+    def _looptree_dfs(self, loops, live_ins, live_outs, phi_defs, loop_head, traversed_loopheads: set):
         loop_head_key = loop_head.addr, loop_head.idx
         live_loop = live_ins[loop_head_key].difference(phi_defs[loop_head_key])
-        for m in itertools.chain({node}, networkx.descendants(graph, node)):
-            if m in loop_nodes:
-                m_key = m.addr, m.idx
-                live_ins[m_key] |= live_loop
-                live_outs[m_key] |= live_loop
-                if m is not node and m in loops:
-                    self._looptree_dfs(graph, loops, live_ins, live_outs, phi_defs, loop_nodes, m, m)
+        for m in itertools.chain({loop_head}, networkx.descendants(loops[loop_head], loop_head)):
+            m_key = m.addr, m.idx
+            live_ins[m_key] |= live_loop
+            live_outs[m_key] |= live_loop
+            if m is not loop_head and m in loops:
+                self._looptree_dfs(loops, live_ins, live_outs, phi_defs, m, traversed_loopheads)
+        traversed_loopheads.add(loop_head)
 
     def interference_graph(self) -> networkx.Graph:
         """
