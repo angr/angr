@@ -314,7 +314,6 @@ class AllocSimplifier(TransformationPass):
         return self._try_simplify()
 
     def _analyze(self, cache=None):
-        return
         blocks = []
         pending_blocks = []
         for block in self._graph.nodes:
