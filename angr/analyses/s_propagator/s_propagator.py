@@ -149,14 +149,14 @@ class SPropagatorAnalysis(Analysis):
                         and vvar_useloc.block_idx == defloc.block_idx
                         and not any(
                             isinstance(stmt_, Store)
-                            for stmt_ in block.statements[defloc.stmt_idx + 1 : vvar_useloc.stmt_idx - 1]
+                            for stmt_ in block.statements[defloc.stmt_idx + 1 : vvar_useloc.stmt_idx]
                         )
                     ):
                         # we can propagate this load because there is no store between its def and use
                         replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                    if is_const_vvar_load_assignment(stmt):
+                    if is_const_and_vvar_assignment(stmt):
                         replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
@@ -240,7 +240,7 @@ class SPropagatorAnalysis(Analysis):
                         tmp_used, tmp_use_stmtidx = next(iter(tmp_uses))
                         if is_const_vvar_load_dirty_assignment(stmt) and not any(
                             isinstance(stmt_, Store)
-                            for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx - 1]
+                            for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
                         ):
                             # we can propagate this load because there is no store between its def and use
                             replacements[
