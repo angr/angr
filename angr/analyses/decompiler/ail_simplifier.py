@@ -340,8 +340,8 @@ class AILSimplifier(Analysis):
             # does any uses involve a previously replaced expressions? if so, we have to skip this one because the use
             # expression may no longer exist.
             should_skip = False
-            for _, _, (_, use_expr_tpl) in narrow_info.use_exprs:
-                if self._exprs_contain_vvar(use_expr_tpl, replaced_vvar_ids):
+            for _, _, (use_type, use_expr_tpl) in narrow_info.use_exprs:
+                if use_type == "binop-convert" and self._exprs_contain_vvar(use_expr_tpl, replaced_vvar_ids):
                     should_skip = True
                     break
             if should_skip:
