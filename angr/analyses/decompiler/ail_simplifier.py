@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, Iterable, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Iterable
 from collections import defaultdict
 import logging
 
@@ -1790,7 +1791,7 @@ class AILSimplifier(Analysis):
     def _exprs_contain_vvar(exprs: Iterable[Expression], vvar_ids: set[int]) -> bool:
         def _handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
             if expr.varid in vvar_ids:
-                raise HasVVarNotification()
+                raise HasVVarNotification
 
         walker = AILBlockWalker()
         walker.expr_handlers[VirtualVariable] = _handle_VirtualVariable
