@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from ailment.block import Block
 from ailment.expression import Phi, VirtualVariable
-from ailment.statement import Assignment, Jump, ConditionalJump, Label, Call
+from ailment.statement import Assignment, Jump, ConditionalJump, Label
 
 from angr.analyses import Analysis
 from angr.analyses.s_reaching_definitions import SRDAModel
