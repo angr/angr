@@ -1134,6 +1134,8 @@ class AILSimplifier(Analysis):
                     assignment_ctr = 0
                     all_use_locs = {use_loc for use_loc, _ in all_uses}
                     for use_loc in all_use_locs:
+                        if use_loc == eq.codeloc:
+                            continue
                         block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                         stmt = block.statements[use_loc.stmt_idx]
                         if isinstance(stmt, Assignment):

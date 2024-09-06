@@ -84,6 +84,7 @@ class SLivenessAnalysis(Analysis):
                             live_in_by_pred[src] = live.copy()
                         if vvar is not None:
                             live_in_by_pred[src].add(vvar.varid)
+                        live_in_by_pred[src].discard(stmt.dst.varid)
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector = VVarUsesCollector()
