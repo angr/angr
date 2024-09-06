@@ -7,7 +7,6 @@ import time
 import os
 import logging
 import unittest
-import claripy
 
 import angr
 
@@ -99,7 +98,7 @@ class TestVfg(unittest.TestCase):
         }
 
         state = next(s for s in states if s.solver.eval_one(s.ip) == 0x4005B4)
-        assert claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28)
+        assert (state.stack_read(12, 4) >= 0x28).is_true()
 
     def broken_vfg_buffer_overflow(self):
         # Test for running VFG on a single function

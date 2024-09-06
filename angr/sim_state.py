@@ -516,11 +516,11 @@ class SimState(PluginHub):
                 # `is_true` and `is_false` does not use VSABackend currently (see commits 97a75366 and 2dfba73e in
                 # claripy). There is a chance that VSA backend can in fact handle it.
                 # Therefore we try to resolve it with VSABackend again
-                if claripy.backends.vsa.is_false(arg):
+                if arg.is_false():
                     self._satisfiable = False
                     return
 
-                if claripy.backends.vsa.is_true(arg):
+                if arg.is_true():
                     continue
 
                 # It's neither True or False. Let's try to apply the condition
