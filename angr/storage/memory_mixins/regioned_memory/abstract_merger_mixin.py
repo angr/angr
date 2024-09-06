@@ -27,7 +27,7 @@ class AbstractMergerMixin(MemoryMixin):
         for tm, _ in values[1:]:
             # if should_reverse: tm = tm.reversed
 
-            if self._is_uninitialized(tm):
+            if tm.uninitialized:
                 continue
             l.info("Merging %s %s...", merged_val, tm)
             merged_val = merged_val.union(tm)
@@ -40,7 +40,3 @@ class AbstractMergerMixin(MemoryMixin):
             return None
 
         return merged_val
-
-    @staticmethod
-    def _is_uninitialized(a):
-        return getattr(claripy.backends.vsa.convert(a), "uninitialized", False)
