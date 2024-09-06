@@ -4,7 +4,6 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-import claripy
 
 from .. import MemoryMixin
 
