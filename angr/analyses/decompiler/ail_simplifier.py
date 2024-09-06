@@ -630,6 +630,7 @@ class AILSimplifier(Analysis):
                             vvar, simvar = self._arg_vvars[func_arg_idx]
                             if vvar.varid == new_use_expr.varid:
                                 simvar_new = simvar.copy()
+                                simvar_new._hash = None
                                 simvar_new.size = new_use_expr.size
                                 self._arg_vvars[func_arg_idx] = new_use_expr, simvar_new
 

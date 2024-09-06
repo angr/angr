@@ -527,6 +527,11 @@ class Clinic(Analysis):
             cache=block_simplification_cache,
         )
 
+        # update arg_list
+        arg_list = []
+        for idx in sorted(arg_vvars):
+            arg_list.append(arg_vvars[idx][1])
+
         # Get virtual variable mapping that can de-phi the SSA representation
         vvar2vvar = self._collect_dephi_vvar_mapping_and_rewrite_blocks(ail_graph)
 
@@ -1202,6 +1207,10 @@ class Clinic(Analysis):
         for arg in arg_list:
             if not isinstance(arg, SimRegisterVariable):
                 continue
+
+            # get the full register if needed
+            basereg_offset, basereg_size = self.project.arch.get_base_register(arg.reg, size=arg.size)
+
             arg_vvar = ailment.Expr.VirtualVariable(
                 self._ail_manager.next_atom(),
                 self.vvar_id_start,
@@ -1212,12 +1221,28 @@ class Clinic(Analysis):
             )
             self.vvar_id_start += 1
             arg_vvars[arg_vvar.varid] = arg_vvar, arg
-            reg_dst = ailment.Expr.Register(
-                self._ail_manager.next_atom(), None, arg.reg, arg.bits, ins_addr=self.function.addr
+
+            if basereg_size != arg.size:
+                # extend the value to the full register
+                arg_vvar = ailment.Expr.Convert(
+                    self._ail_manager.next_atom(),
+                    arg.size * self.project.arch.byte_width,
+                    basereg_size * self.project.arch.byte_width,
+                    False,
+                    arg_vvar,
+                    ins_addr=self.function.addr,
+                )
+
+            fullreg_dst = ailment.Expr.Register(
+                self._ail_manager.next_atom(),
+                None,
+                basereg_offset,
+                basereg_size * self.project.arch.byte_width,
+                ins_addr=self.function.addr,
             )
             stmt = ailment.Stmt.Assignment(
                 self._ail_manager.next_atom(),
-                reg_dst,
+                fullreg_dst,
                 arg_vvar,
                 ins_addr=self.function.addr,
             )
