@@ -383,12 +383,18 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                 if isinstance(arg, SimRegisterVariable):
                     v = claripy.BVS("reg_arg", arg.bits)
                     v = state.annotate_with_variables(v, [(0, arg)])
-                    self._ail_engine.vvar_region[arg_vvar.varid] = v
+                    arg_vvar_id = arg_vvar.varid
+                    if self.vvar_to_vvar:
+                        arg_vvar_id = self.vvar_to_vvar.get(arg_vvar_id, arg_vvar_id)
+                    self._ail_engine.vvar_region[arg_vvar_id] = v
                     internal_manager.add_variable("register", arg.reg, arg)
                 elif isinstance(arg, SimStackVariable):
                     v = claripy.BVS("stack_arg", arg.bits)
                     v = state.annotate_with_variables(v, [(0, arg)])
-                    self._ail_engine.vvar_region[arg_vvar.varid] = v
+                    arg_vvar_id = arg_vvar.varid
+                    if self.vvar_to_vvar:
+                        arg_vvar_id = self.vvar_to_vvar.get(arg_vvar_id, arg_vvar_id)
+                    self._ail_engine.vvar_region[arg_vvar_id] = v
                     internal_manager.add_variable("stack", arg.offset, arg)
                 else:
                     raise TypeError("Unsupported function argument type %s." % type(arg))
