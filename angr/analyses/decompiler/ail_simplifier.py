@@ -372,7 +372,7 @@ class AILSimplifier(Analysis):
                     )
                     new_src_and_vvars = []
                     for src, vvar in stmt.src.src_and_vvars:
-                        if vvar.varid == stmt.dst.varid:
+                        if vvar is not None and vvar.varid == stmt.dst.varid:
                             new_vvar = VirtualVariable(
                                 vvar.idx,
                                 vvar.varid,
