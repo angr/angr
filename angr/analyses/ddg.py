@@ -1322,7 +1322,7 @@ class DDG(Analysis):
 
     def _data_graph_add_node(self, node):
         """
-        Add a noe in the data dependence graph.
+        Add a node in the data dependence graph.
 
         :param ProgramVariable node: The node to add.
         :return: None

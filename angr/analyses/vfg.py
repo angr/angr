@@ -714,7 +714,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         vfg_node.state = input_state
 
         # Execute this basic block with input state, and get a new SimSuccessors instance
-        # unused result var is `error_occured`
+        # unused result var is `error_occurred`
         job.sim_successors, _, restart_analysis = self._get_simsuccessors(input_state, addr)
 
         if restart_analysis:
@@ -1419,7 +1419,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
     #
 
     def _get_simsuccessors(self, state: SimState, addr: int) -> tuple[SimSuccessors, bool, bool]:
-        error_occured = False
+        error_occurred = False
         restart_analysis = False
 
         jumpkind = "Ijk_Boring"
@@ -1434,19 +1434,19 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-            error_occured = True
+            error_occurred = True
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
             sim_successors = ProcedureEngine().process(state, procedure=inst)
         except claripy.ClaripyError:
             l.error("ClaripyError: ", exc_info=True)
-            error_occured = True
+            error_occurred = True
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
             sim_successors = ProcedureEngine().process(state, procedure=inst)
         except SimError:
             l.error("SimError: ", exc_info=True)
 
-            error_occured = True
+            error_occurred = True
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
             sim_successors = ProcedureEngine().process(state, procedure=inst)
@@ -1456,10 +1456,10 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
-            error_occured = True
+            error_occurred = True
             sim_successors = None
 
-        return sim_successors, error_occured, restart_analysis
+        return sim_successors, error_occurred, restart_analysis
 
     def _create_new_jobs(
         self, job: VFGJob, successor: SimState, new_block_id: BlockID, new_call_stack: CallStack

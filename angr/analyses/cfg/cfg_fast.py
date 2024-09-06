@@ -3452,7 +3452,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._model.add_node(new_node.addr, new_node)
 
         # the function starting at this point is probably totally incorrect
-        # hopefull future call to `make_functions()` will correct everything
+        # hopefully, a future call to `make_functions()` will correct everything
         if node.addr in self.kb.functions:
             del self.kb.functions[node.addr]
 

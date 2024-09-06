@@ -112,7 +112,7 @@ class SimEngineVRBase(SimEngineLight):
         return False
 
     @staticmethod
-    def _parse_offseted_addr(addr: claripy.ast.BV) -> tuple[claripy.ast.BV, claripy.ast.BV, claripy.ast.BV] | None:
+    def _parse_offsetted_addr(addr: claripy.ast.BV) -> tuple[claripy.ast.BV, claripy.ast.BV, claripy.ast.BV] | None:
         if addr.op == "__add__" and len(addr.args) == 2:
             concrete_base, byte_offset = None, None
             if addr.args[0].concrete:
@@ -379,9 +379,9 @@ class SimEngineVRBase(SimEngineLight):
             # fully concrete. this is a global address
             self._store_to_global(addr.concrete_value, data, size, stmt=stmt)
             stored = True
-        elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
+        elif self._addr_has_concrete_base(addr) and self._parse_offsetted_addr(addr) is not None:
             # we are storing to a concrete global address with an offset
-            base_addr, offset, elem_size = self._parse_offseted_addr(addr)
+            base_addr, offset, elem_size = self._parse_offsetted_addr(addr)
             self._store_to_global(base_addr.concrete_value, data, size, stmt=stmt, offset=offset, elem_size=elem_size)
             stored = True
         else:
@@ -743,9 +743,9 @@ class SimEngineVRBase(SimEngineLight):
             v = self._load_from_global(addr.concrete_value, size, expr=expr)
             typevar = v.typevar
 
-        elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
+        elif self._addr_has_concrete_base(addr) and self._parse_offsetted_addr(addr) is not None:
             # Loading data from a memory address with an offset
-            base_addr, offset, elem_size = self._parse_offseted_addr(addr)
+            base_addr, offset, elem_size = self._parse_offsetted_addr(addr)
             v = self._load_from_global(base_addr.concrete_value, size, expr=expr, offset=offset, elem_size=elem_size)
             typevar = v.typevar
 

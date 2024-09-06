@@ -204,7 +204,7 @@ are running forever)
    def killmyself():
        os.system('kill %d' % os.getpid())
    def sigint_handler(signum, frame):
-       print 'Stopping Execution for Debug. If you want to kill the programm issue: killmyself()'
+       print 'Stopping Execution for Debug. If you want to kill the program issue: killmyself()'
        if not "IPython" in sys.modules:
            import IPython
            IPython.embed()
