@@ -974,7 +974,11 @@ class AILSimplifier(Analysis):
                 # the definition is in a callee function
                 continue
 
-            if isinstance(the_def.codeloc, ExternalCodeLocation):
+            if (
+                isinstance(the_def.codeloc, ExternalCodeLocation)
+                or isinstance(eq.atom1, VirtualVariable)
+                and eq.atom1.was_parameter
+            ):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
                 # argument if
                 # (a) the on-stack or in-register copy of it has never been modified in this function
@@ -997,7 +1001,7 @@ class AILSimplifier(Analysis):
                         # Make sure there is no other write to this stack location if the copy is a stack variable
                         if isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack:
                             if any(
-                                (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
+                                (def_ != arg_copy_def and def_.atom.stack_offset == arg_copy_def.atom.stack_offset)
                                 for def_ in rd.all_definitions
                                 if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_stack
                             ):
@@ -1029,8 +1033,6 @@ class AILSimplifier(Analysis):
                         if should_abort:
                             continue
 
-                        # to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
-                        #                  eq.atom0.size, endness=self.project.arch.memory_endness)
                         replace_with = eq.atom1
                         remove_initial_assignment = True
 
