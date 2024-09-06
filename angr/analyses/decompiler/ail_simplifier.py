@@ -1519,13 +1519,13 @@ class AILSimplifier(Analysis):
             if isinstance(def_.atom, atoms.VirtualVariable):
                 if def_.atom.was_stack:
                     if not self._remove_dead_memdefs:
-                        if stackarg_offsets is not None:
+                        if rd.is_phi_vvar_id(def_.atom.varid):
+                            # we always remove unused phi variables
+                            pass
+                        elif stackarg_offsets is not None:
                             # we always remove definitions for stack arguments
                             if (def_.atom.stack_offset & mask) not in stackarg_offsets:
                                 continue
-                        elif rd.is_phi_vvar_id(def_.atom.varid):
-                            # we always remove unused phi variables
-                            pass
                         else:
                             continue
                     uses = rd.get_vvar_uses(def_.atom)
