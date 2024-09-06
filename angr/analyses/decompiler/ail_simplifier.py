@@ -28,7 +28,7 @@ from ailment.expression import (
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.utils.ail import is_phi_assignment
 from ...code_location import CodeLocation, ExternalCodeLocation
-from ...sim_variable import SimStackVariable, SimMemoryVariable
+from ...sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
@@ -116,6 +116,7 @@ class AILSimplifier(Analysis):
         use_callee_saved_regs_at_return=True,
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
+        arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -133,6 +134,7 @@ class AILSimplifier(Analysis):
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._should_rewrite_ccalls = rewrite_ccalls
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
+        self._arg_vvars = arg_vvars
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -299,7 +301,7 @@ class AILSimplifier(Analysis):
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
         narrowing_candidates: dict[int, tuple[Definition, ExprNarrowingInfo]] = {}
         for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
-            if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_reg:
+            if isinstance(def_.atom, atoms.VirtualVariable) and (def_.atom.was_reg or def_.atom.was_parameter):
                 # only do this for general purpose register
                 skip_def = False
                 for reg in self.project.arch.register_list:
@@ -494,6 +496,7 @@ class AILSimplifier(Analysis):
                         oident=def_.atom.oident,
                         **use_expr_0.tags,
                     )
+                    new_use_expr = new_use_expr_0
 
                     # the second used expr (if it exists)
                     if len(use_expr_tpl) == 2:
@@ -569,6 +572,7 @@ class AILSimplifier(Analysis):
                         oident=def_.atom.oident,
                         **use_expr_0.tags,
                     )
+                    new_use_expr = new_use_expr_0
 
                     use_expr_1: BinaryOp = use_expr_tpl[1]
                     # build the new use_expr_1
@@ -620,6 +624,15 @@ class AILSimplifier(Analysis):
                 if not r:
                     _l.warning("Failed to replace use-expr at %s.", use_loc)
                 else:
+                    # update self._arg_vvars if necessary
+                    if new_use_expr is not None and new_use_expr.was_parameter and self._arg_vvars:
+                        for func_arg_idx in list(self._arg_vvars):
+                            vvar, simvar = self._arg_vvars[func_arg_idx]
+                            if vvar.varid == new_use_expr.varid:
+                                simvar_new = simvar.copy()
+                                simvar_new.size = new_use_expr.size
+                                self._arg_vvars[func_arg_idx] = new_use_expr, simvar_new
+
                     self.blocks[old_block] = new_block
 
             narrowed = True
@@ -1113,15 +1126,19 @@ class AILSimplifier(Analysis):
                     # only when all uses are determined by the same definition will we continue with the simplification
                     continue
 
-                # one more check: there can be at most one assignment in all these use locations
-                assignment_ctr = 0
-                for use_loc, used_expr in all_uses:
-                    block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
-                    stmt = block.statements[use_loc.stmt_idx]
-                    if isinstance(stmt, Assignment):
-                        assignment_ctr += 1
-                if assignment_ctr > 1:
-                    continue
+                # one more check: there can be at most one assignment in all these use locations if the expression is
+                # not going to be replaced with a parameter
+
+                if not (isinstance(replace_with, VirtualVariable) and replace_with.was_parameter):
+                    assignment_ctr = 0
+                    all_use_locs = {use_loc for use_loc, _ in all_uses}
+                    for use_loc in all_use_locs:
+                        block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                        stmt = block.statements[use_loc.stmt_idx]
+                        if isinstance(stmt, Assignment):
+                            assignment_ctr += 1
+                    if assignment_ctr > 1:
+                        continue
 
                 all_uses_with_def = {(to_replace_def, use_and_expr) for use_and_expr in all_uses}
 

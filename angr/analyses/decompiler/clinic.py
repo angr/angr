@@ -455,6 +455,7 @@ class Clinic(Analysis):
             unify_variables=False,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=arg_vvars,
         )
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
@@ -489,6 +490,7 @@ class Clinic(Analysis):
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=removed_vvar_ids,
+            arg_vvars=arg_vvars,
         )
 
         # After global optimization, there might be more chances for peephole optimizations.
@@ -514,6 +516,7 @@ class Clinic(Analysis):
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=arg_vvars,
         )
 
         self._update_progress(75.0, text="Simplifying blocks 4")
@@ -1073,6 +1076,7 @@ class Clinic(Analysis):
         fold_callexprs_into_conditions=False,
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -1090,6 +1094,7 @@ class Clinic(Analysis):
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
                 rewrite_ccalls=rewrite_ccalls,
                 removed_vvar_ids=removed_vvar_ids,
+                arg_vvars=arg_vvars,
             )
             if not simplified:
                 break
@@ -1106,6 +1111,7 @@ class Clinic(Analysis):
         fold_callexprs_into_conditions=False,
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
     ):
         """
         Simplify the entire function once.
@@ -1127,6 +1133,7 @@ class Clinic(Analysis):
             use_callee_saved_regs_at_return=not self._register_save_areas_removed,
             rewrite_ccalls=rewrite_ccalls,
             removed_vvar_ids=removed_vvar_ids,
+            arg_vvars=arg_vvars,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
