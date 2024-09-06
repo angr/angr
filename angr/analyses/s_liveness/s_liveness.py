@@ -1,13 +1,11 @@
 from __future__ import annotations
-import itertools
 
 import networkx
 from ailment.expression import VirtualVariable
-from ailment.statement import Assignment, Label
+from ailment.statement import Assignment
 
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import is_phi_assignment, VVarUsesCollector
-from angr.utils.graph import dfs_back_edges, GraphUtils
 
 
 class SLivenessModel:
