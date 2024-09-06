@@ -12,6 +12,7 @@ import angr
 
 from ..common import bin_location
 
+# pylint: disable=no-self-use,missing-class-docstring,no-member
 
 test_location = os.path.join(bin_location, "tests")
 l = logging.getLogger("angr_tests")
