@@ -50,7 +50,7 @@ class PropagatorState:
     Describes the base state used in Propagator.
 
     :ivar arch:             Architecture of the binary.
-    :ivar gp:               alue of the global pointer for MIPS binaries.
+    :ivar gp:               value of the global pointer for MIPS binaries.
     :ivar _replacements:    Stores expressions to replace, keyed by CodeLocation instances
     :ivar _equivalence:      Stores equivalence constraints that Propagator discovers during the analysis.
     :ivar _only_consts:     Only track constants.

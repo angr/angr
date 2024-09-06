@@ -76,7 +76,7 @@ class SimStateScratch(SimStatePlugin):
 
             self.statement_offset = scratch.statement_offset
 
-        # priveleges
+        # privileges
         self._priv_stack = [False]
 
     @property

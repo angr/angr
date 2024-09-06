@@ -13,8 +13,8 @@ To begin, just the standard py3k changes, the relevant parts of which we'll reha
 * Strings and bytestrings
 
   * Strings are now unicode by default, a new ``bytes`` type holds bytestrings
-  * Bytestring literals can be constructued with the b prefix, like ``b'ABCD'``
-  * Conversion between strings and bytestrings happens with ``.encode()`` and ``.decode()``, which use utf-8 as a default. The ``latin-1`` codec will map byte values to their equivilant unicode codepoints
+  * Bytestring literals can be constructed with the b prefix, like ``b'ABCD'``
+  * Conversion between strings and bytestrings happens with ``.encode()`` and ``.decode()``, which use utf-8 as a default. The ``latin-1`` codec will map byte values to their equivalent unicode codepoints
   * The ``ord()`` and ``chr()`` functions operate on strings, not bytestrings
   * Enumerating over or indexing into bytestrings produces an unsigned 8 bit integer, not a 1-byte bytestring
   * Bytestrings have all the string manipulation functions present on strings, including ``join``, ``upper``/``lower``, ``translate``, etc

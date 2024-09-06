@@ -627,7 +627,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         # did we reach the final address?
         if self._final_address is not None and job.addr == self._final_address:
-            # our analysis should be termianted here
+            # our analysis should be terminated here
             l.debug("%s is viewed as a final state. Skip.", job)
             raise AngrSkipJobNotice
 

@@ -90,7 +90,7 @@ class FunctionParser:
     @staticmethod
     def parse_from_cmsg(cmsg, function_manager=None, project=None, all_func_addrs=None):
         """
-        :param cmsg: The data to instanciate the <Function> from.
+        :param cmsg: The data to instantiate the <Function> from.
 
         :return Function:
         """

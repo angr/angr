@@ -111,13 +111,13 @@ def fill_reg_map():
 def split_operands(s):
     operands = []
     operand = ""
-    in_paranthesis = False
+    in_parenthesis = False
     for i, c in enumerate(s):
-        if in_paranthesis and c == ")":
-            in_paranthesis = False
+        if in_parenthesis and c == ")":
+            in_parenthesis = False
         if c == "(":
-            in_paranthesis = True
-        if not in_paranthesis and c == "," and (i == len(s) - 1 or s[i + 1] == " "):
+            in_parenthesis = True
+        if not in_parenthesis and c == "," and (i == len(s) - 1 or s[i + 1] == " "):
             operands.append(operand)
             operand = ""
             continue
@@ -1698,7 +1698,7 @@ class Reassembler(Analysis):
 
     Tested on CGC, x86 and x86-64 binaries.
 
-    Discliamer: The reassembler is an empirical solution. Don't be surprised if it does not work on some binaries.
+    Disclaimer: The reassembler is an empirical solution. Don't be surprised if it does not work on some binaries.
     """
 
     def __init__(self, syntax="intel", remove_cgc_attachments=True, log_relocations=True):

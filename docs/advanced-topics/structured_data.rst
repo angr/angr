@@ -9,7 +9,7 @@ Working with types
 
 angr has a system for representing types. These SimTypes are found in
 ``angr.types`` - an instance of any of these classes represents a type. Many of
-the types are incomplete unless they are supplamented with a SimState - their
+the types are incomplete unless they are supplemented with a SimState - their
 size depends on the architecture you're running under. You may do this with
 ``ty.with_arch(arch)``, which returns a copy of itself, with the architecture
 specified.

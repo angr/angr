@@ -2242,7 +2242,7 @@ class PhoenixStructurer(StructurerBase):
         The original Phoenix algorithm had no support for multi-stmt expressions, such as the following:
         if ((x = y) && z) { ... }
 
-        There are multiple levels at which multi-stmt expressions can be used. If the Phoenix algorith is not not
+        There are multiple levels at which multi-stmt expressions can be used. If the Phoenix algorithm is not not
         set to be in improved mode, then we should not use multi-stmt expressions at all.
         """
         if not self._improve_algorithm:

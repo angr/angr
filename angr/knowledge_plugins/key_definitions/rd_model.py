@@ -109,8 +109,8 @@ class ReachingDefinitionsModel:
             if k not in self.observed_results:
                 self.observed_results[k] = v
             else:
-                merged, merge_occured = self.observed_results[k].merge(v)
-                if merge_occured:
+                merged, merge_occurred = self.observed_results[k].merge(v)
+                if merge_occurred:
                     self.observed_results[k] = merged
         self.all_definitions.union(model.all_definitions)
         self.all_uses.merge(model.all_uses)

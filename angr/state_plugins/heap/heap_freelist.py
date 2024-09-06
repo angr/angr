@@ -14,7 +14,7 @@ class Chunk:
     a chunk via a view into the memory plugin. Chunks may be adjacent, in different senses, to as many as four other
     chunks. For any given chunk, two of these chunks are adjacent to it in memory, and are referred to as the "previous"
     and "next" chunks throughout this implementation. For any given free chunk, there may also be two significant chunks
-    that are adjacent to it in some linked list of free chunks. These chunks are referred to the "backward" and "foward"
+    that are adjacent to it in some linked list of free chunks. These chunks are referred to the "backward" and "forward"
     chunks relative to the chunk in question.
 
     :ivar base: the location of the base of the chunk in memory

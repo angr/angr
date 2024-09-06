@@ -346,7 +346,7 @@ def concretize_yl2x(state, args):
             # TODO: Indicate floating-point invalid-operation exception
             return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
-        # TODO: How to distiguish between +0 and -0?
+        # TODO: How to distinguish between +0 and -0?
         return state.solver.FPV(0, claripy.FSORT_DOUBLE)
 
     if arg_x == math.inf:

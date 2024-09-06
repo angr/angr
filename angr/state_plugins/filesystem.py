@@ -365,7 +365,7 @@ class SimConcreteFilesystem(SimMount):
             self.cache[fname].set_state(state)
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        merging_occured = False
+        merging_occurred = False
 
         for o in others:
             if o.pathsep != self.pathsep:
@@ -391,8 +391,8 @@ class SimConcreteFilesystem(SimMount):
             else:
                 common_simfile = None
 
-            merging_occured |= subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
-        return merging_occured
+            merging_occurred |= subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
+        return merging_occurred
 
     def widen(self, others):  # pylint: disable=unused-argument
         if once("host_fs_widen_warning"):

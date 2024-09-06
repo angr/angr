@@ -40,7 +40,7 @@ With this construction, we are able to define a very simple interface in the
 ``Base`` class, and by "mixing in" two mixins, we can create the ``FinalClass``
 which has the same interface but with additional features. This is accomplished
 through Python's powerful multiple inheritance model, which handles method
-dispatch by creating a *method resolution order*, or MRO, which is unsuprisingly
+dispatch by creating a *method resolution order*, or MRO, which is unsurprisingly
 a list which determines the order in which methods are called as execution
 proceeds through ``super()`` calls. You can view a class' MRO as such:
 
@@ -71,7 +71,7 @@ construction is illegal and will throw an exception at import time.
 
 This is complicated! If you find yourself confused, the canonical document
 explaining the rationale, history, and mechanics of Python's multiple
-inheritence can be found `here
+inheritance can be found `here
 <https://www.python.org/download/releases/2.3/mro/>`_.
 
 Mixins in Claripy Solvers

@@ -97,7 +97,7 @@ class PendingJob:
     """
     A PendingJob is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
     returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
-    be executed or not. If the corresponding call/syscall intentially doesn't return, then the pending exit will be
+    be executed or not. If the corresponding call/syscall intentionally doesn't return, then the pending exit will be
     removed. If the corresponding call/syscall returns, then the pending exit will be removed as well (since a real
     entry is created from the returning and will be analyzed later). If the corresponding call/syscall might
     return, but for some reason (for example, an unsupported instruction is met during the analysis) our analysis
@@ -228,7 +228,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :param networkx.DiGraph base_graph:         A basic control flow graph to follow. Each node inside this graph
                                                     must have the following properties: `addr` and `size`. CFG recovery
                                                     will strictly follow nodes and edges shown in the graph, and discard
-                                                    any contorl flow that does not follow an existing edge in the base
+                                                    any control flow that does not follow an existing edge in the base
                                                     graph. For example, you can pass in a Function local transition
                                                     graph as the base graph, and CFGEmulated will traverse nodes and
                                                     edges and extract useful information.
@@ -1193,7 +1193,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 src_cfgnode = self._nodes[src_block_id]
                 depth = src_cfgnode.depth + 1
                 # the depth will not be updated later on even if this block has a greater depth on another path.
-                # consequently, the `max_steps` limit is not veyr precise - I didn't see a need to make it precise
+                # consequently, the `max_steps` limit is not very precise - I didn't see a need to make it precise
                 # though.
 
         if block_id not in self._nodes:
@@ -1946,7 +1946,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
     def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
         """
-        For a given state and current location of of execution, will update a function by adding the offets of
+        For a given state and current location of of execution, will update a function by adding the offsets of
         appropriate actions to the stack variable or argument registers for the fnc.
 
         :param SimState state: upcoming state.
@@ -2614,7 +2614,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         CFGNode.
 
         :param SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
-        :param dict block_artifacts:  Container of IRSB data - specifically used for known persistant register values.
+        :param dict block_artifacts:  Container of IRSB data - specifically used for known persistent register values.
         :param CFGNode cfg_node:      Current node interested around.
         :returns:                     Double-checked concrete successors.
         :rtype: List
@@ -2629,7 +2629,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 """
                 Class to overwrite registers.
 
-                :param int reg_offest:       Register offset to overwrite from.
+                :param int reg_offset:       Register offset to overwrite from.
                 :param dict info_collection: New register offsets to use (in container).
                 """
                 self._reg_offset = reg_offset
@@ -2752,7 +2752,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         """
         Symbolically execute the first basic block of the specified function,
         then returns it. We prepares the state using the already existing
-        state in fastpath mode (if avaiable).
+        state in fastpath mode (if available).
         :param function_addr: The function address
         :return: A symbolic state if succeeded, None otherwise
         """

@@ -157,7 +157,7 @@ Changes to loading
 ------------------
 
 The ``hook_symbol`` method will no longer attempt to redo relocations for the given symbol, instead just hooking directly over the address of the symbol in whatever library it comes from.
-This speeds up loading substancially and ensures more consistent behavior for when mixing and matching native library code and SimProcedure summaries.
+This speeds up loading substantially and ensures more consistent behavior for when mixing and matching native library code and SimProcedure summaries.
 
 The angr externs object has been moved into CLE, which will ALWAYS make sure that every dependency is resolved to something, never left unrelocated.
 Similarly, CLE provides the "kernel object" used to provide addresses for syscalls now.

@@ -169,7 +169,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             start_idx_options = []
             for concrete_start_idx in concrete_start_idxes:
                 start_idx_options.append(concrete_start_idx == start_idx)
-                # we store elements condtioned with the start index:
+                # we store elements conditioned with the start index:
                 # => if concrete_start_idx == start_idx
                 #    then store the value
                 #    else keep the current value

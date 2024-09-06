@@ -280,7 +280,7 @@ class CFGModel(Serializable):
         :param addr:            Address of the beginning of the basic block. Set anyaddr to True to support arbitrary
                                 address.
         :param is_syscall:      Whether you want to get the syscall node or any other node. This is due to the fact that
-                                syscall SimProcedures have the same address as the targer it returns to.
+                                syscall SimProcedures have the same address as the target it returns to.
                                 None means get either, True means get a syscall node, False means get something that
                                 isn't a syscall node.
         :param anyaddr:         If anyaddr is True, then addr doesn't have to be the beginning address of a basic
@@ -597,7 +597,7 @@ class CFGModel(Serializable):
                     last_addr = sec.vaddr + sec.memsize
                 else:
                     # it does not belong to any section. what's the next adjacent section? any memory data does not go
-                    # beyong section boundaries
+                    # beyond section boundaries
                     next_sec = self.project.loader.find_section_next_to(data_addr)
                     if next_sec is not None:
                         next_sec_addr = next_sec.vaddr

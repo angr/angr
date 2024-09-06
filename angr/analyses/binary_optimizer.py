@@ -104,7 +104,7 @@ class DeadAssignment:
 class BinaryOptimizer(Analysis):
     """
     This is a collection of binary optimization techniques we used in Mechanical Phish during the finals of Cyber Grand
-    Challange. It focuses on dealing with some serious speed-impacting code constructs, and *sort of* worked on *some*
+    Challenge. It focuses on dealing with some serious speed-impacting code constructs, and *sort of* worked on *some*
     CGC binaries compiled with O0. Use this analysis as a reference of how to use data dependency graph and such.
 
     There is no guarantee that BinaryOptimizer will ever work on non-CGC binaries. Feel free to give us PR or MR, but

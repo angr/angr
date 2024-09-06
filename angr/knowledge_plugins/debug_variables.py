@@ -176,7 +176,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
         """
         Add all variables in a list with the same visibility range
 
-        :param vlist:       A list of cle varibles to add
+        :param vlist:       A list of cle variables to add
         :param low_pc:      Start of the visibility scope as program counter address (rebased)
         :param high_pc:     End of the visibility scope as program counter address (rebased)
         """

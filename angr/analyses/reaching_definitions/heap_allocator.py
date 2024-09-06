@@ -16,7 +16,7 @@ class HeapAllocator:
     - Take care of the size not to screw potential pointer arithmetic (avoid overlapping segments).
 
     The content of the heap itself is modeled using a <KeyedRegion> attribute in the <LiveDefinitions> state;
-    This class serves to generate consistent heap addresses to be used by the aforementionned.
+    This class serves to generate consistent heap addresses to be used by the aforementioned.
 
     *Note:* This has **NOT** been made to help detect heap vulnerabilities.
     """
@@ -31,10 +31,10 @@ class HeapAllocator:
 
     def allocate(self, size: int | UnknownSize) -> HeapAddress:
         """
-        Gives an address for a new memory chunck of <size> bytes.
+        Gives an address for a new memory chunk of <size> bytes.
 
-        :param size: The requested size for the chunck, in number of bytes.
-        :return: The address of the chunck.
+        :param size: The requested size for the chunk, in number of bytes.
+        :return: The address of the chunk.
         """
         address = self._next_heap_address
 
@@ -47,9 +47,9 @@ class HeapAllocator:
 
     def free(self, address: Undefined | HeapAddress):
         """
-        Mark the chunck pointed by <address> as freed.
+        Mark the chunk pointed by <address> as freed.
 
-        :param address: The address of the chunck to free.
+        :param address: The address of the chunk to free.
         """
 
         if isinstance(address, Undefined):

@@ -210,7 +210,7 @@ Setting Defaults
 To make it so that a plugin will automatically become available on a state when
 requested, without having to register it with the state first, you can register
 it as a *default*. The following code example will make it so that whenever you
-access ``state.my_plugin``, a new instance of ``MyPlugin`` will be instanciated
+access ``state.my_plugin``, a new instance of ``MyPlugin`` will be instantiated
 and registered with the state.
 
 .. code-block:: python

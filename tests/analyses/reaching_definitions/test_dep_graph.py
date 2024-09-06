@@ -104,7 +104,7 @@ class TestDepGraph(TestCase):
         dep_graph = DepGraph()
         self.assertEqual(isinstance(dep_graph.graph, networkx.DiGraph), True)
 
-    def test_dep_graph_refuses_to_instanciate_with_an_inadequate_graph(self):
+    def test_dep_graph_refuses_to_instantiate_with_an_inadequate_graph(self):
         a_graph = networkx.DiGraph([(1, 2)])
         self.assertRaises(TypeError, DepGraph, a_graph)
 

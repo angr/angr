@@ -74,7 +74,7 @@ STDERR (1 here is the File Descriptor for STDOUT)
 
    simgr.explore(find=lambda s: "correct" in s.posix.dumps(1))
 
-Memory Managment on big searches (Auto Drop Stashes):
+Memory Management on big searches (Auto Drop Stashes):
 
 .. code-block:: python
 
@@ -195,7 +195,7 @@ Hooking with Simprocedure:
 Other useful tricks
 -------------------
 
-Drop into an ipython if a ctr+c is recieved (useful for debugging scripts that
+Drop into an ipython if a ctr+c is received (useful for debugging scripts that
 are running forever)
 
 .. code-block:: python
@@ -223,7 +223,7 @@ Get a basic block
 .. code-block:: python
 
    block = proj.factory.block(address)
-   block.capstone.pp() # Capstone object has pretty print and other data about the dissassembly
+   block.capstone.pp() # Capstone object has pretty print and other data about the disassembly
    block.vex.pp()      # Print vex representation
 
 State manipulation

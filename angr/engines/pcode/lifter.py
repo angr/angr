@@ -817,7 +817,7 @@ class PcodeBasicBlockLifter:
                 "AVR8": "avr8:LE:16:atmega256",
             }
             if arch.name not in archinfo_to_lang_map:
-                l.error("Unknown mapping of %s to pcode languge id", arch.name)
+                l.error("Unknown mapping of %s to pcode language id", arch.name)
                 raise NotImplementedError
             langid = archinfo_to_lang_map[arch.name]
 

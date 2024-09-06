@@ -74,7 +74,7 @@ def is_similar(
                 try:
                     t1_blk, t2_blk = find_block_by_addr(graph, t1), find_block_by_addr(graph, t2)
                 except ValueError:
-                    _l.warning("Could not find block by address in graph. It is likley that the graph is broken.")
+                    _l.warning("Could not find block by address in graph. It is likely that the graph is broken.")
                     return False
 
                 # special checks for when a node is empty:

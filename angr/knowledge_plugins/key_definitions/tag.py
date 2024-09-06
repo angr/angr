@@ -61,18 +61,18 @@ class LocalVariableTag(FunctionTag):
 
 class ReturnValueTag(FunctionTag):
     """
-    A tag for a definiton of a return value
+    A tag for a definition of a return value
     of a function.
     """
 
 
 class InitialValueTag(Tag):
     """
-    A tag for a definiton of an initial value
+    A tag for a definition of an initial value
     """
 
 
 class UnknownSizeTag(Tag):
     """
-    A tag for a definiton of an initial value
+    A tag for a definition of an initial value
     """

@@ -54,7 +54,7 @@ class Vault(collections.abc.MutableMapping):
     """
 
     #
-    # These MUST be overriden.
+    # These MUST be overridden.
     #
 
     def _read_context(self, i):
@@ -76,7 +76,7 @@ class Vault(collections.abc.MutableMapping):
         raise NotImplementedError
 
     #
-    # Persistance managers
+    # Persistence managers
     #
 
     def __init__(self):

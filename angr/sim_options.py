@@ -45,7 +45,7 @@ NO_SYMBOLIC_JUMP_RESOLUTION = "NO_SYMBOLIC_JUMP_RESOLUTION"
 # This option prevents angr from doing hundreds of constraint solves when it hits a symbolic syscall
 NO_SYMBOLIC_SYSCALL_RESOLUTION = "NO_SYMBOLIC_SYSCALL_RESOLUTION"
 
-# The absense of this option causes the analysis to avoid reasoning about most symbolic values.
+# The absence of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = "SYMBOLIC"
 
 # Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default
@@ -71,7 +71,7 @@ CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
 FILES_HAVE_EOF = "FILES_HAVE_EOF"
 UNKNOWN_FILES_HAVE_EOF = FILES_HAVE_EOF
 
-# Attempting to open an unkown file will result in creating it with a symbolic length
+# Attempting to open an unknown file will result in creating it with a symbolic length
 ALL_FILES_EXIST = "ALL_FILES_EXIST"
 
 # Unknown files might or might not exist
@@ -313,7 +313,7 @@ CGC_ENFORCE_FD = "CGC_ENFORCE_FD"
 CGC_NON_BLOCKING_FDS = "CGC_NON_BLOCKING_FDS"
 
 # Allows memory breakpoints to get more accurate sizes in case of reading large chunks
-# Sacrafice performance for more fine tune memory read size
+# Sacrifice performance for more fine tune memory read size
 MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
 # Synchronize memory mapping reported by angr with the concrete process.

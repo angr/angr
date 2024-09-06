@@ -21,7 +21,7 @@ from .sim_state_options import SimStateOptions
 from .state_plugins import SimStatePlugin
 
 
-def arch_overrideable(f):
+def arch_overridable(f):
     @functools.wraps(f)
     def wrapped_f(self, *args, **kwargs):
         if hasattr(self.arch, f.__name__):
@@ -787,7 +787,7 @@ class SimState(PluginHub):
     ### Stack operation helpers ###
     ###############################
 
-    @arch_overrideable
+    @arch_overridable
     def stack_push(self, thing):
         """
         Push 'thing' to the stack, writing the thing to memory and adjusting the stack pointer.
@@ -797,7 +797,7 @@ class SimState(PluginHub):
         self.regs.sp = sp
         return self.memory.store(sp, thing, endness=self.arch.memory_endness, size=self.arch.bytes)
 
-    @arch_overrideable
+    @arch_overridable
     def stack_pop(self):
         """
         Pops from the stack and returns the popped thing. The length will be the architecture word size.
@@ -806,7 +806,7 @@ class SimState(PluginHub):
         self.regs.sp = sp - self.arch.stack_change
         return self.memory.load(sp, self.arch.bytes, endness=self.arch.memory_endness)
 
-    @arch_overrideable
+    @arch_overridable
     def stack_read(self, offset, length, bp=False):
         """
         Reads length bytes, at an offset into the stack.
@@ -834,7 +834,7 @@ class SimState(PluginHub):
         return v
 
     # This handles the preparation of concrete function launches from abstract functions.
-    @arch_overrideable
+    @arch_overridable
     def prepare_callsite(self, retval, args, cc="wtf"):
         # TODO
         pass

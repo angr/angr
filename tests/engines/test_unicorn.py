@@ -416,7 +416,7 @@ class TestUnicorn(unittest.TestCase):
         addr0 = 0x08048479  # at the beginning of a basic block, at end of stop_normal function
         addr1 = 0x080485D0  # this is at the beginning of main, in the middle of a basic block
         addr2 = 0x08048461  # another non-bb address, at the start of stop_normal
-        addr3 = 0x0804847C  # address of a block that should not get hit (stop_symbolc function)
+        addr3 = 0x0804847C  # address of a block that should not get hit (stop_symbolic function)
         addr4 = 0x08048632  # another address that shouldn't get hit, near end of main
         hits = {addr0: 0, addr1: 0, addr2: 0, addr3: 0, addr4: 0}
 

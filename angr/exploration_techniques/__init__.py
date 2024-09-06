@@ -18,9 +18,9 @@ class ExplorationTechnique:
     _hook_list = ("step", "filter", "selector", "step_state", "successors")
 
     def _get_hooks(self):
-        return {name: getattr(self, name) for name in self._hook_list if self._is_overriden(name)}
+        return {name: getattr(self, name) for name in self._hook_list if self._is_overridden(name)}
 
-    def _is_overriden(self, name):
+    def _is_overridden(self, name):
         return getattr(self, name).__code__ is not getattr(ExplorationTechnique, name).__code__
 
     def __init__(self):

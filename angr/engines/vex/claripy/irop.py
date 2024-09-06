@@ -1014,7 +1014,7 @@ class SimIROp:
             return args[0].raw_to_bv()
         if self._to_type == "F":
             return args[0].raw_to_fp()
-        raise SimOperationError("unsupport Reinterp _to_type")
+        raise SimOperationError("unsupported Reinterp _to_type")
 
     @supports_vector
     def _op_fgeneric_Round(self, args):

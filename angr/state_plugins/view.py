@@ -121,7 +121,7 @@ class SimMemView(SimStatePlugin):
         - You first use [array index notation] to specify the address you'd like to load from
         - If at that address is a pointer, you may access the ``deref`` property to return a SimMemView at the
           address present in memory.
-        - You then specify a type for the data by simply accesing a property of that name. For a list of supported
+        - You then specify a type for the data by simply accessing a property of that name. For a list of supported
           types, look at ``state.mem.types``.
         - You can then *refine* the type. Any type may support any refinement it likes. Right now the only refinements
           supported are that you may access any member of a struct by its member name, and you may index into a
@@ -289,7 +289,7 @@ class SimMemView(SimStatePlugin):
 
     def array(self, n) -> SimMemView:
         if self._addr is None:
-            raise ValueError("Trying to produce array without specifying adddress")
+            raise ValueError("Trying to produce array without specifying address")
         if self._type is None:
             raise ValueError("Trying to produce array without specifying type")
         return self._deeper(ty=SimTypeFixedSizeArray(self._type, n))

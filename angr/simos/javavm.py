@@ -336,7 +336,7 @@ class SimJavaVM(SimOS):
     @staticmethod
     def cast_primitive(state, value, to_type):
         """
-        Cast the value of primtive types.
+        Cast the value of primitive types.
 
         :param value:       Bitvector storing the primitive value.
         :param to_type:     Name of the targeted type.

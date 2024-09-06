@@ -64,7 +64,7 @@ _UNIFIABLE_COMPARISONS = {
 def _op_with_unified_size(op, conv, operand0, operand1):
     # ensure operand1 is of the same size as operand0
     if isinstance(operand1, ailment.Expr.Const):
-        # amazing - we do the eazy thing here
+        # amazing - we do the easy thing here
         return op(conv(operand0, nobool=True), operand1.value)
     if operand1.bits == operand0.bits:
         return op(conv(operand0, nobool=True), conv(operand1))

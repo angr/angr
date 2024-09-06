@@ -133,7 +133,7 @@ class XRef(Serializable):
             ins_addr=cmsg.ea,
             block_addr=cmsg.block_ea,
             stmt_idx=cmsg.stmt_idx,
-            insn_op_idx=None if cmsg.operand_idx == -1 else cmsg.opearnd_idx,
+            insn_op_idx=None if cmsg.operand_idx == -1 else cmsg.operand_idx,
             dst=dst,
             xref_type=cmsg.ref_type,
         )

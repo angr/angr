@@ -159,7 +159,7 @@ a library called `PyVEX <https://github.com/angr/pyvex>`_ that exposes VEX into
 Python. In addition, PyVEX implements its own pretty-printing so that it can
 show register names instead of register offsets in PUT and GET instructions.
 
-PyVEX is accessable through angr through the ``Project.factory.block``
+PyVEX is accessible through angr through the ``Project.factory.block``
 interface. There are many different representations you could use to access
 syntactic properties of a block of code, but they all have in common the trait
 of analyzing a particular sequence of bytes. Through the ``factory.block``

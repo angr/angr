@@ -723,7 +723,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         if not cond1.condition.likes(cond2.condition):
             return False
 
-        # colect the true and false targets for the condition
+        # collect the true and false targets for the condition
         block_to_target_map = defaultdict(dict)
         for block, cond in ((block1, cond1), (block2, cond2)):
             for succ in graph.successors(block):
@@ -735,7 +735,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     # exit early if you ever can't find a supposed target
                     return False
 
-        # check if at least one block in succesors match
+        # check if at least one block in successors match
         mismatched_blocks = {}
         for target_type in block_to_target_map[block1]:
             t1_blk, t2_blk = block_to_target_map[block1][target_type], block_to_target_map[block2][target_type]
@@ -753,7 +753,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         #   D             E
         #
         # A and B both share the same condition, point to a block that is either similar to each
-        # other or the same block, AND they have a mistmatch block D & E. We want to make a new NOP
+        # other or the same block, AND they have a mismatch block D & E. We want to make a new NOP
         # block that is between A->D and B->E to make a balanced merged graph:
         #
         #   A ---> C <--- B
@@ -915,7 +915,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             full_condition_graph.remove_edge(*cycles[0])
 
         # now that we have a full target graph, we want to know the condensed conditions that allow
-        # control flow to get to that target end. We get the reaching conditions to construct a gaurding
+        # control flow to get to that target end. We get the reaching conditions to construct a guarding
         # node later
         self._ri.cond_proc.recover_reaching_conditions(None, graph=full_condition_graph)
         conditions_by_start = {}
@@ -1190,7 +1190,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         node_level = [node]
         seen_nodes = set()
         while node_level:
-            # check if any of the nodes on the current level are dominaters to all nodes
+            # check if any of the nodes on the current level are dominates to all nodes
             for cnode in node_level:
                 if not cnode.statements:
                     continue

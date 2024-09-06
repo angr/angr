@@ -200,7 +200,7 @@ the full list of relocations for an object (as ``Relocation`` instances) as
 ``obj.imports``. There is no corresponding list of export symbols.
 
 A relocation's corresponding import symbol can be accessed as ``.symbol``. The
-address the relocation will write to is accessable through any of the address
+address the relocation will write to is accessible through any of the address
 identifiers you can use for Symbol, and you can get a reference to the object
 requesting the relocation with ``.owner`` as well.
 

@@ -266,7 +266,7 @@ class PluginPreset:
 class PluginVendor(Generic[P], PluginHub[P]):
     """
     A specialized hub which serves only as a plugin vendor, never having any "active" plugins.
-    It will directly return the plugins provided by the preset instead of instanciating them.
+    It will directly return the plugins provided by the preset instead of instantiating them.
     """
 
     def release_plugin(self, name):

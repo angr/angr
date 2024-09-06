@@ -1014,9 +1014,9 @@ class BinDiff(Analysis):
             if cfg.kb.functions.function(function_addr) is None or cfg.kb.functions.function(function_addr).is_syscall:
                 continue
             if cfg.kb.functions.function(function_addr) is not None:
-                normalized_funtion = NormalizedFunction(cfg.kb.functions.function(function_addr))
-                number_of_basic_blocks = len(normalized_funtion.graph.nodes())
-                number_of_edges = len(normalized_funtion.graph.edges())
+                normalized_function = NormalizedFunction(cfg.kb.functions.function(function_addr))
+                number_of_basic_blocks = len(normalized_function.graph.nodes())
+                number_of_edges = len(normalized_function.graph.edges())
             else:
                 number_of_basic_blocks = 0
                 number_of_edges = 0
