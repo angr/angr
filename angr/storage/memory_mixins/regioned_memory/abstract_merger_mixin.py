@@ -25,7 +25,7 @@ class AbstractMergerMixin(MemoryMixin):
             merged_val = merged_val.union(tm)
             l.info("... Merged to %s", merged_val)
 
-        if not values[0][0].uninitialized and claripy.backends.vsa.identical(merged_val, values[0][0]):
+        if not values[0][0].uninitialized and merged_val.identical(values[0][0]):
             return None
 
         return merged_val
