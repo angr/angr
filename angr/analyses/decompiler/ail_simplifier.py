@@ -962,8 +962,8 @@ class AILSimplifier(Analysis):
                     def_: Definition
                     if (
                         isinstance(def_.atom, atoms.VirtualVariable)
-                        and def_.atom.was_reg
-                        and def_.atom.reg_offset == to_replace.reg_offset
+                        and def_.atom.category == to_replace.category
+                        and def_.atom.oident == to_replace.oident
                     ):
                         # found it!
                         the_def = def_
