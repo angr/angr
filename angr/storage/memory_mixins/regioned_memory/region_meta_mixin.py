@@ -42,14 +42,14 @@ class AbstractLocation:
                 # It has been covered
                 return False
 
-            if s.offset == offset or s.offset == (offset - 1) or s.offset == (offset + 1):
+            if offset - 1 <= s.offset <= offset + 1:
                 s.offset = min(s.offset, offset)
                 s.size = max(s_end, segment_end) - s.offset
                 segment_added = True
                 break
 
             # Case 2
-            if s_end == segment_end or s_end == (segment_end - 1) or s_end == (segment_end + 1):
+            if segment_end - 1 <= s_end <= segment_end + 1:
                 s.offset = min(s.offset, offset)
                 s.size = max(s_end, segment_end) - s.offset
                 segment_added = True
