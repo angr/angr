@@ -28,6 +28,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self,
         func: Function | str,
         ail_graph,
+        entry=None,
         vvar_id_start: int = 0,
     ):
         """
@@ -40,6 +41,11 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         else:
             self._function = func
         self._graph = ail_graph
+        self._entry = (
+            entry
+            if entry is not None
+            else next(iter(bb for bb in self._graph if bb.addr == self._function.addr and bb.idx is None))
+        )
         self._vvar_defloc = {}
         self.vvar_id_start = vvar_id_start
         self._stmts_to_prepend = defaultdict(list)
@@ -68,7 +74,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 phi_congruence_class[varid] = {varid}
 
         # compute liveness
-        liveness = self.project.analyses.SLiveness(self._function, self._graph)
+        liveness = self.project.analyses.SLiveness(self._function, func_graph=self._graph, entry=self._entry)
 
         live_ins = liveness.model.live_ins
         live_outs = liveness.model.live_outs

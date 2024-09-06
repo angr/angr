@@ -127,6 +127,7 @@ class Clinic(Analysis):
         self._func_graph: networkx.DiGraph | None = None
         self._ail_manager = None
         self._blocks_by_addr_and_size = {}
+        self._entry_node_addr: tuple[int, int | None] = self.function.addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._insert_labels = insert_labels
@@ -685,6 +686,14 @@ class Clinic(Analysis):
             if self._func_graph.in_degree(node) == 0 and CFGBase._is_noop_block(
                 self.project.arch, self.project.factory.block(node.addr, node.size)
             ):
+                if (node.addr, None) == self._entry_node_addr:
+                    # this is the entry node. after removing this node, the new entry node will be its successor
+                    if self._func_graph.out_degree[node] == 1:
+                        succ = next(iter(self._func_graph.successors(node)))
+                        self._entry_node_addr = succ.addr, None
+                    else:
+                        # we just don't remove this node...
+                        continue
                 self._func_graph.remove_node(node)
 
     @timethis
@@ -1202,7 +1211,7 @@ class Clinic(Analysis):
         ail_graph: networkx.DiGraph,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]],
     ) -> networkx.DiGraph:
-        entrypoint = next(iter(bb for bb in ail_graph if bb.addr == self.function.addr))
+        entrypoint = next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self._entry_node_addr))
         new_stmts = []
         for arg in arg_list:
             if not isinstance(arg, SimRegisterVariable):
@@ -1260,6 +1269,7 @@ class Clinic(Analysis):
         ssailification = self.project.analyses.Ssailification(
             self.function,
             ail_graph,
+            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self._entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
             vvar_id_start=self.vvar_id_start,
@@ -1272,6 +1282,7 @@ class Clinic(Analysis):
         ssailification = self.project.analyses.Ssailification(
             self.function,
             ail_graph,
+            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self._entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_stackvars=True,
             vvar_id_start=self.vvar_id_start,
@@ -1282,7 +1293,10 @@ class Clinic(Analysis):
     @timethis
     def _collect_dephi_vvar_mapping_and_rewrite_blocks(self, ail_graph: networkx.DiGraph) -> dict[int, int]:
         dephication = self.project.analyses.GraphDephicationVVarMapping(
-            self.function, ail_graph, vvar_id_start=self.vvar_id_start
+            self.function,
+            ail_graph,
+            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self._entry_node_addr)),
+            vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = dephication.vvar_id_start + 1
         return dephication.vvar_to_vvar_mapping

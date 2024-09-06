@@ -28,11 +28,17 @@ class SLivenessAnalysis(Analysis):
         self,
         func,
         func_graph=None,
+        entry=None,
         func_addr: int | None = None,
     ):
         self.func = func
         self.func_addr = func_addr if func_addr is not None else func.addr
         self.func_graph = func_graph if func_graph is not None else func.graph
+        self.entry = (
+            entry
+            if entry is not None
+            else next(iter(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx is None))
+        )
 
         self.model = SLivenessModel()
 
@@ -42,7 +48,7 @@ class SLivenessAnalysis(Analysis):
         # TODO: Support irreducible graphs
 
         graph = self.func_graph
-        entry = next(iter(node for node in graph if node.addr == self.func_addr))
+        entry = self.entry
 
         # initialize the live_in and live_out sets
         phi_defs = {}

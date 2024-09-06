@@ -27,6 +27,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self,
         func: Function | str,
         ail_graph,
+        entry=None,
         canonical_size=8,
         stack_pointer_tracker=None,
         func_addr: int | None = None,
@@ -50,6 +51,11 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._func_addr = func_addr
         self._ail_manager = ail_manager
         self._ssa_stackvars = ssa_stackvars
+        self._entry = (
+            entry
+            if entry is not None
+            else next(iter(bb for bb in ail_graph if bb.addr == self._func_addr and bb.idx is None))
+        )
         self.out_graph = None
 
         bp_as_gpr = self._function.info.get("bp_as_gpr", False)
@@ -92,7 +98,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         """
 
         # Computer the dominance frontier for each node in the graph
-        df = self.project.analyses.DominanceFrontier(self._function, func_graph=ail_graph)
+        df = self.project.analyses.DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
         frontiers = df.frontiers
 
         blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}

@@ -10,9 +10,10 @@ class DominanceFrontier(Analysis):
     querying the frontier information.
     """
 
-    def __init__(self, func, func_graph=None, exception_edges=False):
+    def __init__(self, func, func_graph=None, entry=None, exception_edges=False):
         self.function = func
         self.func_graph = func_graph
+        self.entry = entry
         self._exception_edges = exception_edges
 
         self.frontiers = None
@@ -27,21 +28,24 @@ class DominanceFrontier(Analysis):
     def _compute(self):
         g = self._get_graph()
 
-        # Compute the dominator tree
-        if self.function.startpoint is None:
-            # The function might be empty or is corrupted (maybe the object is created manually)
-            raise TypeError(f"Startpoint of function {self.function!r} is None. Is this function empty?")
-
-        if self.function.startpoint not in g:
-            # find the actual start point
-            startpoint = next(iter(nn for nn in g if nn.addr == self.function.startpoint.addr), None)
-            if startpoint is None:
-                raise ValueError(
-                    f"Cannot find the startpoint of function {self.function!r} in the given function graph."
-                )
+        if self.entry is not None:
+            startpoint = self.entry
         else:
-            startpoint = self.function.startpoint
+            if self.function.startpoint is None:
+                # The function might be empty or is corrupted (maybe the object is created manually)
+                raise TypeError(f"Startpoint of function {self.function!r} is None. Is this function empty?")
 
+            if self.function.startpoint not in g:
+                # find the actual start point
+                startpoint = next(iter(nn for nn in g if nn.addr == self.function.startpoint.addr), None)
+                if startpoint is None:
+                    raise ValueError(
+                        f"Cannot find the startpoint of function {self.function!r} in the given function graph."
+                    )
+            else:
+                startpoint = self.function.startpoint
+
+        # Compute the dominator tree
         doms = Dominators(g, startpoint)
 
         # Compute the dominance frontier
