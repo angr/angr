@@ -221,10 +221,12 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 self._append_stmt(the_block, assignment)
 
                 # update the phi statement
+                replaced_vvars: set[int] = set()
                 for _, phi_used_vvar in list(phi_stmt.src.src_and_vvars):
-                    if phi_used_vvar is not None and phi_used_vvar.varid == varid:
+                    if phi_used_vvar is not None and phi_used_vvar.varid == varid and varid not in replaced_vvars:
                         replaced, phi_stmt = phi_stmt.replace(phi_used_vvar, new_vvar)
                         assert replaced
+                        replaced_vvars.add(varid)
                 phi_block.statements[phidef_stmt_idx] = phi_stmt
 
                 new_vvar_ids.add((src, varid, new_vvar_id))
