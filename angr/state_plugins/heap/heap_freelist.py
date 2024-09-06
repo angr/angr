@@ -1,5 +1,5 @@
-import logging
 from __future__ import annotations
+import logging
 from . import SimHeapLibc
 from .utils import concretize
 from ...errors import SimHeapError
