@@ -967,6 +967,16 @@ class SimpleSolver:
         abstract_t2 = self.abstract(t2)
         if abstract_t1 in self._base_lattice and abstract_t2 in self._base_lattice:
             ancestor = networkx.lowest_common_ancestor(self._base_lattice, abstract_t1, abstract_t2)
+
+            if (
+                isinstance(ancestor, Pointer)
+                and isinstance(abstract_t1, Pointer)
+                and isinstance(abstract_t2, Pointer)
+                and isinstance(t1, Pointer)
+                and isinstance(t2, Pointer)
+            ):
+                return ancestor.__class__(self.join(t1.basetype, t2.basetype))
+
             if ancestor == abstract_t1:
                 return t1
             if ancestor == abstract_t2:
@@ -983,6 +993,16 @@ class SimpleSolver:
         abstract_t2 = self.abstract(t2)
         if abstract_t1 in self._base_lattice_inverted and abstract_t2 in self._base_lattice_inverted:
             ancestor = networkx.lowest_common_ancestor(self._base_lattice_inverted, abstract_t1, abstract_t2)
+
+            if (
+                isinstance(ancestor, Pointer)
+                and isinstance(abstract_t1, Pointer)
+                and isinstance(abstract_t2, Pointer)
+                and isinstance(t1, Pointer)
+                and isinstance(t2, Pointer)
+            ):
+                return ancestor.__class__(self.meet(t1.basetype, t2.basetype))
+
             if ancestor == abstract_t1:
                 return t1
             if ancestor == abstract_t2:
