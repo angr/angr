@@ -133,8 +133,7 @@ class SimEngineVRAIL(
                 create_variable = False
         else:
             # this is a call expression. we just return the value at the end of this method
-            if stmt.ret_expr is not None:
-                ret_expr_bits = stmt.ret_expr.bits
+            ret_expr_bits = stmt.bits
 
         if isinstance(target, ailment.Expr.Expression) and not isinstance(target, ailment.Expr.Const):
             # this is a dynamically calculated call target

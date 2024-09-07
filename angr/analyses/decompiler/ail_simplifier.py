@@ -197,6 +197,7 @@ class AILSimplifier(Analysis):
                 _l.debug("... call expressions folded")
                 self.simplified = True
                 self._rebuild_func_graph()
+                self._clear_cache()
 
         _l.debug("Removing dead assignments")
         r = self._remove_dead_assignments()
@@ -906,7 +907,7 @@ class AILSimplifier(Analysis):
             # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
             # eq.atom1 is the use.
             the_def = None
-            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack or isinstance(eq.atom0, SimMemoryVariable):
+            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
                 if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                     # stack_var == register or global_var == register
                     to_replace = eq.atom1
@@ -1440,7 +1441,14 @@ class AILSimplifier(Analysis):
 
                 if isinstance(eq.atom0, VirtualVariable):
                     src = used_expr
-                    dst: Expression = call
+                    dst: Call | Convert = call.copy()
+
+                    if dst.ret_expr is not None:
+                        dst_bits = dst.ret_expr.bits
+                        # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an expression
+                        dst.ret_expr = None
+                        dst.fp_ret_expr = None
+                        dst.bits = dst_bits
 
                     if src.bits != dst.bits:
                         dst = Convert(None, dst.bits, src.bits, False, dst)
@@ -1505,7 +1513,13 @@ class AILSimplifier(Analysis):
         return False, None
 
     def _remove_dead_assignments(self) -> bool:
+
+        # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
+        # cases where a statement defines more than one atoms, e.g., a call statement that defines both the return
+        # value and the floating-point return value.
         stmts_to_remove_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
+        stmts_to_keep_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
+        dead_vvar_ids: set[int] = set()
 
         # Find all statements that should be removed
         mask = (1 << self.project.arch.bits) - 1
@@ -1548,10 +1562,15 @@ class AILSimplifier(Analysis):
                 continue
 
             if not uses:
+                if isinstance(def_.atom, atoms.VirtualVariable):
+                    dead_vvar_ids.add(def_.atom.varid)
+
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
                     stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
                         def_.codeloc.stmt_idx
                     )
+            else:
+                stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
 
         # find all phi variables that rely on variables that no longer exist
         all_removed_var_ids = self._removed_vvar_ids.copy()
@@ -1574,6 +1593,7 @@ class AILSimplifier(Analysis):
         for varid in redundant_phi_and_dirty_varids:
             loc = rd.all_vvar_definitions[rd.varid_to_vvar[varid]]
             stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
+            stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
@@ -1594,12 +1614,26 @@ class AILSimplifier(Analysis):
 
             new_statements = []
             stmts_to_remove = stmts_to_remove_per_block[(block.addr, block.idx)]
+            stmts_to_keep = stmts_to_keep_per_block[(block.addr, block.idx)]
 
             if not stmts_to_remove:
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove and not isinstance(stmt, DirtyStatement):
+                if idx in stmts_to_remove and idx in stmts_to_keep:
+                    # this statement declares more than one variable. we should handle it surgically
+                    if isinstance(stmt, Call):
+                        # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
+                        if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
+                            stmt = stmt.copy()
+                            stmt.ret_expr = None
+                            simplified = True
+                        if isinstance(stmt.fp_ret_expr, VirtualVariable) and stmt.fp_ret_expr.varid in dead_vvar_ids:
+                            stmt = stmt.copy()
+                            stmt.fp_ret_expr = None
+                            simplified = True
+
+                if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
@@ -1625,18 +1659,12 @@ class AILSimplifier(Analysis):
                             simplified = True
                             continue
 
-                        if stmt.ret_expr is not None:
-                            # the return expr is not used. it should not have return expr
-                            if stmt.fp_ret_expr is not None:
-                                # maybe its fp_ret_expr is used?
-                                stmt = stmt.copy()
-                                stmt.ret_expr = stmt.fp_ret_expr
-                                stmt.fp_ret_expr = None
-                            else:
-                                # clear ret_expr
-                                stmt = stmt.copy()
-                                stmt.ret_expr = None
-                                simplified = True
+                        if stmt.ret_expr is not None or stmt.fp_ret_expr is not None:
+                            # both the return expr and the fp_ret_expr are not used
+                            stmt = stmt.copy()
+                            stmt.ret_expr = None
+                            stmt.fp_ret_expr = None
+                            simplified = True
                     else:
                         # Should not happen!
                         raise NotImplementedError

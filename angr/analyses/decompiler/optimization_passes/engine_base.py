@@ -129,6 +129,8 @@ class SimplifierAILEngine(
             prototype=stmt.prototype,
             args=new_args,
             ret_expr=stmt.ret_expr,
+            fp_ret_expr=stmt.fp_ret_expr,
+            bits=stmt.bits,
             **stmt.tags,
         )
 

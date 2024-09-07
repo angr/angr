@@ -804,6 +804,7 @@ class Clinic(Analysis):
                                     ins_addr=callsite_ins_addr,
                                     reg_name=cc.cc.RETURN_VAL.reg_name,
                                 )
+                                last_stmt.bits = reg_size * 8
 
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
