@@ -405,8 +405,8 @@ class CallingConventionAnalysis(Analysis):
             if not self.kb.functions.contains_addr(src.function_address):
                 continue
             caller = self.kb.functions[src.function_address]
-            if caller.is_simprocedure:
-                # do not analyze SimProcedures
+            if caller.is_simprocedure or caller.is_alignment:
+                # do not analyze SimProcedures or alignment stubs
                 continue
             call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
 
