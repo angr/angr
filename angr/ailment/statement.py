@@ -408,8 +408,11 @@ class ConditionalJump(Statement):
 
 class Call(Expression, Statement):
     """
-    Call is both an expression and a statement. The return expression of a call is defined as the ret_expr if and only
-    if the callee function has one return expression.
+    Call is both an expression and a statement.
+
+    When used as a statement, it will set ret_expr, fp_ret_expr, or both if both of them should hold return values.
+    When used as an expression, both ret_expr and fp_ret_expr should be None (and should be ignored). The size of the
+    call expression is stored in the bits attribute.
     """
 
     __slots__ = (
@@ -419,6 +422,7 @@ class Call(Expression, Statement):
         "args",
         "ret_expr",
         "fp_ret_expr",
+        "bits",
     )
 
     def __init__(
@@ -430,6 +434,7 @@ class Call(Expression, Statement):
         args=None,
         ret_expr=None,
         fp_ret_expr=None,
+        bits: int | None = None,
         **kwargs,
     ):
         super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
@@ -440,6 +445,7 @@ class Call(Expression, Statement):
         self.args = args
         self.ret_expr = ret_expr
         self.fp_ret_expr = fp_ret_expr
+        self.bits = bits if bits is not None else ret_expr.bits if ret_expr is not None else None
 
     def likes(self, other):
         return (
@@ -486,10 +492,6 @@ class Call(Expression, Statement):
         return f"Call({self.target}, {s}, ret: {ret_s}, fp_ret: {fp_ret_s})"
 
     @property
-    def bits(self):
-        return self.ret_expr.bits
-
-    @property
     def size(self):
         return self.bits // 8
 
@@ -522,7 +524,7 @@ class Call(Expression, Statement):
                 r |= r_arg
                 new_args.append(replaced_arg)
 
-        new_ret_expr = None
+        new_ret_expr = self.ret_expr
         if self.ret_expr:
             if self.ret_expr == old_expr:
                 r_ret = True
@@ -532,7 +534,7 @@ class Call(Expression, Statement):
             r |= r_ret
             new_ret_expr = replaced_ret
 
-        new_fp_ret_expr = None
+        new_fp_ret_expr = self.fp_ret_expr
         if self.fp_ret_expr:
             if self.fp_ret_expr == old_expr:
                 r_ret = True
@@ -551,6 +553,7 @@ class Call(Expression, Statement):
                 args=new_args,
                 ret_expr=new_ret_expr,
                 fp_ret_expr=new_fp_ret_expr,
+                bits=self.bits,
                 **self.tags,
             )
         else:
@@ -565,6 +568,7 @@ class Call(Expression, Statement):
             args=self.args[::] if self.args is not None else None,
             ret_expr=self.ret_expr,
             fp_ret_expr=self.fp_ret_expr,
+            bits=self.bits,
             **self.tags,
         )
 
