@@ -2605,7 +2605,10 @@ class TestDecompiler(unittest.TestCase):
 
         for target_node in target_nodes:
             # these are the two calls, their last arg should actually be r14
-            assert str(target_node.statements[-1].args[2]).startswith("r14")
+            arg = target_node.statements[-1].args[2]
+            assert isinstance(arg, ailment.Expr.VirtualVariable)
+            assert arg.was_reg
+            assert arg.reg_offset == proj.arch.registers["r14"][0]
 
     @for_all_structuring_algos
     def test_else_if_scope_printing(self, decompiler_options=None):
