@@ -2013,7 +2013,15 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
-        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=[^\n]*input_seek_errno[^\n]*;", condensed)
+        #         v1 = *((int *)&input_seek_errno);
+        #         if (v1 == 29)
+        #             return 1;
+        #         v2 = __errno_location();
+        #         *(v2) = v1;
+        m = re.search(r"v(\d+)=[^=;]*input_seek_errno[^=;]*;", condensed)
+        assert m is not None
+        v_input_seed_errno = m.group(1)
+        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=v" + v_input_seed_errno + r";", condensed)
 
     @structuring_algo("sailr")
     def test_decompiling_dd_iwrite(self, decompiler_options=None):
