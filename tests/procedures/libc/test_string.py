@@ -346,7 +346,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
         ss_res = strstr(s, arguments=[addr_haystack, addr_needle])
         results = set(s.solver.eval_upto(ss_res, len(haystack) * 2))
-        expected = {(claripy.backends.concrete.convert(addr_haystack).value + i) for i in range(len(haystack))} | {0}
+        expected = {(addr_haystack.concrete_value + i) for i in range(len(haystack))} | {0}
         assert results == expected
 
         s_match = s.copy()
@@ -385,8 +385,8 @@ class TestStringSimProcedures(unittest.TestCase):
         num_possible = min(s.libc.max_symbolic_strstr, 1 + (len(str_haystack) - len(str_needle)) // 8)
         expected = set(
             range(
-                claripy.backends.concrete.convert(addr_haystack).value,
-                claripy.backends.concrete.convert(addr_haystack).value + num_possible,
+                addr_haystack.concrete_value,
+                addr_haystack.concrete_value + num_possible,
             )
         )
         results = set(s_match.solver.eval_exact(ss_res, num_possible))

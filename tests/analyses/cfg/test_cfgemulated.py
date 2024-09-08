@@ -618,12 +618,4 @@ class TestCfgemulate(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.cfg.cfg_emulated").setLevel(logging.DEBUG)
-    # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
-    # Temporarily disable the warnings of claripy backend
-    # logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
-    # logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
-
     unittest.main()
