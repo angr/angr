@@ -453,38 +453,20 @@ class TestMemory(unittest.TestCase):
 
         s.memory.store(4, claripy.TSI(bits=64))
 
-        def to_vs(region, offset):
-            return claripy.VS(s.arch.bits, region, 0, offset)
+        test_cases = [
+            (1, claripy.BVV(b"A"), claripy.SI(bits=64, to_conv=1)),
+            (1, claripy.BVV(b"B"), claripy.SI(bits=64, to_conv=2)),
+            (1, claripy.BVV(b"\0"), claripy.SI(bits=64, to_conv=3)),
+            (4, claripy.BVV("\0"), claripy.SI(bits=64, stride=1, lower_bound=4, upper_bound=11)),
+        ]
 
-        r, _, _ = s.memory.find(to_vs("global", 1), claripy.BVV(b"A"), 8)
-
-        r_model = claripy.backends.vsa.convert(r)
-        s_expected = claripy.backends.vsa.convert(claripy.SI(bits=64, to_conv=1))
-        assert isinstance(r_model, claripy.vsa.ValueSet)
-        assert list(r_model.regions.keys()) == ["global"]
-        assert claripy.backends.vsa.identical(r_model.regions["global"], s_expected)
-
-        r, _, _ = s.memory.find(to_vs("global", 1), claripy.BVV(b"B"), 8)
-        r_model = claripy.backends.vsa.convert(r)
-        s_expected = claripy.backends.vsa.convert(claripy.SI(bits=64, to_conv=2))
-        assert isinstance(r_model, claripy.vsa.ValueSet)
-        assert list(r_model.regions.keys()) == ["global"]
-        assert claripy.backends.vsa.identical(r_model.regions["global"], s_expected)
-
-        r, _, _ = s.memory.find(to_vs("global", 1), claripy.BVV(b"\0"), 8)
-        r_model = claripy.backends.vsa.convert(r)
-        s_expected = claripy.backends.vsa.convert(claripy.SI(bits=64, to_conv=3))
-        assert isinstance(r_model, claripy.vsa.ValueSet)
-        assert list(r_model.regions.keys()) == ["global"]
-        assert claripy.backends.vsa.identical(r_model.regions["global"], s_expected)
-
-        # Find in StridedIntervals
-        r, _, _ = s.memory.find(to_vs("global", 4), claripy.BVV(b"\0"), 8)
-        r_model = claripy.backends.vsa.convert(r)
-        s_expected = claripy.backends.vsa.convert(claripy.SI(bits=64, stride=1, lower_bound=4, upper_bound=11))
-        assert isinstance(r_model, claripy.vsa.ValueSet)
-        assert list(r_model.regions.keys()) == ["global"]
-        assert claripy.backends.vsa.identical(r_model.regions["global"], s_expected)
+        for offset, what, expected in test_cases:
+            r, _, _ = s.memory.find(claripy.VS(s.arch.bits, "global", 0, offset), what, 8)
+            assert r.has_annotation_type(claripy.annotation.RegionAnnotation)
+            r_annotations = r.get_annotations_by_type(claripy.annotation.RegionAnnotation)
+            assert len(r_annotations) == 1
+            assert r_annotations[0].region_id == "global"
+            assert r.clear_annotations().identical(expected)
 
     def test_registers(self):
         s = SimState(arch="AMD64")
