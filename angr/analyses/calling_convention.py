@@ -398,6 +398,17 @@ class CallingConventionAnalysis(Analysis):
         in_edges = self._cfg.graph.in_edges(node, data=True)
 
         call_sites_by_function: dict[Function, list[tuple[int, int]]] = defaultdict(list)
+
+        if len(in_edges) == 1:
+            src, _, data = next(iter(in_edges))
+            if (
+                data.get("jumpkind", "Ijk_Call") == "Ijk_Boring"
+                and self.kb.functions.contains_addr(src.function_address)
+                and self.kb.functions[src.function_address].is_plt
+            ):
+                # find callers to the PLT stub instead
+                in_edges = self._cfg.graph.in_edges(src, data=True)
+
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
             if not (edge_type == "Ijk_Call" or edge_type == "Ijk_Boring" and self._cfg.graph.out_degree[src] == 1):
@@ -584,8 +595,10 @@ class CallingConventionAnalysis(Analysis):
         default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
         arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
         temp_args: list[SimFunctionArgument | None] = []
+        expected_args: list[SimFunctionArgument] = []
         for _ in range(30):  # at most 30 arguments
             arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
+            expected_args.append(arg_loc)
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?
@@ -602,6 +615,12 @@ class CallingConventionAnalysis(Analysis):
                     break
             else:
                 break
+
+        if None in temp_args:
+            first_none_idx = temp_args.index(None)
+            # test if there is at least one argument set after None; if so, we ignore the first None
+            if any(arg is not None for arg in temp_args[first_none_idx:]):
+                temp_args[first_none_idx] = expected_args[first_none_idx]
 
         if None in temp_args:
             # we be very conservative here and ignore all arguments starting from the first missing one

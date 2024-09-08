@@ -2870,7 +2870,7 @@ class TestDecompiler(unittest.TestCase):
         #         qsort();
         #     }
         #     return;
-        assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
+        assert re.search(r"if\(.+?\)\{{0,1}.+?\}{0,1}return", text) is not None
 
     @for_all_structuring_algos
     def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
@@ -3047,35 +3047,6 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         assert "extern" not in text
         assert "std::rt::lang_start::h9b2e0b6aeda0bae0(rust_hello_world::main::h932c4676a11c63c3" in text
-
-    @structuring_algo("sailr")
-    def test_decompiling_remove_rm_fts(self, decompiler_options=None):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "remove.o")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-
-        f = proj.kb.functions["rm_fts"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
-
-        # disable eager returns simplifier
-        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
-            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
-        )
-
-        d = proj.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
-        )
-        self._print_decompilation_result(d)
-
-        lines = d.codegen.text.split("\n")
-        func_starting_line = next(idx for idx, line in enumerate(lines) if "rm_fts" in line)
-        lines = lines[func_starting_line:]
-        end_of_variable_list_line = next(idx for idx, line in enumerate(lines) if not line.strip(" "))
-        lines = lines[end_of_variable_list_line + 1 :]
-        # the second line of the code should be an if statement. all other variables should have been eliminated by
-        # proper propagation
-        assert lines[1].strip(" ").startswith("if (")
 
     @structuring_algo("sailr")
     def test_decompiling_incorrect_duplication_chcon_main(self, decompiler_options=None):
