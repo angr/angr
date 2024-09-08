@@ -398,6 +398,17 @@ class CallingConventionAnalysis(Analysis):
         in_edges = self._cfg.graph.in_edges(node, data=True)
 
         call_sites_by_function: dict[Function, list[tuple[int, int]]] = defaultdict(list)
+
+        if len(in_edges) == 1:
+            src, _, data = list(in_edges)[0]
+            if (
+                data.get("jumpkind", "Ijk_Call") == "Ijk_Boring"
+                and self.kb.functions.contains_addr(src.function_address)
+                and self.kb.functions[src.function_address].is_plt
+            ):
+                # find callers to the PLT stub instead
+                in_edges = self._cfg.graph.in_edges(src, data=True)
+
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
             if not (edge_type == "Ijk_Call" or edge_type == "Ijk_Boring" and self._cfg.graph.out_degree[src] == 1):
