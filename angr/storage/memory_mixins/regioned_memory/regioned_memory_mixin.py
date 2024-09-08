@@ -92,7 +92,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         o._regions = {}
         for region_id, region in self._regions.items():
-            o._regions[region_id] = region.copy(memo)
+            o._regions[region_id] = region.copy(memo)  # pylint:disable=no-member
 
         return o
 
@@ -143,7 +143,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return val
 
-    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):
+    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):  # pylint:disable=unused-argument
         regioned_addrs_desc = self._normalize_address(addr)
         if (
             regioned_addrs_desc.cardinality >= self._write_targets_limit

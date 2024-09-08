@@ -40,7 +40,7 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
                 addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs
             )
         ):
-            comparison, concrete_comparison = self._find_compare(element, data, **kwargs)
+            comparison, concrete_comparison = self._find_compare(element, data)
 
             if comparison:
                 match_indices.append(i)
@@ -53,7 +53,7 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
             r_union = r_union.union(addr + index)
         return r_union, [], match_indices
 
-    def _find_compare(self, element, target, **kwargs):
+    def _find_compare(self, element, target):
         comparison, concrete_comparison = False, False
 
         # we only support strided intervals
