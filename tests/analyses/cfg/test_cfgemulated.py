@@ -3,13 +3,13 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import time
-import pickle
-import networkx
-
 import logging
+import time
 import os
+import pickle
 import unittest
+
+import networkx
 
 import angr
 from angr import options as o
@@ -23,6 +23,7 @@ test_location = os.path.join(bin_location, "tests")
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
+# pylint: disable=no-member
 class TestCfgemulate(unittest.TestCase):
     def compare_cfg(self, standard, g, function_list):
         """
