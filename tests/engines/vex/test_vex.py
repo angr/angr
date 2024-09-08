@@ -492,7 +492,9 @@ class TestVex(unittest.TestCase):
         sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
         exit_state = sim_successors.all_successors[0]
 
-        assert claripy.Solver().is_true(exit_state.regs.ebp == state.regs.esp - 4)
+        solver = claripy.Solver()
+        maybe_true = solver.eval(exit_state.regs.ebp == state.regs.esp - 4, 1)[0]
+        assert solver.is_true(maybe_true)
 
     def test_loadg_no_constraint_creation(self):
         state = SimState(arch="armel", mode="symbolic")
