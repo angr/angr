@@ -525,6 +525,7 @@ class Call(Expression, Statement):
                 new_args.append(replaced_arg)
 
         new_ret_expr = self.ret_expr
+        new_bits = self.bits
         if self.ret_expr:
             if self.ret_expr == old_expr:
                 r_ret = True
@@ -533,6 +534,8 @@ class Call(Expression, Statement):
                 r_ret, replaced_ret = self.ret_expr.replace(old_expr, new_expr)
             r |= r_ret
             new_ret_expr = replaced_ret
+            if replaced_ret is not None:
+                new_bits = replaced_ret.bits
 
         new_fp_ret_expr = self.fp_ret_expr
         if self.fp_ret_expr:
@@ -553,7 +556,7 @@ class Call(Expression, Statement):
                 args=new_args,
                 ret_expr=new_ret_expr,
                 fp_ret_expr=new_fp_ret_expr,
-                bits=self.bits,
+                bits=new_bits,
                 **self.tags,
             )
         else:
