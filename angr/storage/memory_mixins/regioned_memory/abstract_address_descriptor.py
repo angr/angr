@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections.abc import Generator
 
-from claripy.vsa import StridedInterval
+from claripy.ast import BV
 
 
 class AbstractAddressDescriptor:
@@ -13,13 +13,13 @@ class AbstractAddressDescriptor:
     __slots__ = ("_regioned_addrs",)
 
     def __init__(self):
-        self._regioned_addrs: list[tuple[str, StridedInterval]] = []
+        self._regioned_addrs: list[tuple[str, BV]] = []
 
     def __len__(self) -> int:
         # this may raise an OverflowError if self.cardinality is greater than sys.maxint
         return self.cardinality
 
-    def __iter__(self) -> Generator[tuple[str, StridedInterval]]:
+    def __iter__(self) -> Generator[tuple[str, BV]]:
         yield from self._regioned_addrs
 
     @property
@@ -29,7 +29,7 @@ class AbstractAddressDescriptor:
             n += si.cardinality
         return n
 
-    def add_regioned_address(self, region: str, addr: StridedInterval):
+    def add_regioned_address(self, region: str, addr: BV):
         self._regioned_addrs.append((region, addr))
 
     def clear(self):

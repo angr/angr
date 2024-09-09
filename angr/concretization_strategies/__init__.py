@@ -1,5 +1,4 @@
 from __future__ import annotations
-import claripy
 
 
 class SimConcretizationStrategy:
@@ -44,8 +43,6 @@ class SimConcretizationStrategy:
         """
         Gets n solutions for an address.
         """
-        if isinstance(addr, claripy.vsa.StridedInterval):
-            return addr.eval(n)
         return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop("exact", self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
@@ -84,6 +81,8 @@ class SimConcretizationStrategy:
         """
 
 
+# pylint: disable=wrong-import-position
+# FIXME: This is a circular import, move base class to a separate file
 from .any import SimConcretizationStrategyAny
 from .controlled_data import SimConcretizationStrategyControlledData
 from .eval import SimConcretizationStrategyEval

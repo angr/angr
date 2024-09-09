@@ -7,7 +7,6 @@ from collections.abc import Generator, Iterable
 import claripy
 from claripy.annotation import RegionAnnotation
 from claripy.ast import Bool, Bits, BV
-from claripy.vsa import StridedInterval, ValueSet
 
 from ....sim_options import (
     AVOID_MULTIVALUED_READS,
@@ -93,12 +92,12 @@ class RegionedMemoryMixin(MemoryMixin):
 
         o._regions = {}
         for region_id, region in self._regions.items():
-            o._regions[region_id] = region.copy(memo)
+            o._regions[region_id] = region.copy(memo)  # pylint:disable=no-member
 
         return o
 
     def load(self, addr, size: BV | int | None = None, endness=None, condition: Bool | None = None, **kwargs):
-        if isinstance(size, BV) and isinstance(claripy.backends.vsa.convert(size), ValueSet):
+        if isinstance(size, BV) and size.has_annotation_type(RegionAnnotation):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:
                 var_name = "invalid_read_%d_%#x" % (next(invalid_read_ctr), self.state.scratch.ins_addr)
@@ -144,7 +143,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return val
 
-    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):
+    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):  # pylint:disable=unused-argument
         regioned_addrs_desc = self._normalize_address(addr)
         if (
             regioned_addrs_desc.cardinality >= self._write_targets_limit
@@ -173,11 +172,10 @@ class RegionedMemoryMixin(MemoryMixin):
         gen = self._normalize_address_type(addr, self.state.arch.bits)
 
         for region, si in gen:
-            si = claripy.SI(to_conv=si)
             r, s, i = self._regions[region].find(si, data, max_search, **kwargs)
             # Post-process r so that it's still a ValueSet
             region_base_addr = self._region_base(region)
-            r = claripy.ValueSet(r.size(), region, region_base_addr, claripy.backends.vsa.convert(r))
+            r = claripy.ValueSet(r.size(), region, region_base_addr, r)
             return r, s, i
         return None
 
@@ -432,7 +430,7 @@ class RegionedMemoryMixin(MemoryMixin):
         return addr
 
     @staticmethod
-    def _normalize_address_type(addr: int | Bits, bits) -> Generator[tuple[str, StridedInterval]]:
+    def _normalize_address_type(addr: int | Bits, bits) -> Generator[tuple[str, claripy.BV]]:
         """
         Convert address of different types to a list of mapping between region IDs and offsets (strided intervals).
 
@@ -443,18 +441,13 @@ class RegionedMemoryMixin(MemoryMixin):
 
         addr_e = claripy.BVV(addr, bits) if isinstance(addr, int) else _raw_ast(addr)
 
-        if isinstance(addr_e, (claripy.bv.BVV, claripy.vsa.StridedInterval, claripy.vsa.ValueSet)):
-            raise SimMemoryError("_normalize_address_type() does not take claripy models.")
-
         if isinstance(addr_e, claripy.ast.Base):
-            if not isinstance(claripy.backends.vsa.convert(addr_e), ValueSet):
-                # Convert it to a ValueSet first by annotating it
-                addr_e = addr_e.annotate(RegionAnnotation("global", 0, claripy.backends.vsa.convert(addr_e)))
-
-            model_vsa = claripy.backends.vsa.convert(addr_e)
-            if isinstance(model_vsa, ValueSet):
-                yield from model_vsa.items()
+            if region_annotations := addr_e.get_annotations_by_type(RegionAnnotation):
+                region_id = region_annotations[0].region_id
             else:
-                raise SimAbstractMemoryError("Cannot parse address as a VSA ValueSet")
+                region_id = "global"
+
+            yield region_id, addr_e
+
         else:
             raise SimAbstractMemoryError(f"Unsupported address type {type(addr_e)}")
