@@ -1763,7 +1763,6 @@ class JumpTableResolver(IndirectJumpResolver):
                             break
                         l.debug("- %#x[%d] -> %#x", table_base_addr, i, target)
                         jump_table.append(target)
-                        # addr += jumptable_addr_vsa.stride
                         addr += stride
                     num_targets = len(jump_table)
                     if num_targets == 0:
