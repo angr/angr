@@ -1717,25 +1717,25 @@ class JumpTableResolver(IndirectJumpResolver):
                 # full-function data propagation before performing jump table recovery.
                 l.debug("Multiple statements adding bases, not supported yet")  # FIXME: Just check the addresses?
 
-        jumptable_addr_vsa = claripy.backends.vsa.convert(jumptable_addr)
-
-        if not isinstance(jumptable_addr_vsa, claripy.vsa.StridedInterval):
+        if jumptable_addr.has_annotation_type(claripy.annotation.RegionAnnotation):
             return None
 
         all_targets = []
         jump_table = []
 
+        jumptable_addr = claripy.SI(bits=project.arch.bits, to_conv=jumptable_addr)
+
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
-        if jumptable_addr_vsa.stride < load_size:
+        if jumptable_addr.args[3] < load_size:  # stride < load_size
             stride = load_size
-            total_cases = jumptable_addr_vsa.cardinality // load_size
+            total_cases = jumptable_addr.cardinality // load_size
             sort = "vtable"  # it's probably a vtable!
         else:
-            stride = jumptable_addr_vsa.stride
-            total_cases = jumptable_addr_vsa.cardinality
+            stride = jumptable_addr.args[3]
+            total_cases = jumptable_addr.cardinality
             sort = "jumptable"
 
         if total_cases > self._max_targets:
@@ -1763,7 +1763,8 @@ class JumpTableResolver(IndirectJumpResolver):
                             break
                         l.debug("- %#x[%d] -> %#x", table_base_addr, i, target)
                         jump_table.append(target)
-                        addr += jumptable_addr_vsa.stride
+                        # addr += jumptable_addr_vsa.stride
+                        addr += stride
                     num_targets = len(jump_table)
                     if num_targets == 0:
                         l.debug("Didn't find any plausible targets in suspected jump table %#x", table_base_addr)
