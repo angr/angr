@@ -78,11 +78,12 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
             if skip:
                 # do additional simplification and verify that it's not the stack pointer
-                tmp_simp_result = self.state.solver.simplify(result[0])
-                if not self.state.solver.symbolic(tmp_simp_result):
-                    simp_result = tmp_simp_result
-                else:
-                    simp_result = result[0]
+                if self.state.globals['is_constant_propagation']:
+                    tmp_simp_result = self.state.solver.simplify(result[0])
+                    if not self.state.solver.symbolic(tmp_simp_result):
+                        simp_result = tmp_simp_result
+                    else:
+                        simp_result = result[0]
 
                 # additional check to see if the eval value is actually a stack pointer or not
                 # only for 1 bit results specifically in a condition check
