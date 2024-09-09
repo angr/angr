@@ -62,8 +62,9 @@ def _is_rust_hash(s):
     return s.startswith("h") and all(c in "0123456789abcdef" for c in s[1:])
 
 
-POLYMORPHISM_PATTERN = re.compile(r"<(.*) as (.*)>::(.*)")
-POLYMORPHISM_PATTERN_2 = re.compile(r"<.*?>")
+GENERIC_TYPE_PATTERN = re.compile(r"(?:::)?<(?:(?!\sas\s)[^<])*?>")
+XXX_AS_YYY_PATTERN = re.compile(r"<(?!impl\s)([^<]+?)\sas\s([^<]+?)>")
+IMPL_XXX_AS_YYY_PATTERN = re.compile(r"<impl\s([^<]+?)\sas\s([^<]+?)>")
 
 
 def demangle(s):
@@ -100,13 +101,15 @@ def demangle(s):
     return demangled
 
 
-def normalize(name, remove_polymorphism=False, concise=False):
+def normalize(name, remove_polymorphism=True, concise=False):
     demangled = demangle(name)
     if remove_polymorphism:
-        search = POLYMORPHISM_PATTERN.search(demangled)
-        if search and len(search.groups()) == 3:
-            demangled = search.group(1) + "::" + search.group(3)
-        demangled = POLYMORPHISM_PATTERN_2.sub("", demangled)
+        old_len = 0
+        while old_len != len(demangled):
+            old_len = len(demangled)
+            demangled = GENERIC_TYPE_PATTERN.sub("", demangled)
+            demangled = XXX_AS_YYY_PATTERN.sub(lambda match: match.groups()[0], demangled)
+            demangled = IMPL_XXX_AS_YYY_PATTERN.sub(lambda match: match.groups()[1], demangled)
     if concise:
         demangled = demangled.split("::")[-1]
     return demangled
