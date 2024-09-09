@@ -1190,7 +1190,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         node_level = [node]
         seen_nodes = set()
         while node_level:
-            # check if any of the nodes on the current level are dominates to all nodes
+            # check if any of the nodes on the current level are dominators to all nodes
             for cnode in node_level:
                 if not cnode.statements:
                     continue

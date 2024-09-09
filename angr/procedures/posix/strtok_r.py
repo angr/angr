@@ -26,7 +26,7 @@ class strtok_r(angr.SimProcedure):
         strstr = angr.SIM_PROCEDURES["libc"]["strstr"]
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
 
-        l.debug("Doing' a strtok_r!")
+        l.debug("Doin' a strtok_r!")
         l.debug("... getting the saved state")
 
         saved_str_ptr = self.state.memory.load(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)

@@ -163,7 +163,7 @@ class ExpressionUseFinder(AILBlockWalker):
 
         v16 = ((int)v23->field_5) + 1 & 255;
         v23->field_5 = ((char)(((int)v23->field_5) + 1 & 255));
-        v13 = printf("Received packet %d for connection with %d\\n", v16, a0 & 255);
+        v13 = printf("Recieved packet %d for connection with %d\\n", v16, a0 & 255);
 
     In this case, folding v16 into the last printf() expression would be incorrect, since v23->field_5 is updated by
     the second statement.
