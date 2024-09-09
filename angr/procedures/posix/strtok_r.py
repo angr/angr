@@ -27,7 +27,7 @@ class strtok_r(angr.SimProcedure):
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
 
         l.debug("Doin' a strtok_r!")
-        l.debug("... geting the saved state")
+        l.debug("... getting the saved state")
 
         saved_str_ptr = self.state.memory.load(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
         start_ptr = claripy.If(str_ptr == 0, saved_str_ptr, str_ptr)

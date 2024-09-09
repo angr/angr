@@ -717,7 +717,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         try:
             state.memory.permissions(state.solver.eval(buf))
         except angr.SimMemoryError:
-            l.warning("detected possible arbitary transmit to fd %d", fd)
+            l.warning("detected possible arbitrary transmit to fd %d", fd)
             if fd == 0 or fd == 1:
                 self.controlled_transmits.append((state.copy(), buf))
 

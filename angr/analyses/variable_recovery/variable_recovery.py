@@ -435,7 +435,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
     This analysis follows SSA, which means every write creates a new variable in registers or memory (statck, heap,
     etc.). Things may get tricky when overlapping variable (in memory, as you cannot really have overlapping accesses
     to registers) accesses exist, and in such cases, a new variable will be created, and this new variable will overlap
-    with one or more existing varaibles. A decision procedure (which is pretty much TODO) is required at the end of this
+    with one or more existing variables. A decision procedure (which is pretty much TODO) is required at the end of this
     analysis to resolve the conflicts between overlapping variables.
     """
 

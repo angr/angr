@@ -169,7 +169,7 @@ class AngrObjectFactory:
 
         grow_like_stack controls the behavior of allocating data at alloc_base. When data from args needs to be wrapped
         in a pointer, the pointer needs to point somewhere, so that data is dumped into memory at alloc_base. If you
-        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
+        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequential
         allocations happen at increasing addresses.
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
@@ -200,7 +200,7 @@ class AngrObjectFactory:
         elif isinstance(thing, SimState):
             thing = [thing]
         else:
-            raise AngrError(f"BadType to initialze SimulationManager: {thing!r}")
+            raise AngrError(f"BadType to initialize SimulationManager: {thing!r}")
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 

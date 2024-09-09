@@ -37,7 +37,7 @@ class CodeLocation:
                                     the entire block.
         :param class sim_procedure: The corresponding SimProcedure class.
         :param ins_addr:            The instruction address.
-        :param context:             A tuple that represents the context of this CodeLocation in contextful mode, or
+        :param context:             A tuple that represents the context of this CodeLocation in contextual mode, or
                                     None in contextless mode.
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """

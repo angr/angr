@@ -297,7 +297,7 @@ class Decompiler(Analysis):
         Runs optimizations that should be executed before region identification.
 
         :param ail_graph:   DiGraph with AIL Statements
-        :param reaching_defenitions: ReachingDefenitionAnalysis
+        :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
@@ -352,7 +352,7 @@ class Decompiler(Analysis):
 
         :param ail_graph:   DiGraph with AIL Statements
         :param ri:          RegionIdentifier
-        :param reaching_defenitions: ReachingDefenitionAnalysis
+        :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}

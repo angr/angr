@@ -67,7 +67,7 @@ class Atom:
         argument: SimFunctionArgument, arch: Arch, full_reg=False, sp: int | None = None
     ) -> Register | MemoryLocation:
         """
-        Instanciate an `Atom` from a given argument.
+        Instantiate an `Atom` from a given argument.
 
         :param argument: The argument to create a new atom from.
         :param arch: The argument representing archinfo architecture for argument.

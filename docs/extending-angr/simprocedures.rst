@@ -200,7 +200,7 @@ This is a particularly clever usage of the SimProcedure continuations. First,
 notice that the current project is available for use on the procedure instance.
 This is some powerful stuff you can get yourself into; for safety you generally
 only want to use the project as a read-only or append-only data structure. Here
-we're just getting the list of dynamic intializers from the loader. Then, for as
+we're just getting the list of dynamic initializers from the loader. Then, for as
 long as the list isn't empty, we pop a single function pointer out of the list,
 being careful not to mutate the list, since the list object is shared across
 states, and then call it, returning to the ``run_initializer`` function again.
@@ -285,7 +285,7 @@ As you should recall from the :ref:`section on loading a binary <Loading a
 Binary>`, dynamically linked programs have a list of symbols that they must
 import from the libraries they have listed as dependencies, and angr will make
 sure, rain or shine, that every import symbol gets resolved by *some* address,
-whether it's a real implementaion of the function or just a dummy address hooked
+whether it's a real implementation of the function or just a dummy address hooked
 with a do-nothing stub. As a result, you can just use the
 ``Project.hook_symbol`` API to hook the address referred to by a symbol!
 

@@ -140,7 +140,7 @@ class SimDebugVariablePlugin(SimStatePlugin):
     This is the plugin you'll use to interact with (global/local) program variables.
     These variables have a name and a visibility scope which depends on the pc address of the state.
     With this plugin, you can access/modify the value of such variable or find its memory address.
-    For creating program varibles, or for importing them from cle, see the knowledge plugin debug_variables.
+    For creating program variables, or for importing them from cle, see the knowledge plugin debug_variables.
     Run ``p.kb.dvars.load_from_dwarf()`` before using this plugin.
 
     Example:

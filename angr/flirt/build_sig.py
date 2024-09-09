@@ -134,7 +134,7 @@ def run_sigmake(sigmake_path: str, sig_name: str, pat_path: str, sig_path: str):
 def process_exc_file(exc_path: str):
     """
     We are doing the stupidest thing possible: For each batch of conflicts, we pick the most likely
-    result baed on a set of predefined rules.
+    result based on a set of predefined rules.
 
     TODO: Add caller-callee-based de-duplication.
     """

@@ -683,7 +683,7 @@ class MemoryOperand(Operand):
         # or
         # [ '[', Register, ']' ]
         # or
-        # [ Value, '(', Regsiter, ')' ]
+        # [ Value, '(', Register, ')' ]
 
         # it will be converted into more meaningful and Pythonic properties
 

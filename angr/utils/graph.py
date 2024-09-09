@@ -320,7 +320,7 @@ class Dominators:
     def _graph_successors(self, graph, node):
         """
         Return the successors of a node in the graph.
-        This method can be overriden in case there are special requirements with the graph and the successors. For
+        This method can be overridden in case there are special requirements with the graph and the successors. For
         example, when we are dealing with a control flow graph, we may not want to get the FakeRet successors.
 
         :param graph: The graph.

@@ -358,7 +358,7 @@ class Veritesting(Analysis):
 
     def _join_merge_points(self, manager, merge_points):
         """
-        Merges together the appropriate execution points and unstashes them from the intermidiate merge_x_y stashes to
+        Merges together the appropriate execution points and unstashes them from the intermediate merge_x_y stashes to
         pruned (dropped), deadend or active stashes
 
         param SimulationManager manager:        current simulation context being stepped through

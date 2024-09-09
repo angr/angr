@@ -159,7 +159,7 @@ class LiveDefinitions:
         Add a new definition of variable.
 
         :param SimVariable variable: The variable being defined.
-        :param CodeLocation location: Location of the varaible being defined.
+        :param CodeLocation location: Location of the variable being defined.
         :param int size_threshold: The maximum bytes to consider for the variable.
         :return: True if the definition was new, False otherwise
         :rtype: bool
@@ -946,7 +946,7 @@ class DDG(Analysis):
             return self.project.arch.registers[reg_name][1]
 
         l.warning(
-            "_get_register_size(): unsupported register offset %d. Assum size 1. "
+            "_get_register_size(): unsupported register offset %d. Assume size 1. "
             "More register name mappings should be implemented in archinfo.",
             reg_offset,
         )
@@ -1322,7 +1322,7 @@ class DDG(Analysis):
 
     def _data_graph_add_node(self, node):
         """
-        Add a noe in the data dependence graph.
+        Add a node in the data dependence graph.
 
         :param ProgramVariable node: The node to add.
         :return: None

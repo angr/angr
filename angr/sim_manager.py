@@ -263,11 +263,11 @@ class SimulationManager:
         if not isinstance(tech, ExplorationTechnique):
             raise SimulationManagerError
 
-        def _is_overriden(name):
+        def _is_overridden(name):
             return getattr(tech, name).__code__ is not getattr(ExplorationTechnique, name).__code__
 
-        overriden = filter(_is_overriden, ("step", "filter", "selector", "step_state", "successors"))
-        hooks = {name: getattr(tech, name) for name in overriden}
+        overridden = filter(_is_overridden, ("step", "filter", "selector", "step_state", "successors"))
+        hooks = {name: getattr(tech, name) for name in overridden}
         HookSet.remove_hooks(self, **hooks)
 
         self._techniques.remove(tech)
@@ -373,9 +373,9 @@ class SimulationManager:
         """
         if not self._techniques:
             return False
-        if not any(tech._is_overriden("complete") for tech in self._techniques):
+        if not any(tech._is_overridden("complete") for tech in self._techniques):
             return False
-        return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overriden("complete"))
+        return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overridden("complete"))
 
     def step(
         self,
@@ -781,7 +781,7 @@ class SimulationManager:
         :param merge_func:  If provided, instead of using state.merge, call this function with
                             the states as the argument. Should return the merged state.
         :param merge_key:   If provided, should be a function that takes a state and returns a key that will compare
-                            equal for all states that are allowed to be merged together, as a first aproximation.
+                            equal for all states that are allowed to be merged together, as a first approximation.
                             By default: uses PC, callstack, and open file descriptors.
         :param prune:       Whether to prune the stash prior to merging it
 

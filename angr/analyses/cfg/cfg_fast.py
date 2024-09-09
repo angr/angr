@@ -3452,7 +3452,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._model.add_node(new_node.addr, new_node)
 
         # the function starting at this point is probably totally incorrect
-        # hopefull future call to `make_functions()` will correct everything
+        # hopefully, a future call to `make_functions()` will correct everything
         if node.addr in self.kb.functions:
             del self.kb.functions[node.addr]
 
@@ -4075,7 +4075,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     func = self.kb.functions.get_by_addr(current_function_addr)
                     pc_reg = return_from_func.info["get_pc"]
                     # the crazy thing is that GCC-generated code may adjust the register value accordingly after
-                    # returning! we must take into account the added offset (in the followin example, 0x8d36)
+                    # returning! we must take into account the added offset (in the following example, 0x8d36)
                     #
                     # e.g.
                     #  000011A1 call    __x86_get_pc_thunk_bx
@@ -4515,7 +4515,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         For MIPS32 simulates a new state where the global pointer is 0xffffffff
         from current address after three steps if the first successor does not
         adjust this value updates this function address (in function manager)
-        to use a conrete global pointer
+        to use a concrete global pointer
 
         :param addr: irsb address
         :param cfg_node:    The corresponding CFG node object.

@@ -10,7 +10,7 @@ from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
 
 
 class TestAtoms(TestCase):
-    def test_from_argument_instanciate_a_Register_when_given_a_SimRegArg(self):
+    def test_from_argument_instantiate_a_Register_when_given_a_SimRegArg(self):
         argument = SimRegArg("r0", 4)
         arch = ArchMIPS32()
 

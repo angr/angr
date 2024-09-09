@@ -110,7 +110,7 @@ class strncmp(angr.SimProcedure):
                         b_conc -= ord(" ")
 
                 if a_conc != b_conc:
-                    l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
+                    l.debug("... found mismatching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                     if a_conc < b_conc:
                         return claripy.BVV(-1, 32)
                     return claripy.BVV(1, 32)

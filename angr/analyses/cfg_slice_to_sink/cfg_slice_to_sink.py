@@ -94,7 +94,7 @@ class CFGSliceToSink:
 
     def path_between(self, source: int, destination: int, visited: set[Any] | None = None) -> bool:
         """
-        Check the existence of a path in the slice between two given node adresses.
+        Check the existence of a path in the slice between two given node addresses.
 
         :param source: The source address.
         :param destination: The destination address.

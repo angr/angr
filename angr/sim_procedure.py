@@ -411,7 +411,7 @@ class SimProcedure:
         :param arguments:       Any additional positional args will be used as arguments to the
                                 procedure call
         :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
-                                procedure construtor
+                                procedure constructor
         """
         e_args = [claripy.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments]
         p = procedure(project=self.project, **kwargs)

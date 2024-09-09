@@ -253,7 +253,7 @@ Here's a quick overview of some of the built-in ones:
   between simgr steps and stops exploration if it gets too low.
 * *Oppologist*: The "operation apologist" is an especially fun gadget - if this
   technique is enabled and angr encounters an unsupported instruction, for
-  example a bizzare and foreign floating point SIMD op, it will concretize all
+  example a bizarre and foreign floating point SIMD op, it will concretize all
   the inputs to that instruction and emulate the single instruction using the
   unicorn engine, allowing execution to continue.
 * *Spiller*: When there are too many states active, this technique can dump some

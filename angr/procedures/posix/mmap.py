@@ -37,7 +37,7 @@ class mmap(angr.SimProcedure):
                 raise angr.errors.SimPosixError("Can't map with a symbolic offset!!")
             sim_fd = self.state.posix.get_fd(fd)
             if sim_fd is None:
-                l.warning("Trying to map a non-exsitent fd")
+                l.warning("Trying to map a non-existent fd")
                 return -1
             if not isinstance(sim_fd, SimFileDescriptor) or sim_fd.file is None:
                 l.warning("Trying to map fd not supporting mmap (maybe a SimFileDescriptorDuplex?)")

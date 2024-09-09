@@ -178,7 +178,7 @@ easy access.
 
 The same thing about adding procedures to existing catalogs of dynamic library
 functions also applies to syscalls - implementing a linux syscall is as easy as
-writing the SimProcedure and dropping the implemementation into
+writing the SimProcedure and dropping the implementation into
 ``angr/procedures/linux_kernel``. As long as the class name matches one of the
 names in the number-to-name mapping of the SimLibrary (all the linux syscall
 numbers are included with recent releases of angr), it will be used.

@@ -44,7 +44,7 @@ class SimStatePlugin:
         ``SimStatePlugin.memo``
 
         The base implementation of this function constructs a new instance of the plugin's class without calling its
-        initializer. If you super-call down to it, make sure you instanciate all the fields in your copy method!
+        initializer. If you super-call down to it, make sure you instantiate all the fields in your copy method!
 
         :param memo:    A dictionary mapping object identifiers (id(obj)) to their copied instance.  Use this to avoid
                         infinite recursion and diverged copies.

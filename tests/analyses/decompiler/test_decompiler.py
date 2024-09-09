@@ -2799,7 +2799,7 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_bool_flipping_type2(self, decompiler_options=None):
         """
-        Assures Type2 Boolean Flips near the last statement of a function are not triggerd.
+        Assures Type2 Boolean Flips near the last statement of a function are not triggered.
         This testcase can also fail if `test_return_deduplication` fails.
         """
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tsort.o")

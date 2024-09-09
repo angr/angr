@@ -794,7 +794,7 @@ class Tracer(ExplorationTechnique):
 
             if state_history_block_addr == big_block_start_addr:
                 # We found start of the big block and no control flow statements in between that and the block where
-                # desync happend.
+                # desync happened.
                 break
 
         # Let's find the address of the last byte of the big basic block using VEX lifter

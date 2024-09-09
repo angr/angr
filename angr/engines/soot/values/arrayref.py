@@ -78,7 +78,7 @@ class SimSootValue_ArrayRef(SimSootValue):
 
     @staticmethod
     def check_array_bounds(idx, array, state):
-        # a valid idx fullfills the constraint
+        # a valid idx fulfills the constraint
         # 0 <= idx < length
         zero = claripy.BVV(0, 32)
         length = array.size

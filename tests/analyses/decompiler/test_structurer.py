@@ -286,7 +286,7 @@ class TestStructurer(unittest.TestCase):
         codegen = dec.codegen
 
         # full code, without the header and variable definitions
-        # the outputed code will be missing corrected variable names, which can be corrected by passing
+        # the outputted code will be missing corrected variable names, which can be corrected by passing
         # private properties from the original codegen object
         func_no_header = p.analyses.StructuredCodeGenerator(f, top_sequence, cfg=cfg, omit_func_header=True).text
         assert "int main(" not in func_no_header

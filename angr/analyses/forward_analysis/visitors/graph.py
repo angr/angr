@@ -74,7 +74,7 @@ class GraphVisitor(Generic[NodeType]):
 
     def back_edges(self) -> list[tuple[NodeType, NodeType]]:
         """
-        Get a list of back edges. This function is optional. If not overriden, the traverser cannot achieve an optimal
+        Get a list of back edges. This function is optional. If not overridden, the traverser cannot achieve an optimal
         graph traversal order.
 
         :return:                A list of back edges (source -> destination).

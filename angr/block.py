@@ -22,7 +22,7 @@ DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not init
 
 class DisassemblerBlock:
     """
-    Helper class to represent a block of dissassembled target architecture
+    Helper class to represent a block of disassembled target architecture
     instructions
     """
 

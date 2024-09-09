@@ -14,7 +14,7 @@ class SimConcretizationStrategy:
         """
         Initializes the base SimConcretizationStrategy.
 
-        :param filter: A function, taking arguments of (SimMemory, claripy.AST) that determins
+        :param filter: A function, taking arguments of (SimMemory, claripy.AST) that determines
                        if this strategy can handle resolving the provided AST.
         :param exact: A flag (default: True) that determines if the convenience resolution
                       functions provided by this class use exact or approximate resolution.

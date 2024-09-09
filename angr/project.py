@@ -506,7 +506,7 @@ class Project:
                 l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", self._addr_to_str(addr), hook)
 
         if isinstance(hook, type):
-            raise TypeError("Please instanciate your SimProcedure before hooking with it")
+            raise TypeError("Please instantiate your SimProcedure before hooking with it")
 
         if callable(hook):
             hook = SIM_PROCEDURES["stubs"]["UserHook"](user_func=hook, length=length, **kwargs)

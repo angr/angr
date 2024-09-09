@@ -114,7 +114,7 @@ circumstances write a docstring which doesn't provide more information than the
 name of the class. What you should try to write is a description of the
 environment that the class should be used in. If the class should not be
 instantiated by end-users, write a description of where it will be generated and
-how instances can be acquired. If the class should be instanciated by end-users,
+how instances can be acquired. If the class should be instantiated by end-users,
 explain what kind of object it represents at its core, what behavior is expected
 of its parameters, and how to safely manage objects of its type.
 

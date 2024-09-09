@@ -342,7 +342,7 @@ class SimSolver(SimStatePlugin):
         :param events:          Set to False to avoid generating a SimEvent for the occasion
         :param key:             Set this to a tuple of increasingly specific identifiers (for example,
                                 ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
-                                accessable through ``solver.get_variables``.
+                                accessible through ``solver.get_variables``.
         :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
                                 ancestry to retrieve the same symbol when trying to create the value. If False, a
                                 counter will be appended to the key.
@@ -402,7 +402,7 @@ class SimSolver(SimStatePlugin):
         :param explicit_name:   Set to True to prevent an identifier from appended to the name to ensure uniqueness.
         :param key:             Set this to a tuple of increasingly specific identifiers (for example,
                                 ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
-                                accessable through ``solver.get_variables``.
+                                accessible through ``solver.get_variables``.
         :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
                                 ancestry to retrieve the same symbol when trying to create the value. If False, a
                                 counter will be appended to the key.
@@ -424,7 +424,7 @@ class SimSolver(SimStatePlugin):
                 or uninitialized != r.args[4]
                 or bool(explicit_name) ^ (r.args[0] == name)
             ):
-                l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
+                l.warning("Variable %s being retrieved with different settings than it was tracked with", name)
         else:
             r = claripy.BVS(
                 name,
