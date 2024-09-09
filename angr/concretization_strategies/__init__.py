@@ -81,6 +81,8 @@ class SimConcretizationStrategy:
         """
 
 
+# pylint: disable=wrong-import-position
+# FIXME: This is a circular import, move base class to a separate file
 from .any import SimConcretizationStrategyAny
 from .controlled_data import SimConcretizationStrategyControlledData
 from .eval import SimConcretizationStrategyEval
