@@ -7,7 +7,6 @@ from collections import defaultdict
 import archinfo
 from archinfo.arch_arm import is_arm_arch
 import claripy
-from claripy.vsa.strided_interval import StridedInterval
 import networkx
 
 from angr.utils.graph import GraphUtils
@@ -1543,27 +1542,13 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 job.dbg_exit_status[successor] = "Pending"
 
         else:
-            if sim_options.ABSTRACT_MEMORY in successor.options:
-                if self._is_call_jumpkind(successor.history.jumpkind):
-                    # If this is a call, we create a new stack address mapping
-                    reg_sp_si = self._create_stack_region(successor_state, successor_addr)
+            if sim_options.ABSTRACT_MEMORY in successor.options and self._is_call_jumpkind(successor.history.jumpkind):
+                # If this is a call, we create a new stack address mapping
+                reg_sp_si = self._create_stack_region(successor_state, successor_addr)
 
-                    # Save the new sp register
-                    new_reg_sp_expr = claripy.ValueSet(successor_state.arch.bits, "global", 0, reg_sp_si)
-                    successor_state.regs.sp = new_reg_sp_expr
-
-                elif successor.history.jumpkind == "Ijk_Ret":
-                    # Remove the existing stack address mapping
-                    # FIXME: Now we are assuming the sp is restored to its original value
-                    reg_sp_expr = successor_state.regs.sp
-
-                    if isinstance(claripy.backends.vsa.convert(reg_sp_expr), claripy.vsa.StridedInterval):
-                        reg_sp_si = claripy.backends.vsa.convert(reg_sp_expr)
-                        # reg_sp_si.min  # reg_sp_val
-                    elif isinstance(claripy.backends.vsa.convert(reg_sp_expr), claripy.vsa.ValueSet):
-                        reg_sp_si = next(iter(claripy.backends.vsa.convert(reg_sp_expr).items()))[1]
-                        # reg_sp_si.min  # reg_sp_val
-                        # TODO: Finish it!
+                # Save the new sp register
+                new_reg_sp_expr = reg_sp_si.annotate(claripy.annotation.RegionAnnotation("global", 0, reg_sp_si))
+                successor_state.regs.sp = new_reg_sp_expr
 
             new_job = VFGJob(
                 successor_addr,
@@ -1695,26 +1680,13 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         return jumpkind in ("Ijk_Ret", "Ijk_FakeRet")
 
     @staticmethod
-    def _create_stack_region(successor_state: SimState, successor_ip: int) -> StridedInterval:
+    def _create_stack_region(successor_state: SimState, successor_ip: int) -> claripy.ast.BV:
         arch = successor_state.arch
         reg_sp_offset = arch.sp_offset
         reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
 
-        reg_sp_expr_vsa = claripy.backends.vsa.convert(reg_sp_expr)
-        if isinstance(reg_sp_expr_vsa, claripy.bv.BVV):
-            reg_sp_val = successor_state.solver.eval(reg_sp_expr)
-            reg_sp_si = successor_state.solver.SI(to_conv=reg_sp_expr)
-            reg_sp_si = claripy.backends.vsa.convert(reg_sp_si)
-        elif isinstance(reg_sp_expr_vsa, int):
-            reg_sp_val = claripy.backends.vsa.convert(reg_sp_expr)
-            reg_sp_si = successor_state.solver.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
-            reg_sp_si = claripy.backends.vsa.convert(reg_sp_si)
-        elif isinstance(reg_sp_expr_vsa, claripy.vsa.StridedInterval):
-            reg_sp_si = reg_sp_expr_vsa
-            reg_sp_val = reg_sp_si.min
-        else:
-            reg_sp_si = next(iter(reg_sp_expr_vsa.items()))[1]
-            reg_sp_val = reg_sp_si.min
+        reg_sp_val = successor_state.solver.min(reg_sp_expr)
+        reg_sp_si = claripy.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
 
         reg_sp_val = reg_sp_val - arch.bytes  # TODO: Is it OK?
         new_stack_region_id = successor_state.memory.stack_id(successor_ip)
