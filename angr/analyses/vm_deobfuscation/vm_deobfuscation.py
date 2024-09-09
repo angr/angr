@@ -175,6 +175,7 @@ class InputConcretizeEngine(UberEngine):
                 loaded_values.append(loaded_value)
 
             if len(conc_addrs) == 1 or len(conc_addrs) > 2:
+                import ipdb;ipdb.set_trace()
                 print("Hmmmm")
                 import ipdb;
                 ipdb.set_trace()
@@ -470,7 +471,9 @@ class VMDeobfuscation(Analysis):
         pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
         cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
 
+        self.draw_graph_flag =True
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
+        self.draw_graph_flag = False
         new_cfg=cfg
         all_symbolic_expr_locations = {}
         import pickle
@@ -587,7 +590,7 @@ class VMDeobfuscation(Analysis):
         with open(pickled_file_name,'wb') as calls_as_rets_pickle:
             pickle.dump(calls_as_rets, calls_as_rets_pickle)
 
-        # this is a simplification pass to remove all push x, ret to x type of jumps
+        # this is a simplification pass to remove all push x, ret to x type of jumpsh
         new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
         self.draw_graph(new_cfg, os.path.join(folder_name, "remove_push_ret.svg"))
 
@@ -762,7 +765,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
+        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"), without_insts=False)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
@@ -876,6 +879,7 @@ class VMDeobfuscation(Analysis):
         #
         # in this pass we split the the above mergepoint node into two copies such that we dont merge and loose information
         # we can do this since the guard for both the branch points are the same
+        # TODO: ensure the guard is same and no writes happen between the first and second guard to the values used by the check
 
         # the start_node, the end_node and the offset to add to the vm_vpc
         to_split_nodes =[]
@@ -1268,8 +1272,6 @@ class VMDeobfuscation(Analysis):
         with open("last_decomp_result.c", "w") as f:
             f.write(dec.codegen.text)
 
-        import ipdb;ipdb.set_trace()
-
         pretty_dump_ail_cfg(dec.clinic.cc_graph, self.project)
 
         import pickle
@@ -1608,11 +1610,19 @@ class VMDeobfuscation(Analysis):
             #                                      actual_stack_end,
             #                                      invalidate_cache=False)
             initial_input_state.globals['sp_constraint'] = initial_input_state.regs.sp == actual_stack_end
+            initial_input_state.globals['sp_start_value'] = actual_stack_end
             initial_input_state.globals['concretized_load_addr_dict'] = {}
             initial_input_state.globals['replaced_asts_str'] = {}
             initial_input_state.globals['existing_mba_split_constraints'] = []
             initial_input_state.globals['mba_locs'] = {}
             initial_input_state.globals['same_sp_merged'] = False
+            initial_input_state.globals['no_constraints_solver'] = claripy.solvers.SolverComposite()
+            if do_replacements:
+                initial_input_state.globals['is_constant_propagation'] = True
+            else:
+                initial_input_state.globals['is_constant_propagation'] = False
+
+
 
         ####### Adding breakpoints
         def annotate_stack_read_value(state):
@@ -1626,11 +1636,6 @@ class VMDeobfuscation(Analysis):
                 state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr,
                                                                              StackTouchedAnnotation(1))
 
-        initial_input_state.inspect.add_breakpoint('mem_read',
-                                                   BP(
-                                                       BP_AFTER,
-                                                       action=annotate_stack_read_value
-                                                   ))
 
         def preconstrain_return_value(state):
             if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(
@@ -2744,7 +2749,7 @@ class VMDeobfuscation(Analysis):
                         vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
                     except:
                         vs = None
-                ##THIS IS AN UNSAFE SIMPLIFICATION, ASSUMES ALL CONSTANT ADDRESSES HAVE BEEN PROPAGATED CORRECTLY AND COMPLETELY
+                # ##THIS IS AN UNSAFE SIMPLIFICATION, ASSUMES ALL CONSTANT ADDRESSES HAVE BEEN PROPAGATED CORRECTLY AND COMPLETELY
                 elif self.allow_global_mem_simplifications and isinstance(d.atom, atoms.MemoryLocation) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
@@ -3197,6 +3202,49 @@ class VMDeobfuscation(Analysis):
                             if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
                                 new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg1))
                                 changed_stmt_idx.append(stmt_idx)
+
+                        elif check_stmt_add_sub(pred_stmt) and isinstance(pred_stmt.data.args[0], pyvex.expr.Const) and \
+                                isinstance(pred_stmt.data.args[1], pyvex.expr.RdTmp):
+                            # t1143 = Sub32(0xfffff7fc,t1089)
+                            # t34 = Add32(t1143,t1089)
+
+                            pred_stmt_tmp_arg2 = pred_stmt.data.args[1].tmp
+                            # check if the second tmp arg is same for both and the operations or opposites i.e add/sub
+                            if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt.data.args[0]).con)
+                                changed_stmt_idx.append(stmt_idx)
+                        else:
+                            # t76 = Add32(t855,0xfe604eee)
+                            # t1209 = Add32(t855, 0x208780e0)
+                            # t247 = Sub32(t1209, t76)
+                            cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
+                            cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
+
+                            pred_stmt_idx_1 = dep_graph.find_definitions(tmp_idx=cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
+                            pred_stmt_1 = node.irsb.statements[pred_stmt_idx_1]
+
+                            pred_stmt_idx_2 = dep_graph.find_definitions(tmp_idx=cur_stmt_tmp_arg2)[0].codeloc.stmt_idx
+                            pred_stmt_2 = node.irsb.statements[pred_stmt_idx_2]
+
+                            if (pred_stmt_idx_1 in changed_stmt_idx) or  (pred_stmt_idx_2 in changed_stmt_idx):
+                                # if the pred_stmt has been modified already then skip
+                                new_stmts.append(new_stmt)
+                                continue
+
+                            if check_stmt_add_sub(pred_stmt_1) and check_stmt_add_sub(pred_stmt_2) and \
+                                    stmt.data.op.startswith("Iop_Sub") and \
+                                    pred_stmt_1.data.op.startswith("Iop_Add") and \
+                                    pred_stmt_2.data.op.startswith("Iop_Add") and \
+                                    isinstance(pred_stmt_1.data.args[1], pyvex.expr.Const) and \
+                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const) and \
+                                    isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
+                                    isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                pred_stmt_1.data.args[0].tmp == pred_stmt_2.data.args[0].tmp:
+                                const_class = pred_stmt_1.data.args[1].con.__class__
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(((pred_stmt_1.data.args[1].con.value - pred_stmt_2.data.args[1].con.value) & (1 << self.project.arch.bits) - 1))))
+                                changed_stmt_idx.append(stmt_idx)
+
+
 
                 elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Xor"):
                     # XOR simplification
