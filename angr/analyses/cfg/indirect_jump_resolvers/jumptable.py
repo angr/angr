@@ -1723,18 +1723,18 @@ class JumpTableResolver(IndirectJumpResolver):
         all_targets = []
         jump_table = []
 
-        jumptable_addr = claripy.SI(bits=project.arch.bits, to_conv=jumptable_addr)
+        jumptable_si = claripy.SI(bits=project.arch.bits, to_conv=jumptable_addr)
 
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
-        if jumptable_addr.args[3] < load_size:  # stride < load_size
+        if jumptable_si.args[3] < load_size:  # stride < load_size
             stride = load_size
             total_cases = jumptable_addr.cardinality // load_size
             sort = "vtable"  # it's probably a vtable!
         else:
-            stride = jumptable_addr.args[3]
+            stride = jumptable_si.args[3]
             total_cases = jumptable_addr.cardinality
             sort = "jumptable"
 
