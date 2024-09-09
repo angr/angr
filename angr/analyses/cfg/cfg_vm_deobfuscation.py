@@ -435,6 +435,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                                                   unsafe_replacement=True,
                                                                                   auto_replace=False)))
         initial_state.globals['existing_mba_split_constraints'] = []
+        actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
+        initial_state.globals['sp_start_value'] = actual_stack_end
 
         for cons in initial_state.preconstrainer.preconstraints:
             for var in cons.variables:
@@ -1253,12 +1255,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._insert_job(path_wrapper)
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
-        if self.data_sensitive:
-            state.inspect.add_breakpoint('mem_read',
-                                         BP(
-                                             BP_AFTER,
-                                             action=self.annotate_stack_read_value
-                                         ))
 
     def show_annotations(self, state):
         if len(state.inspect.expr_result.annotations) != 0:
@@ -1541,6 +1537,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             job._call_stack = self.saved_call_stack
 
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal', None)
+            job.vm_vpc = None
             block_id = job.block_id
 
             job.state.globals['start_deobfuscation'] = False
