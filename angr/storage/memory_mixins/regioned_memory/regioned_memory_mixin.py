@@ -5,8 +5,9 @@ from typing import Optional, TYPE_CHECKING
 from collections.abc import Generator, Iterable
 
 import claripy
+from claripy.annotation import RegionAnnotation
 from claripy.ast import Bool, Bits, BV
-from claripy.vsa import StridedInterval, ValueSet, RegionAnnotation
+from claripy.vsa import StridedInterval, ValueSet
 
 from ....sim_options import (
     AVOID_MULTIVALUED_READS,

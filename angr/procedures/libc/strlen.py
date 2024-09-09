@@ -56,7 +56,11 @@ class strlen(angr.SimProcedure):
                 # Convert r to the same region as s
                 r_desc = self.state.memory._normalize_address(r)
                 r_aw_iter = self.state.memory._concretize_address_descriptor(
-                    r_desc, None, target_region=next(iter(claripy.backends.vsa.convert(s_ptr).regions.keys()))
+                    r_desc,
+                    None,
+                    target_region=next(
+                        iter(s_ptr.get_annotations_by_type(claripy.annotation.RegionAnnotation))
+                    ).region_id,
                 )
 
                 for r_aw in r_aw_iter:

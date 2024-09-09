@@ -2090,7 +2090,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
             read_length = state.inspect.mem_read_length
             if not isinstance(read_length, int):
-                read_length = claripy.backends.vsa.convert(read_length).upper_bound
+                read_length = read_length.args[3]  # max
             if read_length > 16:
                 return
             new_read_addr = claripy.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)

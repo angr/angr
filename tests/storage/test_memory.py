@@ -347,7 +347,7 @@ class TestMemory(unittest.TestCase):
 
         # Load the two-byte StridedInterval object from global region
         expr = s.memory.load(to_vs("global", 5), 2)
-        assert claripy.backends.vsa.identical(expr, si_1)
+        assert expr.identical(si_1)
 
         # Store a four-byte StridedInterval object to global region
         si_2 = claripy.BVS("unnamed", 32, 8000, 9000, 2)
@@ -355,18 +355,18 @@ class TestMemory(unittest.TestCase):
 
         # Load the four-byte StridedInterval object from global region
         expr = s.memory.load(to_vs("global", 7), 4)
-        assert claripy.backends.vsa.identical(expr, claripy.BVS("unnamed", 32, 8000, 9000, 2))
+        assert expr.identical(claripy.BVS("unnamed", 32, 8000, 9000, 2))
 
         # Test default values
         s.options.remove(o.SYMBOLIC_INITIAL_VALUES)
         expr = s.memory.load(to_vs("global", 100), 4)
-        assert claripy.backends.vsa.identical(expr, claripy.BVS("unnamed", 32, 0, 0, 0))
+        assert expr.identical(claripy.BVS("unnamed", 32, 0, 0, 0))
 
         # Test default values (symbolic)
         s.options.add(o.SYMBOLIC_INITIAL_VALUES)
         expr = s.memory.load(to_vs("global", 104), 4)
-        assert claripy.backends.vsa.identical(expr, claripy.BVS("unnamed", 32, 0, 0xFFFFFFFF, 1))
-        assert claripy.backends.vsa.identical(expr, claripy.BVS("unnamed", 32, -0x80000000, 0x7FFFFFFF, 1))
+        assert expr.identical(claripy.BVS("unnamed", 32, 0, 0xFFFFFFFF, 1))
+        assert expr.identical(claripy.BVS("unnamed", 32, -0x80000000, 0x7FFFFFFF, 1))
 
         #
         # Merging
@@ -379,7 +379,7 @@ class TestMemory(unittest.TestCase):
 
         b = s.merge(a)[0]
         expr = b.memory.load(to_vs("function_merge", 0), 1)
-        assert claripy.backends.vsa.identical(expr, claripy.BVS("unnamed", 8, 0x10, 0x20, 0x10))
+        assert expr.identical(claripy.BVS("unnamed", 8, 0x10, 0x20, 0x10))
 
         #  |  MO(value_0)  |
         #  |  MO(value_1)  |
@@ -395,9 +395,7 @@ class TestMemory(unittest.TestCase):
         )
         c = a.merge(b)[0]
         expr = c.memory.load(to_vs("function_merge", 0x20), 4)
-        assert claripy.backends.vsa.identical(
-            expr, claripy.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)
-        )
+        assert expr.identical(claripy.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001))
         c_page = c.memory._regions["function_merge"]._pages[0]
         object_set = {
             c_page._get_object(0x20, 0),
@@ -418,9 +416,7 @@ class TestMemory(unittest.TestCase):
         )
         c = a.merge(b)[0]
         expr = c.memory.load(to_vs("function_merge", 0x20), 4)
-        assert claripy.backends.vsa.identical(
-            expr, claripy.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)
-        )
+        assert expr.identical(claripy.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000))
         object_set = {
             c_page._get_object(0x20, 0),
             c_page._get_object(0x21, 0),
