@@ -563,7 +563,7 @@ def zen_hook(state, expr):
     if state.has_plugin("chall_resp_info") and state.get_plugin("chall_resp_info").pending_info is not None:
         return None
 
-    if expr.op not in claripy.operations.leaf_operations and expr.op != "Concat":
+    if expr.is_leaf() and expr.op != "Concat":
         # if there is more than one symbolic argument we replace it and preconstrain it
         flag_args = ZenPlugin.get_flag_rand_args(expr)
         if len(flag_args) > 1:

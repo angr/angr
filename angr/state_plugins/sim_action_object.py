@@ -121,6 +121,9 @@ class SimActionObject:
     def copy(self):
         return SimActionObject(self.ast, self.reg_deps, self.tmp_deps)
 
+    def is_leaf(self) -> bool:
+        return self.ast.is_leaf()
+
 
 #
 # Overload the operators

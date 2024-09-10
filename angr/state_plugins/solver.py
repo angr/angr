@@ -118,12 +118,7 @@ def _concrete_value(e):
     # shortcuts for speed improvement
     if isinstance(e, (int, float, bool)):
         return e
-    if (
-        isinstance(e, claripy.ast.Base)
-        and e.op in claripy.operations.leaf_operations_concrete
-        or isinstance(e, SimActionObject)
-        and e.op in claripy.operations.leaf_operations_concrete
-    ):
+    if isinstance(e, claripy.ast.Base | SimActionObject) and e.is_leaf() and not e.symbolic:
         return e.args[0]
     return None
 
@@ -1052,13 +1047,9 @@ class SimSolver(SimStatePlugin):
             return self._solver.simplify()
         if (
             isinstance(e, (int, float, bool))
-            or isinstance(e, claripy.ast.Base)
-            and e.op in claripy.operations.leaf_operations_concrete
+            or (isinstance(e, claripy.ast.Base | SimActionObject) and e.is_leaf() and not e.symbolic)
+            or (not isinstance(e, claripy.ast.Base | SimActionObject))
         ):
-            return e
-        if isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
-            return e.ast
-        if not isinstance(e, (SimActionObject, claripy.ast.Base)):
             return e
         return self._claripy_simplify(e)
 
