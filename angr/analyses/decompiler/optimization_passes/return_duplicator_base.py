@@ -397,6 +397,10 @@ class ReturnDuplicatorBase:
             return False
 
         ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0]) if ret_exprs and len(ret_exprs) == 1 else None
+        # check if ret_expr is a virtual variable or not
+        if not (isinstance(ret_expr, (VirtualVariable, Const))):
+            return False
+
         # stop early if there are no assignments at all and just jumps and rets, or a const ret
         if not has_assign:
             return True
