@@ -57,9 +57,7 @@ class ITERegionConverter(OptimizationPass):
 
     def _find_ite_assignment_regions(self):
         # find all the if-stmt blocks in a graph with no single successor edges
-        blocks_by_end_addr = dict(
-            ((block.addr + block.original_size, block.idx), block) for block in self._graph.nodes()
-        )
+        blocks_by_end_addr = {(block.addr + block.original_size, block.idx): block for block in self._graph.nodes()}
         super_graph = to_ail_supergraph(remove_labels(self._graph))
         if_stmt_blocks = []
         for node in super_graph.nodes():
