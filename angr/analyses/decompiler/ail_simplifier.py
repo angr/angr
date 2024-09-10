@@ -907,12 +907,21 @@ class AILSimplifier(Analysis):
             # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
             # eq.atom1 is the use.
             the_def = None
-            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
+            if (isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack) or (
+                isinstance(eq.atom0, SimMemoryVariable)
+                and not isinstance(eq.atom0, SimStackVariable)
+                and isinstance(eq.atom0.addr, int)
+            ):
                 if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
                     # stack_var == register or global_var == register
                     to_replace = eq.atom1
                     to_replace_is_def = False
-                elif isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter:
+                elif (
+                    isinstance(eq.atom0, VirtualVariable)
+                    and eq.atom0.was_stack
+                    and isinstance(eq.atom1, VirtualVariable)
+                    and eq.atom1.was_parameter
+                ):
                     # stack_var == parameter
                     to_replace = eq.atom0
                     to_replace_is_def = True
@@ -941,6 +950,8 @@ class AILSimplifier(Analysis):
 
             else:
                 continue
+
+            assert isinstance(to_replace, VirtualVariable)
 
             # find the definition of this register
             rd = self._compute_reaching_definitions()
