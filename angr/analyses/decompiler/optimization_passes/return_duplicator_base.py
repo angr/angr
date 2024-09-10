@@ -408,9 +408,11 @@ class ReturnDuplicatorBase:
         # assignments to registers from the stack are valid, since cases of these assignments
         # pop up across optimized binaries
         elif (
-            isinstance(assign.dst, ailment.expression.Register)
-            and isinstance(assign.src, ailment.expression.Load)
-            and isinstance(assign.src.addr, ailment.expression.StackBaseOffset)
+            isinstance(assign.dst, ailment.expression.VirtualVariable)
+            and assign.dst.was_reg
+            and isinstance(assign.src, ailment.expression.VirtualVariable)
+            and assign.src.was_stack
+            and isinstance(assign.src.stack_offset, int)
         ):
             valid_assignment = True
         else:
