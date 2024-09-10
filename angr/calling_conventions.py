@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 from typing import cast
+from collections.abc import Iterable
 from collections import defaultdict
 
 import claripy
@@ -264,7 +265,7 @@ class SimFunctionArgument:
     def refine(self, size, arch=None, offset=None, is_fp=None):
         raise NotImplementedError
 
-    def get_footprint(self) -> list[SimRegArg | SimStackArg]:
+    def get_footprint(self) -> Iterable[SimRegArg | SimStackArg]:
         """
         Return a list of SimRegArg and SimStackArgs that are the base components used for this location
         """
@@ -289,13 +290,18 @@ class SimRegArg(SimFunctionArgument):
         self.clear_entire_reg = clear_entire_reg
 
     def get_footprint(self):
-        yield self
+        return {self}
 
     def __repr__(self):
         return f"<{self.reg_name}>"
 
     def __eq__(self, other):
-        return type(other) is SimRegArg and self.reg_name == other.reg_name and self.reg_offset == other.reg_offset
+        return (
+            type(other) is SimRegArg
+            and self.reg_name == other.reg_name
+            and self.reg_offset == other.reg_offset
+            and self.size == other.size
+        )
 
     def __hash__(self):
         return hash((self.size, self.reg_name, self.reg_offset))
@@ -342,7 +348,7 @@ class SimStackArg(SimFunctionArgument):
         self.stack_offset = stack_offset
 
     def get_footprint(self):
-        yield self
+        return {self}
 
     def __repr__(self):
         return f"[{self.stack_offset:#x}]"
@@ -385,8 +391,7 @@ class SimComboArg(SimFunctionArgument):
         self.locations = locations
 
     def get_footprint(self):
-        for x in self.locations:
-            yield from x.get_footprint()
+        return {y for x in self.locations for y in x.get_footprint()}
 
     def __repr__(self):
         return f"SimComboArg({self.locations!r})"
@@ -423,8 +428,21 @@ class SimStructArg(SimFunctionArgument):
         self.locs = locs
 
     def get_footprint(self):
-        for x in self.locs.values():
-            yield from x.get_footprint()
+        regs: defaultdict[str, set[SimRegArg]] = defaultdict(set)
+        others: set[SimRegArg | SimStackArg] = set()
+        for loc in self.locs.values():
+            for footloc in loc.get_footprint():
+                if isinstance(footloc, SimRegArg):
+                    regs[footloc.reg_name].add(footloc)
+                else:
+                    others.add(footloc)
+
+        for reg, locset in regs.items():
+            min_offset = min(loc.reg_offset for loc in locset)
+            max_offset = max(loc.reg_offset + loc.size for loc in locset)
+            others.add(SimRegArg(reg, max_offset - min_offset, min_offset))
+
+        return others
 
     def get_value(self, state, **kwargs):
         return SimStructValue(
@@ -442,8 +460,7 @@ class SimArrayArg(SimFunctionArgument):
         self.locs = locs
 
     def get_footprint(self):
-        for x in self.locs:
-            yield from x.get_footprint()
+        return {y for x in self.locs for y in x.get_footprint()}
 
     def get_value(self, state, **kwargs):
         return [getter.get_value(state, **kwargs) for getter in self.locs]
@@ -470,7 +487,7 @@ class SimReferenceArgument(SimFunctionArgument):
         self.main_loc = main_loc
 
     def get_footprint(self):
-        yield from self.ptr_loc.get_footprint()
+        return self.main_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -1300,9 +1317,8 @@ class SimCCMicrosoftAMD64(SimCC):
             if perspective_returned:
                 ptr_loc = self.RETURN_VAL
             else:
-                ptr_loc = SimStackArg(0, 8)
-            reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
-            return reference_loc
+                ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+            return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
 
