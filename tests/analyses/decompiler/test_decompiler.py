@@ -3488,19 +3488,17 @@ class TestDecompiler(unittest.TestCase):
         # there are two acceptable scenarios (because type inference is non-deterministic. we should fix it in the
         # future)
         # case 1: v7 is an unsigned int
-        # *((unsigned short *)((char *)&v7 + 2 * v32)) = *((short *)((char *)&v7 + 2 * v32)) ^ (unsigned short)(145 + (unsigned int)v32);
+        # *((unsigned short *)((char *)&v7 + 2 * v32)) = *((short *)((char *)&v7 + 2 * v32)) ^ (unsigned short)(145 + v32);
         # case 2: v7 is an unsigned short
-        # (&v7)[v32] = (&v7)[v32] ^ (unsigned short)(145 + (unsigned int)v32);
+        # (&v7)[v32] = (&v7)[v32] ^ (unsigned short)(145 + v32);
 
         m0 = re.search(
             r"\*\(\(unsigned short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) = "
             r"\*\(\(short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) \^ "
-            r"\(unsigned short\)\(145 \+ \(unsigned int\)v\d+\);",
+            r"\(unsigned short\)\(145 \+ [^;\n]*v\d+\);",
             text,
         )
-        m1 = re.search(
-            r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ \(unsigned int\)v\d+\);", text
-        )
+        m1 = re.search(r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ [^;\n]*v\d+\);", text)
         assert m0 is not None or m1 is not None
 
     @structuring_algo("sailr")

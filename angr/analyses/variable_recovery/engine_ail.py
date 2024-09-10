@@ -79,6 +79,15 @@ class SimEngineVRAIL(
                 stmt.dst, data, src=stmt.src, dst=stmt.dst, vvar_id=self._mapped_vvarid(stmt.dst.varid)
             )
 
+            if stmt.dst.was_stack and isinstance(stmt.dst.stack_offset, int):
+                # store it to the stack region in case it's directly referenced later
+                self._store(
+                    RichR(self.state.stack_address(stmt.dst.stack_offset)),
+                    data,
+                    stmt.dst.bits // self.arch.byte_width,
+                    stmt=stmt,
+                )
+
         else:
             l.warning("Unsupported dst type %s.", dst_type)
 
