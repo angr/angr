@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from ailment.block import Block
-from ailment.statement import ConditionalJump, Assignment, Jump
+from ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
 from ailment.expression import ITE, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
@@ -111,9 +111,7 @@ class ITERegionConverter(OptimizationPass):
 
             true_stmt = true_stmts[0]
             false_stmt = false_stmts[0]
-            if not (isinstance(true_stmt, Assignment) and isinstance(true_stmt.dst, VirtualVariable)) or not (
-                isinstance(false_stmt, Assignment) and isinstance(false_stmt.dst, VirtualVariable)
-            ):
+            if not self._is_assigning_to_vvar(true_stmt) or not self._is_assigning_to_vvar(false_stmt):
                 continue
 
             # must contain a single common predecessor
@@ -159,10 +157,10 @@ class ITERegionConverter(OptimizationPass):
         return ite_candidates
 
     def _has_qualified_phi_assignments(
-        self, block: Block, block0: Block, stmt0: Assignment, block1: Block, stmt1: Assignment
+        self, block: Block, block0: Block, stmt0: Assignment | Call, block1: Block, stmt1: Assignment | Call
     ):
-        assert isinstance(stmt0.dst, VirtualVariable)
-        assert isinstance(stmt1.dst, VirtualVariable)
+        vvar0 = stmt0.dst if isinstance(stmt0, Assignment) else stmt0.ret_expr
+        vvar1 = stmt1.dst if isinstance(stmt1, Assignment) else stmt1.ret_expr
 
         addr0 = block0.addr, block0.idx
         addr1 = block1.addr, block1.idx
@@ -173,7 +171,7 @@ class ITERegionConverter(OptimizationPass):
             if not is_phi_assignment(stmt):
                 continue
             src_vars = {src: vvar.varid if vvar is not None else None for src, vvar in stmt.src.src_and_vvars}
-            if src_vars.get(addr0) == stmt0.dst.varid and src_vars.get(addr1) == stmt1.dst.varid:
+            if src_vars.get(addr0) == vvar0.varid and src_vars.get(addr1) == vvar1.varid:
                 # this is the phi assignment that assigns stmt0.dst and stmt1.dst to a new variable
                 found_phi_assignment = True
             else:
@@ -185,7 +183,15 @@ class ITERegionConverter(OptimizationPass):
 
         return found_phi_assignment and not has_unexpected_phi_assignment
 
-    def _convert_region_to_ternary_expr(self, region_head, region_tail, true_block, true_stmt, false_block, false_stmt):
+    def _convert_region_to_ternary_expr(
+        self,
+        region_head,
+        region_tail,
+        true_block,
+        true_stmt: Assignment | Call,
+        false_block,
+        false_stmt: Assignment | Call,
+    ):
         if region_head not in self._graph or region_tail not in self._graph:
             return False
 
@@ -195,27 +201,32 @@ class ITERegionConverter(OptimizationPass):
 
         new_region_head = region_head.copy()
         conditional_jump: ConditionalJump = region_head.statements[-1]
-        addr_obj = true_stmt.src if "ins_addr" in true_stmt.src.tags else true_stmt
+
+        true_stmt_src = true_stmt.src if isinstance(true_stmt, Assignment) else true_stmt
+        true_stmt_dst = true_stmt.dst if isinstance(true_stmt, Assignment) else true_stmt.ret_expr
+        false_stmt_src = false_stmt.src if isinstance(false_stmt, Assignment) else false_stmt
+
+        addr_obj = true_stmt_src if "ins_addr" in true_stmt_src.tags else true_stmt
         ternary_expr = ITE(
             None,
             conditional_jump.condition,
-            false_stmt.src,
-            true_stmt.src,
+            false_stmt_src,
+            true_stmt_src,
             ins_addr=addr_obj.ins_addr,
             vex_block_addr=addr_obj.vex_block_addr,
             vex_stmt_idx=addr_obj.vex_stmt_idx,
         )
-        new_assignment = true_stmt.copy()
-        new_assignment.dst = VirtualVariable(
-            true_stmt.dst.idx,
+        dst = VirtualVariable(
+            true_stmt_dst.idx,
             self.vvar_id_start,
-            true_stmt.dst.bits,
-            true_stmt.dst.category,
-            oident=true_stmt.dst.oident,
-            **true_stmt.dst.tags,
+            true_stmt_dst.bits,
+            true_stmt_dst.category,
+            oident=true_stmt_dst.oident,
+            **true_stmt_dst.tags,
         )
         self.vvar_id_start += 1
-        new_assignment.src = ternary_expr
+        src = ternary_expr
+        new_assignment = Assignment(true_stmt.idx, dst, src, **true_stmt.tags)
         new_region_head.statements[-1] = new_assignment
 
         # add a goto statement to the region tail so it can be transformed into a break or other types of control-flow
@@ -276,3 +287,12 @@ class ITERegionConverter(OptimizationPass):
         self._graph.add_edge(new_region_head, new_region_tail)
 
         return True
+
+    @staticmethod
+    def _is_assigning_to_vvar(stmt: Statement) -> bool:
+        return (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            or isinstance(stmt, Call)
+            and isinstance(stmt.ret_expr, VirtualVariable)
+        )
