@@ -57,6 +57,9 @@ class ITERegionConverter(OptimizationPass):
 
     def _find_ite_assignment_regions(self):
         # find all the if-stmt blocks in a graph with no single successor edges
+        blocks_by_end_addr = dict(
+            ((block.addr + block.original_size, block.idx), block) for block in self._graph.nodes()
+        )
         super_graph = to_ail_supergraph(remove_labels(self._graph))
         if_stmt_blocks = []
         for node in super_graph.nodes():
@@ -128,10 +131,20 @@ class ITERegionConverter(OptimizationPass):
                 continue
             common_successor = true_successors[0]
 
+            # find the corresponding blocks for true_child and false_child in the original graph
+            # this is because the phi expressions only records source addresses of the original blocks, not the
+            # addresses of super blocks
+            true_child_original = blocks_by_end_addr.get(
+                (true_child.addr + true_child.original_size, true_child.idx), true_child
+            )
+            false_child_original = blocks_by_end_addr.get(
+                (false_child.addr + false_child.original_size, false_child.idx), false_child
+            )
+
             # the common successor must have a phi assignment with source variables being assigned to in true_stmt and
             # false_stmt
             if not self._has_qualified_phi_assignments(
-                common_successor, true_child, true_stmt, false_child, false_stmt
+                common_successor, true_child_original, true_stmt, false_child_original, false_stmt
             ):
                 continue
 
