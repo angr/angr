@@ -953,7 +953,7 @@ class AILSimplifier(Analysis):
 
             assert isinstance(to_replace, VirtualVariable)
 
-            # find the definition of this register
+            # find the definition of this virtual register
             rd = self._compute_reaching_definitions()
             if to_replace_is_def:
                 # find defs
@@ -1142,7 +1142,8 @@ class AILSimplifier(Analysis):
                     continue
 
                 # one more check: there can be at most one assignment in all these use locations if the expression is
-                # not going to be replaced with a parameter
+                # not going to be replaced with a parameter. the assignment can be an Assignment statement, but may also
+                # be a Store if it's a global variable (via Load) that we are replacing with
 
                 if not (isinstance(replace_with, VirtualVariable) and replace_with.was_parameter):
                     assignment_ctr = 0
@@ -1153,6 +1154,8 @@ class AILSimplifier(Analysis):
                         block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                         stmt = block.statements[use_loc.stmt_idx]
                         if isinstance(stmt, Assignment):
+                            assignment_ctr += 1
+                        elif isinstance(replace_with, Load) and isinstance(stmt, Store):
                             assignment_ctr += 1
                     if assignment_ctr > 1:
                         continue
