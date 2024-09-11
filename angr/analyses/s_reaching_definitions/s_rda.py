@@ -399,9 +399,13 @@ class SReachingDefinitionsAnalysis(Analysis):
             call_stmt_ids = []
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
-                    if isinstance(stmt, Call) and stmt.args is None:
-                        call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
-                    elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None:
+                    if (
+                        isinstance(stmt, Call)
+                        and stmt.args is None
+                        or isinstance(stmt, Assignment)
+                        and isinstance(stmt.src, Call)
+                        and stmt.src.args is None
+                    ):
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
             observations = srda_view.observe(
