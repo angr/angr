@@ -3433,18 +3433,21 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("sailr")
     def test_ail_graph_access(self, decompiler_options=None):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
+        # this testcase relies on test_stty_recover_mode_ret_dup_region to pass, since it also verifies that
+        # return duplication is still triggering. it does this since we want to know that the original ail graph is
+        # still accessible after the decompilation process.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
-        f = proj.kb.functions["binop"]
+        f = proj.kb.functions["recover_mode"]
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options, generate_code=False)
 
         # we should have skipped generating code
         assert d.codegen is None
         assert d.seq_node is None
 
-        # in this function, binop, we should have triggered the ReturnDuplicator, which will duplicate
+        # in this function, recover_mode, we should have triggered the ReturnDuplicator, which will duplicate
         # a few nodes found at the end of this graph
         assert len(d.unoptimized_ail_graph.nodes) < len(d.ail_graph.nodes)
         unopt_rets = sum(
