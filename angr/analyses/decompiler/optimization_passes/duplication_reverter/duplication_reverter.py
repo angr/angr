@@ -146,7 +146,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         candidates = sorted(candidates, key=len)
         _l.debug("Located %d candidates for merging: %s", len(candidates), candidates)
 
-        candidate = sorted(candidates.pop(), key=lambda x: x.addr)
+        candidate = sorted(candidates[0], key=lambda x: x.addr)
         _l.debug("Selecting the candidate: %s", candidate)
         return candidate[0], candidate[1]
 
