@@ -472,6 +472,9 @@ class ReturnDuplicatorBase:
     @staticmethod
     def unwrap_conv(expr):
         if isinstance(expr, ailment.expression.Convert):
-            inner_expr = ReturnDuplicatorBase.unwrap_conv(expr.operand)
+            inner_expr = expr.operand
+            if inner_expr is expr:
+                return expr
+
             return ReturnDuplicatorBase.unwrap_conv(inner_expr)
         return expr
