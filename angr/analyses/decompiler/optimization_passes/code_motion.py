@@ -59,6 +59,7 @@ class CodeMotionOptimization(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
+        _l.warning("CodeMotionOptimization is likely broken right now, use with caution!")
         optimization_runs = 0
         graph_copy = remove_labels(nx.DiGraph(self._graph))
         updates = True
