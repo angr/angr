@@ -46,11 +46,15 @@ class CallSiteMaker(Analysis):
 
         last_stmt = self.block.statements[-1]
 
-        if type(last_stmt) is not Stmt.Call:
+        if type(last_stmt) is Stmt.Call:
+            call_stmt = last_stmt
+        elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Stmt.Call:
+            call_stmt = last_stmt.src
+        else:
             self.result_block = self.block
             return
 
-        if isinstance(last_stmt.target, str):
+        if isinstance(call_stmt.target, str):
             # custom function calls
             self.result_block = self.block
             return
@@ -76,7 +80,7 @@ class CallSiteMaker(Analysis):
 
         # function-specific prototype
         if cc is None or prototype is None:
-            target = self._get_call_target(last_stmt)
+            target = self._get_call_target(call_stmt)
             if target is not None and target in self.kb.functions:
                 # function-specific logic when the calling target is known
                 func = self.kb.functions[target]
@@ -116,7 +120,7 @@ class CallSiteMaker(Analysis):
                 arg_locs = cc.arg_locs(prototype)
                 if prototype.variadic:
                     # determine the number of variadic arguments
-                    variadic_args = self._determine_variadic_arguments(func, cc, last_stmt)
+                    variadic_args = self._determine_variadic_arguments(func, cc, call_stmt)
                     if variadic_args:
                         callsite_ty = copy.copy(prototype)
                         callsite_ty.args = list(callsite_ty.args)
@@ -129,7 +133,7 @@ class CallSiteMaker(Analysis):
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
-                    value_and_def = self._resolve_register_argument(last_stmt, arg_loc)
+                    value_and_def = self._resolve_register_argument(call_stmt, arg_loc)
                     if value_and_def is not None:
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
@@ -146,7 +150,7 @@ class CallSiteMaker(Analysis):
                         args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
-                    _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
+                    _, the_arg = self._resolve_stack_argument(call_stmt, arg_loc)
 
                     if the_arg is not None:
                         args.append(the_arg)
@@ -197,20 +201,20 @@ class CallSiteMaker(Analysis):
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
         if stack_arg_locs:
-            sp_offset = self._stack_pointer_tracker.offset_before(last_stmt.ins_addr, self.project.arch.sp_offset)
+            sp_offset = self._stack_pointer_tracker.offset_before(call_stmt.ins_addr, self.project.arch.sp_offset)
             if sp_offset is None:
                 l.warning(
                     "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
                     "statements.",
-                    last_stmt.ins_addr,
+                    call_stmt.ins_addr,
                 )
                 self.stack_arg_offsets = None
             else:
                 self.stack_arg_offsets = {
-                    (last_stmt.ins_addr, sp_offset + arg.stack_offset - stackarg_sp_diff) for arg in stack_arg_locs
+                    (call_stmt.ins_addr, sp_offset + arg.stack_offset - stackarg_sp_diff) for arg in stack_arg_locs
                 }
 
-        ret_expr = last_stmt.ret_expr
+        ret_expr = call_stmt.ret_expr
         # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return
         # value of this call statement as useless and is removed.
 
@@ -228,18 +232,22 @@ class CallSiteMaker(Analysis):
                     ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
-        new_stmts.append(
-            Stmt.Call(
-                last_stmt.idx,
-                last_stmt.target,
-                calling_convention=cc,
-                prototype=prototype,
-                args=args,
-                ret_expr=ret_expr,
-                arg_vvars=arg_vvars,
-                **last_stmt.tags,
-            )
+        new_stmt = Stmt.Call(
+            call_stmt.idx,
+            call_stmt.target,
+            calling_convention=cc,
+            prototype=prototype,
+            args=args,
+            ret_expr=ret_expr,
+            arg_vvars=arg_vvars,
+            **call_stmt.tags,
         )
+        if isinstance(last_stmt, Stmt.Assignment):
+            if new_stmt.bits is None:
+                new_stmt.bits = last_stmt.src.bits
+            new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_stmt, **last_stmt.tags)
+
+        new_stmts.append(new_stmt)
 
         new_block = self.block.copy()
         new_block.statements = new_stmts

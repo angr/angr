@@ -325,25 +325,39 @@ class Clinic(Analysis):
         for blk in callee_graph.nodes():
             for idx, stmt in enumerate(list(blk.statements)):
                 if isinstance(stmt, ailment.Stmt.Return):
-                    blk.statements[idx] = ailment.Stmt.Jump(
-                        None,
-                        ailment.Expr.Const(None, None, caller_successor.addr, self.project.arch.bits),
-                        caller_successor.idx,
-                        **blk.statements[idx].tags,
-                    )
+                    # replace the return statement with an assignment to the return register
                     blk.statements.pop(idx)
+
+                    if stmt.ret_exprs:
+                        assign_to_retreg = ailment.Stmt.Assignment(
+                            self._ail_manager.next_atom(),
+                            ailment.Expr.Register(
+                                self._ail_manager.next_atom(),
+                                None,
+                                self.project.arch.ret_offset,
+                                self.project.arch.bits,
+                            ),
+                            stmt.ret_exprs[0],
+                            **stmt.tags,
+                        )
+                        blk.statements.insert(idx, assign_to_retreg)
+                        idx += 1
                     ail_graph.add_edge(blk, caller_successor)
                     break
                 if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Store):
                     new_stmt = ailment.Stmt.Assignment(
-                        stmt.idx, ailment.Expr.Register(None, None, stmt.pseudoreg, stmt.size * 8), stmt.data
+                        stmt.idx,
+                        ailment.Expr.Register(self._ail_manager.next_atom(), None, stmt.pseudoreg, stmt.size * 8),
+                        stmt.data,
                     )
                     new_stmt.tags.update(stmt.tags)
                     new_stmt.tags.pop("pseudoreg")
                     blk.statements[idx] = new_stmt
                 if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Assignment):
                     new_stmt = ailment.Stmt.Assignment(
-                        stmt.idx, stmt.dst, ailment.Expr.Register(None, None, stmt.pseudoreg, stmt.src.size * 8)
+                        stmt.idx,
+                        stmt.dst,
+                        ailment.Expr.Register(self._ail_manager.next_atom(), None, stmt.pseudoreg, stmt.src.size * 8),
                     )
                     new_stmt.tags.update(stmt.tags)
                     new_stmt.tags.pop("pseudoreg")
@@ -405,10 +419,11 @@ class Clinic(Analysis):
         )
 
         # Make function arguments
-        self._update_progress(75.0, text="Making argument list")
-        arg_list = self._make_argument_list()
         arg_vvars = {}
-        ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
+        if not self._inlining_parents:
+            self._update_progress(75.0, text="Making argument list")
+            arg_list = self._make_argument_list()
+            ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
 
         # Transform the graph into partial SSA form
         self._update_progress(21.0, text="Transforming to partial-SSA form")
@@ -1388,11 +1403,6 @@ class Clinic(Analysis):
         """
         Work on each return statement and fill in its return expressions.
         """
-        if self._inlining_parents:
-            # for inlining, we want to keep the return statement separate from the return value, so that
-            # the former can be removed while preserving the latter
-            return ail_graph
-
         if self.function.calling_convention is None:
             # unknown calling convention. cannot do much about return expressions.
             return ail_graph

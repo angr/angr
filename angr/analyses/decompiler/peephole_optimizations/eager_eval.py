@@ -117,8 +117,14 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
                 return Const(expr.idx, None, 0, expr.bits, **expr.tags)
 
-        elif expr.op == "Mul" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
-            return expr.operands[0]
+        elif expr.op == "Mul":
+            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
+                return expr.operands[0]
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                mask = (1 << expr.bits) - 1
+                return Const(
+                    expr.idx, None, (expr.operands[0].value * expr.operands[1].value) & mask, expr.bits, **expr.tags
+                )
 
         elif (
             expr.op == "Div"

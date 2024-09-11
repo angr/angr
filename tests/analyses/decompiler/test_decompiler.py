@@ -3600,7 +3600,7 @@ class TestDecompiler(unittest.TestCase):
         # the original assignment (rax = memcmp(xxx)? 0, 1) should be removed as well
         assert d.codegen.text.count('"Welcome to the admin console, trusted user!"') == 1
 
-    def test_inlining(self):
+    def test_inlining_shallow(self):
         # https://github.com/angr/angr/issues/4573
         bin_path = os.path.join(test_location, "x86_64", "inline_gym.so")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3621,6 +3621,12 @@ class TestDecompiler(unittest.TestCase):
         assert "malloc(15)" in d.codegen.text
         assert "v1" not in d.codegen.text
 
+    def test_inlining_all(self):
+        # https://github.com/angr/angr/issues/4573
+        bin_path = os.path.join(test_location, "x86_64", "inline_gym.so")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,

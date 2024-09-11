@@ -338,7 +338,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             raise TypeError(f"Unsupported subject type {type(subject)}")
 
         self.func_graph = func_graph
-        self.func_addr = func_addr
+        self.func_addr = func_addr if func_addr is not None else self.func.addr if self.func is not None else None
         self._track_tmps = track_tmps
         self._sp_tracker = stack_pointer_tracker  # FIXME: Is it still used?
 
@@ -401,21 +401,25 @@ class SReachingDefinitionsAnalysis(Analysis):
                 for stmt_idx, stmt in enumerate(block.statements):
                     if isinstance(stmt, Call) and stmt.args is None:
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
+                    elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None:
+                        call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
             observations = srda_view.observe(
                 [("stmt", insn_stmt_id, ObservationPointType.OP_BEFORE) for insn_stmt_id in call_stmt_ids]
             )
             for key, reg_to_vvarids in observations.items():
                 _, ((block_addr, block_idx), stmt_idx), _ = key
+
                 block = blocks[(block_addr, block_idx)]
                 stmt = block.statements[stmt_idx]
+                assert isinstance(stmt, (Call, Assignment))
 
-                assert isinstance(stmt, Call)
-                if stmt.prototype is None:
+                call: Call = stmt if isinstance(stmt, Call) else stmt.src
+                if call.prototype is None:
                     # without knowing the prototype, we must conservatively add uses to all registers that are
                     # potentially used here
-                    if stmt.calling_convention is not None:
-                        cc = stmt.calling_convention
+                    if call.calling_convention is not None:
+                        cc = call.calling_convention
                     else:
                         # just use all registers in the default calling convention because we don't know anything about the
                         # calling convention yet
