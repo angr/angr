@@ -55,7 +55,7 @@ _all_optimization_passes = [
     (LoweredSwitchSimplifier, True),
     (ReturnDuplicatorLow, True),
     (ReturnDeduplicator, True),
-    (CodeMotionOptimization, True),
+    (CodeMotionOptimization, False),
     (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
     (InlinedStringTransformationSimplifier, True),

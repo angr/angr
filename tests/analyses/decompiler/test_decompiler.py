@@ -3386,6 +3386,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler](proj.kb.functions.function(name="puts", plt=True), cfg=cfg.model)
         assert "::libc.so.0::puts" in d.codegen.text
 
+    @unittest.skip("This test is disabled until CodeMotion is reimplemented")
     @for_all_structuring_algos
     def test_code_motion_down_opt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "code_motion_1")
