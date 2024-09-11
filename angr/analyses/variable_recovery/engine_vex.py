@@ -42,8 +42,8 @@ class SimEngineVRVEX(
     def _is_top(self, expr: RichR) -> bool:
         return self.state.is_top(expr)
 
-    def _top(self, size: int):
-        return self.state.top(size)
+    def _top(self, size: int) -> RichR:
+        return RichR(self.state.top(size))
 
     def _process_Stmt(self, whitelist=None):
         scanner = VEXIRSBScanner(logger=self.l)
