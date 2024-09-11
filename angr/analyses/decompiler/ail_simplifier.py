@@ -1153,9 +1153,7 @@ class AILSimplifier(Analysis):
                             continue
                         block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                         stmt = block.statements[use_loc.stmt_idx]
-                        if isinstance(stmt, Assignment):
-                            assignment_ctr += 1
-                        elif isinstance(replace_with, Load) and isinstance(stmt, Store):
+                        if isinstance(stmt, Assignment) or isinstance(replace_with, Load) and isinstance(stmt, Store):
                             assignment_ctr += 1
                     if assignment_ctr > 1:
                         continue
