@@ -293,7 +293,7 @@ jobs:
             sleep ${wait_time}
           done
 
-          echo "Pushing all .json.txt files up to the branch.""
+          echo "Pushing all .json.txt files up to the branch."
           for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
             # Second arg is the file path in the snapshots repo.
             n=0
