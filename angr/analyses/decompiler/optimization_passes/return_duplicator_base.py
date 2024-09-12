@@ -294,7 +294,7 @@ class ReturnDuplicatorBase:
         if ret_exprs and len(ret_exprs) > 1:
             return False
 
-        ret_expr = ret_exprs[0] if ret_exprs and len(ret_exprs) == 1 else None
+        ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0]) if ret_exprs and len(ret_exprs) == 1 else None
         # stop early if there are no assignments at all and just jumps and rets, or a const ret
         if not has_assign:
             return True
@@ -468,3 +468,7 @@ class ReturnDuplicatorBase:
                 new_name += f"__{block.idx}"
 
                 block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)
+
+    @staticmethod
+    def unwrap_conv(expr):
+        return ReturnDuplicatorBase.unwrap_conv(expr.operand) if isinstance(expr, ailment.expression.Convert) else expr
