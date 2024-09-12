@@ -1665,7 +1665,7 @@ class AILSimplifier(Analysis):
                                 # it has a call and must be removed
                                 simplified = True
                                 continue
-                            elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                                 # no one is using the returned virtual variable. replace this assignment statement with
                                 # a call statement
                                 stmt = stmt.src
