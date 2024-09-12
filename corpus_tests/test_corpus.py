@@ -83,17 +83,6 @@ def pytest_insta_snapshot_name(binary: str) -> str:
     return re.sub('/', '_', re.sub('^binaries/', '', binary)) + ".json.txt"
 
 
-def write_decompilation_to_snapshot_dir(decompilation: str, binary: str) -> bool:
-    snapshot_file_path = re.sub('^binaries/', 'snapshots/', binary) + '.json.txt'
-    try:
-        with open(snapshot_file_path, 'w') as f:
-            f.write(decompilation)
-    except Exception as ex:
-        print(f'Exception writing decompilation to "{snapshot_file_path}":\n{ex}')
-        return False
-    return True
-
-
 def test_decompilation(binary, snapshot):
     """
     In order to accommodate insta's need to have snapshots stored in a single
@@ -119,17 +108,11 @@ def test_decompilation(binary, snapshot):
         # Message already emitted.
         return False
 
+    # Adds newlines after each newline literal '\\n'.
     diffable_decompilation = create_diffable_decompilation(decompilation)
 
-    # Currently this is being done by the github action workflow so that this
-    # test does not need to do any network operations:
-    # snapshot_name = retrieve_remote_snapshot(binary)
-    # if not snapshot_name:
-    #     # Message already emitted.
-    #     return False
-
-    # This 
+    # This replaces path delimiters with underscores and appends ".json.txt".
     snapshot_name = pytest_insta_snapshot_name(binary)
-    # write_decompilation_to_snapshot_dir(decompilation, binary)
+
     print(f'Loading snapshot "{snapshot_name}".')
     assert snapshot(snapshot_name) == diffable_decompilation
