@@ -8,12 +8,11 @@ import logging
 import ailment
 import claripy
 import networkx
+from claripy.boolean_simplifier import simplify_boolean_expr
 from unique_log_filter import UniqueLogFilter
 
 
 from angr.utils.graph import GraphUtils
-from ...utils.lazy_import import lazy_import
-from ...utils import is_pyinstaller
 from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
 from ...errors import AngrRuntimeError
@@ -34,12 +33,6 @@ from .structuring.structurer_nodes import (
 )
 from .graph_region import GraphRegion
 from .utils import first_nonlabel_nonphi_statement, peephole_optimize_expr
-
-if is_pyinstaller():
-    # PyInstaller is not happy with lazy import
-    import sympy
-else:
-    sympy = lazy_import("sympy")
 
 
 l = logging.getLogger(__name__)
@@ -829,70 +822,10 @@ class ConditionProcessor:
     #
 
     @staticmethod
-    def claripy_ast_to_sympy_expr(ast, memo=None):
-        if ast.op == "And":
-            return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Or":
-            return sympy.Or(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Not":
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0], memo=memo))
-
-        if ast.op in _UNIFIABLE_COMPARISONS:
-            # unify comparisons to enable more simplification opportunities without going "deep" in sympy
-            inverse_op = getattr(ast.args[0], claripy.operations.inverse_operations[ast.op])
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
-
-        if memo is not None and ast in memo:
-            return memo[ast]
-        symbol = sympy.Symbol(str(hash(ast)))
-        if memo is not None:
-            memo[symbol] = ast
-        return symbol
-
-    @staticmethod
-    def sympy_expr_to_claripy_ast(expr, memo: dict):
-        if expr.is_Symbol:
-            return memo[expr]
-        if isinstance(expr, sympy.Or):
-            return claripy.Or(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.And):
-            return claripy.And(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.Not):
-            return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
-        if isinstance(expr, sympy.logic.boolalg.BooleanTrue):
-            return claripy.true
-        if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
-            return claripy.false
-        raise AngrRuntimeError("Unreachable reached")
-
-    @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
-        memo = {}
         if cond.depth > depth_limit or len(cond.variables) > variables_limit:
             return cond
-        sympy_expr = ConditionProcessor.claripy_ast_to_sympy_expr(cond, memo=memo)
-        return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
-
-    @staticmethod
-    def simplify_condition_deprecated(cond):
-        # Z3's simplification may yield weird and unreadable results
-        # hence we mostly rely on our own simplification. we only use Z3's simplification results when it returns a
-        # concrete value.
-        claripy_simplified = claripy.simplify(cond)
-        if not claripy_simplified.symbolic:
-            return claripy_simplified
-
-        simplified = ConditionProcessor._fold_double_negations(cond)
-        cond = simplified if simplified is not None else cond
-        simplified = ConditionProcessor._revert_short_circuit_conditions(cond)
-        cond = simplified if simplified is not None else cond
-        simplified = ConditionProcessor._extract_common_subexpressions(cond)
-        cond = simplified if simplified is not None else cond
-        # simplified = ConditionProcessor._remove_redundant_terms(cond)
-        # cond = simplified if simplified is not None else cond
-        # in the end, use claripy's simplification to handle really easy cases again
-        simplified = ConditionProcessor._simplify_trivial_cases(cond)
-        return simplified if simplified is not None else cond
+        return simplify_boolean_expr(cond)
 
     @staticmethod
     def _simplify_trivial_cases(cond):
