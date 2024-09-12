@@ -232,13 +232,15 @@ jobs:
 
               # Run Angr Analysis on the binary file
               echo "Running 'angr' and 'pytest --insta update' to compare decompiler snapshots for '${file}'."
-              pytest --insta update --binary "binaries/$file" > "${pytest_insta_snapshot_file}.log" 2>&1
-              head_lines=100
-              tail_lines=100
-              echo -e "\n== Pytest log file first $head_lines lines:"
-              cat "${pytest_insta_snapshot_file}.log" | head -$head_lines
-              echo -e "\n== Pytest log file last $tail_lines lines:"
-              cat "${pytest_insta_snapshot_file}.log" | tail -$tail_lines
+              pytest --insta update --binary binaries/$file > ${pytest_insta_snapshot_file}.log 2>&1
+              if [ -e ${pytest_insta_snapshot_file}.log ]; then
+                head_lines=100
+                tail_lines=100
+                echo -e "\n== Pytest log file first $head_lines lines:"
+                cat ${pytest_insta_snapshot_file}.log | head -$head_lines
+                echo -e "\n== Pytest log file last $tail_lines lines:"
+                cat ${pytest_insta_snapshot_file}.log | tail -$tail_lines
+              fi
               if diff -q "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"; then
                 echo "Decompilation unchanged for '$file'."
               else
