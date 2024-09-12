@@ -30,6 +30,8 @@ class ControlFlowStructureCounter(SequenceWalker):
 
         # eliminate gotos without labels
         self.goto_targets = {k: v for k, v in self.goto_targets.items() if k in self.ordered_labels}
+        # correct labels that are not used
+        self.ordered_labels = [lbl for lbl in self.ordered_labels if lbl in self.goto_targets]
 
     # pylint: disable=unused-argument
     def _handle_Block(self, node: ailment.Block, **kwargs):
