@@ -220,4 +220,13 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             mask = (1 << expr.to_bits) - 1
             v = expr.operand.value & mask
             return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
+        if (
+            isinstance(expr.operand, Const)
+            and expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and expr.from_bits <= expr.to_bits
+            and expr.is_signed is False
+        ):
+            # unsigned extension
+            return Const(expr.idx, expr.operand.variable, expr.operand.value, expr.to_bits, **expr.operand.tags)
         return None

@@ -42,7 +42,6 @@ from .optimization_passes import (
     OptimizationPassStage,
     RegisterSaveAreaSimplifier,
     StackCanarySimplifier,
-    SpilledRegisterFinder,
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
@@ -110,6 +109,7 @@ class Clinic(Analysis):
         inline_functions: set[Function] | None = frozenset(),
         inlined_counts: dict[int, int] | None = None,
         inlining_parents: set[int] | None = None,
+        vvar_id_start: int = 0,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -120,6 +120,7 @@ class Clinic(Analysis):
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
+        self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimRegArg]] | None = None
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, int] = {}  # data address to instruction address
@@ -142,7 +143,7 @@ class Clinic(Analysis):
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
-        self.vvar_id_start = 0
+        self.vvar_id_start = vvar_id_start
 
         # inlining help
         self._sp_shift = sp_shift
@@ -300,9 +301,11 @@ class Clinic(Analysis):
             inline_functions=self._inline_functions,
             inlining_parents=(*self._inlining_parents, self.function.addr),
             inlined_counts=self._inlined_counts,
-            optimization_passes=[StackCanarySimplifier, SpilledRegisterFinder],
+            optimization_passes=[StackCanarySimplifier],
             sp_shift=self._max_stack_depth,
+            vvar_id_start=self.vvar_id_start,
         )
+        self.vvar_id_start = callee_clinic.vvar_id_start + 1
         self._max_stack_depth = callee_clinic._max_stack_depth
         callee_graph = callee_clinic.copy_graph()
 
@@ -320,7 +323,6 @@ class Clinic(Analysis):
         ail_graph.remove_edge(caller_block, caller_successor)
 
         # update all callee return nodes with caller successor
-        # and rewrite pseudoreg-tagged spills to actually use pseudoregs
         ail_graph = networkx.union(ail_graph, callee_graph)
         for blk in callee_graph.nodes():
             for idx, stmt in enumerate(list(blk.statements)):
@@ -344,24 +346,6 @@ class Clinic(Analysis):
                         idx += 1
                     ail_graph.add_edge(blk, caller_successor)
                     break
-                if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Store):
-                    new_stmt = ailment.Stmt.Assignment(
-                        stmt.idx,
-                        ailment.Expr.Register(self._ail_manager.next_atom(), None, stmt.pseudoreg, stmt.size * 8),
-                        stmt.data,
-                    )
-                    new_stmt.tags.update(stmt.tags)
-                    new_stmt.tags.pop("pseudoreg")
-                    blk.statements[idx] = new_stmt
-                if "pseudoreg" in stmt.tags and isinstance(stmt, ailment.Stmt.Assignment):
-                    new_stmt = ailment.Stmt.Assignment(
-                        stmt.idx,
-                        stmt.dst,
-                        ailment.Expr.Register(self._ail_manager.next_atom(), None, stmt.pseudoreg, stmt.src.size * 8),
-                    )
-                    new_stmt.tags.update(stmt.tags)
-                    new_stmt.tags.pop("pseudoreg")
-                    blk.statements[idx] = new_stmt
 
         # update the call edge
         caller_block.statements[call_idx] = ailment.Stmt.Jump(
@@ -388,6 +372,20 @@ class Clinic(Analysis):
             and caller_block.statements[call_idx - 1].data.value == caller_successor.addr
         ):
             caller_block.statements.pop(call_idx - 1)  # s_10 =L 0x401225<64><8>
+
+        # update caller_block to setup parameters
+        if callee_clinic.arg_vvars:
+            for arg_idx in sorted(callee_clinic.arg_vvars.keys()):
+                param_vvar, reg_arg = callee_clinic.arg_vvars[arg_idx]
+                reg_offset = reg_arg.reg
+                stmt = ailment.Stmt.Assignment(
+                    self._ail_manager.next_atom(),
+                    param_vvar,
+                    ailment.Expr.Register(self._ail_manager.next_atom(), None, reg_offset, reg_arg.bits),
+                    ins_addr=caller_block.addr + caller_block.original_size,
+                )
+                caller_block.statements.append(stmt)
+
         ail_graph.add_edge(caller_block, callee_start)
 
         return ail_graph
@@ -419,11 +417,10 @@ class Clinic(Analysis):
         )
 
         # Make function arguments
+        self._update_progress(75.0, text="Making argument list")
+        arg_list = self._make_argument_list()
         arg_vvars = {}
-        if not self._inlining_parents:
-            self._update_progress(75.0, text="Making argument list")
-            arg_list = self._make_argument_list()
-            ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
+        ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
 
         # Transform the graph into partial SSA form
         self._update_progress(21.0, text="Transforming to partial-SSA form")
@@ -543,6 +540,18 @@ class Clinic(Analysis):
             cache=block_simplification_cache,
         )
 
+        # Simplify the entire function for the fourth time
+        self._update_progress(78.0, text="Simplifying function 4")
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            stack_arg_offsets=stackarg_offsets,
+            unify_variables=True,
+            narrow_expressions=True,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=arg_vvars,
+        )
+
         # update arg_list
         arg_list = []
         for idx in sorted(arg_vvars):
@@ -567,6 +576,7 @@ class Clinic(Analysis):
         ail_graph = self.remove_empty_nodes(ail_graph)
 
         self.arg_list = arg_list
+        self.arg_vvars = arg_vvars
         self.variable_kb = variable_kb
         self.cc_graph = self.copy_graph(ail_graph)
         self.externs = self._collect_externs(ail_graph, variable_kb)

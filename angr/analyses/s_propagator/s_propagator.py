@@ -106,7 +106,7 @@ class SPropagatorAnalysis(Analysis):
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
         for vvar, defloc in vvar_deflocs.items():
-            if not vvar.was_reg:
+            if not vvar.was_reg and not vvar.was_parameter:
                 continue
 
             vvarid_to_vvar[vvar.varid] = vvar

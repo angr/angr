@@ -18,7 +18,6 @@ from .return_duplicator_low import ReturnDuplicatorLow
 from .return_duplicator_high import ReturnDuplicatorHigh
 from .const_derefs import ConstantDereferencesSimplifier
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
-from .spilled_register_finder import SpilledRegisterFinder
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp

@@ -821,7 +821,7 @@ class AILSimplifier(Analysis):
 
     def _fold_exprs(self):
         """
-        Fold expressions: Fold assigned expressions that are only used once.
+        Fold expressions: Fold assigned expressions that are constant or only used once.
         """
 
         # propagator
@@ -1567,6 +1567,10 @@ class AILSimplifier(Analysis):
                             # TODO: Verify if we still need this hack after moving to SSA
                             # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
                             uses = set()
+
+                elif def_.atom.was_parameter:
+                    uses = rd.get_vvar_uses(def_.atom)
+
                 else:
                     uses = set()
 
@@ -1647,7 +1651,8 @@ class AILSimplifier(Analysis):
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, Store)):
-                        # Skip Assignment and Store statements
+                        # Special logic for Assignment and Store statements
+
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
                         codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._assignments_to_remove:
@@ -1660,6 +1665,10 @@ class AILSimplifier(Analysis):
                                 # it has a call and must be removed
                                 simplified = True
                                 continue
+                            elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                                # no one is using the returned virtual variable. replace this assignment statement with
+                                # a call statement
+                                stmt = stmt.src
                         else:
                             # no calls. remove it
                             simplified = True

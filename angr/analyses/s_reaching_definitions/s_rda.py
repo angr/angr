@@ -5,7 +5,7 @@ from collections import defaultdict
 import logging
 
 from ailment.block import Block
-from ailment.statement import Assignment, Call, Label
+from ailment.statement import Assignment, Call, Return, Label
 from ailment.expression import VirtualVariable, Tmp, Expression
 
 from angr.utils.ail import is_phi_assignment
@@ -405,6 +405,9 @@ class SReachingDefinitionsAnalysis(Analysis):
                         or isinstance(stmt, Assignment)
                         and isinstance(stmt.src, Call)
                         and stmt.src.args is None
+                        or isinstance(stmt, Return)
+                        and stmt.ret_exprs
+                        and isinstance(stmt.ret_exprs[0], Call)
                     ):
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
@@ -416,9 +419,11 @@ class SReachingDefinitionsAnalysis(Analysis):
 
                 block = blocks[(block_addr, block_idx)]
                 stmt = block.statements[stmt_idx]
-                assert isinstance(stmt, (Call, Assignment))
+                assert isinstance(stmt, (Call, Assignment, Return))
 
-                call: Call = stmt if isinstance(stmt, Call) else stmt.src
+                call: Call = (
+                    stmt if isinstance(stmt, Call) else stmt.src if isinstance(stmt, Assignment) else stmt.ret_exprs[0]
+                )
                 if call.prototype is None:
                     # without knowing the prototype, we must conservatively add uses to all registers that are
                     # potentially used here
