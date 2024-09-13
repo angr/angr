@@ -11,9 +11,12 @@ from ailment.expression import (
     Const,
     VirtualVariableCategory,
     BinaryOp,
+    UnaryOp,
     Phi,
     Convert,
     StackBaseOffset,
+    VEXCCallExpression,
+    ITE,
 )
 
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -300,6 +303,52 @@ class SimEngineSSARewriting(
                 **expr.tags,
             )
         return None
+
+    def _handle_UnaryOp(self, expr) -> UnaryOp | None:
+        new_op = self._expr(expr.operand)
+        if new_op is not None:
+            return UnaryOp(
+                expr.idx,
+                expr.op,
+                new_op,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_ITE(self, expr: ITE) -> ITE | None:
+        new_cond = self._expr(expr.cond)
+        new_iftrue = self._expr(expr.iftrue)
+        new_iffalse = self._expr(expr.iffalse)
+
+        if new_cond is not None or new_iftrue is not None or new_iffalse is not None:
+            return ITE(
+                expr.idx,
+                expr.cond if new_cond is None else new_cond,
+                expr.iftrue if new_iftrue is None else new_iftrue,
+                expr.iffalse if new_iffalse is None else new_iffalse,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
+        updated = False
+        new_operands = []
+        for operand in expr.operands:
+            new_operand = self._expr(operand)
+            if new_operand is not None:
+                updated = True
+                new_operands.append(new_operand)
+            else:
+                new_operands.append(operand)
+
+        if updated:
+            return VEXCCallExpression(expr.idx, expr.cee_name, new_operands, bits=expr.bits, **expr.tags)
+        return None
+
+    def _handle_Dummy(self, expr) -> None:
+        return None
+
+    _handle_DirtyExpression = _handle_Dummy
 
     #
     # Expression replacement

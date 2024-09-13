@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from ailment.statement import Assignment, Call, Store, ConditionalJump
-from ailment.expression import Register, BinaryOp, StackBaseOffset
+from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 from angr.utils.ssa import get_reg_offset_base
@@ -114,8 +114,18 @@ class SimEngineSSATraversal(
         self._expr(expr.operands[1])
         self._expr(expr.operands[2])
 
+    def _handle_ITE(self, expr: ITE):
+        self._expr(expr.cond)
+        self._expr(expr.iftrue)
+        self._expr(expr.iffalse)
+
+    def _handle_VEXCCallExpression(self, expr: VEXCCallExpression):
+        for operand in expr.operands:
+            self._expr(operand)
+
     def _handle_Dummy(self, expr):
         pass
 
     _handle_VirtualVariable = _handle_Dummy
     _handle_Phi = _handle_Dummy
+    _handle_DirtyExpression = _handle_Dummy
