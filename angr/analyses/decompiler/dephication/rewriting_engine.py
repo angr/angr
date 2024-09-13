@@ -12,6 +12,7 @@ from ailment.expression import (
     Phi,
     Convert,
     StackBaseOffset,
+    ITE,
 )
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
@@ -222,6 +223,21 @@ class SimEngineDephiRewriting(
                 rounding_mode=expr.rounding_mode,
                 from_bits=expr.from_bits,
                 to_bits=expr.to_bits,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_ITE(self, expr: ITE) -> ITE | None:
+        new_cond = self._expr(expr.cond)
+        new_iftrue = self._expr(expr.iftrue)
+        new_iffalse = self._expr(expr.iffalse)
+
+        if new_cond is not None or new_iftrue is not None or new_iffalse is not None:
+            return ITE(
+                expr.idx,
+                expr.cond if new_cond is None else new_cond,
+                expr.iftrue if new_iftrue is None else new_iftrue,
+                expr.iffalse if new_iffalse is None else new_iffalse,
                 **expr.tags,
             )
         return None
