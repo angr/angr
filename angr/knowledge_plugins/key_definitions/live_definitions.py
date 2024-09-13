@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, overload
+from typing import Any, TYPE_CHECKING, cast, overload
 from collections.abc import Iterable, Generator
 import weakref
 import logging
@@ -14,7 +14,7 @@ import archinfo
 from angr.misc.ux import deprecated
 from angr.errors import SimMemoryMissingError, SimMemoryError
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, MultiValues
 from angr.knowledge_plugins.key_definitions.definition import A
 from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation, ExternalCodeLocation
@@ -324,7 +324,7 @@ class LiveDefinitions:
                 return True
         return False
 
-    def stack_address(self, offset: int) -> claripy.ast.bv.BV | None:
+    def stack_address(self, offset: int) -> claripy.ast.bv.BV:
         base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
         if offset:
             return base + offset
@@ -346,21 +346,21 @@ class LiveDefinitions:
                 return 0
             if addr.op == "__add__":
                 if len(addr.args) == 2:
-                    off0 = LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True)
-                    off1 = LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                    off0 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[0]), had_stack_base=True)
+                    off1 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[1]), had_stack_base=True)
                     if off0 is not None and off1 is not None:
                         return off0 + off1
                 elif len(addr.args) == 1:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2:
-                off0 = LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True)
-                off1 = LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                off0 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[0]), had_stack_base=True)
+                off1 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[1]), had_stack_base=True)
                 if off0 is not None and off1 is not None:
                     return off0 - off1
         return None
 
     @staticmethod
-    def annotate_with_def(symvar: claripy.ast.BV, definition: Definition) -> claripy.ast.BV:
+    def annotate_with_def(symvar: MVType, definition: Definition) -> MVType:
         """
 
         :param symvar:
@@ -562,9 +562,12 @@ class LiveDefinitions:
         else:
             definition: Definition = Definition(atom, code_loc, dummy=dummy, tags=tags)
             d = MultiValues()
+            count = 0
             for offset, vs in data.items():
                 for v in vs:
+                    count += 1
                     d.add_value(offset, self.annotate_with_def(v, definition))
+            assert count != 0, "MV may not be empty, use TOP instead"
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
@@ -659,7 +662,7 @@ class LiveDefinitions:
             self.other_uses.add_use(definition, code_loc, expr)
 
     def get_definitions(
-        self, thing: A | Definition[A] | Iterable[A] | Iterable[Definition[A]] | MultiValues
+        self, thing: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]] | MultiValues
     ) -> set[Definition[Atom]]:
         if isinstance(thing, MultiValues):
             defs = set()
@@ -973,7 +976,7 @@ class LiveDefinitions:
     @overload
     def deref(
         self,
-        pointer: MultiValues | A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
+        pointer: MultiValues[claripy.ast.BV] | Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
         size: int | DerefSize,
         endness: archinfo.Endness = ...,
     ) -> set[MemoryLocation]: ...
@@ -1023,7 +1026,7 @@ class LiveDefinitions:
                 if heap_offset is not None:
                     addr = HeapAddress(heap_offset)
                 elif pointer.op == "BVV":
-                    addr = pointer.args[0]
+                    addr = cast(int, pointer.args[0])
                 else:
                     # cannot resolve
                     return None
@@ -1054,8 +1057,8 @@ class LiveDefinitions:
         if "heap_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
-            if addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return addr.args[1].concrete_value
+            if addr.op == "__add__" and len(addr.args) == 2 and cast(claripy.ast.BV, addr.args[1]).op == "BVV":
+                return cast(claripy.ast.BV, addr.args[1]).concrete_value
         return None
 
     def heap_address(self, offset: int | HeapAddress) -> claripy.ast.BV:

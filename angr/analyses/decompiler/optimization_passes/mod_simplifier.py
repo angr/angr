@@ -12,7 +12,7 @@ _l.addFilter(UniqueLogFilter())
 
 
 class ModSimplifierAILEngine(SimplifierAILEngine):
-    def _ail_handle_Sub(self, expr):
+    def _handle_binop_Sub(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -40,6 +40,8 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
                 x_1 = operand_0
                 c_0 = operand_1.operands[1]
                 c_1 = operand_1.operands[0].operand.operands[1]
+            else:
+                assert False, "Unreachable"
 
             if x_0 is not None and x_1 is not None and x_0.likes(x_1) and c_0.value == c_1.value:
                 return Expr.BinaryOp(expr.idx, "Mod", [x_0, c_0], expr.signed, **expr.tags)
@@ -70,7 +72,7 @@ class ModSimplifier(OptimizationPass):
         super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
-        self.engine = ModSimplifierAILEngine()
+        self.engine = ModSimplifierAILEngine(self.project)
 
         self.analyze()
 
@@ -78,6 +80,7 @@ class ModSimplifier(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
+        assert self._graph is not None
         for block in list(self._graph.nodes()):
             new_block = block
             old_block = None

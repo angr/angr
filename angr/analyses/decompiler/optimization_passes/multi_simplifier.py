@@ -16,7 +16,7 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
     An AIL pass for the multi simplifier
     """
 
-    def _ail_handle_Add(self, expr):
+    def _handle_binop_Add(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -86,7 +86,7 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Add", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
-    def _ail_handle_Sub(self, expr):
+    def _handle_binop_Sub(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -157,7 +157,7 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Sub", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
-    def _ail_handle_Shl(self, expr):
+    def _handle_binop_Shl(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -169,7 +169,7 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Shl", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
-    def _ail_handle_Mul(self, expr):
+    def _handle_binop_Mul(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -203,7 +203,7 @@ class MultiSimplifier(OptimizationPass):
         super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
-        self.engine = MultiSimplifierAILEngine()
+        self.engine = MultiSimplifierAILEngine(self.project)
 
         self.analyze()
 

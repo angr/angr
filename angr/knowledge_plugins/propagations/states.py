@@ -1,6 +1,8 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+from abc import abstractmethod
 from typing import Any, TYPE_CHECKING
+from typing_extensions import Self
 from collections import defaultdict
 import weakref
 
@@ -114,7 +116,7 @@ class PropagatorState:
         self.model = model
         self.rda = rda
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<PropagatorState>"
 
     @classmethod
@@ -155,6 +157,7 @@ class PropagatorState:
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
+        # TODO what if object is bytes?
         if mo_self.object.symbolic or mo_other.object.symbolic:
             if type(mo_self) is SimLabeledMemoryObject and type(mo_other) is SimLabeledMemoryObject:
                 return mo_self.label == mo_other.label and mo_self.object is mo_other.object
@@ -165,7 +168,7 @@ class PropagatorState:
         return None
 
     @staticmethod
-    def top(bits: int) -> claripy.ast.Bits:
+    def top(bits: int) -> claripy.ast.BV:
         """
         Get a TOP value.
 
@@ -243,10 +246,11 @@ class PropagatorState:
                             merge_occurred = True
         return merge_occurred
 
-    def copy(self) -> PropagatorState:
+    @abstractmethod
+    def copy(self) -> Self:
         raise NotImplementedError
 
-    def merge(self, *others):
+    def merge(self, *others: Self) -> tuple[Self, bool]:
         state = self.copy()
         merge_occurred = False
 
@@ -331,7 +335,7 @@ class RegisterComparisonAnnotation(claripy.Annotation):
     Annotate TOP values that are the result of register values comparing against constant values.
     """
 
-    def __init__(self, offset, size, cmp_op, value):
+    def __init__(self, offset: int, size: int, cmp_op: str, value: int):
         self.offset = offset
         self.size = size
         self.cmp_op = cmp_op
@@ -504,7 +508,7 @@ class PropagatorVEXState(PropagatorState):
         # TODO: Handle size
         self._stack_variables.store(offset, value, size=size, endness=endness)
 
-    def load_local_variable(self, offset, size, endness):  # pylint:disable=unused-argument
+    def load_local_variable(self, offset, size, endness) -> claripy.ast.BV:  # pylint:disable=unused-argument
         # TODO: Handle size
         try:
             return self._stack_variables.load(offset, size=size, endness=endness)

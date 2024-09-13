@@ -78,7 +78,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         state = cfg._initial_state.copy() if cfg._initial_state is not None else self.project.factory.blank_state()
         state.regs.ebx = got_addr
 
-        successors = self.project.factory.default_engine.process(state, block, force_addr=addr)
+        successors = self.project.factory.default_engine.process(state, block=block, force_addr=addr)
 
         if len(successors.flat_successors) != 1:
             return False, []

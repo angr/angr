@@ -2,10 +2,9 @@
 from __future__ import annotations
 import logging
 
-from ailment import Expr, Stmt
+import ailment
 
-from angr.engines.light import SimEngineLightAILMixin
-from angr.engines.light import SimEngineLight
+from angr.engines.light import SimEngineLightAIL
 
 _l = logging.getLogger(name=__name__)
 
@@ -31,11 +30,11 @@ class SimplifierAILState:
     def merge(self, *others):
         raise NotImplementedError
 
-    def store_variable(self, old: Expr.VirtualVariable, new):
+    def store_variable(self, old: ailment.expression.VirtualVariable, new):
         if new is not None:
             self._variables[old.varid] = new
 
-    def get_variable(self, old: Expr.VirtualVariable):
+    def get_variable(self, old: ailment.expression.VirtualVariable):
         return self._variables.get(old.varid, None)
 
     def remove_variable(self, old):
@@ -43,75 +42,62 @@ class SimplifierAILState:
 
 
 class SimplifierAILEngine(
-    SimEngineLightAILMixin,
-    SimEngineLight,
+    SimEngineLightAIL[SimplifierAILState, ailment.expression.Expression, ailment.statement.Statement, ailment.Block]
 ):
     """
     Essentially implements a peephole optimization engine for AIL statements (because we do not perform memory or
     register loads).
     """
 
-    def __init__(self):  # pylint: disable=useless-super-delegation
-        super().__init__()
+    def _process_block_end(self, block, stmt_data, whitelist):
+        if whitelist is None:
+            block.statements = stmt_data
+        else:
+            for stmt_idx, stmt in zip(sorted(whitelist), stmt_data):
+                block.statements[stmt_idx] = stmt
+        return block
 
-    def process(self, state, *args, **kwargs):
-        # override SimEngineLight.process() so that we can return the processed block
-        super().process(state, *args, **kwargs)
-        return self.block
+    def _top(self, bits):
+        raise Exception("This code should be unreachable")
 
-    def _process_Stmt(self, whitelist=None):
-        if whitelist is not None:
-            whitelist = set(whitelist)
-
-        for stmt_idx, stmt in enumerate(self.block.statements):
-            if whitelist is not None and stmt_idx not in whitelist:
-                continue
-
-            self.ins_addr = stmt.ins_addr
-            self.stmt_idx = stmt_idx
-            new_stmt = self._ail_handle_Stmt(stmt)
-            if new_stmt and new_stmt != stmt:
-                self.block.statements[stmt_idx] = new_stmt
+    def _is_top(self, expr):
+        raise Exception("This code should be unreachable")
 
     # handle stmt
-    def _ail_handle_Stmt(self, stmt):
-        handler = f"_ail_handle_{type(stmt).__name__}"
-        if hasattr(self, handler):
-            return getattr(self, handler)(stmt)
-        _l.debug("Unsupported statement type %s.", type(stmt).__name__)
-        return stmt
 
-    def _ail_handle_Assignment(self, stmt):
+    def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
         dst = self._expr(stmt.dst)
 
-        if isinstance(dst, Expr.VirtualVariable) and not isinstance(src, Expr.Phi):
+        if isinstance(dst, ailment.expression.VirtualVariable) and not isinstance(src, ailment.expression.Phi):
             self.state.store_variable(dst, src)
 
         if (src, dst) != (stmt.src, stmt.dst):
-            return Stmt.Assignment(stmt.idx, dst, src, **stmt.tags)
+            return ailment.statement.Assignment(stmt.idx, dst, src, **stmt.tags)
 
         return stmt
 
-    def _ail_handle_Store(self, stmt):
+    def _handle_stmt_Store(self, stmt):
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
         # replace
         if (addr, data) != (stmt.addr, stmt.data):
-            return Stmt.Store(stmt.idx, addr, data, stmt.size, stmt.endness, variable=stmt.variable, **stmt.tags)
+            return ailment.statement.Store(
+                stmt.idx, addr, data, stmt.size, stmt.endness, variable=stmt.variable, **stmt.tags
+            )
 
         return stmt
 
-    def _ail_handle_Jump(self, stmt):
+    def _handle_stmt_Jump(self, stmt):
         target = self._expr(stmt.target)
 
-        return Stmt.Jump(stmt.idx, target, **stmt.tags)
+        return ailment.statement.Jump(stmt.idx, target, **stmt.tags)
 
-    def _ail_handle_ConditionalJump(self, stmt):  # pylint: disable=no-self-use
+    def _handle_stmt_ConditionalJump(self, stmt):  # pylint: disable=no-self-use
         return stmt
 
-    def _ail_handle_Call(self, stmt):
+    def _handle_stmt_Call(self, stmt):
         target = self._expr(stmt.target)
 
         new_args = None
@@ -122,7 +108,7 @@ class SimplifierAILEngine(
                 new_arg = self._expr(arg)
                 new_args.append(new_arg)
 
-        return Stmt.Call(
+        return ailment.statement.Call(
             stmt.idx,
             target,
             calling_convention=stmt.calling_convention,
@@ -134,7 +120,7 @@ class SimplifierAILEngine(
             **stmt.tags,
         )
 
-    def _ail_handle_Return(self, stmt: Stmt.Return):
+    def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:
             new_retexprs = []
             for ret_expr in stmt.ret_exprs:
@@ -147,67 +133,60 @@ class SimplifierAILEngine(
                 return new_stmt
         return stmt
 
+    def _handle_stmt_DirtyStatement(self, stmt):
+        return stmt
+
+    def _handle_stmt_Label(self, stmt):
+        return stmt
+
     # handle expr
 
-    def _expr(self, expr):
-        handler = f"_ail_handle_{type(expr).__name__}"
-        if hasattr(self, handler):
-            v = getattr(self, handler)(expr)
-            if v is None:
-                return expr
-            return v
-        _l.debug("Unsupported expression type %s.", type(expr).__name__)
+    def _handle_expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
-        return expr
-
-    def _ail_handle_VirtualVariable(self, expr: Expr.VirtualVariable):  # pylint:disable=no-self-use
+    def _handle_expr_VirtualVariable(self, expr):  # pylint:disable=no-self-use
         # We don't want to return new values and construct new AIL expressions in caller methods without def-use
         # information. Otherwise, we may end up creating incorrect expressions.
         # Therefore, we do not perform vvar load, which essentially turns SimplifierAILEngine into a peephole
         # optimization engine.
         return expr
 
-    def _ail_handle_Phi(self, expr: Expr.Phi):  # pylint:disable=no-self-use
+    def _handle_expr_Phi(self, expr):  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_Load(self, expr):
+    def _handle_expr_Load(self, expr):
         # We don't want to load new values and construct new AIL expressions in caller methods without def-use
         # information. Otherwise, we may end up creating incorrect expressions.
         # Therefore, we do not perform memory load, which essentially turns SimplifierAILEngine into a peephole
         # optimization engine.
         addr = self._expr(expr.addr)
         if addr != expr.addr:
-            return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
+            return ailment.expression.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
         return expr
 
-    def _ail_handle_Register(self, expr):  # pylint:disable=no-self-use
+    def _handle_expr_Register(self, expr):  # pylint:disable=no-self-use
         # We don't want to return new values and construct new AIL expressions in caller methods without def-use
         # information. Otherwise, we may end up creating incorrect expressions.
         # Therefore, we do not perform register load, which essentially turns SimplifierAILEngine into a peephole
         # optimization engine.
         return expr
 
-    def _ail_handle_Mul(self, expr):
+    def _handle_binop_Mul(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
-            return Expr.BinaryOp(expr.idx, "Mul", [operand_0, operand_1], expr.signed, **expr.tags)
+            return ailment.expression.BinaryOp(expr.idx, "Mul", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
-    def _ail_handle_Const(self, expr):
-        return expr
-
-    def _ail_handle_Convert(self, expr: Expr.Convert):
+    def _handle_expr_Convert(self, expr):
         operand_expr = self._expr(expr.operand)
 
-        if type(operand_expr) is Expr.Convert:
+        if isinstance(operand_expr, ailment.expression.Convert):
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
                 # eliminate the redundant Convert
                 return operand_expr.operand
-            return Expr.Convert(
+            return ailment.expression.Convert(
                 expr.idx,
                 operand_expr.from_bits,
                 expr.to_bits,
@@ -219,40 +198,39 @@ class SimplifierAILEngine(
                 **expr.tags,
             )
         if (
-            type(operand_expr) is Expr.Const
-            and expr.from_type == Expr.Convert.TYPE_INT
-            and expr.to_type == Expr.Convert.TYPE_INT
+            type(operand_expr) is ailment.expression.Const
+            and expr.from_type == ailment.expression.Convert.TYPE_INT
+            and expr.to_type == ailment.expression.Convert.TYPE_INT
         ):
             # do the conversion right away
             value = operand_expr.value
             mask = (2**expr.to_bits) - 1
             value &= mask
-            return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits, **expr.tags)
-        if type(operand_expr) is Expr.BinaryOp and operand_expr.op in {
+            return ailment.expression.Const(expr.idx, operand_expr.variable, value, expr.to_bits, **expr.tags)
+        if type(operand_expr) is ailment.expression.BinaryOp and operand_expr.op in {
             "Mul",
             "Shl",
             "Div",
-            "DivMod",
             "Mod",
             "Add",
             "Sub",
         }:
-            if isinstance(operand_expr.operands[1], Expr.Const):
+            if isinstance(operand_expr.operands[1], ailment.expression.Const):
                 if (
-                    isinstance(operand_expr.operands[0], Expr.Register)
+                    isinstance(operand_expr.operands[0], ailment.expression.Register)
                     and expr.from_bits == operand_expr.operands[0].bits
                 ):
-                    converted = Expr.Convert(
+                    converted = ailment.expression.Convert(
                         expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, operand_expr.operands[0]
                     )
-                    converted_const = Expr.Const(
+                    converted_const = ailment.expression.Const(
                         operand_expr.operands[1].idx,
                         operand_expr.operands[1].variable,
                         operand_expr.operands[1].value,
                         expr.to_bits,
                         **operand_expr.operands[1].tags,
                     )
-                    return Expr.BinaryOp(
+                    return ailment.expression.BinaryOp(
                         operand_expr.idx,
                         operand_expr.op,
                         [converted, converted_const],
@@ -263,23 +241,23 @@ class SimplifierAILEngine(
                 # Conv(32->64, (Conv(64->32, r14<8>) + 0x1<32>)) became Add(r14<8>, 0x1<32>)
                 # ideally it should become Conv(32->64, Conv(64->32, r14<8> + 0x1<64>))
                 # and then the double convert can be pretty-printed away
-                # elif isinstance(operand_expr.operands[0], Expr.Convert) and \
+                # elif isinstance(operand_expr.operands[0], ailment.expression.Convert) and \
                 #        expr.from_bits == operand_expr.operands[0].to_bits and \
                 #        expr.to_bits == operand_expr.operands[0].from_bits:
-                #    return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
+                #    return ailment.expression.BinaryOp(operand_expr.idx, operand_expr.op,
                 #                         [operand_expr.operands[0].operand, operand_expr.operands[1]],
                 #                         operand_expr.signed,
                 #                         **operand_expr.tags)
             elif (
-                isinstance(operand_expr.operands[0], Expr.Convert)
-                and isinstance(operand_expr.operands[1], Expr.Convert)
+                isinstance(operand_expr.operands[0], ailment.expression.Convert)
+                and isinstance(operand_expr.operands[1], ailment.expression.Convert)
                 and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits
             ) and (
                 operand_expr.operands[0].to_bits == operand_expr.operands[1].to_bits
                 and expr.from_bits == operand_expr.operands[0].to_bits
                 and expr.to_bits == operand_expr.operands[1].from_bits
             ):
-                return Expr.BinaryOp(
+                return ailment.expression.BinaryOp(
                     operand_expr.idx,
                     operand_expr.op,
                     [operand_expr.operands[0].operand, operand_expr.operands[1].operand],
@@ -287,7 +265,7 @@ class SimplifierAILEngine(
                     **operand_expr.tags,
                 )
 
-        return Expr.Convert(
+        return ailment.expression.Convert(
             expr.idx,
             expr.from_bits,
             expr.to_bits,
@@ -298,3 +276,144 @@ class SimplifierAILEngine(
             rounding_mode=expr.rounding_mode,
             **expr.tags,
         )
+
+    def _handle_expr_Const(self, expr):
+        return expr
+
+    def _handle_expr_Tmp(self, expr):
+        return expr
+
+    def _handle_expr_Reinterpret(self, expr):
+        return expr
+
+    def _handle_expr_ITE(self, expr):
+        return expr
+
+    def _handle_expr_Call(self, expr):
+        return expr
+
+    def _handle_expr_DirtyExpression(self, expr):
+        return expr
+
+    def _handle_expr_VEXCCallExpression(self, expr):
+        return expr
+
+    def _handle_expr_MultiStatementExpression(self, expr):
+        return expr
+
+    def _handle_expr_BasePointerOffset(self, expr):
+        return expr
+
+    def _handle_unop_Not(self, expr):
+        return expr
+
+    def _handle_unop_Neg(self, expr):
+        return expr
+
+    def _handle_unop_BitwiseNeg(self, expr):
+        return expr
+
+    def _handle_unop_Reference(self, expr):
+        return expr
+
+    def _handle_unop_Dereference(self, expr):
+        return expr
+
+    def _handle_binop_Add(self, expr):
+        return expr
+
+    def _handle_binop_AddF(self, expr):
+        return expr
+
+    def _handle_binop_AddV(self, expr):
+        return expr
+
+    def _handle_binop_Sub(self, expr):
+        return expr
+
+    def _handle_binop_SubF(self, expr):
+        return expr
+
+    def _handle_binop_MulF(self, expr):
+        return expr
+
+    def _handle_binop_MulV(self, expr):
+        return expr
+
+    def _handle_binop_Div(self, expr):
+        return expr
+
+    def _handle_binop_DivF(self, expr):
+        return expr
+
+    def _handle_binop_Mod(self, expr):
+        return expr
+
+    def _handle_binop_Xor(self, expr):
+        return expr
+
+    def _handle_binop_And(self, expr):
+        return expr
+
+    def _handle_binop_Or(self, expr):
+        return expr
+
+    def _handle_binop_LogicalAnd(self, expr):
+        return expr
+
+    def _handle_binop_LogicalOr(self, expr):
+        return expr
+
+    def _handle_binop_Shl(self, expr):
+        return expr
+
+    def _handle_binop_Shr(self, expr):
+        return expr
+
+    def _handle_binop_Sar(self, expr):
+        return expr
+
+    def _handle_binop_CmpF(self, expr):
+        return expr
+
+    def _handle_binop_CmpEQ(self, expr):
+        return expr
+
+    def _handle_binop_CmpNE(self, expr):
+        return expr
+
+    def _handle_binop_CmpLT(self, expr):
+        return expr
+
+    def _handle_binop_CmpLE(self, expr):
+        return expr
+
+    def _handle_binop_CmpGT(self, expr):
+        return expr
+
+    def _handle_binop_CmpGE(self, expr):
+        return expr
+
+    def _handle_binop_Concat(self, expr):
+        return expr
+
+    def _handle_binop_Ror(self, expr):
+        return expr
+
+    def _handle_binop_Rol(self, expr):
+        return expr
+
+    def _handle_binop_Carry(self, expr):
+        return expr
+
+    def _handle_binop_SCarry(self, expr):
+        return expr
+
+    def _handle_binop_SBorrow(self, expr):
+        return expr
+
+    def _handle_binop_InterleaveLOV(self, expr):
+        return expr
+
+    def _handle_binop_InterleaveHIV(self, expr):
+        return expr

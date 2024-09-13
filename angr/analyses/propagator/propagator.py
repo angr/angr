@@ -17,7 +17,6 @@ from angr import sim_options
 from angr.analyses import register_analysis
 from angr.analyses.analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
-from .engine_ail import SimEnginePropagatorAIL
 import contextlib
 
 if TYPE_CHECKING:
@@ -167,17 +166,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._engine_vex = SimEnginePropagatorVEX(
             project=self.project,
-            arch=self.project.arch,
             reaching_definitions=self._reaching_definitions,
-            bp_as_gpr=bp_as_gpr,
-        )
-        self._engine_ail = SimEnginePropagatorAIL(
-            arch=self.project.arch,
-            stack_pointer_tracker=self._stack_pointer_tracker,
-            # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
-            propagate_tmps=block is not None,
-            reaching_definitions=self._reaching_definitions,
-            immediate_stmt_removal=self._immediate_stmt_removal,
             bp_as_gpr=bp_as_gpr,
         )
 
@@ -240,8 +229,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         pass
 
     def _initial_abstract_state(self, node):
-        cls = PropagatorAILState if isinstance(node, ailment.Block) else PropagatorVEXState
-        self._initial_state = cls.initial_state(
+        self._initial_state = PropagatorVEXState.initial_state(
             self.project,
             rda=self._reaching_definitions,
             only_consts=self._only_consts,
@@ -262,19 +250,12 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _run_on_node(self, node, state):
         self._analyzed_states += 1
 
-        if isinstance(node, ailment.Block):
-            block = node
-            block_key = (node.addr, node.idx)
-            engine = self._engine_ail
-        else:
-            block = self.project.factory.block(
-                node.addr, node.size, opt_level=1, cross_insn_opt=self._vex_cross_insn_opt
-            )
-            block_key = node.addr
-            engine = self._engine_vex
-            if block.size == 0:
-                # maybe the block is not decodeable
-                return False, state
+        block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=self._vex_cross_insn_opt)
+        block_key = node.addr
+        engine = self._engine_vex
+        if block.size == 0:
+            # maybe the block is not decodeable
+            return False, state
 
         if state is not self._initial_state:
             # make a copy of the state if it's not the initial state

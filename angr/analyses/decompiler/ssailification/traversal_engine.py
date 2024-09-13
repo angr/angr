@@ -1,28 +1,24 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-from ailment.statement import Assignment, Call, Store, ConditionalJump
+from ailment.statement import Call, Store, ConditionalJump
 from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression, Tmp, DirtyExpression
 
-from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
+from angr.engines.light import SimEngineLightAIL
+from angr.project import Project
 from angr.utils.ssa import get_reg_offset_base
 from angr.utils.orderedset import OrderedSet
 from .traversal_state import TraversalState
 
 
-class SimEngineSSATraversal(
-    SimEngineLightAILMixin,
-    SimEngineLight,
-):
+class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None]):
     """
     This engine collects all register and stack variable locations and links them to the block of their creation.
     """
 
-    state: TraversalState
-
     def __init__(
         self,
-        arch,
+        project: Project,
         sp_tracker=None,
         bp_as_gpr: bool = False,
         def_to_loc=None,
@@ -30,9 +26,7 @@ class SimEngineSSATraversal(
         stackvars: bool = False,
         tmps: bool = False,
     ):
-        super().__init__()
-
-        self.arch = arch
+        super().__init__(project)
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
@@ -41,7 +35,16 @@ class SimEngineSSATraversal(
         self.def_to_loc = def_to_loc if def_to_loc is not None else []
         self.loc_to_defs = loc_to_defs if loc_to_defs is not None else OrderedDict()
 
-    def _handle_Assignment(self, stmt: Assignment):
+    def _is_top(self, expr):
+        return True
+
+    def _top(self, bits):
+        return None
+
+    def _process_block_end(self, block, stmt_data, whitelist):
+        pass
+
+    def _handle_stmt_Assignment(self, stmt):
         if isinstance(stmt.dst, Register):
             codeloc = self._codeloc()
             self.def_to_loc.append((stmt.dst, codeloc))
@@ -54,7 +57,7 @@ class SimEngineSSATraversal(
 
         self._expr(stmt.src)
 
-    def _handle_Store(self, stmt: Store):
+    def _handle_stmt_Store(self, stmt: Store):
         self._expr(stmt.addr)
         self._expr(stmt.data)
 
@@ -67,14 +70,14 @@ class SimEngineSSATraversal(
 
             self.state.live_stackvars.add((stmt.addr.offset, stmt.size))
 
-    def _handle_ConditionalJump(self, stmt: ConditionalJump):
+    def _handle_stmt_ConditionalJump(self, stmt: ConditionalJump):
         self._expr(stmt.condition)
         if stmt.true_target is not None:
             self._expr(stmt.true_target)
         if stmt.false_target is not None:
             self._expr(stmt.false_target)
 
-    def _handle_Call(self, stmt: Call):
+    def _handle_stmt_Call(self, stmt: Call):
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             codeloc = self._codeloc()
             self.def_to_loc.append((stmt.ret_expr, codeloc))
@@ -85,11 +88,15 @@ class SimEngineSSATraversal(
             base_off = get_reg_offset_base(stmt.ret_expr.reg_offset, self.arch)
             self.state.live_registers.add(base_off)
 
-        super()._ail_handle_Call(stmt)
+    def _handle_stmt_Dummy(self, stmt):
+        pass
 
-    _handle_CallExpr = _handle_Call
+    _handle_stmt_DirtyStatement = _handle_stmt_Dummy
+    _handle_stmt_Jump = _handle_stmt_Dummy
+    _handle_stmt_Label = _handle_stmt_Dummy
+    _handle_stmt_Return = _handle_stmt_Dummy
 
-    def _handle_Register(self, expr: Register):
+    def _handle_expr_Register(self, expr: Register):
         base_offset = get_reg_offset_base(expr.reg_offset, self.arch)
 
         if base_offset not in self.state.live_registers:
@@ -111,35 +118,67 @@ class SimEngineSSATraversal(
 
             self.state.live_tmps.add(expr.tmp_idx)
 
-    def _handle_Cmp(self, expr: BinaryOp):
+    def _handle_binop_Default(self, expr: BinaryOp):
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
 
-    _handle_CmpLE = _handle_Cmp
-    _handle_CmpLT = _handle_Cmp
-    _handle_CmpGE = _handle_Cmp
-    _handle_CmpGT = _handle_Cmp
-    _handle_CmpEQ = _handle_Cmp
-    _handle_CmpNE = _handle_Cmp
+    _handle_binop_CmpLE = _handle_binop_Default
+    _handle_binop_CmpLT = _handle_binop_Default
+    _handle_binop_CmpGE = _handle_binop_Default
+    _handle_binop_CmpGT = _handle_binop_Default
+    _handle_binop_CmpEQ = _handle_binop_Default
+    _handle_binop_CmpNE = _handle_binop_Default
+    _handle_binop_Add = _handle_binop_Default
+    _handle_binop_AddF = _handle_binop_Default
+    _handle_binop_AddV = _handle_binop_Default
+    _handle_binop_And = _handle_binop_Default
+    _handle_binop_Carry = _handle_binop_Default
+    _handle_binop_CmpF = _handle_binop_Default
+    _handle_binop_Concat = _handle_binop_Default
+    _handle_binop_Div = _handle_binop_Default
+    _handle_binop_DivF = _handle_binop_Default
+    _handle_binop_LogicalAnd = _handle_binop_Default
+    _handle_binop_LogicalOr = _handle_binop_Default
+    _handle_binop_Mod = _handle_binop_Default
+    _handle_binop_Mul = _handle_binop_Default
+    _handle_binop_MulF = _handle_binop_Default
+    _handle_binop_MulV = _handle_binop_Default
+    _handle_binop_Or = _handle_binop_Default
+    _handle_binop_Rol = _handle_binop_Default
+    _handle_binop_Ror = _handle_binop_Default
+    _handle_binop_SBorrow = _handle_binop_Default
+    _handle_binop_SCarry = _handle_binop_Default
+    _handle_binop_Sar = _handle_binop_Default
+    _handle_binop_Shl = _handle_binop_Default
+    _handle_binop_Shr = _handle_binop_Default
+    _handle_binop_Sub = _handle_binop_Default
+    _handle_binop_SubF = _handle_binop_Default
+    _handle_binop_Xor = _handle_binop_Default
+    _handle_binop_InterleaveLOV = _handle_binop_Default
+    _handle_binop_InterleaveHIV = _handle_binop_Default
 
-    def _handle_UnaryOp(self, expr):
+    def _handle_unop_Default(self, expr):
+        self._expr(expr.operands[0])
+
+    _handle_unop_BitwiseNeg = _handle_unop_Default
+    _handle_unop_Dereference = _handle_unop_Default
+    _handle_unop_Neg = _handle_unop_Default
+    _handle_unop_Not = _handle_unop_Default
+    _handle_unop_Reference = _handle_unop_Default
+
+    def _handle_expr_UnaryOp(self, expr):
         self._expr(expr.operand)
 
-    def _handle_BinaryOp(self, expr):
+    def _handle_expr_BinaryOp(self, expr):
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
 
-    def _handle_TernaryOp(self, expr):
-        self._expr(expr.operands[0])
-        self._expr(expr.operands[1])
-        self._expr(expr.operands[2])
-
-    def _handle_ITE(self, expr: ITE):
+    def _handle_expr_ITE(self, expr: ITE):
         self._expr(expr.cond)
         self._expr(expr.iftrue)
         self._expr(expr.iffalse)
 
-    def _handle_VEXCCallExpression(self, expr: VEXCCallExpression):
+    def _handle_expr_VEXCCallExpression(self, expr: VEXCCallExpression):
         for operand in expr.operands:
             self._expr(operand)
 
@@ -154,5 +193,15 @@ class SimEngineSSATraversal(
     def _handle_Dummy(self, expr):
         pass
 
-    _handle_VirtualVariable = _handle_Dummy
-    _handle_Phi = _handle_Dummy
+    _handle_expr_VirtualVariable = _handle_Dummy
+    _handle_expr_Phi = _handle_Dummy
+    _handle_expr_DirtyExpression = _handle_Dummy
+    _handle_expr_Load = _handle_Dummy
+    _handle_expr_Convert = _handle_Dummy
+    _handle_expr_Const = _handle_Dummy
+    _handle_expr_MultiStatementExpression = _handle_Dummy
+    _handle_expr_Reinterpret = _handle_Dummy
+    _handle_expr_StackBaseOffset = _handle_Dummy
+    _handle_expr_BasePointerOffset = _handle_Dummy
+    _handle_expr_Call = _handle_Dummy
+    _handle_expr_Tmp = _handle_Dummy

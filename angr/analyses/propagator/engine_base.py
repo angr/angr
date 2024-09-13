@@ -1,9 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic
 import logging
+
+
+from angr.engines.light.engine import BlockType, DataType, StateType
 
 from angr.engines.light import SimEngineLight
 from angr.errors import SimEngineError
+from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
@@ -11,22 +15,22 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
-class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
+class SimEnginePropagatorBaseMixin(
+    Generic[StateType, DataType, BlockType], SimEngineLight[StateType, DataType, BlockType, StateType]
+):  # pylint:disable=abstract-method
     def __init__(
         self,
+        project: Project,
         stack_pointer_tracker=None,
-        project=None,
         propagate_tmps=True,
-        arch=None,
         reaching_definitions: ReachingDefinitionsModel | None = None,
         immediate_stmt_removal: bool = False,
         bp_as_gpr: bool = False,
     ):
-        super().__init__()
+        super().__init__(project)
 
         # Used in the VEX engine
-        self._project = project
-        self.arch = arch
+        self.arch = project.arch
         self.base_state = None
         self._load_callback = None
         self._propagate_tmps: bool = propagate_tmps
@@ -40,15 +44,17 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
 
         self._multi_occurrence_registers = None
 
-    def process(self, state, *args, **kwargs):
-        self.project = kwargs.pop("project", None)
-        self.base_state = kwargs.pop("base_state", None)
-        self._load_callback = kwargs.pop("load_callback", None)
+    def process(
+        self, state: StateType, *, block: BlockType | None = None, base_state=None, load_callback=None, **kwargs
+    ) -> StateType:
+        self.base_state = base_state
+        self._load_callback = load_callback
         try:
-            self._process(state, None, block=kwargs.pop("block", None))
+            result_state = super().process(state, block=block, **kwargs)
         except SimEngineError as ex:
             if kwargs.pop("fail_fast", False) is True:
                 raise ex
             l.error(ex, exc_info=True)
+            result_state = state
 
-        return self.state
+        return result_state

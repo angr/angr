@@ -1,32 +1,35 @@
 from __future__ import annotations
 from collections import defaultdict
+from typing import cast
 
 from cle.loader import MetaELF
-from cle.backends import Section, Segment
 import pyvex
 import claripy
 
 from angr.analyses import visitors, ForwardAnalysis
-from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
+from angr.code_location import CodeLocation
+from angr.engines.light import SimEngineNostmtVEX
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
 from .propagator.vex_vars import VEXTmp
 
 
-class SimEngineInitFinderVEX(
-    SimEngineLightVEXMixin,
-    SimEngineLight,
-):
+class SimEngineInitFinderVEX(SimEngineNostmtVEX[None, claripy.ast.Base | int | None, None]):
     """
     The VEX engine class for InitFinder.
     """
 
     def __init__(self, project, replacements, overlay, pointers_only=False):
-        super().__init__()
-        self.project = project
-        self.replacements = replacements
+        super().__init__(project)
+        self.replacements: dict[CodeLocation, dict[int, claripy.ast.Base | int]] = replacements
         self.overlay = overlay
         self.pointers_only = pointers_only
+
+    def _top(self, bits):
+        return None
+
+    def _is_top(self, expr):
+        return expr is None
 
     #
     # Utils
@@ -38,18 +41,19 @@ class SimEngineInitFinderVEX(
             return True
         return bool(isinstance(expr, int))
 
-    def _is_addr_uninitialized(self, addr):
+    def _is_addr_uninitialized(self, addr: int | claripy.ast.Base):
         # is it writing to a global, uninitialized region?
 
         if isinstance(addr, claripy.ast.Base):
-            addr = addr.args[0]
+            assert addr.op == "BVV"
+            addr = cast(int, addr.args[0])
 
         obj = self.project.loader.find_object_containing(addr)
         if obj is not None:
             if not obj.has_memory:
                 # Objects without memory are definitely uninitialized
                 return True
-            section: Section = obj.find_section_containing(addr)
+            section = obj.find_section_containing(addr)
             if section is not None:
                 return section.name in {
                     ".bss",
@@ -58,7 +62,7 @@ class SimEngineInitFinderVEX(
             if isinstance(obj, MetaELF):
                 # for ELFs, if p_memsz >= p_filesz, the extra bytes are considered NOBITS
                 # https://docs.oracle.com/cd/E19120-01/open.solaris/819-0690/gjpww/index.html
-                segment: Segment = obj.find_segment_containing(addr)
+                segment = obj.find_segment_containing(addr)
                 if segment is not None and segment.memsize > segment.filesize:
                     return segment.vaddr + segment.filesize <= addr < segment.vaddr + segment.memsize
         return False
@@ -71,6 +75,9 @@ class SimEngineInitFinderVEX(
             return self.project.loader.find_object_containing(addr) is not None
         return False
 
+    def _process_block_end(self, stmt_result, whitelist):
+        return None
+
     #
     # Statement handlers
     #
@@ -78,15 +85,15 @@ class SimEngineInitFinderVEX(
     def _handle_function(self, *args, **kwargs):
         pass
 
-    def _handle_WrTmp(self, stmt):
+    def _handle_stmt_WrTmp(self, stmt):
         # Don't do anything since constant propagation has already processed it
         return
 
-    def _handle_Put(self, stmt):
+    def _handle_stmt_Put(self, stmt):
         # Don't do anything since constant propagation has already processed it
         return
 
-    def _handle_Store(self, stmt):
+    def _handle_stmt_Store(self, stmt):
         blockloc = self._codeloc(block_only=True)
 
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
@@ -107,7 +114,7 @@ class SimEngineInitFinderVEX(
                         if not self.pointers_only or self._is_pointer(data_v):
                             self.overlay.store(addr_v, data_v, endness=self.project.arch.memory_endness)
 
-    def _handle_StoreG(self, stmt):
+    def _handle_stmt_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
         repl = self.replacements[blockloc]
 
@@ -144,21 +151,39 @@ class SimEngineInitFinderVEX(
     # Expression handlers
     #
 
-    def _handle_Get(self, expr):
+    def _handle_expr_Get(self, expr):
         return None
 
-    def _handle_Load(self, expr):
+    def _handle_expr_Load(self, expr):
         return None
 
-    def _handle_LoadG(self, stmt):
+    def _handle_stmt_LoadG(self, stmt):
         return None
 
-    def _handle_RdTmp(self, expr):
+    def _handle_expr_RdTmp(self, expr):
         blockloc = self._codeloc(block_only=True)
 
         tmp = VEXTmp(expr.tmp)
         if tmp in self.replacements[blockloc]:
             return self.replacements[blockloc][tmp]
+        return None
+
+    def _handle_expr_VECRET(self, expr):
+        return None
+
+    def _handle_expr_GSPTR(self, expr):
+        return None
+
+    def _handle_expr_GetI(self, expr):
+        return None
+
+    def _handle_expr_ITE(self, expr):
+        return None
+
+    def _handle_conversion(self, from_size, to_size, signed, operand):
+        return None
+
+    def _handle_expr_Const(self, expr):
         return None
 
 
@@ -238,7 +263,7 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
         return None
 
     def _merge_states(self, node, *states):
-        return None
+        return None, False
 
     def _run_on_node(self, node, state):
         block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)

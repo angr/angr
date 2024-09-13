@@ -411,3 +411,12 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
         return ailment.utils.stable_hash(
             (IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str)
         )
+
+    def replace(self, old_expr, new_expr):
+        return self
+
+    def likes(self, other):
+        return self == other
+
+    def matches(self, other):
+        return self == other

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
-from typing import Any
+from typing import Any, Literal, overload
 
 import archinfo
 from ailment import Expression, Block
@@ -12,6 +12,16 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
 from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
+
+
+@overload
+def get_reg_offset_base_and_size(
+    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: Literal[True] = True
+) -> tuple[int, int]: ...
+@overload
+def get_reg_offset_base_and_size(
+    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: Literal[False] = False
+) -> tuple[int, int] | None: ...
 
 
 def get_reg_offset_base_and_size(
@@ -34,9 +44,17 @@ def get_reg_offset_base_and_size(
     return base_reg_and_size
 
 
+@overload
 def get_reg_offset_base(
-    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: bool = True
-) -> int | None:
+    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: Literal[True] = True
+) -> int: ...
+@overload
+def get_reg_offset_base(
+    reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: Literal[False] = False
+) -> int | None: ...
+
+
+def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
     """
     Translate a given register offset into the offset of its full register.
 

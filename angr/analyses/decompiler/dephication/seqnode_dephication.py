@@ -7,6 +7,7 @@ from ailment.block import Block
 from ailment.statement import Assignment
 from ailment.expression import VirtualVariable, Phi
 
+import angr
 from angr.utils.ail import is_phi_assignment
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
@@ -53,7 +54,7 @@ class SeqNodeRewriter(SequenceWalker):
     variables.
     """
 
-    def __init__(self, seq_node: SequenceNode, vvar_to_vvar: dict[int, int], arch):
+    def __init__(self, seq_node: SequenceNode, vvar_to_vvar: dict[int, int], project: angr.Project):
         super().__init__(
             handlers={
                 Block: self._handle_Block,
@@ -63,7 +64,7 @@ class SeqNodeRewriter(SequenceWalker):
         )
 
         self.vvar_to_vvar = vvar_to_vvar
-        self.engine = SimEngineDephiRewriting(arch, self.vvar_to_vvar)
+        self.engine = SimEngineDephiRewriting(project, self.vvar_to_vvar)
 
         self.output = self.walk(seq_node)
         if self.output is None:
@@ -71,7 +72,7 @@ class SeqNodeRewriter(SequenceWalker):
             self.output = seq_node
 
     def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:  # pylint:disable=unused-argument
-        return self.engine._handle_Assignment(stmt)
+        return self.engine._handle_stmt_Assignment(stmt)
 
     def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
         self.engine.out_block = None
@@ -117,7 +118,7 @@ class SeqNodeDephication(DephicationBase):
         return collector.phi_to_src
 
     def _rewrite_container(self) -> Any:
-        rewriter = SeqNodeRewriter(self._seq_node, self.vvar_to_vvar_mapping, self.project.arch)
+        rewriter = SeqNodeRewriter(self._seq_node, self.vvar_to_vvar_mapping, self.project)
         return rewriter.output
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 import logging
+from typing import Literal
 
 import networkx
 
@@ -30,7 +31,7 @@ class AnnotatedCFG:
         self._cfg = None
         self._target = None
 
-        self._run_statement_whitelist: dict[int, list[int] | bool] = defaultdict(list)
+        self._run_statement_whitelist: dict[int, list[int] | Literal[True]] = defaultdict(list)
         self._exit_taken = defaultdict(list)
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}
@@ -76,6 +77,7 @@ class AnnotatedCFG:
 
     def get_addr(self, run):
         if isinstance(run, CFGNode):
+            assert isinstance(run.addr, int)
             return run.addr
         if type(run) is int:
             return run
@@ -87,17 +89,18 @@ class AnnotatedCFG:
 
     def add_statements_to_whitelist(self, block, stmt_ids):
         addr = self.get_addr(block)
-        if type(stmt_ids) is bool:
+        if stmt_ids is True:
             if type(self._run_statement_whitelist[addr]) is list and self._run_statement_whitelist[addr]:
                 raise Exception("WTF")
             self._run_statement_whitelist[addr] = stmt_ids
         elif -1 in stmt_ids:
             self._run_statement_whitelist[addr] = True
         else:
-            self._run_statement_whitelist[addr].extend(stmt_ids)
-            self._run_statement_whitelist[addr] = sorted(
-                set(self._run_statement_whitelist[addr]), key=lambda v: v if type(v) is int else float("inf")
-            )
+            whitelist_lst = self._run_statement_whitelist[addr]
+            assert whitelist_lst is not True
+            whitelist = set(whitelist_lst)
+            whitelist.update(stmt_ids)
+            self._run_statement_whitelist[addr] = sorted(whitelist)
 
     def add_exit_to_whitelist(self, run_from, run_to):
         addr_from = self.get_addr(run_from)
@@ -135,17 +138,18 @@ class AnnotatedCFG:
             return self._addr_to_run[addr]
         return None
 
-    def get_whitelisted_statements(self, addr):
+    def get_whitelisted_statements(self, addr) -> list[int] | None:
         """
         :returns: True if all statements are whitelisted
         """
         if addr in self._run_statement_whitelist:
-            if self._run_statement_whitelist[addr] is True:
+            whitelist = self._run_statement_whitelist[addr]
+            if whitelist is True:
                 return None  # This is the default value used to say
                 # we execute all statements in this basic block. A
                 # little weird...
 
-            return self._run_statement_whitelist[addr]
+            return whitelist
 
         return []
 
@@ -166,12 +170,12 @@ class AnnotatedCFG:
             return self._addr_to_last_stmt_id[addr]
         if addr in self._run_statement_whitelist:
             # is the default exit there? it equals to a negative number (-2 by default) so `max()` won't work.
-            if self._run_statement_whitelist[addr] is True or (
-                isinstance(self._run_statement_whitelist[addr], list)
-                and DEFAULT_STATEMENT in self._run_statement_whitelist[addr]
+            whitelist = self._run_statement_whitelist[addr]
+            if whitelist is True or (
+                isinstance(self._run_statement_whitelist[addr], list) and DEFAULT_STATEMENT in whitelist
             ):
                 return DEFAULT_STATEMENT
-            return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float("inf"))
+            return max(whitelist, key=lambda v: v if type(v) is int else float("inf"))
         return None
 
     def get_loops(self):
@@ -224,7 +228,7 @@ class AnnotatedCFG:
         statements = vex_block.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(len(statements)):
-            line = "+" if whitelist is True or i in whitelist else "-"
+            line = "+" if whitelist is None or i in whitelist else "-"
             line += "[% 3d] " % i
             # We cannot get data returned by pp(). WTF?
             print(line, end="")
@@ -301,6 +305,7 @@ class AnnotatedCFG:
 
     def _detect_loops(self):
         temp_graph = networkx.DiGraph()
+        assert self._cfg is not None
         for source, target_list in self._cfg._edge_map.items():
             for target in target_list:
                 temp_graph.add_edge(source, target)

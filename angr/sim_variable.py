@@ -22,7 +22,9 @@ class SimVariable(Serializable):
         "size",
     ]
 
-    def __init__(self, ident=None, name=None, region: int | None = None, category=None, size: int | None = None):
+    def __init__(
+        self, size: int, ident: str | None = None, name: str | None = None, region: int | None = None, category=None
+    ):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
@@ -87,7 +89,7 @@ class SimVariable(Serializable):
 class SimConstantVariable(SimVariable):
     __slots__ = ["value", "_hash"]
 
-    def __init__(self, ident=None, value=None, region=None, size=None):
+    def __init__(self, size: int, ident=None, value=None, region=None):
         super().__init__(ident=ident, region=region, size=size)
         self.value = value
         self._hash = None
@@ -122,7 +124,7 @@ class SimConstantVariable(SimVariable):
 class SimTemporaryVariable(SimVariable):
     __slots__ = ["tmp_id", "_hash"]
 
-    def __init__(self, tmp_id, size=None):
+    def __init__(self, tmp_id: int, size: int):
         SimVariable.__init__(self, size=size)
 
         self.tmp_id = tmp_id
@@ -170,10 +172,10 @@ class SimTemporaryVariable(SimVariable):
 class SimRegisterVariable(SimVariable):
     __slots__ = ["reg", "_hash"]
 
-    def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
+    def __init__(self, reg_offset: int, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
 
-        self.reg: int = reg_offset
+        self.reg = reg_offset
         self._hash: int | None = None
 
     @property
@@ -236,7 +238,7 @@ class SimRegisterVariable(SimVariable):
 class SimMemoryVariable(SimVariable):
     __slots__ = ["addr", "_hash"]
 
-    def __init__(self, addr, size, ident=None, name=None, region=None, category=None):
+    def __init__(self, addr, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
 
         self.addr = addr
@@ -313,7 +315,9 @@ class SimStackVariable(SimMemoryVariable):
         "base_addr",
     )
 
-    def __init__(self, offset, size, base="sp", base_addr=None, ident=None, name=None, region=None, category=None):
+    def __init__(
+        self, offset: int, size: int, base="sp", base_addr=None, ident=None, name=None, region=None, category=None
+    ):
         if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number

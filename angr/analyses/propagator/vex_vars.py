@@ -18,7 +18,7 @@ class VEXMemVar:
         "size",
     )
 
-    def __init__(self, addr, size):
+    def __init__(self, addr: int, size: int):
         self.addr = addr
         self.size = size
 

@@ -86,7 +86,7 @@ class FunctionCallData:
 
     callsite_codeloc: CodeLocation
     function_codeloc: CodeLocation
-    address_multi: MultiValues | None
+    address_multi: MultiValues[claripy.ast.BV | claripy.ast.FP] | None
     address: int | None = None
     symbol: Symbol | None = None
     function: Function | None = None
@@ -94,12 +94,12 @@ class FunctionCallData:
     cc: SimCC | None = None
     prototype: SimTypeFunction | None = None
     args_atoms: list[set[Atom]] | None = None
-    args_values: list[MultiValues] | None = None
+    args_values: list[MultiValues[claripy.ast.BV | claripy.ast.FP]] | None = None
     ret_atoms: set[Atom] | None = None
     redefine_locals: bool = True
     visited_blocks: set[int] | None = None
     effects: list[FunctionEffect] = field(default_factory=list)
-    ret_values: MultiValues | None = None
+    ret_values: MultiValues[claripy.ast.BV | claripy.ast.FP] | None = None
     ret_values_deps: set[Definition] | None = None
     caller_will_handle_single_ret: bool = False
     guessed_cc: bool = False
