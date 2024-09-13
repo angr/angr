@@ -60,12 +60,12 @@ def is_similar(
         # ConditionalJump Handler
         if isinstance(ail_obj1, ConditionalJump):
             # try a simple compare
-            liked = ail_obj1.likes(ail_obj2)
+            liked = ail_obj1.matches(ail_obj2)
             if liked or not graph:
                 return liked
 
             # even in partial matching, the condition must at least match
-            if not ail_obj1.condition.likes(ail_obj2.condition):
+            if not ail_obj1.condition.matches(ail_obj2.condition):
                 return False
 
             # must use graph to know
@@ -88,7 +88,7 @@ def is_similar(
                     return False
 
                 # skip full checks when partial checking is on
-                if partial and t1_blk.statements[0].likes(t2_blk.statements[0]):
+                if partial and t1_blk.statements[0].matches(t2_blk.statements[0]):
                     continue
 
                 if not is_similar(t1_blk, t2_blk, graph=graph, curr_depth=curr_depth + 1, max_depth=max_depth):
@@ -96,7 +96,7 @@ def is_similar(
             return True
 
         # Generic Statement Handler
-        return ail_obj1.likes(ail_obj2)
+        return ail_obj1.matches(ail_obj2)
     return False
 
 
