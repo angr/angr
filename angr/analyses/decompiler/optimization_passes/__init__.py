@@ -29,6 +29,7 @@ from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
 from .deadblock_remover import DeadblockRemover
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .const_prop_reverter import ConstPropOptReverter
+from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
 
 # order matters!
@@ -58,6 +59,7 @@ _all_optimization_passes = [
     (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
     (InlinedStringTransformationSimplifier, True),
+    (CallStatementRewriter, True),
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
