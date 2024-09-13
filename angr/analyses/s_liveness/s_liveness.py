@@ -54,8 +54,12 @@ class SLivenessAnalysis(Analysis):
         live_on_edges: dict[tuple[tuple[int, int | None], tuple[int, int | None]], set[int]] = {}
 
         worklist = list(networkx.dfs_postorder_nodes(graph, source=entry))
+        worklist_set = set(worklist)
+
         while worklist:
             block = worklist.pop(0)
+            worklist_set.remove(block)
+
             block_key = block.addr, block.idx
             changed = False
 
@@ -102,7 +106,11 @@ class SLivenessAnalysis(Analysis):
                     changed = True
 
             if changed:
-                worklist.extend(networkx.dfs_postorder_nodes(graph, source=block))
+                new_nodes = [
+                    node for node in networkx.dfs_postorder_nodes(graph, source=block) if node not in worklist_set
+                ]
+                worklist.extend(new_nodes)
+                worklist_set |= set(new_nodes)
 
         # set the model accordingly
         self.model.live_ins = live_ins
