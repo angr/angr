@@ -265,7 +265,6 @@ class VirtualVariable(Atom):
     def likes(self, atom):
         return (
             isinstance(atom, VirtualVariable)
-            and self.varid == atom.varid
             and self.bits == atom.bits
             and self.category == atom.category
             and self.oident == atom.oident
@@ -330,11 +329,23 @@ class Phi(Atom):
 
     def likes(self, atom) -> bool:
         if isinstance(atom, Phi) and self.bits == atom.bits:
-            self_src_and_vvarids = {(src, vvar.varid if vvar is not None else None) for src, vvar in self.src_and_vvars}
-            other_src_and_vvarids = {
-                (src, vvar.varid if vvar is not None else None) for src, vvar in atom.src_and_vvars
-            }
-            return self_src_and_vvarids == other_src_and_vvarids
+            if len(self.src_and_vvars) != len(atom.src_and_vvars):
+                return False
+            self_src_and_vvars = dict(self.src_and_vvars)
+            other_src_and_vvars = dict(atom.src_and_vvars)
+            for src, self_vvar in self_src_and_vvars.items():
+                if src not in other_src_and_vvars:
+                    return False
+                other_vvar = other_src_and_vvars[src]
+                if (
+                    self_vvar is None
+                    and other_vvar is not None
+                    or self_vvar is not None
+                    and other_vvar is None
+                    or not self_vvar.likes(other_vvar)
+                ):
+                    return False
+            return True
         return False
 
     def __repr__(self):
