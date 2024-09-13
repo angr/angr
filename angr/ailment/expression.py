@@ -362,6 +362,8 @@ class Phi(Atom):
                 if src not in other_src_and_vvars:
                     return False
                 other_vvar = other_src_and_vvars[src]
+                if self_vvar is None and other_vvar is None:
+                    continue
                 if (
                     self_vvar is None
                     and other_vvar is not None
