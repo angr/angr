@@ -10,7 +10,7 @@ except ImportError:
     claripy = None
 
 from .tagged_object import TaggedObject
-from .utils import get_bits, stable_hash, is_none_or_likeable
+from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
 
 if TYPE_CHECKING:
     from .statement import Statement
@@ -43,6 +43,9 @@ class Expression(TaggedObject):
 
     def likes(self, atom):  # pylint:disable=unused-argument,no-self-use
         raise NotImplementedError()
+
+    def matches(self, atom):  # pylint:disable=unused-argument,no-self-use
+        return NotImplementedError()
 
     def replace(self, old_expr, new_expr):
         if self is old_expr:
@@ -115,6 +118,7 @@ class Const(Atom):
             and self.bits == other.bits
         )
 
+    matches = likes
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
@@ -153,6 +157,7 @@ class Tmp(Atom):
     def likes(self, other):
         return type(self) is type(other) and self.tmp_idx == other.tmp_idx and self.bits == other.bits
 
+    matches = likes
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
@@ -180,6 +185,8 @@ class Register(Atom):
 
     def likes(self, atom):
         return type(self) is type(atom) and self.reg_offset == atom.reg_offset and self.bits == atom.bits
+
+    matches = likes
 
     def __repr__(self):
         return str(self)
@@ -265,6 +272,15 @@ class VirtualVariable(Atom):
     def likes(self, atom):
         return (
             isinstance(atom, VirtualVariable)
+            and self.varid == atom.varid
+            and self.bits == atom.bits
+            and self.category == atom.category
+            and self.oident == atom.oident
+        )
+
+    def matches(self, atom):
+        return (
+            isinstance(atom, VirtualVariable)
             and self.bits == atom.bits
             and self.category == atom.category
             and self.oident == atom.oident
@@ -329,6 +345,15 @@ class Phi(Atom):
 
     def likes(self, atom) -> bool:
         if isinstance(atom, Phi) and self.bits == atom.bits:
+            self_src_and_vvarids = {(src, vvar.varid if vvar is not None else None) for src, vvar in self.src_and_vvars}
+            other_src_and_vvarids = {
+                (src, vvar.varid if vvar is not None else None) for src, vvar in atom.src_and_vvars
+            }
+            return self_src_and_vvarids == other_src_and_vvarids
+        return False
+
+    def matches(self, atom) -> bool:
+        if isinstance(atom, Phi) and self.bits == atom.bits:
             if len(self.src_and_vvars) != len(atom.src_and_vvars):
                 return False
             self_src_and_vvars = dict(self.src_and_vvars)
@@ -342,7 +367,7 @@ class Phi(Atom):
                     and other_vvar is not None
                     or self_vvar is not None
                     and other_vvar is None
-                    or not self_vvar.likes(other_vvar)
+                    or not self_vvar.matches(other_vvar)
                 ):
                     return False
             return True
@@ -424,7 +449,18 @@ class UnaryOp(Op):
 
     def likes(self, other):
         return (
-            type(other) is UnaryOp and self.op == other.op and self.bits == other.bits and self.operand == other.operand
+            type(other) is UnaryOp
+            and self.op == other.op
+            and self.bits == other.bits
+            and self.operand.likes(other.operand)
+        )
+
+    def matches(self, atom):
+        return (
+            type(atom) is UnaryOp
+            and self.op == atom.op
+            and self.bits == atom.bits
+            and self.operand.matches(atom.operand)
         )
 
     __hash__ = TaggedObject.__hash__
@@ -513,6 +549,19 @@ class Convert(UnaryOp):
             and self.bits == other.bits
             and self.is_signed == other.is_signed
             and self.operand.likes(other.operand)
+            and self.from_type == other.from_type
+            and self.to_type == other.to_type
+            and self.rounding_mode == other.rounding_mode
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is Convert
+            and self.from_bits == other.from_bits
+            and self.to_bits == other.to_bits
+            and self.bits == other.bits
+            and self.is_signed == other.is_signed
+            and self.operand.matches(other.operand)
             and self.from_type == other.from_type
             and self.to_type == other.to_type
             and self.rounding_mode == other.rounding_mode
@@ -613,7 +662,17 @@ class Reinterpret(UnaryOp):
             and self.from_type == other.from_type
             and self.to_bits == other.to_bits
             and self.to_type == other.to_type
-            and self.operand == other.operand
+            and self.operand.likes(other.operand)
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is Reinterpret
+            and self.from_bits == other.from_bits
+            and self.from_type == other.from_type
+            and self.to_bits == other.to_bits
+            and self.to_type == other.to_type
+            and self.operand.matches(other.operand)
         )
 
     __hash__ = TaggedObject.__hash__
@@ -800,6 +859,17 @@ class BinaryOp(Op):
             and self.rounding_mode == other.rounding_mode
         )
 
+    def matches(self, other):
+        return (
+            type(other) is BinaryOp
+            and self.op == other.op
+            and self.bits == other.bits
+            and self.signed == other.signed
+            and is_none_or_matchable(self.operands, other.operands, is_list=True)
+            and self.floating_point == other.floating_point
+            and self.rounding_mode == other.rounding_mode
+        )
+
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
@@ -936,7 +1006,15 @@ class TernaryOp(Op):
             type(other) is TernaryOp
             and self.op == other.op
             and self.bits == other.bits
-            and self.operands == other.operands
+            and is_none_or_likeable(self.operands, other.operands, is_list=True)
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is TernaryOp
+            and self.op == other.op
+            and self.bits == other.bits
+            and is_none_or_matchable(self.operands, other.operands, is_list=True)
         )
 
     __hash__ = TaggedObject.__hash__
@@ -1061,13 +1139,27 @@ class Load(Expression):
     def _likes_addr(self, other_addr):
         if hasattr(self.addr, "likes") and hasattr(other_addr, "likes"):
             return self.addr.likes(other_addr)
-
         return self.addr == other_addr
 
     def likes(self, other):
         return (
             type(other) is Load
             and self._likes_addr(other.addr)
+            and self.size == other.size
+            and self.endness == other.endness
+            and self.guard == other.guard
+            and self.alt == other.alt
+        )
+
+    def _matches_addr(self, other_addr):
+        if hasattr(self.addr, "matches") and hasattr(other_addr, "matches"):
+            return self.addr.matches(other_addr)
+        return self.addr == other_addr
+
+    def matches(self, other):
+        return (
+            type(other) is Load
+            and self._matches_addr(other.addr)
             and self.size == other.size
             and self.endness == other.endness
             and self.guard == other.guard
@@ -1130,9 +1222,18 @@ class ITE(Expression):
     def likes(self, atom):
         return (
             type(atom) is ITE
-            and self.cond == atom.cond
-            and self.iffalse == atom.iffalse
-            and self.iftrue == atom.iftrue
+            and self.cond.likes(atom.cond)
+            and self.iffalse.likes(atom.iffalse)
+            and self.iftrue.likes(atom.iftrue)
+            and self.bits == atom.bits
+        )
+
+    def matches(self, atom):
+        return (
+            type(atom) is ITE
+            and self.cond.matches(atom.cond)
+            and self.iffalse.matches(atom.iffalse)
+            and self.iftrue.matches(atom.iftrue)
             and self.bits == atom.bits
         )
 
@@ -1199,6 +1300,7 @@ class DirtyExpression(Expression):
     def likes(self, other):
         return type(other) is DirtyExpression and other.dirty_expr == self.dirty_expr
 
+    matches = likes
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
@@ -1252,6 +1354,15 @@ class VEXCCallExpression(Expression):
             and len(self.operands) == len(other.operands)
             and self.bits == other.bits
             and all(op1.likes(op2) for op1, op2 in zip(other.operands, self.operands))
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is VEXCCallExpression
+            and other.cee_name == self.cee_name
+            and len(self.operands) == len(other.operands)
+            and self.bits == other.bits
+            and all(op1.matches(op2) for op1, op2 in zip(other.operands, self.operands))
         )
 
     __hash__ = TaggedObject.__hash__
@@ -1315,7 +1426,20 @@ class MultiStatementExpression(Expression):
         return stable_hash((MultiStatementExpression,) + tuple(self.stmts) + (self.expr,))
 
     def likes(self, other):
-        return type(self) is type(other) and self.stmts == other.stmts and self.expr == other.expr
+        return (
+            type(self) is type(other)
+            and len(self.stmts) == len(other.stmts)
+            and all(s_stmt.likes(o_stmt) for s_stmt, o_stmt in zip(self.stmts, other.stmts))
+            and self.expr.likes(other.expr)
+        )
+
+    def matches(self, atom):
+        return (
+            type(self) is type(atom)
+            and len(self.stmts) == len(atom.stmts)
+            and all(s_stmt.matches(o_stmt) for s_stmt, o_stmt in zip(self.stmts, atom.stmts))
+            and self.expr.matches(atom.expr)
+        )
 
     def __repr__(self):
         return f"MultiStatementExpression({self.stmts}, {self.expr})"
@@ -1408,6 +1532,7 @@ class BasePointerOffset(Expression):
             and self.offset == other.offset
         )
 
+    matches = likes
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):

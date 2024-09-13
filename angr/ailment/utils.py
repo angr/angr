@@ -22,7 +22,7 @@ if claripy:
 
 def get_bits(expr: get_bits_type_params) -> int | None:
     # delayed import
-    from .expression import Expression
+    from .expression import Expression  # pylint:disable=import-outside-toplevel
 
     if isinstance(expr, Expression):
         return expr.bits
@@ -95,7 +95,7 @@ def is_none_or_likeable(arg1, arg2, is_list=False):
     """
     Returns whether two things are both None or can like each other
     """
-    from .expression import Expression
+    from .expression import Expression  # pylint:disable=import-outside-toplevel
 
     if arg1 is None or arg2 is None:
         if arg1 == arg2:
@@ -107,4 +107,23 @@ def is_none_or_likeable(arg1, arg2, is_list=False):
 
     if isinstance(arg1, Expression):
         return arg1.likes(arg2)
+    return arg1 == arg2
+
+
+def is_none_or_matchable(arg1, arg2, is_list=False):
+    """
+    Returns whether two things are both None or can match each other
+    """
+    from .expression import Expression  # pylint:disable=import-outside-toplevel
+
+    if arg1 is None or arg2 is None:
+        if arg1 == arg2:
+            return True
+        return False
+
+    if is_list:
+        return len(arg1) == len(arg2) and all(is_none_or_matchable(a1, a2) for a1, a2 in zip(arg1, arg2))
+
+    if isinstance(arg1, Expression):
+        return arg1.matches(arg2)
     return arg1 == arg2
