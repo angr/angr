@@ -145,6 +145,14 @@ class AILSimplifier(Analysis):
 
     def _simplify(self):
         if self._narrow_expressions:
+            _l.debug("Removing dead assignments before narrowing expressions")
+            r = self._remove_dead_assignments()
+            if r:
+                _l.debug("... dead assignments removed")
+                self.simplified = True
+                self._rebuild_func_graph()
+                self._clear_cache()
+
             _l.debug("Narrowing expressions")
             narrowed_exprs = self._narrow_exprs()
             self.simplified |= narrowed_exprs
@@ -711,6 +719,14 @@ class AILSimplifier(Analysis):
                 info = ExprNarrowingInfo(False)
                 return info
             stmt = block.statements[loc.stmt_idx]
+
+            # special case: if the statement is a Call statement and expr is None, it means we have not been able to
+            # determine if the expression is really used by the call or not. skip it in this case
+            if isinstance(stmt, Call) and expr is None:
+                continue
+            # special case: if the statement is a phi statement, we ignore it
+            if is_phi_assignment(stmt):
+                continue
 
             expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:

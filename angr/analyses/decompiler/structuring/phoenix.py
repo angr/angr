@@ -825,7 +825,7 @@ class PhoenixStructurer(StructurerBase):
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
                     if src.addr not in self.kb.cfgs["CFGFast"].jump_tables:
-                        l.warning(
+                        l.debug(
                             "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r. "
                             "Remove the edge anyway.",
                             src,
@@ -1490,8 +1490,6 @@ class PhoenixStructurer(StructurerBase):
                         )
                         jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
                         case_node.nodes.append(jump_node)
-                    graph.add_edge(scnode, head)
-                    full_graph.add_edge(scnode, head)
 
             out_edges = [edge for edge in out_edges if edge[1] is not head]
             if out_edges:

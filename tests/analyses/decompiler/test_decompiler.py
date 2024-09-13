@@ -14,7 +14,7 @@ import ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_type import SimTypeInt, SimTypePointer
+from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -2279,7 +2279,10 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
 
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         f = proj.kb.functions["print_filename"]
+        # force the return type to void to avoid an over-aggressive region-to-ITE conversion
+        f.prototype.returnty = SimTypeBottom("void")
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -2291,6 +2294,13 @@ class TestDecompiler(unittest.TestCase):
         assert "case 92:" in d.codegen.text
         assert "default:" in d.codegen.text
         assert "goto" not in d.codegen.text
+        assert "continue;" in d.codegen.text
+
+        # ensure continue appears in between case 92: and default:
+        case_92_index = d.codegen.text.find("case 92:")
+        continue_index = d.codegen.text.find("continue;")
+        default_index = d.codegen.text.find("default:")
+        assert case_92_index < continue_index < default_index
 
     @structuring_algo("sailr")
     def test_reverting_switch_lowering_cksum_digest_main(self, decompiler_options=None):
