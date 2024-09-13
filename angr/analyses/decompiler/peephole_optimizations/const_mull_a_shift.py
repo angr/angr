@@ -68,7 +68,6 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                 if (
                     isinstance(expr0.operands[0], BinaryOp)
                     and expr0.operands[0].op in {"Mull", "Mul"}
-                    and expr0.operands[0].signed
                     and isinstance(expr0.operands[0].operands[1], Const)
                 ):
                     a0 = expr0.operands[0].operands[0]
@@ -76,7 +75,6 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                 elif (
                     isinstance(expr1.operands[0], BinaryOp)
                     and expr1.operands[0].op in {"Mull", "Mul"}
-                    and expr1.operands[0].signed
                     and isinstance(expr1.operands[0].operands[1], Const)
                 ):
                     a1 = expr0.operands[0].operands[0]
