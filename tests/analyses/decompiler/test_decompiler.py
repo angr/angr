@@ -2617,12 +2617,15 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions[0x404410]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
 
         target_addrs = {0x4045D8, 0x404575}
-        target_nodes = [node for node in d.codegen.ail_graph.nodes if node.addr in target_addrs]
+        target_nodes = [node for node in d.clinic.unoptimized_graph if node.addr in target_addrs]
 
         for target_node in target_nodes:
             # these are the two calls, their last arg should actually be r14
+            assert target_node.statements
+            assert isinstance(target_node.statements[-1], ailment.Stmt.Call)
             arg = target_node.statements[-1].args[2]
             assert isinstance(arg, ailment.Expr.VirtualVariable)
             assert arg.was_reg
