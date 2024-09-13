@@ -1455,7 +1455,7 @@ class AILSimplifier(Analysis):
                     src = used_expr
                     dst: Call | Convert = call.copy()
 
-                    if dst.ret_expr is not None:
+                    if isinstance(dst, Call) and dst.ret_expr is not None:
                         dst_bits = dst.ret_expr.bits
                         # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an expression
                         dst.ret_expr = None
