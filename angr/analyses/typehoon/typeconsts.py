@@ -281,7 +281,7 @@ class TypeVariableReference(TypeConstant):
 #
 
 
-def int_type(bits: int) -> Int | None:
+def int_type(bits: int) -> Int:
     mapping = {
         1: Int1,
         8: Int8,
@@ -293,7 +293,7 @@ def int_type(bits: int) -> Int | None:
     }
     if bits in mapping:
         return mapping[bits]()
-    return None
+    raise TypeError(f"Not a known size of int: {bits}")
 
 
 def float_type(bits: int) -> FloatBase | None:

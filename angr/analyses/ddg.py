@@ -2,8 +2,10 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
+import claripy
 import networkx
 import pyvex
+
 from . import Analysis
 
 from angr.code_location import CodeLocation
@@ -1030,9 +1032,9 @@ class DDG(Analysis):
 
         if not action.data.reg_deps and not action.data.tmp_deps:
             # might be a constant assignment
-            v = action.data.ast
+            v: claripy.ast.BV = action.data.ast
             if not v.symbolic:
-                const_var = SimConstantVariable(v.concrete_value)
+                const_var = SimConstantVariable(value=v.concrete_value, size=v.size())
                 const_progvar = ProgramVariable(const_var, prog_var.location)
                 self._data_graph_add_edge(const_progvar, prog_var, type="mem_data")
 
@@ -1109,7 +1111,8 @@ class DDG(Analysis):
                 elif isinstance(statement.data, pyvex.IRExpr.Const):
                     # assignment
                     const = statement.data.con.value
-                    self._ast_graph.add_edge(ProgramVariable(SimConstantVariable(const), location), pv)
+                    size = statement.data.con.size
+                    self._ast_graph.add_edge(ProgramVariable(SimConstantVariable(value=const, size=size), location), pv)
 
     def _handle_reg_read(self, action, location, state, statement):  # pylint:disable=unused-argument
         reg_offset = action.offset
@@ -1140,7 +1143,7 @@ class DDG(Analysis):
         elif reg_offset == self.project.arch.bp_offset:
             self._custom_data_per_statement = ("bp", 0)
 
-    def _handle_reg_write(self, action, location, state, statement):  # pylint:disable=unused-argument
+    def _handle_reg_write(self, action, location, state, statement: pyvex.stmt.Put):  # pylint:disable=unused-argument
         reg_offset = action.offset
         variable = SimRegisterVariable(reg_offset, action.data.ast.size() // 8)
 
@@ -1157,9 +1160,9 @@ class DDG(Analysis):
         if not action.reg_deps and not action.tmp_deps:
             # moving a constant into the register
             # try to parse out the constant from statement
-            const_variable = SimConstantVariable()
+            const_variable = SimConstantVariable(size=1)
             if statement is not None and isinstance(statement.data, pyvex.IRExpr.Const):
-                const_variable = SimConstantVariable(value=statement.data.con.value)
+                const_variable = SimConstantVariable(value=statement.data.con.value, size=statement.data.con.size)
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
@@ -1187,7 +1190,7 @@ class DDG(Analysis):
         ast = None
 
         tmp = action.tmp
-        pv = ProgramVariable(SimTemporaryVariable(tmp), location, arch=self.project.arch)
+        pv = ProgramVariable(SimTemporaryVariable(tmp, len(action.data)), location, arch=self.project.arch)
 
         if ast is not None:
             for operand in ast.operands:
@@ -1230,12 +1233,12 @@ class DDG(Analysis):
         if not action.tmp_deps and not self._variables_per_statement and not ast:
             # read in a constant
             # try to parse out the constant from statement
-            const_variable = SimConstantVariable()
+            const_variable = SimConstantVariable(size=1)
             if statement is not None:
                 if isinstance(statement, pyvex.IRStmt.Dirty):
                     l.warning("Dirty statements are not supported in DDG for now.")
                 elif isinstance(statement.data, pyvex.IRExpr.Const):
-                    const_variable = SimConstantVariable(value=statement.data.con.value)
+                    const_variable = SimConstantVariable(value=statement.data.con.value, size=statement.data.con.size)
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
@@ -1296,7 +1299,7 @@ class DDG(Analysis):
                 const_value = expr_1.ast.args[0]
                 tmp = next(iter(expr_0.tmp_deps))
 
-                const_def = ProgramVariable(SimConstantVariable(const_value), location)
+                const_def = ProgramVariable(SimConstantVariable(value=const_value, size=len(expr_1.ast)), location)
                 tmp_def = self._temp_variables[tmp]
                 return AST("-", tmp_def, const_def)
 
@@ -1310,7 +1313,7 @@ class DDG(Analysis):
                 const_value = expr_1.ast.args[0]
                 tmp = next(iter(expr_0.tmp_deps))
 
-                const_def = ProgramVariable(SimConstantVariable(const_value), location)
+                const_def = ProgramVariable(SimConstantVariable(value=const_value, size=len(expr_1.ast)), location)
                 tmp_def = self._temp_variables[tmp]
                 return AST("+", tmp_def, const_def)
 

@@ -31,7 +31,7 @@ class TraversalAnalysis(ForwardAnalysis[None, NodeType, object, object]):
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
         )
         self._engine_ail = SimEngineSSATraversal(
-            self.project.arch,
+            self.project,
             self.project.simos,
             sp_tracker=sp_tracker,
             bp_as_gpr=bp_as_gpr,

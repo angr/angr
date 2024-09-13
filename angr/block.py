@@ -13,11 +13,8 @@ except ImportError:
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
-from .engines.vex import VEXLifter
 
 l = logging.getLogger(name=__name__)
-
-DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
 
 class DisassemblerBlock:
@@ -326,8 +323,6 @@ class Block(Serializable):
 
     @property
     def _vex_engine(self):
-        if self._project is None:
-            return DEFAULT_VEX_ENGINE
         return self._project.factory.default_engine
 
     @property
@@ -436,7 +431,7 @@ class Block(Serializable):
         return self._bytes
 
     @property
-    def instructions(self):
+    def instructions(self) -> int:
         if not self._instructions and self._vex is None:
             # initialize from VEX
             _ = self.vex

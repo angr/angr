@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, overload
+from typing import Any, TYPE_CHECKING, cast, overload
 from collections.abc import Iterable, Iterator
 import logging
+from typing_extensions import Self
 
 import archinfo
 import claripy
@@ -77,14 +78,14 @@ class ReachingDefinitionsState:
         codeloc: CodeLocation,
         arch: archinfo.Arch,
         subject: Subject,
+        analysis: ReachingDefinitionsAnalysis,
         track_tmps: bool = False,
         track_consts: bool = False,
-        analysis: ReachingDefinitionsAnalysis | None = None,
         rtoc_value=None,
         live_definitions: LiveDefinitions | None = None,
         canonical_size: int = 8,
-        heap_allocator: HeapAllocator = None,
-        environment: Environment = None,
+        heap_allocator: HeapAllocator | None = None,
+        environment: Environment | None = None,
         sp_adjusted: bool = False,
         all_definitions: set[Definition[A]] | None = None,
         initializer: RDAStateInitializer | None = None,
@@ -102,12 +103,12 @@ class ReachingDefinitionsState:
         self._sp_adjusted: bool = sp_adjusted
         self._element_limit: int = element_limit
 
-        self.all_definitions: set[Definition[A]] = set() if all_definitions is None else all_definitions
+        self.all_definitions: set[Definition[Any]] = set() if all_definitions is None else all_definitions
 
         self.heap_allocator = heap_allocator or HeapAllocator(canonical_size)
         self._environment: Environment = environment or Environment()
 
-        self.codeloc_uses: set[Definition[A]] = set()
+        self.codeloc_uses: set[Definition[Any]] = set()
 
         # have we observed an exit statement or not during the analysis of the *last instruction* of a block? we should
         # not perform any sp updates if it is the case. this is for handling conditional returns in ARM binaries.
@@ -184,7 +185,7 @@ class ReachingDefinitionsState:
             return n - 2**self.arch.bits
         return n
 
-    def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition[A]) -> claripy.ast.Base:
+    def annotate_with_def(self, symvar: MVType, definition: Definition[Any]) -> MVType:
         """
 
         :param symvar:
@@ -193,14 +194,14 @@ class ReachingDefinitionsState:
         """
         return self.live_definitions.annotate_with_def(symvar, definition)
 
-    def annotate_mv_with_def(self, mv: MultiValues, definition: Definition[A]) -> MultiValues:
+    def annotate_mv_with_def(self, mv: MultiValues[MVType], definition: Definition[A]) -> MultiValues[MVType]:
         return MultiValues(
             offset_to_values={
                 offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()
             }
         )
 
-    def extract_defs(self, symvar: claripy.ast.Base) -> Iterator[Definition[A]]:
+    def extract_defs(self, symvar: claripy.ast.Base) -> Iterator[Definition[Any]]:
         yield from self.live_definitions.extract_defs(symvar)
 
     #
@@ -254,7 +255,7 @@ class ReachingDefinitionsState:
     def get_sp(self) -> int:
         return self.live_definitions.get_sp()
 
-    def get_stack_address(self, offset: claripy.ast.Base) -> int:
+    def get_stack_address(self, offset: claripy.ast.Base) -> int | None:
         return self.live_definitions.get_stack_address(offset)
 
     @property
@@ -300,8 +301,8 @@ class ReachingDefinitionsState:
 
         return self
 
-    def copy(self, discard_tmpdefs=False) -> ReachingDefinitionsState:
-        return ReachingDefinitionsState(
+    def copy(self, discard_tmpdefs=False) -> Self:
+        return type(self)(
             self.codeloc,
             self.arch,
             self._subject,
@@ -317,9 +318,8 @@ class ReachingDefinitionsState:
             element_limit=self._element_limit,
         )
 
-    def merge(self, *others) -> tuple[ReachingDefinitionsState, bool]:
+    def merge(self, *others: Self) -> tuple[Self, bool]:
         state = self.copy()
-        others: Iterable[ReachingDefinitionsState]
 
         state.live_definitions, merged_0 = state.live_definitions.merge(*[other.live_definitions for other in others])
         state._environment, merged_1 = state.environment.merge(*[other.environment for other in others])
@@ -419,10 +419,13 @@ class ReachingDefinitionsState:
                         for def_ in defs:
                             if not def_.dummy:
                                 self._dep_graph.add_edge(used, def_)
+
+                        cfg = self.analysis.project.kb.cfgs.get_most_accurate()
+                        assert cfg is not None
                         self._dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,
-                            self.analysis.project.kb.cfgs.get_most_accurate(),
+                            cfg,
                             self.analysis.project.loader,
                         )
         else:
@@ -491,7 +494,9 @@ class ReachingDefinitionsState:
             self.codeloc_uses.add(definition)
             self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
-    def get_definitions(self, atom: A | Definition[A] | Iterable[A] | Iterable[Definition[A]]) -> set[Definition[A]]:
+    def get_definitions(
+        self, atom: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]]
+    ) -> set[Definition[Atom]]:
         return self.live_definitions.get_definitions(atom)
 
     def get_values(self, spec: A | Definition[A] | Iterable[A]) -> MultiValues | None:
@@ -503,13 +508,15 @@ class ReachingDefinitionsState:
         return self.live_definitions.get_one_value(spec, strip_annotations=strip_annotations)
 
     @overload
-    def get_concrete_value(self, spec: A | Definition[A] | Iterable[A], cast_to: type[int] = ...) -> int | None: ...
+    def get_concrete_value(self, spec: Atom | Definition[Atom] | Iterable[Atom], cast_to: type[int]) -> int | None: ...
 
     @overload
-    def get_concrete_value(self, spec: A | Definition[A] | Iterable[A], cast_to: type[bytes] = ...) -> bytes | None: ...
+    def get_concrete_value(
+        self, spec: Atom | Definition[Atom] | Iterable[Atom], cast_to: type[bytes]
+    ) -> bytes | None: ...
 
     def get_concrete_value(
-        self, spec: A | Definition[A] | Iterable[A], cast_to: type[int] | type[bytes] = int
+        self, spec: Atom | Definition[Atom] | Iterable[Atom], cast_to: type[int] | type[bytes] = int
     ) -> int | bytes | None:
         return self.live_definitions.get_concrete_value(spec, cast_to)
 
@@ -551,11 +558,10 @@ class ReachingDefinitionsState:
         return result
 
     @deprecated("deref")
-    def pointer_to_atom(self, value: claripy.ast.base.Base, size: int, endness: str) -> MemoryLocation | None:
+    def pointer_to_atom(self, value: claripy.ast.BV, size: int, endness: str) -> MemoryLocation | None:
         if self.is_top(value):
             return None
 
-        # TODO this can be simplified with the walrus operator
         stack_offset = self.get_stack_offset(value)
         if stack_offset is not None:
             addr = SpOffset(len(value), stack_offset)
@@ -564,7 +570,7 @@ class ReachingDefinitionsState:
             if heap_offset is not None:
                 addr = HeapAddress(heap_offset)
             elif value.op == "BVV":
-                addr = value.args[0]
+                addr = cast(int, value.args[0])
             else:
                 # cannot resolve
                 return None
@@ -574,9 +580,9 @@ class ReachingDefinitionsState:
     @overload
     def deref(
         self,
-        pointer: int | claripy.ast.bv.BV | HeapAddress | SpOffset,
+        pointer: int | claripy.ast.BV | HeapAddress | SpOffset,
         size: int | DerefSize,
-        endness: str = ...,
+        endness: archinfo.Endness = ...,
     ) -> MemoryLocation | None: ...
 
     @overload
@@ -584,23 +590,23 @@ class ReachingDefinitionsState:
         self,
         pointer: MultiValues | A | Definition | Iterable[A] | Iterable[Definition[A]],
         size: int | DerefSize,
-        endness: str = ...,
+        endness: archinfo.Endness = ...,
     ) -> set[MemoryLocation]: ...
 
     def deref(
         self,
         pointer: (
-            MultiValues
-            | A
-            | Definition
-            | Iterable[A]
-            | Iterable[Definition[A]]
+            MultiValues[claripy.ast.BV]
+            | Atom
+            | Definition[Atom]
+            | Iterable[Atom]
+            | Iterable[Definition[Atom]]
             | int
             | claripy.ast.BV
             | HeapAddress
             | SpOffset
         ),
         size: int | DerefSize,
-        endness: str = archinfo.Endness.BE,
+        endness: archinfo.Endness = archinfo.Endness.BE,
     ):
         return self.live_definitions.deref(pointer, size, endness)

@@ -116,37 +116,37 @@ _ail2claripy_op_mapping = {
     "CmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) == conv(expr.operands[1], ins_addr=ia),
     "CmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) != conv(expr.operands[1], ins_addr=ia),
     "CmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) <= conv(expr.operands[1], ins_addr=ia),
-    "CmpLEs": lambda expr, conv, _, ia: claripy.SLE(
+    "CmpLE (signed)": lambda expr, conv, _, ia: claripy.SLE(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) < conv(expr.operands[1], ins_addr=ia),
-    "CmpLTs": lambda expr, conv, _, ia: claripy.SLT(
+    "CmpLT (signed)": lambda expr, conv, _, ia: claripy.SLT(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) >= conv(expr.operands[1], ins_addr=ia),
-    "CmpGEs": lambda expr, conv, _, ia: claripy.SGE(
+    "CmpGE (signed)": lambda expr, conv, _, ia: claripy.SGE(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) > conv(expr.operands[1], ins_addr=ia),
-    "CmpGTs": lambda expr, conv, _, ia: claripy.SGT(
+    "CmpGT (signed)": lambda expr, conv, _, ia: claripy.SGT(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CasCmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) == conv(expr.operands[1], ins_addr=ia),
     "CasCmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) != conv(expr.operands[1], ins_addr=ia),
     "CasCmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) <= conv(expr.operands[1], ins_addr=ia),
-    "CasCmpLEs": lambda expr, conv, _, ia: claripy.SLE(
+    "CasCmpLE (signed)": lambda expr, conv, _, ia: claripy.SLE(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CasCmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) < conv(expr.operands[1], ins_addr=ia),
-    "CasCmpLTs": lambda expr, conv, _, ia: claripy.SLT(
+    "CasCmpLT (signed)": lambda expr, conv, _, ia: claripy.SLT(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CasCmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) >= conv(expr.operands[1], ins_addr=ia),
-    "CasCmpGEs": lambda expr, conv, _, ia: claripy.SGE(
+    "CasCmpGE (signed)": lambda expr, conv, _, ia: claripy.SGE(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "CasCmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) > conv(expr.operands[1], ins_addr=ia),
-    "CasCmpGTs": lambda expr, conv, _, ia: claripy.SGT(
+    "CasCmpGT (signed)": lambda expr, conv, _, ia: claripy.SGT(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
     "Add": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
@@ -177,10 +177,9 @@ _ail2claripy_op_mapping = {
     ),
     "Concat": lambda expr, conv, _, ia: claripy.Concat(*[conv(operand, ins_addr=ia) for operand in expr.operands]),
     # There are no corresponding claripy operations for the following operations
-    "DivMod": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "CmpF": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Mull": lambda expr, _, m, *args: _dummy_bvs(expr, m),
-    "Mulls": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Mull (signed)": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Reinterpret": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Rol": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Ror": lambda expr, _, m, *args: _dummy_bvs(expr, m),

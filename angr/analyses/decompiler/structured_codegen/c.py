@@ -1869,7 +1869,6 @@ class CBinaryOp(CExpression):
             "Mul": self._c_repr_chunks_mul,
             "Mull": self._c_repr_chunks_mull,
             "Div": self._c_repr_chunks_div,
-            "DivMod": self._c_repr_chunks_divmod,
             "Mod": self._c_repr_chunks_mod,
             "And": self._c_repr_chunks_and,
             "Xor": self._c_repr_chunks_xor,
@@ -3465,7 +3464,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Tmp(self, expr: Tmp, **kwargs):
         l.warning("FIXME: Leftover Tmp expressions are found.")
-        return self._variable(SimTemporaryVariable(expr.tmp_idx), expr.size)
+        return self._variable(SimTemporaryVariable(expr.tmp_idx, expr.bits), expr.size)
 
     def _handle_Expr_Const(self, expr: Expr.Const, type_=None, reference_values=None, variable=None, **kwargs):
         inline_string = False

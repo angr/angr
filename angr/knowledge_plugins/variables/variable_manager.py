@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, TYPE_CHECKING
+from typing import Literal, TYPE_CHECKING, overload
 import logging
 from collections import defaultdict
 from itertools import count, chain
@@ -291,9 +291,12 @@ class VariableManagerInternal(Serializable):
             variable_access = VariableAccess.parse_from_cmessage(varaccess_pb2, variable_by_ident=variable_by_ident)
             variable = variable_access.variable
             offset = variable_access.offset
+            assert variable is not None
+            assert offset is not None
             tpl = (variable, offset)
 
             model._variable_accesses[variable_access.variable].add(variable_access)
+            assert variable_access.location.ins_addr is not None
             model._insn_to_variable[variable_access.location.ins_addr].add(tpl)
             loc = (
                 (variable_access.location.block_addr, variable_access.location.stmt_idx)
@@ -670,9 +673,16 @@ class VariableManagerInternal(Serializable):
 
         return accesses
 
+    @overload
+    def get_variables(self, sort: Literal["stack"], collapse_same_ident: bool = False) -> list[SimStackVariable]: ...
+    @overload
+    def get_variables(self, sort: Literal["reg"], collapse_same_ident: bool = False) -> list[SimRegisterVariable]: ...
+    @overload
     def get_variables(
-        self, sort: Literal["stack", "reg"] | None = None, collapse_same_ident=False
-    ) -> list[SimStackVariable | SimRegisterVariable]:
+        self, sort: None, collapse_same_ident: bool = False
+    ) -> list[SimRegisterVariable | SimRegisterVariable]: ...
+
+    def get_variables(self, sort=None, collapse_same_ident=False):
         """
         Get a list of variables.
 
@@ -695,9 +705,14 @@ class VariableManagerInternal(Serializable):
 
         return variables
 
-    def get_unified_variables(
-        self, sort: Literal["stack", "reg"] | None = None
-    ) -> list[SimStackVariable | SimRegisterVariable]:
+    @overload
+    def get_unified_variables(self, sort: Literal["stack"]) -> list[SimStackVariable]: ...
+    @overload
+    def get_unified_variables(self, sort: Literal["reg"]) -> list[SimRegisterVariable]: ...
+    @overload
+    def get_unified_variables(self, sort: None) -> list[SimRegisterVariable | SimRegisterVariable]: ...
+
+    def get_unified_variables(self, sort=None):
         """
         Get a list of unified variables.
 

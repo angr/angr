@@ -15,7 +15,7 @@ l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
 
 
-def value(ty, val, size: int | None = None):
+def value(ty: str, val: int | float, size: int | None = None):
     if ty == "Ity_F32":
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
     if ty == "Ity_F64":

@@ -1,54 +1,92 @@
-# pylint:disable=no-self-use,isinstance-second-argument-not-valid-type,unused-argument
+# pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
-from typing import Any
-import struct
+from typing import Any, Protocol, cast, TypeVar, Generic
+from collections.abc import Callable
+from abc import abstractmethod
 import re
 import logging
 
 import ailment
 import pyvex
 import claripy
-import archinfo
+from pyvex.expr import IRExpr
 
 from angr.misc.ux import once
-from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from angr.code_location import CodeLocation
+from angr.project import Project
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.engines.engine import SimEngine
-import contextlib
+from angr.engines.engine import DataType, SimEngine, StateType
+from angr.block import Block
 
 
-class SimEngineLightMixin:
+class BlockProtocol(Protocol):
+    addr: int
+
+
+BlockType = TypeVar("BlockType", bound=BlockProtocol)
+ResultType = TypeVar("ResultType")
+StmtDataType = TypeVar("StmtDataType")
+
+
+class IRTop(pyvex.expr.IRExpr):
+    def __init__(self, ty: str):
+        super().__init__()
+        self.ty = ty
+
+    def result_type(self, tyenv):
+        return self.ty
+
+
+class SimEngineLight(Generic[StateType, DataType, BlockType, ResultType], SimEngine[StateType, ResultType]):
     """
-    A mixin base class for engines meant to perform static analysis
+    A full-featured engine base class, suitable for static analysis
     """
 
-    def __init__(self, *args, logger=None, **kwargs):
-        self.arch: archinfo.Arch | None = None
-        self.l = logger
-        super().__init__(*args, **kwargs)
+    # local variables
+    block: BlockType
+    _call_stack: list[Any]
+    state: StateType
 
-    def _is_top(self, expr) -> bool:
-        """
-        Check if a given expression is a TOP value.
+    stmt_idx: int
+    ins_addr: int
+    tmps: dict[int, DataType]
 
-        :param expr:    The given expression.
-        :return:        True if the expression is TOP, False otherwise.
-        """
-        return False
+    def __init__(self, project: Project, logger=None):
+        self.l = logger or logging.getLogger(self.__module__ + "." + self.__class__.__name__)
+        super().__init__(project)
 
-    def _top(self, size: int):
-        """
-        Return a TOP value. It will only be called if _is_top() has been implemented.
+    # there's two of these to support the mixin pattern - mixins can override process while there must be some base
+    # class that provides _process
+    def process(self, state: StateType, *, block: BlockType | None = None, **kwargs) -> ResultType:
+        return self._process(state, block=block, **kwargs)
 
-        :param size:    The size (in bits) of the TOP value.
-        :return:        A TOP value.
-        """
-        raise NotImplementedError
+    @abstractmethod
+    def _process(self, state: StateType, *, block: BlockType | None = None, **kwargs) -> ResultType: ...
+
+    def lift(self, state: StateType) -> BlockType:
+        raise TypeError(f"{type(self)} requires `block` to be passed to `process`")
+
+    #
+    # Helper methods
+    #
+
+    def _codeloc(self, block_only=False, context=None):
+        return CodeLocation(
+            self.block.addr,
+            None if block_only else self.stmt_idx,
+            ins_addr=None if block_only else self.ins_addr,
+            context=context,
+        )
+
+    @abstractmethod
+    def _top(self, bits: int) -> DataType: ...
+
+    @abstractmethod
+    def _is_top(self, expr: Any) -> bool: ...
 
     @staticmethod
-    def sp_offset(bits: int, offset: int):
+    def sp_offset(bits: int, offset: int) -> claripy.ast.BV:
         base = claripy.BVS("SpOffset", bits, explicit_name=True)
         if offset:
             base += offset
@@ -73,92 +111,180 @@ class SimEngineLightMixin:
                     # Unexpected but fine
                     return 0
                 if isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
-                    return spoffset_expr.args[1].args[0]
+                    return cast(int, spoffset_expr.args[1].args[0])
             elif spoffset_expr.op == "__sub__":
                 if len(spoffset_expr.args) == 1:
                     # Unexpected but fine
                     return 0
                 if isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
-                    return -spoffset_expr.args[1].args[0] & ((1 << spoffset_expr.size()) - 1)
+                    return -cast(int, spoffset_expr.args[1].args[0]) & (
+                        (1 << cast(claripy.ast.BV, spoffset_expr).size()) - 1
+                    )
         return None
 
 
-class SimEngineLight(
-    SimEngineLightMixin,
-    SimEngine,
-):
-    """
-    A full-featured engine base class, suitable for static analysis
-    """
+T = TypeVar("T")
 
-    def __init__(self):
-        logger = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
-        super().__init__(logger=logger)
 
-        # local variables
-        self.state = None
-        self.arch: archinfo.Arch = None
-        self.block = None
-        self._call_stack = None
-
-        self.stmt_idx = None
-        self.ins_addr = None
-        self.tmps = None
-
-        # for VEX blocks only
-        self.tyenv = None
-
-    def process(self, state, *args, **kwargs):
-        # we are using a completely different state. Therefore, we directly call our _process() method before
-        # SimEngine becomes flexible enough.
-        self._process(state, None, block=kwargs.pop("block", None), whitelist=kwargs.pop("whitelist", None))
-
-    def _process(self, new_state, successors, *args, **kwargs):
-        raise NotImplementedError
-
-    def _check(self, state, *args, **kwargs):
-        return True
-
-    #
-    # Helper methods
-    #
-
-    def _codeloc(self, block_only=False, context=None):
-        return CodeLocation(
-            self.block.addr,
-            None if block_only else self.stmt_idx,
-            ins_addr=None if block_only else self.ins_addr,
-            context=context,
-        )
+def longest_prefix_lookup(haystack: str, mapping: dict[str, T]) -> T | None:
+    for l in reversed(range(len(haystack))):
+        handler = mapping.get(haystack[:l], None)
+        if handler is not None:
+            return handler
+    return None
 
 
 # noinspection PyPep8Naming
-class SimEngineLightVEXMixin(SimEngineLightMixin):
+class SimEngineLightVEX(
+    Generic[StateType, DataType, ResultType, StmtDataType], SimEngineLight[StateType, DataType, Block, ResultType]
+):
     """
     A mixin for doing static analysis on VEX
     """
 
-    def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
+    tyenv: pyvex.IRTypeEnv
+
+    @staticmethod
+    def unop_handler(f: Callable[[T, pyvex.expr.Unop], DataType]) -> Callable[[T, pyvex.expr.Unop], DataType]:
+        f.unop_handler = True
+        return f
+
+    @staticmethod
+    def binop_handler(f: Callable[[T, pyvex.expr.Binop], DataType]) -> Callable[[T, pyvex.expr.Binop], DataType]:
+        f.binop_handler = True
+        return f
+
+    @staticmethod
+    def binopv_handler(
+        f: Callable[[T, int, int, pyvex.expr.Binop], DataType]
+    ) -> Callable[[T, int, int, pyvex.expr.Binop], DataType]:
+        f.binopv_handler = True
+        return f
+
+    @staticmethod
+    def triop_handler(f: Callable[[T, pyvex.expr.Triop], DataType]) -> Callable[[T, pyvex.expr.Triop], DataType]:
+        f.triop_handler = True
+        return f
+
+    @staticmethod
+    def qop_handler(f: Callable[[T, pyvex.expr.Qop], DataType]) -> Callable[[T, pyvex.expr.Qop], DataType]:
+        f.qop_handler = True
+        return f
+
+    @staticmethod
+    def ccall_handler(f: Callable[[T, pyvex.expr.CCall], DataType]) -> Callable[[T, pyvex.expr.CCall], DataType]:
+        f.ccall_handler = True
+        return f
+
+    @staticmethod
+    def dirty_handler(
+        f: Callable[[T, pyvex.stmt.Dirty], StmtDataType]
+    ) -> Callable[[T, pyvex.stmt.Dirty], StmtDataType]:
+        f.dirty_handler = True
+        return f
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        def checked(h: T, attr: str) -> T:
+            if not getattr(h, attr, False):
+                raise TypeError(f"Handle {h} is not validated for {attr}")
+            return h
+
+        self._stmt_handlers: dict[str, Callable[[Any], StmtDataType]] = {
+            "Ist_WrTmp": self._handle_stmt_WrTmp,
+            "Ist_Put": self._handle_stmt_Put,
+            "Ist_PutI": self._handle_stmt_PutI,
+            "Ist_Store": self._handle_stmt_Store,
+            "Ist_StoreG": self._handle_stmt_StoreG,
+            "Ist_LoadG": self._handle_stmt_LoadG,
+            "Ist_CAS": self._handle_stmt_CAS,
+            "Ist_LLSC": self._handle_stmt_LLSC,
+            "Ist_MBE": self._handle_stmt_MBE,
+            "Ist_Exit": self._handle_stmt_Exit,
+            "Ist_NoOp": self._handle_stmt_NoOp,
+            "Ist_IMark": self._handle_stmt_IMark,
+            "Ist_AbiHint": self._handle_stmt_AbiHint,
+            "Ist_Dirty": self._handle_stmt_Dirty,
+        }
+        self._expr_handlers: dict[str, Callable[[Any], DataType]] = {
+            "IRTop": self._handle_expr_IRTop,
+            "VECRET": self._handle_expr_VECRET,
+            "GSPTR": self._handle_expr_GSPTR,
+            "RdTmp": self._handle_expr_RdTmp,
+            "Get": self._handle_expr_Get,
+            "GetI": self._handle_expr_GetI,
+            "Load": self._handle_expr_Load,
+            "ITE": self._handle_expr_ITE,
+            "Unop": self._handle_expr_Unop,
+            "Binop": self._handle_expr_Binop,
+            "Triop": self._handle_expr_Triop,
+            "Qop": self._handle_expr_Qop,
+            "CCall": self._handle_expr_CCall,
+            "Const": self._handle_expr_Const,
+        }
+        self._unop_handlers: dict[str, Callable[[pyvex.expr.Unop], DataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "unop_handler")
+            for name in dir(self)
+            if name.startswith("_handle_unop_")
+        }
+        self._binop_handlers: dict[str, Callable[[pyvex.expr.Binop], DataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "binop_handler")
+            for name in dir(self)
+            if name.startswith("_handle_binop_")
+        }
+        self._binopv_handlers: dict[str, Callable[[int, int, pyvex.expr.Binop], DataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "binopv_handler")
+            for name in dir(self)
+            if name.startswith("_handle_binopv_")
+        }
+        self._triop_handlers: dict[str, Callable[[pyvex.expr.Triop], DataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "triop_handler")
+            for name in dir(self)
+            if name.startswith("_handle_triop_")
+        }
+        self._qop_handlers: dict[str, Callable[[pyvex.expr.Qop], DataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "qop_handler")
+            for name in dir(self)
+            if name.startswith("_handle_qop_")
+        }
+        self._ccall_handlers: dict[str, Callable[[pyvex.expr.CCall], DataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "ccall_handler")
+            for name in dir(self)
+            if name.startswith("_handle_ccall_")
+        }
+        self._dirty_handlers: dict[str, Callable[[pyvex.stmt.Dirty], StmtDataType]] = {
+            name.split("_", 3)[-1]: checked(getattr(self, name), "dirty_handler")
+            for name in dir(self)
+            if name.startswith("_handle_dirty_")
+        }
+
+    def _process(
+        self, state: StateType, *, block: Block | None = None, whitelist: set[int] | None = None, **kwargs
+    ) -> ResultType:
         # initialize local variables
         self.tmps = {}
+
+        if block is None:
+            block = self.lift(state)
         self.block = block
         self.state = state
-
-        if state is not None:
-            self.arch: archinfo.Arch = state.arch
-
+        self.arch = self.project.arch
         self.tyenv = block.vex.tyenv
+        self.stmt_idx = -1
+        self.ins_addr = -1
 
-        self._process_Stmt(whitelist=whitelist)
+        result = self._process_block(whitelist=whitelist)
+        del self.stmt_idx
+        del self.ins_addr
+        del self.tmps
+        del self.block
+        del self.state
+        del self.tyenv
+        return result
 
-        self.stmt_idx = None
-        self.ins_addr = None
-
-    def _process_Stmt(self, whitelist=None):
-        if whitelist is not None:
-            # optimize whitelist lookups
-            whitelist = set(whitelist)
-
+    def _process_block(self, whitelist: set[int] | None = None) -> ResultType:
+        result = []
         for stmt_idx, stmt in enumerate(self.block.vex.statements):
             if whitelist is not None and stmt_idx not in whitelist:
                 continue
@@ -169,11 +295,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 # The bug caused by skipping IMarks is reported at https://github.com/angr/angr/pull/1150
                 self.ins_addr = stmt.addr + stmt.delta
 
-            self._handle_Stmt(stmt)
+            result.append(self._stmt(stmt))
 
-        self._process_block_end()
-
-    def _process_block_end(self):
         # handle calls to another function
         # Note that without global information, we cannot handle cases where we *jump* to another function (jumpkind ==
         # "Ijk_Boring"). Users are supposed to overwrite this method, detect these cases with the help of global
@@ -191,725 +314,332 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             else:
                 if self.l is not None:
                     self.l.warning("Function handler not implemented.")
+        return self._process_block_end(result, whitelist)
+
+    def _stmt(self, stmt: pyvex.stmt.IRStmt) -> StmtDataType:
+        return self._stmt_handlers[stmt.tag](stmt)
+
+    @abstractmethod
+    def _process_block_end(self, stmt_result: list[StmtDataType], whitelist: set[int] | None) -> ResultType: ...
 
     #
     # Statement handlers
     #
 
-    def _handle_Stmt(self, stmt):
-        handler = f"_handle_{type(stmt).__name__}"
-        if hasattr(self, handler):
-            getattr(self, handler)(stmt)
-        elif type(stmt).__name__ not in ("IMark", "AbiHint") and self.l is not None:
-            self.l.error("Unsupported statement type %s.", type(stmt).__name__)
+    @abstractmethod
+    def _handle_stmt_WrTmp(self, stmt: pyvex.stmt.WrTmp) -> StmtDataType: ...
 
-    # synchronize with function _handle_WrTmpData()
-    def _handle_WrTmp(self, stmt):
-        data = self._expr(stmt.data)
-        if data is None:
-            return
+    @abstractmethod
+    def _handle_stmt_Put(self, stmt: pyvex.stmt.Put) -> StmtDataType: ...
 
-        self.tmps[stmt.tmp] = data
+    @abstractmethod
+    def _handle_stmt_PutI(self, stmt: pyvex.stmt.PutI) -> StmtDataType: ...
 
-    # invoked by LoadG
-    def _handle_WrTmpData(self, tmp, data):
-        if data is None:
-            return
-        self.tmps[tmp] = data
+    @abstractmethod
+    def _handle_stmt_Store(self, stmt: pyvex.stmt.Store) -> StmtDataType: ...
 
-    def _handle_Dirty(self, stmt):
-        if self.l is not None:
-            self.l.error("Unimplemented Dirty node for current architecture.")
+    @abstractmethod
+    def _handle_stmt_StoreG(self, stmt: pyvex.stmt.StoreG) -> StmtDataType: ...
 
-    def _handle_Put(self, stmt):
-        raise NotImplementedError("Please implement the Put handler with your own logic.")
+    @abstractmethod
+    def _handle_stmt_LoadG(self, stmt: pyvex.stmt.LoadG) -> StmtDataType: ...
 
-    def _handle_Store(self, stmt):
-        raise NotImplementedError("Please implement the Store handler with your own logic.")
+    @abstractmethod
+    def _handle_stmt_CAS(self, stmt: pyvex.stmt.CAS) -> StmtDataType: ...
 
-    def _handle_StoreG(self, stmt):
-        raise NotImplementedError("Please implement the StoreG handler with your own logic.")
+    @abstractmethod
+    def _handle_stmt_LLSC(self, stmt: pyvex.stmt.LLSC) -> StmtDataType: ...
 
-    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
-        raise NotImplementedError("Please implement the LLSC handler with your own logic.")
+    @abstractmethod
+    def _handle_stmt_MBE(self, stmt: pyvex.stmt.MBE) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_Exit(self, stmt: pyvex.stmt.Exit) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_NoOp(self, stmt: pyvex.stmt.NoOp) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_IMark(self, stmt: pyvex.stmt.IMark) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_AbiHint(self, stmt: pyvex.stmt.AbiHint) -> StmtDataType: ...
+
+    def _handle_stmt_Dirty(self, stmt: pyvex.stmt.Dirty) -> StmtDataType:
+        handler = longest_prefix_lookup(stmt.cee.name, self._dirty_handlers)
+        if handler is not None:
+            return handler(stmt)
+
+        if once(stmt.cee.name) and self.l is not None:
+            self.l.error("Unsupported Dirty %s.", stmt.cee.name)
+        if stmt.tmp in (-1, 0xFFFFFFFF):
+            return self._handle_stmt_NoOp(pyvex.stmt.NoOp())
+        return self._handle_stmt_WrTmp(pyvex.stmt.WrTmp(stmt.tmp, IRTop(self.tyenv.lookup(stmt.tmp))))
 
     #
     # Expression handlers
     #
 
-    def _expr(self, expr):
-        handler = f"_handle_{type(expr).__name__}"
-        if hasattr(self, handler):
-            return getattr(self, handler)(expr)
-        if self.l is not None:
-            self.l.error("Unsupported expression type %s.", type(expr).__name__)
-        return None
+    def _expr(self, expr: IRExpr) -> DataType:
+        handler = type(expr).__name__
+        return self._expr_handlers[handler](expr)
 
-    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):  # pylint: disable=useless-return
+    # not generated by vex
+    def _handle_expr_IRTop(self, expr: IRTop) -> DataType:
+        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+
+    @abstractmethod
+    def _handle_expr_VECRET(self, expr: pyvex.expr.VECRET) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_GSPTR(self, expr: pyvex.expr.GSPTR) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_RdTmp(self, expr: pyvex.expr.RdTmp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Get(self, expr: pyvex.expr.Get) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_GetI(self, expr: pyvex.expr.GetI) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Load(self, expr: pyvex.expr.Load) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_ITE(self, expr: pyvex.expr.ITE) -> DataType: ...
+
+    def _handle_expr_Unop(self, expr: pyvex.expr.Unop) -> DataType:
         handler = None
-        if expr.op.startswith("Iop_AddF") or expr.op.startswith("Iop_SubF"):
-            handler = "_handle_AddF"
-        elif expr.op.startswith("Iop_MulF"):
-            handler = "_handle_MulF"
-        elif expr.op.startswith("Iop_DivF"):
-            handler = "_handle_DivF"
-        elif expr.op.startswith("Iop_SinF"):
-            handler = "_handle_SinF"
-        elif expr.op.startswith("Iop_ScaleF"):
-            handler = "_handle_ScaleF"
+        assert expr.op.startswith("Iop_")
+        handler = longest_prefix_lookup(expr.op[4:], self._unop_handlers)
+        if handler is not None:
+            return handler(expr)
 
-        if handler is not None and hasattr(self, handler):
-            return getattr(self, handler)(expr)
+        # All conversions are handled by the Conversion handler
+        try:
+            simop = vexop_to_simop(expr.op)
+        except (UnsupportedIROpError, SimOperationError):
+            simop = None
+
+        if simop is not None and simop.op_attrs.get("conversion", None):
+            return self._handle_conversion(simop._from_size, simop._to_size, simop.is_signed, expr.args[0])
+
+        if once(expr.op) and self.l is not None:
+            self.l.error("Unsupported Unop %s.", expr.op)
+        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+
+    @abstractmethod
+    def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: IRExpr) -> DataType: ...
+
+    def _handle_expr_Binop(self, expr: pyvex.expr.Binop) -> DataType:
+        assert expr.op.startswith("Iop_")
+
+        # vector information
+        m = re.match(r"Iop_[^\d]+(\d+)[SU]{0,1}x(\d+)", expr.op)
+        if m is not None:
+            vector_size = int(m.group(1))
+            vector_count = int(m.group(2))
+            handler_v = longest_prefix_lookup(expr.op[4:], self._binopv_handlers)
+            if handler_v is not None:
+                return handler_v(vector_size, vector_count, expr)
+
+        handler = longest_prefix_lookup(expr.op[4:], self._binop_handlers)
+        if handler is not None:
+            return handler(expr)
+
+        if once(expr.op) and self.l is not None:
+            self.l.warning("Unsupported Binop %s.", expr.op)
+        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+
+    def _handle_expr_Triop(self, expr: pyvex.expr.Triop) -> DataType:
+        assert expr.op.startswith("Iop_")
+        handler = longest_prefix_lookup(expr.op[4:], self._triop_handlers)
+        if handler is not None:
+            return handler(expr)
+
+        # should we try dispatching some triops with roundingmode as binops?
 
         if once(expr.op) and self.l is not None:
             self.l.error("Unsupported Triop %s.", expr.op)
+        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
-        return None
-
-    def _handle_AddF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_SubF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_MulF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_DivF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_NegF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_AbsF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_SinF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_CosF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_ScaleF(self, expr):
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_RdTmp(self, expr):
-        tmp = expr.tmp
-
-        if tmp in self.tmps:
-            return self.tmps[tmp]
-        return None
-
-    def _handle_Get(self, expr):
-        raise NotImplementedError("Please implement the Get handler with your own logic.")
-
-    def _handle_Load(self, expr):
-        raise NotImplementedError("Please implement the Load handler with your own logic.")
-
-    def _handle_LoadG(self, stmt):
-        raise NotImplementedError("Please implement the LoadG handler with your own logic.")
-
-    def _handle_Exit(self, stmt):
-        self._expr(stmt.guard)
-        self._expr(stmt.dst)
-
-    def _handle_ITE(self, expr):
-        # EDG says: Not sure how generic this is.
-        cond = self._expr(expr.cond)
-        if cond is True:
-            return self._expr(expr.iftrue)
-        if cond is False:
-            return self._expr(expr.iffalse)
-        return None
-
-    def _handle_Unop(self, expr):
-        handler = None
-
-        # All conversions are handled by the Conversion handler
-        simop = None
-        with contextlib.suppress(UnsupportedIROpError, SimOperationError):
-            simop = vexop_to_simop(expr.op)
-
-        if simop is not None and simop.op_attrs.get("conversion", None):
-            handler = "_handle_Conversion"
-        # Notice order of "Not" comparisons
-        elif expr.op == "Iop_Not1":
-            handler = "_handle_Not1"
-        elif expr.op.startswith("Iop_Not"):
-            handler = "_handle_Not"
-        elif expr.op.startswith("Iop_Clz"):
-            handler = "_handle_Clz"
-        elif expr.op.startswith("Iop_Ctz"):
-            handler = "_handle_Ctz"
-        elif expr.op.startswith("Iop_NegF"):
-            handler = "_handle_NegF"
-        elif expr.op.startswith("Iop_AbsF"):
-            handler = "_handle_AbsF"
-
-        if handler is not None and hasattr(self, handler):
-            return getattr(self, handler)(expr)
-        if self.l is not None:
-            self.l.error("Unsupported Unop %s.", expr.op)
-        return None
-
-    def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
-        handler = None
-        if expr.op.startswith("Iop_And"):
-            handler = "_handle_And"
-        elif expr.op.startswith("Iop_Mod"):
-            handler = "_handle_Mod"
-        elif expr.op.startswith("Iop_Or"):
-            handler = "_handle_Or"
-        elif expr.op.startswith("Iop_Add"):
-            handler = "_handle_Add"
-        elif expr.op.startswith("Iop_HAdd"):
-            handler = "_handle_HAdd"
-        elif expr.op.startswith("Iop_Sub"):
-            handler = "_handle_Sub"
-        elif expr.op.startswith("Iop_QSub"):
-            handler = "_handle_QSub"
-        elif expr.op.startswith("Iop_Mull"):
-            handler = "_handle_Mull"
-        elif expr.op.startswith("Iop_Mul"):
-            handler = "_handle_Mul"
-        elif expr.op.startswith("Iop_DivMod"):
-            handler = "_handle_DivMod"
-        elif expr.op.startswith("Iop_Div"):
-            handler = "_handle_Div"
-        elif expr.op.startswith("Iop_Xor"):
-            handler = "_handle_Xor"
-        elif expr.op.startswith("Iop_Shl"):
-            handler = "_handle_Shl"
-        elif expr.op.startswith("Iop_Shr"):
-            handler = "_handle_Shr"
-        elif expr.op.startswith("Iop_Sal"):
-            # intended use of SHL
-            handler = "_handle_Shl"
-        elif expr.op.startswith("Iop_Sar"):
-            handler = "_handle_Sar"
-        elif expr.op.startswith("Iop_CmpEQ"):
-            handler = "_handle_CmpEQ"
-        elif expr.op.startswith("Iop_CmpNE"):
-            handler = "_handle_CmpNE"
-        elif expr.op.startswith("Iop_CmpLT"):
-            handler = "_handle_CmpLT"
-        elif expr.op.startswith("Iop_CmpLE"):
-            handler = "_handle_CmpLE"
-        elif expr.op.startswith("Iop_CmpGE"):
-            handler = "_handle_CmpGE"
-        elif expr.op.startswith("Iop_CmpGT"):
-            handler = "_handle_CmpGT"
-        elif expr.op.startswith("Iop_CmpORD"):
-            handler = "_handle_CmpORD"
-        elif expr.op.startswith("Iop_CmpF"):
-            handler = "_handle_CmpF"
-        elif expr.op == "Iop_32HLto64":
-            handler = "_handle_32HLto64"
-        elif expr.op.startswith("Const"):
-            handler = "_handle_Const"
-        elif expr.op.startswith("Iop_16HLto32"):
-            handler = "_handle_16HLto32"
-        elif expr.op.startswith("Iop_ExpCmpNE64"):
-            handler = "_handle_ExpCmpNE64"
-        elif expr.op.startswith("Iop_SinF"):
-            handler = "_handle_SinF"
-        elif expr.op.startswith("Iop_CosF"):
-            handler = "_handle_CosF"
-
-        vector_size, vector_count = None, None
+    def _handle_expr_Qop(self, expr: pyvex.expr.Qop) -> DataType:
+        assert expr.op.startswith("Iop_")
+        handler = longest_prefix_lookup(expr.op[4:], self._qop_handlers)
         if handler is not None:
-            # vector information
-            m = re.match(r"Iop_[^\d]+(\d+)[SU]{0,1}x(\d+)", expr.op)
-            if m is not None:
-                vector_size = int(m.group(1))
-                vector_count = int(m.group(2))
-                handler += "_v"
+            return handler(expr)
 
-        if handler is not None and hasattr(self, handler):
-            if vector_size is not None and vector_count is not None:
-                return getattr(self, handler)(expr, vector_size, vector_count)
-            return getattr(self, handler)(expr)
         if once(expr.op) and self.l is not None:
-            self.l.warning("Unsupported Binop %s.", expr.op)
-
-        return None
-
-    def _handle_CCall(self, expr):  # pylint:disable=useless-return
-        if self.l is not None:
-            self.l.warning("Unsupported expression type CCall with callee %s.", str(expr.cee))
-        return
-
-    #
-    # Unary operation handlers
-    #
-
-    def _handle_U64(self, expr):
-        return claripy.BVV(expr.value, 64)
-
-    def _handle_U32(self, expr):
-        return claripy.BVV(expr.value, 32)
-
-    def _handle_U16(self, expr):
-        return claripy.BVV(expr.value, 16)
-
-    def _handle_U8(self, expr):
-        return claripy.BVV(expr.value, 8)
-
-    def _handle_U1(self, expr):
-        return claripy.BVV(expr.value, 1)
-
-    def _handle_Const(self, expr):  # pylint:disable=no-self-use
-        return claripy_value(expr.con.type, expr.con.value)
-
-    def _handle_Conversion(self, expr):
-        expr_ = self._expr(expr.args[0])
-        if expr_ is None:
-            return None
-        to_size = expr.result_size(self.tyenv)
-        if self._is_top(expr_):
-            return self._top(to_size)
-
-        if isinstance(expr_, claripy.ast.Base) and expr_.op == "BVV":
-            if expr_.size() > to_size:
-                # truncation
-                return expr_[to_size - 1 : 0]
-            if expr_.size() < to_size:
-                # extension
-                return claripy.ZeroExt(to_size - expr_.size(), expr_)
-            return expr_
-
-        return self._top(to_size)
-
-    #
-    # Binary operation handlers
-    #
-
-    def _binop_get_args(self, expr) -> tuple[Any, Any] | None | Any | None:
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None, None
-        if self._is_top(expr_0):
-            return None, self._top(expr_0.size())
-
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None, None
-        if self._is_top(expr_1):
-            return None, self._top(expr_0.size())  # always use the size of expr_0
-
-        return (expr_0, expr_1), None
-
-    def _handle_And(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        return expr_0 & expr_1
-
-    def _handle_Or(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        return expr_0 | expr_1
-
-    def _handle_Not1(self, expr):
-        return self._handle_Not(expr)
-
-    def _handle_Not(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        if self._is_top(expr_0):
-            return self._top(expr_0.size())
-
-        try:
-            return ~expr_0  # pylint:disable=invalid-unary-operand-type
-        except TypeError as e:
-            if self.l is not None:
-                self.l.exception(e)
-            return None
-
-    def _handle_Clz(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        if self._is_top(expr_0):
-            return self._top(expr_0.size())
-        return self._top(expr_0.size())
-
-    def _handle_Ctz(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        if self._is_top(expr_0):
-            return self._top(expr_0.size())
-        return self._top(expr_0.size())
-
-    def _handle_Add(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        return expr_0 + expr_1
-
-    def _handle_Sub(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        return expr_0 - expr_1
-
-    def _handle_Mul(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        return expr_0 * expr_1
-
-    def _handle_Mull(self, expr):
-        self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_DivMod(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr.result_size(self.tyenv))
-
-        if expr_1.concrete and expr_1.concrete_value == 0:
-            return self._top(expr.result_size(self.tyenv))
-
-        signed = "U" in expr.op  # Iop_DivModU64to32 vs Iop_DivMod
-        from_size = expr_0.size()
-        to_size = expr_1.size()
-        if signed:
-            quotient = expr_0.SDiv(claripy.SignExt(from_size - to_size, expr_1))
-            remainder = expr_0.SMod(claripy.SignExt(from_size - to_size, expr_1))
-            quotient_size = to_size
-            remainder_size = to_size
-            return claripy.Concat(
-                claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
-            )
-        quotient = expr_0 // claripy.ZeroExt(from_size - to_size, expr_1)
-        remainder = expr_0 % claripy.ZeroExt(from_size - to_size, expr_1)
-        quotient_size = to_size
-        remainder_size = to_size
-        return claripy.Concat(
-            claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
-        )
-
-    def _handle_Div(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        if expr_1.concrete and expr_1.concrete_value == 0:
-            return self._top(expr.result_size(self.tyenv))
-
-        try:
-            return expr_0 / expr_1
-        except ZeroDivisionError:
-            return self._top(expr.result_size(self.tyenv))
-
-    def _handle_Mod(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        if expr_1.concrete and expr_1.concrete_value == 0:
-            return self._top(expr.result_size(self.tyenv))
-
-        try:
-            return expr_0 - (expr_1 // expr_1) * expr_1
-        except ZeroDivisionError:
-            return self._top(expr_0.size())
-
-    def _handle_Xor(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        try:
-            return expr_0 ^ expr_1
-        except TypeError as e:
-            if self.l is not None:
-                self.l.warning(e)
-            return None
-
-    def _handle_Shl(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
-            # convert it to an int when possible
-            expr_1 = expr_1.args[0]
-        else:
-            # make sure the sizes are the same - VEX does not care about it
-            if expr_1.size() < expr_0.size():
-                expr_1 = claripy.ZeroExt(expr_0.size() - expr_1.size(), expr_1)
-            elif expr_1.size() > expr_0.size():
-                expr_1 = claripy.Extract(expr_0.size() - 1, 0, expr_1)
-
-        return expr_0 << expr_1
-
-    def _handle_Shr(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
-            # convert it to an int when possible
-            expr_1 = expr_1.args[0]
-        else:
-            # make sure the sizes are the same - VEX does not care about it
-            if expr_1.size() < expr_0.size():
-                expr_1 = claripy.ZeroExt(expr_0.size() - expr_1.size(), expr_1)
-            elif expr_1.size() > expr_0.size():
-                expr_1 = claripy.Extract(expr_0.size() - 1, 0, expr_1)
-
-        return claripy.LShR(expr_0, expr_1)
-
-    def _handle_Sar(self, expr):
-        # EDG asks: is this right?
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(expr_0.size())
-
-        if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
-            # convert it to an int when possible
-            expr_1 = expr_1.args[0]
-        else:
-            # make sure the sizes are the same - VEX does not care about it
-            if expr_1.size() < expr_0.size():
-                expr_1 = claripy.ZeroExt(expr_0.size() - expr_1.size(), expr_1)
-            elif expr_1.size() > expr_0.size():
-                expr_1 = claripy.Extract(expr_0.size() - 1, 0, expr_1)
-
-        return expr_0 >> expr_1
-
-    def _handle_CmpEQ(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(1)
-
-        return expr_0 == expr_1
-
-    def _handle_CmpNE(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(1)
-
-        return expr_0 != expr_1
-
-    def _handle_CmpLE(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(1)
-
-        return expr_0 <= expr_1
-
-    def _handle_CmpGE(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(1)
-
-        return expr_0 >= expr_1
-
-    def _handle_CmpLT(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(1)
-
-        return expr_0 < expr_1
-
-    def _handle_CmpGT(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            return r
-        expr_0, expr_1 = args
-
-        if self._is_top(expr_0) or self._is_top(expr_1):
-            return self._top(1)
-
-        return expr_0 > expr_1
-
-    def _handle_CmpEQ_v(self, expr, _vector_size, _vector_count):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_CmpNE_v(self, expr, _vector_size, _vector_count):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_CmpLE_v(self, expr, _vector_size, _vector_count):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_CmpGE_v(self, expr, _vector_size, _vector_count):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_CmpLT_v(self, expr, _vector_size, _vector_count):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_CmpGT_v(self, expr, _vector_size, _vector_count):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_MBE(self, _expr: pyvex.IRStmt.MBE):
-        # Yeah.... no.
-        return None
-
-    def _handle_32HLto64(self, expr):
-        args, r = self._binop_get_args(expr)
-        if args is None:
-            if r is not None:
-                # the size of r should be 32 but we need to return a 64-bit expression
-                assert r.size() == 32
-                r = claripy.ZeroExt(32, r)
-            return r
-
-        return None
-
-    def _handle_16HLto32(self, expr):
-        _, _ = self._binop_get_args(expr)
-        return self._top(expr.result_size(self.tyenv))
-
-    def _handle_ExpCmpNE64(self, expr):
-        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
-        return self._top(expr.result_size(self.tyenv))
+            self.l.error("Unsupported Qop %s.", expr.op)
+        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+
+    def _handle_expr_CCall(self, expr: pyvex.expr.CCall) -> DataType:  # pylint:disable=useless-return
+        handler = longest_prefix_lookup(expr.cee.name, self._ccall_handlers)
+        if handler is not None:
+            return handler(expr)
+
+        if once(expr.cee.name) and self.l is not None:
+            self.l.error("Unsupported CCall %s.", expr.cee.name)
+        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+
+    @abstractmethod
+    def _handle_expr_Const(self, expr: pyvex.expr.Const) -> DataType: ...
+
+
+class SimEngineNostmtVEX(
+    Generic[StateType, DataType, ResultType], SimEngineLightVEX[StateType, DataType, ResultType, None]
+):
+    def _handle_stmt_WrTmp(self, stmt):
+        pass
+
+    def _handle_stmt_Put(self, stmt):
+        pass
+
+    def _handle_stmt_PutI(self, stmt):
+        pass
+
+    def _handle_stmt_Store(self, stmt):
+        pass
+
+    def _handle_stmt_StoreG(self, stmt):
+        pass
+
+    def _handle_stmt_LoadG(self, stmt):
+        pass
+
+    def _handle_stmt_CAS(self, stmt):
+        pass
+
+    def _handle_stmt_LLSC(self, stmt):
+        pass
+
+    def _handle_stmt_MBE(self, stmt):
+        pass
+
+    def _handle_stmt_Exit(self, stmt):
+        pass
+
+    def _handle_stmt_NoOp(self, stmt):
+        pass
+
+    def _handle_stmt_IMark(self, stmt):
+        pass
+
+    def _handle_stmt_AbiHint(self, stmt):
+        pass
 
 
 # noinspection PyPep8Naming
-class SimEngineLightAILMixin(SimEngineLightMixin):
+class SimEngineLightAIL(
+    Generic[StateType, DataType, StmtDataType, ResultType],
+    SimEngineLight[StateType, DataType, ailment.Block, ResultType],
+):
     """
     A mixin for doing static analysis on AIL
     """
 
+    def __init__(self, *args, **kwargs):
+        self._stmt_handlers: dict[str, Callable[[Any], StmtDataType]] = {
+            "Assignment": self._handle_stmt_Assignment,
+            "Store": self._handle_stmt_Store,
+            "Jump": self._handle_stmt_Jump,
+            "ConditionalJump": self._handle_stmt_ConditionalJump,
+            "Call": self._handle_stmt_Call,
+            "Return": self._handle_stmt_Return,
+            "DirtyStatement": self._handle_stmt_DirtyStatement,
+            "Label": self._handle_stmt_Label,
+        }
+        self._expr_handlers: dict[str, Callable[[Any], DataType]] = {
+            "Atom": self._handle_expr_Atom,
+            "Const": self._handle_expr_Const,
+            "Tmp": self._handle_expr_Tmp,
+            "VirtualVariable": self._handle_expr_VirtualVariable,
+            "Phi": self._handle_expr_Phi,
+            "Op": self._handle_expr_Op,
+            "UnaryOp": self._handle_expr_UnaryOp,
+            "BinaryOp": self._handle_expr_BinaryOp,
+            "Convert": self._handle_expr_Convert,
+            "Reinterpret": self._handle_expr_Reinterpret,
+            "Load": self._handle_expr_Load,
+            "Register": self._handle_expr_Register,
+            "ITE": self._handle_expr_ITE,
+            "Call": self._handle_expr_Call,
+            "DirtyExpression": self._handle_expr_DirtyExpression,
+            "VEXCCallExpression": self._handle_expr_VEXCCallExpression,
+            "MultiStatementExpression": self._handle_expr_MultiStatementExpression,
+            "BasePointerOffset": self._handle_expr_BasePointerOffset,
+            "StackBaseOffset": self._handle_expr_StackBaseOffset,
+        }
+        self._unop_handlers: dict[str, Callable[[ailment.UnaryOp], DataType]] = {
+            "Not": self._handle_unop_Not,
+            "Neg": self._handle_unop_Neg,
+            "BitwiseNeg": self._handle_unop_BitwiseNeg,
+            "Reference": self._handle_unop_Reference,
+            "Dereference": self._handle_unop_Dereference,
+        }
+        self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType]] = {
+            "Add": self._handle_binop_Add,
+            "AddF": self._handle_binop_AddF,
+            "AddV": self._handle_binop_AddV,
+            "Sub": self._handle_binop_Sub,
+            "SubF": self._handle_binop_SubF,
+            "Mul": self._handle_binop_Mul,
+            "MulF": self._handle_binop_MulF,
+            "MulV": self._handle_binop_MulV,
+            "Div": self._handle_binop_Div,
+            "DivF": self._handle_binop_DivF,
+            "Mod": self._handle_binop_Mod,
+            "Xor": self._handle_binop_Xor,
+            "And": self._handle_binop_And,
+            "LogicalAnd": self._handle_binop_LogicalAnd,
+            "Or": self._handle_binop_Or,
+            "LogicalOr": self._handle_binop_LogicalOr,
+            "Shl": self._handle_binop_Shl,
+            "Shr": self._handle_binop_Shr,
+            "Sar": self._handle_binop_Sar,
+            "CmpF": self._handle_binop_CmpF,
+            "CmpEQ": self._handle_binop_CmpEQ,
+            "CmpNE": self._handle_binop_CmpNE,
+            "CmpLT": self._handle_binop_CmpLT,
+            "CmpLE": self._handle_binop_CmpLE,
+            "CmpGT": self._handle_binop_CmpGT,
+            "CmpGE": self._handle_binop_CmpGE,
+            "Concat": self._handle_binop_Concat,
+            "Ror": self._handle_binop_Ror,
+            "Rol": self._handle_binop_Rol,
+            "Carry": self._handle_binop_Carry,
+            "SCarry": self._handle_binop_SCarry,
+            "SBorrow": self._handle_binop_SBorrow,
+            "InterleaveLOV": self._handle_binop_InterleaveLOV,
+            "InterleaveHIV": self._handle_binop_InterleaveHIV,
+        }
+        super().__init__(*args, **kwargs)
+
     def _process(
-        self, state, successors, *args, block=None, whitelist=None, **kwargs
-    ):  # pylint:disable=arguments-differ
+        self, state: StateType, *, block: ailment.Block | None = None, whitelist: set[int] | None = None, **kwargs
+    ) -> ResultType:
         self.tmps = {}
-        self.block: ailment.Block = block
+        if block is None:
+            block = self.lift(state)
+        self.block = block
         self.state = state
-        if self.arch is None:
-            # we only access state.arch if the arch of this engine itself is not previously configured
-            self.arch = state.arch
+        self.stmt_idx = 0
+        self.ins_addr = 0
 
-        self._process_Stmt(whitelist=whitelist)
+        stmt_data = self._process_stmts(whitelist=whitelist)
+        result = self._process_block_end(block, stmt_data, whitelist)
+        del self.tmps
+        del self.block
+        del self.state
+        del self.stmt_idx
+        del self.ins_addr
+        return result
 
-        self.stmt_idx = None
-        self.ins_addr = None
-
-    def _process_Stmt(self, whitelist=None):
-        if whitelist is not None:
-            whitelist = set(whitelist)
-
-        for stmt_idx, stmt in enumerate(self.block.statements):
-            if whitelist is not None and stmt_idx not in whitelist:
-                continue
-
-            self.stmt_idx = stmt_idx
-            self.ins_addr = stmt.ins_addr
-
-            self._handle_Stmt(stmt)
-
-    def _expr(self, expr):
-        expr_type_name = type(expr).__name__
-        if isinstance(expr, ailment.Stmt.Call):
-            # Call can be both an expression and a statement. Add a suffix to make sure we are working on the expression
-            # variant.
-            expr_type_name += "Expr"
-
-        h = None
-        handler = f"_handle_{expr_type_name}"
-        if hasattr(self, handler):
-            h = getattr(self, handler)
-
-        if h is None:
-            handler = f"_ail_handle_{expr_type_name}"
-            if hasattr(self, handler):
-                h = getattr(self, handler)
-
-        if h is not None:
-            return h(expr)
-        if self.l is not None:
-            self.l.warning("Unsupported expression type %s.", type(expr).__name__)
-        return None
+    @abstractmethod
+    def _process_block_end(
+        self, block: ailment.Block, stmt_data: list[StmtDataType], whitelist: set[int] | None
+    ) -> ResultType: ...
 
     #
     # Helper methods
@@ -925,534 +655,436 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         )
 
     #
-    # Statement handlers
+    # Statements
     #
 
-    def _handle_Stmt(self, stmt):
-        handler = f"_handle_{type(stmt).__name__}"
-        if hasattr(self, handler):
-            return getattr(self, handler)(stmt)
+    def _process_stmts(self, whitelist: set[int] | None) -> list[StmtDataType]:
+        result = []
 
-        # compatibility
-        old_handler = f"_ail_handle_{type(stmt).__name__}"
-        if hasattr(self, old_handler):
-            return getattr(self, old_handler)(stmt)
+        for stmt_idx, stmt in enumerate(self.block.statements):
+            if whitelist is not None and stmt_idx not in whitelist:
+                continue
 
-        if self.l is not None:
-            self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
-        return None
+            self.stmt_idx = stmt_idx
+            self.ins_addr = stmt.ins_addr
+            result.append(self._stmt(stmt))
 
-    def _ail_handle_Assignment(self, stmt):
+        return result
+
+    def _stmt(self, stmt: ailment.statement.Statement) -> StmtDataType:
+        stmt_type_name = type(stmt).__name__
+        return self._stmt_handlers[stmt_type_name](stmt)
+
+    @abstractmethod
+    def _handle_stmt_Assignment(self, stmt: ailment.statement.Assignment) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_Store(self, stmt: ailment.statement.Store) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_Jump(self, stmt: ailment.statement.Jump) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_ConditionalJump(self, stmt: ailment.statement.ConditionalJump) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_DirtyStatement(self, stmt: ailment.statement.DirtyStatement) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_Label(self, stmt: ailment.statement.Label) -> StmtDataType: ...
+
+    #
+    # Expressions
+    #
+
+    def _expr(self, expr: ailment.Expression) -> DataType:
+        expr_type_name = type(expr).__name__
+        return self._expr_handlers[expr_type_name](expr)
+
+    def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType:
+        raise TypeError("We should never see raw Atoms")
+
+    @abstractmethod
+    def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Tmp(self, expr: ailment.expression.Tmp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType: ...
+
+    def _handle_expr_Op(self, expr: ailment.expression.Op) -> DataType:
+        raise TypeError("We should never see raw Ops")
+
+    def _handle_expr_UnaryOp(self, expr: ailment.expression.UnaryOp) -> DataType:
+        return self._unop_handlers[expr.op](expr)
+
+    def _handle_expr_BinaryOp(self, expr: ailment.expression.BinaryOp) -> DataType:
+        return self._binop_handlers[expr.op](expr)
+
+    @abstractmethod
+    def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_VEXCCallExpression(self, expr: ailment.expression.VEXCCallExpression) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_MultiStatementExpression(self, expr: ailment.expression.MultiStatementExpression) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_BasePointerOffset(self, expr: ailment.expression.BasePointerOffset) -> DataType: ...
+
+    @abstractmethod
+    def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType: ...
+
+    #
+    # UnOps
+    #
+
+    @abstractmethod
+    def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+
+    #
+    # BinOps
+    #
+    @abstractmethod
+    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+
+class SimEngineNostmtAIL(
+    Generic[StateType, DataType, StmtDataType, ResultType],
+    SimEngineLightAIL[StateType, DataType, StmtDataType | None, ResultType],
+):
+    def _handle_stmt_Assignment(self, stmt) -> StmtDataType | None:
         pass
 
-    def _ail_handle_Label(self, stmt):
+    def _handle_stmt_Store(self, stmt) -> StmtDataType | None:
         pass
 
-    def _ail_handle_Jump(self, stmt):
+    def _handle_stmt_Jump(self, stmt) -> StmtDataType | None:
         pass
 
-    def _ail_handle_Call(self, stmt):
+    def _handle_stmt_ConditionalJump(self, stmt) -> StmtDataType | None:
         pass
 
-    def _ail_handle_Return(self, stmt):
+    def _handle_stmt_Call(self, stmt) -> StmtDataType | None:
         pass
 
-    def _ail_handle_DirtyStatement(self, stmt):
-        self._expr(stmt.dirty)
-
-    #
-    # Expression handlers
-    #
-
-    def _ail_handle_BV(self, expr: claripy.ast.Base):
-        return expr
-
-    def _ail_handle_Const(self, expr):  # pylint:disable=no-self-use
-        return expr.value
-
-    def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        return expr
-
-    def _ail_handle_Tmp(self, expr):
-        tmp_idx = expr.tmp_idx
-
-        try:
-            return self.tmps[tmp_idx]
-        except KeyError:
-            return None
-
-    def _ail_handle_Load(self, expr: ailment.Expr.Load):
-        self._expr(expr.addr)
-        return expr
-
-    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
-        if not isinstance(expr.target, str):
-            self._expr(expr.target)
-        return expr
-
-    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
-        arg = self._expr(expr.operand)
-
-        if isinstance(arg, int) and (
-            expr.from_bits == 32 and expr.from_type == "I" and expr.to_bits == 32 and expr.to_type == "F"
-        ):
-            # int -> float
-            b = struct.pack("<I", arg)
-            return struct.unpack("<f", b)[0]
-        if (
-            isinstance(arg, float)
-            and expr.from_bits == 32
-            and expr.from_type == "F"
-            and expr.to_bits == 32
-            and expr.to_type == "I"
-        ):
-            # float -> int
-            b = struct.pack("<f", arg)
-            return struct.unpack("<I", b)[0]
-
-        return expr
-
-    def _ail_handle_DirtyExpression(self, expr: ailment.Expr.DirtyExpression):
-        for operand in expr.operands:
-            self._expr(operand)
-        if expr.guard is not None:
-            self._expr(expr.guard)
-        if expr.maddr is not None:
-            self._expr(expr.maddr)
-        return expr
-
-    def _ail_handle_UnaryOp(self, expr):
-        handler_name = f"_handle_{expr.op}"
-        try:
-            handler = getattr(self, handler_name)
-        except AttributeError:
-            handler_name = f"_ail_handle_{expr.op}"
-            try:
-                handler = getattr(self, handler_name)
-            except AttributeError:
-                if self.l is not None:
-                    self.l.warning("Unsupported UnaryOp %s.", expr.op)
-                return None
-
-        return handler(expr)
-
-    def _ail_handle_BinaryOp(self, expr):
-        handler_name = f"_handle_{expr.op}"
-        try:
-            handler = getattr(self, handler_name)
-        except AttributeError:
-            handler_name = f"_ail_handle_{expr.op}"
-            try:
-                handler = getattr(self, handler_name)
-            except AttributeError:
-                if self.l is not None:
-                    self.l.warning("Unsupported BinaryOp %s.", expr.op)
-                return None
-
-        return handler(expr)
-
-    def _ail_handle_TernaryOp(self, expr):
-        handler_name = f"_handle_{expr.op}"
-        try:
-            handler = getattr(self, handler_name)
-        except AttributeError:
-            handler_name = f"_ail_handle_{expr.op}"
-            try:
-                handler = getattr(self, handler_name)
-            except AttributeError:
-                if self.l is not None:
-                    self.l.warning("Unsupported Ternary %s.", expr.op)
-                return None
-
-        return handler(expr)
-
-    #
-    # Binary operation handlers
-    #
-
-    def _ail_handle_CmpEQ(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            if isinstance(expr_0, ailment.Expr.Const) and isinstance(expr_1, ailment.Expr.Const):
-                if expr_0.value == expr_1.value:
-                    return ailment.Expr.Const(None, None, 1, 1)
-                return ailment.Expr.Const(None, None, 0, 1)
-        except TypeError:
-            pass
-        return ailment.Expr.BinaryOp(expr.idx, "CmpEQ", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpNE(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            if isinstance(expr_0, ailment.Expr.Const) and isinstance(expr_1, ailment.Expr.Const):
-                if expr_0.value != expr_1.value:
-                    return ailment.Expr.Const(None, None, 1, 1)
-                return ailment.Expr.Const(None, None, 0, 1)
-        except TypeError:
-            pass
-        return ailment.Expr.BinaryOp(expr.idx, "CmpNE", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpLT(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            if isinstance(expr_0, ailment.Expr.Const) and isinstance(expr_1, ailment.Expr.Const):
-                if expr_0.value < expr_1.value:
-                    return ailment.Expr.Const(None, None, 1, 1)
-                return ailment.Expr.Const(None, None, 0, 1)
-        except TypeError:
-            pass
-        return ailment.Expr.BinaryOp(expr.idx, "CmpLT", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Add(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 + expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(
-                expr.idx,
-                "Add",
-                [expr_0, expr_1],
-                expr.signed,
-                floating_point=expr.floating_point,
-                rounding_mode=expr.rounding_mode,
-                **expr.tags,
-            )
-
-    def _ail_handle_Sub(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0) if not isinstance(arg0, claripy.ast.Base) else arg0
-        expr_1 = self._expr(arg1) if not isinstance(arg1, claripy.ast.Base) else self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 - expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(
-                expr.idx,
-                "Sub",
-                [expr_0, expr_1],
-                expr.signed,
-                floating_point=expr.floating_point,
-                rounding_mode=expr.rounding_mode,
-                **expr.tags,
-            )
-
-    def _ail_handle_Div(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 // expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(
-                expr.idx,
-                "Div",
-                [expr_0, expr_1],
-                expr.signed,
-                floating_point=expr.floating_point,
-                rounding_mode=expr.rounding_mode,
-                **expr.tags,
-            )
-
-    def _ail_handle_DivMod(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        return ailment.Expr.BinaryOp(
-            expr.idx,
-            "DivMod",
-            [expr_0, expr_1],
-            expr.signed,
-            bits=expr.bits,
-            from_bits=expr.from_bits,
-            to_bits=expr.to_bits,
-            **expr.tags,
-        )
-
-    def _ail_handle_Mod(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 % expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "Mod", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Mul(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 * expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(
-                expr.idx,
-                "Mul",
-                [expr_0, expr_1],
-                expr.signed,
-                bits=expr.bits,
-                floating_point=expr.floating_point,
-                rounding_mode=expr.rounding_mode,
-                **expr.tags,
-            )
-
-    def _ail_handle_Mull(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        if isinstance(expr_0, claripy.ast.Bits) and isinstance(expr_1, claripy.ast.Bits):
-            expr0_ext = claripy.ZeroExt(expr.bits - expr_0.size(), expr_0) if expr.bits > expr_0.size() else expr_0
-            expr1_ext = claripy.ZeroExt(expr.bits - expr_1.size(), expr_1) if expr.bits > expr_1.size() else expr_1
-            return expr0_ext * expr1_ext
-
-        return ailment.Expr.BinaryOp(
-            expr.idx,
-            "Mull",
-            [expr_0, expr_1],
-            expr.signed,
-            bits=expr.bits,
-            floating_point=expr.floating_point,
-            rounding_mode=expr.rounding_mode,
-            **expr.tags,
-        )
-
-    def _ail_handle_And(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 & expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "And", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Or(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 | expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "Or", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Xor(self, expr):
-        arg0, arg1 = expr.operands
-
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            return expr_0 ^ expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "Xor", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Shr(self, expr):
-        arg0, arg1 = expr.operands
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        try:
-            if isinstance(expr_1, claripy.ast.BV) and expr_1.concrete:
-                return expr_0 >> expr_1.concrete_value
-        except TypeError:
-            pass
-
-        return ailment.Expr.BinaryOp(expr.idx, "Shr", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Shl(self, expr):
-        arg0, arg1 = expr.operands
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        if isinstance(expr_0, claripy.ast.BV) and isinstance(expr_1, claripy.ast.BV) and expr_1.concrete:
-            return expr_0 << expr_1.concrete_value
-        return ailment.Expr.BinaryOp(expr.idx, "Shl", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Sal(self, expr):
-        return self._ail_handle_Shl(expr)
-
-    def _ail_handle_Rol(self, expr):
-        arg0, arg1 = expr.operands
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        return ailment.Expr.BinaryOp(expr.idx, "Rol", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Ror(self, expr):
-        arg0, arg1 = expr.operands
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        return ailment.Expr.BinaryOp(expr.idx, "Ror", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Sar(self, expr):
-        arg0, arg1 = expr.operands
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        if isinstance(expr_0, claripy.ast.Bits) and isinstance(expr_1, claripy.ast.Bits) and expr_1.concrete:
-            return expr_0 >> expr_1.concrete_value
-        return ailment.Expr.BinaryOp(expr.idx, "Sar", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    def _ail_handle_Concat(self, expr):
-        arg0, arg1 = expr.operands
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
-        if expr_0 is None:
-            expr_0 = arg0
-        if expr_1 is None:
-            expr_1 = arg1
-
-        return ailment.Expr.BinaryOp(expr.idx, "Concat", [expr_0, expr_1], expr.signed, **expr.tags)
-
-    #
-    # Unary operation handlers
-    #
-
-    def _ail_handle_Convert(self, expr):
-        data = self._expr(expr.operand)
-        if data is not None and type(data) is int:
-            return data
-        return None
-
-    def _ail_handle_Not(self, expr):
-        data = self._expr(expr.operand)
-        if data is None:
-            return None
-
-        return ailment.Expr.UnaryOp(expr.idx, "Not", data, **expr.tags)
-
-    def _ail_handle_Neg(self, expr):
-        data = self._expr(expr.operand)
-        if data is None:
-            return None
-
-        return ailment.Expr.UnaryOp(expr.idx, "Neg", data, **expr.tags)
-
-    def _ail_handle_BitwiseNeg(self, expr):
-        data = self._expr(expr.operand)
-        if data is None:
-            return None
-
-        return ailment.Expr.UnaryOp(expr.idx, "BitwiseNeg", data, **expr.tags)
-
-
-# Compatibility
-SimEngineLightVEX = SimEngineLightVEXMixin
-SimEngineLightAIL = SimEngineLightAILMixin
+    def _handle_stmt_Return(self, stmt) -> StmtDataType | None:
+        pass
+
+    def _handle_stmt_DirtyStatement(self, stmt) -> StmtDataType | None:
+        pass
+
+    def _handle_stmt_Label(self, stmt) -> StmtDataType | None:
+        pass
+
+
+class SimEngineNoexprAIL(
+    Generic[StateType, DataType, StmtDataType, ResultType],
+    SimEngineLightAIL[StateType, DataType | None, StmtDataType, ResultType],
+):
+    def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType | None:
+        pass
+
+    def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType | None:
+        pass
+
+    def _handle_expr_Tmp(self, expr: ailment.expression.Tmp) -> DataType | None:
+        pass
+
+    def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType | None:
+        pass
+
+    def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType | None:
+        pass
+
+    def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType | None:
+        pass
+
+    def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType | None:
+        pass
+
+    def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType | None:
+        pass
+
+    def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType | None:
+        pass
+
+    def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType | None:
+        pass
+
+    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType | None:
+        pass
+
+    def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType | None:
+        pass
+
+    def _handle_expr_VEXCCallExpression(self, expr: ailment.expression.VEXCCallExpression) -> DataType | None:
+        pass
+
+    def _handle_expr_MultiStatementExpression(
+        self, expr: ailment.expression.MultiStatementExpression
+    ) -> DataType | None:
+        pass
+
+    def _handle_expr_BasePointerOffset(self, expr: ailment.expression.BasePointerOffset) -> DataType | None:
+        pass
+
+    def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType | None:
+        pass
+
+    def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+        pass
+
+    def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+        pass
+
+    def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+        pass
+
+    def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+        pass
+
+    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass

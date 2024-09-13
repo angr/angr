@@ -5,11 +5,14 @@ import functools
 import itertools
 import logging
 import weakref
-from typing import TypeVar, TYPE_CHECKING
+from typing import Any, TypeVar, TYPE_CHECKING, Generic
+from collections.abc import Callable
 
 import archinfo
 import claripy
 from archinfo import Arch
+from cle import Clemory
+
 from archinfo.arch_soot import SootAddressDescriptor
 
 from . import sim_options as o
@@ -27,6 +30,8 @@ if TYPE_CHECKING:
     from .state_plugins.inspect import SimInspector
     from .state_plugins.jni_references import SimStateJNIReferences
     from .state_plugins.scratch import SimStateScratch
+    from angr.project import Project
+    from angr.simos.javavm import SimJavaVM
 
 
 l = logging.getLogger(name=__name__)
@@ -48,9 +53,12 @@ merge_counter = itertools.count()
 
 _complained_se = False
 
+IPTypeConc = TypeVar("IPTypeConc")
+IPTypeSym = TypeVar("IPTypeSym")
+
 
 # pylint: disable=not-callable
-class SimState(PluginHub):
+class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -88,23 +96,23 @@ class SimState(PluginHub):
 
     def __init__(
         self,
-        project=None,
-        arch=None,
-        plugins=None,
-        mode=None,
-        options=None,
-        add_options=None,
-        remove_options=None,
-        special_memory_filler=None,
-        os_name=None,
-        plugin_preset="default",
-        cle_memory_backer=None,
-        dict_memory_backer=None,
-        permissions_map=None,
-        default_permissions=3,
-        stack_perms=None,
-        stack_end=None,
-        stack_size=None,
+        project: Project | None = None,
+        arch: Arch | None = None,
+        plugins: dict[str, SimStatePlugin] | None = None,
+        mode: str | None = None,
+        options: set[str] | list[str] | SimStateOptions | None = None,
+        add_options: set[str] | None = None,
+        remove_options: set[str] | None = None,
+        special_memory_filler: Callable[[str, int, int, SimState], Any] | None = None,
+        os_name: str | None = None,
+        plugin_preset: str = "default",
+        cle_memory_backer: Clemory | None = None,
+        dict_memory_backer: dict[int, bytes] | None = None,
+        permissions_map: dict[tuple[int, int], int] | None = None,
+        default_permissions: int = 3,
+        stack_perms: int | None = None,
+        stack_end: int | None = None,
+        stack_size: int | None = None,
         regioned_memory_cls=None,
         **kwargs,
     ):
@@ -118,7 +126,8 @@ class SimState(PluginHub):
         self._is_java_jni_project = self.project and self.project.is_java_jni_project
 
         # Arch
-        if self._is_java_jni_project:
+        if self._is_java_jni_project and project is not None:
+            assert isinstance(project.simos, SimJavaVM)
             self._arch = {"soot": project.arch, "vex": project.simos.native_simos.arch}
             # This flag indicates whether the current ip is a native address or
             # a soot address descriptor.
@@ -177,6 +186,7 @@ class SimState(PluginHub):
             # we have no choice but to use the 'default' plugin preset.
             if self.plugin_preset is None:
                 self.use_plugin_preset("default")
+            assert self.plugin_preset is not None
 
             # Determine memory backend
             if self._is_java_project and not self._is_java_jni_project:
@@ -186,16 +196,14 @@ class SimState(PluginHub):
             elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
-                if cle_memory_backer is not None:
-                    cle_memory_backer = {"global": cle_memory_backer}
-                if dict_memory_backer is not None:
-                    dict_memory_backer = {"global": dict_memory_backer}
+                cle_memory_backer_map = {"global": cle_memory_backer} if cle_memory_backer is not None else None
+                dict_memory_backer_map = {"global": dict_memory_backer} if dict_memory_backer is not None else None
 
                 # TODO: support permissions backer in SimAbstractMemory
                 sim_memory_cls = self.plugin_preset.request_plugin("abs_memory")
                 sim_memory = sim_memory_cls(
-                    cle_memory_backer=cle_memory_backer,
-                    dict_memory_backer=dict_memory_backer,
+                    cle_memory_backer=cle_memory_backer_map,
+                    dict_memory_backer=dict_memory_backer_map,
                     memory_id="mem",
                     regioned_memory_cls=regioned_memory_cls,
                 )
@@ -234,6 +242,7 @@ class SimState(PluginHub):
             # Same as for 'memory' plugin.
             if self.plugin_preset is None:
                 self.use_plugin_preset("default")
+            assert self.plugin_preset is not None
 
             # Get register endness
             if self._is_java_jni_project:
@@ -348,7 +357,7 @@ class SimState(PluginHub):
         self.regs.ip = val
 
     @property
-    def _ip(self):
+    def _ip(self) -> IPTypeSym:
         """
         Get the instruction pointer expression without triggering SimInspect breakpoints or generating SimActions.
 
@@ -360,7 +369,7 @@ class SimState(PluginHub):
             raise TypeError(str(e)) from e
 
     @_ip.setter
-    def _ip(self, val):
+    def _ip(self, val: IPTypeSym | IPTypeConc):
         """
         Set the instruction pointer without triggering SimInspect breakpoints or generating SimActions.
 
@@ -373,7 +382,7 @@ class SimState(PluginHub):
             raise TypeError(str(e)) from e
 
     @property
-    def addr(self):
+    def addr(self) -> IPTypeConc:
         """
         Get the concrete address of the instruction pointer, without triggering SimInspect breakpoints or generating
         SimActions. An integer is returned, or an exception is raised if the instruction pointer is symbolic.
