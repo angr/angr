@@ -3575,6 +3575,9 @@ class TestDecompiler(unittest.TestCase):
         assert "IoDriverObjectType" in d.codegen.text
         assert "wstrncpy(" in d.codegen.text
         assert "ObMakeTemporaryObject" in d.codegen.text
+        # ensure the stack canary is removed
+        assert "_security_check_cookie" not in d.codegen.text
+        assert " ^ " not in d.codegen.text
 
     @structuring_algo("sailr")
     def test_ite_region_converter_missing_break_statement(self, decompiler_options=None):
