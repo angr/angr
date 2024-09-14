@@ -9,5 +9,5 @@ jobs:
   ci:
     uses: ./.github/workflows/corpus_test.yml
     with:
-      CORPUS_GITHUB_PATH: stable
-      NIGHTLY_CORPUS_TEST: 1
+      corpus_github_path: "stable"
+      nightly: true

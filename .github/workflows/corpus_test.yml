@@ -4,26 +4,44 @@ on:
   pull_request:
     branches:
       - master
-      - main
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      corpus_github_path:
+        description: "Path to the corpus in the GitHub repository"
+        type: string
+        required: true
+      nightly:
+        description: "Enable nightly-only tests"
+        default: false
+        type: boolean
+        required: false
+
+env:
+  CORPUS_GITHUB_BRANCH: "main"
+  CORPUS_GITHUB_OWNER: "project-purcellville"
+  CORPUS_GITHUB_PATH: "path1;path2"
+  CORPUS_GITHUB_REPO: "direct-file-store-0000"
+  SNAPSHOT_GITHUB_BRANCH: "main"
+  SNAPSHOT_GITHUB_OWNER: "project-purcellville"
+  SNAPSHOT_GITHUB_REPO: "snapshots-0000"
 
 jobs:
   fetch_metadata_for_binaries:
     runs-on: ubuntu-latest
-    # Expose step output as job output
     outputs:
       chunks: ${{ steps.fetch_metadata_for_binaries.outputs.chunks }}
 
     steps:
+      - name: Install apt packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+
       - name: Fetch metadata for binaries
         id: fetch_metadata_for_binaries
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Applying 'apt' changes."
-          sudo apt update
-          sudo apt install -y curl jq
-
           # Fetch the list of binaries from the binaries repository using the GitHub API
           fetch_files_from_tree() {
               local sha=$1
@@ -120,7 +138,7 @@ jobs:
 
     steps:
       - name: Checkout current repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python and Install Testing Dependencies
         uses: actions/setup-python@v5
@@ -128,14 +146,17 @@ jobs:
         with:
           python-version: "3.10"
           cache: "pip"
+
       - name: Restore venv Cache
         uses: actions/cache/restore@v4
         with:
           key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
           path: .venv
+
       - run: python -m venv .venv
         name: Create venv
         shell: bash
+
       - run: |
           source .venv/bin/activate
           pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
@@ -146,10 +167,12 @@ jobs:
           pip install git+https://github.com/angr/ailment.git
           pip install requests
         name: Install angr Dependencies
+
       - run: |
           source .venv/bin/activate
           pip install --no-build-isolation .
         name: Install angr
+
       - run: |
           source .venv/bin/activate
           pip install pytest pytest-insta
