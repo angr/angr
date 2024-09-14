@@ -26,7 +26,7 @@ from ailment.expression import (
 )
 
 from angr.analyses.s_reaching_definitions import SRDAModel
-from angr.utils.ail import is_phi_assignment
+from angr.utils.ail import is_phi_assignment, HasExprWalker
 from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
 from ...knowledge_plugins.propagations.states import Equivalence
@@ -705,6 +705,7 @@ class AILSimplifier(Analysis):
 
         all_used_sizes = set()
         used_by: list[tuple[atoms.VirtualVariable, CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
+        used_by_loc = defaultdict(list)
 
         for atom, loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
@@ -735,19 +736,69 @@ class AILSimplifier(Analysis):
                 return info
 
             all_used_sizes.add(expr_size)
-            used_by.append((atom, loc, used_by_exprs))
+            used_by_loc[loc].append((atom, used_by_exprs))
 
         if len(all_used_sizes) == 1 and next(iter(all_used_sizes)) < def_size:
+            for loc, atom_expr_pairs in used_by_loc.items():
+                if len(atom_expr_pairs) == 1:
+                    atom, used_by_exprs = atom_expr_pairs[0]
+                    used_by.append((atom, loc, used_by_exprs))
+                else:
+                    # the order matters - we must replace the outer expressions first, then replace the inner
+                    # expressions. replacing in the wrong order will lead to expressions that are not replaced in the
+                    # end.
+                    ordered = []
+                    for atom, used_by_exprs in atom_expr_pairs:
+                        last_inclusion = len(ordered) - 1  # by default we append at the end of the list
+                        for idx in range(len(ordered)):
+                            if self._is_expr0_included_in_expr1(ordered[idx][1], used_by_exprs):
+                                # this element must be inserted before idx
+                                ordered.insert(idx, (atom, used_by_exprs))
+                                break
+                            if self._is_expr0_included_in_expr1(used_by_exprs, ordered[idx][1]):
+                                # this element can be inserted after this element. record the index
+                                last_inclusion = idx
+                        else:
+                            ordered.insert(last_inclusion + 1, (atom, used_by_exprs))
+
+                    for atom, used_by_exprs in ordered:
+                        used_by.append((atom, loc, used_by_exprs))
+
             info = ExprNarrowingInfo(True, to_size=next(iter(all_used_sizes)), use_exprs=used_by, phi_vars=phi_vars)
             return info
 
         info = ExprNarrowingInfo(False)
         return info
 
+    @staticmethod
+    def _exprs_from_used_by_exprs(used_by_exprs) -> set[Expression]:
+        use_type, expr_tuple = used_by_exprs
+        match use_type:
+            case "expr" | "mask" | "convert":
+                return {expr_tuple[1]} if len(expr_tuple) == 2 else {expr_tuple[0]}
+            case "phi-src-expr":
+                return {expr_tuple[0]}
+            case "binop-convert":
+                return {expr_tuple[0], expr_tuple[1]}
+            case _:
+                return set()
+
+    def _is_expr0_included_in_expr1(self, used_by_exprs0, used_by_exprs1) -> bool:
+        # extract expressions
+        exprs0 = self._exprs_from_used_by_exprs(used_by_exprs0)
+        exprs1 = self._exprs_from_used_by_exprs(used_by_exprs1)
+
+        # test for inclusion
+        for expr1 in exprs1:
+            walker = HasExprWalker(exprs0)
+            walker.walk_expression(expr1)
+            if walker.contains_exprs:
+                return True
+        return False
+
     def _get_vvar_use_and_exprs_recursive(
         self, initial_atom: atoms.VirtualVariable, rd, block_dict: dict[tuple[int, int | None], Block]
     ) -> tuple[list[tuple[atoms.VirtualVariable, CodeLocation, Expression]], set[VirtualVariable]] | None:
-
         result = []
         atom_queue = [initial_atom]
         phi_vars = set()
@@ -764,7 +815,7 @@ class AILSimplifier(Analysis):
                     # missing a block for whatever reason
                     return None
 
-                block = self.blocks.get(old_block, old_block)
+                block: Block = self.blocks.get(old_block, old_block)
                 if loc.stmt_idx >= len(block.statements):
                     # missing a statement for whatever reason
                     return None
