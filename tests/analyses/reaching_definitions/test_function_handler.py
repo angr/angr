@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
 
 from typing import TYPE_CHECKING
@@ -65,14 +67,14 @@ class CustomFunctionHandler(FunctionHandler):
         self.sscanf_out_value = None
         self.malloc_sizes = []
 
-    def handle_impl_malloc(self, state: "ReachingDefinitionsState", data: "FunctionCallData"):
+    def handle_impl_malloc(self, state: ReachingDefinitionsState, data: FunctionCallData):
         ((src_atom,),) = data.args_atoms
 
         src_value = state.get_values(src_atom).one_value().concrete_value
         self.malloc_sizes.append(src_value)
-        data.depends(list(data.ret_atoms)[0], value=MultiValues(claripy.BVV(0x12345678, 64)))
+        data.depends(next(iter(data.ret_atoms)), value=MultiValues(claripy.BVV(0x12345678, 64)))
 
-    def handle_impl___isoc99_sscanf(self, state: "ReachingDefinitionsState", data: "FunctionCallData"):
+    def handle_impl___isoc99_sscanf(self, state: ReachingDefinitionsState, data: FunctionCallData):
         (str_atom,), (fmtstr_atom,), (out_atom,) = data.args_atoms[:3]
 
         # string
@@ -93,7 +95,7 @@ class CustomFunctionHandler(FunctionHandler):
         self.sscanf_out_value = int(str_.strip(b"\x00"))
         data.depends(dst, src, value=MultiValues(claripy.BVV(self.sscanf_out_value, 32)))
 
-    def handle_impl_strcpy(self, state: "ReachingDefinitionsState", data: "FunctionCallData"):
+    def handle_impl_strcpy(self, state: ReachingDefinitionsState, data: FunctionCallData):
         (dst_atom,), (src_atom,) = data.args_atoms
 
         # Assume source is a constant string
@@ -107,7 +109,7 @@ class CustomFunctionHandler(FunctionHandler):
 
         data.depends(dst, src, value=MultiValues(claripy.BVV(src_str)))
 
-    def handle_impl_system(self, state: "ReachingDefinitionsState", data: "FunctionCallData"):
+    def handle_impl_system(self, state: ReachingDefinitionsState, data: FunctionCallData):
         (cmd_atom,) = data.args_atoms[0]
         cmd_addr = state.get_values(cmd_atom).one_value().concrete_value
         self.system_cmd = load_cstring_from_memory_definitions(state.live_definitions, cmd_addr, as_str=True)

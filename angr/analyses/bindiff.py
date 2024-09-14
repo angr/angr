@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import math
 import types
@@ -188,8 +189,7 @@ def differing_constants(block_a, block_b):
         for d in differences:
             if d.type != DIFF_VALUE:
                 raise UnmatchedStatementsException("Instruction has changed")
-            else:
-                changes.append(ConstantChange(current_offset, d.value_a, d.value_b))
+            changes.append(ConstantChange(current_offset, d.value_a, d.value_b))
 
     return changes
 
@@ -207,12 +207,14 @@ def compare_statement_dict(statement_1, statement_2):
 
     # constants
     if isinstance(statement_1, (int, float, str, bytes)):
-        if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
+        if (
+            isinstance(statement_1, float)
+            and math.isnan(statement_1)
+            and math.isnan(statement_2)
+            or statement_1 == statement_2
+        ):
             return []
-        elif statement_1 == statement_2:
-            return []
-        else:
-            return [Difference(None, statement_1, statement_2)]
+        return [Difference(None, statement_1, statement_2)]
 
     # tuples/lists
     if isinstance(statement_1, (tuple, list)):
@@ -286,7 +288,7 @@ class NormalizedBlock:
 
 class NormalizedFunction:
     # a more normalized function
-    def __init__(self, function: "Function"):
+    def __init__(self, function: Function):
         # start by copying the graph
         self.graph: networkx.DiGraph = function.graph.copy()
         self.project = function._function_manager._kb._project
@@ -314,7 +316,7 @@ class NormalizedFunction:
                     and successors[0].addr > node.addr
                 ):
                     # add edges to the successors of its successor, and delete the original successors
-                    succ = list(self.graph.successors(node))[0]
+                    succ = next(iter(self.graph.successors(node)))
                     for s in self.graph.successors(succ):
                         self.graph.add_edge(node, s)
                     self.graph.remove_node(succ)
@@ -349,7 +351,7 @@ class FunctionDiff:
     This class computes the a diff between two functions.
     """
 
-    def __init__(self, function_a: "Function", function_b: "Function", bindiff=None):
+    def __init__(self, function_a: Function, function_b: Function, bindiff=None):
         """
         :param function_a: The first angr Function object to diff.
         :param function_b: The second angr Function object.
@@ -377,10 +379,7 @@ class FunctionDiff:
         """
         if len(self._unmatched_blocks_from_a | self._unmatched_blocks_from_b) > 0:
             return False
-        for a, b in self._block_matches:
-            if not self.blocks_probably_identical(a, b):
-                return False
-        return True
+        return all(self.blocks_probably_identical(a, b) for a, b in self._block_matches)
 
     @property
     def identical_blocks(self):
@@ -451,8 +450,7 @@ class FunctionDiff:
         if self._project_a.is_hooked(block_a) and self._project_b.is_hooked(block_b):
             if self._project_a._sim_procedures[block_a] == self._project_b._sim_procedures[block_b]:
                 return 1.0
-            else:
-                return 0.0
+            return 0.0
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
@@ -467,7 +465,7 @@ class FunctionDiff:
         # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
         if block_a is None and block_b is None:
             return 1.0
-        elif block_a is None or block_b is None:
+        if block_a is None or block_b is None:
             return 0.0
 
         # get all elements for computing similarity
@@ -494,9 +492,7 @@ class FunctionDiff:
         num_values += max(len(consts_a), len(consts_b))
         num_values += max(len(block_a.operations), len(block_b.operations))
         num_values += 1  # jumpkind
-        similarity = 1 - (float(total_dist) / num_values)
-
-        return similarity
+        return 1 - (float(total_dist) / num_values)
 
     def blocks_probably_identical(self, block_a, block_b, check_constants=False):
         """
@@ -522,7 +518,7 @@ class FunctionDiff:
         # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
         if block_a is None and block_b is None:
             return True
-        elif block_a is None or block_b is None:
+        if block_a is None or block_b is None:
             return False
 
         # if they represent a different number of blocks they are not the same
@@ -585,13 +581,10 @@ class FunctionDiff:
 
         attributes = {}
         for block in function.graph.nodes():
-            if block in call_sites:
-                number_of_subfunction_calls = len(call_sites[block])
-            else:
-                number_of_subfunction_calls = 0
+            number_of_subfunction_calls = len(call_sites[block]) if block in call_sites else 0
             # there really shouldn't be blocks that can't be reached from the start, but there are for now
-            dist_start = distances_from_start[block] if block in distances_from_start else 10000
-            dist_exit = distances_from_exit[block] if block in distances_from_exit else 10000
+            dist_start = distances_from_start.get(block, 10000)
+            dist_exit = distances_from_exit.get(block, 10000)
 
             attributes[block] = (dist_start, dist_exit, number_of_subfunction_calls)
 
@@ -644,8 +637,8 @@ class FunctionDiff:
         # get the attributes for all blocks
         l.debug(
             "Computing diff of functions: %s, %s",
-            ("%#x" % self._function_a.startpoint.addr) if self._function_a.startpoint is not None else "None",
-            ("%#x" % self._function_b.startpoint.addr) if self._function_b.startpoint is not None else "None",
+            (f"{self._function_a.startpoint.addr:#x}") if self._function_a.startpoint is not None else "None",
+            (f"{self._function_b.startpoint.addr:#x}") if self._function_b.startpoint is not None else "None",
         )
         self.attributes_a = self._compute_block_attributes(self._function_a)
         self.attributes_b = self._compute_block_attributes(self._function_b)
@@ -659,7 +652,7 @@ class FunctionDiff:
         to_process = deque(initial_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = {(x, y) for (x, y) in initial_matches}
+        processed_matches = set(initial_matches)
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -727,7 +720,7 @@ class FunctionDiff:
                         to_process.appendleft((x, y))
 
         # reformat matches into a set of pairs
-        self._block_matches = {(x, y) for (x, y) in matched_a.items()}
+        self._block_matches = set(matched_a.items())
 
         # get the unmatched blocks
         self._unmatched_blocks_from_a = {x for x in self._function_a.graph.nodes() if x not in matched_a}
@@ -774,12 +767,12 @@ class FunctionDiff:
         """
         # get the attributes that are in the sets
         if filter_set_a is None:
-            filtered_attributes_a = {k: v for k, v in attributes_a.items()}
+            filtered_attributes_a = dict(attributes_a.items())
         else:
             filtered_attributes_a = {k: v for k, v in attributes_a.items() if k in filter_set_a}
 
         if filter_set_b is None:
-            filtered_attributes_b = {k: v for k, v in attributes_b.items()}
+            filtered_attributes_b = dict(attributes_b.items())
         else:
             filtered_attributes_b = {k: v for k, v in attributes_b.items() if k in filter_set_b}
 
@@ -1021,9 +1014,9 @@ class BinDiff(Analysis):
             if cfg.kb.functions.function(function_addr) is None or cfg.kb.functions.function(function_addr).is_syscall:
                 continue
             if cfg.kb.functions.function(function_addr) is not None:
-                normalized_funtion = NormalizedFunction(cfg.kb.functions.function(function_addr))
-                number_of_basic_blocks = len(normalized_funtion.graph.nodes())
-                number_of_edges = len(normalized_funtion.graph.edges())
+                normalized_function = NormalizedFunction(cfg.kb.functions.function(function_addr))
+                number_of_basic_blocks = len(normalized_function.graph.nodes())
+                number_of_edges = len(normalized_function.graph.edges())
             else:
                 number_of_basic_blocks = 0
                 number_of_edges = 0
@@ -1084,9 +1077,7 @@ class BinDiff(Analysis):
         # remove ones that aren't in the interfunction graph, because these seem to not be consistent
         all_funcs_a = set(self.cfg_a.kb.callgraph.nodes())
         all_funcs_b = set(self.cfg_b.kb.callgraph.nodes())
-        plt_matches = [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
-
-        return plt_matches
+        return [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
 
     def _get_name_matches(self):
         names_to_addrs_a = defaultdict(list)
@@ -1125,7 +1116,7 @@ class BinDiff(Analysis):
         to_process = deque(initial_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = {(x, y) for (x, y) in initial_matches}
+        processed_matches = set(initial_matches)
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -1200,8 +1191,8 @@ class BinDiff(Analysis):
                 self.function_matches.add((x, y))
 
         # get the unmatched functions
-        self._unmatched_functions_from_a = {x for x in self.attributes_a.keys() if x not in matched_a}
-        self._unmatched_functions_from_b = {x for x in self.attributes_b.keys() if x not in matched_b}
+        self._unmatched_functions_from_a = {x for x in self.attributes_a if x not in matched_a}
+        self._unmatched_functions_from_b = {x for x in self.attributes_b if x not in matched_b}
 
         # remove unneeded function diffs
         for x, y in dict(self._function_diffs):
@@ -1222,12 +1213,12 @@ class BinDiff(Analysis):
         """
         # get the attributes that are in the sets
         if filter_set_a is None:
-            filtered_attributes_a = {k: v for k, v in attributes_a.items()}
+            filtered_attributes_a = dict(attributes_a.items())
         else:
             filtered_attributes_a = {k: v for k, v in attributes_a.items() if k in filter_set_a}
 
         if filter_set_b is None:
-            filtered_attributes_b = {k: v for k, v in attributes_b.items()}
+            filtered_attributes_b = dict(attributes_b.items())
         else:
             filtered_attributes_b = {k: v for k, v in attributes_b.items() if k in filter_set_b}
 

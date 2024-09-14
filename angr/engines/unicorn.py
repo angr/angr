@@ -1,8 +1,10 @@
+from __future__ import annotations
 import copy
 import functools
 import logging
 
 import archinfo
+import claripy
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
@@ -79,17 +81,21 @@ class SimEngineUnicorn(SuccessorsMixin):
         # should the countdown still be updated if we're not stepping a whole block?
         # current decision: leave it updated, since we are moving forward
         if num_inst is not None:
-            # we don't support single stepping with unicorn
+            if once("unicorn_num_inst_warning"):
+                l.warning("unicorn engine doesn't support stepping with num_inst")
             return False
 
         unicorn = state.unicorn  # shorthand
 
         # if we have a concrete target we want the program to synchronize the segment
         # registers before, otherwise undefined behavior could happen.
-        if state.project.concrete_target and self.project.arch.name in ("x86", "x86_64"):
-            if not state.concrete.segment_registers_initialized:
-                l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
-                return False
+        if (
+            state.project.concrete_target
+            and self.project.arch.name in ("x86", "x86_64")
+            and not state.concrete.segment_registers_initialized
+        ):
+            l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
+            return False
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False
@@ -178,7 +184,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         self._instr_mem_write_addrs = set()  # pylint:disable=attribute-defined-outside-init
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
-            self.state.scratch.guard = self.state.solver.true
+            self.state.scratch.guard = claripy.true
             try:
                 if self.state.os_name == "CGC" and block_details["block_addr"] in {
                     self.state.unicorn.cgc_random_addr,
@@ -314,7 +320,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             mem_read_val += next_val["value"]
 
         assert state.inspect.mem_read_length == mem_read_size
-        state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
+        state.inspect.mem_read_address = claripy.BVV(mem_read_address, state.inspect.mem_read_address.size())
         if mem_read_taint_map.count(-1) != mem_read_size:
             # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
             self.state.inspect.b(
@@ -330,9 +336,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         if taint_map.count(0) == state.inspect.mem_read_length:
             # The value is completely concrete
             if state.arch.memory_endness == archinfo.Endness.LE:
-                state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
+                state.inspect.mem_read_expr = claripy.BVV(value[::-1])
             else:
-                state.inspect.mem_read_expr = state.solver.BVV(value)
+                state.inspect.mem_read_expr = claripy.BVV(value)
         else:
             # The value may be partially concrete. Set the symbolic bitmap to read correct value and restore it
             mem_read_addr = state.solver.eval(state.inspect.mem_read_address)
@@ -370,12 +376,12 @@ class SimEngineUnicorn(SuccessorsMixin):
 
                 for offset, expected_taint in enumerate(taint_map):
                     if expected_taint == 0:
-                        curr_value_bytes[offset] = state.solver.BVV(value[offset], 8)
+                        curr_value_bytes[offset] = claripy.BVV(value[offset], 8)
 
                 if state.arch.memory_endness == archinfo.Endness.LE:
                     curr_value_bytes = reversed(curr_value_bytes)
 
-                curr_value = state.solver.Concat(*curr_value_bytes)
+                curr_value = claripy.Concat(*curr_value_bytes)
 
             state.inspect.mem_read_expr = curr_value
 
@@ -419,8 +425,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # initialize unicorn plugin
         try:
-            syscall_data = kwargs["syscall_data"] if "syscall_data" in kwargs else None
-            fd_bytes = kwargs["fd_bytes"] if "fd_bytes" in kwargs else None
+            syscall_data = kwargs.get("syscall_data", None)
+            fd_bytes = kwargs.get("fd_bytes", None)
             state.unicorn.setup(syscall_data=syscall_data, fd_bytes=fd_bytes)
         except SimValueError:
             # it's trying to set a symbolic register somehow
@@ -475,7 +481,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         if state.unicorn.jumpkind.startswith("Ijk_Sys"):
             state.ip = state.unicorn._syscall_pc
-        successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
+        successors.add_successor(state, state.ip, claripy.true, state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True

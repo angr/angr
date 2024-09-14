@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument,arguments-differ
-from typing import Set
+from __future__ import annotations
 
 import ailment
 
@@ -16,7 +16,7 @@ class NodeAddressFinder(SequenceWalker):
             ailment.Block: self._handle_Block,
         }
         super().__init__(handlers=handlers)
-        self.addrs: Set[int] = set()
+        self.addrs: set[int] = set()
 
         self.walk(node)
 

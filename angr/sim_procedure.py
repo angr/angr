@@ -1,8 +1,9 @@
+from __future__ import annotations
 import inspect
 import copy
 import itertools
 import logging
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
 import claripy
 from cle import SymbolType
@@ -99,7 +100,7 @@ class SimProcedure:
 
     """
 
-    state: "SimState"
+    state: SimState
 
     def __init__(
         self,
@@ -165,10 +166,10 @@ class SimProcedure:
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
-        self.arg_session: Union[None, ArgSession, int] = None
+        self.arg_session: None | ArgSession | int = None
 
     def __repr__(self):
-        return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
+        return "<SimProcedure {}{}{}{}{}>".format(*self._describe_me())
 
     def _describe_me(self):
         """
@@ -176,7 +177,7 @@ class SimProcedure:
         """
         return (
             self.display_name,
-            " (cont: %s)" % self.run_func if self.is_continuation else "",
+            f" (cont: {self.run_func})" if self.is_continuation else "",
             " (syscall)" if self.is_syscall else "",
             " (inline)" if not self.use_state_arguments else "",
             " (stub)" if self.is_stub else "",
@@ -206,8 +207,8 @@ class SimProcedure:
                 )(self.arch)
             else:
                 raise SimProcedureError(
-                    "There is no default calling convention for architecture %s."
-                    " You must specify a calling convention." % self.arch.name
+                    f"There is no default calling convention for architecture {self.arch.name}."
+                    " You must specify a calling convention."
                 )
         if self.prototype._arch is None:
             self.prototype = self.prototype.with_arch(self.arch)
@@ -274,7 +275,7 @@ class SimProcedure:
                     inst.arg_session = 0
 
             # run it
-            l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
+            l.debug("Executing %s%s%s%s%s with %s, %s", *((*inst._describe_me(), sim_args, inst.kwargs)))
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         state._inspect(
@@ -321,13 +322,13 @@ class SimProcedure:
     IS_FUNCTION = True
     ARGS_MISMATCH = False
     ALT_NAMES = None  # alternative names
-    local_vars: Tuple[str, ...] = ()
+    local_vars: tuple[str, ...] = ()
 
     def run(self, *args, **kwargs):  # pylint: disable=unused-argument
         """
         Implement the actual procedure here!
         """
-        raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
+        raise SimProcedureError(f"{self.__class__.__name__} does not implement a run() method")
 
     def static_exits(self, blocks, **kwargs):  # pylint: disable=unused-argument
         """
@@ -340,7 +341,7 @@ class SimProcedure:
         """
 
         if self.ADDS_EXITS:
-            raise SimProcedureError("static_exits() is not implemented for %s" % self)
+            raise SimProcedureError(f"static_exits() is not implemented for {self}")
 
         # This SimProcedure does not add any new exit
         return []
@@ -410,9 +411,9 @@ class SimProcedure:
         :param arguments:       Any additional positional args will be used as arguments to the
                                 procedure call
         :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
-                                procedure construtor
+                                procedure constructor
         """
-        e_args = [self.state.solver.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments]
+        e_args = [claripy.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments]
         p = procedure(project=self.project, **kwargs)
         return p.execute(self.state, None, arguments=e_args)
 
@@ -476,7 +477,7 @@ class SimProcedure:
         self._prepare_ret_state()
 
         self._exit_action(self.state, ret_addr)
-        self.successors.add_successor(self.state, ret_addr, self.state.solver.true, "Ijk_Ret")
+        self.successors.add_successor(self.state, ret_addr, claripy.true, "Ijk_Ret")
 
     def call(self, addr, args, continue_at, cc=None, prototype=None, jumpkind="Ijk_Call"):
         """
@@ -498,7 +499,7 @@ class SimProcedure:
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
-        saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
+        saved_local_vars = list(zip(self.local_vars, (getattr(self, name) for name in self.local_vars)))
         simcallstack_entry = (
             self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
             self.arguments,
@@ -519,14 +520,18 @@ class SimProcedure:
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
-        self.successors.add_successor(call_state, addr, call_state.solver.true, jumpkind)
+        self.successors.add_successor(call_state, addr, claripy.true, jumpkind)
+        if jumpkind != "Ijk_Call":
+            call_state.callstack.call(
+                self.state.addr, addr, retn_target=ret_addr, stack_pointer=call_state.regs.sp.concrete_value
+            )
 
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
             ret_state = self.state.copy()
             cc.setup_callsite(ret_state, ret_addr, args, prototype)
             ret_state.callstack.top.procedure_data = simcallstack_entry
-            guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
+            guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else claripy.false
             self.successors.add_successor(ret_state, ret_addr, guard, "Ijk_FakeRet")
 
     def jump(self, addr, jumpkind="Ijk_Boring"):
@@ -535,7 +540,7 @@ class SimProcedure:
         """
         self.inhibit_autoret = True
         self._exit_action(self.state, addr)
-        self.successors.add_successor(self.state, addr, self.state.solver.true, jumpkind)
+        self.successors.add_successor(self.state, addr, claripy.true, jumpkind)
 
     def exit(self, exit_code):
         """
@@ -546,9 +551,9 @@ class SimProcedure:
         self.state.options.discard(o.AUTO_REFS)
 
         if isinstance(exit_code, int):
-            exit_code = self.state.solver.BVV(exit_code, self.state.arch.bits)
+            exit_code = claripy.BVV(exit_code, self.state.arch.bits)
         self.state.history.add_event("terminate", exit_code=exit_code)
-        self.successors.add_successor(self.state, self.state.regs.ip, self.state.solver.true, "Ijk_Exit")
+        self.successors.add_successor(self.state, self.state.regs.ip, claripy.true, "Ijk_Exit")
 
     @staticmethod
     def _exit_action(state, addr):

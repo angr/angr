@@ -1,4 +1,5 @@
-from typing import Tuple, List, Any
+from __future__ import annotations
+from typing import Any
 import logging
 
 import ailment
@@ -60,7 +61,7 @@ class X86GccGetPcSimplifier(OptimizationPass):
                 block.statements = block.statements[: stmt_idx - 1] + block.statements[stmt_idx:]
             self._update_block(old_block, block)
 
-    def _find_getpc_calls(self) -> List[Tuple[Any, int, str, int]]:
+    def _find_getpc_calls(self) -> list[tuple[Any, int, str, int]]:
         """
         Find all blocks that are calling __x86.get_pc_thunk functions.
 
@@ -76,7 +77,10 @@ class X86GccGetPcSimplifier(OptimizationPass):
                 and isinstance(block.statements[-1].target, ailment.Expr.Const)
             ):
                 call_func_addr = block.statements[-1].target.value
-                call_func = self.kb.functions.get_by_addr(call_func_addr)
+                try:
+                    call_func = self.kb.functions.get_by_addr(call_func_addr)
+                except KeyError:
+                    continue
                 if "get_pc" in call_func.info:
                     results.append(
                         (key, len(block.statements) - 1, call_func.info["get_pc"], block.addr + block.original_size),

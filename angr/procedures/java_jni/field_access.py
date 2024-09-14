@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import ArchSoot
@@ -95,9 +96,7 @@ class SetStaticField(JNISimProcedure):
             class_name=field_class.name, field_name=field_id.name, type_=field_id.type
         )
         # cast value to java type
-        value = self.state.project.simos.cast_primitive(
-            state=self.state, value=value_.to_claripy(), to_type=field_id.type
-        )
+        value = self.state.project.simos.cast_primitive(state=self.state, value=value_, to_type=field_id.type)
         # store value in java memory
         self.state.javavm_memory.store(field_ref, value)
 
@@ -169,8 +168,6 @@ class SetField(JNISimProcedure):
             type_=field_id.type,
         )
         # cast value to java type
-        value = self.state.project.simos.cast_primitive(
-            state=self.state, value=value_.to_claripy(), to_type=field_id.type
-        )
+        value = self.state.project.simos.cast_primitive(state=self.state, value=value_, to_type=field_id.type)
         # store value in java memory
         self.state.javavm_memory.store(field_ref, value)

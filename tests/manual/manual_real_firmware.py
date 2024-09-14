@@ -8,6 +8,7 @@
 # operating system to make things easier.
 #
 # If these tests break, contact @subwire (or, likely, he will find you)
+from __future__ import annotations
 
 from common import bin_priv_location, slow_test
 import os
@@ -16,32 +17,30 @@ import angr
 
 def load_econet():
     b = os.path.join(bin_priv_location, "firmware_party", "rheem_econet", "RH-WIFI-02-01-05.bin")
-    p = angr.Project(
+    return angr.Project(
         b, main_opts={"base_addr": 0x1F000000, "arch": "ARMCortexM", "backend": "blob", "entry_point": 0x1F0051B9}
     )
-    return p
 
 
 def load_mycarelink():
     b = os.path.join(bin_priv_location, "firmware_party", "mycarelink", "mycarelink-from_app.bin")
-    p = angr.Project(
+    return angr.Project(
         b, main_opts={"base_addr": 0x08044000, "arch": "ARMCortexM", "backend": "blob", "entry_point": 0x08049509}
     )
-    return p
 
 
 def load_omnipod():
     b = os.path.join(bin_priv_location, "firmware_party", "omnipod_pdm", "flash.bin")
-    p = angr.Project(
+    return angr.Project(
         b, main_opts={"base_addr": 0xC8000000, "arch": "ARMEL", "backend": "blob", "entry_point": 0xC8000000}
     )
-    return p
 
 
 def load_controllogix():
     b = os.path.join(bin_priv_location, "firmware_party", "ab_controllogix", "PN-337140.bin")
-    p = angr.Project(b, main_opts={"base_addr": 0x100000, "arch": "ARMEL", "backend": "blob", "entry_point": 0x100000})
-    return p
+    return angr.Project(
+        b, main_opts={"base_addr": 0x100000, "arch": "ARMEL", "backend": "blob", "entry_point": 0x100000}
+    )
 
 
 def cfg_it(p):

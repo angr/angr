@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 import logging
 
@@ -17,11 +18,9 @@ def get_map_key(state, key_ref):
         string = state.memory.load(key_ref)
         if string.concrete:
             return state.solver.eval(string)
-        else:
-            return state.solver.eval(string)
+        return state.solver.eval(string)
 
-    else:
-        return key_ref.id
+    return key_ref.id
 
 
 class MapInit(JavaSimProcedure):

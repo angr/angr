@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 from angr.errors import SimValueError
 
@@ -22,8 +23,7 @@ class ___tls_get_addr(angr.SimProcedure):
             ptr = self.state.regs.eax
             # use SIM_PROCEDURES so name-mangling doesn't fuck us :|
             return self.inline_call(angr.SIM_PROCEDURES["linux_loader"]["__tls_get_addr"], ptr).ret_expr
-        else:
-            raise angr.errors.SimUnsupportedError("___tls_get_addr only implemented for x86. Talk to @rhelmot.")
+        raise angr.errors.SimUnsupportedError("___tls_get_addr only implemented for x86. Talk to @rhelmot.")
 
 
 class tlsdesc_resolver(angr.SimProcedure):

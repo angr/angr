@@ -1,5 +1,6 @@
 # This module contains the analysis options.
 # All variables with names of all caps will be registered as a state option to SimStateOptions.
+from __future__ import annotations
 
 import string
 from .sim_state_options import SimStateOptions
@@ -44,11 +45,8 @@ NO_SYMBOLIC_JUMP_RESOLUTION = "NO_SYMBOLIC_JUMP_RESOLUTION"
 # This option prevents angr from doing hundreds of constraint solves when it hits a symbolic syscall
 NO_SYMBOLIC_SYSCALL_RESOLUTION = "NO_SYMBOLIC_SYSCALL_RESOLUTION"
 
-# The absense of this option causes the analysis to avoid reasoning about most symbolic values.
+# The absence of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = "SYMBOLIC"
-
-# This variable causes claripy to use a string solver (CVC4)
-STRINGS_ANALYSIS = "STRINGS_ANALYSIS"
 
 # Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default
 # concrete values (like 0)
@@ -73,7 +71,7 @@ CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
 FILES_HAVE_EOF = "FILES_HAVE_EOF"
 UNKNOWN_FILES_HAVE_EOF = FILES_HAVE_EOF
 
-# Attempting to open an unkown file will result in creating it with a symbolic length
+# Attempting to open an unknown file will result in creating it with a symbolic length
 ALL_FILES_EXIST = "ALL_FILES_EXIST"
 
 # Unknown files might or might not exist
@@ -315,7 +313,7 @@ CGC_ENFORCE_FD = "CGC_ENFORCE_FD"
 CGC_NON_BLOCKING_FDS = "CGC_NON_BLOCKING_FDS"
 
 # Allows memory breakpoints to get more accurate sizes in case of reading large chunks
-# Sacrafice performance for more fine tune memory read size
+# Sacrifice performance for more fine tune memory read size
 MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
 # Synchronize memory mapping reported by angr with the concrete process.
@@ -337,7 +335,7 @@ JAVA_TRACK_ATTRIBUTES = "JAVA_TRACK_ATTRIBUTES"
 
 _g = globals().copy()
 for k, v in _g.items():
-    if all([char in string.ascii_uppercase + "_" + string.digits for char in k]) and type(v) is str:
+    if all(char in string.ascii_uppercase + "_" + string.digits for char in k) and type(v) is str:
         if k in (
             "UNKNOWN_FILES_HAVE_EOF",
             "CGC_ZERO_FILL_UNCONSTRAINED_MEMORY",

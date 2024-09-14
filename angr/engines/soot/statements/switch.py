@@ -1,4 +1,7 @@
+from __future__ import annotations
 import logging
+
+import claripy
 
 from .base import SimSootStmt
 
@@ -26,7 +29,7 @@ class SwitchBase(SimSootStmt):
 
         # add default target
         default_jmp_target = self._get_bb_addr_from_instr(self.stmt.default_target)
-        default_jmp_cond = self.state.solver.And(*default_jmp_conditions)
+        default_jmp_cond = claripy.And(*default_jmp_conditions)
         self._add_jmp_target(default_jmp_target, default_jmp_cond)
 
 

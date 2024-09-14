@@ -1,4 +1,5 @@
-from typing import Union, List, Dict, Tuple, TYPE_CHECKING, Optional
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from functools import partial
 from collections import defaultdict
 import logging
@@ -7,8 +8,10 @@ import nampa
 from archinfo.arch_arm import is_arm_arch
 
 from ..analyses import AnalysesHub
+from ..errors import AngrRuntimeError
 from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
+import contextlib
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -30,11 +33,11 @@ class FlirtAnalysis(Analysis):
       current binary, and then match all possible signatures for the architecture.
     """
 
-    def __init__(self, sig: Optional[Union[FlirtSignature, str]] = None):
+    def __init__(self, sig: FlirtSignature | str | None = None):
         self._is_arm = is_arm_arch(self.project.arch)
-        self._all_suggestions: Dict[str, Dict[str, Dict[int, str]]] = {}
-        self._suggestions: Dict[int, str] = {}
-        self.matched_suggestions: Dict[str, Tuple[FlirtSignature, Dict[int, str]]] = {}
+        self._all_suggestions: dict[str, dict[str, dict[int, str]]] = {}
+        self._suggestions: dict[int, str] = {}
+        self.matched_suggestions: dict[str, tuple[FlirtSignature, dict[int, str]]] = {}
         self._temporary_sig = False
 
         if sig:
@@ -49,7 +52,7 @@ class FlirtAnalysis(Analysis):
 
         else:
             if not FLIRT_SIGNATURES_BY_ARCH:
-                raise RuntimeError(
+                raise AngrRuntimeError(
                     "No FLIRT signatures exist. Please load FLIRT signatures by calling "
                     "load_signatures() before running FlirtAnalysis."
                 )
@@ -64,7 +67,7 @@ class FlirtAnalysis(Analysis):
             self.signatures = list(self._find_hits_by_strings(mem_regions))
             _l.debug("Identified %d signatures to apply.", len(self.signatures))
 
-        path_to_sig: Dict[str, FlirtSignature] = {}
+        path_to_sig: dict[str, FlirtSignature] = {}
         for sig_ in self.signatures:
             self._match_all_against_one_signature(sig_)
             if sig_.sig_name not in self._all_suggestions:
@@ -83,15 +86,15 @@ class FlirtAnalysis(Analysis):
                     max_suggestions = len(suggestion)
 
             if max_suggestion_sig_path is not None:
-                sig_ = path_to_sig.get(max_suggestion_sig_path, None)
+                sig_ = path_to_sig.get(max_suggestion_sig_path)
                 _l.info("Applying FLIRT signature %s for library %s.", sig_, lib)
                 self._apply_changes(
                     sig_.sig_name if not self._temporary_sig else None, sig_to_suggestions[max_suggestion_sig_path]
                 )
                 self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
-    def _find_hits_by_strings(self, regions: List[bytes]) -> List[FlirtSignature]:
-        library_hits: Dict[str, int] = defaultdict(int)
+    def _find_hits_by_strings(self, regions: list[bytes]) -> list[FlirtSignature]:
+        library_hits: dict[str, int] = defaultdict(int)
         for s, libs in STRING_TO_LIBRARIES.items():
             for region in regions:
                 if s.encode("ascii") in region:
@@ -116,7 +119,7 @@ class FlirtAnalysis(Analysis):
         with open(sig.sig_path, "rb") as sigfile:
             flirt = nampa.parse_flirt_file(sigfile)
             for func in self.project.kb.functions.values():
-                func: "Function"
+                func: Function
                 if func.is_simprocedure or func.is_plt:
                     continue
                 if not func.is_default_name:
@@ -139,7 +142,7 @@ class FlirtAnalysis(Analysis):
                 _callback = partial(self._on_func_matched, func)
                 nampa.match_function(flirt, func_bytes, start, _callback)
 
-    def _on_func_matched(self, func: "Function", base_addr: int, flirt_func: "nampa.FlirtFunction"):
+    def _on_func_matched(self, func: Function, base_addr: int, flirt_func: nampa.FlirtFunction):
         func_addr = base_addr + flirt_func.offset
         _l.debug(
             "_on_func_matched() is called with func_addr %#x with a suggested name %s.", func_addr, flirt_func.name
@@ -152,10 +155,8 @@ class FlirtAnalysis(Analysis):
             except KeyError:
                 # the function is not found. Try the THUMB version
                 if self._is_arm:
-                    try:
+                    with contextlib.suppress(KeyError):
                         func = self.kb.functions.get_by_addr(func_addr + 1)
-                    except KeyError:
-                        pass
 
             if func is None:
                 _l.debug(
@@ -167,13 +168,10 @@ class FlirtAnalysis(Analysis):
             # set the function name
             # TODO: Make sure function names do not conflict with existing ones
             _l.debug("Identified %s @ %#x (%#x-%#x)", flirt_func.name, func_addr, base_addr, flirt_func.offset)
-            if flirt_func.name != "?":
-                func_name = flirt_func.name
-            else:
-                func_name = f"unknown_function_{func.addr:x}"
+            func_name = flirt_func.name if flirt_func.name != "?" else f"unknown_function_{func.addr:x}"
             self._suggestions[func.addr] = func_name
 
-    def _apply_changes(self, library_name: Optional[str], suggestion: Dict[int, str]) -> None:
+    def _apply_changes(self, library_name: str | None, suggestion: dict[int, str]) -> None:
         for func_addr, suggested_name in suggestion.items():
             func = self.kb.functions.get_by_addr(func_addr)
             func.name = suggested_name

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -5,7 +6,7 @@ from cle.backends.elf.variable import Variable
 from cle.backends.elf.variable_type import VariableType, PointerType, ArrayType, StructType, TypedefType
 
 from angr.sim_state import SimState
-from angr.sim_type import ALL_TYPES, SimTypeReg
+from angr.sim_type import ALL_TYPES, SimTypeNum
 
 from .plugin import SimStatePlugin
 
@@ -28,19 +29,19 @@ class SimDebugVariable:
         self.type = var_type
 
     @staticmethod
-    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> "SimDebugVariable":
+    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> SimDebugVariable:
         addr = cle_variable.rebased_addr_from_cfa(dwarf_cfa)
         var_type = cle_variable.type
         return SimDebugVariable(state, addr, var_type)
 
     @property
-    def mem_untyped(self) -> "SimMemView":
+    def mem_untyped(self) -> SimMemView:
         if self.addr is None:
             raise Exception("Cannot view a variable without an address")
         return self.state.mem[self.addr]
 
     @property
-    def mem(self) -> "SimMemView":
+    def mem(self) -> SimMemView:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
@@ -56,18 +57,18 @@ class SimDebugVariable:
         else:
             # FIXME A lot more types are supported by angr that are not in ALL_TYPES (structs, arrays, pointers)
             # Use a fallback type
-            sim_type = SimTypeReg(size, label=name)
+            sim_type = SimTypeNum(size, signed=False, label=name)
         return self.mem_untyped.with_type(sim_type)
 
     # methods and properties equivalent to SimMemView
 
     @property
-    def string(self) -> "SimMemView":
+    def string(self) -> SimMemView:
         first_char = self.deref
         # first char should have some char type (could be checked here)
         return first_char.mem_untyped.string
 
-    def with_type(self, sim_type: "SimType") -> "SimMemView":
+    def with_type(self, sim_type: SimType) -> SimMemView:
         return self.mem_untyped.with_type(sim_type)
 
     @property
@@ -88,20 +89,20 @@ class SimDebugVariable:
     def __getitem__(self, i):
         if isinstance(i, int):
             return self.array(i)
-        elif isinstance(i, str):
+        if isinstance(i, str):
             return self.member(i)
         raise KeyError
 
     @property
-    def deref(self) -> "SimDebugVariable":
+    def deref(self) -> SimDebugVariable:
         # dereferincing is equivalent to getting the first array element
         return self.array(0)
 
-    def array(self, i) -> "SimDebugVariable":
+    def array(self, i) -> SimDebugVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.array(i)
-        elif isinstance(self.type, ArrayType):
+        if isinstance(self.type, ArrayType):
             # an array already addresses its first element
             addr = self.addr
             el_type = self.type.element_type
@@ -122,16 +123,13 @@ class SimDebugVariable:
             new_addr = addr + i * el_type.byte_size
         return SimDebugVariable(self.state, new_addr, el_type)
 
-    def member(self, member_name: str) -> "SimDebugVariable":
+    def member(self, member_name: str) -> SimDebugVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.member(member_name)
-        elif isinstance(self.type, StructType):
+        if isinstance(self.type, StructType):
             member = self.type[member_name]
-            if self.addr is None:
-                addr = None
-            else:
-                addr = self.addr + member.addr_offset
+            addr = None if self.addr is None else self.addr + member.addr_offset
             return SimDebugVariable(self.state, addr, member.type)
 
         raise Exception(f"{self.type} object has no members")
@@ -142,7 +140,7 @@ class SimDebugVariablePlugin(SimStatePlugin):
     This is the plugin you'll use to interact with (global/local) program variables.
     These variables have a name and a visibility scope which depends on the pc address of the state.
     With this plugin, you can access/modify the value of such variable or find its memory address.
-    For creating program varibles, or for importing them from cle, see the knowledge plugin debug_variables.
+    For creating program variables, or for importing them from cle, see the knowledge plugin debug_variables.
     Run ``p.kb.dvars.load_from_dwarf()`` before using this plugin.
 
     Example:
@@ -186,7 +184,7 @@ class SimDebugVariablePlugin(SimStatePlugin):
         # FIXME This is only an approximation!
         if self.state.arch.name == "AMD64":
             return self.state.regs.rbp + 16
-        elif self.state.arch.name == "X86":
+        if self.state.arch.name == "X86":
             return self.state.regs.ebp + 8
         return 0
 

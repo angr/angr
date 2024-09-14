@@ -1,5 +1,7 @@
+from __future__ import annotations
 import cffi
-from typing import Tuple, Type, Dict, Optional, Iterable, Set, Any
+from typing import Any
+from collections.abc import Iterable
 import logging
 from collections import defaultdict
 
@@ -22,7 +24,7 @@ class PagedMemoryMixin(MemoryMixin):
     """
 
     SUPPORTS_CONCRETE_LOAD = True
-    PAGE_TYPE: Type[PageType] = None  # must be provided in subclass
+    PAGE_TYPE: type[PageType] = None  # must be provided in subclass
 
     def __init__(self, page_size=0x1000, default_permissions=3, permissions_map=None, page_kwargs=None, **kwargs):
         super().__init__(**kwargs)
@@ -31,7 +33,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         self._permissions_map = permissions_map if permissions_map is not None else {}
         self._default_permissions = default_permissions
-        self._pages: Dict[int, Optional[PageType]] = {}
+        self._pages: dict[int, PageType | None] = {}
 
     @MemoryMixin.memo
     def copy(self, memo):
@@ -105,10 +107,10 @@ class PagedMemoryMixin(MemoryMixin):
             memory=self, memory_id="%s_%d" % (self.id, pageno), permissions=permissions, **self._extra_page_kwargs
         )
 
-    def _divide_addr(self, addr: int) -> Tuple[int, int]:
+    def _divide_addr(self, addr: int) -> tuple[int, int]:
         return divmod(addr, self.page_size)
 
-    def load(self, addr: int, size: int = None, endness=None, **kwargs):
+    def load(self, addr: int, size: int | None = None, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
 
@@ -162,7 +164,7 @@ class PagedMemoryMixin(MemoryMixin):
         l.debug("%s.load(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
         return out
 
-    def store(self, addr: int, data, size: int = None, endness=None, **kwargs):
+    def store(self, addr: int, data, size: int | None = None, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
 
@@ -251,8 +253,8 @@ class PagedMemoryMixin(MemoryMixin):
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
-    def merge(self, others: Iterable["PagedMemoryMixin"], merge_conditions, common_ancestor=None) -> bool:
-        changed_pages_and_offsets: Dict[int, Optional[Set[int]]] = {}
+    def merge(self, others: Iterable[PagedMemoryMixin], merge_conditions, common_ancestor=None) -> bool:
+        changed_pages_and_offsets: dict[int, set[int] | None] = {}
         for o in others:
             for changed_page, changed_offsets in self.changed_pages(o).items():
                 if changed_offsets is None:
@@ -294,6 +296,24 @@ class PagedMemoryMixin(MemoryMixin):
 
         return bool(merged_bytes)
 
+    def compare(self, other: PagedMemoryMixin) -> bool:
+        changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
+
+        for page_no in sorted(changed_pages_and_offsets):
+            page = self._get_page(page_no, False)
+            page_addr = page_no * self.page_size
+            if page_no in other._pages:
+                r = page.compare(
+                    other._pages[page_no],
+                    page_addr=page_addr,
+                    memory=self,
+                    changed_offsets=changed_pages_and_offsets[page_no],
+                )
+                if r is False:
+                    return False
+
+        return True
+
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is not int:
             raise TypeError("addr must be an int in paged memory")
@@ -301,10 +321,10 @@ class PagedMemoryMixin(MemoryMixin):
         try:
             page = self._get_page(pageno, permissions is not None, allow_default=False, **kwargs)
         except SimMemoryError as e:
-            raise SimMemoryError("%#x is not mapped" % addr) from e
+            raise SimMemoryError(f"{addr:#x} is not mapped") from e
 
         if type(permissions) is int:
-            permissions = self.state.solver.BVV(permissions, 3)
+            permissions = claripy.BVV(permissions, 3)
 
         result = page.permissions
         if permissions is not None:
@@ -384,9 +404,8 @@ class PagedMemoryMixin(MemoryMixin):
         if result.op == "BVV":
             if with_bitmap:
                 return memoryview(result.args[0].to_bytes(size, "big")), memoryview(bytes(size))
-            else:
-                return memoryview(result.args[0].to_bytes(size, "big"))
-        elif result.op == "Concat":
+            return memoryview(result.args[0].to_bytes(size, "big"))
+        if result.op == "Concat":
             bytes_out = bytearray(size)
             bitmap_out = bytearray(size)
             bit_idx = 0
@@ -404,18 +423,12 @@ class PagedMemoryMixin(MemoryMixin):
                     bitmap_out[byte_idx] = 1
                     continue
 
-                if bit_idx % byte_width != 0:
-                    # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
-                    hi_chop = byte_width - (bit_idx % byte_width)
-                else:
-                    hi_chop = 0
+                # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
+                hi_chop = byte_width - bit_idx % byte_width if bit_idx % byte_width != 0 else 0
 
-                if (bit_idx + len(element)) % byte_width != 0:
-                    # if the current element does not have enough bits to extend to the next byte boundary, the
-                    # bottom `lo_chop` bits should be removed
-                    lo_chop = (bit_idx + len(element)) % byte_width
-                else:
-                    lo_chop = 0
+                # if the current element does not have enough bits to extend to the next byte boundary, the
+                # bottom `lo_chop` bits should be removed
+                lo_chop = (bit_idx + len(element)) % byte_width if (bit_idx + len(element)) % byte_width != 0 else 0
 
                 if hi_chop + lo_chop == len(element):
                     # the entire element will be removed
@@ -451,13 +464,10 @@ class PagedMemoryMixin(MemoryMixin):
                     bitmap_out[bit_idx // byte_width] = 1
             if with_bitmap:
                 return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
-            else:
-                return memoryview(bytes(bytes_out))
-        else:
-            if with_bitmap:
-                return memoryview(bytes(size)), memoryview(b"\x01" * size)
-            else:
-                return memoryview(b"")
+            return memoryview(bytes(bytes_out))
+        if with_bitmap:
+            return memoryview(bytes(size)), memoryview(b"\x01" * size)
+        return memoryview(b"")
 
     def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):
         pageno, offset = self._divide_addr(addr)
@@ -467,8 +477,7 @@ class PagedMemoryMixin(MemoryMixin):
         except SimMemoryError:
             if with_bitmap:
                 return memoryview(b""), memoryview(b"")
-            else:
-                return memoryview(b"")
+            return memoryview(b"")
 
         if not page.SUPPORTS_CONCRETE_LOAD:
             # the page does not support concrete_load
@@ -537,7 +546,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         return data
 
-    def changed_bytes(self, other) -> Set[int]:
+    def changed_bytes(self, other) -> set[int]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
@@ -553,9 +562,7 @@ class PagedMemoryMixin(MemoryMixin):
 
             if (my_page is None) ^ (other_page is None):
                 changes.update(range(pageno * self.page_size, (pageno + 1) * self.page_size))
-            elif my_page is None:
-                pass
-            elif my_page is other_page:
+            elif my_page is None or my_page is other_page:
                 pass
             else:
                 changes.update(
@@ -565,12 +572,12 @@ class PagedMemoryMixin(MemoryMixin):
 
         return changes
 
-    def changed_pages(self, other) -> Dict[int, Optional[Set[int]]]:
+    def changed_pages(self, other) -> dict[int, set[int] | None]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
         difference = my_pages.symmetric_difference(other_pages)
-        changes: Dict[int, Optional[Set[int]]] = {d: None for d in difference}
+        changes: dict[int, set[int] | None] = {d: None for d in difference}
 
         for pageno in intersection:
             my_page = self._pages[pageno]
@@ -578,9 +585,7 @@ class PagedMemoryMixin(MemoryMixin):
 
             if (my_page is None) ^ (other_page is None):
                 changes[pageno] = None
-            elif my_page is None:
-                pass
-            elif my_page is other_page:
+            elif my_page is None or my_page is other_page:
                 pass
             else:
                 changed_offsets = my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)
@@ -590,7 +595,7 @@ class PagedMemoryMixin(MemoryMixin):
         return changes
 
     def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
-        page_offsets: Dict[Set[int]] = defaultdict(set)
+        page_offsets: dict[set[int]] = defaultdict(set)
         for addr in addrs:
             page_no, page_offset = self._divide_addr(addr)
             page_offsets[page_no].add(page_offset)
@@ -638,8 +643,8 @@ class PagedMemoryMixin(MemoryMixin):
 
 class LabeledPagesMixin(PagedMemoryMixin):
     def load_with_labels(
-        self, addr: int, size: int = None, endness=None, **kwargs
-    ) -> Tuple[claripy.ast.Base, Tuple[Tuple[int, int, int, Any]]]:
+        self, addr: int, size: int | None = None, endness=None, **kwargs
+    ) -> tuple[claripy.ast.Base, tuple[tuple[int, int, int, Any]]]:
         if endness is None:
             endness = self.endness
 
@@ -707,7 +712,7 @@ class MVListPagesMixin(PagedMemoryMixin):
         self.skip_missing_values_during_merging = skip_missing_values_during_merging
 
     @MemoryMixin.memo
-    def copy(self, memo) -> "MVListPagesMixin":
+    def copy(self, memo) -> MVListPagesMixin:
         r = super().copy(memo)
         r.skip_missing_values_during_merging = self.skip_missing_values_during_merging
         return r

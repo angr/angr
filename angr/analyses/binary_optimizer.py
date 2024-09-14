@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -23,11 +24,7 @@ class ConstantPropagation:
         self.constant_consuming_loc = constant_consuming_loc
 
     def __repr__(self):
-        s = "<Constant {:#x} propagates from {:#x} to {:#x}>".format(
-            self.constant, self.constant_assignment_loc.ins_addr, self.constant_consuming_loc.ins_addr
-        )
-
-        return s
+        return f"<Constant {self.constant:#x} propagates from {self.constant_assignment_loc.ins_addr:#x} to {self.constant_consuming_loc.ins_addr:#x}>"
 
 
 class RedundantStackVariable:
@@ -38,14 +35,12 @@ class RedundantStackVariable:
         self.argument_register_as_retval = False
 
     def __repr__(self):
-        s = "<StackVar %s for %s at %d locations%s>" % (
+        return "<StackVar %s for %s at %d locations%s>" % (
             self.stack_variable,
             self.argument,
             len(self.stack_variable_consuming_locs),
             " - retval" if self.argument_register_as_retval else "",
         )
-
-        return s
 
 
 class RegisterReallocation:
@@ -84,13 +79,12 @@ class RegisterReallocation:
         self.epilogue_size = epilogue_size
 
     def __repr__(self):
-        s = "<RegisterReallocation %s for %s with %d sources and %d consumers>" % (
+        return "<RegisterReallocation %s for %s with %d sources and %d consumers>" % (
             self.register_variable,
             self.stack_variable,
             len(self.stack_variable_sources),
             len(self.stack_variable_consumers),
         )
-        return s
 
 
 class DeadAssignment:
@@ -104,14 +98,13 @@ class DeadAssignment:
         self.pv = pv
 
     def __repr__(self):
-        s = "<DeadAssignmentElimination %s>" % self.pv
-        return s
+        return f"<DeadAssignmentElimination {self.pv}>"
 
 
 class BinaryOptimizer(Analysis):
     """
     This is a collection of binary optimization techniques we used in Mechanical Phish during the finals of Cyber Grand
-    Challange. It focuses on dealing with some serious speed-impacting code constructs, and *sort of* worked on *some*
+    Challenge. It focuses on dealing with some serious speed-impacting code constructs, and *sort of* worked on *some*
     CGC binaries compiled with O0. Use this analysis as a reference of how to use data dependency graph and such.
 
     There is no guarantee that BinaryOptimizer will ever work on non-CGC binaries. Feel free to give us PR or MR, but
@@ -153,7 +146,7 @@ class BinaryOptimizer(Analysis):
                 SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"],
                 SIM_PROCEDURES["stubs"]["UnresolvableCallTarget"],
             )
-            if any([n.sim_procedure in unresolvable_targets for n in f.graph.nodes() if isinstance(n, HookNode)]):
+            if any(n.sim_procedure in unresolvable_targets for n in f.graph.nodes() if isinstance(n, HookNode)):
                 continue
 
             if len(f.block_addrs_set) > self.BLOCKS_THRESHOLD:
@@ -320,12 +313,12 @@ class BinaryOptimizer(Analysis):
                 successors1 = [s for _, s, data in out_edges if "type" not in data or data["type"] != "kill"]
                 if len(successors1) == 1:
                     successor1 = successors1[0]
-                    if isinstance(successor1.variable, SimStackVariable):
-                        if (successor1.variable.base == "sp" and successor1.variable.offset > 0) or (
-                            successor1.variable.base == "bp" and successor1.variable.offset < 0
-                        ):
-                            # yes it's copied onto the stack!
-                            argument_to_local[argument_variable] = successor1
+                    if isinstance(successor1.variable, SimStackVariable) and (
+                        (successor1.variable.base == "sp" and successor1.variable.offset > 0)
+                        or (successor1.variable.base == "bp" and successor1.variable.offset < 0)
+                    ):
+                        # yes it's copied onto the stack!
+                        argument_to_local[argument_variable] = successor1
 
                 # if the register is eax, and it's not killed later, it might be the return value of this function
                 # in that case, we cannot eliminate the instruction that moves stack argument to that register
@@ -336,7 +329,7 @@ class BinaryOptimizer(Analysis):
                         argument_register_as_retval.add(argument_variable)
 
             else:
-                raise NotImplementedError()  # TODO:
+                raise NotImplementedError  # TODO:
 
         # import pprint
         # pprint.pprint(argument_to_local, width=160)
@@ -431,7 +424,7 @@ class BinaryOptimizer(Analysis):
             return
         if not (insn4.mnemonic == "pop" and insn4.op_str == "ebp"):
             return
-        if not insn5.mnemonic == "ret":
+        if insn5.mnemonic != "ret":
             return
 
         # make sure esp is not used anywhere else - all stack variables must be indexed using ebp
@@ -479,16 +472,17 @@ class BinaryOptimizer(Analysis):
                 isinstance(dst.variable, SimRegisterVariable)
                 and dst.variable.reg != ebp_offset
                 and dst.variable.reg < 40
-            ):
                 # to a register other than ebp
-                if isinstance(src.variable, SimRegisterVariable) and src.variable.reg == ebp_offset:
-                    # from ebp
-                    l.debug(
-                        "Found a lea operation from ebp at %#x. Function %s cannot be optimized.",
-                        dst.location.ins_addr,
-                        repr(function),
-                    )
-                    return
+                and isinstance(src.variable, SimRegisterVariable)
+                and src.variable.reg == ebp_offset
+            ):
+                # from ebp
+                l.debug(
+                    "Found a lea operation from ebp at %#x. Function %s cannot be optimized.",
+                    dst.location.ins_addr,
+                    repr(function),
+                )
+                return
 
         # we definitely don't want to mess with fp or sse operations
         for node in data_graph.nodes():
@@ -509,9 +503,10 @@ class BinaryOptimizer(Analysis):
 
         used_general_registers = set()
         for n in data_graph.nodes():
-            if isinstance(n.variable, SimRegisterVariable):
-                if n.variable.reg < 40:  # this is a hardcoded limit - we only care about general registers
-                    used_general_registers.add(n.variable.reg)
+            if (
+                isinstance(n.variable, SimRegisterVariable) and n.variable.reg < 40
+            ):  # this is a hardcoded limit - we only care about general registers
+                used_general_registers.add(n.variable.reg)
         registers = self.project.arch.registers
         all_general_registers = {  # registers['eax'][0], registers['ecx'][0], registers['edx'][0],
             registers["ebx"][0],

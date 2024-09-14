@@ -1,5 +1,8 @@
+from __future__ import annotations
 import logging
 import threading
+
+import claripy
 
 from angr.errors import AngrError
 from .engine import SuccessorsMixin
@@ -58,7 +61,7 @@ class SimEngineConcrete(SuccessorsMixin):
 
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
-        successors.add_successor(new_state, new_state.ip, new_state.solver.true, new_state.unicorn.jumpkind)
+        successors.add_successor(new_state, new_state.ip, claripy.true, new_state.unicorn.jumpkind)
         successors.description = "Concrete Successors"
         successors.processed = True
 

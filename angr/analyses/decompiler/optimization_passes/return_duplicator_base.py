@@ -1,4 +1,5 @@
-from typing import Any, Tuple, Dict, List, Optional
+from __future__ import annotations
+from typing import Any
 from itertools import count
 import copy
 import logging
@@ -32,23 +33,24 @@ class ReturnDuplicatorBase:
         node_idx_start: int = 0,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
-        ri: Optional[RegionIdentifier] = None,
+        ri: RegionIdentifier | None = None,
         **kwargs,
     ):
         self.node_idx = count(start=node_idx_start)
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
+        self._supergraph = None
 
         # this should also be set by the optimization passes initer
         self._func = func
-        self._ri: Optional[RegionIdentifier] = ri
+        self._ri: RegionIdentifier | None = ri
 
     #
     # must implement these methods
     #
 
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # main analysis
@@ -71,6 +73,8 @@ class ReturnDuplicatorBase:
             # for connected in_edges that form a region
             endnode_regions = self._copy_connected_edge_components(endnode_regions, graph)
 
+        # refresh the supergraph
+        self._supergraph = to_ail_supergraph(graph)
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
             for in_edge in in_edges:
@@ -88,7 +92,7 @@ class ReturnDuplicatorBase:
 
         return graph_changed
 
-    def _find_endnode_regions(self, graph) -> Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]]:
+    def _find_endnode_regions(self, graph) -> dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]]:
         """
         Find all the regions that contain a node with no successors. These are the "end nodes" of the graph.
         """
@@ -97,7 +101,7 @@ class ReturnDuplicatorBase:
         # to_update is keyed by the region head.
         # this is because different end nodes may lead to the same region head: consider the case of the typical "fork"
         # region where stack canary is checked in x86-64 binaries.
-        end_node_regions: Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]] = {}
+        end_node_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]] = {}
 
         for end_node in endnodes:
             in_edges = list(graph.in_edges(end_node))
@@ -150,6 +154,7 @@ class ReturnDuplicatorBase:
             else:
                 node_copy = copy.deepcopy(node)
                 node_copy.idx = next(self.node_idx)
+                self._fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 
             # modify Jump.target_idx and ConditionalJump.{true,false}_target_idx accordingly
@@ -175,7 +180,7 @@ class ReturnDuplicatorBase:
             graph.remove_edge(pred_node, region_head)
 
     def _copy_connected_edge_components(
-        self, endnode_regions: Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
+        self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
         updated_regions = endnode_regions.copy()
         all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
@@ -289,7 +294,7 @@ class ReturnDuplicatorBase:
         if ret_exprs and len(ret_exprs) > 1:
             return False
 
-        ret_expr = ret_exprs[0] if ret_exprs and len(ret_exprs) == 1 else None
+        ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0]) if ret_exprs and len(ret_exprs) == 1 else None
         # stop early if there are no assignments at all and just jumps and rets, or a const ret
         if not has_assign:
             return True
@@ -312,7 +317,7 @@ class ReturnDuplicatorBase:
         return valid_assignment
 
     @staticmethod
-    def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:
+    def _single_entry_region(graph, end_node) -> tuple[networkx.DiGraph, Any]:
         """
         Back track on the graph from `end_node` and find the longest chain of nodes where each node has only one
         predecessor and one successor (the second-to-last node may have two successors to account for the typical
@@ -384,7 +389,7 @@ class ReturnDuplicatorBase:
         return region, region_head
 
     @staticmethod
-    def _is_indirect_jump_ailblock(block: "Block") -> bool:
+    def _is_indirect_jump_ailblock(block: Block) -> bool:
         if block.statements and isinstance(block.statements[-1], Jump):
             last_stmt = block.statements[-1]
             if not isinstance(last_stmt.target, Const):
@@ -412,9 +417,9 @@ class ReturnDuplicatorBase:
         def _unpack_block_type_to_addrs(node):
             if isinstance(node, Block):
                 return {node.addr}
-            elif isinstance(node, MultiNode):
+            if isinstance(node, MultiNode):
                 return {n.addr for n in node.nodes}
-            elif isinstance(node, ConditionNode):
+            if isinstance(node, ConditionNode):
                 return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
             return set()
 
@@ -446,3 +451,24 @@ class ReturnDuplicatorBase:
         all_region_block_sets = {}
         _unpack_every_region(top_region, all_region_block_sets)
         return all_region_block_sets
+
+    @staticmethod
+    def _fix_copied_node_labels(block: Block):
+        for i in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
+            stmt = block.statements[i]
+            if isinstance(stmt, Label):
+                # fix the default name by suffixing it with the new block ID
+                new_name = stmt.name if stmt.name else f"Label_{stmt.ins_addr:x}"
+                if stmt.block_idx is not None:
+                    suffix = f"__{stmt.block_idx}"
+                    if new_name.endswith(suffix):
+                        new_name = new_name[: -len(suffix)]
+                else:
+                    new_name = stmt.name
+                new_name += f"__{block.idx}"
+
+                block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)
+
+    @staticmethod
+    def unwrap_conv(expr):
+        return ReturnDuplicatorBase.unwrap_conv(expr.operand) if isinstance(expr, ailment.expression.Convert) else expr

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import logging
 import os
@@ -52,7 +53,7 @@ class Runner:
             entry_state = self.project.factory.entry_state(add_options=add_options, remove_options=remove_options)
 
             # map the CGC flag page
-            fake_flag_data = entry_state.solver.BVV(FLAG_DATA)
+            fake_flag_data = claripy.BVV(FLAG_DATA)
             entry_state.memory.store(0x4347C000, fake_flag_data)
             # map the place where I put arguments
             entry_state.memory.map_region(0x2000, 0x10000, 7)
@@ -176,7 +177,7 @@ class Runner:
             buf = state.solver.eval(state.regs.ebx)
             for i in range(count):
                 a = random.randint(0, 255)
-                state.memory.store(buf + i, state.solver.BVV(a, 8))
+                state.memory.store(buf + i, claripy.BVV(a, 8))
 
     def get_base_call_state(self, function, test_data, initial_state=None, concrete_rand=False):
         curr_buf_loc = 0x2000
@@ -190,7 +191,7 @@ class Runner:
                 curr_buf_loc += max(len(i), 0x1000)
             else:
                 if not isinstance(i, int):
-                    raise Exception("Expected int/bytes got %s" % type(i))
+                    raise Exception(f"Expected int/bytes got {type(i)}")
                 mapped_input.append(i)
 
         cc = self.project.factory.cc()
@@ -217,7 +218,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/str got %s" % type(i))
+                        raise Exception(f"Expected int/str got {type(i)}")
                     mapped_input.append(i)
         else:
             for i, off in zip(test_data.input_args, custom_offs):
@@ -227,7 +228,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/str got %s" % type(i))
+                        raise Exception(f"Expected int/str got {type(i)}")
                     mapped_input.append(i)
 
         cc = self.project.factory.cc()
@@ -323,7 +324,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/bytes got %s" % type(i))
+                        raise Exception(f"Expected int/bytes got {type(i)}")
                     mapped_input.append(i)
 
         else:
@@ -334,7 +335,7 @@ class Runner:
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
-                        raise Exception("Expected int/bytes got %s" % type(i))
+                        raise Exception(f"Expected int/bytes got {type(i)}")
                     mapped_input.append(i)
 
         cc = self.project.factory.cc()

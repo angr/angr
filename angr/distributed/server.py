@@ -1,5 +1,4 @@
-from typing import Dict, Tuple
-
+from __future__ import annotations
 import logging
 import time
 import os
@@ -63,7 +62,7 @@ class Server:
         self._recursion_limit = recursion_limit
 
         self._worker_exit_args_lock = None
-        self._worker_exit_args: Dict[int, Tuple] = None
+        self._worker_exit_args: dict[int, tuple] = None
 
         # the following will not be pickled
         self._worker_exit_callback = worker_exit_callback
@@ -87,7 +86,7 @@ class Server:
         self._active_workers = state["_active_workers"]
 
     def __getstate__(self):
-        s = {
+        return {
             "project": self.project,
             "spill_yard": self.spill_yard,
             "db_str": self.db_str,
@@ -100,7 +99,6 @@ class Server:
             "_stopped": self._stopped,
             "_active_workers": self._active_workers,
         }
-        return s
 
     #
     # Actions

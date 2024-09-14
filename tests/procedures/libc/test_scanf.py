@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.procedures.libc"  # pylint:disable=redefined-builtin
 
 import os
@@ -16,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 
 class Checker:
     def __init__(
-        self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False, delimiter: str = None
+        self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False, delimiter: str | None = None
     ):
         self._check_func = check_func
         self._length = length
@@ -121,7 +123,7 @@ class TestScanf(unittest.TestCase):
         for path in pg.found:
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
-                assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
+                assert expected_outputs[test_output].check(path), f"Test case failed. Output is {test_output}."
 
             total_outputs += 1
 
@@ -193,11 +195,43 @@ class TestScanf(unittest.TestCase):
             path.posix.dumps(0)
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
-                assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
+                assert expected_outputs[test_output].check(path), f"Test case failed. Output is {test_output}."
 
             total_outputs += 1
 
         # check that all of the outputs were seen
+        assert total_outputs == len(expected_outputs)
+
+    def test_scanf_simfile_string(self):
+        test_bin = os.path.join(test_location, "x86_64", "scanf_simfile_string_test")
+        b = angr.Project(test_bin, auto_load_libs=False)
+
+        blist = claripy.BVS("bytes", 8 * 8)
+        stdin = angr.SimFile("/dev/stdin", content=blist)
+
+        s = b.factory.entry_state(stdin=stdin)
+        simfd = s.posix.get_fd(0)
+
+        assert isinstance(simfd.read_storage, angr.SimFile)
+
+        expected_outputs = {
+            # out: (in, len)
+            b"4-byte string\n": (b"angr", 4),
+        }
+
+        pg = b.factory.simulation_manager(s)
+        pg.explore(
+            find=(lambda ss: ss.posix.dumps(1) in expected_outputs),
+            num_find=len(expected_outputs),
+        )
+
+        total_outputs = 0
+        for f in pg.found:
+            test_input = f.posix.dumps(0)
+            test_output = f.posix.dumps(1)
+            expected_input, length = expected_outputs[test_output]
+            assert expected_input == test_input[:length]
+            total_outputs += 1
         assert total_outputs == len(expected_outputs)
 
 

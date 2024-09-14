@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import time
@@ -96,8 +98,8 @@ class TestVfg(unittest.TestCase):
             0x4005B4,
         }
 
-        state = [s for s in states if s.solver.eval_one(s.ip) == 0x4005B4][0]
-        assert claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28)
+        state = next(s for s in states if s.solver.eval_one(s.ip) == 0x4005B4)
+        assert claripy.simplify(state.stack_read(12, 4) == 0x28).concrete
 
     def broken_vfg_buffer_overflow(self):
         # Test for running VFG on a single function
@@ -205,14 +207,17 @@ class TestVfg(unittest.TestCase):
         for block_addr in cfg.kb.functions["main"].block_addrs_set:
             cfg_node = cfg.get_any_node(block_addr)
             succs_and_jumpkinds = cfg_node.successors_and_jumpkinds()
-            if len(succs_and_jumpkinds) == 1 and succs_and_jumpkinds[0][1] == "Ijk_Call":
+            if (
+                len(succs_and_jumpkinds) == 1
+                and succs_and_jumpkinds[0][1] == "Ijk_Call"
                 # does it lead to an UnresolvedCall?
-                if succs_and_jumpkinds[0][0].name == "UnresolvableCallTarget":
-                    # found it!
-                    for vfg_node in vfg.get_all_nodes(cfg_node.addr):
-                        for successor_state in vfg_node.final_states:
-                            if successor_state.history.jumpkind == "Ijk_Call":
-                                indirect_call_targets.add((cfg_node.addr, successor_state.addr))
+                and succs_and_jumpkinds[0][0].name == "UnresolvableCallTarget"
+            ):
+                # found it!
+                for vfg_node in vfg.get_all_nodes(cfg_node.addr):
+                    for successor_state in vfg_node.final_states:
+                        if successor_state.history.jumpkind == "Ijk_Call":
+                            indirect_call_targets.add((cfg_node.addr, successor_state.addr))
 
         assert expected_indirect_call_targets == indirect_call_targets
 

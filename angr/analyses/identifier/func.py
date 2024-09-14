@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class TestData:
     def __init__(
         self,
@@ -31,13 +34,13 @@ class Func:
         pass
 
     def get_name(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def num_args(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def gen_input_output_pair(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def var_args(self):  # pylint disable=no-self-use
         return False

@@ -1,5 +1,7 @@
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
 import logging
+from typing import ClassVar, TYPE_CHECKING
 
 import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
@@ -77,12 +79,12 @@ class SimRegNameView(SimStatePlugin):
 
         try:
             return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
-        except KeyError:
+        except KeyError as err:
             # What do we do in case we are dealing with soot? there are no register
             if isinstance(self.state.arch, ArchSoot):
                 pass
             else:
-                raise AttributeError(k)
+                raise AttributeError(k) from err
 
     def __dir__(self):
         if self.state.arch.name in ("X86", "AMD64"):
@@ -92,8 +94,8 @@ class SimRegNameView(SimStatePlugin):
                 + ["tag%d" % n for n in range(8)]
                 + ["flags", "eflags", "rflags"]
             )
-        elif is_arm_arch(self.state.arch):
-            return list(self.state.arch.registers.keys()) + ["flags"]
+        if is_arm_arch(self.state.arch):
+            return [*list(self.state.arch.registers.keys()), "flags"]
         return self.state.arch.registers.keys()
 
     @SimStatePlugin.memo
@@ -119,7 +121,7 @@ class SimMemView(SimStatePlugin):
         - You first use [array index notation] to specify the address you'd like to load from
         - If at that address is a pointer, you may access the ``deref`` property to return a SimMemView at the
           address present in memory.
-        - You then specify a type for the data by simply accesing a property of that name. For a list of supported
+        - You then specify a type for the data by simply accessing a property of that name. For a list of supported
           types, look at ``state.mem.types``.
         - You can then *refine* the type. Any type may support any refinement it likes. Right now the only refinements
           supported are that you may access any member of a struct by its member name, and you may index into a
@@ -157,9 +159,9 @@ class SimMemView(SimStatePlugin):
 
         # Make sure self._addr is always an AST
         if isinstance(self._addr, int):
-            self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
+            self._addr = claripy.BVV(self._addr, self.state.arch.bits)
 
-    def _deeper(self, **kwargs) -> "SimMemView":
+    def _deeper(self, **kwargs) -> SimMemView:
         if "ty" not in kwargs:
             kwargs["ty"] = self._type
         if "addr" not in kwargs:
@@ -168,16 +170,15 @@ class SimMemView(SimStatePlugin):
             kwargs["state"] = self.state
         return SimMemView(**kwargs)
 
-    def __getitem__(self, k) -> "SimMemView":
+    def __getitem__(self, k) -> SimMemView:
         if isinstance(k, slice):
             if k.step is not None:
                 raise ValueError("Slices with strides are not supported")
-            elif k.start is None:
+            if k.start is None:
                 raise ValueError("Must specify start index")
-            elif k.stop is not None:
+            if k.stop is not None:
                 raise ValueError("Slices with stop index are not supported")
-            else:
-                addr = k.start
+            addr = k.start
         elif self._type is not None and self._type._can_refine_int:
             return self._type._refine(self, k)
         else:
@@ -187,7 +188,7 @@ class SimMemView(SimStatePlugin):
     def __setitem__(self, k, v):
         self.__getitem__(k).store(v)
 
-    types = {}
+    types: ClassVar[dict] = {}
     state = None
 
     def __repr__(self):
@@ -208,7 +209,7 @@ class SimMemView(SimStatePlugin):
     def __dir__(self):
         return self._type._refine_dir() if self._type else [x for x in SimMemView.types if " " not in x] + ["struct"]
 
-    struct: "StructMode"
+    struct: StructMode
 
     def __getattr__(self, k):
         if k in (
@@ -239,7 +240,7 @@ class SimMemView(SimStatePlugin):
     def __cmp__(self, other):
         raise ValueError("Trying to compare SimMemView is not what you want to do")
 
-    def with_type(self, sim_type: "SimType") -> "SimMemView":
+    def with_type(self, sim_type: SimType) -> SimMemView:
         """
         Returns a copy of the SimMemView with a type.
 
@@ -276,7 +277,7 @@ class SimMemView(SimStatePlugin):
         return self._type.extract(self.state, self._addr, True)
 
     @property
-    def deref(self) -> "SimMemView":
+    def deref(self) -> SimMemView:
         if self._addr is None:
             raise ValueError("Trying to dereference pointer without addr defined")
         ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
@@ -286,14 +287,14 @@ class SimMemView(SimStatePlugin):
 
         return self._deeper(ty=self._type.pts_to if isinstance(self._type, SimTypePointer) else None, addr=ptr)
 
-    def array(self, n) -> "SimMemView":
+    def array(self, n) -> SimMemView:
         if self._addr is None:
-            raise ValueError("Trying to produce array without specifying adddress")
+            raise ValueError("Trying to produce array without specifying address")
         if self._type is None:
             raise ValueError("Trying to produce array without specifying type")
         return self._deeper(ty=SimTypeFixedSizeArray(self._type, n))
 
-    def member(self, member_name: str) -> "SimMemView":
+    def member(self, member_name: str) -> SimMemView:
         """
         If self is a struct and member_name is a member of the struct, return
         that member element. Otherwise raise an exception.

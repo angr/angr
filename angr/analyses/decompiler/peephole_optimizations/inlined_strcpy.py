@@ -1,12 +1,13 @@
 # pylint:disable=arguments-differ
-from typing import Tuple, Optional
+from __future__ import annotations
 import string
 
 from archinfo import Endness
 
-from ailment.expression import Const
+from ailment.expression import Const, StackBaseOffset
 from ailment.statement import Call, Store
 
+from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
 
 
@@ -24,8 +25,8 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     NAME = "Simplifying inlined strcpy"
     stmt_classes = (Store,)
 
-    def optimize(self, stmt: Store, **kwargs):
-        if isinstance(stmt.data, Const):
+    def optimize(self, stmt: Store, stmt_idx: int | None = None, block=None, **kwargs):
+        if isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
             r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.data.size, stmt.endness)
             if r:
                 # replace it with a call to strncpy
@@ -41,12 +42,76 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                     **stmt.tags,
                 )
 
+            # scan forward in the current block to find all consecutive constant stores
+            if block is not None and stmt_idx is not None:
+                all_constant_stores: dict[int, tuple[int, Const | None]] = self.collect_constant_stores(block, stmt_idx)
+                if all_constant_stores:
+                    offsets = sorted(all_constant_stores.keys())
+                    next_offset = min(offsets)
+                    stride = []
+                    for offset in offsets:
+                        if next_offset is not None and offset != next_offset:
+                            next_offset = None
+                            stride = []
+                        stmt_idx_, v = all_constant_stores[offset]
+                        if v is not None:
+                            stride.append((offset, stmt_idx_, v))
+                            next_offset = offset + v.size
+                        else:
+                            next_offset = None
+                            stride = []
+
+                    integer, size = self.stride_to_int(stride)
+                    r, s = self.is_integer_likely_a_string(integer, size, Endness.BE)
+                    if r:
+                        # we remove all involved statements whose statement IDs are greater than the current one
+                        for _, stmt_idx_, _ in reversed(stride):
+                            if stmt_idx_ <= stmt_idx:
+                                continue
+                            block.statements[stmt_idx_] = None
+                        block.statements = [ss for ss in block.statements if ss is not None]
+
+                        str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
+                        return Call(
+                            stmt.idx,
+                            "strncpy",
+                            args=[
+                                stmt.addr,
+                                Const(None, None, str_id, stmt.addr.bits, custom_string=True),
+                                Const(None, None, len(s), self.project.arch.bits),
+                            ],
+                            **stmt.tags,
+                        )
+
         return None
 
     @staticmethod
-    def is_integer_likely_a_string(
-        v: int, size: int, endness: Endness, min_length: int = 4
-    ) -> Tuple[bool, Optional[str]]:
+    def stride_to_int(stride: list[tuple[int, int, Const]]) -> tuple[int, int]:
+        stride = sorted(stride, key=lambda x: x[0])
+        n = 0
+        size = 0
+        for _, _, v in stride:
+            size += v.size
+            n <<= v.bits
+            n |= v.value
+        return n, size
+
+    @staticmethod
+    def collect_constant_stores(block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
+        r = {}
+        for idx, stmt in enumerate(block.statements):
+            if idx < starting_stmt_idx:
+                continue
+            if isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
+                if isinstance(stmt.data, Const):
+                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, stmt.endness)
+                else:
+                    r[stmt.addr.offset] = idx, None
+
+        return r
+
+    @staticmethod
+    def is_integer_likely_a_string(v: int, size: int, endness: Endness, min_length: int = 4) -> tuple[bool, str | None]:
         # we need at least four bytes of printable characters
 
         chars = []
@@ -71,7 +136,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                 if chr(byt) not in ASCII_PRINTABLES:
                     return False, None
                 chars.append(chr(byt))
-            chars = chars[::-1]
+            chars.reverse()
         else:
             # unsupported endness
             return False, None

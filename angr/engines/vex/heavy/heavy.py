@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import claripy
 import pyvex
@@ -121,6 +122,18 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         self.state.scratch.bbl_addr = addr
 
         while True:
+            # check permissions, are we allowed to execute here? Do we care?
+            if o.STRICT_PAGE_ACCESS in self.state.options:
+                try:
+                    perms = self.state.memory.permissions(addr)
+                except errors.SimMemoryError as sim_mem_err:
+                    raise errors.SimSegfaultError(addr, "exec-miss") from sim_mem_err
+                else:
+                    if not self.state.solver.symbolic(perms):
+                        perms = self.state.solver.eval(perms)
+                        if not perms & 4 and o.ENABLE_NX in self.state.options:
+                            raise errors.SimSegfaultError(addr, "non-executable")
+
             if irsb is None:
                 irsb = self.lift_vex(
                     addr=addr,
@@ -148,18 +161,6 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             if irsb.size == 0:
                 raise errors.SimIRSBError("Empty IRSB passed to HeavyVEXMixin.")
 
-            # check permissions, are we allowed to execute here? Do we care?
-            if o.STRICT_PAGE_ACCESS in self.state.options:
-                try:
-                    perms = self.state.memory.permissions(addr)
-                except errors.SimMemoryError as sim_mem_err:
-                    raise errors.SimSegfaultError(addr, "exec-miss") from sim_mem_err
-                else:
-                    if not self.state.solver.symbolic(perms):
-                        perms = self.state.solver.eval(perms)
-                        if not perms & 4 and o.ENABLE_NX in self.state.options:
-                            raise errors.SimSegfaultError(addr, "non-executable")
-
             self.state.scratch.set_tyenv(irsb.tyenv)
             self.state.scratch.irsb = irsb
 
@@ -175,7 +176,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             except errors.SimReliftException as e:
                 self.state = e.state
                 if insn_bytes is not None:
-                    raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
+                    raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!") from e
                 new_ip = self.state.scratch.ins_addr
                 if size is not None:
                     size -= new_ip - addr
@@ -203,7 +204,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 exit_state.registers.store(
                     exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
                 )
-                exit_state.scratch.target = exit_state.solver.BVV(successors.addr + irsb.size, exit_state.arch.bits)
+                exit_state.scratch.target = claripy.BVV(successors.addr + irsb.size, exit_state.arch.bits)
                 exit_state.history.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target
                 if exit_state.arch.call_pushes_ret:
@@ -215,12 +216,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = (
-                    ret_state.solver.true
-                    if o.TRUE_RET_EMULATION_GUARD in self.state.options
-                    else ret_state.solver.false
-                )
-                ret_target = ret_state.solver.BVV(successors.addr + irsb.size, ret_state.arch.bits)
+                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                ret_target = claripy.BVV(successors.addr + irsb.size, ret_state.arch.bits)
                 ret_state.registers.store(
                     ret_state.arch.ret_offset, ret_state.solver.Unconstrained("fake_ret_value", ret_state.arch.bits)
                 )
@@ -236,6 +233,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 )
 
         successors.processed = True
+        return None
 
     #
     # behavior instrumenting the VEXMixin
@@ -279,18 +277,18 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         if o.COPY_STATES not in self.state.options:
             # very special logic to try to minimize copies
             # first, check if this branch is impossible
-            if guard.is_false():
-                cont_state = self.state
-            elif o.LAZY_SOLVES not in self.state.options and not self.state.solver.satisfiable(
-                extra_constraints=(guard,)
+            if (
+                guard.is_false()
+                or o.LAZY_SOLVES not in self.state.options
+                and not self.state.solver.satisfiable(extra_constraints=(guard,))
             ):
                 cont_state = self.state
 
             # then, check if it's impossible to continue from this branch
-            elif guard.is_true():
-                exit_state = self.state
-            elif o.LAZY_SOLVES not in self.state.options and not self.state.solver.satisfiable(
-                extra_constraints=(claripy.Not(guard),)
+            elif (
+                guard.is_true()
+                or o.LAZY_SOLVES not in self.state.options
+                and not self.state.solver.satisfiable(extra_constraints=(claripy.Not(guard),))
             ):
                 exit_state = self.state
             # one more step, when LAZY_SOLVES is enabled, ignore "bad" jumpkinds
@@ -340,7 +338,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             result = self.state.solver.simplify(result)
 
         if self.state.solver.symbolic(result) and o.CONCRETIZE in self.state.options:
-            concrete_value = self.state.solver.BVV(self.state.solver.eval(result), len(result))
+            concrete_value = claripy.BVV(self.state.solver.eval(result), len(result))
             self.state.add_constraints(result == concrete_value)
             result = concrete_value
 
@@ -348,9 +346,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         result = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
-        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
-            if getattr(addr._model_vsa, "uninitialized", False):
-                raise errors.SimUninitializedAccessError("addr", addr)
+        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and addr.initialized:
+            raise errors.SimUninitializedAccessError("addr", addr)
         return result
 
     def _perform_vex_expr_CCall(self, func_name, ty, args, func=None):

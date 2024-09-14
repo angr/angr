@@ -1,4 +1,5 @@
 # analyses
+from __future__ import annotations
 from .cfg_fast import CFGFast
 from .cfg_emulated import CFGEmulated
 from .cfg import CFG

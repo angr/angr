@@ -1,5 +1,6 @@
+from __future__ import annotations
 from collections import defaultdict
-from typing import Any, Optional, Union, List
+from typing import Any
 
 from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
@@ -26,7 +27,7 @@ class BlockIOFinder(AILBlockWalkerBase):
     I/O locations can be a Register, MemoryLocation, or SpOffset (wrapped in a Memory Location).
     """
 
-    def __init__(self, ail_obj: Union[Block, List[Statement]], project, as_atom=True):
+    def __init__(self, ail_obj: Block | list[Statement], project, as_atom=True):
         super().__init__()
         self.expr_handlers[StackBaseOffset] = self._handle_StackBaseOffset
         self._as_atom = as_atom
@@ -86,7 +87,7 @@ class BlockIOFinder(AILBlockWalkerBase):
         other_input = self.inputs_by_stmt[other_idx]
         return target_output.intersection(other_input)
 
-    def can_swap(self, stmt, ail_obj: Union[Block, List[Statement]], offset: int):
+    def can_swap(self, stmt, ail_obj: Block | list[Statement], offset: int):
         all_stmts = (ail_obj.statements or []) if isinstance(ail_obj, Block) else ail_obj
         if stmt not in all_stmts:
             raise RuntimeError("Statement not in block, and we can't compute moving a stmt to a new block!")
@@ -123,14 +124,14 @@ class BlockIOFinder(AILBlockWalkerBase):
     # Statements (all with side effects)
     #
 
-    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Optional[Block]):
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         output_loc = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
         self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, output_loc)
 
         input_loc = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Optional[Block]):
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         if stmt.args:
             for i, arg in enumerate(stmt.args):
                 input_loc = self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -139,14 +140,14 @@ class BlockIOFinder(AILBlockWalkerBase):
         out_loc = self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)
         self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, out_loc)
 
-    def _handle_Store(self, stmt_idx: int, stmt: Store, block: Optional[Block]):
+    def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         out_loc = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block, is_memory=True)
         self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, out_loc)
 
         input_loc = self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
-    def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Optional[Block]):
+    def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None):
         input1 = self._handle_expr(0, stmt.condition, stmt_idx, stmt, block)
         input2 = self._handle_expr(1, stmt.true_target, stmt_idx, stmt, block)
         input3 = self._handle_expr(2, stmt.false_target, stmt_idx, stmt, block)
@@ -154,7 +155,7 @@ class BlockIOFinder(AILBlockWalkerBase):
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input2)
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input3)
 
-    def _handle_Return(self, stmt_idx: int, stmt: Return, block: Optional[Block]):
+    def _handle_Return(self, stmt_idx: int, stmt: Return, block: Block | None):
         if stmt.ret_exprs:
             for i, ret_expr in enumerate(stmt.ret_exprs):
                 loc = self._handle_expr(i, ret_expr, stmt_idx, stmt, block)
@@ -170,8 +171,8 @@ class BlockIOFinder(AILBlockWalkerBase):
         expr_idx: int,
         expr: Expression,
         stmt_idx: int,
-        stmt: Optional[Statement],
-        block: Optional[Block],
+        stmt: Statement | None,
+        block: Block | None,
         is_memory=False,
     ) -> Any:
         try:
@@ -185,14 +186,14 @@ class BlockIOFinder(AILBlockWalkerBase):
 
     # pylint: disable=unused-argument
     def _handle_Load(
-        self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=True
+        self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=True
     ):
         load_loc = self._handle_expr(0, expr.addr, stmt_idx, stmt, block, is_memory=True)
         self._add_or_update_dict(self.derefed_at, stmt_idx, load_loc)
         return load_loc
 
     def _handle_CallExpr(
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         args = set()
         if expr.args:
@@ -202,7 +203,7 @@ class BlockIOFinder(AILBlockWalkerBase):
         return args
 
     def _handle_BinaryOp(
-        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         input_locs = set()
         self._add_or_update_set(
@@ -215,17 +216,17 @@ class BlockIOFinder(AILBlockWalkerBase):
         return input_locs
 
     def _handle_UnaryOp(
-        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         return self._handle_expr(0, expr.operand, stmt_idx, stmt, block, is_memory=is_memory)
 
     def _handle_Convert(
-        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         return self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block, is_memory=is_memory)
 
     def _handle_ITE(
-        self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         input_locs = set()
         self._add_or_update_set(
@@ -249,24 +250,22 @@ class BlockIOFinder(AILBlockWalkerBase):
 
     # pylint: disable=unused-argument
     def _handle_Tmp(
-        self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         if self._as_atom:
             return None
-        else:
-            return expr
+        return expr
 
     # pylint: disable=unused-argument
     def _handle_Register(
-        self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         if self._as_atom:
             return Register(expr.reg_offset, expr.size)
-        else:
-            return expr
+        return expr
 
     def _handle_Const(
-        self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Optional[Block], is_memory=False
+        self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         if self._as_atom:
             return MemoryLocation(expr.value, expr.size) if is_memory else ConstantSrc(expr.value, expr.size)
@@ -283,7 +282,7 @@ class BlockIOFinder(AILBlockWalkerBase):
         expr: StackBaseOffset,
         stmt_idx: int,
         stmt: Statement,
-        block: Optional[Block],
+        block: Block | None,
         is_memory=False,
     ):
         if self._as_atom:

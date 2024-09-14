@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 
 import claripy
@@ -57,13 +58,13 @@ def concretize_cmpf64(state, args):
     fp_arg0 = state.solver.eval(args[0])
     fp_arg1 = state.solver.eval(args[1])
     if fp_arg0 < fp_arg1:
-        return state.solver.BVV(1, 32)
+        return claripy.BVV(1, 32)
     if fp_arg0 > fp_arg1:
-        return state.solver.BVV(0, 32)
+        return claripy.BVV(0, 32)
     if fp_arg0 == fp_arg1:
-        return state.solver.BVV(0x40, 32)
+        return claripy.BVV(0x40, 32)
 
-    return state.solver.BVV(0x45, 32)
+    return claripy.BVV(0x45, 32)
 
 
 def concretize_divf64(state, args):
@@ -113,13 +114,13 @@ def concretize_float64_to_int64s(state, args):
 
 
 def concretize_int32s_to_float64(state, args):
-    arg = state.solver.BVV(state.solver.eval(args[0]), args[0].size())
+    arg = claripy.BVV(state.solver.eval(args[0]), args[0].size())
     return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=fp_rm_map[0])
 
 
 def concretize_int64s_to_float64(state, args):
     rm = translate_rm(args[0])
-    arg = state.solver.BVV(state.solver.eval(args[1]), args[1].size())
+    arg = claripy.BVV(state.solver.eval(args[1]), args[1].size())
     return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=rm)
 
 
@@ -191,10 +192,9 @@ def concretize_prem(state, args):
         quotient = math.floor((dividend / divisor) / pow(2, exp_dividend - exp_divisor - N))
         result = dividend - (divisor * quotient * pow(2, exp_dividend - exp_divisor - N))
 
-    if result == 0.0:
-        if math.copysign(1.0, dividend) < 0:
-            # According to Intel manual, if result is 0, its sign should be same as that of dividend.
-            return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
+    if result == 0.0 and math.copysign(1.0, dividend) < 0:
+        # According to Intel manual, if result is 0, its sign should be same as that of dividend.
+        return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
 
     return state.solver.FPV(result, claripy.FSORT_DOUBLE)
 
@@ -335,19 +335,18 @@ def concretize_yl2x(state, args):
     if arg_x == 0:
         if abs(arg_y) == math.inf:
             return state.solver.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
-        elif arg_y == 0:
+        if arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
             return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
-        else:
-            # TODO: Indicate floating-point zero-division exception
-            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+        # TODO: Indicate floating-point zero-division exception
+        return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
     if arg_x == 1:
         if abs(arg_y) == math.inf:
             # TODO: Indicate floating-point invalid-operation exception
             return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
-        # TODO: How to distiguish between +0 and -0?
+        # TODO: How to distinguish between +0 and -0?
         return state.solver.FPV(0, claripy.FSORT_DOUBLE)
 
     if arg_x == math.inf:

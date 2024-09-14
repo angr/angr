@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 # pylint: disable=unused-argument,arguments-differ
@@ -11,12 +12,11 @@ class GetStdHandle(angr.SimProcedure):
         # for now, return file descriptors + 1000 as handles
         if (handle == -10).is_true():
             return 1000
-        elif (handle == -11).is_true():
+        if (handle == -11).is_true():
             return 1001
-        elif (handle == -12).is_true():
+        if (handle == -12).is_true():
             return 1002
-        else:
-            return -1
+        return -1
 
 
 class ReadFile(angr.SimProcedure):

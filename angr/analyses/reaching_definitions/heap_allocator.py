@@ -1,6 +1,6 @@
+from __future__ import annotations
 import logging
 
-from typing import Union, List
 
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...knowledge_plugins.key_definitions.unknown_size import UnknownSize
@@ -16,7 +16,7 @@ class HeapAllocator:
     - Take care of the size not to screw potential pointer arithmetic (avoid overlapping segments).
 
     The content of the heap itself is modeled using a <KeyedRegion> attribute in the <LiveDefinitions> state;
-    This class serves to generate consistent heap addresses to be used by the aforementionned.
+    This class serves to generate consistent heap addresses to be used by the aforementioned.
 
     *Note:* This has **NOT** been made to help detect heap vulnerabilities.
     """
@@ -26,15 +26,15 @@ class HeapAllocator:
         :param canonical_size: The concrete size an <UNKNOWN_SIZE> defaults to.
         """
         self._next_heap_address: HeapAddress = HeapAddress(0)
-        self._allocated_addresses: List[HeapAddress] = [self._next_heap_address]
+        self._allocated_addresses: list[HeapAddress] = [self._next_heap_address]
         self._canonical_size: int = canonical_size
 
-    def allocate(self, size: Union[int, UnknownSize]) -> HeapAddress:
+    def allocate(self, size: int | UnknownSize) -> HeapAddress:
         """
-        Gives an address for a new memory chunck of <size> bytes.
+        Gives an address for a new memory chunk of <size> bytes.
 
-        :param size: The requested size for the chunck, in number of bytes.
-        :return: The address of the chunck.
+        :param size: The requested size for the chunk, in number of bytes.
+        :return: The address of the chunk.
         """
         address = self._next_heap_address
 
@@ -45,11 +45,11 @@ class HeapAllocator:
 
         return address
 
-    def free(self, address: Union[Undefined, HeapAddress]):
+    def free(self, address: Undefined | HeapAddress):
         """
-        Mark the chunck pointed by <address> as freed.
+        Mark the chunk pointed by <address> as freed.
 
-        :param address: The address of the chunck to free.
+        :param address: The address of the chunk to free.
         """
 
         if isinstance(address, Undefined):

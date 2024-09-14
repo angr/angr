@@ -1,5 +1,5 @@
-from typing import Optional
-from functools import reduce
+from __future__ import annotations
+from collections import defaultdict
 
 from archinfo.arch_arm import is_arm_arch
 
@@ -50,18 +50,32 @@ class CFGManager(KnowledgeBasePlugin):
 
     def copy(self):
         cm = CFGManager(self._kb)
-        cm.cfgs = dict(map(lambda x: (x[0], x[1].copy()), self.cfgs.items()))
+        cm.cfgs = {x[0]: x[1].copy() for x in self.cfgs.items()}
         return cm
 
-    def get_most_accurate(self) -> Optional[CFGModel]:
+    def get_most_accurate(self) -> CFGModel | None:
         """
         :return: The most accurate CFG present in the CFGManager, or None if it does not hold any.
         """
         less_accurate_to_most_accurate = ["CFGFast", "CFGEmulated"]
 
-        # Try to get the most accurate first, then default to the next, ... all the way down to `None`.
-        # Equivalent to `self.cfgs.get(<LAST>, self.cfgs.get(<SECOND LAST>, ... self.cfgs.get(<FIRST>, None)))`.
-        return reduce(lambda acc, cfg: self.cfgs.get(cfg, acc), less_accurate_to_most_accurate, None)
+        sorted_cfgs_by_prefix = defaultdict(list)
+        for key, cfg_model in self.cfgs.items():
+            for prefix in less_accurate_to_most_accurate:
+                if key.startswith(prefix):
+                    the_prefix = prefix
+                    break
+            else:
+                # not found
+                continue
+
+            sorted_cfgs_by_prefix[the_prefix].append((key, cfg_model))
+
+        for key in reversed(less_accurate_to_most_accurate):
+            if key in sorted_cfgs_by_prefix:
+                lst = sorted(sorted_cfgs_by_prefix[key], key=lambda item: item[0])
+                return lst[-1][-1]
+        return None
 
     #
     # Pickling

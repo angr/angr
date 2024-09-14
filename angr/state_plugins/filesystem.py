@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import logging
 from collections import namedtuple
@@ -108,10 +109,8 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         for fname in self._mountpoints:
             try:
                 subdeck = [o._mountpoints[fname] for o in others]
-            except KeyError:
-                raise SimMergeError(
-                    "Can't merge filesystems with disparate file sets"
-                )  # pylint: disable=raise-missing-from
+            except KeyError as err:
+                raise SimMergeError("Can't merge filesystems with disparate file sets") from err
 
             if common_ancestor is not None and fname in common_ancestor._mountpoints:
                 common_mp = common_ancestor._mountpoints[fname]
@@ -121,10 +120,10 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
             self._mountpoints[fname].merge(subdeck, merge_conditions, common_ancestor=common_mp)
 
         # this is a little messy
-        deck = [self] + others
+        deck = [self, *others]
         all_files = set.union(*(set(o._files.keys()) for o in deck))
         for fname in all_files:
-            subdeck = [o._files[fname] if fname in o._files else None for o in deck]
+            subdeck = [o._files.get(fname, None) for o in deck]
             representative = next(x for x in subdeck if x is not None)
             for i, v in enumerate(subdeck):
                 if v is None:
@@ -158,9 +157,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         keys = path.split(self.pathsep)
         i = 0
         while i < len(keys):
-            if keys[i] == b"":
-                keys.pop(i)
-            elif keys[i] == b".":
+            if keys[i] == b"" or keys[i] == b".":
                 keys.pop(i)
             elif keys[i] == b"..":
                 keys.pop(i)
@@ -191,8 +188,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 
         if mountpoint is None:
             return self._files.get(self._join_chunks(chunks))
-        else:
-            return mountpoint.get(chunks)
+        return mountpoint.get(chunks)
 
     def insert(self, path, simfile):
         """
@@ -205,8 +201,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         if mountpoint is None:
             self._files[self._join_chunks(chunks)] = simfile
             return True
-        else:
-            return mountpoint.insert(chunks, simfile)
+        return mountpoint.insert(chunks, simfile)
 
     def delete(self, path):
         """
@@ -370,7 +365,7 @@ class SimConcreteFilesystem(SimMount):
             self.cache[fname].set_state(state)
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        merging_occured = False
+        merging_occurred = False
 
         for o in others:
             if o.pathsep != self.pathsep:
@@ -378,7 +373,7 @@ class SimConcreteFilesystem(SimMount):
             if o.deleted_list != self.deleted_list:
                 raise SimMergeError("Can't merge concrete filesystems with disparate deleted files")
 
-        deck = [self] + others
+        deck = [self, *others]
         all_files = set.union(*(set(o._files.keys()) for o in deck))
         for fname in all_files:
             subdeck = []
@@ -396,8 +391,8 @@ class SimConcreteFilesystem(SimMount):
             else:
                 common_simfile = None
 
-            merging_occured |= subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
-        return merging_occured
+            merging_occurred |= subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
+        return merging_occurred
 
     def widen(self, others):  # pylint: disable=unused-argument
         if once("host_fs_widen_warning"):
@@ -446,7 +441,7 @@ class SimHostFilesystem(SimConcreteFilesystem):
             if dereference:
                 path = os.path.realpath(path)
             s = os.stat(path)
-            stat = Stat(
+            return Stat(
                 s.st_dev,
                 s.st_ino,
                 s.st_nlink,
@@ -464,6 +459,5 @@ class SimHostFilesystem(SimConcreteFilesystem):
                 round(s.st_ctime),
                 s.st_ctime_ns,
             )
-            return stat
         except OSError:
             return None

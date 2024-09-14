@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pyvex
 
 from ..utils import looks_like_sql
@@ -53,9 +54,7 @@ class CodeTagging(Analysis):
             if block.size == 0:
                 continue
             for stmt in block.vex.statements:
-                if isinstance(stmt, pyvex.IRStmt.Put):
-                    found_xor = found_xor or _has_xor(stmt.data)
-                elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                if isinstance(stmt, (pyvex.IRStmt.Put, pyvex.IRStmt.WrTmp)):
                     found_xor = found_xor or _has_xor(stmt.data)
             if found_xor:
                 break
@@ -82,9 +81,7 @@ class CodeTagging(Analysis):
             if block.size == 0:
                 continue
             for stmt in block.vex.statements:
-                if isinstance(stmt, pyvex.IRStmt.Put):
-                    found_bitops = found_bitops or _has_bitshifts(stmt.data)
-                elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                if isinstance(stmt, (pyvex.IRStmt.Put, pyvex.IRStmt.WrTmp)):
                     found_bitops = found_bitops or _has_bitshifts(stmt.data)
 
             if found_bitops:
@@ -113,9 +110,12 @@ class CodeTagging(Analysis):
         xrefs = self.kb.xrefs.get_xrefs_by_ins_addr_region(min_addr, max_addr)
         for xref in xrefs:
             xref: XRef
-            if xref.memory_data is not None and xref.memory_data.sort == "string":
-                if looks_like_sql(xref.memory_data.content.decode("utf-8")):
-                    return {CodeTags.HAS_SQL}
+            if (
+                xref.memory_data is not None
+                and xref.memory_data.sort == "string"
+                and looks_like_sql(xref.memory_data.content.decode("utf-8"))
+            ):
+                return {CodeTags.HAS_SQL}
 
         return False
 

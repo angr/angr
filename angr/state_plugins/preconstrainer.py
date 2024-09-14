@@ -1,4 +1,6 @@
+from __future__ import annotations
 import logging
+
 import claripy
 
 from .plugin import SimStatePlugin
@@ -52,11 +54,11 @@ class SimStatePreconstrainer(SimStatePlugin):
         :param variable:    The BVS to preconstrain.
         """
         if not isinstance(value, claripy.ast.Base):
-            value = self.state.solver.BVV(value, len(variable))
+            value = claripy.BVV(value, len(variable))
         elif value.op != "BVV":
             raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
 
-        if variable.op not in claripy.operations.leaf_operations:
+        if not variable.is_leaf():
             l.warning(
                 "The variable %s to preconstrain is not a leaf AST. This may cause replacement failures in the "
                 "claripy replacement backend.",

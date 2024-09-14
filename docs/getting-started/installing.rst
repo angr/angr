@@ -4,6 +4,16 @@ Installing angr
 angr is a library for Python 3.8+, and must be installed into a Python
 environment before it can be used.
 
+Installing from PyPI
+--------------------
+
+angr is published on `PyPI <https://pypi.org/>`_, and using this is the easiest
+and recommended way to install angr. It can be installed angr with pip:
+
+.. code-block:: bash
+
+   pip install angr
+
 .. tip::
    It is recommended to use an isolated python environment rather than installing
    angr globally. Doing so reduces dependency conflicts and aids in
@@ -15,16 +25,6 @@ environment before it can be used.
    * `virtualenv <https://virtualenv.pypa.io/en/latest/>`_
    * `virtualenvwrapper <https://virtualenvwrapper.readthedocs.io/en/latest/>`_
    * `conda <https://docs.conda.io/en/latest/>`_
-
-Installing from PyPI
---------------------
-
-angr is published on `PyPI <https://pypi.org/>`_, and using this is the easiest
-and recommended way to install angr. It can be installed angr with pip:
-
-.. code-block:: bash
-
-   pip install angr
 
 .. note::
    The PyPI distribution includes binary packages for most popular system
@@ -56,6 +56,24 @@ Then, checkout and install the following packages, in order:
 * `ailment <https://github.com/angr/ailment>`_
 * `angr <https://github.com/angr/angr>`_ (``pip install`` with
   ``--no-build-isolation``)
+
+Installing with Docker
+----------------------
+
+The angr team maintains a container image on Docker Hub that includes angr and
+its dependencies. This image can be pulled with:
+
+.. code-block:: bash
+
+   docker pull angr/angr
+
+The image can be run with:
+
+.. code-block:: bash
+
+   docker run -it angr/angr
+
+This will start a shell in the container, with angr installed and ready to use.
 
 
 Troubleshooting

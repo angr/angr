@@ -1,5 +1,5 @@
+from __future__ import annotations
 import logging
-from typing import Optional
 
 import pyvex
 
@@ -400,10 +400,7 @@ class VEXMixin(SimEngineBase):
         load_result = self._perform_vex_stmt_LoadG_load(
             addr, ty, end, condition=self._perform_vex_stmt_LoadG_guard_condition(guard)
         )
-        if cvt_op is None:
-            cvt_result = load_result
-        else:
-            cvt_result = self._perform_vex_stmt_LoadG_widen(cvt_op, (load_result,))
+        cvt_result = load_result if cvt_op is None else self._perform_vex_stmt_LoadG_widen(cvt_op, (load_result,))
         ite_result = self._perform_vex_stmt_LoadG_ite(guard, cvt_result, alt)
         self._perform_vex_stmt_LoadG_wrtmp(dst, ite_result)
 
@@ -549,7 +546,7 @@ class VEXMixin(SimEngineBase):
         self.stmt_idx = DEFAULT_STATEMENT
         self._handle_vex_defaultexit(irsb.next, irsb.jumpkind)
 
-    def _handle_vex_defaultexit(self, expr: Optional[pyvex.expr.IRExpr], jumpkind: str):
+    def _handle_vex_defaultexit(self, expr: pyvex.expr.IRExpr | None, jumpkind: str):
         self._perform_vex_defaultexit(self._analyze_vex_defaultexit(expr) if expr is not None else None, jumpkind)
 
     def _perform_vex_defaultexit(self, expr, jumpkind):

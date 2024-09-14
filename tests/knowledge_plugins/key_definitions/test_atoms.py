@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring
+from __future__ import annotations
 from unittest import main, TestCase
 
 from archinfo import ArchMIPS32
@@ -9,7 +10,7 @@ from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
 
 
 class TestAtoms(TestCase):
-    def test_from_argument_instanciate_a_Register_when_given_a_SimRegArg(self):
+    def test_from_argument_instantiate_a_Register_when_given_a_SimRegArg(self):
         argument = SimRegArg("r0", 4)
         arch = ArchMIPS32()
 

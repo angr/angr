@@ -1,5 +1,7 @@
+from __future__ import annotations
 from itertools import chain
-from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from collections.abc import Iterable
 import logging
 
 import pyvex
@@ -41,8 +43,8 @@ class SimEngineRDVEX(
     def __init__(self, project, functions=None, function_handler=None):
         super().__init__()
         self.project = project
-        self.functions: Optional["FunctionManager"] = functions
-        self._function_handler: Optional["FunctionHandler"] = function_handler
+        self.functions: FunctionManager | None = functions
+        self._function_handler: FunctionHandler | None = function_handler
         self._visited_blocks = None
         self._dep_graph = None
 
@@ -176,6 +178,9 @@ class SimEngineRDVEX(
             return
         self.state.kill_and_add_definition(reg, data)
 
+    def _handle_PutI(self, stmt):
+        pass
+
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
@@ -213,10 +218,10 @@ class SimEngineRDVEX(
 
     def _store_core(
         self,
-        addr: Iterable[Union[int, claripy.ast.bv.BV]],
+        addr: Iterable[int | claripy.ast.bv.BV],
         size: int,
         data: MultiValues,
-        data_old: Optional[MultiValues] = None,
+        data_old: MultiValues | None = None,
         endness=None,
     ):
         if data_old is not None:
@@ -226,7 +231,7 @@ class SimEngineRDVEX(
             if self.state.is_top(a):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
             else:
-                tags: Optional[Set[Tag]]
+                tags: set[Tag] | None
                 if isinstance(a, int):
                     atom = MemoryLocation(a, size)
                     tags = None
@@ -358,7 +363,7 @@ class SimEngineRDVEX(
             data = MultiValues(top)
         return data
 
-    def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[MultiValues]:
+    def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> MultiValues | None:
         tmp: int = expr.tmp
 
         self.state.add_tmp_use(tmp)
@@ -384,7 +389,7 @@ class SimEngineRDVEX(
             # write it to registers
             self.state.kill_and_add_definition(reg_atom, values, override_codeloc=self._external_codeloc())
 
-        current_defs: Optional[Iterable[Definition]] = None
+        current_defs: Iterable[Definition] | None = None
         for vs in values.values():
             for v in vs:
                 if current_defs is None:
@@ -403,6 +408,9 @@ class SimEngineRDVEX(
         self.state.add_register_use_by_defs(current_defs)
 
         return values
+
+    def _handle_GetI(self, expr: pyvex.IRExpr.GetI) -> MultiValues:
+        return MultiValues(self.state.top(expr.result_size(self.tyenv)))
 
     # e.g. t27 = LDle:I64(t9), t9 might include multiple values
     # caution: Is also called from StoreG
@@ -426,7 +434,7 @@ class SimEngineRDVEX(
         return MultiValues(top)
 
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
-        result: Optional[MultiValues] = None
+        result: MultiValues | None = None
         # we may get more than one stack addrs with the same value but different annotations (because they are defined
         # at different locations). only load them once.
         loaded_stack_offsets = set()
@@ -506,11 +514,9 @@ class SimEngineRDVEX(
 
         if claripy.is_true(cond_v):
             return iftrue
-        elif claripy.is_false(cond_v):
+        if claripy.is_false(cond_v):
             return iffalse
-        else:
-            data = iftrue.merge(iffalse)
-            return data
+        return iftrue.merge(iffalse)
 
     #
     # Unary operation handlers
@@ -591,15 +597,13 @@ class SimEngineRDVEX(
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _handle_16HLto32(self, expr):
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        r = MultiValues(self.state.top(bits))
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _handle_Add(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
@@ -720,10 +724,7 @@ class SimEngineRDVEX(
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                if expr1_v.concrete_value == 0:
-                    r = MultiValues(self.state.top(bits))
-                else:
-                    r = MultiValues(expr0_v / expr1_v)
+                r = MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)
 
         if r is None:
             r = MultiValues(self.state.top(bits))
@@ -734,9 +735,7 @@ class SimEngineRDVEX(
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
-        r = MultiValues(self.state.top(bits))
-
-        return r
+        return MultiValues(self.state.top(bits))
 
     def _handle_And(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
@@ -847,10 +846,7 @@ class SimEngineRDVEX(
             if e1 > bits:
                 return claripy.BVV(0, bits)
 
-            if claripy.is_true(e0 >> (bits - 1) == 0):
-                head = claripy.BVV(0, bits)
-            else:
-                head = ((1 << e1) - 1) << (bits - e1)
+            head = claripy.BVV(0, bits) if claripy.is_true(e0 >> bits - 1 == 0) else (1 << e1) - 1 << bits - e1
             return head | (e0 >> e1)
 
         if expr0_v is None and expr1_v is None:
@@ -963,7 +959,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value == e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(1, 1))
             return MultiValues(self.state.top(1))
 
@@ -979,7 +975,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -993,7 +989,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value < e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1007,7 +1003,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value <= e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1021,7 +1017,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value > e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1035,7 +1031,7 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(claripy.BVV(1, 1) if e0.concrete_value >= e1.concrete_value else claripy.BVV(0, 1))
-            elif e0 is e1:
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
@@ -1055,11 +1051,10 @@ class SimEngineRDVEX(
                 e1 = e1.concrete_value
                 if e0 < e1:
                     return MultiValues(claripy.BVV(0x8, bits))
-                elif e0 > e1:
+                if e0 > e1:
                     return MultiValues(claripy.BVV(0x4, bits))
-                else:
-                    return MultiValues(claripy.BVV(0x2, bits))
-            elif e0 is e1:
+                return MultiValues(claripy.BVV(0x2, bits))
+            if e0 is e1:
                 return MultiValues(claripy.BVV(0x2, bits))
 
         return MultiValues(self.state.top(1))
@@ -1074,7 +1069,7 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, func_addr: Optional[MultiValues]):
+    def _handle_function(self, func_addr: MultiValues | None):
         if func_addr is None:
             func_addr = self.state.top(self.state.arch.bits)
 

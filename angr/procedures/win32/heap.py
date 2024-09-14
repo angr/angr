@@ -1,3 +1,6 @@
+from __future__ import annotations
+import claripy
+
 import angr
 
 
@@ -22,7 +25,7 @@ class HeapAlloc(angr.SimProcedure):
                 data_size = self.state.solver.eval_one(self.state.heap.chunk_from_mem(addr).get_data_size())
             else:
                 data_size = self.state.heap._conc_alloc_size(Size)
-            data = self.state.solver.BVV(0, data_size * 8)
+            data = claripy.BVV(0, data_size * 8)
             self.state.memory.store(addr, data, size=data_size, condition=Flags & 8 == 8)
         return addr
 

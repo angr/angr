@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Disable some pylint warnings: no-self-use, missing-docstring
-# pylint: disable=R0201,C0111,bad-builtin
+# pylint: disable=R0201,C0111,bad-builtin,expression-not-assigned,no-member
+from __future__ import annotations
 
 import os
 import pickle
@@ -28,23 +29,17 @@ from angr.utils.constants import DEFAULT_STATEMENT
 class InsnAndNodeObserveTestingUtils:
     @staticmethod
     def assert_for_live_definitions(assertion, live_definition_1, live_definition_2):
-        list(
-            map(
-                lambda attr: {
-                    assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)
-                },
-                ["registers", "stack", "memory"],
-            )
-        )
-        assertion(getattr(live_definition_1, "tmps"), getattr(live_definition_2, "tmps"))
+        [
+            {assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)}
+            for attr in ["registers", "stack", "memory"]
+        ]
+        assertion(live_definition_1.tmps, live_definition_2.tmps)
 
     @staticmethod
     def filter(observed_results, observation_points):
         # Return only the observed results associated with the observation points,
         # and do not fail if an observation point do not appear in the observed results.
-        return list(
-            map(lambda key: observed_results[key], filter(lambda key: key in observed_results, observation_points))
-        )
+        return [observed_results[key] for key in filter(lambda key: key in observed_results, observation_points)]
 
     @staticmethod
     def setup(observation_points):
@@ -102,38 +97,34 @@ class TestReachingDefinitions(TestCase):
         for page_id, page in storage._pages.items():
             last_mo = None
             for pos, n in enumerate(page.content):
-                if n is not None:
-                    if type(n) is not set or len(n) == 1:
-                        addr = page_id * 4096 + pos
-                        if type(n) is set:
-                            mo: SimMemoryObject = next(iter(n))
-                        else:
-                            mo: SimMemoryObject = n
-                        if mo is not last_mo:
-                            last_mo = mo
-                            all_defs.append((addr, list(LiveDefinitions.extract_defs(mo.object))))
+                if n is not None and (type(n) is not set or len(n) == 1):
+                    addr = page_id * 4096 + pos
+                    if type(n) is set:
+                        mo: SimMemoryObject = next(iter(n))
+                    else:
+                        mo: SimMemoryObject = n
+                    if mo is not last_mo:
+                        last_mo = mo
+                        all_defs.append((addr, list(LiveDefinitions.extract_defs(mo.object))))
 
         return all_defs
 
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
-            unsorted_result = map(
-                lambda x: {
+            unsorted_result = (
+                {
                     "key": x[0],
                     "register_definitions": self._extract_all_definitions_from_storage(x[1].registers),
                     "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack),
                     "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory),
-                },
-                [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"],
+                }
+                for x in [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"]
             )
-            return list(sorted(unsorted_result, key=lambda x: x["key"]))
+            return sorted(unsorted_result, key=lambda x: x["key"])
 
-        binaries_and_results = list(
-            map(
-                lambda binary: (_binary_path(binary), _result_path(binary + "_definitions")),
-                ["all", "fauxware", "loop"],
-            )
-        )
+        binaries_and_results = [
+            (_binary_path(binary), _result_path(binary + "_definitions")) for binary in ["all", "fauxware", "loop"]
+        ]
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={"auto_load_libs": False})
@@ -144,14 +135,11 @@ class TestReachingDefinitions(TestCase):
 
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
-            return list(sorted(rda.visited_blocks, key=lambda b: b.addr))
+            return sorted(rda.visited_blocks, key=lambda b: b.addr)
 
-        binaries_and_results = list(
-            map(
-                lambda binary: (_binary_path(binary), _result_path(binary + "_visited_blocks")),
-                ["all", "fauxware", "loop"],
-            )
-        )
+        binaries_and_results = [
+            (_binary_path(binary), _result_path(binary + "_visited_blocks")) for binary in ["all", "fauxware", "loop"]
+        ]
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={"auto_load_libs": False})
@@ -189,12 +177,10 @@ class TestReachingDefinitions(TestCase):
         expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
-        list(
-            map(
-                lambda x: InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1]),
-                zip(results, expected_results),
-            )
-        )
+        [
+            InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
+            for x in zip(results, expected_results)
+        ]
 
     def test_insn_observe_before_an_imark_pyvex_statement(self):
         # Create several different observation points
@@ -212,12 +198,10 @@ class TestReachingDefinitions(TestCase):
         expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
-        list(
-            map(
-                lambda x: InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1]),
-                zip(results, expected_results),
-            )
-        )
+        [
+            InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
+            for x in zip(results, expected_results)
+        ]
 
     def test_insn_observe_after_a_pyvex_statement(self):
         # Create several different observation points
@@ -237,12 +221,10 @@ class TestReachingDefinitions(TestCase):
         expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
-        list(
-            map(
-                lambda x: InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1]),
-                zip(results, expected_results),
-            )
-        )
+        [
+            InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
+            for x in zip(results, expected_results)
+        ]
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path("all")
@@ -284,12 +266,12 @@ class TestReachingDefinitions(TestCase):
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_func, track_tmps=False, track_consts=False, dep_graph=True
         )
-        guard_use = list(
+        guard_use = next(
             filter(
                 lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main_func.addr,
                 rda.dep_graph._graph.nodes(),
             )
-        )[0]
+        )
         preds = list(rda.dep_graph._graph.pred[guard_use])
         self.assertEqual(len(preds), 1)
         self.assertIsInstance(preds[0].atom, Register)
@@ -302,16 +284,16 @@ class TestReachingDefinitions(TestCase):
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_func, track_tmps=True, dep_graph=DepGraph()
         )
-        tmp_7 = list(
+        tmp_7 = next(
             filter(
                 lambda def_: type(def_.atom) is Tmp
                 and def_.atom.tmp_idx == 7
                 and def_.codeloc.block_addr == main_func.addr,
                 rda.dep_graph._graph.nodes(),
             )
-        )[0]
+        )
         self.assertEqual(len(rda.dep_graph._graph.succ[tmp_7]), 1)
-        self.assertEqual(type(list(rda.dep_graph._graph.succ[tmp_7])[0].atom), GuardUse)
+        self.assertEqual(type(next(iter(rda.dep_graph._graph.succ[tmp_7])).atom), GuardUse)
 
     def test_dep_graph_stack_variables(self):
         bin_path = _binary_path("fauxware")

@@ -1,9 +1,11 @@
-from typing import TypeVar, Optional, Iterable
+from __future__ import annotations
+from typing import TypeVar
+from collections.abc import Iterable
 
 _T = TypeVar("_T")
 
 
-def unwrap(thing: Optional[_T]) -> _T:
+def unwrap(thing: _T | None) -> _T:
     assert thing is not None, "Tried to unwrap a `None` value"
     return thing
 

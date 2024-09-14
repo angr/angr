@@ -1,8 +1,12 @@
+from __future__ import annotations
+import logging
+
+import claripy
+
 import angr
 from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
-import logging
 
 l = logging.getLogger(name=__name__)
 
@@ -36,9 +40,9 @@ class strchr(angr.SimProcedure):
         # ensure that the string length is long enough to include
         # the character!
         chrpos = a - s_addr
-        self.state.add_constraints(self.state.solver.If(a != 0, chrpos <= s_strlen.ret_expr, True))
+        self.state.add_constraints(claripy.If(a != 0, chrpos <= s_strlen.ret_expr, True))
 
         return a
-        # self.state.add_constraints(self.state.solver.ULT(a - s_addr, s_strlen.ret_expr))
+        # self.state.add_constraints(claripy.ULT(a - s_addr, s_strlen.ret_expr))
         # self.max_chr_index = max(i)
         # return a

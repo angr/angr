@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 
 import gc
@@ -56,11 +58,11 @@ class TestFauxware(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
         results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = results.found[0].posix.dumps(0)
-        assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
+        assert stdin == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00"
 
         # test the divergence detection
         ancestor = results.found[0].history.closest_common_ancestor((results.avoid + results.active)[0].history)
-        divergent_point = list(HistoryIter(results.found[0].history, end=ancestor))[0]
+        divergent_point = next(iter(HistoryIter(results.found[0].history, end=ancestor)))
         # p.factory.block(divergent_point.addr).pp()
         assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
 
@@ -75,7 +77,7 @@ class TestFauxware(unittest.TestCase):
 
         pg.explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = pg.found[0].posix.dumps(0)
-        assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
+        assert stdin == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00"
 
     @slow_test
     def _run_fastmem(self, arch):
@@ -101,7 +103,7 @@ class TestFauxware(unittest.TestCase):
         )
         results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = results.found[0].posix.dumps(0)
-        assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
+        assert stdin == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00"
 
     def _run_merge(self, arch):
         p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)

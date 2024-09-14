@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument
-from typing import Set, Tuple, Optional
+from __future__ import annotations
 
 import ailment
 
@@ -13,7 +13,7 @@ class JumpTargetCollector:
 
     def __init__(self, node):
         self.root = node
-        self.jump_targets: Set[Tuple[int, Optional[int]]] = set()
+        self.jump_targets: set[tuple[int, int | None]] = set()
 
         handlers = {
             ailment.Block: self._handle_Block,

@@ -1,13 +1,18 @@
+from __future__ import annotations
 import os
 import pickle
 import sys
 import logging
 import subprocess
 from functools import lru_cache
-from typing import Optional, Sequence
+from collections.abc import Sequence
 from tempfile import NamedTemporaryFile
 
 from unittest import skipIf, skipUnless, skip, SkipTest
+
+from angr import load_shellcode
+from angr.analyses import CongruencyCheck
+import angr.sim_options as so
 
 l = logging.getLogger("angr.tests.common")
 
@@ -83,11 +88,11 @@ def do_trace(proj, test_name, input_data, **kwargs):
 
 
 @skipUnless(tracer, "tracer is not installed")
-def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
+def load_cgc_pov(pov_file: str) -> tracer.TracerPoV:
     return tracer.TracerPoV(pov_file)
 
 
-def compile_c(c_code: str, cflags: Optional[Sequence[str]], silent: bool = False) -> NamedTemporaryFile:
+def compile_c(c_code: str, cflags: Sequence[str] | None, silent: bool = False) -> NamedTemporaryFile:
     # pylint:disable=consider-using-with
     """
     Compile `c_code` and return the file containing the compiled output
@@ -126,3 +131,24 @@ def has_32_bit_compiler_support() -> bool:
         return True
     except subprocess.CalledProcessError:
         return False
+
+
+def run_simple_unicorn_congruency_check(shellcode: bytes | str, arch: str = "AMD64", depth: int = 1):
+    base = 0x100000
+    p = load_shellcode(shellcode, arch, load_address=base, start_offset=base)
+    ca = p.analyses[CongruencyCheck].prep()(throw=True)
+    ca.set_state_options(
+        left_add_options=so.unicorn,
+        left_remove_options={
+            so.LAZY_SOLVES,
+            so.TRACK_MEMORY_MAPPING,
+            so.COMPOSITE_SOLVER,
+        },
+        right_add_options={so.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        right_remove_options={
+            so.LAZY_SOLVES,
+            so.TRACK_MEMORY_MAPPING,
+            so.COMPOSITE_SOLVER,
+        },
+    )
+    ca.run(depth=depth)

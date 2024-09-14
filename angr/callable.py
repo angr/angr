@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pycparser
 
 from .calling_conventions import default_cc, SimCC
@@ -130,7 +131,7 @@ class Callable:
             c_args += ")"
 
         # Parse arguments
-        content = "int main() { func%s; }" % c_args
+        content = f"int main() {{ func{c_args}; }}"
         ast = pycparser.CParser().parse(content)
 
         if not ast.ext or not isinstance(ast.ext[0], pycparser.c_ast.FuncDef):
@@ -152,9 +153,9 @@ class Callable:
                 elif expr.type == "int":
                     args.append(int(expr.value))
                 else:
-                    raise AngrCallableError("Unsupported expression type %s." % expr.type)
+                    raise AngrCallableError(f"Unsupported expression type {expr.type}.")
             else:
-                raise AngrCallableError("Unsupported expression type %s." % type(expr))
+                raise AngrCallableError(f"Unsupported expression type {type(expr)}.")
 
         return self.__call__(*args)
 

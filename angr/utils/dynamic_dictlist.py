@@ -1,13 +1,10 @@
+from __future__ import annotations
 import platform
-from typing import Optional, Union, Dict, List, Generic, TypeVar
+from typing import Generic, TypeVar
 
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
-if platform.python_implementation() == "PyPy":
-    LIST2DICT_THRESHOLD = 96
-else:
-    # cpython
-    LIST2DICT_THRESHOLD = 2048
+LIST2DICT_THRESHOLD = 96 if platform.python_implementation() == "PyPy" else 2048
 
 
 VT = TypeVar("VT")
@@ -26,11 +23,11 @@ class DynamicDictList(Generic[VT]):
 
     def __init__(
         self,
-        max_size: Optional[int] = None,
-        content: Optional[Union["DynamicDictList", Dict[int, VT], List[VT]]] = None,
+        max_size: int | None = None,
+        content: DynamicDictList | dict[int, VT] | list[VT] | None = None,
     ):
-        self.list_content: Optional[List[VT]] = None
-        self.dict_content: Optional[Dict[int, VT]] = None
+        self.list_content: list[VT] | None = None
+        self.dict_content: dict[int, VT] | None = None
         self.max_size = max_size
 
         if content:

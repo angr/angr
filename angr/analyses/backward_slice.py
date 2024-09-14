@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
 
@@ -77,7 +78,7 @@ class BackwardSlice(Analysis):
                 elif type(t) is tuple:
                     self._targets.append(t)
                 else:
-                    raise AngrBackwardSlicingError("Unsupported type of target %s" % t)
+                    raise AngrBackwardSlicingError(f"Unsupported type of target {t}")
 
         # Save a list of taints to begin with at the beginning of each SimRun
         self.initial_taints_per_run = None
@@ -96,8 +97,7 @@ class BackwardSlice(Analysis):
     #
 
     def __repr__(self):
-        s = "BackwardSlice (to %s)" % self._targets
-        return s
+        return f"BackwardSlice (to {self._targets})"
 
     def dbg_repr(self, max_display=10):
         """
@@ -137,10 +137,10 @@ class BackwardSlice(Analysis):
         """
 
         if self.project.is_hooked(run_addr):
-            ss = "%#x Hooked\n" % run_addr
+            ss = f"{run_addr:#x} Hooked\n"
 
         else:
-            ss = "%#x\n" % run_addr
+            ss = f"{run_addr:#x}\n"
 
             # statements
             chosen_statements = self.chosen_statements[run_addr]
@@ -148,11 +148,8 @@ class BackwardSlice(Analysis):
             vex_block = self.project.factory.block(run_addr).vex
 
             statements = vex_block.statements
-            for i in range(0, len(statements)):
-                if i in chosen_statements:
-                    line = "+"
-                else:
-                    line = "-"
+            for i in range(len(statements)):
+                line = "+" if i in chosen_statements else "-"
                 line += "[% 3d] " % i
                 line += str(statements[i])
                 ss += line + "\n"
@@ -160,11 +157,11 @@ class BackwardSlice(Analysis):
             # exits
             targets = self.chosen_exits[run_addr]
             addr_strs = []
-            for exit_stmt_id, target_addr in targets:
+            for _exit_stmt_id, target_addr in targets:
                 if target_addr is None:
                     addr_strs.append("default")
                 else:
-                    addr_strs.append("%#x" % target_addr)
+                    addr_strs.append(f"{target_addr:#x}")
 
             ss += "Chosen exits: " + ", ".join(addr_strs)
 
@@ -371,7 +368,7 @@ class BackwardSlice(Analysis):
 
         for cfg_node, stmt_idx in targets:
             if cfg_node not in self._cfg.graph:
-                raise AngrBackwardSlicingError("Target CFGNode %s is not in the CFG." % cfg_node)
+                raise AngrBackwardSlicingError(f"Target CFGNode {cfg_node} is not in the CFG.")
 
             if stmt_idx == -1:
                 new_taints = self._handle_control_dependence(cfg_node)
@@ -574,8 +571,8 @@ class BackwardSlice(Analysis):
         new_exit_statements_per_run = defaultdict(list)
 
         while len(exit_statements_per_run):
-            for block_address, exits in exit_statements_per_run.items():
-                for stmt_idx, exit_target in exits:
+            for exits in exit_statements_per_run.values():
+                for _stmt_idx, exit_target in exits:
                     if exit_target not in self.chosen_exits:
                         # Oh we found one!
                         # The default exit should be taken no matter where it leads to
@@ -606,9 +603,9 @@ class BackwardSlice(Analysis):
 
         # Sanity check
         if not isinstance(block_address, int):
-            raise AngrBackwardSlicingError("Invalid block address %s." % block_address)
+            raise AngrBackwardSlicingError(f"Invalid block address {block_address}.")
         if not isinstance(stmt_idx, int):
-            raise AngrBackwardSlicingError("Invalid statement ID %s." % stmt_idx)
+            raise AngrBackwardSlicingError(f"Invalid statement ID {stmt_idx}.")
 
         self.chosen_statements[block_address].add(stmt_idx)
 
@@ -664,7 +661,7 @@ class BackwardSlice(Analysis):
             vex_block = self.project.factory.block(block_addr).vex
             return len(vex_block.statements)
 
-        raise AngrBackwardSlicingError('Unsupported statement ID "%s"' % stmt_idx)
+        raise AngrBackwardSlicingError(f'Unsupported statement ID "{stmt_idx}"')
 
     @staticmethod
     def _last_branching_statement(statements):

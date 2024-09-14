@@ -1,4 +1,5 @@
-from typing import Optional, Iterable
+from __future__ import annotations
+from collections.abc import Iterable
 
 import claripy
 import logging
@@ -50,13 +51,13 @@ class HeavyPcodeMixin(
     def process_successors(
         self,
         successors: SimSuccessors,
-        irsb: Optional[IRSB] = None,
-        insn_text: Optional[str] = None,
-        insn_bytes: Optional[bytes] = None,
+        irsb: IRSB | None = None,
+        insn_text: str | None = None,
+        insn_bytes: bytes | None = None,
         thumb: bool = False,
-        size: Optional[int] = None,
-        num_inst: Optional[int] = None,
-        extra_stop_points: Optional[Iterable[int]] = None,
+        size: int | None = None,
+        num_inst: int | None = None,
+        extra_stop_points: Iterable[int] | None = None,
         **kwargs,
     ) -> None:
         # pylint:disable=arguments-differ
@@ -107,6 +108,7 @@ class HeavyPcodeMixin(
 
         self._process_successor_exits(successors)
         successors.processed = True
+        return None
 
     def _lift_irsb(self):
         irsb = self.state.scratch.irsb
@@ -123,9 +125,9 @@ class HeavyPcodeMixin(
         if irsb.size == 0:
             if irsb.jumpkind == "Ijk_NoDecode" and not self.state.project.is_hooked(irsb.addr):
                 raise errors.SimIRSBNoDecodeError(
-                    "IR decoding error at %#x. You can hook this instruction with "
+                    f"IR decoding error at {self._addr:#x}. You can hook this instruction with "
                     "a python replacement using project.hook"
-                    "(%#x, your_function, length=length_of_instruction)." % (self._addr, self._addr)
+                    f"({self._addr:#x}, your_function, length=length_of_instruction)."
                 )
             raise errors.SimIRSBError("Empty IRSB passed to HeavyPcodeMixin.")
         self.state.scratch.irsb = irsb
@@ -167,7 +169,7 @@ class HeavyPcodeMixin(
         except errors.SimReliftException as e:
             self.state = e.state
             if self._insn_bytes is not None:
-                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
+                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!") from e
             new_ip = self.state.scratch.ins_addr
             if self._size is not None:
                 self._size -= new_ip - self._addr
@@ -224,7 +226,7 @@ class HeavyPcodeMixin(
                             "return value in Call-less mode.",
                             exit_state.arch.name,
                         )
-                exit_state.scratch.target = exit_state.solver.BVV(
+                exit_state.scratch.target = claripy.BVV(
                     successors.addr + self.state.scratch.irsb.size, exit_state.arch.bits
                 )
                 exit_state.history.jumpkind = "Ijk_Ret"
@@ -238,12 +240,8 @@ class HeavyPcodeMixin(
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = (
-                    ret_state.solver.true
-                    if o.TRUE_RET_EMULATION_GUARD in self.state.options
-                    else ret_state.solver.false
-                )
-                ret_target = ret_state.solver.BVV(successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits)
+                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                ret_target = claripy.BVV(successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith("Ijk_Sys"):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(

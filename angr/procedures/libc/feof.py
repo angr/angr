@@ -1,6 +1,8 @@
-import angr
-
+from __future__ import annotations
+import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
+import angr
 
 
 class feof(angr.SimProcedure):
@@ -13,7 +15,7 @@ class feof(angr.SimProcedure):
         simfd = self.state.posix.get_fd(fileno)
         if simfd is None:
             return None
-        return self.state.solver.If(simfd.eof(), self.state.solver.BVV(1, self.arch.sizeof["int"]), 0)
+        return claripy.If(simfd.eof(), claripy.BVV(1, self.arch.sizeof["int"]), 0)
 
 
 feof_unlocked = feof

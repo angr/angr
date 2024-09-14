@@ -1,6 +1,9 @@
-from typing import NamedTuple, Optional, Callable, List, Dict, Any
+from __future__ import annotations
+from typing import NamedTuple, Any
+from collections.abc import Callable
 import multiprocessing
 import platform
+from ..errors import AngrRuntimeError
 
 
 class Closure(NamedTuple):
@@ -9,8 +12,8 @@ class Closure(NamedTuple):
     """
 
     f: Callable[..., None]
-    args: List[Any]
-    kwargs: Dict[str, Any]
+    args: list[Any]
+    kwargs: dict[str, Any]
 
 
 class Initializer:
@@ -18,10 +21,10 @@ class Initializer:
     A singleton class with global state used to initialize a multiprocessing.Process
     """
 
-    _single: Optional["Initializer"] = None
+    _single: Initializer | None = None
 
     @classmethod
-    def get(cls) -> "Initializer":
+    def get(cls) -> Initializer:
         """
         A wrapper around init since this class is a singleton
         """
@@ -31,8 +34,8 @@ class Initializer:
 
     def __init__(self, *, _manual: bool = True):
         if _manual:
-            raise RuntimeError("This is a singleton; call .get() instead")
-        self.initializers: List[Closure] = []
+            raise AngrRuntimeError("This is a singleton; call .get() instead")
+        self.initializers: list[Closure] = []
 
     def register(self, f: Callable[..., None], *args: Any, **kwargs: Any) -> None:
         """
@@ -43,7 +46,7 @@ class Initializer:
     def initialize(self) -> None:
         """
         Initialize a multiprocessing.Process
-        Set the current global initalizer to the same state as this initalizer, then calls each initalizer
+        Set the current global initializer to the same state as this initializer, then calls each initializer
         """
         self._single = self
         for i in self.initializers:

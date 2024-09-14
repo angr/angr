@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ,unused-argument,no-member
-from typing import Set, Optional
+from __future__ import annotations
 
 from angr.storage.memory_mixins import MemoryMixin
 from angr.utils.segment_list import SegmentList
@@ -27,8 +27,7 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
         return super().store(addr, data, **kwargs)
 
     def copy(self, memo):
-        o = super().copy(memo)
-        return o
+        return super().copy(memo)
 
     def acquire_unique(self):
         page = super().acquire_unique()
@@ -50,11 +49,11 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
             yield parent
             parent = parent._parent
 
-    def changed_bytes(self, other, **kwargs) -> Optional[Set[int]]:
-        candidates: Set[int] = set()
+    def changed_bytes(self, other, **kwargs) -> set[int] | None:
+        candidates: set[int] = set()
 
-        self_history_list = [self] + list(self.parents())
-        other_history_list = [other] + list(other.parents())
+        self_history_list = [self, *list(self.parents())]
+        other_history_list = [other, *list(other.parents())]
         if self_history_list and other_history_list and self_history_list[-1] is other_history_list[-1]:
             # two pages have the same root. we can get a list of candidate offsets this way
 

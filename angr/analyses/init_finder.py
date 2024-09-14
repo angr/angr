@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 from cle.loader import MetaELF
@@ -35,9 +36,7 @@ class SimEngineInitFinderVEX(
     def is_concrete(expr) -> bool:
         if isinstance(expr, claripy.ast.Base) and expr.op == "BVV":
             return True
-        if isinstance(expr, int):
-            return True
-        return False
+        return bool(isinstance(expr, int))
 
     def _is_addr_uninitialized(self, addr):
         # is it writing to a global, uninitialized region?
@@ -68,9 +67,8 @@ class SimEngineInitFinderVEX(
         if isinstance(addr, claripy.ast.Base):
             addr = addr.args[0]
 
-        if isinstance(addr, int):
-            if addr > 0x400:
-                return self.project.loader.find_object_containing(addr) is not None
+        if isinstance(addr, int) and addr > 0x400:
+            return self.project.loader.find_object_containing(addr) is not None
         return False
 
     #
@@ -95,16 +93,19 @@ class SimEngineInitFinderVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr_v = self.replacements[blockloc][addr_tmp]
-                if self.is_concrete(addr_v) and self._is_addr_uninitialized(addr_v):
+                if (
+                    self.is_concrete(addr_v)
+                    and self._is_addr_uninitialized(addr_v)
+                    and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                ):
                     # do we know what it is writing?
-                    if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                        data_v = self._expr(stmt.data)
-                        if self.is_concrete(data_v):
-                            if isinstance(data_v, int):
-                                data_size = self.tyenv.sizeof(stmt.data.tmp)
-                                data_v = claripy.BVV(data_v, data_size)
-                            if not self.pointers_only or self._is_pointer(data_v):
-                                self.overlay.store(addr_v, data_v, endness=self.project.arch.memory_endness)
+                    data_v = self._expr(stmt.data)
+                    if self.is_concrete(data_v):
+                        if isinstance(data_v, int):
+                            data_size = self.tyenv.sizeof(stmt.data.tmp)
+                            data_v = claripy.BVV(data_v, data_size)
+                        if not self.pointers_only or self._is_pointer(data_v):
+                            self.overlay.store(addr_v, data_v, endness=self.project.arch.memory_endness)
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -250,8 +251,7 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, None
-        else:
-            return False, None
+        return False, None
 
     def _intra_analysis(self):
         pass

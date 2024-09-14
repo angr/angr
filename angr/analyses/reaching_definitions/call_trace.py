@@ -1,4 +1,4 @@
-from typing import List, Optional
+from __future__ import annotations
 
 
 class CallSite:
@@ -12,7 +12,7 @@ class CallSite:
         "callee_func_addr",
     )
 
-    def __init__(self, caller_func_addr: int, block_addr: Optional[int], callee_func_addr: int):
+    def __init__(self, caller_func_addr: int, block_addr: int | None, callee_func_addr: int):
         self.caller_func_addr = caller_func_addr
         self.callee_func_addr = callee_func_addr
         self.block_addr = block_addr
@@ -20,7 +20,7 @@ class CallSite:
     def __repr__(self):
         result = f"<CallSite in function {self.caller_func_addr:#x}, calling {self.callee_func_addr:#x}"
         if self.block_addr is not None:
-            result += "at block %#x" % self.block_addr
+            result += f"at block {self.block_addr:#x}"
         result += ">"
         return result
 
@@ -45,7 +45,7 @@ class CallTrace:
 
     def __init__(self, target: int):
         self.target = target
-        self.callsites: List[CallSite] = []
+        self.callsites: list[CallSite] = []
 
     def __repr__(self):
         return "<Trace with %d callsites>" % len(self.callsites)
@@ -55,7 +55,7 @@ class CallTrace:
             return self.target
         return self.callsites[-1].caller_func_addr
 
-    def step_back(self, caller_func_addr: int, block_addr: Optional[int], callee_func_addr) -> "CallTrace":
+    def step_back(self, caller_func_addr: int, block_addr: int | None, callee_func_addr) -> CallTrace:
         # create a new CallSite object
         site = CallSite(caller_func_addr, block_addr, callee_func_addr)
         t = self.copy()
@@ -65,11 +65,9 @@ class CallTrace:
     def includes_function(self, func_addr: int) -> bool:
         if self.target == func_addr:
             return True
-        if any(cs.caller_func_addr == func_addr for cs in self.callsites):
-            return True
-        return False
+        return bool(any(cs.caller_func_addr == func_addr for cs in self.callsites))
 
-    def copy(self) -> "CallTrace":
+    def copy(self) -> CallTrace:
         t = CallTrace(self.target)
         t.callsites = self.callsites[::]
         return t

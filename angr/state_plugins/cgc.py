@@ -1,3 +1,4 @@
+from __future__ import annotations
 import operator
 from .plugin import SimStatePlugin
 
@@ -83,7 +84,7 @@ class SimStateCGC(SimStatePlugin):
         return not self.state.solver.solution(a != 0, True)
 
     def _combine(self, others):
-        merging_occured = False
+        merging_occurred = False
 
         new_allocation_base = max(o.allocation_base for o in others)
         if self.state.solver.symbolic(new_allocation_base):
@@ -94,9 +95,9 @@ class SimStateCGC(SimStatePlugin):
 
         if concrete_allocation_base != concrete_new_allocation_base:
             self.allocation_base = new_allocation_base
-            merging_occured = True
+            merging_occurred = True
 
-        return merging_occured
+        return merging_occurred
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return self._combine(others)
@@ -116,7 +117,7 @@ class SimStateCGC(SimStatePlugin):
         sinkhole is removed.
         """
 
-        ordered_sinks = sorted(list(self.sinkholes), key=operator.itemgetter(0), reverse=True)
+        ordered_sinks = sorted(self.sinkholes, key=operator.itemgetter(0), reverse=True)
         max_pair = None
         for addr, sz in ordered_sinks:
             if sz >= length:

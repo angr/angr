@@ -1,9 +1,11 @@
 # pylint:disable=too-many-boolean-expressions,global-statement
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
-import pyvex
 import archinfo
+import claripy
+import pyvex
 
 
 from .... import options, BP_BEFORE
@@ -45,7 +47,7 @@ class OverwriteTmpValueCallback:
         self.gp_value = gp_value
 
     def overwrite_tmp_value(self, state):
-        state.inspect.tmp_write_expr = state.solver.BVV(self.gp_value, state.arch.bits)
+        state.inspect.tmp_write_expr = claripy.BVV(self.gp_value, state.arch.bits)
 
 
 class MipsElfFastResolver(IndirectJumpResolver):
@@ -57,15 +59,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(
-            self.project.arch,
-            (
-                archinfo.ArchMIPS32,
-                archinfo.ArchMIPS64,
-            ),
-        ):
-            return False
-        return True
+        return isinstance(self.project.arch, (archinfo.ArchMIPS32, archinfo.ArchMIPS64))
 
     def resolve(  # pylint:disable=unused-argument
         self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
@@ -203,7 +197,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
         return False, []
 
-    def _try_handle_simple_case_0(self, gp: int, blade: Blade) -> Optional[int]:
+    def _try_handle_simple_case_0(self, gp: int, blade: Blade) -> int | None:
         # we only attempt to support the following case:
         #  + A | t37 = GET:I32(gp)
         #  + B | t36 = Add32(t37,0xffff8624)
@@ -302,12 +296,11 @@ class MipsElfFastResolver(IndirectJumpResolver):
         # matching complete
         addr = (gp + add_const) & 0xFFFF_FFFF
         try:
-            target = self.project.loader.memory.unpack_word(addr, size=4)
-            return target
+            return self.project.loader.memory.unpack_word(addr, size=4)
         except KeyError:
             return None
 
-    def _try_handle_simple_case_1(self, gp: int, blade: Blade) -> Optional[int]:
+    def _try_handle_simple_case_1(self, gp: int, blade: Blade) -> int | None:
         # we only attempt to support the following case:
         #  + A | t22 = GET:I32(gp)
         #  + B | t21 = Add32(t22,0xffff8020)
@@ -367,7 +360,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         stmt = end_block.statements[previous_node[1]]
         if (
             not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or not stmt.tmp == t9_tmp_G
+            or stmt.tmp != t9_tmp_G
             or not isinstance(stmt.data, pyvex.IRExpr.Binop)
             or stmt.data.op != "Iop_Add32"
             or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
@@ -450,13 +443,12 @@ class MipsElfFastResolver(IndirectJumpResolver):
         addr = (gp + add_const) & 0xFFFF_FFFF
         try:
             target_0 = self.project.loader.memory.unpack_word(addr, size=4)
-            target = (target_0 + t9_add_const) & 0xFFFF_FFFF
-            return target
+            return (target_0 + t9_add_const) & 0xFFFF_FFFF
         except KeyError:
             return None
 
     @staticmethod
-    def _previous_node(blade: Blade, curr_node: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+    def _previous_node(blade: Blade, curr_node: tuple[int, int]) -> tuple[int, int] | None:
         if blade.slice.in_degree(curr_node) != 1:
             return None
         nn = next(iter(blade.slice.predecessors(curr_node)))
@@ -472,28 +464,31 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Load from memory to a tmp - assuming it's loading from the stack
                     tmps[stmt.tmp] = "stack"
-                elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset:
-                    if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                        tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                        if tmps.get(tmp_offset, None) == "stack":
-                            # found the load from stack
-                            # we must make sure value of that temporary variable equals to the correct gp value
-                            state.inspect.make_breakpoint(
-                                "tmp_write",
-                                when=BP_BEFORE,
-                                condition=(
-                                    lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
-                                    == bbl_addr_
-                                    and s.inspect.tmp_write_num == tmp_offset_
-                                ),
-                                action=OverwriteTmpValueCallback(gp_value).overwrite_tmp_value,
-                            )
-                            break
+                elif (
+                    isinstance(stmt, pyvex.IRStmt.Put)
+                    and stmt.offset == gp_offset
+                    and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                ):
+                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
+                    if tmps.get(tmp_offset) == "stack":
+                        # found the load from stack
+                        # we must make sure value of that temporary variable equals to the correct gp value
+                        state.inspect.make_breakpoint(
+                            "tmp_write",
+                            when=BP_BEFORE,
+                            condition=(
+                                lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
+                                == bbl_addr_
+                                and s.inspect.tmp_write_num == tmp_offset_
+                            ),
+                            action=OverwriteTmpValueCallback(gp_value).overwrite_tmp_value,
+                        )
+                        break
 
     @staticmethod
     def _is_gp_used_on_slice(project, b: Blade) -> bool:
         gp_offset = project.arch.registers["gp"][0]
-        blocks_on_slice: Dict[int, "Block"] = {}
+        blocks_on_slice: dict[int, Block] = {}
         for block_addr, block_stmt_idx in b.slice.nodes():
             if block_addr not in blocks_on_slice:
                 blocks_on_slice[block_addr] = project.factory.block(block_addr, cross_insn_opt=False)

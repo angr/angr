@@ -2,6 +2,8 @@
 Manage OS-level configuration.
 """
 
+from __future__ import annotations
+
 from collections import defaultdict
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
@@ -21,7 +23,7 @@ def register_simos(name, cls):
 
 
 # Pulling in all EI_OSABI options supported by elftools
-for k, v in _DESCR_EI_OSABI.items():
+for _k, v in _DESCR_EI_OSABI.items():
     register_simos(v, SimLinux)
 
 register_simos("linux", SimLinux)

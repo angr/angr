@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from ..analyses import AnalysesHub
@@ -57,12 +58,11 @@ class VtableFinder(Analysis):
                     cur_addr = sec.vaddr + offset
                     possible_func_addr = self.project.loader.memory.unpack_word(cur_addr)
                     # check if this address is referenced in the code segment
-                    if self.is_cross_referenced(cur_addr):
-                        # check if it is also a function, if so then it is possibly a vtable start
-                        if self.is_function(possible_func_addr):
-                            new_vtable = self.create_extract_vtable(cur_addr, sec.memsize)
-                            if new_vtable is not None:
-                                list_vtables.append(new_vtable)
+                    # check if it is also a function, if so then it is possibly a vtable start
+                    if self.is_cross_referenced(cur_addr) and self.is_function(possible_func_addr):
+                        new_vtable = self.create_extract_vtable(cur_addr, sec.memsize)
+                        if new_vtable is not None:
+                            list_vtables.append(new_vtable)
 
         return list_vtables
 

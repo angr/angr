@@ -1,10 +1,11 @@
+from __future__ import annotations
+import logging
 from collections import defaultdict
 from itertools import chain
-import logging
 
-from networkx import NetworkXError
-
+import claripy
 from cle.backends.cgc import CGC
+from networkx import NetworkXError
 
 from .errors import IdentifierException
 from .functions import Functions
@@ -75,9 +76,7 @@ class Identifier(Analysis):
 
         self.base_symbolic_state = self.make_symbolic_state(self.project, self._reg_list)
         self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
-        self.base_symbolic_state.regs.bp = self.base_symbolic_state.solver.BVS(
-            "sreg_" + "ebp" + "-", self.project.arch.bits
-        )
+        self.base_symbolic_state.regs.bp = claripy.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
         for f in self._cfg.functions.values():
             if f.is_syscall:
@@ -105,9 +104,7 @@ class Identifier(Analysis):
                 l.debug("Simulation error: %s", e)
 
     def _too_large(self):
-        if len(self._cfg.functions) > 400:
-            return True
-        return False
+        return len(self._cfg.functions) > 400
 
     def run(self, only_find=None):
         if only_find is not None:
@@ -194,9 +191,8 @@ class Identifier(Analysis):
             for s in succ:
                 if s in self._cfg.functions:
                     f = self._cfg.functions[s]
-                    if f in self.matches:
-                        if self.matches[f][0] == name:
-                            return True
+                    if f in self.matches and self.matches[f][0] == name:
+                        return True
             to_process.extend(succ)
         return False
 
@@ -308,7 +304,7 @@ class Identifier(Analysis):
 
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
         for i in range(func_info.frame_size // self.project.arch.bytes + 5):
-            s.stack_push(s.solver.BVS("var_" + hex(i), self.project.arch.bits))
+            s.stack_push(claripy.BVS("var_" + hex(i), self.project.arch.bits))
 
         if func_info.bp_based:
             s.regs.bp = s.regs.sp + func_info.bp_sp_diff
@@ -322,23 +318,22 @@ class Identifier(Analysis):
             for ss in simgr.active:
                 # todo could write symbolic data to pointers passed to functions
                 if ss.history.jumpkind == "Ijk_Call":
-                    ss.regs.eax = ss.solver.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
+                    ss.regs.eax = claripy.BVS(f"unconstrained_ret_{ss.addr:#x}", ss.arch.bits)
                     ss.regs.ip = ss.stack_pop()
                     ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
                     simgr.stashes["active"] = [ss]
                     stepped = True
                     break
-            if not stepped:
-                if len(simgr.unconstrained) > 0:
-                    s = simgr.unconstrained[0]
-                    if s.history.jumpkind == "Ijk_Call":
-                        s.regs.eax = s.solver.BVS("unconstrained_ret", s.arch.bits)
-                        s.regs.ip = s.stack_pop()
-                        s.history.jumpkind = "Ijk_Ret"
-                    s.regs.ip = addr_trace[0]
-                    simgr.stashes["active"] = [s]
-                    stepped = True
+            if not stepped and len(simgr.unconstrained) > 0:
+                s = simgr.unconstrained[0]
+                if s.history.jumpkind == "Ijk_Call":
+                    s.regs.eax = claripy.BVS("unconstrained_ret", s.arch.bits)
+                    s.regs.ip = s.stack_pop()
+                    s.history.jumpkind = "Ijk_Ret"
+                s.regs.ip = addr_trace[0]
+                simgr.stashes["active"] = [s]
+                stepped = True
             if not stepped:
                 raise IdentifierException("could not get call args")
             addr_trace = addr_trace[1:]
@@ -370,11 +365,11 @@ class Identifier(Analysis):
         addr_trace = []
         while len(list(calling_func.transition_graph.predecessors(start))) == 1:
             # stop at a call, could continue farther if no stack addr passed etc
-            prev_block = list(calling_func.transition_graph.predecessors(start))[0]
-            addr_trace = [start.addr] + addr_trace
+            prev_block = next(iter(calling_func.transition_graph.predecessors(start)))
+            addr_trace = [start.addr, *addr_trace]
             start = prev_block
 
-        addr_trace = [start.addr] + addr_trace
+        addr_trace = [start.addr, *addr_trace]
         succ_state = None
         while len(addr_trace):
             try:
@@ -424,8 +419,7 @@ class Identifier(Analysis):
         while reg_offset >= 0 and reg_offset >= original_offset - (arch.bytes):
             if reg_offset in arch.register_names:
                 return arch.register_names[reg_offset]
-            else:
-                reg_offset -= 1
+            reg_offset -= 1
         return None
 
     @staticmethod
@@ -437,7 +431,7 @@ class Identifier(Analysis):
         state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            state.registers.store(reg, state.solver.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
+            state.registers.store(reg, claripy.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
         # restore sp
         state.regs.sp = input_state.regs.sp
         # restore bp
@@ -477,7 +471,7 @@ class Identifier(Analysis):
         initial_state = self.base_symbolic_state.copy()
 
         reg_dict = {}
-        for r in self._reg_list + [self._bp_reg]:
+        for r in [*self._reg_list, self._bp_reg]:
             reg_dict[hash(initial_state.registers.load(r))] = r
 
         initial_state.regs.ip = func.startpoint.addr
@@ -514,7 +508,7 @@ class Identifier(Analysis):
         # find the end of the preamble
         num_preamble_inst = None
         succ = None
-        for i in range(0, self.project.factory.block(func.startpoint.addr).instructions):
+        for i in range(self.project.factory.block(func.startpoint.addr).instructions):
             if i == 0:
                 succ = initial_state
             if i != 0:
@@ -540,7 +534,7 @@ class Identifier(Analysis):
         initial_sp = initial_state.solver.eval(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
-            raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
+            raise IdentifierException(f"preamble checks failed for {func.startpoint.addr:#x}")
 
         bp_based = bool(len(succ.solver.eval_upto((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
 
@@ -557,10 +551,9 @@ class Identifier(Analysis):
         for a in succ.history.recent_actions:
             if a.type == "mem" and a.action == "write":
                 addr = succ.solver.eval(a.addr.ast)
-                if min_sp <= addr <= initial_sp:
-                    if hash(a.data.ast) in reg_dict:
-                        pushed_regs.append(reg_dict[hash(a.data.ast)])
-        pushed_regs = pushed_regs[::-1]
+                if min_sp <= addr <= initial_sp and hash(a.data.ast) in reg_dict:
+                    pushed_regs.append(reg_dict[hash(a.data.ast)])
+        pushed_regs.reverse()
         # found the preamble
 
         # find the ends of the function
@@ -600,11 +593,11 @@ class Identifier(Analysis):
         for bl_addr in func.block_addrs:
             all_addrs.update(set(self._cfg.model.get_any_node(bl_addr).instruction_addrs))
 
-        sp = main_state.solver.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
+        sp = claripy.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
         main_state.regs.sp = sp
         bp = None
         if bp_based:
-            bp = main_state.solver.BVS("sym_bp", self.project.arch.bits, explicit_name=True)
+            bp = claripy.BVS("sym_bp", self.project.arch.bits, explicit_name=True)
             main_state.regs.bp = bp
 
         stack_vars = set()
@@ -628,9 +621,10 @@ class Identifier(Analysis):
             written_regs = set()
             # we can get stack variables via memory actions
             for a in succ.history.recent_actions:
-                if a.type == "mem":
-                    if "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables):
-                        possible_stack_vars.append((addr, a.addr.ast, a.action))
+                if a.type == "mem" and (
+                    "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables)
+                ):
+                    possible_stack_vars.append((addr, a.addr.ast, a.action))
                 if a.type == "reg" and a.action == "write":
                     # stack variables can also be if a stack addr is loaded into a register, eg lea
                     reg_name = self.get_reg_name(self.project.arch, a.offset)
@@ -659,10 +653,7 @@ class Identifier(Analysis):
                     sp_off = 2**self.project.arch.bits - sp_off
 
                 # get the offsets
-                if bp_based:
-                    bp_off = sp_off - bp_sp_diff
-                else:
-                    bp_off = sp_off - (initial_sp - min_sp) + self.project.arch.bytes
+                bp_off = sp_off - bp_sp_diff if bp_based else sp_off - (initial_sp - min_sp) + self.project.arch.bytes
 
                 stack_var_accesses[bp_off].add((addr, action))
                 stack_vars.add(bp_off)
@@ -731,7 +722,7 @@ class Identifier(Analysis):
     def _sets_ebp_from_esp(self, state, addr):
         state = state.copy()
         state.regs.ip = addr
-        state.regs.sp = state.solver.BVS("sym_sp", 32, explicit_name=True)
+        state.regs.sp = claripy.BVS("sym_sp", 32, explicit_name=True)
         succ = self.project.factory.successors(state).all_successors[0]
 
         diff = state.regs.sp - succ.regs.bp
@@ -739,16 +730,12 @@ class Identifier(Analysis):
             return True
         if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
             return False
-        if len(succ.solver.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
-            return True
-        return False
+        return len(succ.solver.eval_upto(state.regs.sp - succ.regs.bp, 2)) == 1
 
     @staticmethod
     def _is_bt(bl):
         # vex does really weird stuff with bit test instructions
-        if bl.bytes.startswith(b"\x0f\xa3"):
-            return True
-        return False
+        return bool(bl.bytes.startswith(b"\x0f\xa3"))
 
     @staticmethod
     def _is_jump_or_call(bl):
@@ -756,19 +743,12 @@ class Identifier(Analysis):
             return True
         if len(bl.vex.constant_jump_targets) != 1:
             return True
-        if next(iter(bl.vex.constant_jump_targets)) != bl.addr + bl.size:
-            return True
-
-        return False
+        return next(iter(bl.vex.constant_jump_targets)) != bl.addr + bl.size
 
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:
             for e in chain([s], s.expressions):
-                if e.tag == "Iex_Get":
-                    reg = self.get_reg_name(self.project.arch, e.offset)
-                    if reg == "ebp" or reg == "esp":
-                        return False
-                elif e.tag == "Ist_Put":
+                if e.tag == "Iex_Get" or e.tag == "Ist_Put":
                     reg = self.get_reg_name(self.project.arch, e.offset)
                     if reg == "ebp" or reg == "esp":
                         return False
@@ -789,9 +769,8 @@ class Identifier(Analysis):
     @staticmethod
     def _non_normal_args(stack_args):
         for i, arg in enumerate(stack_args):
-            if arg != i * 4:
-                return True
-            return False
+            return arg != i * 4
+        return None
 
     @staticmethod
     def make_initial_state(project, stack_length):
@@ -818,7 +797,7 @@ class Identifier(Analysis):
                 options.TRACK_CONSTRAINT_ACTIONS,
             }
         )
-        symbolic_stack = initial_state.solver.BVS("symbolic_stack", project.arch.bits * stack_length)
+        symbolic_stack = claripy.BVS("symbolic_stack", project.arch.bits * stack_length)
         initial_state.memory.store(initial_state.regs.sp, symbolic_stack)
         if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
             initial_state.regs.bp = initial_state.regs.sp + 20 * initial_state.arch.bytes
@@ -835,7 +814,7 @@ class Identifier(Analysis):
         symbolic_state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            symbolic_state.registers.store(reg, symbolic_state.solver.BVS("sreg_" + reg + "-", project.arch.bits))
+            symbolic_state.registers.store(reg, claripy.BVS("sreg_" + reg + "-", project.arch.bits))
         # restore sp
         symbolic_state.regs.sp = input_state.regs.sp
         # restore bp

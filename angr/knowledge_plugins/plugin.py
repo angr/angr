@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -7,7 +8,7 @@ default_plugins = {}
 
 
 class KnowledgeBasePlugin:
-    def __init__(self, kb: "KnowledgeBase"):
+    def __init__(self, kb: KnowledgeBase):
         # This call is needed, because some Plugins like TypesStore inherit from KnowledgeBasePlugin and something else
         # So we still need to call the constructor of the other class.
         super().__init__()

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 
 from ..func import Func, TestData
@@ -28,7 +29,7 @@ class strcmp(Func):
         l = 5
         rand_str(l, strcmp.non_null)  # s
 
-        return None
+        return
 
     def can_call_other_funcs(self):
         return False

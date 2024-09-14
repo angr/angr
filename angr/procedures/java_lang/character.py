@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 import logging
 
@@ -26,6 +27,4 @@ class CharacterIsSpaceChar(JavaSimProcedure):
         char_str = self.state.memory.load(char_ref)
 
         # Should we add other unicode SPACE_SEPARATOR?
-        constraint = claripy.If(char_str == " ", claripy.BVV(1, 32), claripy.BVV(0, 32))
-
-        return constraint
+        return claripy.If(char_str == " ", claripy.BVV(1, 32), claripy.BVV(0, 32))

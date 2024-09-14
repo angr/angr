@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 from unittest import main, TestCase
 
 import networkx
@@ -55,7 +56,7 @@ class TestFunction(TestCase):
             ]
         )
 
-        self.assertEqual(function.functions_called(), {C, D, E})
+        self.assertEqual(function.functions_reachable(), {C, D, E})
 
     def test_functions_called_with_recursive_function(self):
         recursive_function = makeFunction(self.function_manager, 0x40, "recursive_function")
@@ -70,7 +71,7 @@ class TestFunction(TestCase):
             ]
         )
 
-        self.assertEqual(recursive_function.functions_called(), {recursive_function, B})
+        self.assertEqual(recursive_function.functions_reachable(), {recursive_function, B})
 
     def test_functions_called_with_cyclic_dependencies(self):
         function = makeFunction(self.function_manager, 0x42, "function")
@@ -84,7 +85,7 @@ class TestFunction(TestCase):
             ]
         )
 
-        self.assertEqual(function.functions_called(), {function, C})
+        self.assertEqual(function.functions_reachable(), {function, C})
 
 
 if __name__ == "__main__":

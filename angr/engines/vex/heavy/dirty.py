@@ -1,7 +1,8 @@
-import claripy
-
+from __future__ import annotations
 import logging
 import time
+
+import claripy
 
 from angr import sim_options as o, errors
 
@@ -20,16 +21,16 @@ l = logging.getLogger(name=__name__)
 # http://www.cap-lore.com/code/TB/
 def ppcg_dirtyhelper_MFTB(state):
     # TODO: This is an incorrect implementation. Fix it later!
-    return state.solver.BVV(0x200, 64), []
+    return claripy.BVV(0x200, 64), []
 
 
 def ppc32g_dirtyhelper_MFSPR_287(state):
-    return state.solver.BVV(0x200, 32), []
+    return claripy.BVV(0x200, 32), []
 
 
 def amd64g_dirtyhelper_RDTSC(state):
     if o.USE_SYSTEM_TIMES in state.options:
-        val = state.solver.BVV(int(time.process_time() * 1000000) + 12345678, 64)
+        val = claripy.BVV(int(time.process_time() * 1000000) + 12345678, 64)
     else:
         val = state.solver.BVS("RDTSC", 64, key=("hardware", "rdtsc"))
     return val, []
@@ -121,15 +122,13 @@ EmWarn_S390X_invalid_rounding = 11
 def amd64g_check_ldmxcsr(state, mxcsr):
     rmode = state.solver.LShR(mxcsr, 13) & 3
 
-    ew = state.solver.If(
+    ew = claripy.If(
         (mxcsr & 0x1F80) != 0x1F80,
-        state.solver.BVV(EmWarn_X86_sseExns, 64),
-        state.solver.If(
+        claripy.BVV(EmWarn_X86_sseExns, 64),
+        claripy.If(
             mxcsr & (1 << 15) != 0,
-            state.solver.BVV(EmWarn_X86_fz, 64),
-            state.solver.If(
-                mxcsr & (1 << 6) != 0, state.solver.BVV(EmWarn_X86_daz, 64), state.solver.BVV(EmNote_NONE, 64)
-            ),
+            claripy.BVV(EmWarn_X86_fz, 64),
+            claripy.If(mxcsr & (1 << 6) != 0, claripy.BVV(EmWarn_X86_daz, 64), claripy.BVV(EmNote_NONE, 64)),
         ),
     )
 
@@ -138,7 +137,7 @@ def amd64g_check_ldmxcsr(state, mxcsr):
 
 # see canonical implementation of this in guest_amd64_helpers.c
 def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
-    w32 = state.solver.BVV(
+    w32 = claripy.BVV(
         (state.mem[state.solver.eval(addr) + 12 * 2].short.concrete & 0xFFFF)
         | ((state.mem[state.solver.eval(addr) + 13 * 2].short.concrete & 0xFFFF) << 16),
         64,
@@ -348,7 +347,7 @@ def x86g_dirtyhelper_SxDT(state, addr, op):
     if not op.concrete:
         # resolved failed
         return None, []
-    elif op.concrete_value == 0:
+    if op.concrete_value == 0:
         state.memory.store(addr, state.solver.Unconstrained("SIDT", 48))
     elif op.concrete_value == 1:
         state.memory.store(addr, state.regs.gdt)
@@ -365,7 +364,7 @@ def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
     base = state.memory.load(addr + 2, 4, endness="Iend_LE")
 
     if op.concrete_value == 2:
-        state.regs.gdt = state.solver.Concat(base, limit).zero_extend(16)
+        state.regs.gdt = claripy.Concat(base, limit).zero_extend(16)
     elif op.concrete_value == 3:
         # LIDT is a nop
         pass
@@ -398,8 +397,8 @@ def x86g_dirtyhelper_loadF80le(state, addr):
     mantissa = tbyte[62:0]
 
     normalized_exponent = exponent[10:0] - 16383 + 1023
-    zero_exponent = state.solver.BVV(0, 11)
-    inf_exponent = state.solver.BVV(-1, 11)
+    zero_exponent = claripy.BVV(0, 11)
+    inf_exponent = claripy.BVV(-1, 11)
     final_exponent = claripy.If(
         exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent)
     )
@@ -424,8 +423,8 @@ def x86g_dirtyhelper_storeF80le(state, addr, qword):
     mantissa = qword[51:0]
 
     normalized_exponent = exponent.zero_extend(4) - 1023 + 16383
-    zero_exponent = state.solver.BVV(0, 15)
-    inf_exponent = state.solver.BVV(-1, 15)
+    zero_exponent = claripy.BVV(0, 15)
+    inf_exponent = claripy.BVV(-1, 15)
     final_exponent = claripy.If(
         exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent)
     )
@@ -451,7 +450,7 @@ def x86g_dirtyhelper_RDMSR(state, msr):
     except errors.SimSolverError:
         return state.solver.BVS("rdmsr_?", 64, key=("cpu", "rdmsr", "?")), []
     else:
-        return state.solver.BVS("rdmsr_%#x" % msr_conc, 64, key=("cpu", "rdmsr", msr_conc), eternal=True), []
+        return state.solver.BVS(f"rdmsr_{msr_conc:#x}", 64, key=("cpu", "rdmsr", msr_conc), eternal=True), []
 
 
 def x86g_dirtyhelper_XGETBV(state, reg):
@@ -460,7 +459,7 @@ def x86g_dirtyhelper_XGETBV(state, reg):
     except errors.SimSolverError:
         return state.solver.BVS("xgetbv_?", 64, key=("cpu", "xgetbv", "?")), []
     else:
-        return state.solver.BVS("xgetbv_%#x" % reg_conc, 64, key=("cpu", "xgetbv", reg_conc), eternal=True), []
+        return state.solver.BVS(f"xgetbv_{reg_conc:#x}", 64, key=("cpu", "xgetbv", reg_conc), eternal=True), []
 
 
 amd64g_dirtyhelper_RDMSR = x86g_dirtyhelper_RDMSR

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import cast
 
 import angr  # For type annotations; pylint: disable=unused-import
@@ -43,7 +44,7 @@ class SimStatePlugin:
         ``SimStatePlugin.memo``
 
         The base implementation of this function constructs a new instance of the plugin's class without calling its
-        initializer. If you super-call down to it, make sure you instanciate all the fields in your copy method!
+        initializer. If you super-call down to it, make sure you instantiate all the fields in your copy method!
 
         :param memo:    A dictionary mapping object identifiers (id(obj)) to their copied instance.  Use this to avoid
                         infinite recursion and diverged copies.
@@ -63,10 +64,9 @@ class SimStatePlugin:
                 memo = {}
             if id(self) in memo:
                 return memo[id(self)]
-            else:
-                c = f(self, memo, **kwargs)
-                memo[id(self)] = c
-                return c
+            c = f(self, memo, **kwargs)
+            memo[id(self)] = c
+            return c
 
         return inner
 
@@ -98,8 +98,8 @@ class SimStatePlugin:
         ``state.solver.union(values)``.
         TODO: fish please make this less bullshit
 
-        There is a utility ``state.solver.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
-        Use it like ``self.bar = self.state.solver.ite_cases(zip(conditions[1:], [o.bar for o in others]), self.bar)``
+        There is a utility ``claripy.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
+        Use it like ``self.bar = claripy.ite_cases(zip(conditions[1:], [o.bar for o in others]), self.bar)``
 
         :param others: the other state plugins to merge with
         :param merge_conditions: a symbolic condition for each of the plugins
@@ -107,7 +107,7 @@ class SimStatePlugin:
         :returns: True if the state plugins are actually merged.
         :rtype: bool
         """
-        raise NotImplementedError("merge() not implement for %s" % self.__class__.__name__)
+        raise NotImplementedError(f"merge() not implement for {self.__class__.__name__}")
 
     def widen(self, others):  # pylint:disable=unused-argument
         """
@@ -120,7 +120,7 @@ class SimStatePlugin:
         :returns: True if the state plugin is actually widened.
         :rtype: bool
         """
-        raise NotImplementedError("widen() not implemented for %s" % self.__class__.__name__)
+        raise NotImplementedError(f"widen() not implemented for {self.__class__.__name__}")
 
     @classmethod
     def register_default(cls, name, xtr=None):
@@ -152,4 +152,3 @@ class SimStatePlugin:
         """
         Use this function to perform any initialization on the state at plugin-add time
         """
-        pass

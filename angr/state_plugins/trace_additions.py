@@ -12,6 +12,8 @@ This can happen in challenge response if all of the values in the flag page are 
 before being printed.
 """
 
+from __future__ import annotations
+
 import logging
 import string
 
@@ -52,10 +54,9 @@ class FormatInfoStrToInt(FormatInfo):
         self.input_base = None
 
     def copy(self):
-        out = FormatInfoStrToInt(
+        return FormatInfoStrToInt(
             self.addr, self.func_name, self.str_arg_num, self.base, self.base_arg, self.allows_negative
         )
-        return out
 
     def compute(self, state):
         self.input_val = angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.str_arg_num)
@@ -92,10 +93,9 @@ class FormatInfoIntToStr(FormatInfo):
         self.str_dst_addr = None
 
     def copy(self):
-        out = FormatInfoIntToStr(
+        return FormatInfoIntToStr(
             self.addr, self.func_name, self.int_arg_num, self.str_dst_num, self.base, self.base_arg
         )
-        return out
 
     def compute(self, state):
         self.input_val = angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.int_arg_num)
@@ -120,8 +120,7 @@ class FormatInfoDontConstrain(FormatInfo):
         self.check_symbolic_arg = check_symbolic_arg
 
     def copy(self):
-        out = FormatInfoDontConstrain(self.addr, self.func_name, self.check_symbolic_arg)
-        return out
+        return FormatInfoDontConstrain(self.addr, self.func_name, self.check_symbolic_arg)
 
     def compute(self, state):
         pass
@@ -196,7 +195,7 @@ def end_info_hook(state):
     if pending_info.get_type() == "StrToInt":
         # mark the input
         input_val = state.mem[pending_info.input_val].string.resolved
-        result = state.solver.BVV(state.solver.eval(state.regs.eax, cast_to=bytes))
+        result = claripy.BVV(state.solver.eval(state.regs.eax, cast_to=bytes))
         real_len = chall_resp_plugin.get_real_len(
             input_val, pending_info.input_base, result, pending_info.allows_negative
         )
@@ -207,7 +206,7 @@ def end_info_hook(state):
             return
 
         # result constraint
-        new_var = state.solver.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", 32)
+        new_var = claripy.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", 32)
         constraint = new_var == result
         chall_resp_plugin.replacement_pairs.append((new_var, state.regs.eax))
         state.regs.eax = new_var
@@ -215,7 +214,7 @@ def end_info_hook(state):
         # finish marking the input
         input_val = state.memory.load(pending_info.input_val, real_len)
         l.debug("string len was %d, value was %d", real_len, state.solver.eval(result))
-        input_bvs = state.solver.BVS(
+        input_bvs = claripy.BVS(
             pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", input_val.size()
         )
         chall_resp_plugin.str_to_int_pairs.append((input_bvs, new_var))
@@ -224,23 +223,19 @@ def end_info_hook(state):
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
     elif pending_info.get_type() == "IntToStr":
         # result constraint
-        result = state.solver.BVV(
-            state.solver.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes)
-        )
+        result = claripy.BVV(state.solver.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes))
         if result is None or result.size() == 0:
             l.warning("zero len string")
             chall_resp_plugin.pop_from_backup()
             return
-        new_var = state.solver.BVS(
-            pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", result.size()
-        )
+        new_var = claripy.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", result.size())
         chall_resp_plugin.replacement_pairs.append((new_var, state.mem[pending_info.str_dst_addr].string.resolved))
         state.memory.store(pending_info.str_dst_addr, new_var)
         constraint = new_var == result
 
         # mark the input
         input_val = pending_info.input_val
-        input_bvs = state.solver.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", 32)
+        input_bvs = claripy.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", 32)
         chall_resp_plugin.int_to_str_pairs.append((input_bvs, new_var))
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
         # here we need the constraint that the input was equal to the StrToInt_input
@@ -257,7 +252,7 @@ def end_info_hook(state):
     state.solver._solver.add_replacement(new_var, result, invalidate_cache=False)
     # dont add this constraint to preconstraints or we lose real constraints
     # chall_resp_plugin.tracer.preconstraints.append(constraint)
-    chall_resp_plugin.state.preconstrainer.variable_map[list(new_var.variables)[0]] = constraint
+    chall_resp_plugin.state.preconstrainer.variable_map[next(iter(new_var.variables))] = constraint
     chall_resp_plugin.pop_from_backup()
 
 
@@ -289,7 +284,7 @@ def syscall_hook(state):
         stdin_min_stdout_reads = state.get_plugin("chall_resp_info").stdin_min_stdout_reads
         stdout_pos = state.solver.eval(state.posix.fd[1].write_pos)
         stdin_pos = state.solver.eval(state.posix.fd[0].read_pos)
-        for i in range(0, stdin_pos):
+        for i in range(stdin_pos):
             if i not in stdin_min_stdout_reads:
                 stdin_min_stdout_reads[i] = stdout_pos
 
@@ -298,8 +293,8 @@ def syscall_hook(state):
         num_bytes = state.solver.eval(state.regs.ecx)
         buf = state.solver.eval(state.regs.ebx)
         if num_bytes != 0:
-            rand_bytes = state.solver.BVS("random", num_bytes * 8)
-            concrete_val = state.solver.BVV("A" * num_bytes)
+            rand_bytes = claripy.BVS("random", num_bytes * 8)
+            concrete_val = claripy.BVV("A" * num_bytes)
             state.solver._solver.add_replacement(rand_bytes, concrete_val, invalidate_cache=False)
             state.memory.store(buf, rand_bytes)
 
@@ -460,7 +455,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
     def get_same_length_constraints(self):
         constraints = []
         for str_var, int_var in self.str_to_int_pairs:
-            int_var_name = list(int_var.variables)[0]
+            int_var_name = next(iter(int_var.variables))
             base = int(int_var_name.split("_")[1], 10)
             original_len = str_var.size() // 8
             abs_max = (1 << int_var.size()) - 1
@@ -494,26 +489,22 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
             for _, int_var in chall_resp_plugin.str_to_int_pairs:
                 vars_to_solve.append(int_var)
 
-            if require_same_length:
-                extra_constraints = chall_resp_plugin.get_same_length_constraints()
-            else:
-                extra_constraints = []
+            extra_constraints = chall_resp_plugin.get_same_length_constraints() if require_same_length else []
 
             solns = state.solver._solver.batch_eval(vars_to_solve, 1, extra_constraints=extra_constraints)
             if len(solns) == 0:
                 if require_same_length:
                     l.warning("could not satisfy with same length, falling back to different lengths")
                     return ChallRespInfo.atoi_dumps(state, require_same_length=False)
-                else:
-                    return state.posix.dumps(0)
+                return state.posix.dumps(0)
             solns = solns[0]
 
             # now make the real stdin
-            stdin = state.solver.eval(state.solver.BVV(solns[0], pos * 8), cast_to=bytes)
+            stdin = state.solver.eval(claripy.BVV(solns[0], pos * 8), cast_to=bytes)
 
             stdin_replacements = []
             for soln, (_, int_var) in zip(solns[1:], chall_resp_plugin.str_to_int_pairs):
-                int_var_name = list(int_var.variables)[0]
+                int_var_name = next(iter(int_var.variables))
                 indices = chall_resp_plugin.get_stdin_indices(int_var_name)
                 if len(indices) == 0:
                     continue
@@ -530,9 +521,8 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
 
             # filter for same start with value 0
             for i in list(stdin_replacements):
-                if any(ii[0] == i[0] and ii[2] != i[2] for ii in stdin_replacements):
-                    if int(i[2]) == 0:
-                        stdin_replacements.remove(i)
+                if any(ii[0] == i[0] and ii[2] != i[2] for ii in stdin_replacements) and int(i[2]) == 0:
+                    stdin_replacements.remove(i)
 
             # now do the replacing
             offset = 0
@@ -573,7 +563,7 @@ def zen_hook(state, expr):
     if state.has_plugin("chall_resp_info") and state.get_plugin("chall_resp_info").pending_info is not None:
         return None
 
-    if expr.op not in claripy.operations.leaf_operations and expr.op != "Concat":
+    if expr.is_leaf() and expr.op != "Concat":
         # if there is more than one symbolic argument we replace it and preconstrain it
         flag_args = ZenPlugin.get_flag_rand_args(expr)
         if len(flag_args) > 1:
@@ -597,17 +587,17 @@ def zen_hook(state, expr):
                     con = replacement == expr
                     state.add_constraints(con)
                     contained_bytes = zen_plugin.get_flag_bytes(expr)
-                    zen_plugin.byte_dict[list(replacement.variables)[0]] = contained_bytes
+                    zen_plugin.byte_dict[next(iter(replacement.variables))] = contained_bytes
                     zen_plugin.zen_constraints.append(con)
                     # saves a ton of memory to do this here rather than later
                     zen_plugin.zen_constraints.append(state.solver.simplify(con))
                 else:
                     # otherwise don't add the constraint, just replace
                     depth = 0
-                    zen_plugin.byte_dict[list(replacement.variables)[0]] = set()
+                    zen_plugin.byte_dict[next(iter(replacement.variables))] = set()
 
                 # save and replace
-                var = list(replacement.variables)[0]
+                var = next(iter(replacement.variables))
                 zen_plugin.depths[var] = depth
                 constraint = replacement == concrete_val
                 zen_plugin.state.preconstrainer.preconstraints.append(constraint)
@@ -667,18 +657,17 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         symbolic_args = tuple(a for a in expr.args if isinstance(a, claripy.ast.Base) and a.symbolic)
         flag_args = []
         for a in symbolic_args:
-            if any(v.startswith("cgc-flag") or v.startswith("random") for v in a.variables):
+            if any(v.startswith(("cgc-flag", "random")) for v in a.variables):
                 flag_args.append(a)
         return flag_args
 
     def get_expr_depth(self, expr):
         flag_args = self.get_flag_rand_args(expr)
         flag_arg_vars = set.union(*[set(v.variables) for v in flag_args])
-        flag_arg_vars = {v for v in flag_arg_vars if v.startswith("cgc-flag") or v.startswith("random")}
+        flag_arg_vars = {v for v in flag_arg_vars if v.startswith(("cgc-flag", "random"))}
         if len(flag_arg_vars) == 0:
             return 0
-        depth = max(self.depths.get(v, 0) for v in flag_arg_vars) + 1
-        return depth
+        return max(self.depths.get(v, 0) for v in flag_arg_vars) + 1
 
     @angr.state_plugins.SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument
@@ -717,7 +706,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         for con in constraints:
             if (
                 con.cache_key in zen_cache_keys
-                or not all(v.startswith("cgc-flag") or v.startswith("random") for v in con.variables)
+                or not all(v.startswith(("cgc-flag", "random")) for v in con.variables)
                 or len(con.variables) == 0
             ):
                 new_cons.append(con)
@@ -728,16 +717,13 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         try:
             state.memory.permissions(state.solver.eval(buf))
         except angr.SimMemoryError:
-            l.warning("detected possible arbitary transmit to fd %d", fd)
+            l.warning("detected possible arbitrary transmit to fd %d", fd)
             if fd == 0 or fd == 1:
                 self.controlled_transmits.append((state.copy(), buf))
 
     @staticmethod
     def prep_tracer(state):
-        if state.has_plugin("zen_plugin"):
-            zen_plugin = state.get_plugin("zen_plugin")
-        else:
-            zen_plugin = ZenPlugin()
+        zen_plugin = state.get_plugin("zen_plugin") if state.has_plugin("zen_plugin") else ZenPlugin()
 
         state.register_plugin("zen_plugin", zen_plugin)
         state.inspect.b("reg_write", angr.BP_BEFORE, action=zen_register_write)
@@ -746,7 +732,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         # setup the byte dict
         byte_dict = zen_plugin.byte_dict
         for i, b in enumerate(state.cgc.flag_bytes):
-            var = list(b.variables)[0]
+            var = next(iter(b.variables))
             byte_dict[var] = {i}
 
         state.preconstrainer.preconstraints.extend(zen_plugin.preconstraints)

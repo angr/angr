@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
 from contextlib import suppress
@@ -31,12 +33,12 @@ class TestPickle(unittest.TestCase):
 
     def _load_pickles(self):
         # This is the working case
-        f = open("pickletest_good", "rb")
-        f.close()
+        with open("pickletest_good", "rb"):
+            pass
 
         # This will not work
-        f = open("pickletest_bad", "rb")
-        f.close()
+        with open("pickletest_bad", "rb"):
+            pass
 
     def _make_pickles(self):
         p = angr.Project(os.path.join(test_location, "i386", "fauxware"))
@@ -53,9 +55,8 @@ class TestPickle(unittest.TestCase):
             mem = BVS(f, MEM_SIZE * 8)
             mem_bvv[f] = mem
 
-        f = open("pickletest_good", "wb")
-        pickle.dump(mem_bvv, f, -1)
-        f.close()
+        with open("pickletest_good", "wb") as f:
+            pickle.dump(mem_bvv, f, -1)
 
         # If you do not have a state you cannot write
         _ = p.factory.entry_state(fs=fs)
@@ -63,9 +64,8 @@ class TestPickle(unittest.TestCase):
             mem = mem_bvv[f]
             fs[f].write(0, mem, MEM_SIZE)
 
-        f = open("pickletest_bad", "wb")
-        pickle.dump(mem_bvv, f, -1)
-        f.close()
+        with open("pickletest_bad", "wb") as f:
+            pickle.dump(mem_bvv, f, -1)
 
     def test_pickling(self):
         self._make_pickles()

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from . import JNISimProcedure, jni_functions
@@ -21,5 +22,5 @@ class UnsupportedJNIFunction(JNISimProcedure):
         l.warning("SimProcedure for JNI function %s is not implemented. Returning unconstrained symbol.", function_name)
 
         # return unconstrained
-        symbol_name = "unconstrained_ret_of_jni_func_%s" % function_name
+        symbol_name = f"unconstrained_ret_of_jni_func_{function_name}"
         return self.state.solver.Unconstrained(symbol_name, native_arch_size)

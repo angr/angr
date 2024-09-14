@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 from collections import defaultdict
 import logging
@@ -91,6 +92,4 @@ class Bucketizer(ExplorationTechnique):
             return True
 
         n = math.log2(t[transition])
-        if n.is_integer():
-            return True
-        return False
+        return bool(n.is_integer())

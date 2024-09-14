@@ -1,5 +1,7 @@
 # pylint:disable=missing-class-docstring
-from typing import Dict, Any, Optional, Set, Iterable, Tuple, Union, TYPE_CHECKING
+from __future__ import annotations
+from typing import Any, Union, TYPE_CHECKING
+from collections.abc import Iterable
 from itertools import count
 
 from angr.utils.constants import MAX_POINTSTO_BITS
@@ -18,8 +20,8 @@ TypeType = Union["TypeConstant", "TypeVariable", "DerivedTypeVariable"]
 class TypeConstraint:
     __slots__ = ()
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
-        raise NotImplementedError()
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
+        raise NotImplementedError
 
 
 class Equivalence(TypeConstraint):
@@ -32,7 +34,7 @@ class Equivalence(TypeConstraint):
         self.type_a = type_a
         self.type_b = type_b
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"{self.type_a.pp_str(mapping)} == {self.type_b.pp_str(mapping)}"
 
     def __repr__(self):
@@ -56,11 +58,11 @@ class Existence(TypeConstraint):
     def __init__(self, type_):
         self.type_ = type_
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"V {self.type_.pp_str(mapping)}"
 
     def __repr__(self):
-        return "V %s" % self.type_
+        return f"V {self.type_}"
 
     def __eq__(self, other):
         return type(other) is Existence and self.type_ == other.type_
@@ -72,11 +74,10 @@ class Existence(TypeConstraint):
         if self.type_ in replacements:
             return True, Existence(replacements[self.type_])
 
-        else:
-            replaced, new_type = self.type_.replace(replacements)
-            if replaced:
-                return True, Existence(new_type)
-            return False, self
+        replaced, new_type = self.type_.replace(replacements)
+        if replaced:
+            return True, Existence(new_type)
+        return False, self
 
 
 class Subtype(TypeConstraint):
@@ -89,7 +90,7 @@ class Subtype(TypeConstraint):
         self.super_type = super_type
         self.sub_type = sub_type
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"{self.sub_type.pp_str(mapping)} <: {self.super_type.pp_str(mapping)}"
 
     def __repr__(self):
@@ -126,8 +127,7 @@ class Subtype(TypeConstraint):
                 subtype if subtype is not None else self.sub_type,
                 supertype if supertype is not None else self.super_type,
             )
-        else:
-            return False, self
+        return False, self
 
 
 class Add(TypeConstraint):
@@ -146,12 +146,8 @@ class Add(TypeConstraint):
         self.type_1 = type_1
         self.type_r = type_r
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
-        return "{} == {} + {}".format(
-            self.type_r.pp_str(mapping),
-            self.type_0.pp_str(mapping),
-            self.type_1.pp_str(mapping),
-        )
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
+        return f"{self.type_r.pp_str(mapping)} == {self.type_0.pp_str(mapping)} + {self.type_1.pp_str(mapping)}"
 
     def __repr__(self):
         return f"{self.type_r!r} == {self.type_0!r} + {self.type_1!r}"
@@ -198,8 +194,7 @@ class Add(TypeConstraint):
                 t1 if t1 is not None else self.type_1,
                 tr if tr is not None else self.type_r,
             )
-        else:
-            return False, self
+        return False, self
 
 
 class Sub(TypeConstraint):
@@ -218,12 +213,8 @@ class Sub(TypeConstraint):
         self.type_1 = type_1
         self.type_r = type_r
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
-        return "{} == {} - {}".format(
-            self.type_r.pp_str(mapping),
-            self.type_0.pp_str(mapping),
-            self.type_1.pp_str(mapping),
-        )
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
+        return f"{self.type_r.pp_str(mapping)} == {self.type_0.pp_str(mapping)} - {self.type_1.pp_str(mapping)}"
 
     def __repr__(self):
         return f"{self.type_r!r} == {self.type_0!r} - {self.type_1!r}"
@@ -270,8 +261,7 @@ class Sub(TypeConstraint):
                 t1 if t1 is not None else self.type_1,
                 tr if tr is not None else self.type_r,
             )
-        else:
-            return False, self
+        return False, self
 
 
 _typevariable_counter = count()
@@ -280,18 +270,18 @@ _typevariable_counter = count()
 class TypeVariable:
     __slots__ = ("idx", "name")
 
-    def __init__(self, idx: Optional[int] = None, name: Optional[str] = None):
+    def __init__(self, idx: int | None = None, name: str | None = None):
         if idx is None:
             self.idx: int = next(_typevariable_counter)
         else:
             self.idx: int = idx
         self.name = name
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         varname = mapping.get(self, self.name)
         if varname is None:
             return repr(self)
-        return f"{varname} ({repr(self)})"
+        return f"{varname} ({self!r})"
 
     def __eq__(self, other):
         if type(other) is not TypeVariable:
@@ -317,13 +307,13 @@ class TypeVariable:
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("type_var", "labels")
 
-    type_var: Union[TypeVariable, "TypeConstant"]
+    type_var: TypeVariable | TypeConstant
 
     def __init__(
         self,
-        type_var: Optional[Union[TypeVariable, "DerivedTypeVariable"]],
+        type_var: TypeVariable | DerivedTypeVariable | None,
         label,
-        labels: Optional[Iterable["BaseLabel"]] = None,
+        labels: Iterable[BaseLabel] | None = None,
         idx=None,
     ):
         super().__init__(idx=idx)
@@ -339,27 +329,27 @@ class DerivedTypeVariable(TypeVariable):
             raise TypeError("You cannot specify both label and labels at the same time")
 
         if label is not None:
-            self.labels = existing_labels + (label,)
+            self.labels = (*existing_labels, label)
         else:
-            self.labels: Tuple["BaseLabel"] = existing_labels + tuple(labels)
+            self.labels: tuple[BaseLabel] = existing_labels + tuple(labels)
 
         if not self.labels:
             raise ValueError("A DerivedTypeVariable must have at least one label")
 
-    def one_label(self) -> Optional["BaseLabel"]:
+    def one_label(self) -> BaseLabel | None:
         return self.labels[0] if len(self.labels) == 1 else None
 
-    def path(self) -> Tuple["BaseLabel"]:
+    def path(self) -> tuple[BaseLabel]:
         return self.labels
 
-    def longest_prefix(self) -> Optional[Union[TypeVariable, "DerivedTypeVariable"]]:
+    def longest_prefix(self) -> TypeVariable | DerivedTypeVariable | None:
         if not self.labels:
             return None
         if len(self.labels) == 1:
             return self.type_var
         return DerivedTypeVariable(self.type_var, None, labels=self.labels[:-1])
 
-    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
+    def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return ".".join([self.type_var.pp_str(mapping)] + [repr(lbl) for lbl in self.labels])
 
     def __eq__(self, other):
@@ -390,8 +380,7 @@ class DerivedTypeVariable(TypeVariable):
         if typevar is not None:
             # replacement has happened
             return True, DerivedTypeVariable(typevar, None, labels=self.labels, idx=self.idx)
-        else:
-            return False, self
+        return False, self
 
 
 class TypeVariables:
@@ -401,8 +390,8 @@ class TypeVariables:
     )
 
     def __init__(self):
-        self._typevars: Dict["SimVariable", Set[TypeVariable]] = {}
-        self._last_typevars: Dict[SimVariable, TypeVariable] = {}
+        self._typevars: dict[SimVariable, set[TypeVariable]] = {}
+        self._last_typevars: dict[SimVariable, TypeVariable] = {}
 
     def copy(self):
         copied = TypeVariables()
@@ -418,7 +407,7 @@ class TypeVariables:
         # )
         return "{TypeVars: %d items}" % len(self._typevars)
 
-    def add_type_variable(self, var: "SimVariable", codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
+    def add_type_variable(self, var: SimVariable, codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
         if var not in self._typevars:
             self._typevars[var] = set()
         elif typevar in self._typevars[var]:
@@ -429,7 +418,7 @@ class TypeVariables:
     def get_type_variable(self, var, codeloc):  # pylint:disable=unused-argument
         return self._last_typevars[var]
 
-    def has_type_variable_for(self, var: "SimVariable", codeloc):  # pylint:disable=unused-argument
+    def has_type_variable_for(self, var: SimVariable, codeloc):  # pylint:disable=unused-argument
         return var in self._typevars
         # if codeloc not in self._typevars[var]:
         #     return False
@@ -454,7 +443,7 @@ class BaseLabel:
         return type(self) is type(other) and hash(self) == hash(other)
 
     def __hash__(self):
-        return hash((type(self),) + tuple(getattr(self, k) for k in self.__slots__))
+        return hash((type(self), *tuple(getattr(self, k) for k in self.__slots__)))
 
     @property
     def variance(self) -> Variance:
@@ -468,7 +457,7 @@ class FuncIn(BaseLabel):
         self.loc = loc
 
     def __repr__(self):
-        return "in<%s>" % self.loc
+        return f"in<{self.loc}>"
 
 
 class FuncOut(BaseLabel):
@@ -478,7 +467,7 @@ class FuncOut(BaseLabel):
         self.loc = loc
 
     def __repr__(self):
-        return "out<%s>" % self.loc
+        return f"out<{self.loc}>"
 
 
 class Load(BaseLabel):

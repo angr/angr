@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
@@ -19,7 +20,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
         #
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             mask = expr.operands[1].value
-            to_bits = _MASK_TO_BITS.get(mask, None)
+            to_bits = _MASK_TO_BITS.get(mask)
             if to_bits is None:
                 return None
 

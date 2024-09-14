@@ -1,5 +1,6 @@
+from __future__ import annotations
 import sys
-from typing import Sequence, Optional, Callable
+from collections.abc import Sequence, Callable
 
 
 if sys.platform == "win32":
@@ -25,7 +26,7 @@ def setup_terminal():
     ansi_color_enabled = isatty
 
 
-def ansi_color(s: str, color: Optional[str]) -> str:
+def ansi_color(s: str, color: str | None) -> str:
     """
     Colorize string `s` by wrapping in ANSI escape sequence for given `color`.
 
@@ -62,9 +63,9 @@ def add_edge_to_buffer(
     ref: Sequence[str],
     start: int,
     end: int,
-    formatter: Optional[Callable[[str], str]] = None,
+    formatter: Callable[[str], str] | None = None,
     dashed: bool = False,
-    ascii_only: Optional[bool] = None,
+    ascii_only: bool | None = None,
 ):
     """
     Draw an edge by adding Unicode box and arrow glyphs to beginning of each line in a list of lines.

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
@@ -54,12 +56,14 @@ class TestDdgGlobalVarDependencies(unittest.TestCase):
 
     def check_dependency(self, stmt, addr, const):
         # Check if we are storing a constant to a variable with constant address
-        if stmt.tag == "Ist_Store" and stmt.addr.tag == "Iex_Const" and stmt.data.tag == "Iex_Const":
+        return (
+            stmt.tag == "Ist_Store"
+            and stmt.addr.tag == "Iex_Const"
+            and stmt.data.tag == "Iex_Const"
             # Check if we are storing the specified constant to the specified variable address
-            if stmt.addr.con.value == addr and stmt.data.con.value == const:
-                return True
-
-        return False
+            and stmt.addr.con.value == addr
+            and stmt.data.con.value == const
+        )
 
     def get_ddg_node(self, ddg, block_addr, stmt_idx):
         for node in ddg.graph.nodes:

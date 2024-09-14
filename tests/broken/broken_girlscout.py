@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 import logging
 
@@ -7,10 +8,7 @@ import angr
 
 
 def main():
-    if len(sys.argv) == 2:
-        f = sys.argv[1]
-    else:
-        f = "/home/angr/angr/rearentry/tests/dell-2e0048/dell-2e0048.out"
+    f = sys.argv[1] if len(sys.argv) == 2 else "/home/angr/angr/rearentry/tests/dell-2e0048/dell-2e0048.out"
     # TODO: Determine the architecture and endness
     p = angr.Project(
         f,

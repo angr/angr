@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -8,7 +9,7 @@ class InterlockedExchange(angr.SimProcedure):
             self.state.memory.store(target, value)
         else:
             old_value = self.state.solver.Unconstrained(
-                "unconstrained_ret_%s" % self.display_name, self.state.arch.bits, key=("api", "InterlockedExchange")
+                f"unconstrained_ret_{self.display_name}", self.state.arch.bits, key=("api", "InterlockedExchange")
             )
 
         return old_value

@@ -1,4 +1,4 @@
-from typing import Set, Dict
+from __future__ import annotations
 from collections import defaultdict
 import logging
 
@@ -74,7 +74,7 @@ class StackCanarySimplifier(OptimizationPass):
         # Before node duplication, each pair of canary-check-success and canary-check-failure nodes have a common
         # predecessor.
         # map endpoint addrs to their common predecessors
-        pred_addr_to_endpoint_addrs: Dict[int, Set[int]] = defaultdict(set)
+        pred_addr_to_endpoint_addrs: dict[int, set[int]] = defaultdict(set)
         for node_addr in all_endpoint_addrs:
             preds = self._func.graph.predecessors(self._func.get_node(node_addr))
             for pred in preds:
@@ -144,10 +144,7 @@ class StackCanarySimplifier(OptimizationPass):
                 if len(succs) != 2:
                     _l.debug("Expect 2 successors. Found %d.", len(succs))
                     continue
-                if stack_chk_fail_caller is succs[0]:
-                    ret_node = succs[1]
-                else:
-                    ret_node = succs[0]
+                ret_node = succs[1] if stack_chk_fail_caller is succs[0] else succs[0]
                 nodes_to_process.append((pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node))
 
             # Awesome. Now patch this function.
@@ -183,7 +180,11 @@ class StackCanarySimplifier(OptimizationPass):
 
         while True:
             traversed.add(block_addr)
-            first_block = self._get_block(block_addr)
+            try:
+                first_block = next(self._get_blocks(block_addr))
+            except StopIteration:
+                break
+
             if first_block is None:
                 break
 
@@ -198,9 +199,13 @@ class StackCanarySimplifier(OptimizationPass):
                     op0, op1 = stmt.data.addr.operands
                     if isinstance(op1, ailment.Expr.Register):
                         op0, op1 = op1, op0
-                    if isinstance(op0, ailment.Expr.Register) and isinstance(op1, ailment.Expr.Const):
-                        if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
-                            return first_block, idx
+                    if (
+                        isinstance(op0, ailment.Expr.Register)
+                        and isinstance(op1, ailment.Expr.Const)
+                        and op0.reg_offset == self.project.arch.get_register_offset("fs")
+                        and op1.value == 0x28
+                    ):
+                        return first_block, idx
 
             succs = list(self._graph.successors(first_block))
             if len(succs) == 1:
@@ -277,9 +282,7 @@ class StackCanarySimplifier(OptimizationPass):
     def _is_stack_canary_load_expr(expr, bits: int, canary_value_stack_offset: int) -> bool:
         if not (isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.StackBaseOffset)):
             return False
-        if s2u(expr.addr.offset, bits) != s2u(canary_value_stack_offset, bits):
-            return False
-        return True
+        return s2u(expr.addr.offset, bits) == s2u(canary_value_stack_offset, bits)
 
     @staticmethod
     def _is_random_number_load_expr(expr, fs_reg_offset: int) -> bool:

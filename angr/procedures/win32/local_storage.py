@@ -1,3 +1,6 @@
+from __future__ import annotations
+import claripy
+
 import angr
 
 
@@ -19,7 +22,7 @@ class TlsAlloc(angr.SimProcedure):
     def run(self):
         d = mutate_dict(self.state, self.KEY)
         new_key = len(d) + 1
-        d[new_key] = self.state.solver.BVV(0, self.state.arch.bits)
+        d[new_key] = claripy.BVV(0, self.state.arch.bits)
         return new_key
 
 
@@ -27,10 +30,10 @@ class TlsSetValue(angr.SimProcedure):
     KEY = "win32_tls"
 
     def run(self, index, value):
-        conc_indexs = self.state.solver.eval_upto(index, 2)
-        if len(conc_indexs) != 1:
+        conc_indexes = self.state.solver.eval_upto(index, 2)
+        if len(conc_indexes) != 1:
             raise angr.errors.SimValueError("Can't handle symbolic index in TlsSetValue/FlsSetValue")
-        conc_index = conc_indexs[0]
+        conc_index = conc_indexes[0]
 
         if not has_index(self.state, conc_index, self.KEY):
             return 0
@@ -43,10 +46,10 @@ class TlsGetValue(angr.SimProcedure):
     KEY = "win32_tls"
 
     def run(self, index):
-        conc_indexs = self.state.solver.eval_upto(index, 2)
-        if len(conc_indexs) != 1:
+        conc_indexes = self.state.solver.eval_upto(index, 2)
+        if len(conc_indexes) != 1:
             raise angr.errors.SimValueError("Can't handle symbolic index in TlsGetValue/FlsGetValue")
-        conc_index = conc_indexs[0]
+        conc_index = conc_indexes[0]
 
         if not has_index(self.state, conc_index, self.KEY):
             return 0
@@ -59,7 +62,7 @@ class TlsFree(angr.SimProcedure):
     SETTER = TlsSetValue
 
     def run(self, index):
-        set_val = self.inline_call(self.SETTER, index, self.state.solver.BVV(0, self.state.arch.bits))
+        set_val = self.inline_call(self.SETTER, index, claripy.BVV(0, self.state.arch.bits))
         return set_val.ret_expr
 
 

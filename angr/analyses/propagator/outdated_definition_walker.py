@@ -1,5 +1,7 @@
 # pylint:disable=consider-using-in
-from typing import Optional, Callable, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 from ailment import Block, Stmt, Expr, AILBlockWalker
 
@@ -23,11 +25,11 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         expr,
         expr_defat: CodeLocation,
         current_loc: CodeLocation,
-        state: "PropagatorAILState",
-        arch: "Arch",
-        avoid: Optional[Expr.Expression] = None,
-        extract_offset_to_sp: Callable = None,
-        rda: "ReachingDefinitionsModel" = None,
+        state: PropagatorAILState,
+        arch: Arch,
+        avoid: Expr.Expression | None = None,
+        extract_offset_to_sp: Callable | None = None,
+        rda: ReachingDefinitionsModel = None,
     ):
         super().__init__()
         self.expr = expr
@@ -46,13 +48,13 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.rda = rda
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
+    def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Block | None):
         if self.avoid is not None and expr.likes(self.avoid):
             self.has_avoid = True
 
     # pylint:disable=unused-argument
     def _handle_Register(
-        self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
+        self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Block | None
     ):
         if (
             self.avoid is not None
@@ -70,7 +72,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         if not (codelocs_defat and codelocs_currentloc and codelocs_defat == codelocs_currentloc):
             self.out_dated = True
 
-    def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
+    def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Block | None):
         if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
             self.has_avoid = True
 
@@ -116,26 +118,22 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             # the address is not concrete - we check the address first
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
             # then if the address expression is up-to-date, we check the global store
-            if not self.out_dated:
-                if (
-                    self.state.global_stores
-                    and not all(
-                        self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
-                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
-                    )
-                    or self.state.last_stack_store is not None
-                    and not self._check_store_precedes_load(
-                        CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat
-                    )
-                ):
-                    self.out_dated = True
+            if not self.out_dated and (
+                self.state.global_stores
+                and not all(
+                    self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
+                    for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
+                )
+                or self.state.last_stack_store is not None
+                and not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat)
+            ):
+                self.out_dated = True
 
     def _handle_VEXCCallExpression(
-        self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]
+        self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int, stmt: Stmt.Statement, block: Block | None
     ):
-        if self.avoid is not None:
-            if any(op == self.avoid for op in expr.operands):
-                self.has_avoid = True
+        if self.avoid is not None and any(op == self.avoid for op in expr.operands):
+            self.has_avoid = True
 
         super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -143,12 +141,10 @@ class OutdatedDefinitionWalker(AILBlockWalker):
     def _reg_overlap(reg0: Expr.Register, reg1: Expr.Register) -> bool:
         if reg0.reg_offset <= reg1.reg_offset < reg0.reg_offset + reg0.size:
             return True
-        if reg1.reg_offset <= reg0.reg_offset < reg1.reg_offset + reg1.size:
-            return True
-        return False
+        return reg1.reg_offset <= reg0.reg_offset < reg1.reg_offset + reg1.size
 
     @staticmethod
-    def _check_store_precedes_load(store_defat: Optional[CodeLocation], load_defat: Optional[CodeLocation]) -> bool:
+    def _check_store_precedes_load(store_defat: CodeLocation | None, load_defat: CodeLocation | None) -> bool:
         """
         Check if store precedes load based on their AIL statement IDs.
         """

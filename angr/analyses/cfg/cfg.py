@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 
 from .cfg_fast import CFGFast
@@ -14,7 +15,7 @@ class CFG(CFGFast):  # pylint: disable=abstract-method
     slow, dynamically-generated version of CFG.
 
     For multiple historical reasons, angr's CFG is accurate but slow, which does not meet what most people expect. We
-    developed CFGFast for light-speed CFG recovery, and renamed the old CFG class to CFGEmulated. For compability
+    developed CFGFast for light-speed CFG recovery, and renamed the old CFG class to CFGEmulated. For compatibility
     concerns, CFG was kept as an alias to CFGEmulated.
 
     However, so many new users of angr would load up a binary and generate a CFG immediately after running

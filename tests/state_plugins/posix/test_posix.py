@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
 
 import unittest
+
+import claripy
 
 from angr import SimState, SimFile
 
@@ -19,7 +22,7 @@ class TestPosix(unittest.TestCase):
     def test_file_read(self):
         state = SimState(arch="AMD64", mode="symbolic")
 
-        content = state.solver.BVV(0xBADF00D, 32)
+        content = claripy.BVV(0xBADF00D, 32)
         content_size = content.size() // 8
 
         fd = state.posix.open(b"test", 1)

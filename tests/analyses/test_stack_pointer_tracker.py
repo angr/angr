@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import logging
@@ -28,8 +30,7 @@ def run_tracker(track_mem, use_bp):
     if use_bp:
         bp_result = sptracker.offset_after(0x4007D4, bp)
         return sp_result, bp_result
-    else:
-        return sp_result
+    return sp_result
 
 
 def init_tracker(track_mem):

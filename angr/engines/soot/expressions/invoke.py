@@ -1,3 +1,4 @@
+from __future__ import annotations
 from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
 from . import translate_expr
@@ -22,7 +23,7 @@ class InvokeBase(SimSootExpr):
     def _translate_args(self):
         args = []
         # for instance method calls, add the 'this' reference
-        if isinstance(self, SimSootExpr_VirtualInvoke) or isinstance(self, SimSootExpr_SpecialInvoke):
+        if isinstance(self, (SimSootExpr_VirtualInvoke, SimSootExpr_SpecialInvoke)):
             this_ref_base = self._translate_value(self.expr.base)
             this_ref = self.state.memory.load(this_ref_base, none_if_missing=True)
             this_ref_type = this_ref.type if this_ref is not None else None
@@ -43,7 +44,7 @@ class InvokeBase(SimSootExpr):
         return args
 
     def _resolve_invoke_target(self, expr, state):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class SimSootExpr_VirtualInvoke(InvokeBase):
@@ -56,13 +57,10 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
     def _resolve_invoke_target(self, expr, state):
         # get the type of the base object
         base = translate_expr(self.expr.base, self.state).expr
-        if base is not None:
-            base_type = base.type
-        else:
-            # the base is not set, for example if we process an invocation of an
-            # unloaded library function
-            # => fallback: use the statically retrieved type
-            base_type = self.expr.class_name
+        # if the base is not set, for example if we process an invocation of an
+        # unloaded library function
+        # => fallback: use the statically retrieved type
+        base_type = base.type if base is not None else self.expr.class_name
 
         # based on the class of the base object, we resolve the invoke target
         try:

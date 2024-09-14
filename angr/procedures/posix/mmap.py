@@ -1,7 +1,11 @@
+from __future__ import annotations
+import logging
+
+import claripy
+
 import angr
 from ...storage.file import SimFileDescriptor
 
-import logging
 
 l = logging.getLogger(name=__name__)
 
@@ -33,7 +37,7 @@ class mmap(angr.SimProcedure):
                 raise angr.errors.SimPosixError("Can't map with a symbolic offset!!")
             sim_fd = self.state.posix.get_fd(fd)
             if sim_fd is None:
-                l.warning("Trying to map a non-exsitent fd")
+                l.warning("Trying to map a non-existent fd")
                 return -1
             if not isinstance(sim_fd, SimFileDescriptor) or sim_fd.file is None:
                 l.warning("Trying to map fd not supporting mmap (maybe a SimFileDescriptorDuplex?)")
@@ -89,7 +93,7 @@ class mmap(angr.SimProcedure):
         # Sanity check. All mmap must have exactly one of MAP_SHARED or MAP_PRIVATE
         if (flags & MAP_SHARED and flags & MAP_PRIVATE) or flags & (MAP_SHARED | MAP_PRIVATE) == 0:
             l.debug("... = -1 (bad flags)")
-            return self.state.solver.BVV(-1, self.state.arch.bits)
+            return claripy.BVV(-1, self.state.arch.bits)
 
         # Do region mapping
         while True:
@@ -103,7 +107,7 @@ class mmap(angr.SimProcedure):
 
                 if flags & MAP_FIXED:
                     l.debug("... = -1 (MAP_FIXED failure)")
-                    return self.state.solver.BVV(-1, self.state.arch.bits)
+                    return claripy.BVV(-1, self.state.arch.bits)
 
                 # Can't give you that address. Find a different one and loop back around to try again.
                 addr = self.allocate_memory(size)

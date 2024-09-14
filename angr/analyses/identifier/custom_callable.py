@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from ...errors import AngrCallableError, AngrCallableMultistateError
@@ -83,7 +84,7 @@ class IdentifierCallable:
     def get_base_state(self, *args):
         prototype = self._cc.guess_prototype(args)
         self._base_state.ip = self._addr
-        state = self._project.factory.call_state(
+        return self._project.factory.call_state(
             self._addr,
             *args,
             prototype=prototype,
@@ -92,7 +93,6 @@ class IdentifierCallable:
             ret_addr=self._deadend_addr,
             toc=self._toc,
         )
-        return state
 
     def perform_call(self, *args, prototype=None):
         if prototype is None:

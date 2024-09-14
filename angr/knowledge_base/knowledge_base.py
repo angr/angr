@@ -1,9 +1,11 @@
 """Representing the artifacts of a project."""
 
+from __future__ import annotations
+
 from itertools import count
 import logging
 
-from typing import TYPE_CHECKING, TypeVar, Type, Optional
+from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from ..project import Project
@@ -30,15 +32,15 @@ class KnowledgeBase:
     Contains things like a CFG, data references, etc.
     """
 
-    functions: "FunctionManager"
-    variables: "VariableManager"
-    structured_code: "StructuredCodeManager"
-    defs: "KeyDefinitionManager"
-    cfgs: "CFGManager"
-    _project: "Project"
-    types: "TypesStore"
-    propagations: "PropagationManager"
-    xrefs: "XRefManager"
+    functions: FunctionManager
+    variables: VariableManager
+    structured_code: StructuredCodeManager
+    defs: KeyDefinitionManager
+    cfgs: CFGManager
+    _project: Project
+    types: TypesStore
+    propagations: PropagationManager
+    xrefs: XRefManager
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
@@ -65,11 +67,10 @@ class KnowledgeBase:
         object.__setattr__(self, "_plugins", state["plugins"])
 
     def __getstate__(self):
-        s = {
+        return {
             "project": self._project,
             "plugins": self._plugins,
         }
-        return s
 
     def __dir__(self):
         x = list(super().__dir__())
@@ -86,8 +87,8 @@ class KnowledgeBase:
     def __getattr__(self, v):
         try:
             return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
+        except KeyError as err:
+            raise AttributeError(v) from err
 
     def __setattr__(self, k, v):
         self.register_plugin(k, v)
@@ -116,7 +117,7 @@ class KnowledgeBase:
 
     K = TypeVar("K", bound=KnowledgeBasePlugin)
 
-    def get_knowledge(self, requested_plugin_cls: Type[K]) -> Optional[K]:
+    def get_knowledge(self, requested_plugin_cls: type[K]) -> K | None:
         """
         Type inference safe method to request a knowledge base plugin
         Explicitly passing the type of the requested plugin achieves two things:
@@ -135,11 +136,10 @@ class KnowledgeBase:
             None,
         )
 
-    def request_knowledge(self, requested_plugin_cls: Type[K]) -> K:
+    def request_knowledge(self, requested_plugin_cls: type[K]) -> K:
         existing = self.get_knowledge(requested_plugin_cls)
         if existing is not None:
             return existing
-        else:
-            p = requested_plugin_cls(self)
-            self.register_plugin(requested_plugin_cls.__name__, p)
-            return p
+        p = requested_plugin_cls(self)
+        self.register_plugin(requested_plugin_cls.__name__, p)
+        return p

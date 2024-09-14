@@ -1,7 +1,9 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 import logging
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
+from typing import Optional, Union, Any, TYPE_CHECKING
+from collections.abc import Iterable
 
 import networkx
 from cle import SymbolType
@@ -13,7 +15,7 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
-from .structuring import RecursiveStructurer, PhoenixStructurer
+from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
@@ -33,7 +35,7 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 _PEEPHOLE_OPTIMIZATIONS_TYPE = Optional[
-    Iterable[Union[Type["PeepholeOptimizationStmtBase"], Type["PeepholeOptimizationExprBase"]]]
+    Iterable[Union[type["PeepholeOptimizationStmtBase"], type["PeepholeOptimizationExprBase"]]]
 ]
 
 
@@ -47,14 +49,14 @@ class Decompiler(Analysis):
 
     def __init__(
         self,
-        func: Union[Function, str, int],
-        cfg: Optional[Union["CFGFast", "CFGModel"]] = None,
+        func: Function | str | int,
+        cfg: CFGFast | CFGModel | None = None,
         options=None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
         variable_kb=None,
         peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE = None,
-        vars_must_struct: Optional[Set[str]] = None,
+        vars_must_struct: set[str] | None = None,
         flavor="pseudocode",
         expr_comments=None,
         stmt_comments=None,
@@ -62,6 +64,7 @@ class Decompiler(Analysis):
         binop_operators=None,
         decompile=True,
         regen_clinic=True,
+        inline_functions=frozenset(),
         update_memory_data: bool = True,
         generate_code: bool = True,
     ):
@@ -87,14 +90,15 @@ class Decompiler(Analysis):
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
+        self._inline_functions = inline_functions
 
         self.clinic = None  # mostly for debugging purposes
-        self.codegen: Optional["CStructuredCodeGenerator"] = None
-        self.cache: Optional[DecompilationCache] = None
+        self.codegen: CStructuredCodeGenerator | None = None
+        self.cache: DecompilationCache | None = None
         self.options_by_class = None
-        self.seq_node: Optional["SequenceNode"] = None
-        self.unoptimized_ail_graph: Optional[networkx.DiGraph] = None
-        self.ail_graph: Optional[networkx.DiGraph] = None
+        self.seq_node: SequenceNode | None = None
+        self.unoptimized_ail_graph: networkx.DiGraph | None = None
+        self.ail_graph: networkx.DiGraph | None = None
 
         if decompile:
             self._decompile()
@@ -127,10 +131,9 @@ class Decompiler(Analysis):
         self._update_progress(5.0, text="Converting to AIL")
 
         variable_kb = self._variable_kb
-        if variable_kb is None:
-            # fall back to old codegen
-            if old_codegen is not None:
-                variable_kb = old_codegen._variable_kb
+        # fall back to old codegen
+        if variable_kb is None and old_codegen is not None:
+            variable_kb = old_codegen._variable_kb
 
         if variable_kb is None:
             reset_variable_names = True
@@ -143,8 +146,9 @@ class Decompiler(Analysis):
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
-            self._recursive_structurer_params["structurer_cls"] = PhoenixStructurer
-        if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
+            self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
+        # is the algorithm based on Phoenix (a schema-based algorithm)?
+        if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
             self._complete_successors = True
             fold_callexprs_into_conditions = True
@@ -171,6 +175,7 @@ class Decompiler(Analysis):
                 must_struct=self._vars_must_struct,
                 cache=cache,
                 progress_callback=progress_callback,
+                inline_functions=self._inline_functions,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -292,11 +297,11 @@ class Decompiler(Analysis):
         Runs optimizations that should be executed before region identification.
 
         :param ail_graph:   DiGraph with AIL Statements
-        :param reaching_defenitions: ReachingDefenitionAnalysis
+        :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
-        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
-        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
@@ -310,9 +315,13 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.BEFORE_REGION_IDENTIFICATION:
                 continue
-            if pass_.STRUCTURING:
-                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
-                    continue
+            if pass_.STRUCTURING and self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                l.warning(
+                    "Skipping %s because it does not support structuring algorithm: %s",
+                    pass_,
+                    self._recursive_structurer_params["structurer_cls"].NAME,
+                )
+                continue
 
             a = pass_(
                 self.func,
@@ -343,11 +352,11 @@ class Decompiler(Analysis):
 
         :param ail_graph:   DiGraph with AIL Statements
         :param ri:          RegionIdentifier
-        :param reaching_defenitions: ReachingDefenitionAnalysis
+        :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
-        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
-        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
@@ -361,9 +370,13 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
-            if pass_.STRUCTURING:
-                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
-                    continue
+            if pass_.STRUCTURING and self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                l.warning(
+                    "Skipping %s because it does not support structuring algorithm: %s",
+                    pass_,
+                    self._recursive_structurer_params["structurer_cls"].NAME,
+                )
+                continue
 
             a = pass_(
                 self.func,
@@ -415,7 +428,7 @@ class Decompiler(Analysis):
                     SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
                 )
 
-    def reflow_variable_types(self, type_constraints: Set, func_typevar, var_to_typevar: Dict, codegen):
+    def reflow_variable_types(self, type_constraints: set, func_typevar, var_to_typevar: dict, codegen):
         """
         Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
 
@@ -484,8 +497,8 @@ class Decompiler(Analysis):
 
         return codegen
 
-    def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
-        const_values: Set[int] = set()
+    def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
+        const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
             const_values.add(expr.value)
@@ -520,7 +533,7 @@ class Decompiler(Analysis):
         )
 
     @staticmethod
-    def options_to_params(options: List[Tuple[DecompilationOption, Any]]) -> Dict[str, Any]:
+    def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:
         """
         Convert decompilation options to a dict of params.
 

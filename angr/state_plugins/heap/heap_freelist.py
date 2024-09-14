@@ -1,20 +1,24 @@
+from __future__ import annotations
+import logging
 from . import SimHeapLibc
 from .utils import concretize
 from ...errors import SimHeapError
 
-import logging
 
 l = logging.getLogger("angr.state_plugins.heap.heap_freelist")
 
 
 class Chunk:
     """
-    The sort of chunk as would typically be found in a freelist-style heap implementation. Provides a representation of
-    a chunk via a view into the memory plugin. Chunks may be adjacent, in different senses, to as many as four other
-    chunks. For any given chunk, two of these chunks are adjacent to it in memory, and are referred to as the "previous"
-    and "next" chunks throughout this implementation. For any given free chunk, there may also be two significant chunks
-    that are adjacent to it in some linked list of free chunks. These chunks are referred to the "backward" and "foward"
-    chunks relative to the chunk in question.
+    The sort of chunk as would typically be found in a freelist-style heap
+    implementation. Provides a representation of a chunk via a view into the
+    memory plugin. Chunks may be adjacent, in different senses, to as many as
+    four other chunks. For any given chunk, two of these chunks are adjacent to
+    it in memory, and are referred to as the "previous" and "next" chunks
+    throughout this implementation. For any given free chunk, there may also be
+    two significant chunks that are adjacent to it in some linked list of free
+    chunks. These chunks are referred to the "backward" and "forward" chunks
+    relative to the chunk in question.
 
     :ivar base: the location of the base of the chunk in memory
     :ivar state: the program state that the chunk is resident in
@@ -106,8 +110,7 @@ class Chunk:
     def _compare(self, other, comparison):
         if self.state is other.state:
             return comparison
-        else:
-            raise SimHeapError("Chunks must originate from the same simulation state to be compared!")
+        raise SimHeapError("Chunks must originate from the same simulation state to be compared!")
 
     def __lt__(self, other):
         """

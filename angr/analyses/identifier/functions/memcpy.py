@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 
 from ....sim_type import SimTypeFunction, SimTypeInt
@@ -41,8 +42,7 @@ class memcpy(Func):
         test_output = [buf + result_buf[-5:], buf, None]
         max_steps = 20
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         result_buf = "A" * 6

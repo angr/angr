@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .errors import SimStateOptionsError
 
 
@@ -49,14 +50,8 @@ class StateOption:
         return isinstance(other, StateOption) and self.name == other.name and self.types == other.types
 
     def __repr__(self):
-        if self.description is not None:
-            desc = ": %s" % self.description
-        else:
-            desc = ""
-        if self.one_type() is not None:
-            types = self.one_type().__name__
-        else:
-            types = ",".join(t.__name__ for t in self.types)
+        desc = f": {self.description}" if self.description is not None else ""
+        types = self.one_type().__name__ if self.one_type() is not None else ",".join(t.__name__ for t in self.types)
 
         return f"<O {self.name}[{types}]{desc}>"
 
@@ -101,7 +96,7 @@ class SimStateOptions:
             ops = thing
             self._options = ops._options.copy()
         else:
-            raise SimStateOptionsError("Unsupported constructor argument type '%s'." % type(thing))
+            raise SimStateOptionsError(f"Unsupported constructor argument type '{type(thing)}'.")
 
     def _get_option_desc(self, key):
         """
@@ -114,12 +109,11 @@ class SimStateOptions:
 
         try:
             return self.OPTIONS[key]
-        except KeyError:
-            raise SimStateOptionsError("The state option '%s' does not exist." % key)
+        except KeyError as err:
+            raise SimStateOptionsError(f"The state option '{key}' does not exist.") from err
 
     def __repr__(self):
-        s = "<SimStateOptions>"
-        return s
+        return "<SimStateOptions>"
 
     def __contains__(self, key):
         """
@@ -166,8 +160,8 @@ class SimStateOptions:
 
         if type(value) not in o.types:
             raise SimStateOptionsError(
-                "The value '%s' does not have an acceptable type for state option '%s'. "
-                "Accepted types are: %s." % (value, key, str(o.types))
+                f"The value '{value}' does not have an acceptable type for state option '{key}'. "
+                f"Accepted types are: {o.types!s}."
             )
 
         self._options[o.name] = value

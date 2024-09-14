@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
 import logging
@@ -53,10 +55,7 @@ def tracer_cgc(
         syscall_data=syscall_data,
     )
     if add_options is not None and angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in add_options:
-        if symbolic_stdin:
-            fd_data = {0: (stdin, b"\x01" * len(stdin))}
-        else:
-            fd_data = {0: (stdin, b"\x00" * len(stdin))}
+        fd_data = {0: (stdin, b"\x01" * len(stdin))} if symbolic_stdin else {0: (stdin, b"\x00" * len(stdin))}
 
         t.set_fd_data(fd_data)
 

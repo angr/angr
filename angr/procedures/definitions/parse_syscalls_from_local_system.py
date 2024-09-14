@@ -1,3 +1,4 @@
+from __future__ import annotations
 import xml.etree.ElementTree
 import glob
 import os
@@ -23,7 +24,7 @@ def parse_unistd_include_header(header_path):
 
 
 def dump_mapping(abi, mapping):
-    print('\nlib.add_number_mapping_from_dict("%s", {' % abi)
+    print(f'\nlib.add_number_mapping_from_dict("{abi}", {{')
     for num in sorted(mapping):
         print('    %d: "%s",' % (num, mapping[num]))
     print('})')

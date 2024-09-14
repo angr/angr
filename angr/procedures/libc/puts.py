@@ -1,3 +1,6 @@
+from __future__ import annotations
+import claripy
+
 import angr
 
 
@@ -12,5 +15,5 @@ class puts(angr.SimProcedure):
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
         length = self.inline_call(strlen, string).ret_expr
         out = stdout.write(string, length)
-        stdout.write_data(self.state.solver.BVV(b"\n"))
+        stdout.write_data(claripy.BVV(b"\n"))
         return (out + 1)[31:0]

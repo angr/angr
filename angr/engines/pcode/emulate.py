@@ -1,5 +1,5 @@
+from __future__ import annotations
 import logging
-from typing import Optional
 
 import claripy
 from claripy.ast.bv import BV
@@ -10,11 +10,10 @@ from .lifter import IRSB
 from .behavior import OpBehavior
 from ...errors import AngrError
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
+import contextlib
 
-try:
+with contextlib.suppress(ImportError):
     from pypcode import OpCode, Varnode, PcodeOp
-except ImportError:
-    pass
 
 
 l = logging.getLogger(__name__)
@@ -25,9 +24,9 @@ class PcodeEmulatorMixin(SimEngineBase):
     Mixin for p-code execution.
     """
 
-    _current_op: Optional["PcodeOp"]
+    _current_op: PcodeOp | None
     _current_op_idx: int
-    _current_behavior: Optional[OpBehavior]
+    _current_behavior: OpBehavior | None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -129,7 +128,7 @@ class PcodeEmulatorMixin(SimEngineBase):
 
         self._current_behavior = None
 
-    def _map_register_name(self, varnode: "Varnode") -> int:
+    def _map_register_name(self, varnode: Varnode) -> int:
         """
         Map SLEIGH register offset to ArchInfo register offset based on name.
 
@@ -156,14 +155,13 @@ class PcodeEmulatorMixin(SimEngineBase):
             v_out = v_in[num_bits - 1 : 0]
             l.debug("Truncating value %s (%d bits) to %s (%d bits)", v_in, v_in.size(), v_out, num_bits)
             return v_out
-        elif v_in.size() < num_bits:
+        if v_in.size() < num_bits:
             v_out = v_in.zero_extend(num_bits - v_in.size())
             l.debug("Extending value %s (%d bits) to %s (%d bits)", v_in, v_in.size(), v_out, num_bits)
             return v_out
-        else:
-            return v_in
+        return v_in
 
-    def _set_value(self, varnode: "Varnode", value: BV) -> None:
+    def _set_value(self, varnode: Varnode, value: BV) -> None:
         """
         Store a value for a given varnode.
 
@@ -187,14 +185,14 @@ class PcodeEmulatorMixin(SimEngineBase):
         elif space.name == "unique":
             self._pcode_tmps[varnode.offset] = value
 
-        elif space.name in ("ram", "mem"):
+        elif space.name.lower() in ("ram", "mem"):
             l.debug("Storing %s to offset %s", value, varnode.offset)
             self.state.memory.store(varnode.offset, value, endness=self.project.arch.memory_endness)
 
         else:
             raise AngrError(f"Attempted write to unhandled address space '{space.name}'")
 
-    def _get_value(self, varnode: "Varnode") -> BV:
+    def _get_value(self, varnode: Varnode) -> BV:
         """
         Get a value for a given varnode.
 
@@ -209,12 +207,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         l.debug("Loading %s - %x x %d", space_name, varnode.offset, size)
         if space_name == "const":
             return claripy.BVV(varnode.offset, size * 8)
-        elif space_name == "register":
+        if space_name == "register":
             return self.state.registers.load(
                 self._map_register_name(varnode), size=size, endness=self.project.arch.register_endness
             )
 
-        elif space_name == "unique":
+        if space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
             try:
@@ -225,13 +223,12 @@ class PcodeEmulatorMixin(SimEngineBase):
                 self._pcode_tmps[varnode.offset] = claripy.BVV(0, size * 8)
             return self._pcode_tmps[varnode.offset]
 
-        elif space_name in ("ram", "mem"):
+        if space_name.lower() in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
             l.debug("Loaded %s from offset %s", val, varnode.offset)
             return val
 
-        else:
-            raise AngrError(f"Attempted read from unhandled address space '{space_name}'")
+        raise AngrError(f"Attempted read from unhandled address space '{space_name}'")
 
     def _execute_unary(self) -> None:
         """
@@ -285,7 +282,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         space = self._current_op.inputs[0].getSpaceFromConst()
         offset = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        if space.name in ("ram", "mem"):
+        if space.name.lower() in ("ram", "mem"):
             res = self.state.memory.load(offset, out.size, endness=self.project.arch.memory_endness)
         elif space.name in "register":
             res = self.state.registers.load(offset, size=out.size, endness=self.project.arch.register_endness)
@@ -304,7 +301,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         offset = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
         l.debug("Storing %s at offset %s", data, offset)
-        if space.name in ("ram", "mem"):
+        if space.name.lower() in ("ram", "mem"):
             self.state.memory.store(offset, data, endness=self.project.arch.memory_endness)
         elif space.name == "register":
             self.state.registers.store(offset, data, endness=self.project.arch.register_endness)

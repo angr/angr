@@ -1,3 +1,4 @@
+from __future__ import annotations
 import struct
 
 from ailment.expression import Reinterpret, Const
@@ -28,14 +29,14 @@ class RemoveRedundantReinterprets(PeepholeOptimizationExprBase):
             elif expr.operand.bits == 64:
                 int_fmt = "<Q"
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
             if expr.bits == 32:
                 float_fmt = "<f"
             elif expr.bits == 64:
                 float_fmt = "<d"
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
             value = struct.unpack(float_fmt, struct.pack(int_fmt, expr.operand.value))[0]
             return Const(expr.idx, None, value, expr.bits, **expr.tags)

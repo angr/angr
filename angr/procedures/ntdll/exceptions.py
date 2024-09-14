@@ -1,3 +1,6 @@
+from __future__ import annotations
+import claripy
+
 import angr
 
 
@@ -13,7 +16,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         if self.state.arch.name != "X86":
             raise angr.errors.SimUnsupportedError("KiUserDispatchException is only implemented for X86")
 
-        self.tib_ptr = self.state.regs._fs.concat(self.state.solver.BVV(0, 16))
+        self.tib_ptr = self.state.regs._fs.concat(claripy.BVV(0, 16))
         self.top_record = self.state.mem[self.tib_ptr].uint32_t.resolved
         self.cur_ptr = self.top_record
 
@@ -26,15 +29,15 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         if self.call_ret_expr is not None:
             try:
                 disposition = self.state.solver.eval_one(self.call_ret_expr)
-            except angr.errors.SimSolverError:
-                raise angr.errors.SimError("Exception handler returned symbolic value %s" % self.call_ret_expr)
+            except angr.errors.SimSolverError as err:
+                raise angr.errors.SimError(f"Exception handler returned symbolic value {self.call_ret_expr}") from err
             if disposition == 0:  # Handled!!!
                 self.project.simos._load_regs(self.state, context)
                 # TODO: re-set the exception handler somehow?
                 # self.state.mem[self.tib_ptr].uint32_t
                 self.jump(self.state.regs._ip)
                 return
-            elif disposition == 1:  # unhandled, continue search
+            if disposition == 1:  # unhandled, continue search
                 pass
             elif disposition == 2:
                 raise angr.errors.SimUnsupportedError("Exception disposition ExceptionNestedException is unsupported")

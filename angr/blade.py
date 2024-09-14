@@ -1,3 +1,4 @@
+from __future__ import annotations
 import itertools
 
 import networkx
@@ -79,7 +80,7 @@ class Blade:
             raise AngrBladeError('"cfg" must be specified.')
 
         if not self._in_graph(self._dst_run):
-            raise AngrBladeError("The specified SimRun %s doesn't exist in graph." % self._dst_run)
+            raise AngrBladeError(f"The specified SimRun {self._dst_run} doesn't exist in graph.")
 
         self._ignored_regs = set()
         if ignored_regs:
@@ -98,7 +99,7 @@ class Blade:
         elif direction == "forward":
             raise AngrBladeError("Forward slicing is not implemented yet")
         else:
-            raise AngrBladeError("Unknown slicing direction %s" % direction)
+            raise AngrBladeError(f"Unknown slicing direction {direction}")
 
     #
     # Properties
@@ -121,7 +122,7 @@ class Blade:
         block_addrs = {a for a, _ in self.slice.nodes()}
 
         for block_addr in block_addrs:
-            block_str = "       IRSB %#x\n" % block_addr
+            block_str = f"       IRSB {block_addr:#x}\n"
 
             block = self.project.factory.block(
                 block_addr, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
@@ -147,11 +148,11 @@ class Blade:
 
             block_str += " + " if default_exit_included else "   "
             if isinstance(block.next, pyvex.IRExpr.Const):
-                block_str += "Next: %#x\n" % block.next.con.value
+                block_str += f"Next: {block.next.con.value:#x}\n"
             elif isinstance(block.next, pyvex.IRExpr.RdTmp):
                 block_str += "Next: t%d\n" % block.next.tmp
             else:
-                block_str += "Next: %s\n" % str(block.next)
+                block_str += f"Next: {block.next!s}\n"
 
             s += block_str
             s += "\n"
@@ -184,14 +185,12 @@ class Blade:
                     v, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
                 ).vex
                 if irsb.jumpkind == "Ijk_NoDecode":
-                    raise BadJumpkindNotification()
+                    raise BadJumpkindNotification
                 self._run_cache[v] = irsb
                 return irsb
-            else:
-                raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
+            raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
-        else:
-            raise AngrBladeError("Unsupported SimRun argument type %s" % type(v))
+        raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _get_cfgnode(self, thing):
         """
@@ -215,17 +214,16 @@ class Blade:
 
         if isinstance(v, CFGNode):
             return v.addr
-        elif type(v) is int:
+        if type(v) is int:
             return v
-        else:
-            raise AngrBladeError("Unsupported SimRun argument type %s" % type(v))
+        raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _in_graph(self, v):
         return self._get_cfgnode(v) in self._graph
 
     def _inslice_callback(self, stmt_idx, stmt, infodict):  # pylint:disable=unused-argument
         tpl = (infodict["irsb_addr"], stmt_idx)
-        if "prev" in infodict and infodict["prev"]:
+        if infodict.get("prev"):
             prev = infodict["prev"]
             self._slice.add_edge(tpl, prev)
         else:
@@ -279,7 +277,7 @@ class Blade:
                 # A const doesn't rely on anything else!
                 pass
             else:
-                raise AngrBladeError("Unsupported type for irsb.next: %s" % type(next_expr))
+                raise AngrBladeError(f"Unsupported type for irsb.next: {type(next_expr)}")
 
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
@@ -326,10 +324,9 @@ class Blade:
                     in_edges = itertools.islice(in_edges, self._max_predecessors)
 
                 for pred, _, data in in_edges:
-                    if "jumpkind" in data:
-                        if self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
-                            # Skip calls
-                            continue
+                    if "jumpkind" in data and self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
+                        # Skip calls
+                        continue
                     if self.project.is_hooked(pred.addr):
                         # Skip SimProcedures
                         continue
@@ -417,10 +414,9 @@ class Blade:
                     in_edges = itertools.islice(in_edges, self._max_predecessors)
 
                 for pred, _, data in in_edges:
-                    if "jumpkind" in data:
-                        if self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
-                            # skip calls as instructed
-                            continue
+                    if "jumpkind" in data and self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
+                        # skip calls as instructed
+                        continue
                     if self.project.is_hooked(pred.addr):
                         # Stop at SimProcedures
                         continue

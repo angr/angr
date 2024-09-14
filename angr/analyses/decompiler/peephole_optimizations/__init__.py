@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Type
 
 from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst
@@ -42,12 +43,14 @@ from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalC
 from .rol_ror import RolRorRewriter
 from .inlined_strcpy import InlinedStrcpy
 from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
+from .inlined_wstrcpy import InlinedWstrcpy
+from .cmpord_rewriter import CmpORDRewriter
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
-MULTI_STMT_OPTS: List[Type[PeepholeOptimizationMultiStmtBase]] = []
-STMT_OPTS: List[Type[PeepholeOptimizationStmtBase]] = []
-EXPR_OPTS: List[Type[PeepholeOptimizationExprBase]] = []
+MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = []
+STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = []
+EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = []
 
 _g = globals().copy()
 for v in _g.values():

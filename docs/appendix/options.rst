@@ -124,7 +124,7 @@ These are individual option objects, found as ``angr.options.XXX``.
      - ``fastpath``
      -
    * - ``AVOID_MULTIVALUED_WRITES``
-     - Do not perfrom any write that has a symbolic address
+     - Do not perform any write that has a symbolic address
      -
      - ``fastpath``
      -

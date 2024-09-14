@@ -853,7 +853,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 					}
 					int64_t symbolic_write_end_addr = sym_stmt_it->mem_write_addr + sym_stmt_it->mem_write_size;
 					if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
-						// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
+						// Current write fully overwrites the previous written symbolic value and so the symbolic write
 						// instruction need not be re-executed
 						// TODO: How to handle partial overwrite?
 						stmts_to_erase.emplace(sym_stmt_it - first_stmt_it);

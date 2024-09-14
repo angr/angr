@@ -1,5 +1,7 @@
 # pylint:disable=abstract-method,wrong-import-position,unused-argument,missing-class-docstring,arguments-differ
-from typing import Iterable, Tuple, Dict, Any, Optional
+from __future__ import annotations
+from typing import Tuple, Dict, Any, Optional
+from collections.abc import Iterable
 
 import claripy
 
@@ -31,14 +33,13 @@ class MemoryMixin(SimStatePlugin):
         if self.id in ("reg", "mem"):
             return self.id
 
-        elif self.id.startswith("file"):
+        if self.id.startswith("file"):
             return "file"
 
-        elif "_" in self.id:
+        if "_" in self.id:
             return self.id.split("_")[0]
 
-        else:
-            raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
+        raise SimMemoryError(f'Unknown SimMemory category for memory_id "{self.id}"')
 
     @property
     def variable_key_prefix(self):
@@ -52,10 +53,7 @@ class MemoryMixin(SimStatePlugin):
 
     def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):
         if add_constraints:
-            if condition is not None:
-                to_add = (c & condition) | ~condition
-            else:
-                to_add = c
+            to_add = c & condition | ~condition if condition is not None else c
             self.state.add_constraints(to_add)
 
     def load(self, addr, size=None, **kwargs):
@@ -65,6 +63,9 @@ class MemoryMixin(SimStatePlugin):
         pass
 
     def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
+        pass
+
+    def compare(self, other) -> bool:
         pass
 
     def widen(self, others):
@@ -90,7 +91,7 @@ class MemoryMixin(SimStatePlugin):
         :param writing:
         :return:        A memoryview into the loaded bytes.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def erase(self, addr, size=None, **kwargs) -> None:
         """
@@ -101,7 +102,7 @@ class MemoryMixin(SimStatePlugin):
         :param size:    The number of bytes for erasing.
         :return:        None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
         """
@@ -115,7 +116,7 @@ class MemoryMixin(SimStatePlugin):
         The ``inspect``, ``events``, and ``key`` parameters are for ``state.solver.Unconstrained``, if it is used.
         """
 
-    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs) -> Optional[Any]:
+    def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs) -> Any | None:
         """
         Override this method to provide value merging support.
 
@@ -123,22 +124,22 @@ class MemoryMixin(SimStatePlugin):
         :param merged_size:     The size (in bytes) of the merged value.
         :return:                The merged value, or None to skip merging of the current value.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
-    def _merge_labels(self, labels: Iterable[Dict], **kwargs) -> Optional[Dict]:
+    def _merge_labels(self, labels: Iterable[dict], **kwargs) -> dict | None:
         """
         Override this method to provide label merging support.
 
         :param labels:          A collection of labels.
         :return:                The merged label, or None to skip merging of the current label.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def replace_all(self, old: claripy.ast.BV, new: claripy.ast.BV):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy_contents(self, dst, src, size, condition=None, **kwargs):
         """
@@ -151,7 +152,7 @@ class MemoryMixin(SimStatePlugin):
         :param kwargs:      Other parameters.
         :return:        None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow

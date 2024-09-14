@@ -1,4 +1,5 @@
-from typing import List, Optional, Union, overload, Type
+from __future__ import annotations
+from typing import overload
 import logging
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
@@ -6,9 +7,12 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
-from .errors import AngrAssemblyError
+from .errors import AngrAssemblyError, AngrError
 from .engines import UberEngine, ProcedureEngine, SimEngineConcrete, SimEngine
 from .sim_type import SimTypeFunction, SimTypeInt
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock
+from .sim_manager import SimulationManager
 
 try:
     from .engines import UberEnginePcode
@@ -25,7 +29,7 @@ class AngrObjectFactory:
     This factory provides access to important analysis elements.
     """
 
-    def __init__(self, project, default_engine: Optional[Type[SimEngine]] = None):
+    def __init__(self, project, default_engine: type[SimEngine] | None = None):
         if default_engine is None:
             if isinstance(project.arch, archinfo.ArchPcode) and UberEnginePcode is not None:
                 l.warning("Creating project with the experimental 'UberEnginePcode' engine")
@@ -55,12 +59,11 @@ class AngrObjectFactory:
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get("length", 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
-        elif self.project.simos.is_syscall_addr(addr):
+        if self.project.simos.is_syscall_addr(addr):
             syscall = self.project.simos.syscall_from_addr(addr)
             size = syscall.kwargs.get("length", 0)
             return SyscallNode(addr, size, syscall)
-        else:
-            return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
+        return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
 
     def successors(self, *args, engine=None, **kwargs):
         """
@@ -166,14 +169,12 @@ class AngrObjectFactory:
 
         grow_like_stack controls the behavior of allocating data at alloc_base. When data from args needs to be wrapped
         in a pointer, the pointer needs to point somewhere, so that data is dumped into memory at alloc_base. If you
-        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
+        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequential
         allocations happen at increasing addresses.
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(
-        self, thing: Optional[Union[List[SimState], SimState]] = None, **kwargs
-    ) -> "SimulationManager":
+    def simulation_manager(self, thing: list[SimState] | SimState | None = None, **kwargs) -> SimulationManager:
         """
         Constructs a new simulation manager.
 
@@ -199,7 +200,7 @@ class AngrObjectFactory:
         elif isinstance(thing, SimState):
             thing = [thing]
         else:
-            raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
+            raise AngrError(f"BadType to initialize SimulationManager: {thing!r}")
 
         return SimulationManager(self.project, active_states=thing, **kwargs)
 
@@ -265,7 +266,7 @@ class AngrObjectFactory:
         """
         Return a default function prototype parameterized for this project and SimOS.
         """
-        return SimTypeFunction(tuple(), SimTypeInt()).with_arch(self.project.arch)
+        return SimTypeFunction((), SimTypeInt()).with_arch(self.project.arch)
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -289,7 +290,8 @@ class AngrObjectFactory:
         cross_insn_opt=True,
         load_from_ro_regions=False,
         initial_regs=None,
-    ) -> "Block": ...
+        skip_stmts=False,
+    ) -> Block: ...
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -311,7 +313,8 @@ class AngrObjectFactory:
         strict_block_end=None,
         collect_data_refs=False,
         cross_insn_opt=True,
-    ) -> "SootBlock": ...
+        skip_stmts=False,
+    ) -> SootBlock: ...
 
     def block(
         self,
@@ -333,6 +336,7 @@ class AngrObjectFactory:
         cross_insn_opt=True,
         load_from_ro_regions=False,
         initial_regs=None,
+        skip_stmts=False,
     ):
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
@@ -351,13 +355,11 @@ class AngrObjectFactory:
                     "Assembling failed. Please make sure keystone is installed, and the assembly string is correct."
                 )
 
-        if max_size is not None:
-            l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
-            size = max_size
         return Block(
             addr,
             project=self.project,
             size=size,
+            max_size=max_size,
             byte_string=byte_string,
             vex=vex,
             extra_stop_points=extra_stop_points,
@@ -371,6 +373,7 @@ class AngrObjectFactory:
             cross_insn_opt=cross_insn_opt,
             load_from_ro_regions=load_from_ro_regions,
             initial_regs=initial_regs,
+            skip_stmts=skip_stmts,
         )
 
     def fresh_block(self, addr, size, backup_state=None):
@@ -380,9 +383,3 @@ class AngrObjectFactory:
     cc.SimStackArg = SimStackArg
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-
-from .errors import AngrError
-from .sim_manager import SimulationManager
-from .codenode import HookNode, SyscallNode
-from .block import Block, SootBlock

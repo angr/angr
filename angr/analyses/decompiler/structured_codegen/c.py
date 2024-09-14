@@ -1,6 +1,8 @@
-# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
-from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
-from collections import defaultdict
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
+from collections.abc import Callable
+from collections import defaultdict, Counter
 import logging
 import struct
 
@@ -36,7 +38,7 @@ from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ..utils import structured_node_is_simple_return
-from ....errors import UnsupportedNodeTypeError
+from ....errors import UnsupportedNodeTypeError, AngrRuntimeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
@@ -72,13 +74,13 @@ def unpack_typeref(ty):
     return ty
 
 
-def unpack_pointer(ty) -> Optional[SimType]:
+def unpack_pointer(ty) -> SimType | None:
     if isinstance(ty, SimTypePointer):
         return ty.pts_to
     return None
 
 
-def unpack_array(ty) -> Optional[SimType]:
+def unpack_array(ty) -> SimType | None:
     if isinstance(ty, SimTypeArray):
         return ty.elem_type
     if isinstance(ty, SimTypeFixedSizeArray):
@@ -119,7 +121,7 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size
 
 
-def extract_terms(expr: "CExpression") -> Tuple[int, List[Tuple[int, "CExpression"]]]:
+def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
         expr = MakeTypecastsImplicit.collapse(expr.dst_type, expr.expr)
@@ -136,37 +138,35 @@ def extract_terms(expr: "CExpression") -> Tuple[int, List[Tuple[int, "CExpressio
     if isinstance(expr, CConstant):
         return expr.value, []
     # elif isinstance(expr, CUnaryOp) and expr.op == 'Minus'
-    elif isinstance(expr, CBinaryOp) and expr.op == "Add":
+    if isinstance(expr, CBinaryOp) and expr.op == "Add":
         c1, t1 = extract_terms(expr.lhs)
         c2, t2 = extract_terms(expr.rhs)
         return c1 + c2, t1 + t2
-    elif isinstance(expr, CBinaryOp) and expr.op == "Sub":
+    if isinstance(expr, CBinaryOp) and expr.op == "Sub":
         c1, t1 = extract_terms(expr.lhs)
         c2, t2 = extract_terms(expr.rhs)
         return c1 - c2, t1 + [(-c, t) for c, t in t2]
-    elif isinstance(expr, CBinaryOp) and expr.op == "Mul":
+    if isinstance(expr, CBinaryOp) and expr.op == "Mul":
         if isinstance(expr.lhs, CConstant):
             c, t = extract_terms(expr.rhs)
             return c * expr.lhs.value, [(c1 * expr.lhs.value, t1) for c1, t1 in t]
-        elif isinstance(expr.rhs, CConstant):
+        if isinstance(expr.rhs, CConstant):
             c, t = extract_terms(expr.lhs)
             return c * expr.rhs.value, [(c1 * expr.rhs.value, t1) for c1, t1 in t]
-        else:
-            return 0, [(1, expr)]
-    elif isinstance(expr, CBinaryOp) and expr.op == "Shl":
+        return 0, [(1, expr)]
+    if isinstance(expr, CBinaryOp) and expr.op == "Shl":
         if isinstance(expr.rhs, CConstant):
             c, t = extract_terms(expr.lhs)
             return c << expr.rhs.value, [(c1 << expr.rhs.value, t1) for c1, t1 in t]
         return 0, [(1, expr)]
-    else:
-        return 0, [(1, expr)]
+    return 0, [(1, expr)]
 
 
-def is_machine_word_size_type(type_: SimType, arch: "archinfo.Arch") -> bool:
+def is_machine_word_size_type(type_: SimType, arch: archinfo.Arch) -> bool:
     return isinstance(type_, SimTypeReg) and type_.size == arch.bits
 
 
-def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
+def guess_value_type(value: int, project: angr.Project) -> SimType | None:
     if project.kb.functions.contains_addr(value):
         # might be a function pointer
         return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
@@ -259,7 +259,7 @@ class CConstruct:
     __slots__ = ("codegen",)
 
     def __init__(self, codegen):
-        self.codegen: "StructuredCodeGenerator" = codegen
+        self.codegen: StructuredCodeGenerator = codegen
 
     def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
@@ -302,22 +302,24 @@ class CConstruct:
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     # add ops to pos_to_node but NOT ast_to_pos
-                    if isinstance(
-                        obj,
-                        (
-                            CVariable,
-                            CConstant,
-                            CStructField,
-                            CIndexedVariable,
-                            CVariableField,
-                            CBinaryOp,
-                            CUnaryOp,
-                            CAssignment,
-                            CFunctionCall,
-                        ),
+                    if (
+                        isinstance(
+                            obj,
+                            (
+                                CVariable,
+                                CConstant,
+                                CStructField,
+                                CIndexedVariable,
+                                CVariableField,
+                                CBinaryOp,
+                                CUnaryOp,
+                                CAssignment,
+                                CFunctionCall,
+                            ),
+                        )
+                        and pos_to_node is not None
                     ):
-                        if pos_to_node is not None:
-                            pos_to_node.add_mapping(pos, len(s), obj)
+                        pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, [], and [20] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction, CArrayTypeLength, CStructFieldNameDef)):
@@ -368,7 +370,7 @@ class CConstruct:
         return "".join(mapper(self.c_repr_chunks(indent)))
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def indent_str(indent=0):
@@ -399,7 +401,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         addr,
         name,
         functy: SimTypeFunction,
-        arg_list: List["CVariable"],
+        arg_list: list[CVariable],
         statements,
         variables_in_use,
         variable_manager,
@@ -416,16 +418,16 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.arg_list = arg_list
         self.statements = statements
         self.variables_in_use = variables_in_use
-        self.variable_manager: "VariableManagerInternal" = variable_manager
+        self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
-        self.unified_local_vars: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = self.get_unified_local_vars()
+        self.unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]] = self.get_unified_local_vars()
         self.show_demangled_name = show_demangled_name
         self.omit_header = omit_header
 
-    def get_unified_local_vars(self) -> Dict[SimVariable, Set[Tuple["CVariable", SimType]]]:
-        unified_to_var_and_types: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = defaultdict(set)
+    def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[CVariable, SimType]]]:
+        unified_to_var_and_types: dict[SimVariable, set[tuple[CVariable, SimType]]] = defaultdict(set)
 
-        arg_set: Set[SimVariable] = set()
+        arg_set: set[SimVariable] = set()
         for arg in self.arg_list:
             # TODO: Handle CIndexedVariable
             if isinstance(arg, CVariable):
@@ -490,19 +492,16 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 name = str(variable)
 
-            # sort by number of occurrences, with a preference of non-basic types
+            # sort by the following:
+            #   * if it's a a non-basic type
+            #   * the number of occurrences
+            #   * the repr of the type itself
             # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
-            nonprimitive_vartypes = [
-                vt for vt in vartypes if not isinstance(vt, (SimTypeChar, SimTypeInt, SimTypeFloat))
-            ]
-            vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
-            if nonprimitive_vartypes:
-                nonprimitive_vartypes = list(
-                    dict.fromkeys(sorted(nonprimitive_vartypes, key=nonprimitive_vartypes.count, reverse=True))
-                )
-                vartypes.remove(nonprimitive_vartypes[0])
-                vartypes.insert(0, nonprimitive_vartypes[0])
+            count = Counter(vartypes)
+            vartypes = sorted(
+                count.copy(), key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+            )
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
@@ -561,10 +560,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
-                if v.type is None:
-                    varname = v.c_repr()
-                else:
-                    varname = v.variable.name
+                varname = v.c_repr() if v.type is None else v.variable.name
                 yield "extern ", None
                 yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
@@ -661,7 +657,7 @@ class CExpression(CConstruct):
 
     @property
     def type(self):
-        raise NotImplementedError("Class %s does not implement type()." % type(self))
+        raise NotImplementedError(f"Class {type(self)} does not implement type().")
 
     def set_type(self, v):
         self._type = v
@@ -882,7 +878,7 @@ class CIfElse(CStatement):
 
     def __init__(
         self,
-        condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
+        condition_and_nodes: list[tuple[CExpression, CStatement | None]],
         else_node=None,
         simplify_else_scope=False,
         cstyle_ifs=True,
@@ -1091,7 +1087,7 @@ class CSwitchCase(CStatement):
         super().__init__(**kwargs)
 
         self.switch = switch
-        self.cases: List[Tuple[Union[int, Tuple[int]], CStatements]] = cases
+        self.cases: list[tuple[int | tuple[int], CStatements]] = cases
         self.default = default
         self.tags = tags
 
@@ -1231,7 +1227,7 @@ class CFunctionCall(CStatement, CExpression):
         super().__init__(**kwargs)
 
         self.callee_target = callee_target
-        self.callee_func: Optional["Function"] = callee_func
+        self.callee_func: Function | None = callee_func
         self.args = args if args is not None else []
         self.returning = returning
         self.ret_expr = ret_expr
@@ -1241,7 +1237,7 @@ class CFunctionCall(CStatement, CExpression):
         self.show_disambiguated_name = show_disambiguated_name
 
     @property
-    def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
+    def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
             proto = self.callee_func.prototype
             if self.callee_func.prototype_libname is not None:
@@ -1260,8 +1256,7 @@ class CFunctionCall(CStatement, CExpression):
     def type(self):
         if self.is_expr:
             return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
-        else:
-            raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+        raise AngrRuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
         """
@@ -1361,7 +1356,7 @@ class CGoto(CStatement):
             # unpack target
             target = target.value
 
-        self.target: Union[int, CExpression] = target
+        self.target: int | CExpression = target
         self.target_idx = target_idx
         self.tags = tags
 
@@ -1408,6 +1403,25 @@ class CUnsupportedStatement(CStatement):
         yield "\n", None
 
 
+class CDirtyStatement(CExpression):
+    __slots__ = ("dirty",)
+
+    def __init__(self, dirty, **kwargs):
+        super().__init__(**kwargs)
+        self.dirty = dirty
+
+    @property
+    def type(self):
+        return SimTypeInt().with_arch(self.codegen.project.arch)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+
+        yield indent_str, None
+        yield str(self.dirty), None
+        yield "\n", None
+
+
 class CLabel(CStatement):
     """
     Represents a label in C code.
@@ -1420,7 +1434,7 @@ class CLabel(CStatement):
         "tags",
     )
 
-    def __init__(self, name: str, ins_addr: int, block_idx: Optional[int], tags=None, **kwargs):
+    def __init__(self, name: str, ins_addr: int, block_idx: int | None, tags=None, **kwargs):
         super().__init__(**kwargs)
         self.name = name
         self.ins_addr = ins_addr
@@ -1501,7 +1515,7 @@ class CVariable(CExpression):
         super().__init__(**kwargs)
 
         self.variable: SimVariable = variable
-        self.unified_variable: Optional[SimVariable] = unified_variable
+        self.unified_variable: SimVariable | None = unified_variable
         self.variable_type: SimType = variable_type.with_arch(self.codegen.project.arch)
         self.tags = tags
 
@@ -1515,10 +1529,9 @@ class CVariable(CExpression):
 
         if v.name:
             return v.name
-        elif isinstance(v, SimTemporaryVariable):
+        if isinstance(v, SimTemporaryVariable):
             return "tmp_%d" % v.tmp_id
-        else:
-            return str(v)
+        return str(v)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.name, self
@@ -1539,11 +1552,8 @@ class CIndexedVariable(CExpression):
         if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
             if isinstance(u, SimTypePointer):
-                if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
-                    # special case: (&array)[x]
-                    u = u.pts_to.elem_type
-                else:
-                    u = u.pts_to
+                # special case: (&array)[x]
+                u = u.pts_to.elem_type if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)) else u.pts_to
                 u = unpack_typeref(u)
             elif isinstance(u, (SimTypeArray, SimTypeFixedSizeArray)):
                 u = u.elem_type
@@ -1630,9 +1640,8 @@ class CUnaryOp(CExpression):
 
     @property
     def type(self):
-        if self._type is None:
-            if self.operand is not None and hasattr(self.operand, "type"):
-                self._type = self.operand.type
+        if self._type is None and self.operand is not None and hasattr(self.operand, "type"):
+            self._type = self.operand.type
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -1653,7 +1662,7 @@ class CUnaryOp(CExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "UnaryOp %s" % (self.op), self
+            yield f"UnaryOp {self.op}", self
 
     #
     # Handlers
@@ -1706,7 +1715,7 @@ class CBinaryOp(CExpression):
 
     __slots__ = ("op", "lhs", "rhs", "tags", "common_type", "_cstyle_null_cmp")
 
-    def __init__(self, op, lhs, rhs, tags: Optional[dict] = None, **kwargs):
+    def __init__(self, op, lhs, rhs, tags: dict | None = None, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
@@ -1753,8 +1762,7 @@ class CBinaryOp(CExpression):
         if lhs_signed == rhs_signed:
             if lhs_ty.size > rhs_ty.size:
                 return lhs_ty
-            else:
-                return rhs_ty
+            return rhs_ty
 
         if lhs_signed:
             signed_ty = lhs_ty
@@ -1850,13 +1858,12 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
-        if self._cstyle_null_cmp:
-            if self._has_const_null_rhs():
-                if self.op == "CmpEQ":
-                    skip_op_and_rhs = True
-                    yield "!", None
-                elif self.op == "CmpNE":
-                    skip_op_and_rhs = True
+        if self._cstyle_null_cmp and self._has_const_null_rhs():
+            if self.op == "CmpEQ":
+                skip_op_and_rhs = True
+                yield "!", None
+            elif self.op == "CmpNE":
+                skip_op_and_rhs = True
         # lhs
         if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
             paren = CClosingObject("(")
@@ -1985,7 +1992,7 @@ class CTypeCast(CExpression):
         "tags",
     )
 
-    def __init__(self, src_type: Optional[SimType], dst_type: SimType, expr: CExpression, tags=None, **kwargs):
+    def __init__(self, src_type: SimType | None, dst_type: SimType, expr: CExpression, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.src_type = (src_type or expr.type).with_arch(self.codegen.project.arch)
@@ -2026,7 +2033,7 @@ class CConstant(CExpression):
         "tags",
     )
 
-    def __init__(self, value, type_: SimType, reference_values=None, tags: Optional[Dict] = None, **kwargs):
+    def __init__(self, value, type_: SimType, reference_values=None, tags: dict | None = None, **kwargs):
         super().__init__(**kwargs)
 
         self.value = value
@@ -2039,8 +2046,7 @@ class CConstant(CExpression):
         ident = (self.tags or {}).get("ins_addr", None)
         if ident is not None:
             return ("inst", ident)
-        else:
-            return ("val", self.value)
+        return ("val", self.value)
 
     @property
     def fmt(self):
@@ -2074,13 +2080,13 @@ class CConstant(CExpression):
         if result is None:
             result = False
             if isinstance(self.value, int):
-                if self._type is not None:
-                    value_size = self._type.size
-                else:
-                    value_size = None
-                if value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF:
-                    result = True
-                elif value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF:
+                value_size = self._type.size if self._type is not None else None
+                if (
+                    value_size == 32
+                    and 0xF000_0000 <= self.value <= 0xFFFF_FFFF
+                    or value_size == 64
+                    and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
+                ):
                     result = True
 
         return result
@@ -2121,10 +2127,9 @@ class CConstant(CExpression):
     def str_to_c_str(_str, prefix: str = ""):
         repr_str = repr(_str)
         base_str = repr_str[1:-1]
-        if repr_str[0] == "'":
-            # check if there's double quotes in the body
-            if '"' in base_str:
-                base_str = base_str.replace('"', '\\"')
+        # check if there's double quotes in the body
+        if repr_str[0] == "'" and '"' in base_str:
+            base_str = base_str.replace('"', '\\"')
         return f'{prefix}"{base_str}"'
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -2134,7 +2139,7 @@ class CConstant(CExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for ty, v in self.reference_values.items():  # pylint:disable=unused-variable
+            for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
                     return
@@ -2154,16 +2159,12 @@ class CConstant(CExpression):
                     v = refval.content.decode("utf-8")
                 else:
                     # it's a string
-                    assert isinstance(v, str)
                     v = refval
+                    assert isinstance(v, str)
                 yield CConstant.str_to_c_str(v), self
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                 refval = self.reference_values[self._type]
-                if isinstance(refval, MemoryData):
-                    v = refval.content.decode("utf_16_le")
-                else:
-                    # it's a string
-                    v = refval
+                v = refval.content.decode("utf_16_le") if isinstance(refval, MemoryData) else refval  # it's a string
                 yield CConstant.str_to_c_str(v, prefix="L"), self
             else:
                 if isinstance(self.reference_values[self._type], int):
@@ -2197,9 +2198,8 @@ class CConstant(CExpression):
         :return:        The formatted string.
         """
 
-        if self.fmt_float:
-            if 0 < value <= 0xFFFF_FFFF:
-                return str(struct.unpack("f", struct.pack("I", value))[0])
+        if self.fmt_float and 0 < value <= 0xFFFF_FFFF:
+            return str(struct.unpack("f", struct.pack("I", value))[0])
 
         if self.fmt_char:
             if value < 0:
@@ -2207,10 +2207,8 @@ class CConstant(CExpression):
             value &= 0xFF
             return repr(chr(value)) if value < 0x80 else f"'\\x{value:x}'"
 
-        if self.fmt_double:
-            if 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
-                str_value = str(struct.unpack("d", struct.pack("Q", value))[0])
-                return str_value
+        if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
+            return str(struct.unpack("d", struct.pack("Q", value))[0])
 
         if self.fmt_neg:
             if value > 0:
@@ -2371,7 +2369,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         indent=0,
         cfg=None,
         variable_kb=None,
-        func_args: Optional[List[SimVariable]] = None,
+        func_args: list[SimVariable] | None = None,
         binop_depth_cutoff: int = 16,
         show_casts=True,
         braces_on_own_lines=True,
@@ -2414,6 +2412,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
+            Stmt.DirtyStatement: self._handle_Stmt_Dirty,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -2436,11 +2435,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
         self.binop_depth_cutoff = binop_depth_cutoff
 
-        self._variables_in_use: Optional[Dict] = None
-        self._inlined_strings: Set[SimMemoryVariable] = set()
-        self._function_pointers: Set[SimMemoryVariable] = set()
-        self.ailexpr2cnode: Optional[Dict[Tuple[Expr.Expression, bool], CExpression]] = None
-        self.cnode2ailexpr: Optional[Dict[CExpression, Expr.Expression]] = None
+        self._variables_in_use: dict | None = None
+        self._inlined_strings: set[SimMemoryVariable] = set()
+        self._function_pointers: set[SimMemoryVariable] = set()
+        self.ailexpr2cnode: dict[tuple[Expr.Expression, bool], CExpression] | None = None
+        self.cnode2ailexpr: dict[CExpression, Expr.Expression] | None = None
         self._indent = indent
         self.show_casts = show_casts
         self.comment_gotos = comment_gotos
@@ -2448,9 +2447,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
         self.cstyle_null_cmp = cstyle_null_cmp
-        self.expr_comments: Dict[int, str] = expr_comments if expr_comments is not None else {}
-        self.stmt_comments: Dict[int, str] = stmt_comments if stmt_comments is not None else {}
-        self.const_formats: Dict[Any, Dict[str, Any]] = const_formats if const_formats is not None else {}
+        self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
+        self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
+        self.const_formats: dict[Any, dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
@@ -2463,10 +2462,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
-        self.map_addr_to_label: Dict[Tuple[int, Optional[int]], CLabel] = {}
-        self.cfunc: Optional[CFunction] = None
-        self.cexterns: Optional[Set[CVariable]] = None
+        self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
+        self.map_addr_to_label: dict[tuple[int, int | None], CLabel] = {}
+        self.cfunc: CFunction | None = None
+        self.cexterns: set[CVariable] | None = None
 
         self._analyze()
 
@@ -2502,10 +2501,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # memo
         self.ailexpr2cnode = {}
 
-        if self._func_args:
-            arg_list = [self._variable(arg, None) for arg in self._func_args]
-        else:
-            arg_list = []
+        arg_list = [self._variable(arg, None) for arg in self._func_args] if self._func_args else []
 
         obj = self._handle(self._sequence)
 
@@ -2524,9 +2520,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
             omit_header=self.omit_func_header,
         )
-        self.cfunc = FieldReferenceCleanup.handle(self.cfunc)
-        self.cfunc = PointerArithmeticFixer.handle(self.cfunc)
-        self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
+        self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
+        self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
+        self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -2560,7 +2556,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.map_ast_to_pos,
         ) = self.render_text(self.cfunc)
 
-    RENDER_TYPE = Tuple[str, PositionMapping, PositionMapping, InstructionMapping, Dict[Any, Set[Any]]]
+    RENDER_TYPE = tuple[str, PositionMapping, PositionMapping, InstructionMapping, dict[Any, set[Any]]]
 
     def render_text(self, cfunc: CFunction) -> RENDER_TYPE:
         pos_to_node = PositionMapping()
@@ -2598,10 +2594,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _get_variable_type(self, var, is_global=False):
         if is_global:
             return self._variable_kb.variables["global"].get_variable_type(var)
-        else:
-            return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
 
-    def _get_derefed_type(self, ty: SimType) -> Optional[SimType]:
+    def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
             return None
         ty = unpack_typeref(ty)
@@ -2648,7 +2643,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
 
-    def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]) -> CVariable:
+    def _variable(self, variable: SimVariable, fallback_type_size: int | None) -> CVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
         unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
@@ -2686,7 +2681,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return result
 
     def _access_constant_offset_reference(
-        self, expr: CExpression, offset: int, data_type: Optional[SimType]
+        self, expr: CExpression, offset: int, data_type: SimType | None
     ) -> CExpression:
         result = self._access_constant_offset(expr, offset, data_type or SimTypeBottom(), True)
         if isinstance(result, CTypeCast) and data_type is None:
@@ -2737,17 +2732,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 codegen=self,
             )
 
-        if isinstance(expr, CUnaryOp) and expr.op == "Reference":
-            base_expr = expr.operand
-        else:
-            base_expr = None
+        base_expr = expr.operand if isinstance(expr, CUnaryOp) and expr.op == "Reference" else None
 
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
             if base_type == data_type or (
-                not isinstance(base_type, SimTypeBottom)
-                and not isinstance(data_type, SimTypeBottom)
-                and base_type.size < data_type.size
+                base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
                 # case 1: we're done because we found it
                 # case 2: we're done because we can never find it and we might as well stop early
@@ -2760,10 +2750,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return _force_type_cast(base_type, data_type, expr)
                 return CUnaryOp("Dereference", expr, codegen=self)
 
-        if isinstance(base_type, SimTypeBottom):
-            stride = 1
-        else:
-            stride = base_type.size // self.project.arch.byte_width or 1
+        stride = 1 if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
         index, remainder = divmod(offset, stride)
         if index != 0:
             index = CConstant(index, SimTypeInt(), codegen=self)
@@ -2896,10 +2883,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         ),
                         codegen=self,
                     )
-                if result is None:
-                    result = piece
-                else:
-                    result = CBinaryOp(op, result, piece, codegen=self)
+                result = piece if result is None else CBinaryOp(op, result, piece, codegen=self)
             if o_constant != 0:
                 result = CBinaryOp("Add", CConstant(o_constant, SimTypeInt(), codegen=self), result, codegen=self)
 
@@ -2944,7 +2928,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             kernel_type = unpack_typeref(unpack_pointer(kernel.type))
             assert kernel_type
 
-            if isinstance(kernel_type, SimTypeBottom):
+            if kernel_type.size is None:
                 return bail_out()
             kernel_stride = kernel_type.size // self.project.arch.byte_width
 
@@ -3027,16 +3011,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
-        handler: Optional[Callable] = self._handlers.get(node.__class__, None)
+        handler: Callable | None = self._handlers.get(node.__class__, None)
         if handler is not None:
-            if isinstance(node, Stmt.Call):
-                # special case for Call
-                converted = handler(node, is_expr=is_expr)
-            else:
-                converted = handler(node, lvalue=lvalue)
+            # special case for Call
+            converted = handler(node, is_expr=is_expr) if isinstance(node, Stmt.Call) else handler(node, lvalue=lvalue)
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
-        raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
+        raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
 
     def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
@@ -3062,14 +3043,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 tags=tags,
                 codegen=self,
             )
-        elif loop_node.sort == "do-while":
+        if loop_node.sort == "do-while":
             return CDoWhileLoop(
                 self._handle(loop_node.condition),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
                 tags=tags,
                 codegen=self,
             )
-        elif loop_node.sort == "for":
+        if loop_node.sort == "for":
             return CForLoop(
                 None if loop_node.initializer is None else self._handle(loop_node.initializer),
                 None if loop_node.condition is None else self._handle(loop_node.condition),
@@ -3079,8 +3060,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 codegen=self,
             )
 
-        else:
-            raise NotImplementedError()
+        raise NotImplementedError
 
     def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
         tags = {"ins_addr": condition_node.addr}
@@ -3094,7 +3074,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
 
-        code = CIfElse(
+        return CIfElse(
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
@@ -3104,7 +3084,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=tags,
             codegen=self,
         )
-        return code
 
     def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
         tags = {"ins_addr": cond_node.addr}
@@ -3114,14 +3093,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ]
         else_node = self._handle(cond_node.else_node) if cond_node.else_node is not None else None
 
-        code = CIfElse(
+        return CIfElse(
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
             cstyle_ifs=self.cstyle_ifs,
             codegen=self,
         )
-        return code
 
     def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
@@ -3153,8 +3131,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cases = [(idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items()]
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
-        switch_case = CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
-        return switch_case
+        return CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
 
     def _handle_Continue(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
@@ -3200,8 +3177,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if stmt.variable is not None:
-            cvar = self._variable(stmt.variable, stmt.size)
-            offset = stmt.offset or 0
+            if "struct_member_info" in stmt.tags:
+                offset, var, _ = stmt.struct_member_info
+                cvar = self._variable(var, stmt.size)
+            else:
+                cvar = self._variable(stmt.variable, stmt.size)
+                offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
 
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
@@ -3220,25 +3201,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
-            if not isinstance(stmt.target, str):
-                target = self._handle(stmt.target)
-            else:
-                target = stmt.target
+            target = self._handle(stmt.target) if not isinstance(stmt.target, str) else stmt.target
         except UnsupportedNodeTypeError:
             target = stmt.target
 
-        if isinstance(target, CConstant):
-            target_func = self.kb.functions.function(addr=target.value)
-        else:
-            target_func = None
+        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
 
         args = []
         if stmt.args is not None:
             for i, arg in enumerate(stmt.args):
                 type_ = None
-                if target_func is not None:
-                    if target_func.prototype is not None and i < len(target_func.prototype.args):
-                        type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                if (
+                    target_func is not None
+                    and target_func.prototype is not None
+                    and i < len(target_func.prototype.args)
+                ):
+                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
@@ -3285,31 +3263,32 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if stmt.false_target is None
             else CGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
         )
-        ifelse = CIfElse(
+        return CIfElse(
             [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
             else_node=else_node,
             cstyle_ifs=self.cstyle_ifs,
             tags=stmt.tags,
             codegen=self,
         )
-        return ifelse
 
     def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
             return CReturn(None, tags=stmt.tags, codegen=self)
-        elif len(stmt.ret_exprs) == 1:
+        if len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
             return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
-        else:
-            # TODO: Multiple return expressions
-            l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
-            ret_expr = stmt.ret_exprs[0]
-            return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+        # TODO: Multiple return expressions
+        l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
+        ret_expr = stmt.ret_exprs[0]
+        return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = CLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
+
+    def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
+        return CDirtyStatement(stmt, codegen=self)
 
     #
     # AIL expression handlers
@@ -3317,10 +3296,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Register(self, expr: Expr.Register, lvalue: bool = False, **kwargs):
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
-            if old_ty.size == proposed_ty.size:
-                # we do not allow returning a struct for a primitive type
-                if not (isinstance(proposed_ty, SimStruct) and not isinstance(old_ty, SimStruct)):
-                    return proposed_ty
+            # we do not allow returning a struct for a primitive type
+            if old_ty.size == proposed_ty.size and (
+                not isinstance(proposed_ty, SimStruct) or isinstance(old_ty, SimStruct)
+            ):
+                return proposed_ty
             return old_ty
 
         if expr.variable:
@@ -3331,17 +3311,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_size(expr.size, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
-        else:
-            return CRegister(expr, tags=expr.tags, codegen=self)
+        return CRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
         ty = self.default_simtype_from_size(expr.size)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
-            if old_ty.size == proposed_ty.size:
-                # we do not allow returning a struct for a primitive type
-                if not (isinstance(proposed_ty, SimStruct) and not isinstance(old_ty, SimStruct)):
-                    return proposed_ty
+            # we do not allow returning a struct for a primitive type
+            if (
+                old_ty.size == proposed_ty.size
+                and not isinstance(proposed_ty, SimStruct)
+                and not isinstance(old_ty, SimStruct)
+            ):
+                return proposed_ty
             return old_ty
 
         if expr.variable is not None:
@@ -3470,7 +3452,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
         if 64 >= expr.to_bits > 32:
-            dst_type: Union[SimTypeInt, SimTypeChar] = SimTypeLongLong()
+            dst_type: SimTypeInt | SimTypeChar = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
             dst_type = SimTypeInt()
         elif 16 >= expr.to_bits > 8:
@@ -3480,7 +3462,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         elif expr.to_bits == 1:
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
-            raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
+            raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
 
         # convert child
         child = self._handle(expr.operand)
@@ -3549,125 +3531,104 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # FIXME
         stack_base = CFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
-        ptr = CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
-        return ptr
+        return CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
 
 
 class CStructuredCodeWalker:
-    @classmethod
-    def handle(cls, obj):
-        handler = getattr(cls, "handle_" + type(obj).__name__, cls.handle_default)
+    def handle(self, obj):
+        handler = getattr(self, "handle_" + type(obj).__name__, self.handle_default)
         return handler(obj)
 
-    @classmethod
-    def handle_default(cls, obj):
+    def handle_default(self, obj):
         return obj
 
-    @classmethod
-    def handle_CFunction(cls, obj):
-        obj.statements = cls.handle(obj.statements)
+    def handle_CFunction(self, obj):
+        obj.statements = self.handle(obj.statements)
         return obj
 
-    @classmethod
-    def handle_CStatements(cls, obj):
-        obj.statements = [cls.handle(stmt) for stmt in obj.statements]
+    def handle_CStatements(self, obj):
+        obj.statements = [self.handle(stmt) for stmt in obj.statements]
         return obj
 
-    @classmethod
-    def handle_CWhileLoop(cls, obj):
-        obj.condition = cls.handle(obj.condition)
-        obj.body = cls.handle(obj.body)
+    def handle_CWhileLoop(self, obj):
+        obj.condition = self.handle(obj.condition)
+        obj.body = self.handle(obj.body)
         return obj
 
-    @classmethod
-    def handle_CDoWhileLoop(cls, obj):
-        obj.condition = cls.handle(obj.condition)
-        obj.body = cls.handle(obj.body)
+    def handle_CDoWhileLoop(self, obj):
+        obj.condition = self.handle(obj.condition)
+        obj.body = self.handle(obj.body)
         return obj
 
-    @classmethod
-    def handle_CForLoop(cls, obj):
-        obj.initializer = cls.handle(obj.initializer)
-        obj.condition = cls.handle(obj.condition)
-        obj.iterator = cls.handle(obj.iterator)
-        obj.body = cls.handle(obj.body)
+    def handle_CForLoop(self, obj):
+        obj.initializer = self.handle(obj.initializer)
+        obj.condition = self.handle(obj.condition)
+        obj.iterator = self.handle(obj.iterator)
+        obj.body = self.handle(obj.body)
         return obj
 
-    @classmethod
-    def handle_CIfElse(cls, obj):
+    def handle_CIfElse(self, obj):
         obj.condition_and_nodes = [
-            (cls.handle(condition), cls.handle(node)) for condition, node in obj.condition_and_nodes
+            (self.handle(condition), self.handle(node)) for condition, node in obj.condition_and_nodes
         ]
-        obj.else_node = cls.handle(obj.else_node)
+        obj.else_node = self.handle(obj.else_node)
         return obj
 
-    @classmethod
-    def handle_CIfBreak(cls, obj):
-        obj.condition = cls.handle(obj.condition)
+    def handle_CIfBreak(self, obj):
+        obj.condition = self.handle(obj.condition)
         return obj
 
-    @classmethod
-    def handle_CSwitchCase(cls, obj):
-        obj.switch = cls.handle(obj.switch)
-        obj.cases = [(case, cls.handle(body)) for case, body in obj.cases]
-        obj.default = cls.handle(obj.default)
+    def handle_CSwitchCase(self, obj):
+        obj.switch = self.handle(obj.switch)
+        obj.cases = [(case, self.handle(body)) for case, body in obj.cases]
+        obj.default = self.handle(obj.default)
         return obj
 
-    @classmethod
-    def handle_CAssignment(cls, obj):
-        obj.lhs = cls.handle(obj.lhs)
-        obj.rhs = cls.handle(obj.rhs)
+    def handle_CAssignment(self, obj):
+        obj.lhs = self.handle(obj.lhs)
+        obj.rhs = self.handle(obj.rhs)
         return obj
 
-    @classmethod
-    def handle_CFunctionCall(cls, obj):
-        obj.callee_target = cls.handle(obj.callee_target)
-        obj.args = [cls.handle(arg) for arg in obj.args]
-        obj.ret_expr = cls.handle(obj.ret_expr)
+    def handle_CFunctionCall(self, obj):
+        obj.callee_target = self.handle(obj.callee_target)
+        obj.args = [self.handle(arg) for arg in obj.args]
+        obj.ret_expr = self.handle(obj.ret_expr)
         return obj
 
-    @classmethod
-    def handle_CReturn(cls, obj):
-        obj.retval = cls.handle(obj.retval)
+    def handle_CReturn(self, obj):
+        obj.retval = self.handle(obj.retval)
         return obj
 
-    @classmethod
-    def handle_CGoto(cls, obj):
-        obj.target = cls.handle(obj.target)
+    def handle_CGoto(self, obj):
+        obj.target = self.handle(obj.target)
         return obj
 
-    @classmethod
-    def handle_CIndexedVariable(cls, obj):
-        obj.variable = cls.handle(obj.variable)
-        obj.index = cls.handle(obj.index)
+    def handle_CIndexedVariable(self, obj):
+        obj.variable = self.handle(obj.variable)
+        obj.index = self.handle(obj.index)
         return obj
 
-    @classmethod
-    def handle_CVariableField(cls, obj):
-        obj.variable = cls.handle(obj.variable)
+    def handle_CVariableField(self, obj):
+        obj.variable = self.handle(obj.variable)
         return obj
 
-    @classmethod
-    def handle_CUnaryOp(cls, obj):
-        obj.operand = cls.handle(obj.operand)
+    def handle_CUnaryOp(self, obj):
+        obj.operand = self.handle(obj.operand)
         return obj
 
-    @classmethod
-    def handle_CBinaryOp(cls, obj):
-        obj.lhs = cls.handle(obj.lhs)
-        obj.rhs = cls.handle(obj.rhs)
+    def handle_CBinaryOp(self, obj):
+        obj.lhs = self.handle(obj.lhs)
+        obj.rhs = self.handle(obj.rhs)
         return obj
 
-    @classmethod
-    def handle_CTypeCast(cls, obj):
-        obj.expr = cls.handle(obj.expr)
+    def handle_CTypeCast(self, obj):
+        obj.expr = self.handle(obj.expr)
         return obj
 
-    @classmethod
-    def handle_CITE(cls, obj):
-        obj.cond = cls.handle(obj.cond)
-        obj.iftrue = cls.handle(obj.iftrue)
-        obj.iffalse = cls.handle(obj.iffalse)
+    def handle_CITE(self, obj):
+        obj.cond = self.handle(obj.cond)
+        obj.iftrue = self.handle(obj.iftrue)
+        obj.iffalse = self.handle(obj.iffalse)
         return obj
 
 
@@ -3688,6 +3649,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                 and isinstance(intermediate_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
                 and isinstance(start_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
             ):
+                assert dst_ty.size and start_ty.size and intermediate_ty.size
                 if dst_ty.size <= start_ty.size and dst_ty.size <= intermediate_ty.size:
                     # this is a down- or neutral-cast with an intermediate step that doesn't matter
                     result = child.expr
@@ -3702,34 +3664,30 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
             return cls.collapse(dst_ty, result)
         return result
 
-    @classmethod
-    def handle_CAssignment(cls, obj):
-        obj.rhs = cls.collapse(obj.lhs.type, obj.rhs)
+    def handle_CAssignment(self, obj):
+        obj.rhs = self.collapse(obj.lhs.type, obj.rhs)
         return super().handle_CAssignment(obj)
 
-    @classmethod
-    def handle_CFunctionCall(cls, obj: CFunctionCall):
+    def handle_CFunctionCall(self, obj: CFunctionCall):
         for i, (c_arg, arg_ty) in enumerate(zip(obj.args, obj.prototype.args)):
-            obj.args[i] = cls.collapse(arg_ty, c_arg)
+            obj.args[i] = self.collapse(arg_ty, c_arg)
         return super().handle_CFunctionCall(obj)
 
-    @classmethod
-    def handle_CReturn(cls, obj: CReturn):
-        obj.retval = cls.collapse(obj.codegen._func.prototype.returnty, obj.retval)
+    def handle_CReturn(self, obj: CReturn):
+        obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
         return super().handle_CReturn(obj)
 
-    @classmethod
-    def handle_CBinaryOp(cls, obj: CBinaryOp):
+    def handle_CBinaryOp(self, obj: CBinaryOp):
         obj = super().handle_CBinaryOp(obj)
         while True:
-            new_lhs = cls.collapse(obj.common_type, obj.lhs)
+            new_lhs = self.collapse(obj.common_type, obj.lhs)
             if (
                 new_lhs is not obj.lhs
                 and CBinaryOp.compute_common_type(obj.op, new_lhs.type, obj.rhs.type) == obj.common_type
             ):
                 obj.lhs = new_lhs
             else:
-                new_rhs = cls.collapse(obj.common_type, obj.rhs)
+                new_rhs = self.collapse(obj.common_type, obj.rhs)
                 if (
                     new_rhs is not obj.rhs
                     and CBinaryOp.compute_common_type(obj.op, obj.lhs.type, new_rhs.type) == obj.common_type
@@ -3739,11 +3697,10 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                     break
         return obj
 
-    @classmethod
-    def handle_CTypeCast(cls, obj: CTypeCast):
+    def handle_CTypeCast(self, obj: CTypeCast):
         # note that the expression that this method returns may no longer be a CTypeCast
         obj = super().handle_CTypeCast(obj)
-        inner = cls.collapse(obj.dst_type, obj.expr)
+        inner = self.collapse(obj.dst_type, obj.expr)
         if inner is not obj.expr:
             obj.src_type = inner.type
             obj.expr = inner
@@ -3753,12 +3710,11 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
 
 class FieldReferenceCleanup(CStructuredCodeWalker):
-    @classmethod
-    def handle_CTypeCast(cls, obj):
+    def handle_CTypeCast(self, obj):
         if isinstance(obj.dst_type, SimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
             obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
             if not isinstance(obj, CTypeCast):
-                return cls.handle(obj)
+                return self.handle(obj)
         return super().handle_CTypeCast(obj)
 
 
@@ -3776,8 +3732,7 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
     a_ptr = a_ptr + 1.
     """
 
-    @classmethod
-    def handle_CBinaryOp(cls, obj):
+    def handle_CBinaryOp(self, obj):
         obj: CBinaryOp = super().handle_CBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")

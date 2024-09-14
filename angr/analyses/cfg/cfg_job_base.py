@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 
@@ -43,7 +44,7 @@ class BlockID:
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type))
+            self._hash = hash((self.callsite_tuples, self.addr, self.jump_type))
         return self._hash
 
     def __eq__(self, other):
@@ -99,12 +100,11 @@ class FunctionKey:
         return " -> ".join(s)
 
     def __repr__(self):
-        s = f"<FuncKey {self.addr:#08x} ({self.callsite_repr()})>"
-        return s
+        return f"<FuncKey {self.addr:#08x} ({self.callsite_repr()})>"
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples,) + (self.addr,))
+            self._hash = hash((self.callsite_tuples, self.addr))
         return self._hash
 
     def __eq__(self, other):
@@ -125,13 +125,13 @@ class CFGJobBase:
     def __init__(
         self,
         addr,
-        state: "SimState",
+        state: SimState,
         context_sensitivity_level,
         block_id=None,
         src_block_id=None,
         src_exit_stmt_idx=None,
         src_ins_addr=None,
-        jumpkind: Optional[str] = None,
+        jumpkind: str | None = None,
         call_stack=None,
         is_narrowing=False,
         skip=False,
@@ -200,5 +200,4 @@ class CFGJobBase:
     def __repr__(self):
         if isinstance(self.addr, SootAddressDescriptor):
             return f"<Entry {self.addr} {self.jumpkind}>"
-        else:
-            return f"<Entry {self.addr:#08x} % {self.jumpkind}>"
+        return f"<Entry {self.addr:#08x} % {self.jumpkind}>"

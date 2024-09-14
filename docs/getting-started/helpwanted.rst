@@ -203,7 +203,7 @@ improvement, each of which is its own research project:
 #. By creating testcases that achieve a "high-enough" code coverage of a given
    function, we can detect changes in functionality by applying the set of
    testcases to another implementation of the same function and analyzing
-   changes in code coverage. This can then be used as a sematic function diff.
+   changes in code coverage. This can then be used as a semantic function diff.
 
 Applying AFL's path selection criteria to symbolic execution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,5 +1,5 @@
+from __future__ import annotations
 import logging
-from typing import Dict, Tuple
 
 from ..calling_conventions import SYSCALL_CC, SimCCSyscall
 from ..errors import AngrUnsupportedSyscallError, SimSolverError
@@ -23,7 +23,7 @@ class SimUserland(SimOS):
         self.syscall_addr_alignment = syscall_addr_alignment
         self.kernel_base = None
         self.unknown_syscall_number = None
-        self.syscall_abis: Dict[str, Tuple[int, int, int]] = {}
+        self.syscall_abis: dict[str, tuple[int, int, int]] = {}
         # syscall_abis is a dict of tuples {name: (base_number, min_number, max_number)}
         # min_number and max_number are just cached from SimSyscallLibrary.{min,max}imum_sysall_number
         # base_number is used to map the syscalls into the syscall address space - it's a "base address"
@@ -75,14 +75,13 @@ class SimUserland(SimOS):
         sym_num = cc.syscall_num(state)
         try:
             num = state.solver.eval_one(sym_num)
-        except SimSolverError:
+        except SimSolverError as err:
             if allow_unsupported:
                 num = self.unknown_syscall_number
             else:
                 if not state.solver.satisfiable():
-                    raise AngrUnsupportedSyscallError("The program state is not satisfiable")
-                else:
-                    raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
+                    raise AngrUnsupportedSyscallError("The program state is not satisfiable") from err
+                raise AngrUnsupportedSyscallError("Got a symbolic syscall number") from err
 
         proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported, abi=abi)
         proc.cc = cc
@@ -92,7 +91,7 @@ class SimUserland(SimOS):
         """
         Optionally, override this function to determine which abi is being used for the state's current syscall.
         """
-        return None
+        return
 
     def is_syscall_addr(self, addr):
         """
@@ -147,7 +146,7 @@ class SimUserland(SimOS):
 
         if self.syscall_library is None:
             if not allow_unsupported:
-                raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented" % self.name)
+                raise AngrUnsupportedSyscallError(f"{self.name} does not have a library of syscalls implemented")
             proc = P["stubs"]["syscall"]()
         elif not allow_unsupported and not self.syscall_library.has_implementation(number, self.arch, abilist):
             raise AngrUnsupportedSyscallError("No implementation for syscall %d" % number)

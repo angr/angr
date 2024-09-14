@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
@@ -284,7 +286,7 @@ class TestStructurer(unittest.TestCase):
         codegen = dec.codegen
 
         # full code, without the header and variable definitions
-        # the outputed code will be missing corrected variable names, which can be corrected by passing
+        # the outputted code will be missing corrected variable names, which can be corrected by passing
         # private properties from the original codegen object
         func_no_header = p.analyses.StructuredCodeGenerator(f, top_sequence, cfg=cfg, omit_func_header=True).text
         assert "int main(" not in func_no_header

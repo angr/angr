@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -17,9 +18,8 @@ class ASubADiv(PeepholeOptimizationExprBase):
                 if expr1.operands[0].likes(a):
                     N = expr1.operands[1].value
                     mul = BinaryOp(expr.idx, "Mul", [a, Const(None, None, N - 1, expr.bits)], False, **expr.tags)
-                    div = BinaryOp(
+                    return BinaryOp(
                         expr1.idx, "Div", [mul, Const(None, None, N, expr.bits, **expr1.tags)], False, **expr1.tags
                     )
-                    return div
 
         return None

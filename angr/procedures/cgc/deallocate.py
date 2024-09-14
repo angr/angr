@@ -1,8 +1,11 @@
+from __future__ import annotations
 import logging
 
+import claripy
 from unique_log_filter import UniqueLogFilter
 
 import angr
+from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -11,16 +14,21 @@ l.addFilter(UniqueLogFilter())
 class deallocate(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
-    def run(self, addr, length):  # pylint:disable=unused-argument
+    def run(self, addr, length):
+        if isinstance(addr, SimActionObject):
+            addr = addr.ast
+        if isinstance(length, SimActionObject):
+            length = length.ast
+
         # return code (see deallocate() docs)
-        r = self.state.solver.ite_cases(
+        r = claripy.ite_cases(
             (
                 (addr % 0x1000 != 0, self.state.cgc.EINVAL),
                 (length == 0, self.state.cgc.EINVAL),
                 (self.state.cgc.addr_invalid(addr), self.state.cgc.EINVAL),
                 (self.state.cgc.addr_invalid(addr + length), self.state.cgc.EINVAL),
             ),
-            self.state.solver.BVV(0, self.state.arch.bits),
+            claripy.BVV(0, self.state.arch.bits),
         )
 
         if self.state.solver.symbolic(addr):

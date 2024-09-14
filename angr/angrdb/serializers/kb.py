@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...knowledge_base import KnowledgeBase
 from ..models import DbKnowledgeBase
 from .cfg_model import CFGModelSerializer
@@ -90,18 +91,21 @@ class KnowledgeBaseSerializer:
         if structured_code is not None:
             kb.structured_code = structured_code
 
-        # fill in CFGNode.function_address
-        for func in funcs.values():
-            for block_addr in func.block_addrs_set:
-                node = cfg_model.get_any_node(block_addr)
-                if node is not None:
-                    node.function_address = func.addr
+        if cfg_model is not None:
+            # CFG may not exist for all knowledge bases
 
-        # re-initialize CFGModel.insn_addr_to_memory_data
-        # fill in insn_addr_to_memory_data
-        for xrefs in xrefs.xrefs_by_ins_addr.values():
-            for xref in xrefs:
-                if xref.ins_addr is not None and xref.memory_data is not None:
-                    cfg_model.insn_addr_to_memory_data[xref.ins_addr] = xref.memory_data
+            # fill in CFGNode.function_address
+            for func in funcs.values():
+                for block_addr in func.block_addrs_set:
+                    node = cfg_model.get_any_node(block_addr)
+                    if node is not None:
+                        node.function_address = func.addr
+
+            # re-initialize CFGModel.insn_addr_to_memory_data
+            # fill in insn_addr_to_memory_data
+            for xrefs_ in xrefs.xrefs_by_ins_addr.values():
+                for xref in xrefs_:
+                    if xref.ins_addr is not None and xref.memory_data is not None:
+                        cfg_model.insn_addr_to_memory_data[xref.ins_addr] = xref.memory_data
 
         return kb

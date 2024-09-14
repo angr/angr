@@ -1,3 +1,6 @@
+from __future__ import annotations
+import claripy
+
 import angr
 
 
@@ -16,7 +19,7 @@ class fgetc(angr.SimProcedure):
             data,
             real_length,
         ) = simfd.read_data(1)
-        return self.state.solver.If(real_length == 0, -1, data.zero_extend(self.arch.sizeof["int"] - 8))
+        return claripy.If(real_length == 0, -1, data.zero_extend(self.arch.sizeof["int"] - 8))
 
 
 getc = fgetc

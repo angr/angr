@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 from unittest import mock
 import unittest
 
@@ -42,12 +43,12 @@ class TestSubject(unittest.TestCase):
         assert subject.content == block
         assert subject.type == SubjectType.Block
 
-    def test_fails_when_instanciated_with_an_inadequate_object(self):
+    def test_fails_when_instantiated_with_an_inadequate_object(self):
         self.assertRaises(TypeError, Subject, "test-me", None)
 
     @mock.patch.object(Function, "_get_initial_binary_name", return_value="binary")
     @mock.patch.object(FunctionGraphVisitor, "sort_nodes")
-    def test_when_instanciated_with_a_function_need_other_attributes(self, _, __):
+    def test_when_instantiated_with_a_function_need_other_attributes(self, _, __):
         function = _a_mock_function(0x42, "function_name")
         func_graph = networkx.DiGraph()
         cc = "mock_cc"

@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 from ..models import DbXRefs
 from ...knowledge_plugins.xrefs import XRefManager
 
@@ -44,5 +45,4 @@ class XRefsSerializer:
         if db_xrefs is None:
             return None
 
-        xrefs = XRefManager.parse(db_xrefs.blob, cfg_model=cfg_model, kb=kb)
-        return xrefs
+        return XRefManager.parse(db_xrefs.blob, cfg_model=cfg_model, kb=kb)

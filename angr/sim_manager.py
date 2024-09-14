@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import sys
 import itertools
 import types
 from collections import defaultdict
-from typing import List, Tuple, DefaultDict
 import logging
+from types import TracebackType
 
 import claripy
 import mulpyplexer
@@ -65,7 +67,7 @@ class SimulationManager:
     ALL = "_ALL"
     DROP = "_DROP"
 
-    _integral_stashes: Tuple[str] = ("active", "stashed", "pruned", "unsat", "errored", "deadended", "unconstrained")
+    _integral_stashes: tuple[str] = ("active", "stashed", "pruned", "unsat", "errored", "deadended", "unconstrained")
 
     def __init__(
         self,
@@ -91,7 +93,7 @@ class SimulationManager:
 
         if stashes is None:
             stashes = self._create_integral_stashes()
-        self._stashes: DefaultDict[str, List["SimState"]] = stashes
+        self._stashes: defaultdict[str, list[SimState]] = stashes
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {
@@ -164,13 +166,13 @@ class SimulationManager:
         except AttributeError:
             return SimulationManager._fetch_states(self, stash=item)
 
-    active: List[SimState]
-    stashed: List[SimState]
-    pruned: List[SimState]
-    unsat: List[SimState]
-    deadended: List[SimState]
-    unconstrained: List[SimState]
-    found: List[SimState]
+    active: list[SimState]
+    stashed: list[SimState]
+    pruned: list[SimState]
+    unsat: list[SimState]
+    deadended: list[SimState]
+    unconstrained: list[SimState]
+    found: list[SimState]
     one_active: SimState
     one_stashed: SimState
     one_pruned: SimState
@@ -189,11 +191,11 @@ class SimulationManager:
         )
 
     @property
-    def errored(self):
+    def errored(self) -> list[ErrorRecord]:
         return self._errored
 
     @property
-    def stashes(self) -> DefaultDict[str, List["SimState"]]:
+    def stashes(self) -> defaultdict[str, list[SimState]]:
         return self._stashes
 
     def mulpyplex(self, *stashes):
@@ -261,11 +263,11 @@ class SimulationManager:
         if not isinstance(tech, ExplorationTechnique):
             raise SimulationManagerError
 
-        def _is_overriden(name):
+        def _is_overridden(name):
             return getattr(tech, name).__code__ is not getattr(ExplorationTechnique, name).__code__
 
-        overriden = filter(_is_overriden, ("step", "filter", "selector", "step_state", "successors"))
-        hooks = {name: getattr(tech, name) for name in overriden}
+        overridden = filter(_is_overridden, ("step", "filter", "selector", "step_state", "successors"))
+        hooks = {name: getattr(tech, name) for name in overridden}
         HookSet.remove_hooks(self, **hooks)
 
         self._techniques.remove(tech)
@@ -321,7 +323,9 @@ class SimulationManager:
             if isinstance(t, Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter", None)
                 if deviation_filter_saved is not None:
-                    t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s) or deviation_filter_saved(s)
+                    t.options["deviation_filter"] = (
+                        lambda s, dfs=deviation_filter_saved: tech.find(s) or tech.avoid(s) or dfs(s)
+                    )
                 else:
                     t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)
                 break
@@ -355,7 +359,7 @@ class SimulationManager:
         :return:            The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        for _ in itertools.count() if n is None else range(0, n):
+        for _ in itertools.count() if n is None else range(n):
             if not self.complete() and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
                 if not (until and until(self)):
@@ -369,9 +373,9 @@ class SimulationManager:
         """
         if not self._techniques:
             return False
-        if not any(tech._is_overriden("complete") for tech in self._techniques):
+        if not any(tech._is_overridden("complete") for tech in self._techniques):
             return False
-        return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overriden("complete"))
+        return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overridden("complete"))
 
     def step(
         self,
@@ -394,7 +398,7 @@ class SimulationManager:
 
         :param stash:           The name of the stash to step (default: 'active')
         :param target_stash:    The name of the stash to put the results in (default: same as ``stash``)
-        :param error_list:      The list to put ErroredState objects in (default: ``self.errored``)
+        :param error_list:      The list to put ErrorRecord objects in (default: ``self.errored``)
         :param selector_func:   If provided, should be a function that takes a state and returns a
                                 boolean. If True, the state will be stepped. Otherwise, it will be
                                 kept as-is.
@@ -777,7 +781,7 @@ class SimulationManager:
         :param merge_func:  If provided, instead of using state.merge, call this function with
                             the states as the argument. Should return the merged state.
         :param merge_key:   If provided, should be a function that takes a state and returns a key that will compare
-                            equal for all states that are allowed to be merged together, as a first aproximation.
+                            equal for all states that are allowed to be merged together, as a first approximation.
                             By default: uses PC, callstack, and open file descriptors.
         :param prune:       Whether to prune the stash prior to merging it
 
@@ -794,7 +798,7 @@ class SimulationManager:
         merge_groups = []
         while to_merge:
             base_key = merge_key(to_merge[0])
-            g, to_merge = self._filter_states(lambda s: base_key == merge_key(s), to_merge)
+            g, to_merge = self._filter_states(lambda s, base_key=base_key: base_key == merge_key(s), to_merge)
             if len(g) <= 1:
                 not_to_merge.extend(g)
             else:
@@ -830,16 +834,15 @@ class SimulationManager:
     def _fetch_states(self, stash):
         if stash in self._stashes:
             return self._stashes[stash]
-        elif stash == SimulationManager.ALL:
+        if stash == SimulationManager.ALL:
             return list(itertools.chain.from_iterable(self._stashes.values()))
-        elif stash == "mp_" + SimulationManager.ALL:
+        if stash == "mp_" + SimulationManager.ALL:
             return mulpyplexer.MP(self._fetch_states(stash=SimulationManager.ALL))
-        elif stash.startswith("mp_"):
+        if stash.startswith("mp_"):
             return mulpyplexer.MP(self._stashes.get(stash[3:], []))
-        elif stash.startswith("one_"):
+        if stash.startswith("one_"):
             return self._stashes.get(stash[4:], [None])[0]
-        else:
-            raise AttributeError("No such stash: %s" % stash)
+        raise AttributeError(f"No such stash: {stash}")
 
     def _filter_states(self, filter_func, states):  # pylint:disable=no-self-use
         match, nomatch = [], []
@@ -887,14 +890,13 @@ class SimulationManager:
         if len(others):
             others.append(m)
             return self._merge_states(others)
-        else:
-            return m
+        return m
 
     #
     #   ...
     #
 
-    def _create_integral_stashes(self) -> DefaultDict[str, List["SimState"]]:
+    def _create_integral_stashes(self) -> defaultdict[str, list[SimState]]:
         stashes = defaultdict(list)
         stashes.update({name: [] for name in self._integral_stashes})
         return stashes
@@ -945,9 +947,9 @@ class ErrorRecord:
     """
 
     def __init__(self, state, error, traceback):
-        self.state = state
-        self.error = error
-        self.traceback = traceback
+        self.state: SimState = state
+        self.error: Exception = error
+        self.traceback: TracebackType = traceback
 
     def debug(self):
         """
@@ -962,7 +964,7 @@ class ErrorRecord:
         raise self.error.with_traceback(self.traceback)
 
     def __repr__(self):
-        return '<State errored with "%s">' % self.error
+        return f'<State errored with "{self.error}">'
 
     def __eq__(self, other):
         return self is other or self.state is other

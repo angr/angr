@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pyvex
 import claripy
 
@@ -30,5 +31,4 @@ class SuperFastpathMixin(VEXSlicingMixin):
         except SimMissingTempError:
             if o.SUPER_FASTPATH in self.state.options:
                 return claripy.BVV(0, pyvex.get_type_size(self.irsb.tyenv.lookup(tmp)))
-            else:
-                raise
+            raise

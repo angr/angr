@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import annotations
 
 import nose
 import logging
@@ -34,7 +35,7 @@ def test_static():
     # make sure we have two blocks from main
     s = never_nolibs.path_generator.blank_path(address=0x40050C, mode="static")
     nose.tools.assert_equal(len(s.successors), 2)
-    num_reachable = sum(map(lambda x: x.reachable, s.successors))
+    num_reachable = sum(x.reachable for x in s.successors)
     nose.tools.assert_equal(num_reachable, 2)
     # nose.tools.assert_equal(len(s.exits(reachable=True)), 2)
     # nose.tools.assert_equal(len(s.refs()[simuvex.SimCodeRef]), 2)
@@ -58,7 +59,7 @@ def test_concrete_exits1():
     # make sure we have two blocks from main
     s_main = never_nolibs.path_generator.blank_path(address=0x40050C, mode="concrete")
     nose.tools.assert_equal(s_main.successors, 2)
-    num_reachable = sum(map(lambda x: x.reachable, s_main.successors))
+    num_reachable = sum(x.reachable for x in s_main.successors)
     nose.tools.assert_equal(num_reachable, 1)
 
 

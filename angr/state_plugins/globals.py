@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from .plugin import SimStatePlugin
@@ -15,7 +16,7 @@ class SimStateGlobals(SimStatePlugin):
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         for other in others:
-            for k in other.keys():
+            for k in other:
                 if k not in self:
                     self[k] = other[k]
 
@@ -24,6 +25,9 @@ class SimStateGlobals(SimStatePlugin):
     def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening is unimplemented for globals")
         return False
+
+    def __iter__(self):
+        return iter(self._backer)
 
     def __getitem__(self, k):
         return self._backer[k]

@@ -1,5 +1,6 @@
+from __future__ import annotations
 import operator
-from typing import Callable, Iterable, Tuple
+from collections.abc import Callable, Iterable
 
 import claripy
 from claripy.ast.bv import BV
@@ -14,16 +15,15 @@ except ImportError:
 # pylint:disable=abstract-method
 
 
-def make_bv_sizes_equal(bv1: BV, bv2: BV) -> Tuple[BV, BV]:
+def make_bv_sizes_equal(bv1: BV, bv2: BV) -> tuple[BV, BV]:
     """
     Makes two BVs equal in length through sign extension.
     """
     if bv1.size() < bv2.size():
         return (bv1.sign_extend(bv2.size() - bv1.size()), bv2)
-    elif bv1.size() > bv2.size():
+    if bv1.size() > bv2.size():
         return (bv1, bv2.sign_extend(bv1.size() - bv2.size()))
-    else:
-        return (bv1, bv2)
+    return (bv1, bv2)
 
 
 # FIXME: Unimplemented ops (mostly floating point related) have associated C++
@@ -868,6 +868,8 @@ class OpBehaviorSubpiece(OpBehavior):
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         if in2.size() < in1.size():
             in2 = in2.sign_extend(in1.size() - in2.size())
+        if in1.size() < in2.size():
+            in1 = in1.sign_extend(in2.size() - in1.size())
         return (in1 >> (in2 * 8)) & (2 ** (size_out * 8) - 1)
 
 
@@ -883,6 +885,23 @@ class OpBehaviorPopcount(OpBehavior):
         expr = claripy.BVV(0, size_out * 8)
         for a in range(len(in1)):
             expr += claripy.Extract(a, a, in1).zero_extend(size_out * 8 - 1)
+        return expr
+
+
+class OpBehaviorLzcount(OpBehavior):
+    """
+    Behavior for the LZCOUNT operation.
+    """
+
+    def __init__(self):
+        super().__init__(OpCode.LZCOUNT, True)
+
+    def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
+        expr = claripy.BVV(len(in1), size_out * 8)
+        for pos in range(len(in1)):
+            expr = claripy.If(
+                claripy.Extract(pos, pos, in1) == claripy.BVV(1, 1), claripy.BVV(len(in1) - pos - 1, size_out * 8), expr
+            )
         return expr
 
 
@@ -973,5 +992,6 @@ class BehaviorFactory:
                 OpCode.INSERT: OpBehavior(OpCode.INSERT, False, True),
                 OpCode.EXTRACT: OpBehavior(OpCode.EXTRACT, False, True),
                 OpCode.POPCOUNT: OpBehaviorPopcount(),
+                OpCode.LZCOUNT: OpBehaviorLzcount(),
             }
         )

@@ -1,10 +1,11 @@
+from __future__ import annotations
 import collections
 import itertools
 import logging
 import typing
 
 from archinfo import ArchSoot
-from claripy import BVV, StrSubstr
+import claripy
 
 from ...calling_conventions import default_cc
 from ...sim_procedure import SimProcedure
@@ -20,7 +21,7 @@ class JNISimProcedure(SimProcedure):
     """
 
     # Java type of return value
-    return_ty: typing.Optional[str] = None
+    return_ty: str | None = None
 
     # jboolean constants
     JNI_TRUE = 1
@@ -30,7 +31,7 @@ class JNISimProcedure(SimProcedure):
         # Setup a SimCC using the correct type for the return value
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
-        elif self.return_ty != "void":
+        if self.return_ty != "void":
             prototype = SimTypeFunction(
                 args=self.prototype.args, returnty=state.project.simos.get_native_type(self.return_ty)
             )
@@ -66,7 +67,7 @@ class JNISimProcedure(SimProcedure):
         if isinstance(data, int):
             if addr is None:
                 addr = self._allocate_native_memory(size=type_size // 8)
-            value = self.state.solver.BVV(data, type_size)
+            value = claripy.BVV(data, type_size)
             self.state.memory.store(addr, value, endness=native_memory_endness)
         # store array
         elif isinstance(data, list):
@@ -111,8 +112,7 @@ class JNISimProcedure(SimProcedure):
         # return element(s)
         if no_of_elements == 1 and not return_as_list:
             return values[0]
-        else:
-            return values
+        return values
 
     def _load_string_from_native_memory(self, addr_):
         """
@@ -173,11 +173,11 @@ class JNISimProcedure(SimProcedure):
         # store chars one by one
         str_len = len(string) // 8
         for idx in range(str_len):
-            str_byte = StrSubstr(idx, 1, string)
+            str_byte = claripy.StrSubstr(idx, 1, string)
             self.state.memory.store(addr + idx, str_byte)
 
         # store terminating zero
-        self.state.memory.store(len(string), BVV(0, 8))
+        self.state.memory.store(len(string), claripy.BVV(0, 8))
 
         return addr
 
@@ -197,8 +197,7 @@ class JNISimProcedure(SimProcedure):
             idx = idx.to_claripy()
         if self.arch.memory_endness == "Iend_LE":
             return idx.reversed.get_bytes(index=0, size=4).reversed
-        else:
-            return idx.get_bytes(index=0, size=4)
+        return idx.get_bytes(index=0, size=4)
 
 
 #

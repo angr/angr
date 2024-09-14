@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
+
+import claripy
 
 import angr
 
@@ -31,7 +35,7 @@ class TestHook(unittest.TestCase):
             output.append(2)
             num = state.solver.eval(state.regs.a1)
             string = b"%d " % num
-            state.posix.get_fd(1).write_data(state.solver.BVV(string))
+            state.posix.get_fd(1).write_data(claripy.BVV(string))
 
         # a manual hook
         p.hook(OUTER_LOOP, hook2, length=0x14)

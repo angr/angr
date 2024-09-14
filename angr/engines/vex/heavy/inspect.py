@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..light import VEXMixin
 from ....state_plugins import BP_BEFORE, BP_AFTER, NO_OVERRIDE
 

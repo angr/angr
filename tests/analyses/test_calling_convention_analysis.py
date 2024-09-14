@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import logging
@@ -82,9 +84,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def check_arg(self, arg, expected_str):
         if isinstance(arg, SimRegArg):
-            arg_str = "r_%s" % (arg.reg_name)
+            arg_str = f"r_{arg.reg_name}"
         else:
-            raise TypeError("Unsupported argument type %s." % type(arg))
+            raise TypeError(f"Unsupported argument type {type(arg)}.")
         return arg_str == expected_str
 
     def check_args(self, func_name, args, expected_arg_strs):

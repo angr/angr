@@ -1,3 +1,4 @@
+from __future__ import annotations
 import traceback
 import logging
 import zlib
@@ -49,8 +50,7 @@ class Loggers:
         real_k = k.replace("_", ".")
         if real_k in self._loggers:
             return self._loggers[real_k]
-        else:
-            raise AttributeError(k)
+        raise AttributeError(k)
 
     def __dir__(self):
         return list(super().__dir__()) + list(self._loggers.keys())

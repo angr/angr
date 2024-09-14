@@ -1,11 +1,11 @@
-import importlib
+from __future__ import annotations
+import importlib.metadata
 import os
 import sys
 import datetime
 import gc
 import ctypes
-
-from .import_hooks import remove_fake_pkg_resources
+import sysconfig
 
 
 have_gitpython = False
@@ -22,7 +22,7 @@ native_modules = {
     "angr": lambda: angr.state_plugins.unicorn_engine._UC_NATIVE,  # pylint: disable=undefined-variable
     "unicorn": lambda: unicorn.unicorn._uc,  # pylint: disable=undefined-variable
     "pyvex": lambda: pyvex.pvc,  # pylint: disable=undefined-variable
-    "z3": lambda: [x for x in gc.get_objects() if type(x) is ctypes.CDLL and "z3" in str(x)][0],  # YIKES FOREVER
+    "z3": lambda: next(x for x in gc.get_objects() if type(x) is ctypes.CDLL and "z3" in str(x)),  # YIKES FOREVER
 }
 python_packages = {"z3": "z3-solver"}
 
@@ -34,12 +34,8 @@ def get_venv():
 
 
 def print_versions():
-    remove_fake_pkg_resources()
-    # import the real pkg_resources
-    import pkg_resources  # pylint:disable=import-outside-toplevel
-
     for m in angr_modules:
-        print("######## %s #########" % m)
+        print(f"######## {m} #########")
         try:
             python_filename = importlib.util.find_spec(m).origin
         except ImportError:
@@ -47,11 +43,11 @@ def print_versions():
             continue
         except Exception as e:  # pylint: disable=broad-except
             print(f"An error occurred importing {m}: {e}")
-        print("Python found it in %s" % (python_filename))
+        print(f"Python found it in {python_filename}")
         try:
             pip_package = python_packages.get(m, m)
-            pip_version = pkg_resources.get_distribution(pip_package)
-            print("Pip version %s" % pip_version)
+            pip_version = importlib.metadata.version(pip_package)
+            print(f"Pip version {pip_version}")
         except Exception:  # pylint: disable-broad-except
             print("Pip version not found!")
         print_git_info(python_filename)
@@ -77,17 +73,13 @@ def print_git_info(dirname):
             remote_url = repo.remotes[remote_name].url
             print(f"\tChecked out from remote {remote_name}: {remote_url}")
         else:
-            print("Tracking local branch %s" % cur_tb.name)
+            print(f"Tracking local branch {cur_tb.name}")
     except Exception:  # pylint: disable=broad-except
         print("Could not resolve tracking branch or remote info!")
 
 
 def print_system_info():
-    remove_fake_pkg_resources()
-    # import the real pkg_resources
-    import pkg_resources  # pylint:disable=import-outside-toplevel
-
-    print("Platform: " + pkg_resources.get_build_platform())
+    print("Platform: " + sysconfig.get_platform())
     print("Python version: " + str(sys.version))
 
 

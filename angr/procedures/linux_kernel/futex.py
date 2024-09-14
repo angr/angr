@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import angr
 
@@ -12,6 +13,5 @@ class futex(angr.SimProcedure):
         if op & 1:  # FUTEX_WAKE
             l.debug("futex(FUTEX_WAKE)")
             return 0
-        else:
-            l.debug("futex(futex_op=%d)", op)
-            return self.state.solver.Unconstrained("futex", self.arch.sizeof["int"], key=("api", "futex"))
+        l.debug("futex(futex_op=%d)", op)
+        return self.state.solver.Unconstrained("futex", self.arch.sizeof["int"], key=("api", "futex"))

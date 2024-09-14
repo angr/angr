@@ -1,5 +1,4 @@
-from typing import Optional
-
+from __future__ import annotations
 import ailment
 
 from ..goto_manager import GotoManager
@@ -31,7 +30,7 @@ class RegionSimplifier(Analysis):
         self._simplify_switches = simplify_switches
         self._should_simplify_ifelses = simplify_ifelse
 
-        self.goto_manager: Optional[GotoManager] = None
+        self.goto_manager: GotoManager | None = None
         self.result = None
 
         self._simplify()

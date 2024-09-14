@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import re
 import logging
@@ -124,8 +125,8 @@ class GDB(SimStatePlugin):
     def _read_data(path):
         if not os.path.exists(path):
             raise SimStateError("File does not exist")
-        f = open(path, "rb")
-        return f.read()
+        with open(path, "rb") as f:
+            return f.read()
 
     def _write(self, addr, data):
         self.state.memory.store(addr, data)

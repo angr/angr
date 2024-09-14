@@ -1,6 +1,9 @@
-import angr
-
+from __future__ import annotations
 import logging
+
+import claripy
+
+import angr
 
 l = logging.getLogger(name=__name__)
 
@@ -37,12 +40,12 @@ class memset(angr.SimProcedure):
 
     def run(self, dst_addr, char, num):
         if char.size() != self.state.arch.byte_width:  # sizeof(char)
-            char = self.state.solver.Extract(self.state.arch.byte_width - 1, 0, char)
+            char = claripy.Extract(self.state.arch.byte_width - 1, 0, char)
 
         if self.state.solver.symbolic(num):
             l.debug("symbolic length")
             max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size
-            write_bytes = self.state.solver.Concat(*([char] * max_size))
+            write_bytes = claripy.Concat(*([char] * max_size))
             self.state.memory.store(dst_addr, write_bytes, size=num)
         else:
             max_size = self.state.solver.eval(num)
@@ -54,14 +57,14 @@ class memset(angr.SimProcedure):
 
                 if self.state.solver.symbolic(char):
                     l.debug("symbolic char")
-                    write_bytes = self.state.solver.Concat(*([char] * chunksize))
+                    write_bytes = claripy.Concat(*([char] * chunksize))
                 else:
                     # Concatenating many bytes is slow, so some sort of optimization is required
                     if char.concrete_value == 0:
-                        write_bytes = self.state.solver.BVV(0, chunksize * 8)
+                        write_bytes = claripy.BVV(0, chunksize * 8)
                     else:
                         rb = memset._repeat_bytes(char.concrete_value, chunksize)
-                        write_bytes = self.state.solver.BVV(rb, chunksize * 8)
+                        write_bytes = claripy.BVV(rb, chunksize * 8)
 
                 self.state.memory.store(dst_addr + offset, write_bytes)
                 offset += chunksize

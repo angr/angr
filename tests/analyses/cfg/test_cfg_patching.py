@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # pylint:disable=no-self-use
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
 import logging
 import tempfile
-from typing import TYPE_CHECKING, List, Sequence, Tuple
+from typing import TYPE_CHECKING
+from collections.abc import Sequence
 
 import angr
 from angr.analyses import CFGFast
@@ -24,19 +27,19 @@ log.setLevel(logging.DEBUG)
 FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware")
 
 
-def apply_patches(proj: angr.Project, patches: List[Tuple[int, str]]):
+def apply_patches(proj: angr.Project, patches: list[tuple[int, str]]):
     for addr, asm in patches:
         patch_bytes = proj.arch.keystone.asm(asm, addr, as_bytes=True)[0]
         proj.kb.patches.add_patch(addr, patch_bytes)
 
 
-def assert_models_equal(model_a: "CFGModel", model_b: "CFGModel"):
+def assert_models_equal(model_a: CFGModel, model_b: CFGModel):
     assert model_a.graph.nodes() == model_b.graph.nodes()
     assert model_a.graph.edges() == model_b.graph.edges()
     # FIXME: Check more
 
 
-def assert_function_graphs_equal(function_a: "Function", function_b: "Function"):
+def assert_function_graphs_equal(function_a: Function, function_b: Function):
     nodes_a = function_a.graph.nodes()
     nodes_b = function_b.graph.nodes()
     if nodes_a != nodes_b:
@@ -45,7 +48,7 @@ def assert_function_graphs_equal(function_a: "Function", function_b: "Function")
     # FIXME: Check more
 
 
-def assert_all_function_equal(functions_a: "FunctionManager", functions_b: "FunctionManager"):
+def assert_all_function_equal(functions_a: FunctionManager, functions_b: FunctionManager):
     for f in functions_b:
         assert f in functions_a, f"Extra function: {functions_b[f]}"
     for f in functions_a:
@@ -230,7 +233,7 @@ class TestCfgPatching(unittest.TestCase):
     Test that patches made to the binary are correctly reflected in CFG.
     """
 
-    def _test_patch(self, patches: Sequence[Tuple[int, str]]):
+    def _test_patch(self, patches: Sequence[tuple[int, str]]):
         unpatched_binary_path = FAUXWARE_PATH
         common_cfg_options = {
             "normalize": True,

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=no-self-use
+from __future__ import annotations
 from random import randrange
 from unittest import main, mock, TestCase
 import networkx
@@ -103,7 +104,7 @@ class TestDepGraph(TestCase):
         dep_graph = DepGraph()
         self.assertEqual(isinstance(dep_graph.graph, networkx.DiGraph), True)
 
-    def test_dep_graph_refuses_to_instanciate_with_an_inadequate_graph(self):
+    def test_dep_graph_refuses_to_instantiate_with_an_inadequate_graph(self):
         a_graph = networkx.DiGraph([(1, 2)])
         self.assertRaises(TypeError, DepGraph, a_graph)
 
@@ -303,7 +304,7 @@ class TestDepGraph(TestCase):
         self.assertEqual(nodes, [register_definition, memory_definition])
         self.assertListEqual(predecessors, [memory_definition])
 
-    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(  # noqa: E501
+    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(
         self,
     ):
         arch = self.ArchMock()
@@ -358,7 +359,7 @@ class TestDepGraph(TestCase):
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
-    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(  # noqa: E501
+    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(
         self,
     ):
         arch = self.ArchMock()
@@ -394,7 +395,7 @@ class TestDepGraph(TestCase):
         self.assertEqual(nodes, [register_definition, memory_definition])
         self.assertListEqual(predecessors, [memory_definition])
 
-    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(  # noqa: E501
+    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(
         self,
     ):
         arch = self.ArchMock()
@@ -424,7 +425,7 @@ class TestDepGraph(TestCase):
 
         origin_codelocation = CodeLocation(0, 0, info={"readonly": True})
 
-        predecessor = list(dependency_graph.graph.predecessors(register_definition))[0]
+        predecessor = next(iter(dependency_graph.graph.predecessors(register_definition)))
         self.assertEqual(predecessor.codeloc, origin_codelocation)
 
 

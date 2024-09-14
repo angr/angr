@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import SootAddressDescriptor
@@ -29,15 +30,13 @@ class SimSootStmt:
         self._execute()
 
     def _execute(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _translate_expr(self, expr):
-        expr_ = translate_expr(expr, self.state)
-        return expr_
+        return translate_expr(expr, self.state)
 
     def _translate_value(self, value):
-        value_ = translate_value(value, self.state)
-        return value_
+        return translate_value(value, self.state)
 
     def _get_bb_addr_from_instr(self, instr):
         """
@@ -50,9 +49,9 @@ class SimSootStmt:
         current_method = self.state.addr.method
         try:
             bb = current_method.block_by_label[instr]
-        except KeyError:
+        except KeyError as err:
             l.error("Possible jump to a non-existing bb %s --> %d", self.state.addr, instr)
-            raise IncorrectLocationException()
+            raise IncorrectLocationException from err
 
         return SootAddressDescriptor(current_method, bb.idx, 0)
 

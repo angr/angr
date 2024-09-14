@@ -1,4 +1,5 @@
 # pylint:disable=no-member,raise-missing-from
+from __future__ import annotations
 import logging
 import pickle
 
@@ -33,7 +34,7 @@ class FunctionParser:
         obj.is_simprocedure = function.is_simprocedure
         obj.returning = function.returning
         obj.alignment = function.alignment
-        obj.binary_name = function.binary_name
+        obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
 
         # signature matched?
@@ -89,7 +90,7 @@ class FunctionParser:
     @staticmethod
     def parse_from_cmsg(cmsg, function_manager=None, project=None, all_func_addrs=None):
         """
-        :param cmsg: The data to instanciate the <Function> from.
+        :param cmsg: The data to instantiate the <Function> from.
 
         :return Function:
         """
@@ -105,7 +106,7 @@ class FunctionParser:
             is_simprocedure=cmsg.is_simprocedure,
             returning=cmsg.returning,
             alignment=cmsg.alignment,
-            binary_name=cmsg.binary_name,
+            binary_name=None if not cmsg.binary_name else cmsg.binary_name,
         )
         obj._project = project
         obj.normalized = cmsg.normalized
@@ -143,27 +144,28 @@ class FunctionParser:
                     project,
                     all_func_addrs=all_func_addrs,
                 )
-            except KeyError:
-                raise KeyError("Address of the edge source %#x is not found." % edge_cmsg.src_ea)
+            except KeyError as err:
+                raise KeyError(f"Address of the edge source {edge_cmsg.src_ea:#x} is not found.") from err
 
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
             dst = None
             dst_addr = edge_cmsg.dst_ea
-            if dst_addr not in blocks:
-                if edge_type == "call" or (  # call has to go to either a HookNode or a function
-                    all_func_addrs is not None and dst_addr in all_func_addrs
-                ):  # jumps to another function
-                    if function_manager is not None:
-                        # get a function
-                        dst = FunctionParser._get_func(dst_addr, function_manager)
-                    else:
-                        l.warning(
-                            "About to get or create a function at %#x, but function_manager is not provided. "
-                            "Will create a block instead.",
-                            dst_addr,
-                        )
+            if (
+                dst_addr not in blocks
+                and edge_type == "call"  # call has to go to either a HookNode or a function
+                or (all_func_addrs is not None and dst_addr in all_func_addrs)  # jumps to another function
+            ):
+                if function_manager is not None:
+                    # get a function
+                    dst = FunctionParser._get_func(dst_addr, function_manager)
+                else:
+                    l.warning(
+                        "About to get or create a function at %#x, but function_manager is not provided. "
+                        "Will create a block instead.",
+                        dst_addr,
+                    )
 
             if dst is None:
                 # create a block instead
@@ -176,8 +178,8 @@ class FunctionParser:
                         project,
                         all_func_addrs=all_func_addrs,
                     )
-                except KeyError:
-                    raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
+                except KeyError as err:
+                    raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
             data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
             data["outside"] = edge_cmsg.is_outside
@@ -252,38 +254,33 @@ class FunctionParser:
     def _get_block_or_func(addr, blocks, external_addrs, function_manager, project, all_func_addrs=None):
         # should we get a block or a function?
         try:
-            r = blocks[addr]
+            return blocks[addr]
             # it's a block. just return it
-            return r
         except KeyError:
             pass
 
         if addr in external_addrs:
             if project is not None and project.is_hooked(addr):
                 # get a hook node instead
-                r = HookNode(addr, 0, project.hooked_by(addr))
-                return r
+                return HookNode(addr, 0, project.hooked_by(addr))
             if all_func_addrs is not None and addr in all_func_addrs:
                 # get a function (which is yet to be created in the function manager)
-                r = function_manager.function(addr=addr, create=True)
-                return r
+                return function_manager.function(addr=addr, create=True)
+            # create a block
+            # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
+            # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
+            # TODO: created). The correct solution is to store the size and bytes of the block, too.
+            if project is not None:
+                block = project.factory.block(addr)
+                block_size = block.size
+                bytestr = block.bytes
             else:
-                # create a block
-                # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
-                # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
-                # TODO: created). The correct solution is to store the size and bytes of the block, too.
-                if project is not None:
-                    block = project.factory.block(addr)
-                    block_size = block.size
-                    bytestr = block.bytes
-                else:
-                    l.warning(
-                        "The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.", addr
-                    )
-                    block_size = 1
-                    bytestr = b"\x00"
-                r = BlockNode(addr, block_size, bytestr=bytestr)
-                return r
+                l.warning(
+                    "The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.", addr
+                )
+                block_size = 1
+                bytestr = b"\x00"
+            return BlockNode(addr, block_size, bytestr=bytestr)
         raise ValueError(
             "Unsupported case: The block %#x is not in external_addrs and is not in local blocks. "
             "This probably indicates a bug in angrdb generation."
@@ -291,5 +288,4 @@ class FunctionParser:
 
     @staticmethod
     def _get_func(addr, function_manager):
-        func = function_manager.function(addr=addr, create=True)
-        return func
+        return function_manager.function(addr=addr, create=True)

@@ -1,8 +1,8 @@
 # pylint:disable=no-else-break
+from __future__ import annotations
 import logging
-from typing import Optional, Tuple, List
 
-from angr.errors import AngrCFGError
+from angr.errors import AngrCFGError, AngrRuntimeError
 
 
 l = logging.getLogger(name=__name__)
@@ -28,8 +28,7 @@ class Segment:
         self.sort = sort
 
     def __repr__(self):
-        s = f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
-        return s
+        return f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
 
     @property
     def size(self):
@@ -60,7 +59,7 @@ class SegmentList:
     __slots__ = ["_list", "_bytes_occupied"]
 
     def __init__(self):
-        self._list: List[Segment] = []
+        self._list: list[Segment] = []
         self._bytes_occupied = 0
 
     #
@@ -268,14 +267,14 @@ class SegmentList:
                     # done
                     break
                 else:
-                    raise RuntimeError("Unreachable reached")
+                    raise AngrRuntimeError("Unreachable reached")
             else:  # if segment.start > address
                 if address + size <= segment.start:
                     #                      |--- segment ---|
                     # |-- address + size --|
                     # no overlap
                     break
-                elif segment.start < address + size <= segment.start + segment.size:
+                if segment.start < address + size <= segment.start + segment.size:
                     #            |---- segment ----|
                     # |-- address + size --|
                     #
@@ -285,7 +284,7 @@ class SegmentList:
                         # remove the segment
                         self._list.remove(segment)
                     break
-                elif address + size > segment.start + segment.size:
+                if address + size > segment.start + segment.size:
                     #            |---- segment ----|
                     # |--------- address + size ----------|
                     self._list.remove(segment)
@@ -294,7 +293,7 @@ class SegmentList:
                     address = new_address
                     idx = self.search(address)
                 else:
-                    raise RuntimeError("Unreachable reached")
+                    raise AngrRuntimeError("Unreachable reached")
 
     def _dbg_output(self):
         """
@@ -433,12 +432,10 @@ class SegmentList:
             return False
         if self._list[idx].start <= address < self._list[idx].end:
             return True
-        if idx > 0 and address < self._list[idx - 1].end:
-            # TODO: It seems that this branch is never reached. Should it be removed?
-            return True
-        return False
+        # TODO: It seems that this is never True. Should it be removed?
+        return idx > 0 and address < self._list[idx - 1].end
 
-    def occupied_by_sort(self, address: int) -> Optional[str]:
+    def occupied_by_sort(self, address: int) -> str | None:
         """
         Check if an address belongs to any segment, and if yes, returns the sort of the segment
 
@@ -456,7 +453,7 @@ class SegmentList:
             return self._list[idx - 1].sort
         return None
 
-    def occupied_by(self, address: int) -> Optional[Tuple[int, int, str]]:
+    def occupied_by(self, address: int) -> tuple[int, int, str] | None:
         """
         Check if an address belongs to any segment, and if yes, returns the beginning, the size, and the sort of the
         segment.
@@ -522,7 +519,7 @@ class SegmentList:
 
         # self._debug_check()
 
-    def copy(self) -> "SegmentList":
+    def copy(self) -> SegmentList:
         """
         Make a copy of the SegmentList.
 

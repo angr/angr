@@ -1,5 +1,7 @@
+from __future__ import annotations
 import logging
 
+import claripy
 from cle import AT
 
 import angr
@@ -28,7 +30,7 @@ class __libc_start_main(angr.SimProcedure):
             # Each entry is 2 bytes
             self.state.memory.store(
                 table + (pos * 2),
-                self.state.solver.BVV(c, 16),
+                claripy.BVV(c, 16),
                 inspect=False,
                 disable_actions=True,
             )
@@ -60,7 +62,7 @@ class __libc_start_main(angr.SimProcedure):
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
             self.state.memory.store(
                 table + (pos * 4),
-                self.state.solver.BVV(c, 32),
+                claripy.BVV(c, 32),
                 endness=self.state.arch.memory_endness,
                 inspect=False,
                 disable_actions=True,
@@ -93,7 +95,7 @@ class __libc_start_main(angr.SimProcedure):
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
             self.state.memory.store(
                 table + (pos * 4),
-                self.state.solver.BVV(c, 32),
+                claripy.BVV(c, 32),
                 endness=self.state.arch.memory_endness,
                 inspect=False,
                 disable_actions=True,
@@ -122,7 +124,7 @@ class __libc_start_main(angr.SimProcedure):
         errno_loc = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         self.state.libc.errno_location = errno_loc
-        self.state.memory.store(errno_loc, self.state.solver.BVV(0, self.state.arch.bits))
+        self.state.memory.store(errno_loc, claripy.BVV(0, self.state.arch.bits))
 
     @property
     def envp(self):
@@ -249,13 +251,11 @@ class __libc_start_main(angr.SimProcedure):
         args = cc.get_args(state, ty)
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
-        all_exits = [
+        return [
             {"address": init, "jumpkind": "Ijk_Call", "namehint": "init"},
             {"address": main, "jumpkind": "Ijk_Call", "namehint": "main"},
             {"address": fini, "jumpkind": "Ijk_Call", "namehint": "fini"},
         ]
-
-        return all_exits
 
     @staticmethod
     def _extract_args(state, main, argc, argv, init, fini):

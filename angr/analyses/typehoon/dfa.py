@@ -1,4 +1,5 @@
-from typing import Set, List, Tuple, Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 import networkx
 
@@ -29,7 +30,7 @@ class DFAConstraintSolver:
     """
 
     @staticmethod
-    def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: Set, ends: Set) -> EpsilonNFA:
+    def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: set, ends: set) -> EpsilonNFA:
         enfa = EpsilonNFA()
 
         # print("Converting graph to eNFA")
@@ -59,12 +60,12 @@ class DFAConstraintSolver:
         # networkx.drawing.nx_pydot.write_dot(graph, "d:/enfa.dot")
 
         if enfa.is_empty():
-            raise EmptyEpsilonNFAError()
+            raise EmptyEpsilonNFAError
         return enfa
 
-    def generate_constraints_between(self, graph: networkx.DiGraph, starts: Set, ends: Set) -> Set:
+    def generate_constraints_between(self, graph: networkx.DiGraph, starts: set, ends: set) -> set:
         epsilon_nfa = self.graph_to_epsilon_nfa(graph, starts, ends)
-        min_dfa: "DeterministicFiniteAutomaton" = epsilon_nfa.minimize()
+        min_dfa: DeterministicFiniteAutomaton = epsilon_nfa.minimize()
         dfa_graph: networkx.MultiDiGraph = min_dfa.to_networkx()
 
         constraints = set()
@@ -86,7 +87,7 @@ class DFAConstraintSolver:
         return constraints
 
     @staticmethod
-    def _check_constraint(src, dst, string: List[Tuple[BaseLabel, str]]) -> Optional[Subtype]:
+    def _check_constraint(src, dst, string: list[tuple[BaseLabel, str]]) -> Subtype | None:
         forgets = []
         recalls = []
         for label, kind in string:
@@ -102,7 +103,6 @@ class DFAConstraintSolver:
         for forget in reversed(forgets):
             rhs = rhs.recall(forget)
 
-        if lhs.variance == Variance.COVARIANT and rhs.variance == Variance.COVARIANT:
-            if lhs.typevar != rhs.typevar:
-                return Subtype(lhs.typevar, rhs.typevar)
+        if lhs.variance == Variance.COVARIANT and rhs.variance == Variance.COVARIANT and lhs.typevar != rhs.typevar:
+            return Subtype(lhs.typevar, rhs.typevar)
         return None

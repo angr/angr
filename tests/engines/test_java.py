@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
 
+import claripy
 from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (
     ArchSoot,
@@ -12,7 +15,6 @@ from archinfo.arch_soot import (
     SootArgument,
     SootAddressTerminator,
 )
-from claripy.backends.backend_smtlib_solvers import z3str_popen  # noqa: F401
 
 import angr
 from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
@@ -680,7 +682,7 @@ class TestJava(unittest.TestCase):
             stdout_packets = pp.posix.stdout.content
             read_byte, _ = stdout_packets[0]
             # a winning path is printing 'W'
-            pp.solver.add(read_byte == pp.solver.BVV(ord("W"), 8))
+            pp.solver.add(read_byte == claripy.BVV(ord("W"), 8))
             if pp.satisfiable():
                 winnning_paths.append(pp)
 

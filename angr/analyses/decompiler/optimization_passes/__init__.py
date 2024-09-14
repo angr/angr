@@ -1,4 +1,5 @@
 # pylint:disable=import-outside-toplevel
+from __future__ import annotations
 from typing import Optional, Union
 
 from archinfo import Arch
@@ -17,6 +18,7 @@ from .return_duplicator_low import ReturnDuplicatorLow
 from .return_duplicator_high import ReturnDuplicatorHigh
 from .const_derefs import ConstantDereferencesSimplifier
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
+from .spilled_register_finder import SpilledRegisterFinder
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
@@ -25,6 +27,10 @@ from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .cross_jump_reverter import CrossJumpReverter
 from .code_motion import CodeMotionOptimization
 from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
+from .deadblock_remover import DeadblockRemover
+from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
+from .const_prop_reverter import ConstPropOptReverter
+from .duplication_reverter import DuplicationReverter
 
 # order matters!
 _all_optimization_passes = [
@@ -42,19 +48,23 @@ _all_optimization_passes = [
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
     (ReturnDuplicatorHigh, True),
+    (DeadblockRemover, True),
     (SwitchDefaultCaseDuplicator, True),
-    (LoweredSwitchSimplifier, False),
+    (ConstPropOptReverter, True),
+    (DuplicationReverter, True),
+    (LoweredSwitchSimplifier, True),
     (ReturnDuplicatorLow, True),
     (ReturnDeduplicator, True),
-    (CodeMotionOptimization, True),
+    (CodeMotionOptimization, False),
     (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
+    (InlinedStringTransformationSimplifier, True),
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicatorLow, ReturnDuplicatorHigh, CrossJumpReverter]
 # these passes may destroy blocks by merging them into semantically equivalent blocks
-CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator]
+CONDENSING_OPTS = [CodeMotionOptimization, ReturnDeduplicator, DuplicationReverter]
 
 
 def get_optimization_passes(arch, platform):
@@ -76,9 +86,7 @@ def get_optimization_passes(arch, platform):
     return passes
 
 
-def get_default_optimization_passes(
-    arch: Union[Arch, str], platform: Optional[str], enable_opts=None, disable_opts=None
-):
+def get_default_optimization_passes(arch: Arch | str, platform: str | None, enable_opts=None, disable_opts=None):
     if isinstance(arch, Arch):
         arch = arch.name
 

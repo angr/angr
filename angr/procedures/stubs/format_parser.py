@@ -1,9 +1,11 @@
-from typing import List, Dict, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
 import math
 import claripy
 
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from ... import sim_type
 from ...sim_procedure import SimProcedure
 from ...storage.file import SimPackets
@@ -70,7 +72,7 @@ class FormatString:
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, bytes):
-                string = self._add_to_string(string, self.parser.state.solver.BVV(component))
+                string = self._add_to_string(string, claripy.BVV(component))
             elif isinstance(component, str):
                 raise Exception("this branch should be impossible?")
             elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
@@ -80,10 +82,7 @@ class FormatString:
                 # what type of format specifier is it?
                 fmt_spec = component
                 if fmt_spec.spec_type == b"s":
-                    if fmt_spec.length_spec == b".*":
-                        str_length = va_arg("size_t")
-                    else:
-                        str_length = None
+                    str_length = va_arg("size_t") if fmt_spec.length_spec == b".*" else None
                     str_ptr = va_arg("char*")
                     string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
@@ -95,9 +94,7 @@ class FormatString:
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= 1 << fmt_spec.size * 8
 
-                    if fmt_spec.spec_type in (b"d", b"i"):
-                        s_val = str(c_val)
-                    elif fmt_spec.spec_type == b"u":
+                    if fmt_spec.spec_type in (b"d", b"i") or fmt_spec.spec_type == b"u":
                         s_val = str(c_val)
                     elif fmt_spec.spec_type == b"c":
                         s_val = chr(c_val & 0xFF)
@@ -108,12 +105,12 @@ class FormatString:
                     elif fmt_spec.spec_type == b"p":
                         s_val = hex(c_val)
                     else:
-                        raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+                        raise SimProcedureError(f"Unimplemented format specifier '{fmt_spec.spec_type}'")
 
                     if isinstance(fmt_spec.length_spec, int):
                         s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
-                    string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
+                    string = self._add_to_string(string, claripy.BVV(s_val.encode()))
 
         return string
 
@@ -173,7 +170,7 @@ class FormatString:
                     spec_digits = component.length_spec
 
                     # how many bits can we specify as input?
-                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log(base, 2)
+                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log2(base)
                     not_enough_bits = available_bits < bits
 
                     # how many digits will we model this input as?
@@ -182,9 +179,9 @@ class FormatString:
                     # constrain target variable range explicitly if it can't take on all possible values
                     if not_enough_bits:
                         self.state.add_constraints(
-                            self.state.solver.And(
-                                self.state.solver.SLE(target_variable, (base**digits) - 1),
-                                self.state.solver.SGE(target_variable, -(base ** (digits - 1) - 1)),
+                            claripy.And(
+                                claripy.SLE(target_variable, (base**digits) - 1),
+                                claripy.SGE(target_variable, -(base ** (digits - 1) - 1)),
                             )
                         )
 
@@ -229,7 +226,7 @@ class FormatString:
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.solver.BVV(0, 32)
+        failed = claripy.BVV(0, 32)
         position = addr
         for component in self.components:
             if isinstance(component, bytes):
@@ -253,31 +250,29 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    _, _, match_indices = region.find(
-                        position, self.parser.state.solver.BVV(b"\n"), max_str_len, max_symbolic_bytes=max_sym_bytes
+                    result, _, _ = region.find(
+                        position,
+                        claripy.BVV(b"\n"),
+                        max_str_len,
+                        max_symbolic_bytes=max_sym_bytes,
+                        default=claripy.BVV(position + max_str_len, 64),
                     )
 
-                    if not match_indices:
-                        # if no newline is found, mm is position + max_strlen
-                        mm = position + max_str_len
-                        # we're just going to concretize the length, load will do this anyways
-                        length = self.parser.state.solver.max_int(mm - position)
-                    else:
-                        # a newline is found, or a max length is specified with the specifier
-                        length = max(match_indices)
+                    # concretize the length
+                    length = self.parser.state.solver.max_int(result - position)
                     src_str = region.load(position, length)
 
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
                     for delimiter in set(FormatString.SCANF_DELIMITERS):
-                        delim_bvv = self.parser.state.solver.BVV(delimiter)
+                        delim_bvv = claripy.BVV(delimiter)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
 
                     # write it out to the pointer
                     self.parser.state.memory.store(dest, src_str)
                     # store the terminating null byte
-                    self.parser.state.memory.store(dest + length, self.parser.state.solver.BVV(0, 8))
+                    self.parser.state.memory.store(dest + length, claripy.BVV(0, 8))
 
                     position += length
 
@@ -289,16 +284,16 @@ class FormatString:
                             position, region, base=base, read_length=fmt_spec.length_spec
                         )
                         # increase failed count if we were unable to parse it
-                        failed = self.parser.state.solver.If(status, failed, failed + 1)
+                        failed = claripy.If(status, failed, failed + 1)
                         position += num_bytes
                     elif fmt_spec.spec_type == b"c":
                         i = region.load(position, 1)
                         i = i.zero_extend(bits - 8)
                         position += 1
                     else:
-                        raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
+                        raise SimProcedureError(f"unsupported format spec '{fmt_spec.spec_type}' in interpret")
 
-                    i = self.parser.state.solver.Extract(fmt_spec.size * 8 - 1, 0, i)
+                    i = claripy.Extract(fmt_spec.size * 8 - 1, 0, i)
                     self.parser.state.memory.store(
                         dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness
                     )
@@ -347,7 +342,7 @@ class FormatSpecifier:
         return self.string[-1:].lower()
 
     def __str__(self):
-        return "%%%s" % self.string.decode()
+        return f"%{self.string.decode()}"
 
     def __len__(self):
         return len(self.string)
@@ -434,7 +429,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self) -> Dict[bytes, "SimType"]:
+    def _all_spec(self) -> dict[bytes, SimType]:
         """
         All specifiers and their lengths.
         """
@@ -497,16 +492,16 @@ class FormatParser(SimProcedure):
                 # this is gross coz sim_type is gross..
                 nugget = nugget[: len(spec)]
                 original_nugget = original_nugget[: (length_spec_str_len + len(spec))]
-                nugtype: "SimType" = all_spec[nugget]
+                nugtype: SimType = all_spec[nugget]
                 try:
                     typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
-                except Exception:
-                    raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
+                except Exception as err:
+                    raise SimProcedureError(f"format specifier uses unknown type '{nugtype!r}'") from err
                 return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None
 
-    def extract_components(self, fmt: List) -> List:
+    def extract_components(self, fmt: list) -> list:
         """
         Extract the actual formats from the format string `fmt`.
 
@@ -672,6 +667,3 @@ class ScanfFormatParser(FormatParser):
             FormatParser._MOD_SPEC = mod_spec
 
         return FormatParser._MOD_SPEC
-
-
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError

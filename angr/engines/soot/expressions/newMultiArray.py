@@ -1,4 +1,7 @@
+from __future__ import annotations
 import logging
+
+import claripy
 
 from .base import SimSootExpr
 from .newArray import SimSootExpr_NewArray
@@ -39,7 +42,7 @@ class SimSootExpr_NewMultiArray(SimSootExpr):
     @staticmethod
     def _bound_multi_array_size(state, multi_array_size):
         # check if array size can exceed MAX_ARRAY_SIZE
-        max_multi_array_size = state.solver.BVV(state.javavm_memory.max_array_size, 32)
+        max_multi_array_size = claripy.BVV(state.javavm_memory.max_array_size, 32)
         size_stays_below_maximum = state.solver.eval_upto(max_multi_array_size.SGE(multi_array_size), 2)
 
         # overwrite size, if it *always* exceeds the maximum
@@ -79,6 +82,5 @@ class SimSootExpr_NewMultiArray(SimSootExpr):
                     s, element_type, inner_sizes
                 ),
             )
-        else:
-            # otherwise, we allocate a simple Array
-            return SimSootExpr_NewArray.new_array(state, element_type, size)
+        # otherwise, we allocate a simple Array
+        return SimSootExpr_NewArray.new_array(state, element_type, size)

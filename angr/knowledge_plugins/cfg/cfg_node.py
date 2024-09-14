@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import traceback
 import logging
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
@@ -11,10 +13,14 @@ from angr.serializable import Serializable
 from angr.protos import cfg_pb2
 
 if TYPE_CHECKING:
+    from angr.block import Block, SootBlock
     from .cfg_model import CFGModel
     import angr
 
 _l = logging.getLogger(__name__)
+
+
+AddressType = int | SootAddressDescriptor
 
 
 class CFGNodeCreationFailure:
@@ -87,15 +93,15 @@ class CFGNode(Serializable):
         __repr__.
         """
 
-        self.addr = addr
+        self.addr: AddressType = addr
         self.size = size
         self.simprocedure_name = simprocedure_name
         self.no_ret = no_ret
-        self._cfg_model: "CFGModel" = cfg
+        self._cfg_model: CFGModel = cfg
         self.function_address = function_address
-        self.block_id: Union["angr.analyses.cfg.cfg_job_base.BlockID", int] = block_id
+        self.block_id: angr.analyses.cfg.cfg_job_base.BlockID | int = block_id
         self.thumb = thumb
-        self.byte_string: Optional[bytes] = byte_string
+        self.byte_string: bytes | None = byte_string
 
         self._name = None
         if name is not None:
@@ -111,10 +117,9 @@ class CFGNode(Serializable):
         else:
             self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
 
-        if not instruction_addrs and not self.is_simprocedure:
+        if not instruction_addrs and not self.is_simprocedure and irsb is not None:
             # We have to collect instruction addresses by ourselves
-            if irsb is not None:
-                self.instruction_addrs = irsb.instruction_addresses
+            self.instruction_addrs = irsb.instruction_addresses
 
         self.irsb = None
         self.soot_block = soot_block
@@ -223,31 +228,24 @@ class CFGNode(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
-        if len(cmsg.block_id) == 0:
-            block_id = None
-        else:
-            block_id = cmsg.block_id[0]
+        block_id = None if len(cmsg.block_id) == 0 else cmsg.block_id[0]
 
-        if not cmsg.instr_addrs:
-            instruction_addrs = None
-        else:
-            instruction_addrs = list(cmsg.instr_addrs)
+        instruction_addrs = None if not cmsg.instr_addrs else list(cmsg.instr_addrs)
 
-        obj = cls(
+        return cls(
             cmsg.ea,
             cmsg.size,
             cfg=cfg,
             block_id=block_id,
             instruction_addrs=instruction_addrs,
         )
-        return obj
 
     #
     # Pickling
     #
 
     def __getstate__(self):
-        s = {
+        return {
             "addr": self.addr,
             "size": self.size,
             "simprocedure_name": self.simprocedure_name,
@@ -261,7 +259,6 @@ class CFGNode(Serializable):
             "is_syscall": self.is_syscall,
             "has_return": self.has_return,
         }
-        return s
 
     def __setstate__(self, state):
         self.__init__(
@@ -285,7 +282,7 @@ class CFGNode(Serializable):
     #
 
     def copy(self):
-        c = CFGNode(
+        return CFGNode(
             self.addr,
             self.size,
             self._cfg_model,
@@ -300,7 +297,6 @@ class CFGNode(Serializable):
             is_syscall=self.is_syscall,
             name=self._name,
         )
-        return c
 
     def merge(self, other):
         """
@@ -353,12 +349,11 @@ class CFGNode(Serializable):
         return BlockNode(self.addr, self.size, thumb=self.thumb)
 
     @property
-    def block(self):
+    def block(self) -> Block | SootBlock | None:
         if self.is_simprocedure or self.is_syscall:
             return None
         project = self._cfg_model.project  # everything in angr is connected with everything...
-        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
-        return b
+        return project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
 
 
 class CFGENode(CFGNode):

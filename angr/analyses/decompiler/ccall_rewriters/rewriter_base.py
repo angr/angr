@@ -1,5 +1,4 @@
-from typing import Optional
-
+from __future__ import annotations
 import ailment
 
 
@@ -15,7 +14,7 @@ class CCallRewriterBase:
 
     def __init__(self, ccall: ailment.Expr.VEXCCallExpression, arch):
         self.arch = arch
-        self.result: Optional[ailment.Expr.Expression] = self._rewrite(ccall)
+        self.result: ailment.Expr.Expression | None = self._rewrite(ccall)
 
-    def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> Optional[ailment.Expr.Expression]:
-        raise NotImplementedError()
+    def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
+        raise NotImplementedError

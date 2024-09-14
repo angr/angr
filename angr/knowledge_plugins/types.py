@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 from collections import UserDict
 
@@ -55,6 +56,12 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
     def __iter__(self):
         yield from super().__iter__()
         yield from iter(ALL_TYPES)
+
+    def __getstate__(self):
+        return self.data  # do not pickle self.kb
+
+    def __setstate__(self, state):
+        self.data = state
 
     def iter_own(self):
         """

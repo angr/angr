@@ -8,7 +8,7 @@ use it.
 Setting up
 ----------
 
-To use it you need binary that is compiled with dwarf debuging
+To use it you need binary that is compiled with dwarf debugging
 information (ex: ``gcc -g``) and load in angr with the option
 ``load_debug_info``. After that you need to run
 ``project.kb.dvars.load_from_dwarf()`` to set up the feature and we’re

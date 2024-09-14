@@ -1,8 +1,9 @@
+from __future__ import annotations
+from collections.abc import Reversible
 import operator
 import logging
 import itertools
 import contextlib
-from typing import Optional
 
 import claripy
 from claripy.ast.bv import BV
@@ -40,8 +41,8 @@ class SimStateHistory(SimStatePlugin):
         self.jump_target = None if clone is None else clone.jump_target
         self.jump_source = None if clone is None else clone.jump_source
         self.jump_avoidable = None if clone is None else clone.jump_avoidable
-        self.jump_guard: Optional[BV] = None if clone is None else clone.jump_guard
-        self.jumpkind = None if clone is None else clone.jumpkind
+        self.jump_guard: BV | None = None if clone is None else clone.jump_guard
+        self.jumpkind: str | None = None if clone is None else clone.jumpkind
 
         # the execution log for this history
         self.recent_events = [] if clone is None else list(clone.recent_events)
@@ -112,11 +113,11 @@ class SimStateHistory(SimStatePlugin):
         if addr is None:
             addr_str = "Unknown"
         elif isinstance(addr, int):
-            addr_str = "%#x" % addr
+            addr_str = f"{addr:#x}"
         else:
             addr_str = repr(addr)
 
-        return "<StateHistory @ %s>" % addr_str
+        return f"<StateHistory @ {addr_str}>"
 
     def set_strongref_state(self, state):
         if sim_options.EFFICIENT_STATE_MERGING in state.options:
@@ -140,17 +141,19 @@ class SimStateHistory(SimStatePlugin):
         self.parent = common_ancestor if common_ancestor is not None else self.parent
 
         # rebuild recent constraints
-        recent_constraints = [h.constraints_since(common_ancestor) for h in itertools.chain([self], others)]
+        recent_constraints = [
+            [c.ast for c in h.constraints_since(common_ancestor)] for h in itertools.chain([self], others)
+        ]
         if sim_options.SIMPLIFY_MERGED_CONSTRAINTS in self.state.options:
-            combined_constraint = self.state.solver.Or(
+            combined_constraint = claripy.Or(
                 *[
-                    self.state.solver.simplify(self.state.solver.And(*history_constraints))
+                    self.state.solver.simplify(claripy.And(*history_constraints))
                     for history_constraints in recent_constraints
                 ]
             )
         else:
-            combined_constraint = self.state.solver.Or(
-                *[self.state.solver.And(*history_constraints) for history_constraints in recent_constraints]
+            combined_constraint = claripy.Or(
+                *[claripy.And(*history_constraints) for history_constraints in recent_constraints]
             )
         self.recent_events = [
             e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)
@@ -254,9 +257,7 @@ class SimStateHistory(SimStatePlugin):
                 if addr.symbolic:
                     return False
                 addr = self.state.solver.eval(addr)
-            if addr != read_offset:
-                return False
-            return True
+            return addr == read_offset
 
         def action_writes(action):
             if action.type != write_type:
@@ -272,9 +273,7 @@ class SimStateHistory(SimStatePlugin):
                 if addr.symbolic:
                     return False
                 addr = self.state.solver.eval(addr)
-            if addr != write_offset:
-                return False
-            return True
+            return addr == write_offset
 
         return [
             x
@@ -359,19 +358,19 @@ class SimStateHistory(SimStatePlugin):
             yield from self.parent.lineage
 
     @property
-    def events(self):
+    def events(self) -> Reversible[SimEvent]:
         return LambdaIterIter(self, operator.attrgetter("recent_events"))
 
     @property
-    def actions(self):
+    def actions(self) -> Reversible[SimAction]:
         return LambdaIterIter(self, operator.attrgetter("recent_actions"))
 
     @property
-    def jumpkinds(self):
+    def jumpkinds(self) -> Reversible[str]:
         return LambdaAttrIter(self, operator.attrgetter("jumpkind"))
 
     @property
-    def jump_guards(self):
+    def jump_guards(self) -> Reversible[claripy.ast.Bool]:
         return LambdaAttrIter(self, operator.attrgetter("jump_guard"))
 
     @property
@@ -383,15 +382,15 @@ class SimStateHistory(SimStatePlugin):
         return LambdaAttrIter(self, operator.attrgetter("jump_source"))
 
     @property
-    def descriptions(self):
+    def descriptions(self) -> Reversible[str]:
         return LambdaAttrIter(self, operator.attrgetter("recent_description"))
 
     @property
-    def bbl_addrs(self):
+    def bbl_addrs(self) -> Reversible[int]:
         return LambdaIterIter(self, operator.attrgetter("recent_bbl_addrs"))
 
     @property
-    def ins_addrs(self):
+    def ins_addrs(self) -> Reversible[int]:
         return LambdaIterIter(self, operator.attrgetter("recent_ins_addrs"))
 
     @property

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -33,12 +34,10 @@ class CongruencyCheck(Analysis):
         s_right = self.project.factory.full_init_state(
             add_options=right_add_options,
             remove_options=right_remove_options,
-            args=[],
         )
         s_left = self.project.factory.full_init_state(
             add_options=left_add_options,
             remove_options=left_remove_options,
-            args=[],
         )
 
         return self.set_states(s_left, s_right)
@@ -177,13 +176,11 @@ class CongruencyCheck(Analysis):
                     self.simgr.stashes[unicorn_stash][0] = new_unicorn
                     self.simgr.stashes[normal_stash][0] = new_normal
                     return False
-                else:
-                    l.warning("Divergence unaccounted for by unicorn.")
-                    return True
-            else:
-                # no idea
-                l.warning("Divergence unaccounted for.")
+                l.warning("Divergence unaccounted for by unicorn.")
                 return True
+            # no idea
+            l.warning("Divergence unaccounted for.")
+            return True
         finally:
             self._throw = ot
 
@@ -262,6 +259,7 @@ class CongruencyCheck(Analysis):
             if len(self.simgr.left) > 1:
                 self.simgr.split(from_stash="left", limit=1, to_stash="stashed_left")
                 self.simgr.split(from_stash="right", limit=1, to_stash="stashed_right")
+        return None
 
     def compare_path_group(self, pg):
         if len(pg.left) != len(pg.right):
@@ -346,9 +344,6 @@ class CongruencyCheck(Analysis):
 
         # make sure the flags are the same
         if sl.arch.name in ("AMD64", "X86", "ARM", "ARMEL", "ARMHF", "AARCH64"):
-            # pylint: disable=unused-variable
-            sr.regs.cc_op, sr.regs.cc_dep1, sr.regs.cc_dep2, sr.regs.cc_ndep  # n_bkp
-            sl.regs.cc_op, sl.regs.cc_dep1, sl.regs.cc_dep2, sl.regs.cc_ndep  # u_bkp
             if sl.arch.name in ("AMD64", "X86"):
                 n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
                 u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]

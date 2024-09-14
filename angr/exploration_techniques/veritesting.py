@@ -1,3 +1,4 @@
+from __future__ import annotations
 from . import ExplorationTechnique
 
 from ..sim_options import EFFICIENT_STATE_MERGING

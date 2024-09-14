@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..utils.graph import compute_dominance_frontier, Dominators
 from .analysis import Analysis
 from . import register_analysis
@@ -18,8 +19,7 @@ class DominanceFrontier(Analysis):
         self._compute()
 
     def _get_graph(self):
-        g = self.function.graph_ex(exception_edges=self._exception_edges)
-        return g
+        return self.function.graph_ex(exception_edges=self._exception_edges)
 
     def _compute(self):
         g = self._get_graph()
@@ -27,7 +27,7 @@ class DominanceFrontier(Analysis):
         # Compute the dominator tree
         if self.function.startpoint is None:
             # The function might be empty or is corrupted (maybe the object is created manually)
-            raise TypeError("Startpoint of function %s is None. Is this function empty?" % repr(self.function))
+            raise TypeError(f"Startpoint of function {self.function!r} is None. Is this function empty?")
         doms = Dominators(g, self.function.startpoint)
 
         # Compute the dominance frontier

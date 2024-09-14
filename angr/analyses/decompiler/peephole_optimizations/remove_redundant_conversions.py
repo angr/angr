@@ -1,4 +1,5 @@
 # pylint: disable=missing-class-docstring
+from __future__ import annotations
 from ailment.expression import BinaryOp, Convert, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -50,10 +51,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         expr.operands[0].is_signed and expr.operands[1].value >= (1 << to_bits) - (1 << (from_bits - 1))
                     ):
                         con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
-                        new_expr = BinaryOp(
+                        return BinaryOp(
                             expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=1, **expr.tags
                         )
-                        return new_expr
 
                 elif expr.op in {"Add", "Sub"}:
                     # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
@@ -89,7 +89,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         bits=op0.from_bits,
                         **expr.tags,
                     )
-                    r = Convert(
+                    return Convert(
                         op0.idx,
                         op0.from_bits,
                         op0.to_bits,
@@ -97,7 +97,6 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         new_expr,
                         **op0.tags,
                     )
-                    return r
 
         # a more complex case
         # (Conv(expr) >> A) & B == C  ==>  (expr >> A) & B == C
@@ -147,7 +146,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                                 bits=from_bits,
                                 **op0.tags,
                             )
-                            r = BinaryOp(
+                            return BinaryOp(
                                 expr.idx,
                                 expr.op,
                                 [r1, Const(c.idx, c.variable, c.value, from_bits)],
@@ -155,6 +154,5 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                                 bits=from_bits,
                                 **expr.tags,
                             )
-                            return r
 
         return None

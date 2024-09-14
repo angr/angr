@@ -1,5 +1,5 @@
+from __future__ import annotations
 from socket import inet_ntoa as _inet_ntoa
-from typing import List
 
 from claripy import BVS, BVV, Concat
 from claripy.ast import BV
@@ -28,7 +28,7 @@ class inet_ntoa(angr.SimProcedure):
             size=self.INET_INADDRSTRLEN,
         ).rebased_addr
 
-        rv_exprs: List[BV] = []
+        rv_exprs: list[BV] = []
         addr_s_in = addr_in["s_addr"]
 
         if addr_s_in.concrete:
@@ -40,13 +40,10 @@ class inet_ntoa(angr.SimProcedure):
                 bytes(_inet_ntoa(addr_in_i32.to_bytes(4, "big")), "utf-8")
                 + b"\x00"
             )
-            rv_exprs.extend(map(lambda b: BVV(b, size=self.state.arch.byte_width), inet_str))
+            rv_exprs.extend(BVV(b, size=self.state.arch.byte_width) for b in inet_str)
         else:
             rv_exprs.extend(
-                map(
-                    lambda i: BVS(f"inet_ntoa_{i}", size=self.state.arch.byte_width),
-                    range(self.INET_INADDRSTRLEN),
-                )
+                BVS(f"inet_ntoa_{i}", size=self.state.arch.byte_width) for i in range(self.INET_INADDRSTRLEN)
             )
 
             rv_exprs.append(BVV(0, size=self.state.arch.byte_width))

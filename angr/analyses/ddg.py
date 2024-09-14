@@ -1,6 +1,6 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
-from typing import List
 
 import networkx
 import pyvex
@@ -40,10 +40,9 @@ class AST:
 
         if len(self.operands) == 1:
             return f"{self.op}{_short_repr(self.operands[0])}"
-        elif len(self.operands) == 2:
+        if len(self.operands) == 2:
             return f"{_short_repr(self.operands[0])} {self.op} {_short_repr(self.operands[1])}"
-        else:
-            return f"{self.op} ({self.operands})"
+        return f"{self.op} ({self.operands})"
 
 
 class ProgramVariable:
@@ -160,7 +159,7 @@ class LiveDefinitions:
         Add a new definition of variable.
 
         :param SimVariable variable: The variable being defined.
-        :param CodeLocation location: Location of the varaible being defined.
+        :param CodeLocation location: Location of the variable being defined.
         :param int size_threshold: The maximum bytes to consider for the variable.
         :return: True if the definition was new, False otherwise
         :rtype: bool
@@ -230,7 +229,7 @@ class LiveDefinitions:
         if isinstance(variable, SimRegisterVariable):
             if variable.reg is None:
                 l.warning("kill_def: Got a None for a SimRegisterVariable. Consider fixing.")
-                return None
+                return
 
             size = min(variable.size, size_threshold)
             offset = variable.reg
@@ -341,12 +340,11 @@ class DDGViewItem:
         return None
 
     def __repr__(self):
-        s = "[%s, %d dependents, depends on %d]" % (
+        return "[%s, %d dependents, depends on %d]" % (
             self._variable,
             len(self.dependents),
             len(self.depends_on),
         )
-        return s
 
     def __eq__(self, other):
         return (
@@ -396,7 +394,7 @@ class DDGViewInstruction:
             cfg_node = self._cfg.model.get_any_node(self._insn_addr, anyaddr=True)
             if cfg_node is None:
                 # not found
-                raise KeyError("CFGNode for instruction %#x is not found." % self._insn_addr)
+                raise KeyError(f"CFGNode for instruction {self._insn_addr:#x} is not found.")
 
             # determine the statement ID
             vex_block = self._project.factory.block(
@@ -423,9 +421,10 @@ class DDGViewInstruction:
             pv = ProgramVariable(variable, location, arch=self._project.arch)
 
             return DDGViewItem(self._ddg, pv, simplified=self._simplified)
+        return None
 
     @property
-    def definitions(self) -> List[DDGViewItem]:
+    def definitions(self) -> list[DDGViewItem]:
         """
         Get all definitions located at the current instruction address.
 
@@ -434,10 +433,7 @@ class DDGViewInstruction:
 
         defs = set()
 
-        if self._simplified:
-            graph = self._ddg.simplified_data_graph
-        else:
-            graph = self._ddg.data_graph
+        graph = self._ddg.simplified_data_graph if self._simplified else self._ddg.data_graph
 
         n: ProgramVariable
         for n in graph.nodes():
@@ -464,6 +460,7 @@ class DDGView:
         if isinstance(key, int):
             # instruction address
             return DDGViewInstruction(self._cfg, self._ddg, key, simplified=self._simplified)
+        return None
 
 
 class DDG(Analysis):
@@ -794,10 +791,7 @@ class DDG(Analysis):
 
                 # if every successor can be matched with one or more final states (by IP address),
                 # only take over the LiveDefinition of matching states
-                if matches:
-                    add_state_to_sucs = match_state[state]
-                else:
-                    add_state_to_sucs = successing_nodes
+                add_state_to_sucs = match_state[state] if matches else successing_nodes
 
                 for successing_node in add_state_to_sucs:
                     if (state.history.jumpkind == "Ijk_Call" or state.history.jumpkind.startswith("Ijk_Sys")) and (
@@ -817,14 +811,14 @@ class DDG(Analysis):
                         # l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
-                if changed:
-                    if (self._call_depth is None) or (
-                        self._call_depth is not None and 0 <= new_call_depth <= self._call_depth
-                    ):
-                        # Put all reachable successors back to our work-list again
-                        for successor in self._cfg.model.get_all_successors(node):
-                            nw = DDGJob(successor, new_call_depth)
-                            self._worklist_append(nw, worklist, worklist_set)
+                if changed and (
+                    (self._call_depth is None)
+                    or (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth)
+                ):
+                    # Put all reachable successors back to our work-list again
+                    for successor in self._cfg.model.get_all_successors(node):
+                        nw = DDGJob(successor, new_call_depth)
+                        self._worklist_append(nw, worklist, worklist_set)
 
     def _track(self, state, live_defs, statements):
         """
@@ -913,7 +907,7 @@ class DDG(Analysis):
             elif isinstance(variable, SimRegisterVariable):
                 type_ = "reg"
             else:
-                raise AngrDDGError("Unknown variable type %s" % type(variable))
+                raise AngrDDGError(f"Unknown variable type {type(variable)}")
 
             prevdefs[code_loc] = {"type": type_, "data": variable}
 
@@ -949,11 +943,10 @@ class DDG(Analysis):
         # TODO: support registers that are not aligned
         if reg_offset in self.project.arch.register_names:
             reg_name = self.project.arch.register_names[reg_offset]
-            reg_size = self.project.arch.registers[reg_name][1]
-            return reg_size
+            return self.project.arch.registers[reg_name][1]
 
         l.warning(
-            "_get_register_size(): unsupported register offset %d. Assum size 1. "
+            "_get_register_size(): unsupported register offset %d. Assume size 1. "
             "More register name mappings should be implemented in archinfo.",
             reg_offset,
         )
@@ -999,7 +992,7 @@ class DDG(Analysis):
 
         variable = None
         if len(addrs) == 1 and len(action.addr.tmp_deps) == 1:
-            addr_tmp = list(action.addr.tmp_deps)[0]
+            addr_tmp = next(iter(action.addr.tmp_deps))
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]
@@ -1165,9 +1158,8 @@ class DDG(Analysis):
             # moving a constant into the register
             # try to parse out the constant from statement
             const_variable = SimConstantVariable()
-            if statement is not None:
-                if isinstance(statement.data, pyvex.IRExpr.Const):
-                    const_variable = SimConstantVariable(value=statement.data.con.value)
+            if statement is not None and isinstance(statement.data, pyvex.IRExpr.Const):
+                const_variable = SimConstantVariable(value=statement.data.con.value)
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
@@ -1306,8 +1298,7 @@ class DDG(Analysis):
 
                 const_def = ProgramVariable(SimConstantVariable(const_value), location)
                 tmp_def = self._temp_variables[tmp]
-                ast = AST("-", tmp_def, const_def)
-                return ast
+                return AST("-", tmp_def, const_def)
 
         elif action.op.endswith("Add32") or action.op.endswith("Add64"):
             # add
@@ -1321,8 +1312,7 @@ class DDG(Analysis):
 
                 const_def = ProgramVariable(SimConstantVariable(const_value), location)
                 tmp_def = self._temp_variables[tmp]
-                ast = AST("+", tmp_def, const_def)
-                return ast
+                return AST("+", tmp_def, const_def)
 
         return None
 
@@ -1332,7 +1322,7 @@ class DDG(Analysis):
 
     def _data_graph_add_node(self, node):
         """
-        Add a noe in the data dependence graph.
+        Add a node in the data dependence graph.
 
         :param ProgramVariable node: The node to add.
         :return: None
@@ -1428,11 +1418,10 @@ class DDG(Analysis):
 
             for pred, _, data_in in in_edges:
                 for _, suc, data_out in out_edges:
-                    if pred is not tmp_node and suc is not tmp_node:
-                        if suc not in graph[pred]:
-                            data = data_in.copy()
-                            data.update(data_out)
-                            graph.add_edge(pred, suc, **data)
+                    if pred is not tmp_node and suc is not tmp_node and suc not in graph[pred]:
+                        data = data_in.copy()
+                        data.update(data_out)
+                        graph.add_edge(pred, suc, **data)
 
             graph.remove_node(tmp_node)
 
@@ -1451,7 +1440,7 @@ class DDG(Analysis):
 
         if node_wrapper.cfg_node in worklist_set:
             # It's already in the work-list
-            return
+            return None
 
         worklist.append(node_wrapper)
         worklist_set.add(node_wrapper.cfg_node)
@@ -1543,16 +1532,17 @@ class DDG(Analysis):
         # TODO: use information from a calling convention analysis
         filtered_defs = LiveDefinitions()
         for variable, locs in defs.items():
-            if isinstance(variable, SimRegisterVariable):
-                if self.project.arch.name == "X86":
-                    if variable.reg in (
-                        self.project.arch.registers["eax"][0],
-                        self.project.arch.registers["ecx"][0],
-                        self.project.arch.registers["edx"][0],
-                    ):
-                        continue
-
-            filtered_defs.add_defs(variable, locs)
+            if not (
+                isinstance(variable, SimRegisterVariable)
+                and self.project.arch.name == "X86"
+                and variable.reg
+                in (
+                    self.project.arch.registers["eax"][0],
+                    self.project.arch.registers["ecx"][0],
+                    self.project.arch.registers["edx"][0],
+                )
+            ):
+                filtered_defs.add_defs(variable, locs)
 
         return filtered_defs
 
@@ -1568,10 +1558,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         defs = []
 
@@ -1597,10 +1584,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         if var_def not in graph:
             return []
@@ -1636,10 +1620,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         if var_def not in graph:
             return []
@@ -1662,10 +1643,7 @@ class DDG(Analysis):
         :rtype: list
         """
 
-        if simplified_graph:
-            graph = self.simplified_data_graph
-        else:
-            graph = self.data_graph
+        graph = self.simplified_data_graph if simplified_graph else self.data_graph
 
         if var_def not in graph:
             return []

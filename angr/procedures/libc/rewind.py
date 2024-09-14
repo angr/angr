@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -8,4 +9,4 @@ class rewind(angr.SimProcedure):
         fseek = angr.SIM_PROCEDURES["libc"]["fseek"]
         self.inline_call(fseek, file_ptr, 0, 0)
 
-        return None
+        return

@@ -1,6 +1,7 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
+from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Type, Union
+from typing import cast
 from collections import defaultdict
 
 import claripy
@@ -31,6 +32,7 @@ from .sim_type import (
 )
 from .state_plugins.sim_action_object import SimActionObject
 from .engines.soot.engine import SootMixin
+import contextlib
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -116,7 +118,7 @@ class AllocHelper:
 
 
 def refine_locs_with_struct_type(
-    arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int = 0, treat_bot_as_int=True
+    arch: archinfo.Arch, locs: list, arg_type: SimType, offset: int = 0, treat_bot_as_int=True
 ):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
@@ -138,10 +140,7 @@ def refine_locs_with_struct_type(
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
 
-        if len(pieces) == 1:
-            piece = pieces[0]
-        else:
-            piece = SimComboArg(pieces)
+        piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
         return piece
@@ -166,7 +165,7 @@ def refine_locs_with_struct_type(
             if member.size == arg_type.size:
                 return refine_locs_with_struct_type(arch, locs, member, offset)
 
-    raise TypeError("I don't know how to lay out a %s" % arg_type)
+    raise TypeError(f"I don't know how to lay out a {arg_type}")
 
 
 class SerializableIterator:
@@ -265,7 +264,7 @@ class SimFunctionArgument:
     def refine(self, size, arch=None, offset=None, is_fp=None):
         raise NotImplementedError
 
-    def get_footprint(self) -> List[Union["SimRegArg", "SimStackArg"]]:
+    def get_footprint(self) -> list[SimRegArg | SimStackArg]:
         """
         Return a list of SimRegArg and SimStackArgs that are the base components used for this location
         """
@@ -293,7 +292,7 @@ class SimRegArg(SimFunctionArgument):
         yield self
 
     def __repr__(self):
-        return "<%s>" % self.reg_name
+        return f"<{self.reg_name}>"
 
     def __eq__(self, other):
         return type(other) is SimRegArg and self.reg_name == other.reg_name and self.reg_offset == other.reg_offset
@@ -320,10 +319,7 @@ class SimRegArg(SimFunctionArgument):
         if offset is None:
             if arch is None:
                 raise ValueError("Need to specify either offset or arch in order to refine a register argument")
-            if arch.register_endness == "Iend_LE":
-                offset = 0
-            else:
-                offset = self.size - size
+            offset = 0 if arch.register_endness == "Iend_LE" else self.size - size
         if is_fp is None:
             is_fp = self.is_fp
         return SimRegArg(self.reg_name, size, self.reg_offset + offset, is_fp, clear_entire_reg=passed_offset_none)
@@ -349,7 +345,7 @@ class SimStackArg(SimFunctionArgument):
         yield self
 
     def __repr__(self):
-        return "[%#x]" % self.stack_offset
+        return f"[{self.stack_offset:#x}]"
 
     def __eq__(self, other):
         return type(other) is SimStackArg and self.stack_offset == other.stack_offset
@@ -373,10 +369,7 @@ class SimStackArg(SimFunctionArgument):
         if offset is None:
             if arch is None:
                 raise ValueError("Need to specify either offset or arch in order to refine a stack argument")
-            if arch.register_endness == "Iend_LE":
-                offset = 0
-            else:
-                offset = self.size - size
+            offset = 0 if arch.register_endness == "Iend_LE" else self.size - size
         if is_fp is None:
             is_fp = self.is_fp
         return SimStackArg(self.stack_offset + offset, size, is_fp)
@@ -396,7 +389,7 @@ class SimComboArg(SimFunctionArgument):
             yield from x.get_footprint()
 
     def __repr__(self):
-        return "SimComboArg(%s)" % repr(self.locations)
+        return f"SimComboArg({self.locations!r})"
 
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
@@ -413,7 +406,7 @@ class SimComboArg(SimFunctionArgument):
         vals = []
         for loc in reversed(self.locations):
             vals.append(loc.get_value(state, **kwargs))
-        return self.check_value_get(state.solver.Concat(*vals))
+        return self.check_value_get(claripy.Concat(*vals))
 
 
 class SimStructArg(SimFunctionArgument):
@@ -424,7 +417,7 @@ class SimStructArg(SimFunctionArgument):
     :ivar locs:     The storage locations to use
     """
 
-    def __init__(self, struct: SimStruct, locs: Dict[str, SimFunctionArgument]):
+    def __init__(self, struct: SimStruct, locs: dict[str, SimFunctionArgument]):
         super().__init__(sum(loc.size for loc in locs.values()))
         self.struct = struct
         self.locs = locs
@@ -557,18 +550,18 @@ class SimCC:
     # Here are all the things a subclass needs to specify!
     #
 
-    ARG_REGS: List[str] = []  # A list of all the registers used for integral args, in order (names or offsets)
-    FP_ARG_REGS: List[str] = []  # A list of all the registers used for floating point args, in order
+    ARG_REGS: list[str] = []  # A list of all the registers used for integral args, in order (names or offsets)
+    FP_ARG_REGS: list[str] = []  # A list of all the registers used for floating point args, in order
     STACKARG_SP_BUFF = 0  # The amount of stack space reserved between the saved return address
     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0  # The amount of stack space reserved for the return address
-    CALLER_SAVED_REGS: List[str] = []  # Caller-saved registers
+    CALLER_SAVED_REGS: list[str] = []  # Caller-saved registers
     RETURN_ADDR: SimFunctionArgument = None  # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL: SimFunctionArgument = None  # The location where the return value is stored, as a SimFunctionArgument
-    OVERFLOW_RETURN_VAL: Optional[SimFunctionArgument] = (
+    OVERFLOW_RETURN_VAL: SimFunctionArgument | None = (
         None  # The second half of the location where a double-length return value is stored
     )
-    FP_RETURN_VAL: Optional[SimFunctionArgument] = (
+    FP_RETURN_VAL: SimFunctionArgument | None = (
         None  # The location where floating-point argument return values are stored
     )
     ARCH = None  # The archinfo.Arch class that this CC must be used for, if relevant
@@ -588,7 +581,7 @@ class SimCC:
         Returns an iterator of SimFunctionArguments
         """
         if self.ARG_REGS is None:
-            raise NotImplementedError()
+            raise NotImplementedError
         return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.ARG_REGS])
 
     @property
@@ -609,7 +602,7 @@ class SimCC:
         Returns an iterator of SimFunctionArguments
         """
         if self.FP_ARG_REGS is None:
-            raise NotImplementedError()
+            raise NotImplementedError
         return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.FP_ARG_REGS])
 
     def is_fp_arg(self, arg):
@@ -629,7 +622,7 @@ class SimCC:
 
     ArgSession = ArgSession  # import this from global scope so SimCC subclasses can subclass it if they like
 
-    def arg_session(self, ret_ty: Optional[SimType]):
+    def arg_session(self, ret_ty: SimType | None):
         """
         Return an arg session.
 
@@ -714,15 +707,12 @@ class SimCC:
         is_fp = isinstance(arg_type, SimTypeFloat)
         size = arg_type.size // self.arch.byte_width
         try:
-            if is_fp:
-                arg = next(session.fp_iter)
-            else:
-                arg = next(session.int_iter)
+            arg = next(session.fp_iter) if is_fp else next(session.int_iter)
         except StopIteration:
             try:
                 arg = next(session.both_iter)
-            except StopIteration:
-                raise TypeError("Accessed too many arguments - exhausted all positions?")
+            except StopIteration as err:
+                raise TypeError("Accessed too many arguments - exhausted all positions?") from err
 
         if size > arg.size:
             if isinstance(arg, SimStackArg):
@@ -768,24 +758,24 @@ class SimCC:
         result = prototype if prototype is not None else SimTypeFunction([], charp)
         for arg in args[len(result.args) :]:
             if type(arg) in (int, bytes, PointerWrapper):
-                result.args.append(charp)
+                result.args += (charp,)
             elif type(arg) is float:
-                result.args.append(SimTypeDouble())
+                result.args += (SimTypeDouble(),)
             elif isinstance(arg, claripy.ast.BV):
-                result.args.append(SimTypeNum(len(arg), False))
+                result.args += (SimTypeNum(len(arg), False),)
             elif isinstance(arg, claripy.ast.FP):
                 if arg.sort == claripy.FSORT_FLOAT:
-                    result.args.append(SimTypeFloat())
+                    result.args += (SimTypeFloat(),)
                 elif arg.sort == claripy.FSORT_DOUBLE:
-                    result.args.append(SimTypeDouble())
+                    result.args += (SimTypeDouble(),)
                 else:
                     raise TypeError("WHAT kind of floating point is this")
             else:
-                raise TypeError("Cannot guess FFI type for %s" % type(arg))
+                raise TypeError(f"Cannot guess FFI type for {type(arg)}")
 
         return result
 
-    def arg_locs(self, prototype) -> List[SimFunctionArgument]:
+    def arg_locs(self, prototype) -> list[SimFunctionArgument]:
         if prototype._arch is None:
             prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)
@@ -797,6 +787,8 @@ class SimCC:
 
     def set_return_val(self, state, val, ty, stack_base=None, perspective_returned=False):
         loc = self.return_val(ty, perspective_returned=perspective_returned)
+        if loc is None:
+            raise ValueError("Cannot set return value - there is no return value location")
         loc.set_value(state, val, stack_base=stack_base)
 
     def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
@@ -919,7 +911,7 @@ class SimCC:
         TODO: support the stack_base parameter from setup_callsite...? Does that make sense in this context?
         Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
         """
-        if return_val is not None and not isinstance(prototype.returnty, SimTypeBottom):
+        if return_val is not None and prototype is not None and not isinstance(prototype.returnty, SimTypeBottom):
             self.set_return_val(state, return_val, prototype.returnty)
             # ummmmmmmm hack
             loc = self.return_val(prototype.returnty)
@@ -928,11 +920,11 @@ class SimCC:
 
         ret_addr = self.return_addr.get_value(state)
 
-        if state.arch.sp_offset is not None:
+        if state.arch.sp_offset is not None and prototype is not None:
             if force_callee_cleanup or self.CALLEE_CLEANUP:
                 session = self.arg_session(prototype.returnty)
                 if self.return_in_implicit_outparam(prototype.returnty):
-                    extra = [self.return_val(prototype.returnty).ptr_loc]
+                    extra = [cast(SimReferenceArgument, self.return_val(prototype.returnty)).ptr_loc]
                 else:
                     extra = []
                 state.regs.sp += self.stack_space(extra + [self.next_arg(session, x) for x in prototype.args])
@@ -949,9 +941,9 @@ class SimCC:
     def _standardize_value(arg, ty, state, alloc):
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
-        elif isinstance(arg, PointerWrapper):
+        if isinstance(arg, PointerWrapper):
             if not isinstance(ty, (SimTypePointer, SimTypeReference)):
-                raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty)
+                raise TypeError(f"Type mismatch: expected {ty}, got pointer-wrapper")
 
             if arg.buffer:
                 if isinstance(arg.value, claripy.Bits):
@@ -971,7 +963,7 @@ class SimCC:
                     ) from None
             return alloc(real_value, state)
 
-        elif isinstance(arg, (str, bytes)):
+        if isinstance(arg, (str, bytes)):
             # sanitize the argument and request standardization again with SimTypeArray
             if type(arg) is str:
                 arg = arg.encode()
@@ -980,41 +972,39 @@ class SimCC:
                 pass
             elif isinstance(ty, SimTypeFixedSizeArray) and isinstance(ty.elem_type, SimTypeChar):
                 if len(arg) > ty.length:
-                    raise TypeError(f"String {repr(arg)} is too long for {ty}")
+                    raise TypeError(f"String {arg!r} is too long for {ty}")
                 arg = arg.ljust(ty.length, b"\0")
             elif isinstance(ty, SimTypeArray) and isinstance(ty.elem_type, SimTypeChar):
                 if ty.length is not None:
                     if len(arg) > ty.length:
-                        raise TypeError(f"String {repr(arg)} is too long for {ty}")
+                        raise TypeError(f"String {arg!r} is too long for {ty}")
                     arg = arg.ljust(ty.length, b"\0")
             elif isinstance(ty, SimTypeString):
                 if len(arg) > ty.length + 1:
-                    raise TypeError(f"String {repr(arg)} is too long for {ty}")
+                    raise TypeError(f"String {arg!r} is too long for {ty}")
                 arg = arg.ljust(ty.length + 1, b"\0")
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
-            val = SimCC._standardize_value(list(arg), SimTypeArray(SimTypeChar(), len(arg)), state, alloc)
-            return val
+                raise TypeError(f"Type mismatch: Expected {ty}, got char*")
+            return SimCC._standardize_value(list(arg), SimTypeArray(SimTypeChar(), len(arg)), state, alloc)
 
-        elif isinstance(arg, list):
+        if isinstance(arg, list):
             if isinstance(ty, (SimTypePointer, SimTypeReference)):
                 ref = True
                 subty = ty.pts_to
             elif isinstance(ty, SimTypeArray):
                 ref = True
                 subty = ty.elem_type
-                if ty.length is not None:
-                    if len(arg) != ty.length:
-                        raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
+                if ty.length is not None and len(arg) != ty.length:
+                    raise TypeError(f"Array {arg!r} is the wrong length for {ty}")
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
+                raise TypeError(f"Type mismatch: Expected {ty}, got char*")
 
             val = [SimCC._standardize_value(sarg, subty, state, alloc) for sarg in arg]
             if ref:
                 val = alloc(val, state)
             return val
 
-        elif isinstance(arg, (tuple, dict, SimStructValue)):
+        if isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
             if type(arg) is not SimStructValue:
@@ -1025,24 +1015,23 @@ class SimCC:
                 ty, [SimCC._standardize_value(arg[field], ty.fields[field], state, alloc) for field in ty.fields]
             )
 
-        elif isinstance(arg, int):
+        if isinstance(arg, int):
             if isinstance(ty, SimTypeFloat):
                 return SimCC._standardize_value(float(arg), ty, state, alloc)
 
-            val = state.solver.BVV(arg, ty.size)
-            return val
+            return claripy.BVV(arg, ty.size)
 
-        elif isinstance(arg, float):
+        if isinstance(arg, float):
             if isinstance(ty, SimTypeDouble):
                 sort = claripy.FSORT_DOUBLE
             elif isinstance(ty, SimTypeFloat):
                 sort = claripy.FSORT_FLOAT
             else:
-                raise TypeError("Type mismatch: expected %s, got float" % ty)
+                raise TypeError(f"Type mismatch: expected {ty}, got float")
 
             return claripy.FPV(arg, sort)
 
-        elif isinstance(arg, claripy.ast.FP):
+        if isinstance(arg, claripy.ast.FP):
             if isinstance(ty, SimTypeFloat):
                 if len(arg) != ty.size:
                     raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
@@ -1051,7 +1040,7 @@ class SimCC:
                 return arg.val_to_bv(ty.size, ty.signed)
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
-        elif isinstance(arg, claripy.ast.BV):
+        if isinstance(arg, claripy.ast.BV):
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
                 if len(arg) != ty.size:
                     raise TypeError("Type mismatch: expected %s, got %d bits" % (ty, len(arg)))
@@ -1061,10 +1050,9 @@ class SimCC:
                     "It's unclear how to coerce a bitvector to %s. "
                     "Do you want .raw_to_fp or .val_to_fp, and signed or unsigned?"
                 )
-            raise TypeError("Type mismatch: expected %s, got bitvector" % ty)
+            raise TypeError(f"Type mismatch: expected {ty}, got bitvector")
 
-        else:
-            raise TypeError("I don't know how to serialize %s." % repr(arg))
+        raise TypeError(f"I don't know how to serialize {arg!r}.")
 
     def __repr__(self):
         return f"<{self.__class__.__name__}>"
@@ -1073,7 +1061,7 @@ class SimCC:
         return isinstance(other, self.__class__)
 
     @classmethod
-    def _match(cls, arch, args: List, sp_delta):
+    def _match(cls, arch, args: list, sp_delta):
         if cls.ARCH is not None and not isinstance(
             arch, cls.ARCH
         ):  # pylint:disable=isinstance-second-argument-not-valid-type
@@ -1103,8 +1091,8 @@ class SimCC:
 
     @staticmethod
     def find_cc(
-        arch: "archinfo.Arch", args: List[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
-    ) -> Optional["SimCC"]:
+        arch: archinfo.Arch, args: list[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
+    ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
         found.
@@ -1221,12 +1209,8 @@ class SimCCCdecl(SimCC):
             byte_size = ty.size // self.arch.byte_width
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
-            if perspective_returned:
-                ptr_loc = self.RETURN_VAL
-            else:
-                ptr_loc = SimStackArg(0, 4)
-            reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
-            return reference_loc
+            ptr_loc = self.RETURN_VAL if perspective_returned else SimStackArg(0, 4)
+            return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
 
@@ -1293,8 +1277,7 @@ class SimCCMicrosoftAMD64(SimCC):
 
         referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
         referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
-        reference_loc = SimReferenceArgument(int_loc, referenced_loc)
-        return reference_loc
+        return SimReferenceArgument(int_loc, referenced_loc)
 
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, SimTypeBottom):
@@ -1312,7 +1295,7 @@ class SimCCSyscall(SimCC):
 
     @staticmethod
     def syscall_num(state) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def linux_syscall_update_error_reg(self, state, expr):
         # special handling for Linux syscalls: on some architectures (mips/a3, powerpc/cr0_0) a bool indicating success
@@ -1321,10 +1304,8 @@ class SimCCSyscall(SimCC):
             return expr
         if type(expr) is int:
             expr = claripy.BVV(expr, state.arch.bits)
-        try:
+        with contextlib.suppress(AttributeError):
             expr = expr.ast
-        except AttributeError:
-            pass
         nbits = self.ERROR_REG.size * state.arch.byte_width
         error_cond = claripy.UGE(expr, self.SYSCALL_ERRNO_START)
         if state.solver.is_false(error_cond):
@@ -1472,7 +1453,7 @@ class SimCCSystemVAMD64(SimCC):
 
         return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
 
-    def return_val(self, ty: Optional[SimType], perspective_returned=False):
+    def return_val(self, ty: SimType | None, perspective_returned=False):
         if ty is None:
             return None
         if ty._arch is None:
@@ -1483,29 +1464,24 @@ class SimCCSystemVAMD64(SimCC):
             byte_size = ty.size // self.arch.byte_width
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
-            if perspective_returned:
-                ptr_loc = self.RETURN_VAL
+            ptr_loc = self.RETURN_VAL if perspective_returned else SimRegArg("rdi", 8)
+            return SimReferenceArgument(ptr_loc, referenced_loc)
+        mapped_classes = []
+        int_iter = iter([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
+        fp_iter = iter([self.FP_RETURN_VAL, self.OVERFLOW_FP_RETURN_VAL])
+        for cls in classification:
+            if cls == "SSEUP":
+                mapped_classes.append(mapped_classes[-1].sse_extend(self.arch.bytes))
+            elif cls == "NO_CLASS":
+                raise NotImplementedError("Bug. Report to @rhelmot")
+            elif cls == "INTEGER":
+                mapped_classes.append(next(int_iter))
+            elif cls == "SSE":
+                mapped_classes.append(next(fp_iter))
             else:
-                ptr_loc = SimRegArg("rdi", 8)
-            reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
-            return reference_loc
-        else:
-            mapped_classes = []
-            int_iter = iter([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
-            fp_iter = iter([self.FP_RETURN_VAL, self.OVERFLOW_FP_RETURN_VAL])
-            for cls in classification:
-                if cls == "SSEUP":
-                    mapped_classes.append(mapped_classes[-1].sse_extend(self.arch.bytes))
-                elif cls == "NO_CLASS":
-                    raise NotImplementedError("Bug. Report to @rhelmot")
-                elif cls == "INTEGER":
-                    mapped_classes.append(next(int_iter))
-                elif cls == "SSE":
-                    mapped_classes.append(next(fp_iter))
-                else:
-                    raise NotImplementedError("Bug. Report to @rhelmot")
+                raise NotImplementedError("Bug. Report to @rhelmot")
 
-            return refine_locs_with_struct_type(self.arch, mapped_classes, ty)
+        return refine_locs_with_struct_type(self.arch, mapped_classes, ty)
 
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, SimTypeBottom):
@@ -1517,15 +1493,12 @@ class SimCCSystemVAMD64(SimCC):
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        if isinstance(ty, SimTypeBottom):
-            nchunks = 1
-        else:
-            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
-        elif isinstance(ty, (SimTypeFloat,)):
+        if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
-        elif isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+        if isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
             if ty.size > 512:
                 return ["MEMORY"] * nchunks
             flattened = self._flatten(ty)
@@ -1549,11 +1522,10 @@ class SimCCSystemVAMD64(SimCC):
                 if result[i] == "SSEUP" and result[i - 1] not in ("SSE", "SSEUP"):
                     result[i] = "SSE"
             return result
-        else:
-            raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
 
-    def _flatten(self, ty) -> Optional[Dict[int, List[SimType]]]:
-        result: Dict[int, List[SimType]] = defaultdict(list)
+    def _flatten(self, ty) -> dict[int, list[SimType]] | None:
+        result: dict[int, list[SimType]] = defaultdict(list)
         if isinstance(ty, SimStruct):
             if ty.packed:
                 return None
@@ -1668,12 +1640,7 @@ class SimCCARM(SimCC):
                     raise NotImplementedError("Bug. Report to @rhelmot")
                 elif cls == "MEMORY":
                     mapped_classes.append(next(session.both_iter))
-                elif cls == "INTEGER":
-                    try:
-                        mapped_classes.append(next(session.int_iter))
-                    except StopIteration:
-                        mapped_classes.append(next(session.both_iter))
-                elif cls == "SINGLEP":
+                elif cls == "INTEGER" or cls == "SINGLEP":
                     try:
                         mapped_classes.append(next(session.int_iter))
                     except StopIteration:
@@ -1690,19 +1657,16 @@ class SimCCARM(SimCC):
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        if isinstance(ty, SimTypeBottom):
-            nchunks = 1
-        else:
-            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
-        elif isinstance(ty, (SimTypeFloat,)):
+        if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
                 return ["DOUBLEP"]
-            elif ty.size == 32:
+            if ty.size == 32:
                 return ["SINGLEP"]
             return ["NO_CLASS"]
-        elif isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+        if isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
             flattened = self._flatten(ty)
             if flattened is None:
                 return ["MEMORY"] * nchunks
@@ -1717,8 +1681,7 @@ class SimCCARM(SimCC):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
             return result
-        else:
-            raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
 
     def _combine_classes(self, cls1, cls2):
         if cls1 == cls2:
@@ -1733,8 +1696,8 @@ class SimCCARM(SimCC):
             return "INTEGER"
         return "SSE"
 
-    def _flatten(self, ty) -> Optional[Dict[int, List[SimType]]]:
-        result: Dict[int, List[SimType]] = defaultdict(list)
+    def _flatten(self, ty) -> dict[int, list[SimType]] | None:
+        result: dict[int, list[SimType]] = defaultdict(list)
         if isinstance(ty, SimStruct):
             if ty.packed:
                 return None
@@ -1804,8 +1767,7 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
 
         if len(svc_num) == 32 and (svc_num > 0x900000).is_true() and (svc_num < 0x90FFFF).is_true():
             return svc_num - 0x900000
-        else:
-            return state.regs.r7
+        return state.regs.r7
 
 
 class SimCCAArch64(SimCC):
@@ -1914,19 +1876,16 @@ class SimCCO32(SimCC):
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        if isinstance(ty, SimTypeBottom):
-            nchunks = 1
-        else:
-            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
-        elif isinstance(ty, (SimTypeFloat,)):
+        if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
                 return ["DOUBLEP"]
-            elif ty.size == 32:
+            if ty.size == 32:
                 return ["SINGLEP"]
             return ["NO_CLASS"]
-        elif isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+        if isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
             flattened = self._flatten(ty)
             if flattened is None:
                 return ["MEMORY"] * nchunks
@@ -1941,8 +1900,7 @@ class SimCCO32(SimCC):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
             return result
-        else:
-            raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
 
     def _combine_classes(self, cls1, cls2):
         if cls1 == cls2:
@@ -1957,8 +1915,8 @@ class SimCCO32(SimCC):
             return "INTEGER"
         return "SSE"
 
-    def _flatten(self, ty) -> Optional[Dict[int, List[SimType]]]:
-        result: Dict[int, List[SimType]] = defaultdict(list)
+    def _flatten(self, ty) -> dict[int, list[SimType]] | None:
+        result: dict[int, list[SimType]] = defaultdict(list)
         if isinstance(ty, SimStruct):
             if ty.packed:
                 return None
@@ -2049,6 +2007,7 @@ class SimCCPowerPC(SimCC):
     STACKARG_SP_BUFF = 8
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r3", 4)
+    OVERFLOW_RETURN_VAL = SimRegArg("r4", 4)
     ARCH = archinfo.ArchPPC32
 
 
@@ -2156,7 +2115,7 @@ class SimCCS390XLinuxSyscall(SimCCSyscall):
         return state.regs.r1
 
 
-CC: Dict[str, Dict[str, List[Type[SimCC]]]] = {
+CC: dict[str, dict[str, list[type[SimCC]]]] = {
     "AMD64": {
         "default": [SimCCSystemVAMD64],
         "Linux": [SimCCSystemVAMD64],
@@ -2207,7 +2166,7 @@ CC: Dict[str, Dict[str, List[Type[SimCC]]]] = {
 }
 
 
-DEFAULT_CC: Dict[str, Dict[str, Type[SimCC]]] = {
+DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "AMD64": {"Linux": SimCCSystemVAMD64, "Win32": SimCCMicrosoftAMD64},
     "X86": {"Linux": SimCCCdecl, "CGC": SimCCCdecl, "Win32": SimCCMicrosoftCdecl},
     "ARMEL": {"Linux": SimCCARM},
@@ -2225,7 +2184,7 @@ DEFAULT_CC: Dict[str, Dict[str, Type[SimCC]]] = {
 }
 
 
-def register_default_cc(arch: str, cc: Type[SimCC], platform: str = "Linux"):
+def register_default_cc(arch: str, cc: type[SimCC], platform: str = "Linux"):
     DEFAULT_CC[arch] = {platform: cc}
     if arch not in CC:
         CC[arch] = {}
@@ -2244,13 +2203,13 @@ ARCH_NAME_ALIASES = {
     "ARMEL": [],
     "ARMHF": [],
     "ARMCortexM": [],
-    "AARCH64": ["arm64"],
+    "AARCH64": ["arm64", "aarch64"],
     "MIPS32": [],
     "MIPS64": [],
     "PPC32": ["powerpc32"],
     "PPC64": ["powerpc64"],
     "Soot": [],
-    "AVR8": [],
+    "AVR8": ["avr8"],
     "MSP": [],
     "S390X": [],
 }
@@ -2263,11 +2222,11 @@ for k, vs in ARCH_NAME_ALIASES.items():
 
 def default_cc(  # pylint:disable=unused-argument
     arch: str,
-    platform: Optional[str] = "Linux",
-    language: Optional[str] = None,
+    platform: str | None = "Linux",
+    language: str | None = None,
     syscall: bool = False,
     **kwargs,
-) -> Optional[Type[SimCC]]:
+) -> type[SimCC] | None:
     """
     Return the default calling convention for a given architecture, platform, and language combination.
 
@@ -2297,6 +2256,7 @@ def default_cc(  # pylint:disable=unused-argument
     if alias not in cc_map or platform not in cc_map[alias]:
         if default is not ...:
             return default
+        return None
     return cc_map[alias][platform]
 
 
@@ -2312,13 +2272,19 @@ def unify_arch_name(arch: str) -> str:
         # Sleigh architecture names
         chunks = arch.lower().split(":")
         if len(chunks) >= 3:
-            arch_base, endianness, bits = chunks[:3]  # pylint:disable=unused-variable
-            arch = f"{arch_base}{bits}"
+            arch_base, _, bits = chunks[:3]
 
-    return ALIAS_TO_ARCH_NAME.get(arch, arch)
+            if arch_base in ALIAS_TO_ARCH_NAME:
+                return ALIAS_TO_ARCH_NAME[arch_base]
+
+            base_with_bits = f"{arch_base}{bits}"
+            if base_with_bits in ALIAS_TO_ARCH_NAME:
+                return ALIAS_TO_ARCH_NAME[base_with_bits]
+
+    return arch
 
 
-SYSCALL_CC: Dict[str, Dict[str, Type[SimCCSyscall]]] = {
+SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "X86": {
         "default": SimCCX86LinuxSyscall,
         "Linux": SimCCX86LinuxSyscall,

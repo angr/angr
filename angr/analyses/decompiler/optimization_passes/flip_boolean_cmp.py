@@ -1,5 +1,6 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions
-from typing import List, Tuple, Any
+from __future__ import annotations
+from typing import Any
 
 import ailment
 from ailment.expression import Op
@@ -29,7 +30,7 @@ class FlipBooleanWalker(SequenceWalker):
         # Type 2:
         # if (cond) { ... } return;    -->    if (!cond) return; ...
         type1_condition_nodes = [node for node in seq_node.nodes if isinstance(node, ConditionNode) and node.false_node]
-        type2_condition_nodes: List[Tuple[int, ConditionNode, Any]] = []
+        type2_condition_nodes: list[tuple[int, ConditionNode, Any]] = []
 
         if len(seq_node.nodes) >= 2:
             idx = len(seq_node.nodes) - 2

@@ -1,6 +1,6 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
-from typing import Tuple
 
 import claripy
 
@@ -56,7 +56,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         return None
 
     def copy(self):
-        state = VariableRecoveryState(
+        return VariableRecoveryState(
             self.block_addr,
             self._analysis,
             self.arch,
@@ -65,8 +65,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
         )
-
-        return state
 
     def register_callbacks(self, concrete_states):
         """
@@ -90,7 +88,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             )
             concrete_state.inspect.add_breakpoint("mem_write", BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, others: Tuple["VariableRecoveryState"], successor=None) -> Tuple["VariableRecoveryState", bool]:
+    def merge(self, others: tuple[VariableRecoveryState], successor=None) -> tuple[VariableRecoveryState, bool]:
         """
         Merge two abstract states.
 
@@ -378,29 +376,28 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 annotated = [True for annotated, _ in parsed if annotated is True]
                 if len(annotated) != 1:
                     # either nothing is annotated, or more than one element is annotated
-                    raise ValueError()
+                    raise ValueError
 
                 return True, sum(off for _, off in parsed)
-            elif addr.op == "__sub__":
+            if addr.op == "__sub__":
                 # __sub__ might have multiple arguments
 
                 parsed = [_parse(arg) for arg in addr.args]
                 first_annotated, first_offset = parsed[0]
                 if first_annotated is False:
                     # the first argument is not annotated. we don't support it.
-                    raise ValueError()
+                    raise ValueError
                 if any(annotated for annotated, _ in parsed[1:]):
                     # more than one argument is annotated. we don't support it.
-                    raise ValueError()
+                    raise ValueError
 
                 return True, first_offset - sum(off for _, off in parsed[1:])
-            else:
-                anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
-                if anno is None:
-                    if addr.op == "BVV":
-                        return False, addr.concrete_value
-                    raise ValueError()
-                return True, anno.offset
+            anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
+            if anno is None:
+                if addr.op == "BVV":
+                    return False, addr.concrete_value
+                raise ValueError
+            return True, anno.offset
 
         # find the annotated AST
         try:
@@ -438,7 +435,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
     This analysis follows SSA, which means every write creates a new variable in registers or memory (statck, heap,
     etc.). Things may get tricky when overlapping variable (in memory, as you cannot really have overlapping accesses
     to registers) accesses exist, and in such cases, a new variable will be created, and this new variable will overlap
-    with one or more existing varaibles. A decision procedure (which is pretty much TODO) is required at the end of this
+    with one or more existing variables. A decision procedure (which is pretty much TODO) is required at the end of this
     analysis to resolve the conflicts between overlapping variables.
     """
 

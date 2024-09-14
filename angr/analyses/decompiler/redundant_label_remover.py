@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument
-from typing import Set, Optional, Tuple, Dict
+from __future__ import annotations
 
 import ailment
 
@@ -18,18 +18,21 @@ class RedundantLabelRemover:
     anywhere (determined by jump_targets), or (b) are deemed replaceable by the first pass.
     """
 
-    def __init__(self, node, jump_targets: Set[Tuple[int, Optional[int]]]):
+    def __init__(self, node, jump_targets: set[tuple[int, int | None]]):
         self.root = node
         self._jump_targets = jump_targets
 
-        self._labels_to_remove: Set[ailment.Stmt.Label] = set()
-        self._new_jump_target: Dict[Tuple[int, Optional[int]], Tuple[int, Optional[int]]] = {}
+        self._labels_to_remove: set[ailment.Stmt.Label] = set()
+        self._new_jump_target: dict[tuple[int, int | None], tuple[int, int | None]] = {}
 
         handlers0 = {
             SequenceNode: self._handle_Sequence,
         }
         self._walker0 = SequenceWalker(handlers=handlers0)
         self._walker0.walk(self.root)
+
+        # update jump targets
+        self._update_jump_targets()
 
         handlers1 = {
             ailment.Block: self._handle_Block,
@@ -38,13 +41,27 @@ class RedundantLabelRemover:
         self._walker1.walk(self.root)
         self.result = self.root
 
+    def _update_jump_targets(self) -> None:
+        """
+        Update self._jump_targets after the first pass fills in self._new_jump_target.
+        """
+
+        if self._new_jump_target:
+            jump_targets = set()
+            for jt in self._jump_targets:
+                if jt in self._new_jump_target:
+                    jump_targets.add(self._new_jump_target[jt])
+                else:
+                    jump_targets.add(jt)
+            self._jump_targets = jump_targets
+
     #
     # Handlers
     #
 
     def _handle_Sequence(self, node: SequenceNode, **kwargs):
         # merge consecutive labels
-        last_label_addr: Optional[Tuple[int, Optional[int]]] = None
+        last_label_addr: tuple[int, int | None] | None = None
         for node_ in node.nodes:
             if isinstance(node_, ailment.Block):
                 if node_.statements:
@@ -70,11 +87,12 @@ class RedundantLabelRemover:
             # fixed point remove all labels with no edges in
             while True:
                 for idx, stmt in enumerate(block.statements):
-                    if isinstance(stmt, ailment.Stmt.Label):
-                        if (stmt.ins_addr, stmt.block_idx) not in self._jump_targets or stmt in self._labels_to_remove:
-                            # useless label - update the block in-place
-                            block.statements = block.statements[:idx] + block.statements[idx + 1 :]
-                            break
+                    if isinstance(stmt, ailment.Stmt.Label) and (
+                        (stmt.ins_addr, stmt.block_idx) not in self._jump_targets or stmt in self._labels_to_remove
+                    ):
+                        # useless label - update the block in-place
+                        block.statements = block.statements[:idx] + block.statements[idx + 1 :]
+                        break
                 else:
                     break
 
@@ -103,15 +121,14 @@ class RedundantLabelRemover:
 
             if block.statements:
                 last_stmt = block.statements[-1]
-                if isinstance(last_stmt, ailment.Stmt.Jump):
-                    if isinstance(last_stmt.target, ailment.Expr.Const):
-                        tpl = last_stmt.target.value, last_stmt.target_idx
-                        if tpl in self._new_jump_target:
-                            last_stmt.target = ailment.Expr.Const(
-                                last_stmt.target.idx,
-                                last_stmt.target.variable,
-                                self._new_jump_target[tpl][0],
-                                last_stmt.target.bits,
-                                **last_stmt.target.tags,
-                            )
-                            last_stmt.target_idx = self._new_jump_target[tpl][1]
+                if isinstance(last_stmt, ailment.Stmt.Jump) and isinstance(last_stmt.target, ailment.Expr.Const):
+                    tpl = last_stmt.target.value, last_stmt.target_idx
+                    if tpl in self._new_jump_target:
+                        last_stmt.target = ailment.Expr.Const(
+                            last_stmt.target.idx,
+                            last_stmt.target.variable,
+                            self._new_jump_target[tpl][0],
+                            last_stmt.target.bits,
+                            **last_stmt.target.tags,
+                        )
+                        last_stmt.target_idx = self._new_jump_target[tpl][1]

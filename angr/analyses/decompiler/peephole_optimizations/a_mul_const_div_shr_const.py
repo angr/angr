@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -32,7 +33,6 @@ class AMulConstDivShrConst(PeepholeOptimizationExprBase):
                     False,
                     **inner.tags,
                 )
-                div = BinaryOp(expr.idx, "Div", [mul, N1], False, **expr.tags)
-                return div
+                return BinaryOp(expr.idx, "Div", [mul, N1], False, **expr.tags)
 
         return None

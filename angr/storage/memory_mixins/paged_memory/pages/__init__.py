@@ -1,3 +1,4 @@
+from __future__ import annotations
 import typing
 
 from angr.storage.memory_mixins import MemoryMixin
@@ -22,8 +23,6 @@ class PageBase(HistoryTrackingMixin, RefcountMixin, CooperationBase, ISPOMixin, 
 
     Read the docstrings for each of the constituent classes to understand the nuances of their functionalities
     """
-
-    pass
 
 
 PageType = typing.TypeVar("PageType", bound=PageBase)

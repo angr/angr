@@ -1,5 +1,6 @@
 # pylint:disable=arguments-differ,invalid-unary-operand-type
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 import ailment
@@ -31,7 +32,7 @@ class SimEngineVRAIL(
     The engine for variable recovery on AIL.
     """
 
-    state: "VariableRecoveryFastState"
+    state: VariableRecoveryFastState
     block: ailment.Block
 
     def __init__(self, *args, call_info=None, **kwargs):
@@ -81,7 +82,7 @@ class SimEngineVRAIL(
     def _ail_handle_ConditionalJump(self, stmt):
         self._expr(stmt.condition)
 
-    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False) -> Optional[RichR]:
+    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False) -> RichR | None:
         target = stmt.target
         args = []
         if stmt.args:
@@ -98,7 +99,7 @@ class SimEngineVRAIL(
         create_variable = True
         if not is_expr:
             # this is a call statement. we need to update the return value register later
-            ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
+            ret_expr: ailment.Expr.Register | None = stmt.ret_expr
             if ret_expr is not None:
                 ret_reg_offset = ret_expr.reg_offset
                 ret_expr_bits = ret_expr.bits
@@ -130,8 +131,8 @@ class SimEngineVRAIL(
             self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
 
         # discover the prototype
-        prototype: Optional[SimTypeFunction] = None
-        prototype_libname: Optional[str] = None
+        prototype: SimTypeFunction | None = None
+        prototype_libname: str | None = None
         if stmt.prototype is not None:
             prototype = stmt.prototype
         if isinstance(stmt.target, ailment.Expr.Const):
@@ -143,10 +144,7 @@ class SimEngineVRAIL(
                 prototype_libname = func.prototype_libname
 
         # dump the type of the return value
-        if prototype is not None:
-            ret_ty = typevars.TypeVariable()  # TypeLifter(self.arch.bits).lift(prototype.returnty)
-        else:
-            ret_ty = typevars.TypeVariable()
+        ret_ty = typevars.TypeVariable() if prototype is not None else typevars.TypeVariable()
         if isinstance(ret_ty, typeconsts.BottomType):
             ret_ty = typevars.TypeVariable()
 
@@ -159,10 +157,7 @@ class SimEngineVRAIL(
         else:
             if ret_expr is not None:
                 # update the return value register
-                if return_value_use_full_width_reg:
-                    expr_bits = self.state.arch.bits
-                else:
-                    expr_bits = ret_expr_bits
+                expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
                 self._assign_to_register(
                     ret_reg_offset,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
@@ -229,8 +224,7 @@ class SimEngineVRAIL(
         addr_r = self._expr(expr.addr)
         size = expr.size
 
-        r = self._load(addr_r, size, expr=expr)
-        return r
+        return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_Const(self, expr: ailment.Expr.Const):
         if isinstance(expr.value, float):
@@ -350,11 +344,8 @@ class SimEngineVRAIL(
         r1 = self._expr(arg1)
 
         type_constraints = set()
-        if r0.typevar is not None:
-            r0_typevar = r0.typevar
-        else:
-            # create a new type variable and add constraints accordingly
-            r0_typevar = typevars.TypeVariable()
+        # create a new type variable and add constraints accordingly
+        r0_typevar = r0.typevar if r0.typevar is not None else typevars.TypeVariable()
 
         if r1.data.concrete:
             # addition with constants. create a derived type variable
@@ -454,10 +445,12 @@ class SimEngineVRAIL(
         if expr.floating_point:
             quotient = self.state.top(to_size)
         else:
-            if expr.signed:
+            if (r1.data == 0).is_true():
+                quotient = self.state.top(to_size)
+            elif expr.signed:
                 quotient = claripy.SDiv(r0.data, claripy.SignExt(from_size - to_size, r1.data))
             else:
-                quotient = r0.data / claripy.ZeroExt(from_size - to_size, r1.data)
+                quotient = r0.data // claripy.ZeroExt(from_size - to_size, r1.data)
 
         return RichR(
             quotient,
@@ -472,7 +465,9 @@ class SimEngineVRAIL(
         from_size = expr.from_bits
         to_size = expr.to_bits
 
-        if expr.signed:
+        if (r1.data == 0).is_true():
+            r = self.state.top(to_size * 2)
+        elif expr.signed:
             quotient = r0.data.SDiv(claripy.SignExt(from_size - to_size, r1.data))
             remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
             quotient_size = to_size
@@ -505,7 +500,9 @@ class SimEngineVRAIL(
         if expr.floating_point:
             remainder = self.state.top(to_size)
         else:
-            if expr.signed:
+            if (r1.data == 0).is_true():
+                remainder = self.state.top(to_size)
+            elif expr.signed:
                 remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
             else:
                 remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)

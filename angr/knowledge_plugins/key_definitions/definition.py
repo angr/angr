@@ -1,4 +1,5 @@
-from typing import Set, Optional, Literal, Type, TypeVar, Union, Generic
+from __future__ import annotations
+from typing import Literal, TypeVar, Generic
 from dataclasses import dataclass
 import logging
 
@@ -25,21 +26,21 @@ class DefinitionMatchPredicate:
     internal class; don't worry about this.
     """
 
-    kind: Union[AtomKind, Type[Atom], None] = None
-    bbl_addr: Optional[int] = None
-    ins_addr: Optional[int] = None
-    variable: Optional[SimVariable] = None
-    variable_manager: Union[VariableManagerInternal, None, Literal[False]] = None
-    stack_offset: Optional[int] = None
-    reg_name: Optional[Union[str, int]] = None
-    heap_offset: Optional[int] = None
-    global_addr: Optional[int] = None
-    tmp_idx: Optional[int] = None
-    const_val: Optional[int] = None
-    extern: Optional[bool] = None
+    kind: AtomKind | type[Atom] | None = None
+    bbl_addr: int | None = None
+    ins_addr: int | None = None
+    variable: SimVariable | None = None
+    variable_manager: VariableManagerInternal | None | Literal[False] = None
+    stack_offset: int | None = None
+    reg_name: str | int | None = None
+    heap_offset: int | None = None
+    global_addr: int | None = None
+    tmp_idx: int | None = None
+    const_val: int | None = None
+    extern: bool | None = None
 
     @staticmethod
-    def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
+    def construct(predicate: DefinitionMatchPredicate | None = None, **kwargs) -> DefinitionMatchPredicate:
         if predicate is None:
             predicate = DefinitionMatchPredicate(**kwargs)
             predicate.normalize()
@@ -79,7 +80,7 @@ class DefinitionMatchPredicate:
         elif self.tmp_idx is not None:
             self.kind = AtomKind.TMP
 
-    def matches(self, defn: "Definition") -> bool:
+    def matches(self, defn: Definition) -> bool:
         if self.variable is not None:
             if self.variable_manager is False:
                 pass
@@ -123,16 +124,14 @@ class DefinitionMatchPredicate:
                 else:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
-            if self.stack_offset is not None:
-                if (
-                    not isinstance(defn.atom.addr, SpOffset)
-                    or defn.atom.addr.base != "sp"  # TODO???????
-                    or defn.atom.addr.offset != self.stack_offset
-                ):
-                    return False
-        elif isinstance(defn.atom, Tmp):
-            if self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
+            if self.stack_offset is not None and (
+                not isinstance(defn.atom.addr, SpOffset)
+                or defn.atom.addr.base != "sp"  # TODO???????
+                or defn.atom.addr.offset != self.stack_offset
+            ):
                 return False
+        elif isinstance(defn.atom, Tmp) and self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
+            return False
 
         return True
 
@@ -159,7 +158,7 @@ class Definition(Generic[A]):
         "_hash",
     )
 
-    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Optional[Set[Tag]] = None):
+    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: set[Tag] | None = None):
         self.atom: A = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
@@ -174,10 +173,9 @@ class Definition(Generic[A]):
             return "<Definition {{Atom:{}, Codeloc:{}}}{}>".format(
                 self.atom, self.codeloc, "" if not self.dummy else "dummy"
             )
-        else:
-            return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
-                repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
-            )
+        return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
+            repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
+        )
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
@@ -192,22 +190,19 @@ class Definition(Generic[A]):
     def offset(self) -> int:
         if isinstance(self.atom, Register):
             return self.atom.reg_offset
-        elif isinstance(self.atom, MemoryLocation):
+        if isinstance(self.atom, MemoryLocation):
             if isinstance(self.atom.addr, SpOffset):
                 return self.atom.addr.offset
-            else:
-                return self.atom.addr
-        else:
-            raise ValueError("Unsupported operation offset on %s." % type(self.atom))
+            return self.atom.addr
+        raise ValueError(f"Unsupported operation offset on {type(self.atom)}.")
 
     @property
     def size(self) -> int:
         if isinstance(self.atom, Register):
             return self.atom.size
-        elif isinstance(self.atom, MemoryLocation):
+        if isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
-        else:
-            raise ValueError("Unsupported operation size on %s." % type(self.atom))
+        raise ValueError(f"Unsupported operation size on {type(self.atom)}.")
 
     def matches(self, **kwargs) -> bool:
         """

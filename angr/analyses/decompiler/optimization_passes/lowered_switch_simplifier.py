@@ -1,4 +1,5 @@
-from typing import Optional, Tuple, Union, List, DefaultDict, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from collections import defaultdict, OrderedDict
 import logging
 
@@ -11,7 +12,8 @@ from ailment.expression import Expression, BinaryOp, Const, Load
 from angr.utils.graph import GraphUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
+from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
+from ..region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
 
 if TYPE_CHECKING:
     from ailment.expression import UnaryOp, Convert
@@ -38,12 +40,12 @@ class Case:
     def __init__(
         self,
         original_node,
-        node_type: Optional[str],
+        node_type: str | None,
         variable_hash,
         expr,
-        value: Union[int, str],
+        value: int | str,
         target,
-        target_idx: Optional[int],
+        target_idx: int | None,
         next_addr,
     ):
         self.original_node = original_node
@@ -59,7 +61,7 @@ class Case:
         if self.value == "default":
             return f"Case default@{self.target:#x}{'' if self.target_idx is None else '.' + str(self.target_idx)}"
         return (
-            f"Case {repr(self.original_node)}@{self.target:#x}"
+            f"Case {self.original_node!r}@{self.target:#x}"
             f"{'' if self.target_idx is None else '.' + str(self.target_idx)}: {self.expr} == {self.value}"
         )
 
@@ -104,54 +106,104 @@ class StableVarExprHasher(AILBlockWalkerBase):
         self.walk_expression(expr)
         self.hash = hash(tuple(self._hash_lst))
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Block | None):
         if hasattr(expr, "variable") and expr.variable is not None:
             self._hash_lst.append(expr.variable)
         else:
             super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append("Load")
         super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.op)
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.op)
         super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append((expr.value, expr.bits))
 
-    def _handle_Convert(self, expr_idx: int, expr: "Convert", stmt_idx: int, stmt, block: Optional[Block]):
+    def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append(expr.to_bits)
         super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class LoweredSwitchSimplifier(OptimizationPass):
+class LoweredSwitchSimplifier(StructuringOptimizationPass):
     """
-    Recognize and simplify lowered switch-case constructs.
+    This optimization recognizes and reverts switch cases that have been lowered and possibly split into multiple
+    if-else statements. This optimization, discussed in the USENIX 2024 paper SAILR, aims to undo the compiler
+    optimization known as "Switch Lowering", present in both GCC and Clang. An in-depth discussion of this
+    optimization can be found in the paper or in our documentation of the optimization:
+    https://github.com/mahaloz/sailr-eval/issues/14#issue-2232616411
+
+    Note, this optimization does not occur in MSVC, which uses a different optimization strategy for switch cases.
+    As a hack for now, we only run this deoptimization on Linux binaries.
     """
 
-    ARCHES = [
-        "AMD64",
-    ]
-    PLATFORMS = ["linux", "windows"]
-    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
+    # TODO: this needs to be updated to support Windows, but detect and disable on MSVC
+    PLATFORMS = ["linux"]
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
         "Convert lowered switch-cases (if-else) to switch-cases. Only works when the Phoenix structuring "
         "algorithm is in use."
     )
-    STRUCTURING = ["phoenix"]
 
-    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, **kwargs):
+    def __init__(self, func, min_distinct_cases=2, **kwargs):
         super().__init__(
-            func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx, graph=graph, **kwargs
+            func,
+            require_gotos=False,
+            prevent_new_gotos=False,
+            simplify_ail=False,
+            must_improve_rel_quality=True,
+            **kwargs,
         )
+
+        # this is the max number of cases that can be in a switch that can be converted to a
+        # if-tree (if the number of cases is greater than this, the switch will not be converted)
+        # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/targhooks.cc#L1899
+        # TODO: add architecture specific values
+        default_case_values_threshold = 6
+        # NOTE: this means that there must be less than default_case_values for us to convert an if-tree to a switch
+        self._max_case_values = default_case_values_threshold
+
+        self._min_distinct_cases = min_distinct_cases
+
+        # used to determine if a switch-case construct is present in the code, useful for invalidating
+        # other heuristics that minimize false positives
+        self._switches_present_in_code = 0
+
         self.analyze()
+
+    @staticmethod
+    def _count_max_continuous_cases(cases: list[Case]) -> int:
+        if not cases:  # Return 0 if the list is empty
+            return 0
+
+        max_len = 0
+        current_len = 1  # Start with 1 since a single number is a sequence of length 1
+        sorted_cases = sorted(cases, key=lambda c: c.value)
+        for i in range(1, len(sorted_cases)):
+            if sorted_cases[i].value == sorted_cases[i - 1].value + 1:
+                current_len += 1
+            else:
+                max_len = max(max_len, current_len)
+                current_len = 1
+
+        # Final check to include the last sequence
+        return max(max_len, current_len)
+
+    @staticmethod
+    def _count_distinct_cases(cases: list[Case]) -> int:
+        return len({case.target for case in cases})
+
+    def _analyze_simplified_region(self, region, initial=False):
+        super()._analyze_simplified_region(region, initial=initial)
+        finder = SwitchClusterFinder(region)
+        self._switches_present_in_code = len(finder.var2switches.values())
 
     def _check(self):
         # TODO: More filtering
@@ -161,7 +213,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
         if not variablehash_to_cases:
-            return
+            return False
 
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
@@ -169,12 +221,44 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         for _, caselists in variablehash_to_cases.items():
             for cases, redundant_nodes in caselists:
-                original_nodes = [case.original_node for case in cases if case.value != "default"]
+                real_cases = [case for case in cases if case.value != "default"]
+                max_continuous_cases = self._count_max_continuous_cases(real_cases)
+
+                # There are a few rules used in most compilers about when to lower a switch that would otherwise
+                # be a jump table into either a series of if-trees or into series of bit tests.
+                #
+                # RULE 1: You only ever convert a Switch into if-stmts if there are less continuous cases
+                # then specified by the default_case_values_threshold, therefore we should never try to rever it
+                # if there is more or equal than that.
+                # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/tree-switch-conversion.cc#L1406
+                if max_continuous_cases >= self._max_case_values:
+                    _l.debug("Skipping switch-case conversion due to too many cases for %s", real_cases[0])
+                    continue
+
+                # RULE 2: You only ever convert a Switch into if-stmts if at least one of the cases is not continuous.
+                # https://github.com/gcc-mirror/gcc/blob/f9a60d575f02822852aa22513c636be38f9c63ea/gcc/tree-switch-conversion.cc#L1960
+                #
+                # However, we need to also consider the case where the cases we are looking at are currently a smaller
+                # cluster split off a non-continuous cluster. In this case, we should still convert it to a switch-case
+                # iff a switch-case construct is present in the code.
+                is_all_continuous = max_continuous_cases == len(real_cases)
+                if is_all_continuous and self._switches_present_in_code == 0:
+                    _l.debug("Skipping switch-case conversion due to all cases being continuous for %s", real_cases[0])
+                    continue
+
+                # RULE 3: It is not a real cluster if there are not enough distinct cases.
+                # A distinct case is a case that has a different body of code.
+                distinct_cases = self._count_distinct_cases(real_cases)
+                if distinct_cases < self._min_distinct_cases and self._switches_present_in_code == 0:
+                    _l.debug("Skipping switch-case conversion due to too few distinct cases for %s", real_cases[0])
+                    continue
+
+                original_nodes = [case.original_node for case in real_cases]
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
 
-                case_addrs: List[Tuple[Block, Union[int, str], int, Optional[int], int]] = []
+                case_addrs: list[tuple[Block, int | str, int, int | None, int]] = []
                 delayed_edges = []
                 for idx, case in enumerate(cases):
                     if idx == 0 or all(
@@ -184,7 +268,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             (case.original_node, case.value, case.target, case.target_idx, case.next_addr)
                         )
                     else:
-                        statements: List = [
+                        statements: list = [
                             stmt for stmt in case.original_node.statements if isinstance(stmt, (Label, Assignment))
                         ]
                         statements.append(
@@ -221,7 +305,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 # would result in a successor node no longer being present in the graph
                 if any(onode not in graph_copy for onode in original_nodes):
                     self.out_graph = None
-                    return
+                    return False
 
                 # add edges between the head and case nodes
                 for onode in original_nodes:
@@ -277,24 +361,26 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         else:
                             graph_copy.add_edge(node_copy, succ)
 
+        return True
+
     def _find_cascading_switch_variable_comparisons(self):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
         variable_comparisons = OrderedDict()
         for node in sorted_nodes:
             r = self._find_switch_variable_comparison_type_a(node)
             if r is not None:
-                variable_comparisons[node] = ("a",) + r
+                variable_comparisons[node] = ("a", *r)
                 continue
             r = self._find_switch_variable_comparison_type_b(node)
             if r is not None:
-                variable_comparisons[node] = ("b",) + r
+                variable_comparisons[node] = ("b", *r)
                 continue
             r = self._find_switch_variable_comparison_type_c(node)
             if r is not None:
-                variable_comparisons[node] = ("c",) + r
+                variable_comparisons[node] = ("c", *r)
                 continue
 
-        varhash_to_caselists: DefaultDict[int, List[Tuple[List[Case], List]]] = defaultdict(list)
+        varhash_to_caselists: defaultdict[int, list[tuple[list[Case], list]]] = defaultdict(list)
         used_nodes = set()
 
         for head in variable_comparisons:
@@ -319,10 +405,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     next_addr,
                     next_addr_idx,
                 ) = variable_comparisons[comp]
-                if cases:
-                    last_varhash = cases[-1].variable_hash
-                else:
-                    last_varhash = None
+                last_varhash = cases[-1].variable_hash if cases else None
 
                 if op == "eq":
                     # eq always indicates a new case
@@ -337,20 +420,18 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         if value in {0xFFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF}:
                             break
 
-                        if comp is not head:
-                            # non-head node has at most one predecessor
-                            if self._graph.in_degree[comp] > 1:
-                                break
+                        # non-head node has at most one predecessor
+                        if comp is not head and self._graph.in_degree[comp] > 1:
+                            break
 
                         cases.append(Case(comp, comp_type, variable_hash, expr, value, target, target_idx, next_addr))
                         used_nodes.add(comp)
                     else:
                         # new variable!
-                        if last_comp is not None:
-                            if comp.addr not in default_case_candidates:
-                                default_case_candidates[comp.addr] = Case(
-                                    last_comp, None, last_varhash, None, "default", comp.addr, comp.idx, None
-                                )
+                        if last_comp is not None and comp.addr not in default_case_candidates:
+                            default_case_candidates[comp.addr] = Case(
+                                last_comp, None, last_varhash, None, "default", comp.addr, comp.idx, None
+                            )
                         break
 
                     successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
@@ -436,11 +517,10 @@ class LoweredSwitchSimplifier(OptimizationPass):
                                     default_case_candidates[le_addr] = Case(
                                         comp, None, variable_hash, expr, "default", le_addr, le_idx, None
                                     )
-                            elif not gt_added:
-                                if gt_addr not in default_case_candidates:
-                                    default_case_candidates[gt_addr] = Case(
-                                        comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
-                                    )
+                            elif not gt_added and gt_addr not in default_case_candidates:
+                                default_case_candidates[gt_addr] = Case(
+                                    comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
+                                )
                             extra_cmp_nodes.append(comp)
                             used_nodes.add(comp)
                         else:
@@ -516,154 +596,160 @@ class LoweredSwitchSimplifier(OptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_a(
         node,
-    ) -> Optional[Tuple[int, str, Expression, int, int, Optional[int], int, Optional[int]]]:
+    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type a is the last statement is a var == constant comparison, but
         # there is more than one non-label statement in the block
 
         if isinstance(node, Block) and node.statements:
             stmt = node.statements[-1]
-            if stmt is not None and stmt is not first_nonlabel_statement(node):
-                if (
+            if (
+                stmt is not None
+                and stmt is not first_nonlabel_statement(node)
+                and (
                     isinstance(stmt, ConditionalJump)
                     and isinstance(stmt.true_target, Const)
                     and isinstance(stmt.false_target, Const)
-                ):
-                    cond = stmt.condition
-                    if isinstance(cond, BinaryOp):
-                        if isinstance(cond.operands[1], Const):
-                            variable_hash = StableVarExprHasher(cond.operands[0]).hash
-                            value = cond.operands[1].value
-                            if cond.op == "CmpEQ":
-                                target = stmt.true_target.value
-                                target_idx = stmt.true_target_idx
-                                next_node_addr = stmt.false_target.value
-                                next_node_idx = stmt.false_target_idx
-                            elif cond.op == "CmpNE":
-                                target = stmt.false_target.value
-                                target_idx = stmt.false_target_idx
-                                next_node_addr = stmt.true_target.value
-                                next_node_idx = stmt.true_target_idx
-                            else:
-                                return None
-                            return (
-                                variable_hash,
-                                "eq",
-                                cond.operands[0],
-                                value,
-                                target,
-                                target_idx,
-                                next_node_addr,
-                                next_node_idx,
-                            )
+                )
+            ):
+                cond = stmt.condition
+                if isinstance(cond, BinaryOp) and isinstance(cond.operands[1], Const):
+                    variable_hash = StableVarExprHasher(cond.operands[0]).hash
+                    value = cond.operands[1].value
+                    if cond.op == "CmpEQ":
+                        target = stmt.true_target.value
+                        target_idx = stmt.true_target_idx
+                        next_node_addr = stmt.false_target.value
+                        next_node_idx = stmt.false_target_idx
+                    elif cond.op == "CmpNE":
+                        target = stmt.false_target.value
+                        target_idx = stmt.false_target_idx
+                        next_node_addr = stmt.true_target.value
+                        next_node_idx = stmt.true_target_idx
+                    else:
+                        return None
+                    return (
+                        variable_hash,
+                        "eq",
+                        cond.operands[0],
+                        value,
+                        target,
+                        target_idx,
+                        next_node_addr,
+                        next_node_idx,
+                    )
 
         return None
 
     @staticmethod
     def _find_switch_variable_comparison_type_b(
         node,
-    ) -> Optional[Tuple[int, str, Expression, int, int, Optional[int], int, Optional[int]]]:
+    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type b is the last statement is a var == constant comparison, and
         # there is only one non-label statement
 
         if isinstance(node, Block):
             stmt = first_nonlabel_statement(node)
-            if stmt is not None and stmt is node.statements[-1]:
-                if (
+            if (
+                stmt is not None
+                and stmt is node.statements[-1]
+                and (
                     isinstance(stmt, ConditionalJump)
                     and isinstance(stmt.true_target, Const)
                     and isinstance(stmt.false_target, Const)
-                ):
-                    cond = stmt.condition
-                    if isinstance(cond, BinaryOp):
-                        if isinstance(cond.operands[1], Const):
-                            variable_hash = StableVarExprHasher(cond.operands[0]).hash
-                            value = cond.operands[1].value
-                            if cond.op == "CmpEQ":
-                                target = stmt.true_target.value
-                                target_idx = stmt.true_target_idx
-                                next_node_addr = stmt.false_target.value
-                                next_node_idx = stmt.false_target_idx
-                            elif cond.op == "CmpNE":
-                                target = stmt.false_target.value
-                                target_idx = stmt.false_target_idx
-                                next_node_addr = stmt.true_target.value
-                                next_node_idx = stmt.true_target_idx
-                            else:
-                                return None
-                            return (
-                                variable_hash,
-                                "eq",
-                                cond.operands[0],
-                                value,
-                                target,
-                                target_idx,
-                                next_node_addr,
-                                next_node_idx,
-                            )
+                )
+            ):
+                cond = stmt.condition
+                if isinstance(cond, BinaryOp) and isinstance(cond.operands[1], Const):
+                    variable_hash = StableVarExprHasher(cond.operands[0]).hash
+                    value = cond.operands[1].value
+                    if cond.op == "CmpEQ":
+                        target = stmt.true_target.value
+                        target_idx = stmt.true_target_idx
+                        next_node_addr = stmt.false_target.value
+                        next_node_idx = stmt.false_target_idx
+                    elif cond.op == "CmpNE":
+                        target = stmt.false_target.value
+                        target_idx = stmt.false_target_idx
+                        next_node_addr = stmt.true_target.value
+                        next_node_idx = stmt.true_target_idx
+                    else:
+                        return None
+                    return (
+                        variable_hash,
+                        "eq",
+                        cond.operands[0],
+                        value,
+                        target,
+                        target_idx,
+                        next_node_addr,
+                        next_node_idx,
+                    )
 
         return None
 
     @staticmethod
     def _find_switch_variable_comparison_type_c(
         node,
-    ) -> Optional[Tuple[int, str, Expression, int, int, Optional[int], int, Optional[int]]]:
+    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type c is where the last statement is a var < or > constant comparison, and
         # there is only one non-label statement
 
         if isinstance(node, Block):
             stmt = first_nonlabel_statement(node)
-            if stmt is not None and stmt is node.statements[-1]:
-                if (
+            if (
+                stmt is not None
+                and stmt is node.statements[-1]
+                and (
                     isinstance(stmt, ConditionalJump)
                     and isinstance(stmt.true_target, Const)
                     and isinstance(stmt.false_target, Const)
-                ):
-                    cond = stmt.condition
-                    if isinstance(cond, BinaryOp):
-                        if isinstance(cond.operands[1], Const):
-                            variable_hash = StableVarExprHasher(cond.operands[0]).hash
-                            value = cond.operands[1].value
-                            op = cond.op
-                            if stmt.true_target.value == stmt.false_target.value:
-                                return None
-                            if op == "CmpGT":
-                                op_str = "gt"
-                                gt_node_addr = stmt.true_target.value
-                                gt_node_idx = stmt.true_target_idx
-                                le_node_addr = stmt.false_target.value
-                                le_node_idx = stmt.false_target_idx
-                            elif op == "CmpGE":
-                                op_str = "gt"
-                                value += 1
-                                gt_node_addr = stmt.true_target.value
-                                gt_node_idx = stmt.true_target_idx
-                                le_node_addr = stmt.false_target.value
-                                le_node_idx = stmt.false_target_idx
-                            elif op == "CmpLT":
-                                op_str = "gt"
-                                value -= 1
-                                gt_node_addr = stmt.false_target.value
-                                gt_node_idx = stmt.false_target_idx
-                                le_node_addr = stmt.true_target.value
-                                le_node_idx = stmt.true_target_idx
-                            elif op == "CmpLE":
-                                op_str = "gt"
-                                gt_node_addr = stmt.false_target.value
-                                gt_node_idx = stmt.false_target_idx
-                                le_node_addr = stmt.true_target.value
-                                le_node_idx = stmt.true_target_idx
-                            else:
-                                return None
-                            return (
-                                variable_hash,
-                                op_str,
-                                cond.operands[0],
-                                value,
-                                gt_node_addr,
-                                gt_node_idx,
-                                le_node_addr,
-                                le_node_idx,
-                            )
+                )
+            ):
+                cond = stmt.condition
+                if isinstance(cond, BinaryOp) and isinstance(cond.operands[1], Const):
+                    variable_hash = StableVarExprHasher(cond.operands[0]).hash
+                    value = cond.operands[1].value
+                    op = cond.op
+                    if stmt.true_target.value == stmt.false_target.value:
+                        return None
+                    if op == "CmpGT":
+                        op_str = "gt"
+                        gt_node_addr = stmt.true_target.value
+                        gt_node_idx = stmt.true_target_idx
+                        le_node_addr = stmt.false_target.value
+                        le_node_idx = stmt.false_target_idx
+                    elif op == "CmpGE":
+                        op_str = "gt"
+                        value += 1
+                        gt_node_addr = stmt.true_target.value
+                        gt_node_idx = stmt.true_target_idx
+                        le_node_addr = stmt.false_target.value
+                        le_node_idx = stmt.false_target_idx
+                    elif op == "CmpLT":
+                        op_str = "gt"
+                        value -= 1
+                        gt_node_addr = stmt.false_target.value
+                        gt_node_idx = stmt.false_target_idx
+                        le_node_addr = stmt.true_target.value
+                        le_node_idx = stmt.true_target_idx
+                    elif op == "CmpLE":
+                        op_str = "gt"
+                        gt_node_addr = stmt.false_target.value
+                        gt_node_idx = stmt.false_target_idx
+                        le_node_addr = stmt.true_target.value
+                        le_node_idx = stmt.true_target_idx
+                    else:
+                        return None
+                    return (
+                        variable_hash,
+                        op_str,
+                        cond.operands[0],
+                        value,
+                        gt_node_addr,
+                        gt_node_idx,
+                        le_node_addr,
+                        le_node_idx,
+                    )
 
         return None
 
@@ -744,14 +830,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
         remove_last_statement(node)
 
     @staticmethod
-    def cases_issubset(cases_0: List[Case], cases_1: List[Case]) -> bool:
+    def cases_issubset(cases_0: list[Case], cases_1: list[Case]) -> bool:
         """
         Test if cases_0 is a subset of cases_1.
         """
 
         if len(cases_0) > len(cases_1):
             return False
-        for case in cases_0:
-            if case not in cases_1:
-                return False
-        return True
+        return all(case in cases_1 for case in cases_0)

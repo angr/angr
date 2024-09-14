@@ -1,5 +1,7 @@
+from __future__ import annotations
 import logging
 
+import claripy
 from archinfo.arch_soot import (
     ArchSoot,
     SootAddressDescriptor,
@@ -37,30 +39,29 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         try:
             method = the_binary.get_soot_method(method, params=method.params)
         except CLEError as ex:
-            raise SimTranslationError(f"CLE error: {ex}")
+            raise SimTranslationError("CLE error") from ex
 
         if stmt_idx is None:
             return method.blocks[0] if method.blocks else None
-        else:
-            # try:
-            #    _, block = method.block_by_label.floor_item(stmt_idx)
-            # except KeyError:
-            #    return None
-            # return block
-            # TODO: Re-enable the above code once bintrees are used
+        # try:
+        #    _, block = method.block_by_label.floor_item(stmt_idx)
+        # except KeyError:
+        #    return None
+        # return block
+        # TODO: Re-enable the above code once bintrees are used
 
-            # FIXME: stmt_idx does not index from the start of the method but from the start
-            #        of the block therefore it always returns the block with label 0 independently
-            #        of where we are
-            # block = method.block_by_label.get(stmt_idx, None)
-            # if block is not None:
-            #     return block
-            # Slow path
-            for block_idx, block in enumerate(method.blocks):
-                # if block.label <= stmt_idx < block.label + len(block.statements):
-                if block_idx == addr.block_idx:
-                    return block
-            return None
+        # FIXME: stmt_idx does not index from the start of the method but from the start
+        #        of the block therefore it always returns the block with label 0 independently
+        #        of where we are
+        # block = method.block_by_label.get(stmt_idx, None)
+        # if block is not None:
+        #     return block
+        # Slow path
+        for block_idx, block in enumerate(method.blocks):
+            # if block.label <= stmt_idx < block.label + len(block.statements):
+            if block_idx == addr.block_idx:
+                return block
+        return None
 
     def process_successors(self, successors, **kwargs):
         state = self.state
@@ -70,13 +71,13 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
         if isinstance(addr, SootAddressTerminator):
             successors.processed = True
-            return
+            return None
 
         if self.project.use_sim_procedures:
             procedure = self._get_sim_procedure(addr)
             if procedure is not None:
                 self.process_procedure(state, successors, procedure)
-                return
+                return None
 
         binary = state.regs._ip_binary
         method = binary.get_soot_method(addr.method, none_if_missing=True)
@@ -104,7 +105,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             # STEP 4: Execute unconstrained procedure
             self.process_procedure(state, successors, procedure)
             # self._add_return_exit(state, successors)
-            return
+            return None
 
         block = method.blocks[addr.block_idx]
         starting_stmt_idx = addr.stmt_idx
@@ -116,6 +117,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         self._handle_soot_block(state, successors, block, starting_stmt_idx, method)
 
         successors.processed = True
+        return None
 
     def _handle_soot_block(self, state, successors, block, starting_stmt_idx, method=None):
         stmt = stmt_idx = None
@@ -134,7 +136,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
                 next_addr = self._get_next_linear_instruction(state, stmt_idx)
                 l.debug("Advancing execution linearly to %s", next_addr)
                 if next_addr is not None:
-                    successors.add_successor(state.copy(), next_addr, state.solver.true, "Ijk_Boring")
+                    successors.add_successor(state.copy(), next_addr, claripy.true, "Ijk_Boring")
 
     def _handle_soot_stmt(self, state, successors, stmt_idx, stmt):
         # execute statement
@@ -172,11 +174,11 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             # add invoke state as the successor and terminate execution
             # prematurely, since Soot does not guarantee that an invoke stmt
             # terminates a block
-            successors.add_successor(invoke_state, addr, state.solver.true, "Ijk_Call")
+            successors.add_successor(invoke_state, addr, claripy.true, "Ijk_Call")
             return True
 
         # add jmp exit
-        elif s_stmt.has_jump_targets:
+        if s_stmt.has_jump_targets:
             for target, condition in s_stmt.jmp_targets_with_conditions:
                 if not target:
                     target = self._get_next_linear_instruction(state, stmt_idx)
@@ -185,20 +187,19 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             return True
 
         # add return exit
-        elif isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
+        if isinstance(s_stmt, (SimSootStmt_Return, SimSootStmt_ReturnVoid)):
             l.debug("Return exit")
             self._add_return_exit(state, successors, s_stmt.return_value)
             return True
 
         # go on linearly
-        else:
-            return False
+        return False
 
     @classmethod
     def _add_return_exit(cls, state, successors, return_val=None):
         ret_state = state.copy()
         cls.prepare_return_state(ret_state, return_val)
-        successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.solver.true, "Ijk_Ret")
+        successors.add_successor(ret_state, state.callstack.ret_addr, claripy.true, "Ijk_Ret")
         successors.processed = True
 
     def _get_sim_procedure(self, addr):
@@ -231,9 +232,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         procedure_cls = SIM_PROCEDURES["angr.unconstrained"]["unconstrained()"]
 
         # Lazy-initialize it
-        proc = procedure_cls(project=self.project)
-
-        return proc
+        return procedure_cls(project=self.project)
 
     @staticmethod
     def _is_method_beginning(addr):
@@ -248,17 +247,15 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         new_stmt_idx = addr.stmt_idx + 1
         if new_stmt_idx < len(current_bb.statements):
             return SootAddressDescriptor(addr.method, addr.block_idx, new_stmt_idx)
-        else:
-            new_bb_idx = addr.block_idx + 1
-            if new_bb_idx < len(method.blocks):
-                return SootAddressDescriptor(addr.method, new_bb_idx, 0)
-            else:
-                l.warning(
-                    "falling into a non existing bb: %d in %s",
-                    new_bb_idx,
-                    SootMethodDescriptor.from_soot_method(method),
-                )
-                raise IncorrectLocationException()
+        new_bb_idx = addr.block_idx + 1
+        if new_bb_idx < len(method.blocks):
+            return SootAddressDescriptor(addr.method, new_bb_idx, 0)
+        l.warning(
+            "falling into a non existing bb: %d in %s",
+            new_bb_idx,
+            SootMethodDescriptor.from_soot_method(method),
+        )
+        raise IncorrectLocationException
 
     @classmethod
     def setup_callsite(cls, state, args, ret_addr, ret_var=None):
@@ -321,11 +318,11 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         if type(statement) is SimSootStmt_Return:
             exit_code = statement.return_value
             # TODO symbolic exit code?
-            exit_code = state.solver.BVV(exit_code, state.arch.bits)
+            exit_code = claripy.BVV(exit_code, state.arch.bits)
         state.history.add_event("terminate", exit_code=exit_code)
-        successors.add_successor(state, state.regs.ip, state.solver.true, "Ijk_Exit")
+        successors.add_successor(state, state.regs.ip, claripy.true, "Ijk_Exit")
         successors.processed = True
-        raise BlockTerminationNotice()
+        raise BlockTerminationNotice
 
     #
     # JNI Native Interface
@@ -345,7 +342,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
         # set successor flags
         ret_state.regs._ip = ret_state.callstack.ret_addr
-        ret_state.scratch.guard = ret_state.solver.true
+        ret_state.scratch.guard = claripy.true
         ret_state.history.jumpkind = "Ijk_Ret"
 
         # if available, lookup the return value in native memory
@@ -353,9 +350,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         if ret_var is not None:
             # get return symbol from native state
             native_cc = javavm_simos.get_native_cc()
-            ret_symbol = (
-                native_cc.return_val(javavm_simos.get_native_type(ret_var.type)).get_value(native_state).to_claripy()
-            )
+            ret_symbol = native_cc.return_val(javavm_simos.get_native_type(ret_var.type)).get_value(native_state)
             # convert value to java type
             if ret_var.type in ArchSoot.primitive_types:
                 # return value has a primitive type
@@ -401,7 +396,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             ref = SootArgument(class_, "Class")
 
         # add to args
-        final_args = [jni_env, ref] + args
+        final_args = [jni_env, ref, *args]
 
         # Step 3: generate C prototype from java_method
         voidp = parse_type("void*")

@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Set, Union
+from __future__ import annotations
 from sortedcontainers import SortedDict
 
 from ....sim_variable import SimVariable
@@ -29,7 +29,7 @@ class PositionMapping:
     DUPLICATION_CHECK = True
 
     def __init__(self):
-        self._posmap: Union[SortedDict, Dict[int, PositionMappingElement]] = SortedDict()
+        self._posmap: SortedDict | dict[int, PositionMappingElement] = SortedDict()
 
     def items(self):
         return self._posmap.items()
@@ -56,7 +56,7 @@ class PositionMapping:
             return None
         return element.obj
 
-    def get_element(self, pos: int) -> Optional[PositionMappingElement]:
+    def get_element(self, pos: int) -> PositionMappingElement | None:
         try:
             pre = next(self._posmap.irange(maximum=pos, reverse=True))
         except StopIteration:
@@ -86,7 +86,7 @@ class InstructionMapping:
     __slots__ = ("_insmap",)
 
     def __init__(self):
-        self._insmap: Union[SortedDict, Dict[int, InstructionMappingElement]] = SortedDict()
+        self._insmap: SortedDict | dict[int, InstructionMappingElement] = SortedDict()
 
     def items(self):
         return self._insmap.items()
@@ -98,7 +98,7 @@ class InstructionMapping:
         else:
             self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
 
-    def get_nearest_pos(self, ins_addr: int) -> Optional[int]:
+    def get_nearest_pos(self, ins_addr: int) -> int | None:
         try:
             pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
             pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
@@ -110,8 +110,7 @@ class InstructionMapping:
 
         if abs(ins_addr - e1.ins_addr) <= abs(ins_addr - e2.ins_addr):
             return e1.posmap_pos
-        else:
-            return e2.posmap_pos
+        return e2.posmap_pos
 
 
 class BaseStructuredCodeGenerator:
@@ -121,7 +120,7 @@ class BaseStructuredCodeGenerator:
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
+        self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
 
     def reapply_options(self, options):
         pass

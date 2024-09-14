@@ -1,4 +1,5 @@
 # pylint:disable=too-many-boolean-expressions
+from __future__ import annotations
 from itertools import count
 import logging
 
@@ -55,7 +56,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
         for node_addr in jump_node_addrs:
             node = self._func.get_node(node_addr)
             if self._func.graph.in_degree[node] == 1:
-                pred = list(self._func.graph.predecessors(node))[0]
+                pred = next(iter(self._func.graph.predecessors(node)))
                 if self._func.graph.out_degree[pred] == 2:
                     default_case_node = next(
                         iter(nn for nn in self._func.graph.successors(pred) if nn.addr != node_addr)
@@ -84,7 +85,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
             }
             if unexpected_pred_addrs:
                 default_case_block = self._get_block(default_addr)
-                default_case_succ_block = list(self._graph.successors(default_case_block))[0]
+                default_case_succ_block = next(iter(self._graph.successors(default_case_block)))
 
                 jump_nodes = self._get_blocks(jump_node_addr)
                 jump_node_descedents = set()

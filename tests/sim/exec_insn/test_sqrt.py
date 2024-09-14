@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
+from __future__ import annotations
 import math
 from unittest import TestCase, main
 

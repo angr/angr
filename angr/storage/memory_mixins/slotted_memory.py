@@ -1,3 +1,4 @@
+from __future__ import annotations
 import claripy
 
 from . import MemoryMixin
@@ -38,7 +39,7 @@ class SlottedMemoryMixin(MemoryMixin):
                 addr,
                 0,
                 self.width,
-                self.state.solver.ite_cases(
+                claripy.ite_cases(
                     zip(merge_conditions[1:], (o._single_load(addr, 0, self.width) for o in others)),
                     self._single_load(addr, 0, self.width),
                 ),
@@ -80,13 +81,12 @@ class SlottedMemoryMixin(MemoryMixin):
         try:
             d = self.contents[addr]
         except KeyError:
-            d = self._default_value(addr, self.width, self.variable_key_prefix + (addr,), **kwargs)
+            d = self._default_value(addr, self.width, (*self.variable_key_prefix, addr), **kwargs)
             self.contents[addr] = d
 
         if offset == 0 and size == self.width:
             return d
-        else:
-            return d.get_bytes(offset, size)
+        return d.get_bytes(offset, size)
 
     def _single_store(self, addr, offset, size, data):
         """

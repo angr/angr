@@ -1,5 +1,8 @@
-import angr
+from __future__ import annotations
 import time
+
+
+import angr
 
 # pylint: disable=arguments-differ,unused-argument
 

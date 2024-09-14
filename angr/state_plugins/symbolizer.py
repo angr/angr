@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import claripy
 import struct
@@ -181,16 +182,15 @@ class SimSymbolizer(SimStatePlugin):  # pylint:disable=abstract-method
     def _resymbolize_int(self, be, le=0, base=0, offset=0, skip=()):
         if base + offset in skip:
             return None
-        elif self._min_addr <= be < self._max_addr and self._should_symbolize(be):
+        if self._min_addr <= be < self._max_addr and self._should_symbolize(be):
             s = self._preconstrain(be)
             l.debug("Replacing %#x (at %#x, endness BE) with %s!", be, base + offset, s)
             return s
-        elif self._min_addr <= le < self._max_addr and self._should_symbolize(le):
+        if self._min_addr <= le < self._max_addr and self._should_symbolize(le):
             s = self._preconstrain(le).reversed
             l.debug("Replacing %#x (at %#x, endness LE) with %s!", le, base + offset, s)
             return s
-        else:
-            return None
+        return None
 
     def _resymbolize_data(self, data, prefix=b"", base=0, skip=()):
         ws = self.state.arch.bytes
@@ -222,10 +222,9 @@ class SimSymbolizer(SimStatePlugin):  # pylint:disable=abstract-method
             values_squashed.append(data[last_idx * ws :])
         values_squashed.append(suffix)
 
-        new_data = claripy.Concat(*values_squashed)
+        return claripy.Concat(*values_squashed)
         # assert len(new_data)/8 == len(data) + len(prefix)
         # assert self.state.solver.eval_one(new_data) == self.state.solver.eval_one(claripy.BVV(data))
-        return new_data
 
     def _resymbolize_region(self, storage: PagedMemoryMixin, addr, length):
         assert type(addr) is int

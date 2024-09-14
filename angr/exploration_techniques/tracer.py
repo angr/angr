@@ -1,7 +1,9 @@
-from typing import List, Dict, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 import cle
 
+import claripy
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 from . import ExplorationTechnique
@@ -53,7 +55,7 @@ class RepHook:
 
     @staticmethod
     def _inline_call(state, procedure, *arguments, **kwargs):
-        e_args = [state.solver.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
+        e_args = [claripy.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
         p = procedure(project=state.project, **kwargs)
         return p.execute(state, None, arguments=e_args)
 
@@ -77,7 +79,7 @@ class RepHook:
                 val = state.regs.rax
                 multiplier = 8
             else:
-                raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+                raise NotImplementedError(f"Unsupported mnemonic {self.mnemonic}")
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
@@ -104,7 +106,7 @@ class RepHook:
             elif self.mnemonic == "movsq":
                 multiplier = 8
             else:
-                raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+                raise NotImplementedError(f"Unsupported mnemonic {self.mnemonic}")
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
@@ -121,7 +123,7 @@ class RepHook:
                 state.regs.rcx = 0
 
         else:
-            raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
+            raise NotImplementedError(f"Unsupported mnemonic {self.mnemonic}")
 
 
 class Tracer(ExplorationTechnique):
@@ -179,13 +181,13 @@ class Tracer(ExplorationTechnique):
         self._follow_unsat = follow_unsat
         self._fast_forward_to_entry = fast_forward_to_entry
 
-        self._aslr_slides: Dict[cle.Backend, int] = {}
+        self._aslr_slides: dict[cle.Backend, int] = {}
         self._current_slide = None
 
         self._fd_bytes = None
 
         # keep track of the last basic block we hit
-        self.predecessors: List["SimState"] = [None] * keep_predecessors
+        self.predecessors: list[SimState] = [None] * keep_predecessors
         self.last_state = None
 
         # whether we should follow the trace
@@ -253,15 +255,15 @@ class Tracer(ExplorationTechnique):
 
                 if len(possibilities) == 0:
                     raise AngrTracerError(
-                        "Trace does not seem to contain object initializers for %s. "
-                        "Do you want to have a Tracer(aslr=False)?" % obj
+                        f"Trace does not seem to contain object initializers for {obj}. "
+                        "Do you want to have a Tracer(aslr=False)?"
                     )
                 if len(possibilities) == 1:
                     self._aslr_slides[obj] = next(iter(possibilities))
                 else:
                     raise AngrTracerError(
-                        "Trace seems ambiguous with respect to what the ASLR slides are for %s. "
-                        "This is surmountable, please open an issue." % obj
+                        f"Trace seems ambiguous with respect to what the ASLR slides are for {obj}. "
+                        "This is surmountable, please open an issue."
                     )
         else:
             # if we know there is no slides, just trust the address in the loader
@@ -278,13 +280,12 @@ class Tracer(ExplorationTechnique):
         legal_next = block.vex.constant_jump_targets
         if legal_next:
             return any(a + slide == self._trace[idx + 1] for a in legal_next)
-        else:
-            # the intuition is that if the first block of an initializer does an indirect jump,
-            # it's probably a call out to another binary (notably __libc_start_main)
-            # this is an awful fucking heuristic but it's as good as we've got
-            return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
+        # the intuition is that if the first block of an initializer does an indirect jump,
+        # it's probably a call out to another binary (notably __libc_start_main)
+        # this is an awful fucking heuristic but it's as good as we've got
+        return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
 
-    def set_fd_data(self, fd_data: Dict[int, bytes]):
+    def set_fd_data(self, fd_data: dict[int, bytes]):
         """
         Set concrete bytes of various fds read by the program
         """
@@ -521,7 +522,7 @@ class Tracer(ExplorationTechnique):
         self._update_state_tracking(res[0])
         return res[0]
 
-    def _update_state_tracking(self, state: "SimState"):
+    def _update_state_tracking(self, state: SimState):
         idx = state.globals["trace_idx"]
         sync = state.globals["sync_idx"]
         timer = state.globals["sync_timer"]
@@ -588,8 +589,8 @@ class Tracer(ExplorationTechnique):
                 state.globals["sync_timer"] = timer
             else:
                 raise Exception(
-                    "Trace failed to synchronize! We expected it to hit %#x (trace addr), "
-                    "but it failed to do this within a timeout" % self._trace[sync]
+                    f"Trace failed to synchronize! We expected it to hit {self._trace[sync]:#x} (trace addr), "
+                    "but it failed to do this within a timeout"
                 )
 
         elif state.history.jumpkind.startswith("Ijk_Exit"):
@@ -692,22 +693,21 @@ class Tracer(ExplorationTechnique):
         current_bin = self.project.loader.find_object_containing(state_addr)
         if current_bin is self.project.loader._extern_object or current_bin is self.project.loader._kernel_object:
             return False
-        elif current_bin in self._aslr_slides:
+        if current_bin in self._aslr_slides:
             self._current_slide = self._aslr_slides[current_bin]
             return trace_addr == state_addr + self._current_slide
-        elif ((trace_addr - state_addr) & 0xFFF) == 0:
+        if ((trace_addr - state_addr) & 0xFFF) == 0:
             self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
             return True
         # error handling
-        elif current_bin:
+        if current_bin:
             raise AngrTracerError(
-                "Trace desynced on jumping into %s. "
-                "Did you load the right version of this library?" % current_bin.provides
+                f"Trace desynced on jumping into {current_bin.provides}. "
+                "Did you load the right version of this library?"
             )
-        else:
-            raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
+        raise AngrTracerError(f"Trace desynced on jumping into {state_addr:#x}, where no library is mapped!")
 
-    def _check_qemu_block_in_unicorn_block(self, state: "SimState", trace_curr_idx, state_desync_block_idx):
+    def _check_qemu_block_in_unicorn_block(self, state: SimState, trace_curr_idx, state_desync_block_idx):
         """
         Check if desync occurred because unicorn block was split into multiple blocks in qemu tracer. If yes, find the
         correct increment for trace index
@@ -748,7 +748,7 @@ class Tracer(ExplorationTechnique):
 
         return (True, next_contain_index - trace_curr_idx)
 
-    def _check_qemu_unicorn_large_block_split(self, state: "SimState", trace_curr_idx, state_desync_block_idx):
+    def _check_qemu_unicorn_large_block_split(self, state: SimState, trace_curr_idx, state_desync_block_idx):
         """
         Check if desync occurred because large blocks are split up at different instructions by qemu and unicorn. This
         is done by reconstructing part of block executed so far from the trace and state history and checking if they
@@ -794,7 +794,7 @@ class Tracer(ExplorationTechnique):
 
             if state_history_block_addr == big_block_start_addr:
                 # We found start of the big block and no control flow statements in between that and the block where
-                # desync happend.
+                # desync happened.
                 break
 
         # Let's find the address of the last byte of the big basic block using VEX lifter
@@ -823,8 +823,7 @@ class Tracer(ExplorationTechnique):
                     if angr_big_block_end_addr != big_block_end_addr:
                         # End does not match. Treat as trace desync.
                         return False
-                    else:
-                        break
+                    break
 
             if big_block_end_addr is not None:
                 break
@@ -873,15 +872,14 @@ class Tracer(ExplorationTechnique):
                 if self._trace[idx + 1] - slide == state.addr:
                     state.globals["trace_idx"] = idx + 1
                     return True
-                else:
-                    state.globals["trace_idx"] = idx
-                    # state.globals['trace_desync'] = True
-                    return True
+                state.globals["trace_idx"] = idx
+                # state.globals['trace_desync'] = True
+                return True
 
             # Case 2: trace block contains more instructions than angr
             # block.  Caused by VEX's maximum instruction limit of 99
             # instructions
-            elif (
+            if (
                 state.project.factory.block(state.history.addr).instructions == VEXMaxInsnsPerBlock
                 and state.history.jumpkind == "Ijk_Boring"
             ):
@@ -903,10 +901,9 @@ class Tracer(ExplorationTechnique):
 
         if prev_obj is not None:
             prev_section = prev_obj.find_section_containing(prev_addr)
-            if prev_section is not None:
-                if prev_section.name in (".plt",):
-                    l.info("...syncing at PLT callsite (type 2)")
-                    return self._sync_return(state, idx, assert_obj=prev_obj)
+            if prev_section is not None and prev_section.name in (".plt",):
+                l.info("...syncing at PLT callsite (type 2)")
+                return self._sync_return(state, idx, assert_obj=prev_obj)
 
         l.info("...all analyses failed.")
         return False
@@ -959,8 +956,7 @@ class Tracer(ExplorationTechnique):
                 state.globals["is_desync"] = True
                 return
             raise AngrTracerError(
-                "Trace failed to synchronize during fast forward? You might want to unhook %s."
-                % (self.project.hooked_by(state.history.addr).display_name)
+                f"Trace failed to synchronize during fast forward? You might want to unhook {self.project.hooked_by(state.history.addr).display_name}."
             ) from e
         else:
             state.globals["trace_idx"] = target_idx

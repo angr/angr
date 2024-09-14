@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict, List, Set
+from __future__ import annotations
 from collections import defaultdict
 import logging
 
@@ -26,7 +26,7 @@ def shallow_reverse(g) -> networkx.DiGraph:
     return new_g
 
 
-def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph, Optional[Dict]]:
+def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | None]:
     """
     Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
     computing post-dominators.
@@ -54,7 +54,7 @@ def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph, Optional[
 
 
 def to_acyclic_graph(
-    graph: networkx.DiGraph, ordered_nodes: Optional[List] = None, loop_heads: Optional[List] = None
+    graph: networkx.DiGraph, ordered_nodes: list | None = None, loop_heads: list | None = None
 ) -> networkx.DiGraph:
     """
     Convert a given DiGraph into an acyclic graph.
@@ -184,10 +184,7 @@ def dominates(idom, dominator_node, node):
     while n:
         if n == dominator_node:
             return True
-        if n in idom and n != idom[n]:
-            n = idom[n]
-        else:
-            n = None
+        n = idom[n] if n in idom and n != idom[n] else None
     return False
 
 
@@ -257,12 +254,10 @@ class TemporaryNode:
         self._label = label
 
     def __repr__(self):
-        return "TN[%s]" % self._label
+        return f"TN[{self._label}]"
 
     def __eq__(self, other):
-        if isinstance(other, TemporaryNode) and other._label == self._label:
-            return True
-        return False
+        return bool(isinstance(other, TemporaryNode) and other._label == self._label)
 
     def __hash__(self):
         return hash(("TemporaryNode", self._label))
@@ -295,7 +290,7 @@ class ContainerNode:
         return hash(("CN", self._obj))
 
     def __repr__(self):
-        return "CN[%s]" % repr(self._obj)
+        return f"CN[{self._obj!r}]"
 
 
 class Dominators:
@@ -325,7 +320,7 @@ class Dominators:
     def _graph_successors(self, graph, node):
         """
         Return the successors of a node in the graph.
-        This method can be overriden in case there are special requirements with the graph and the successors. For
+        This method can be overridden in case there are special requirements with the graph and the successors. For
         example, when we are dealing with a control flow graph, we may not want to get the FakeRet successors.
 
         :param graph: The graph.
@@ -520,9 +515,8 @@ class Dominators:
     def _pd_eval(self, v):
         if self._ancestor[v.index] is None:
             return v
-        else:
-            self._pd_compress(v)
-            return self._label[v.index]
+        self._pd_compress(v)
+        return self._label[v.index]
 
     def _pd_compress(self, v):
         if self._ancestor[self._ancestor[v.index].index] is not None:
@@ -596,8 +590,7 @@ class GraphUtils:
 
         ordered_merge_points = GraphUtils.quasi_topological_sort_nodes(graph, merge_points)
 
-        addrs = [n.addr for n in ordered_merge_points]
-        return addrs
+        return [n.addr for n in ordered_merge_points]
 
     @staticmethod
     def find_widening_points(function_addr, function_endpoints, graph):  # pylint: disable=unused-argument
@@ -654,8 +647,8 @@ class GraphUtils:
 
     @staticmethod
     def quasi_topological_sort_nodes(
-        graph: networkx.DiGraph, nodes: Optional[List] = None, loop_heads: Optional[List] = None
-    ) -> List:
+        graph: networkx.DiGraph, nodes: list | None = None, loop_heads: list | None = None
+    ) -> list:
         """
         Sort a given set of nodes from a graph based on the following rules:
 
@@ -702,7 +695,7 @@ class GraphUtils:
             return src_addr + dst_addr
 
         # collapse all strongly connected components
-        edges = sorted(list(graph.edges()), key=_sort_edge)
+        edges = sorted(graph.edges(), key=_sort_edge)
         for src, dst in edges:
             scc_index = GraphUtils._components_index_node(sccs, src)
             if scc_index is not None:
@@ -742,8 +735,7 @@ class GraphUtils:
             return ordered_nodes
 
         nodes = set(nodes)
-        ordered_nodes = [n for n in ordered_nodes if n in nodes]
-        return ordered_nodes
+        return [n for n in ordered_nodes if n in nodes]
 
     @staticmethod
     def _components_index_node(components, node):
@@ -754,7 +746,7 @@ class GraphUtils:
 
     @staticmethod
     def _append_scc(
-        graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_head_candidates: Optional[List] = None
+        graph: networkx.DiGraph, ordered_nodes: list, scc: set, loop_head_candidates: list | None = None
     ) -> None:
         """
         Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological

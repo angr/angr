@@ -1,10 +1,10 @@
+from __future__ import annotations
 import os
 import logging
 import networkx
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set
-from typing import Type
+from collections.abc import Iterable
 
 from itanium_demangler import parse
 
@@ -30,6 +30,7 @@ l = logging.getLogger(name=__name__)
 from ...sim_type import SimTypeFunction, parse_defns
 from ...calling_conventions import SimCC
 from ...project import Project
+import contextlib
 
 
 class Function(Serializable):
@@ -90,9 +91,9 @@ class Function(Serializable):
         addr,
         name=None,
         syscall=None,
-        is_simprocedure: Optional[bool] = None,
+        is_simprocedure: bool | None = None,
         binary_name=None,
-        is_plt: Optional[bool] = None,
+        is_plt: bool | None = None,
         returning=None,
         alignment=False,
     ):
@@ -117,13 +118,13 @@ class Function(Serializable):
         self.normalized = False
 
         # block nodes at whose ends the function returns
-        self._ret_sites: Set[BlockNode] = set()
+        self._ret_sites: set[BlockNode] = set()
         # block nodes at whose ends the function jumps out to another function (jumps outside)
-        self._jumpout_sites: Set[BlockNode] = set()
+        self._jumpout_sites: set[BlockNode] = set()
         # block nodes at whose ends the function calls out to another non-returning function
-        self._callout_sites: Set[BlockNode] = set()
+        self._callout_sites: set[BlockNode] = set()
         # block nodes that ends the function by returning out to another function (returns outside). This is rare.
-        self._retout_sites: Set[BlockNode] = set()
+        self._retout_sites: set[BlockNode] = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = defaultdict(set)
@@ -142,10 +143,10 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention: Optional[SimCC] = None
+        self.calling_convention: SimCC | None = None
         # Function prototype
-        self.prototype: Optional[SimTypeFunction] = None
-        self.prototype_libname: Optional[str] = None
+        self.prototype: SimTypeFunction | None = None
+        self.prototype_libname: str | None = None
         self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -173,7 +174,7 @@ class Function(Serializable):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
-        self._project: Optional[Project] = None  # will be initialized upon the first access to self.project
+        self._project: Project | None = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
@@ -254,9 +255,9 @@ class Function(Serializable):
                         arch.name, platform=self.project.simos.name if self.project.simos is not None else None
                     )(arch)
 
-            self.calling_convention: Optional[SimCC] = cc
+            self.calling_convention: SimCC | None = cc
         else:
-            self.calling_convention: Optional[SimCC] = None
+            self.calling_convention: SimCC | None = None
 
     @property
     @deprecated(".is_alignment")
@@ -278,10 +279,9 @@ class Function(Serializable):
 
     @property
     def project(self):
-        if self._project is None:
+        if self._project is None and self._function_manager is not None:
             # try to set it from function manager
-            if self._function_manager is not None:
-                self._project: Optional[Project] = self._function_manager._kb._project
+            self._project: Project | None = self._function_manager._kb._project
         return self._project
 
     @property
@@ -301,12 +301,10 @@ class Function(Serializable):
         """
 
         for block_addr, block in self._local_blocks.items():
-            try:
+            with contextlib.suppress(SimEngineError, SimMemoryError):
                 yield self.get_block(
                     block_addr, size=block.size, byte_string=block.bytestr if isinstance(block, BlockNode) else None
                 )
-            except (SimEngineError, SimMemoryError):
-                pass
 
     @property
     def cyclomatic_complexity(self):
@@ -365,7 +363,7 @@ class Function(Serializable):
 
         return self._local_block_addrs
 
-    def get_block(self, addr: int, size: Optional[int] = None, byte_string: Optional[bytes] = None):
+    def get_block(self, addr: int, size: int | None = None, byte_string: bytes | None = None):
         """
         Getting a block out of the current function.
 
@@ -378,9 +376,8 @@ class Function(Serializable):
             b = self._block_cache[addr]
             if size is None or b.size == size:
                 return b
-            else:
-                # size seems to be updated. remove this cached entry from the block cache
-                del self._block_cache[addr]
+            # size seems to be updated. remove this cached entry from the block cache
+            del self._block_cache[addr]
 
         if size is None and addr in self.block_addrs:
             # we know the size
@@ -396,7 +393,7 @@ class Function(Serializable):
     # compatibility
     _get_block = get_block
 
-    def get_block_size(self, addr: int) -> Optional[int]:
+    def get_block_size(self, addr: int) -> int | None:
         return self._block_sizes.get(addr, None)
 
     @property
@@ -583,27 +580,24 @@ class Function(Serializable):
     def __contains__(self, val):
         if isinstance(val, int):
             return val in self._block_sizes
-        else:
-            return False
+        return False
 
     def __str__(self):
-        s = f"Function {self.name} [{self.addr}]\n"
-        s += "  Syscall: %s\n" % self.is_syscall
+        s = f"Function {self.name} [{self.addr:#x}]\n"
+        s += f"  Syscall: {self.is_syscall}\n"
         s += "  SP difference: %d\n" % self.sp_delta
-        s += "  Has return: %s\n" % self.has_return
+        s += f"  Has return: {self.has_return}\n"
         s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
-        s += "  Alignment: %s\n" % (self.alignment)
+        s += f"  Alignment: {self.alignment}\n"
         s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
-        s += "  Blocks: [%s]\n" % ", ".join(["%#x" % i for i in self.block_addrs])
-        s += "  Cyclomatic Complexity: %s\n" % self.cyclomatic_complexity
-        s += "  Calling convention: %s" % self.calling_convention
+        s += "  Blocks: [{}]\n".format(", ".join([f"{i:#x}" for i in self.block_addrs]))
+        s += f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
+        s += f"  Calling convention: {self.calling_convention}"
         return s
 
     def __repr__(self):
         if self.is_syscall:
-            return "<Syscall function {} ({})>".format(
-                self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr
-            )
+            return f"<Syscall function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
         return f"<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
 
     def __setstate__(self, state):
@@ -664,7 +658,7 @@ class Function(Serializable):
         return self.addr - self.binary.mapped_base
 
     @property
-    def symbol(self) -> Union[None, Symbol]:
+    def symbol(self) -> None | Symbol:
         """
         :return: the function's Symbol, if any
         """
@@ -723,9 +717,8 @@ class Function(Serializable):
 
         self.is_default_name = False
         # Try to get a name from existing labels
-        if self._function_manager is not None:
-            if addr in self._function_manager._kb.labels:
-                name = self._function_manager._kb.labels[addr]
+        if self._function_manager is not None and addr in self._function_manager._kb.labels:
+            name = self._function_manager._kb.labels[addr]
 
         # try to get the name from a hook
         if name is None and self.project is not None:
@@ -740,11 +733,11 @@ class Function(Serializable):
         # generate an IDA-style sub_X name
         if name is None:
             self.is_default_name = True
-            name = "sub_%x" % addr
+            name = f"sub_{addr:x}"
 
         return name
 
-    def _get_initial_binary_name(self):
+    def _get_initial_binary_name(self) -> str | None:
         """
         Determine the name of the binary where this function is.
 
@@ -782,7 +775,7 @@ class Function(Serializable):
         if hooker:
             if hasattr(hooker, "DYNAMIC_RET") and hooker.DYNAMIC_RET:
                 return True
-            elif hasattr(hooker, "NO_RET"):
+            if hasattr(hooker, "NO_RET"):
                 return not hooker.NO_RET
 
         # Cannot determine
@@ -935,9 +928,8 @@ class Function(Serializable):
             node._graph = self.transition_graph
             if self._block_sizes.get(node.addr, 0) == 0:
                 self._block_sizes[node.addr] = node.size
-            if node.addr == self.addr:
-                if self.startpoint is None or not self.startpoint.is_hook:
-                    self.startpoint = node
+            if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
+                self.startpoint = node
             if is_local and node.addr not in self._local_blocks:
                 self._update_local_blocks(node)
             # add BlockNodes to the addr_to_block_node cache if not already there
@@ -1097,11 +1089,13 @@ class Function(Serializable):
         for block in self._local_blocks.values():
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
-            if "type" in data:
-                if data["type"] in ("transition", "exception") and ("outside" not in data or data["outside"] is False):
-                    g.add_edge(src, dst, **data)
-                elif data["type"] == "fake_return" and ("outside" not in data or data["outside"] is False):
-                    g.add_edge(src, dst, **data)
+            if "type" in data and (
+                data["type"] in ("transition", "exception")
+                and ("outside" not in data or data["outside"] is False)
+                or data["type"] == "fake_return"
+                and ("outside" not in data or data["outside"] is False)
+            ):
+                g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
 
@@ -1223,16 +1217,15 @@ class Function(Serializable):
 
             in_edges = subgraph.in_edges(n)
             # out_edges = subgraph.out_edges(n)
-            if len(in_edges) > 1:
-                # the first instruction address should be included
-                if n.addr not in insns:
-                    insns = [n.addr] + insns
+            # the first instruction address should be included
+            if len(in_edges) > 1 and n.addr not in insns:
+                insns = [n.addr, *insns]
 
             for src, _ in in_edges:
                 last_instr = block_addr_to_insns[src.addr][-1]
                 g.add_edge(last_instr, insns[0])
 
-            for i in range(0, len(insns) - 1):
+            for i in range(len(insns) - 1):
                 g.add_edge(insns[i], insns[i + 1])
 
         return g
@@ -1272,9 +1265,12 @@ class Function(Serializable):
             if b.addr <= addr < b.addr + b.size:
                 # found it
                 for i, instr_addr in enumerate(b.instruction_addrs):
-                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i + 1]:
-                        return instr_addr
-                    elif i == len(b.instruction_addrs) - 1 and instr_addr <= addr:
+                    if (
+                        i < len(b.instruction_addrs) - 1
+                        and instr_addr <= addr < b.instruction_addrs[i + 1]
+                        or i == len(b.instruction_addrs) - 1
+                        and instr_addr <= addr
+                    ):
                         return instr_addr
                 # Not covered by any instruction... why?
                 return None
@@ -1284,7 +1280,7 @@ class Function(Serializable):
         """
         Returns a representation of the list of basic blocks in this function.
         """
-        return "[%s]" % (", ".join(("%#08x" % n.addr) for n in self.transition_graph.nodes()))
+        return "[{}]".format(", ".join((f"{n.addr:#08x}") for n in self.transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         """
@@ -1295,8 +1291,8 @@ class Function(Serializable):
 
         tmp_graph = networkx.classes.digraph.DiGraph()
         for from_block, to_block in self.transition_graph.edges():
-            node_a = "%#08x" % from_block.addr
-            node_b = "%#08x" % to_block.addr
+            node_a = f"{from_block.addr:#08x}"
+            node_b = f"{to_block.addr:#08x}"
             if node_b in self._ret_sites:
                 node_b += "[Ret]"
             if node_a in self._call_sites:
@@ -1323,10 +1319,9 @@ class Function(Serializable):
     def arguments(self):
         if self.calling_convention is None:
             return self._argument_registers + self._argument_stack_variables
-        else:
-            if self.prototype is None:
-                return []
-            return self.calling_convention.arg_locs(self.prototype)
+        if self.prototype is None:
+            return []
+        return self.calling_convention.arg_locs(self.prototype)
 
     @property
     def has_return(self):
@@ -1462,7 +1457,7 @@ class Function(Serializable):
 
         self.normalized = True
 
-    def find_declaration(self, ignore_binary_name: bool = False, binary_name_hint: str = None) -> bool:
+    def find_declaration(self, ignore_binary_name: bool = False, binary_name_hint: str | None = None) -> bool:
         """
         Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
         and update self.calling_convention with the declaration.
@@ -1535,6 +1530,10 @@ class Function(Serializable):
 
         for library in libraries:
             for name in name_variants:
+                if isinstance(library, SimSyscallLibrary):
+                    # FIXME: we don't support getting declaration from a syscall library yet. we don't have the concept
+                    # of abi at this point.
+                    continue
                 if not library.has_prototype(name):
                     continue
 
@@ -1568,8 +1567,8 @@ class Function(Serializable):
         # FIXME
         if isinstance(addr, tuple):
             return addr[0]
-        else:  # int, long
-            return addr
+        # int, long
+        return addr
 
     @property
     def demangled_name(self):
@@ -1582,7 +1581,7 @@ class Function(Serializable):
                 return ast.__str__()
         return self.name
 
-    def get_unambiguous_name(self, display_name: Optional[str] = None) -> str:
+    def get_unambiguous_name(self, display_name: str | None = None) -> str:
         """
         Get a disambiguated function name.
 
@@ -1610,12 +1609,12 @@ class Function(Serializable):
             n += self.binary_name + separator
         return n + (display_name or self.name)
 
-    def apply_definition(self, definition: str, calling_convention: Optional[Union[SimCC, Type[SimCC]]] = None) -> None:
+    def apply_definition(self, definition: str, calling_convention: SimCC | type[SimCC] | None = None) -> None:
         if not definition.endswith(";"):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
         if len(func_def.keys()) > 1:
-            raise Exception("Too many definitions: %s " % list(func_def.keys()))
+            raise Exception(f"Too many definitions: {list(func_def.keys())} ")
 
         name: str
         ty: SimTypeFunction
@@ -1638,7 +1637,7 @@ class Function(Serializable):
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
 
-    def functions_called(self) -> Set["Function"]:
+    def functions_reachable(self) -> set[Function]:
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """

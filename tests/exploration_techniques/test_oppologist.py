@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
 import unittest

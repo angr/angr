@@ -1,5 +1,4 @@
-from typing import Optional
-
+from __future__ import annotations
 import claripy
 
 from ..errors import SimMemoryError
@@ -45,7 +44,7 @@ class SimMemoryObject:
         self.object = obj
         self.length = obj_bit_size(obj) // self._byte_width if length is None else length
         self.endness = endness
-        self._concrete_bytes: Optional[bytes] = None
+        self._concrete_bytes: bytes | None = None
 
     def size(self):
         return self.length * self._byte_width
@@ -69,10 +68,14 @@ class SimMemoryObject:
     def last_addr(self):
         return self.base + self.length - 1
 
-    def concrete_bytes(self, offset: int, size: int) -> Optional[bytes]:
-        if self._concrete_bytes is None:
-            if isinstance(self.object, claripy.ast.Bits) and self.object.op == "BVV" and not self.object.annotations:
-                self._concrete_bytes = self.object.concrete_value.to_bytes(len(self.object) // self._byte_width, "big")
+    def concrete_bytes(self, offset: int, size: int) -> bytes | None:
+        if (
+            self._concrete_bytes is None
+            and isinstance(self.object, claripy.ast.Bits)
+            and self.object.op == "BVV"
+            and not self.object.annotations
+        ):
+            self._concrete_bytes = self.object.concrete_value.to_bytes(len(self.object) // self._byte_width, "big")
 
         if self._concrete_bytes is None:
             return None
@@ -97,25 +100,24 @@ class SimMemoryObject:
 
             return o if allow_concrete else claripy.BVV(o)
 
-        else:
-            offset = addr - self.base
-            try:
-                thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
-            except claripy.ClaripyOperationError:
-                # hacks to handle address space wrapping
-                if offset >= 0:
-                    raise
-                if offset + 2**32 >= 0:
-                    offset += 2**32
-                elif offset + 2**64 >= 0:
-                    offset += 2**64
-                else:
-                    raise
-                thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
+        offset = addr - self.base
+        try:
+            thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
+        except claripy.ClaripyOperationError:
+            # hacks to handle address space wrapping
+            if offset >= 0:
+                raise
+            if offset + 2**32 >= 0:
+                offset += 2**32
+            elif offset + 2**64 >= 0:
+                offset += 2**64
+            else:
+                raise
+            thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
 
-            if self.endness != endness:
-                thing = thing.reversed
-            return thing
+        if self.endness != endness:
+            thing = thing.reversed
+        return thing
 
     def _object_equals(self, other):
         if self.is_bytes != other.is_bytes:
@@ -123,17 +125,15 @@ class SimMemoryObject:
 
         if self.is_bytes:
             return self.object == other.object
-        else:
-            return self.object.cache_key == other.object.cache_key
+        return self.object.cache_key == other.object.cache_key
 
     def _length_equals(self, other):
-        if type(self.length) is not type(other.length):  # noqa: E721
+        if type(self.length) is not type(other.length):
             return False
 
         if isinstance(self.length, int):
             return self.length == other.length
-        else:
-            return self.length.cache_key == other.length.cache_key
+        return self.length.cache_key == other.length.cache_key
 
     def __eq__(self, other):
         if self is other:
@@ -152,7 +152,7 @@ class SimMemoryObject:
         return not self == other
 
     def __repr__(self):
-        return "MO(%s)" % self.object
+        return f"MO({self.object})"
 
 
 class SimLabeledMemoryObject(SimMemoryObject):

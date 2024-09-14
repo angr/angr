@@ -1,4 +1,6 @@
-from typing import Dict, Iterable, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
 from .. import KnowledgeBasePlugin
 from .rd_model import ReachingDefinitionsModel
@@ -19,7 +21,7 @@ class RDAObserverControl:
             block_addr = kwargs.pop("addr", None)
             op_type = kwargs.pop("op_type", None)
             return block_addr in self.call_site_block_addrs and op_type == OP_AFTER
-        elif ob_type == "insn":
+        if ob_type == "insn":
             ins_addr = kwargs.pop("addr", None)
             op_type = kwargs.pop("op_type", None)
             return ins_addr in self.call_site_ins_addrs and op_type == OP_BEFORE
@@ -37,9 +39,9 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
     - After returning from each call: ('node', address of the block that ends with a call, OP_AFTER)
     """
 
-    def __init__(self, kb: "KnowledgeBase"):
+    def __init__(self, kb: KnowledgeBase):
         super().__init__(kb=kb)
-        self.model_by_funcaddr: Dict[int, ReachingDefinitionsModel] = {}
+        self.model_by_funcaddr: dict[int, ReachingDefinitionsModel] = {}
 
     def has_model(self, func_addr: int):
         return func_addr in self.model_by_funcaddr
@@ -71,9 +73,9 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
 
         return self.model_by_funcaddr[func_addr]
 
-    def copy(self) -> "KeyDefinitionManager":
+    def copy(self) -> KeyDefinitionManager:
         dm = KeyDefinitionManager(self._kb)
-        dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()), self.model_by_funcaddr.items()))
+        dm.model_by_funcaddr = {x[0]: x[1].copy() for x in self.model_by_funcaddr.items()}
         return dm
 
 

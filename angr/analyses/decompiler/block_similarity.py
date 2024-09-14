@@ -1,10 +1,12 @@
-from typing import Union, Optional, List, Tuple
-
+from __future__ import annotations
+import logging
 import networkx as nx
 from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump
 
 from .utils import find_block_by_addr
+
+_l = logging.getLogger(name=__name__)
 
 
 def has_similar_stmt(blk1: Block, blk2: Block):
@@ -19,11 +21,20 @@ def has_similar_stmt(blk1: Block, blk2: Block):
 
 
 def is_similar(
-    ail_obj1: Union[Block, Statement], ail_obj2: Union[Block, Statement], graph: nx.DiGraph = None, partial: bool = True
+    ail_obj1: Block | Statement,
+    ail_obj2: Block | Statement,
+    graph: nx.DiGraph = None,
+    partial: bool = True,
+    max_depth: int = 10,
+    curr_depth: int = 0,
 ):
     """
     Returns True if the two AIL objects are similar, False otherwise.
     """
+    if curr_depth >= max_depth:
+        _l.warning("Reached maximum depth while comparing AIL objects, assuming true!")
+        return True
+
     if type(ail_obj1) is not type(ail_obj2):
         return False
 
@@ -36,14 +47,15 @@ def is_similar(
             return False
 
         for stmt1, stmt2 in zip(ail_obj1.statements, ail_obj2.statements):
-            if not is_similar(stmt1, stmt2, graph=graph):
+            if not is_similar(stmt1, stmt2, graph=graph, max_depth=max_depth, curr_depth=curr_depth + 1):
                 return False
         return True
 
     # AIL Statements
-    elif isinstance(ail_obj1, Statement):
-        # if all(barr in [0x404530, 0x404573] for barr in [ail_obj1.ins_addr, ail_obj2.ins_addr]):
-        #    do a breakpoint
+    if isinstance(ail_obj1, Statement):
+        # must be likeable
+        if not hasattr(ail_obj2, "likes"):
+            return False
 
         # ConditionalJump Handler
         if isinstance(ail_obj1, ConditionalJump):
@@ -61,7 +73,8 @@ def is_similar(
                 t1, t2 = getattr(ail_obj1, attr).value, getattr(ail_obj2, attr).value
                 try:
                     t1_blk, t2_blk = find_block_by_addr(graph, t1), find_block_by_addr(graph, t2)
-                except KeyError:
+                except ValueError:
+                    _l.warning("Could not find block by address in graph. It is likely that the graph is broken.")
                     return False
 
                 # special checks for when a node is empty:
@@ -78,15 +91,13 @@ def is_similar(
                 if partial and t1_blk.statements[0].likes(t2_blk.statements[0]):
                     continue
 
-                if not is_similar(t1_blk, t2_blk, graph=graph):
+                if not is_similar(t1_blk, t2_blk, graph=graph, curr_depth=curr_depth + 1, max_depth=max_depth):
                     return False
             return True
 
         # Generic Statement Handler
-        else:
-            return ail_obj1.likes(ail_obj2)
-    else:
-        return False
+        return ail_obj1.likes(ail_obj2)
+    return False
 
 
 #
@@ -128,7 +139,7 @@ def _kmp_search_ail_obj(search_pattern, stmt_seq, graph=None, partial=True):
             yield start_pos
 
 
-def index_of_similar_stmts(search_stmts, other_stmts, graph=None, all_positions=False) -> Optional[int]:
+def index_of_similar_stmts(search_stmts, other_stmts, graph=None, all_positions=False) -> int | None:
     """
     Returns the index of the first occurrence of the search_stmts (a list of Statement) in other_stmts (a list of
     Statement). If all_positions is True, returns a list of all positions.
@@ -150,15 +161,12 @@ def in_other(stmts, other, graph=None):
     @return:
     """
 
-    if index_of_similar_stmts(stmts, other, graph=graph) is not None:
-        return True
-
-    return False
+    return index_of_similar_stmts(stmts, other, graph=graph) is not None
 
 
 def longest_ail_subseq(
-    stmts_list: List[List[Statement]], graph=None
-) -> Tuple[Optional[List[Statement]], Optional[List[int]]]:
+    stmts_list: list[list[Statement]], graph=None
+) -> tuple[list[Statement] | None, list[int] | None]:
     """
     Given a list of List[Statement], it returns the longest List[Statement] that is a subsequence of all the lists.
     The common List[Statement] most all be in the same order and adjacent to each other. If no common subsequence is

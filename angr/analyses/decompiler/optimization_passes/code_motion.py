@@ -1,5 +1,5 @@
+from __future__ import annotations
 import itertools
-from typing import Tuple, List, Optional, Dict
 import logging
 
 from ailment import Block
@@ -59,6 +59,7 @@ class CodeMotionOptimization(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
+        _l.warning("CodeMotionOptimization is likely broken right now, use with caution!")
         optimization_runs = 0
         graph_copy = remove_labels(nx.DiGraph(self._graph))
         updates = True
@@ -79,7 +80,7 @@ class CodeMotionOptimization(OptimizationPass):
 
     @staticmethod
     def update_graph_with_super_edits(
-        original_graph: nx.DiGraph, super_graph: nx.DiGraph, updated_blocks: Dict[Block, Block]
+        original_graph: nx.DiGraph, super_graph: nx.DiGraph, updated_blocks: dict[Block, Block]
     ) -> bool:
         """
         This function updates an graph when doing block edits on a supergraph version of that same graph.
@@ -117,13 +118,13 @@ class CodeMotionOptimization(OptimizationPass):
             original_graph.remove_nodes_from(original_blocks)
             original_graph.add_node(new_super)
             for pred in first_node_preds:
-                original_graph.add_edge(og_to_super[pred] if pred in og_to_super else pred, new_super)
+                original_graph.add_edge(og_to_super.get(pred, pred), new_super)
             for succ in last_node_preds:
-                original_graph.add_edge(new_super, og_to_super[succ] if succ in og_to_super else succ)
+                original_graph.add_edge(new_super, og_to_super.get(succ, succ))
 
         return False
 
-    def _move_common_code(self, graph) -> Tuple[bool, Optional[Dict[Block, Block]]]:
+    def _move_common_code(self, graph) -> tuple[bool, dict[Block, Block] | None]:
         """
         Does two things at a high level:
         1. rearrange code in blocks to maximize the number of similar statements at the end of the block
@@ -220,7 +221,7 @@ class CodeMotionOptimization(OptimizationPass):
 
     def _make_stmts_end_similar(
         self, b0: Block, b1: Block, up=False, down=False
-    ) -> Tuple[bool, Optional[Block], Optional[Block]]:
+    ) -> tuple[bool, Block | None, Block | None]:
         """
         This algorithm attempts to rearrange two blocks to have the longest common sequence of statements
         at either ends of the blocks. It is flawed in that it currently only attempts to do this rearrangement
@@ -321,7 +322,7 @@ class CodeMotionOptimization(OptimizationPass):
 
     def _maximize_ends(
         self, b0_stmts, b1_stmts, up=False, down=False
-    ) -> Tuple[bool, Tuple[List[Statement], List[Statement]]]:
+    ) -> tuple[bool, tuple[list[Statement], list[Statement]]]:
         self._assert_up_or_down(up, down)
 
         similar_stmt = b0_stmts[0] if up else b0_stmts[-1]
@@ -333,7 +334,7 @@ class CodeMotionOptimization(OptimizationPass):
         success, new_b1_stmts = self._move_to_end(target_stmt, b1_stmts, up=up, down=down)
         return (success and (b1_stmts != new_b1_stmts)), (b0_stmts, new_b1_stmts)
 
-    def _move_to_end(self, stmt, stmts, up=False, down=False) -> Tuple[bool, List[Statement]]:
+    def _move_to_end(self, stmt, stmts, up=False, down=False) -> tuple[bool, list[Statement]]:
         """
         Attempts to move a stmt to either the top or the bottom of stmts.
         It does this by attempting to swap, 1 by 1, in either direction it is targeting.

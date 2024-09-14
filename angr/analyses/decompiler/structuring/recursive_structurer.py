@@ -1,5 +1,6 @@
+from __future__ import annotations
 import itertools
-from typing import Optional, Type, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 import networkx
@@ -32,16 +33,14 @@ class RecursiveStructurer(Analysis):
         self,
         region,
         cond_proc=None,
-        func: Optional["Function"] = None,
-        structurer_cls: Optional[Type] = None,
-        improve_structurer=True,
+        func: Function | None = None,
+        structurer_cls: type | None = None,
         **kwargs,
     ):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
-        self.improve_structurer = improve_structurer
         self.structurer_options = kwargs
 
         self.result = None
@@ -51,7 +50,7 @@ class RecursiveStructurer(Analysis):
 
     def _analyze(self):
         region = self._region.recursive_copy()
-        self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
+        self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
         self.result_incomplete = False
 
         # visit the region in post-order DFS
@@ -82,7 +81,7 @@ class RecursiveStructurer(Analysis):
                 stack.pop()
 
                 # Get the parent region
-                parent_region = parent_map.get(current_region, None)
+                parent_region = parent_map.get(current_region)
                 # structure this region
                 st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
                     current_region.copy(),
@@ -91,7 +90,6 @@ class RecursiveStructurer(Analysis):
                     case_entry_to_switch_head=self._case_entry_to_switch_head,
                     func=self.function,
                     parent_region=parent_region,
-                    improve_structurer=self.improve_structurer,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
@@ -149,7 +147,7 @@ class RecursiveStructurer(Analysis):
     def _replace_region_with_region(parent_region, sub_region, new_region):
         parent_region.replace_region_with_region(sub_region, new_region)
 
-    def _get_switch_case_entries(self) -> Dict[int, int]:
+    def _get_switch_case_entries(self) -> dict[int, int]:
         if self.function is None:
             return {}
 

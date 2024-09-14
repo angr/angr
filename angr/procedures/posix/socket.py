@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -14,5 +15,4 @@ class socket(angr.SimProcedure):
 
         nonce = self.state.globals.get("socket_counter", 0) + 1
         self.state.globals["socket_counter"] = nonce
-        fd = self.state.posix.open_socket(("socket", conc_domain, conc_typ, conc_protocol, nonce))
-        return fd
+        return self.state.posix.open_socket(("socket", conc_domain, conc_typ, conc_protocol, nonce))

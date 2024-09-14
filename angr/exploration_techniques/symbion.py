@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from .common import condition_to_lambda
 from . import ExplorationTechnique

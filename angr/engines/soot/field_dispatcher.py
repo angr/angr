@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import SootFieldDescriptor
@@ -24,15 +25,13 @@ def resolve_field(state, field_class, field_name, field_type, raise_exception_if
         if _class_contains_field(class_, field_name, field_type):
             state.javavm_classloader.init_class(class_)
             # if so, create the field_id and return a reference to it
-            field_id = SootFieldDescriptor(class_.name, field_name, field_type)
-            return field_id
+            return SootFieldDescriptor(class_.name, field_name, field_type)
 
     # field could not be found
     l.warning("Couldn't find field %s in classes %s.", field_name, class_hierarchy)
     if raise_exception_if_not_found:
-        raise SootFieldNotLoadedException()
-    else:
-        return SootFieldDescriptor(field_class, field_name, field_type)
+        raise SootFieldNotLoadedException
+    return SootFieldDescriptor(field_class, field_name, field_type)
 
 
 def _class_contains_field(field_class, field_name, field_type):
@@ -44,6 +43,4 @@ def _class_contains_field(field_class, field_name, field_type):
         return False
     field = field_class.fields[field_name]
     # check type
-    if field[1] != field_type:
-        return False
-    return True
+    return field[1] == field_type

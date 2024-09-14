@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
+
+import claripy
 
 import angr
 
@@ -23,7 +27,7 @@ class TestLoopSeer(unittest.TestCase):
         state.register_plugin("loop_data", angr.state_plugins.SimStateLoopData())
 
         dummy = p.loader.main_object.get_symbol("dummy")
-        bvs = state.solver.BVS(dummy.name, 8 * dummy.size)
+        bvs = claripy.BVS(dummy.name, 8 * dummy.size)
         state.memory.store(dummy.rebased_addr, bvs, endness="Iend_LE")
 
         simgr = p.factory.simulation_manager(state)

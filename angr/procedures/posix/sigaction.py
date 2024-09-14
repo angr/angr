@@ -1,6 +1,9 @@
-import angr
-import archinfo
+from __future__ import annotations
 import logging
+
+import archinfo
+
+import angr
 
 l = logging.getLogger(name=__name__)
 

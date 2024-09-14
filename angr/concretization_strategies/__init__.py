@@ -1,4 +1,4 @@
-import claripy
+from __future__ import annotations
 
 
 class SimConcretizationStrategy:
@@ -13,7 +13,7 @@ class SimConcretizationStrategy:
         """
         Initializes the base SimConcretizationStrategy.
 
-        :param filter: A function, taking arguments of (SimMemory, claripy.AST) that determins
+        :param filter: A function, taking arguments of (SimMemory, claripy.AST) that determines
                        if this strategy can handle resolving the provided AST.
         :param exact: A flag (default: True) that determines if the convenience resolution
                       functions provided by this class use exact or approximate resolution.
@@ -43,8 +43,6 @@ class SimConcretizationStrategy:
         """
         Gets n solutions for an address.
         """
-        if isinstance(addr, claripy.vsa.StridedInterval):
-            return addr.eval(n)
         return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop("exact", self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
@@ -60,13 +58,14 @@ class SimConcretizationStrategy:
         """
         if self._filter is None or self._filter(memory, addr):
             return self._concretize(memory, addr, **kwargs)
+        return None
 
     def _concretize(self, memory, addr, **kwargs):
         """
         Should be implemented by child classes to handle concretization.
         :param **kwargs:
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def copy(self):
         """
@@ -80,9 +79,10 @@ class SimConcretizationStrategy:
         Merges this strategy with others (if there is data that should be kept separate between
         states. If not, is a no-op.
         """
-        pass
 
 
+# pylint: disable=wrong-import-position
+# FIXME: This is a circular import, move base class to a separate file
 from .any import SimConcretizationStrategyAny
 from .controlled_data import SimConcretizationStrategyControlledData
 from .eval import SimConcretizationStrategyEval

@@ -1,4 +1,6 @@
-from typing import Iterable, Tuple, Any, Callable
+from __future__ import annotations
+from typing import Any
+from collections.abc import Iterable, Callable
 
 from . import MemoryMixin
 
@@ -13,9 +15,8 @@ class TopMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
-    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs):
-        merged_val = self._top_func(merged_size * self.state.arch.byte_width)
-        return merged_val
+    def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs):
+        return self._top_func(merged_size * self.state.arch.byte_width)
 
     def copy(self, memo=None):
         copied = super().copy(memo)

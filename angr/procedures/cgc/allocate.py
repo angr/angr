@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import claripy
@@ -18,13 +19,13 @@ class allocate(angr.SimProcedure):
         length = self.state.solver.max_int(length)
 
         # return code (see allocate() docs)
-        r = self.state.solver.ite_cases(
+        r = claripy.ite_cases(
             (
                 (length == 0, self.state.cgc.EINVAL),
                 (length > self.state.cgc.max_allocation, self.state.cgc.EINVAL),
                 (self.state.cgc.addr_invalid(addr), self.state.cgc.EFAULT),
             ),
-            self.state.solver.BVV(0, self.state.arch.bits),
+            claripy.BVV(0, self.state.arch.bits),
         )
 
         if self.state.solver.max_int(r) != 0:
@@ -34,7 +35,7 @@ class allocate(angr.SimProcedure):
         aligned_length = ((length + 0xFFF) // 0x1000) * 0x1000
 
         if isinstance(self.state.cgc.allocation_base, int):
-            self.state.cgc.allocation_base = self.state.solver.BVV(self.state.cgc.allocation_base, self.state.arch.bits)
+            self.state.cgc.allocation_base = claripy.BVV(self.state.cgc.allocation_base, self.state.arch.bits)
 
         chosen = self.state.cgc.get_max_sinkhole(aligned_length)
         if chosen is None:
@@ -49,26 +50,24 @@ class allocate(angr.SimProcedure):
                 if sinkhole_size != 0:
                     self.state.cgc.add_sinkhole(cgc_flag_page_start_addr + 0x1000, sinkhole_size)
 
-                chosen = self.state.solver.BVV(cgc_flag_page_start_addr - aligned_length, self.state.arch.bits)
+                chosen = claripy.BVV(cgc_flag_page_start_addr - aligned_length, self.state.arch.bits)
             elif chosen_conc <= self.state.project.loader.max_addr < allocation_base_conc:
                 # Chosen memory overlaps with some loaded object
                 sinkhole_size = allocation_base_conc - self.state.project.loader.max_addr
                 if sinkhole_size != 0:
                     self.state.cgc.add_sinkhole(self.state.project.loader.max_addr, sinkhole_size)
 
-                chosen = self.state.solver.BVV(
-                    self.state.project.loader.min_addr - aligned_length, self.state.arch.bits
-                )
+                chosen = claripy.BVV(self.state.project.loader.min_addr - aligned_length, self.state.arch.bits)
 
             self.state.cgc.allocation_base = chosen
 
         self.state.memory.store(
-            addr, chosen, size=self.state.arch.bytes, condition=self.state.solver.And(addr != 0), endness="Iend_LE"
+            addr, chosen, size=self.state.arch.bytes, condition=claripy.And(addr != 0), endness="Iend_LE"
         )
 
         # PROT_READ | PROT_WRITE default
-        permissions = self.state.solver.BVV(1 | 2, 3)
-        permissions |= self.state.solver.If(is_x != 0, claripy.BVV(4, 3), claripy.BVV(0, 3))
+        permissions = claripy.BVV(1 | 2, 3)
+        permissions |= claripy.If(is_x != 0, claripy.BVV(4, 3), claripy.BVV(0, 3))
 
         chosen_conc = self.state.solver.eval(chosen)
         l.debug("Allocating [%#x, %#x]", chosen_conc, chosen_conc + aligned_length - 1)

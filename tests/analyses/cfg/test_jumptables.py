@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Sequence, Mapping
 import logging
 import unittest
 import os
@@ -24,7 +27,7 @@ l = logging.getLogger("angr.tests.test_jumptables")
 
 
 def compile_c_to_angr_project(
-    c_code: str, cflags: Optional[Sequence[str]] = None, project_kwargs: Optional[Mapping[str, Any]] = None
+    c_code: str, cflags: Sequence[str] | None = None, project_kwargs: Mapping[str, Any] | None = None
 ):
     # pylint:disable=consider-using-with
     """
@@ -62,11 +65,11 @@ class TestJumpTableResolver(unittest.TestCase):
     @staticmethod
     def _compare(jump_tables, groundtruth):
         for j in groundtruth:
-            assert j.block_addr in jump_tables, "Jump table @ block %#x is not found in CFG." % j.block_addr
+            assert j.block_addr in jump_tables, f"Jump table @ block {j.block_addr:#x} is not found in CFG."
             jumptable_addr = jump_tables[j.block_addr].jumptable_addr
             assert j.table_addr == jumptable_addr, "Mismatch jump table addresses (expecting {}, got {}).".format(
-                ("%#x" % j.table_addr) if j.table_addr is not None else "None",
-                ("%#x" % jumptable_addr) if jumptable_addr is not None else "None",
+                (f"{j.table_addr:#x}") if j.table_addr is not None else "None",
+                (f"{jumptable_addr:#x}") if jumptable_addr is not None else "None",
             )
             expected = set(j.entries)
             recovered = set(jump_tables[j.block_addr].jumptable_entries)
@@ -2804,7 +2807,7 @@ class TestJumpTableResolver(unittest.TestCase):
         cfg = p.analyses.CFGFast()
 
         assert 0x46D710 in cfg.indirect_jumps
-        ij: "IndirectJump" = cfg.indirect_jumps[0x46D710]
+        ij: IndirectJump = cfg.indirect_jumps[0x46D710]
         assert ij.type == IndirectJumpType.Vtable
         assert len(ij.jumptable_entries) == 213
 
@@ -3063,17 +3066,17 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
     """
 
     @staticmethod
-    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: Set[str]):
+    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: set[str]):
         """
         Create set of edges {src->dsts : for d in dsts} by name
         """
         return {(proj.kb.labels.lookup(src), proj.kb.labels.lookup(dst), 0) for dst in dsts}
 
-    def _run_calltable_test(self, c_code: str, src: str, dsts: Set[str], cflags: Optional[Sequence[str]] = None):
+    def _run_calltable_test(self, c_code: str, src: str, dsts: set[str], cflags: Sequence[str] | None = None):
         """
         Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
         """
-        proj = compile_c_to_angr_project(c_code, cflags, dict(auto_load_libs=False))
+        proj = compile_c_to_angr_project(c_code, cflags, {"auto_load_libs": False})
 
         # Run initial CFG, without attempting indirect jump resolve
         cfg = proj.analyses.CFGFast(resolve_indirect_jumps=False)
@@ -3116,8 +3119,8 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         # XXX: On x86 with PIE, call get_pc_thunk() is used to calculate table address. Can't handle it yet.
         cflags = []
         for arch_flags in [[], ["-m32", "-fno-pie"]]:  # AMD64, x86
-            for opt_level in range(0, 3):
-                subtest_cflags = cflags + [f"-O{opt_level}"] + arch_flags
+            for opt_level in range(3):
+                subtest_cflags = [*cflags, f"-O{opt_level}", *arch_flags]
                 with self.subTest(cflags=subtest_cflags):
                     self._run_calltable_test(
                         c_code, "src_func", {f"dst_func_{i}" for i in range(4)}, cflags=subtest_cflags

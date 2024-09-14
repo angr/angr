@@ -1,4 +1,4 @@
-from typing import Union
+from __future__ import annotations
 from enum import Enum, unique
 
 
@@ -37,7 +37,7 @@ BackgroundColor = unique(Enum("BackgroundColor", {i.name: (i.value + 10) for i i
 #
 
 
-def color(c: Union[Color, BackgroundColor], bright: bool):
+def color(c: Color | BackgroundColor, bright: bool):
     """
     Return the ansi prefix using the given code
     Bright may not be used with a BackgroundColor

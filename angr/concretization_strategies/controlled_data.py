@@ -1,4 +1,7 @@
+from __future__ import annotations
 from itertools import groupby
+
+import claripy
 
 from . import SimConcretizationStrategy
 
@@ -40,10 +43,10 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
 
         # create constraints from intervals
         for base, length in intervals:
-            constraints.append(memory.state.solver.And(addr >= base, addr < base + length))
+            constraints.append(claripy.And(addr >= base, addr < base + length))
 
         # try to get solutions for controlled memory
-        ored_constraints = memory.state.solver.Or(*constraints)
+        ored_constraints = claripy.Or(*constraints)
         child_constraints = (ored_constraints,)
         extra_constraints = kwargs.pop("extra_constraints", None)
         if extra_constraints is not None:

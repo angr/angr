@@ -1,8 +1,8 @@
+from __future__ import annotations
 import logging
 import unittest
 import operator
 from dataclasses import dataclass
-from typing import Optional, List
 
 import claripy
 
@@ -49,12 +49,12 @@ class MockVarnode:
     size: int
 
     register_name: str = "<mock>"
-    space_encoded_in_offset: Optional[MockAddrSpace] = None
+    space_encoded_in_offset: MockAddrSpace | None = None
 
     def getRegisterName(self) -> str:
         return self.register_name
 
-    def getSpaceFromConst(self) -> Optional[MockAddrSpace]:
+    def getSpaceFromConst(self) -> MockAddrSpace | None:
         return self.space_encoded_in_offset
 
 
@@ -64,9 +64,9 @@ class MockPcodeOp:
     Mock P-Code Op
     """
 
-    opcode: "OpCode"
-    output: Optional[MockVarnode]
-    inputs: List[MockVarnode]
+    opcode: OpCode
+    output: MockVarnode | None
+    inputs: list[MockVarnode]
 
 
 BEHAVIORS = BehaviorFactory()
@@ -78,7 +78,7 @@ class MockIRSB:
     Mock IRSB
     """
 
-    _ops: List[MockPcodeOp]
+    _ops: list[MockPcodeOp]
     addr: int = 0
     behaviors: BehaviorFactory = BEHAVIORS
 
@@ -108,7 +108,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         emulator.successors.processed = True
         return emulator.successors
 
-    def _test_branch_and_call_common(self, opcode: "OpCode"):
+    def _test_branch_and_call_common(self, opcode: OpCode):
         target_addr = 0x12345678
         successors = self._step_irsb(
             MockIRSB(
@@ -137,7 +137,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     def test_call(self):
         self._test_branch_and_call_common(OpCode.CALL)
 
-    def _test_branchind_and_callind_common(self, opcode: "OpCode"):
+    def _test_branchind_and_callind_common(self, opcode: OpCode):
         target_addr = 0x12345678
         target_pointer_addr = 0x100000
         target_pointer_size = 8
@@ -350,7 +350,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         new_state = successors.successors[0]
         assert new_state.solver.is_true(new_state.memory.load(addr2, 8) == value)
 
-    def _test_single_arith_binary_op(self, opcode: "OpCode"):
+    def _test_single_arith_binary_op(self, opcode: OpCode):
         opcode_to_operation = {
             OpCode.BOOL_AND: operator.and_,
             OpCode.BOOL_OR: operator.or_,
@@ -431,7 +431,9 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         else:
             expected_result = operation(x, y)
 
-        assert claripy.backends.z3.is_true(result == expected_result)
+        solver = claripy.Solver()
+        maybe_true = solver.eval(result == expected_result, 1)[0]
+        assert solver.is_true(maybe_true)
 
     def test_arith_binary_ops(self):
         for opcode in [
@@ -460,7 +462,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             with self.subTest(opcode):
                 self._test_single_arith_binary_op(opcode)
 
-    def _test_single_arith_unary_op(self, opcode: "OpCode"):
+    def _test_single_arith_unary_op(self, opcode: OpCode):
         opcode_to_operation = {
             OpCode.INT_NEGATE: operator.inv,
             OpCode.INT_2COMP: operator.neg,
@@ -504,7 +506,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         result = state.memory.load(result_addr, result_size, endness="Iend_LE")
         expected_result = operation(x)
 
-        assert claripy.backends.z3.is_true(result == expected_result)
+        assert claripy.Solver().is_true(result == expected_result)
 
     def test_arith_unary_ops(self):
         for opcode in [
@@ -568,6 +570,14 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0, 32), claripy.BVV(0, 32))
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0x12345678, 32), claripy.BVV(13, 32))
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0xFFFFFFFF, 32), claripy.BVV(32, 32))
+
+    def test_lzcount(self):
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0xFFFF, 16), claripy.BVV(0, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x7FFF, 16), claripy.BVV(1, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x3F0F, 16), claripy.BVV(2, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0080, 16), claripy.BVV(8, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0001, 16), claripy.BVV(15, 16))
+        self._test_other_unary_common(OpCode.LZCOUNT, claripy.BVV(0x0000, 16), claripy.BVV(16, 16))
 
     # TODO: Add tests for the following ops:
     # * = FIXME

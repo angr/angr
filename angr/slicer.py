@@ -1,4 +1,5 @@
 # pylint:disable=no-self-use
+from __future__ import annotations
 import pyvex
 
 from .errors import SimSlicerError
@@ -118,7 +119,7 @@ class SimSlicer:
         :return:
         """
 
-        funcname = "_forward_handler_stmt_%s" % type(stmt).__name__
+        funcname = f"_forward_handler_stmt_{type(stmt).__name__}"
 
         if hasattr(self, funcname):
             getattr(self, funcname)(stmt, state)
@@ -144,7 +145,7 @@ class SimSlicer:
         :return:
         """
 
-        funcname = "_forward_handler_expr_%s" % type(expr).__name__
+        funcname = f"_forward_handler_expr_{type(expr).__name__}"
 
         if hasattr(self, funcname):
             return getattr(self, funcname)(expr, state)
@@ -154,10 +155,12 @@ class SimSlicer:
     def _forward_handler_expr_Get(self, expr, state):
         reg = expr.offset
 
-        if state.options["mock_sp"] and reg == self._arch.sp_offset:
-            return state.regs[reg]
-
-        elif state.options["mock_bp"] and reg == self._arch.bp_offset:
+        if (
+            state.options["mock_sp"]
+            and reg == self._arch.sp_offset
+            or state.options["mock_bp"]
+            and reg == self._arch.bp_offset
+        ):
             return state.regs[reg]
 
         return None
@@ -174,7 +177,7 @@ class SimSlicer:
         return expr.con.value
 
     def _forward_handler_expr_Binop(self, expr, state):
-        funcname = "_forward_handler_expr_binop_%s" % expr.op.strip("Iop_")
+        funcname = "_forward_handler_expr_binop_{}".format(expr.op.strip("Iop_"))
 
         if hasattr(self, funcname):
             op0_val = self._forward_handler_expr(expr.args[0], state)
@@ -224,7 +227,7 @@ class SimSlicer:
     #
 
     def _backward_handler_stmt(self, stmt, state):
-        funcname = "_backward_handler_stmt_%s" % type(stmt).__name__
+        funcname = f"_backward_handler_stmt_{type(stmt).__name__}"
 
         in_slice = False
         if hasattr(self, funcname):
@@ -262,8 +265,7 @@ class SimSlicer:
 
             return True
 
-        else:
-            return False
+        return False
 
     def _backward_handler_stmt_Store(self, stmt, state):
         addr = stmt.addr
@@ -301,7 +303,7 @@ class SimSlicer:
     #
 
     def _backward_handler_expr(self, expr, state):
-        funcname = "_backward_handler_expr_%s" % type(expr).__name__
+        funcname = f"_backward_handler_expr_{type(expr).__name__}"
         if hasattr(self, funcname):
             getattr(self, funcname)(expr, state)
 

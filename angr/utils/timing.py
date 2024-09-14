@@ -1,4 +1,5 @@
 # pylint:disable=no-member,global-statement
+from __future__ import annotations
 import os
 import time
 from functools import wraps
@@ -39,7 +40,6 @@ def timethis(func):
                 time_distribution[func].append(millisec)
             depth -= 1
             return r
-        else:
-            return func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     return timed_func

@@ -1,5 +1,4 @@
-from typing import List, Optional
-
+from __future__ import annotations
 from ...serializable import Serializable
 
 
@@ -33,13 +32,13 @@ class IndirectJump(Serializable):
         func_addr: int,
         jumpkind: str,
         stmt_idx: int,
-        resolved_targets: Optional[List[int]] = None,
+        resolved_targets: list[int] | None = None,
         jumptable: bool = False,
-        jumptable_addr: Optional[int] = None,
-        jumptable_size: Optional[int] = None,
-        jumptable_entry_size: Optional[int] = None,
-        jumptable_entries: Optional[List[int]] = None,
-        type_: Optional[int] = IndirectJumpType.Unknown,
+        jumptable_addr: int | None = None,
+        jumptable_size: int | None = None,
+        jumptable_entry_size: int | None = None,
+        jumptable_entries: list[int] | None = None,
+        type_: int | None = IndirectJumpType.Unknown,
     ):
         self.addr = addr
         self.ins_addr = ins_addr
@@ -57,12 +56,9 @@ class IndirectJump(Serializable):
     def __repr__(self):
         status = ""
         if self.jumptable or self.jumptable_entries:
-            if self.type == IndirectJumpType.Vtable:
-                status = "vtable"
-            else:
-                status = "jumptable"
+            status = "vtable" if self.type == IndirectJumpType.Vtable else "jumptable"
             if self.jumptable_addr is not None:
-                status += "@%#08x" % self.jumptable_addr
+                status += f"@{self.jumptable_addr:#08x}"
             if self.jumptable_entries is not None:
                 status += " with %d entries" % len(self.jumptable_entries)
 

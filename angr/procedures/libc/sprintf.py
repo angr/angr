@@ -1,4 +1,7 @@
+from __future__ import annotations
 import logging
+
+import claripy
 
 from angr.procedures.stubs.format_parser import FormatParser
 
@@ -16,7 +19,7 @@ class sprintf(FormatParser):
 
         # place the terminating null byte
         self.state.memory.store(
-            dst_ptr + (out_str.size() // self.arch.byte_width), self.state.solver.BVV(0, self.arch.byte_width)
+            dst_ptr + (out_str.size() // self.arch.byte_width), claripy.BVV(0, self.arch.byte_width)
         )
 
         return out_str.size() // self.arch.byte_width

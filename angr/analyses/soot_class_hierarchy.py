@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from . import Analysis
@@ -36,14 +37,14 @@ class SootClassHierarchy(Analysis):
         self.init_hierarchy()
 
     def init_hierarchy(self):
-        for class_name, cls in self.project.loader.main_object.classes.items():
+        for _class_name, cls in self.project.loader.main_object.classes.items():
             if "INTERFACE" in cls.attrs:
                 self.interface_implementers[cls] = []
                 self.dir_sub_interfaces[cls] = []
             else:
                 self.dir_sub_classes[cls] = []
 
-        for class_name, cls in self.project.loader.main_object.classes.items():
+        for _class_name, cls in self.project.loader.main_object.classes.items():
             if self.has_super_class(cls):
                 if "INTERFACE" in cls.attrs:
                     # TODO
@@ -62,7 +63,7 @@ class SootClassHierarchy(Analysis):
                         self.interface_implementers[i].append(cls)
 
         # fill direct implementers with subclasses
-        for class_name, cls in self.project.loader.main_object.classes.items():
+        for _class_name, cls in self.project.loader.main_object.classes.items():
             if "INTERFACE" in cls.attrs:
                 implementers = self.interface_implementers[cls]
                 s = set()
@@ -85,18 +86,12 @@ class SootClassHierarchy(Analysis):
     def is_subclass_including(self, cls_child, cls_parent):
         parent_classes = self.get_super_classes_including(cls_child)
 
-        if cls_parent in parent_classes:
-            return True
-
-        return False
+        return cls_parent in parent_classes
 
     def is_subclass(self, cls_child, cls_parent):
         parent_classes = self.get_super_classes(cls_child)
 
-        if cls_parent in parent_classes:
-            return True
-
-        return False
+        return cls_parent in parent_classes
 
     def is_visible_method(self, cls, method):
         method_cls = self.project.loader.main_object.classes[method.class_name]
@@ -233,9 +228,8 @@ class SootClassHierarchy(Analysis):
 
         for c in self.get_super_classes_including(cls):
             for m in c.methods:
-                if m.name == method.name and m.params == method.params:
-                    if self.is_visible_method(c, method):
-                        return m
+                if m.name == method.name and m.params == method.params and self.is_visible_method(c, method):
+                    return m
 
         raise NoConcreteDispatch("Could not resolve concrete dispatch!")
 
@@ -247,11 +241,10 @@ class SootClassHierarchy(Analysis):
         if method.name == "<init>" or "PRIVATE" in method.attrs:
             return method
 
-        elif self.is_subclass(method_cls, container_cls):
+        if self.is_subclass(method_cls, container_cls):
             return self.resolve_concrete_dispatch(container_cls, method)
 
-        else:
-            return method
+        return method
 
     def resolve_invoke(self, invoke_expr, method, container):
         # Generic method to resolve invoke
@@ -259,13 +252,11 @@ class SootClassHierarchy(Analysis):
         invoke_type = str(type(invoke_expr))
         cls = self.project.loader.main_object.classes[method.class_name]
 
-        if "VirtualInvokeExpr" in invoke_type:
-            targets = self.resolve_abstract_dispatch(cls, method)
-
-        elif "DynamicInvokeExpr" in invoke_type:
-            targets = self.resolve_abstract_dispatch(cls, method)
-
-        elif "InterfaceInvokeExpr" in invoke_type:
+        if (
+            "VirtualInvokeExpr" in invoke_type
+            or "DynamicInvokeExpr" in invoke_type
+            or "InterfaceInvokeExpr" in invoke_type
+        ):
             targets = self.resolve_abstract_dispatch(cls, method)
 
         elif "SpecialInvokeExpr" in invoke_type:

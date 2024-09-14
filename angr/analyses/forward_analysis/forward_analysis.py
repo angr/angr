@@ -1,5 +1,7 @@
+from __future__ import annotations
 from collections import defaultdict
-from typing import Any, Dict, List, Callable, Optional, Generic, Type, TypeVar, Tuple, Set, TYPE_CHECKING, Union
+from typing import Any, Generic, TypeVar, TYPE_CHECKING
+from collections.abc import Callable
 
 import networkx
 
@@ -41,8 +43,8 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         order_jobs=False,
         allow_merging=False,
         allow_widening=False,
-        status_callback: Optional[Callable[[Type["ForwardAnalysis"]], Any]] = None,
-        graph_visitor: "Optional[GraphVisitor[NodeType]]" = None,
+        status_callback: Callable[[type[ForwardAnalysis]], Any] | None = None,
+        graph_visitor: GraphVisitor[NodeType] | None = None,
     ):
         """
         Constructor
@@ -69,15 +71,15 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         self._should_abort = False
 
         # All remaining jobs
-        self._job_info_queue: List[JobInfo[JobType, JobKey]] = []
+        self._job_info_queue: list[JobInfo[JobType, JobKey]] = []
 
         # A map between job key to job. Jobs with the same key will be merged by calling _merge_jobs()
-        self._job_map: Dict[JobKey, JobInfo[JobType, JobKey]] = {}
+        self._job_map: dict[JobKey, JobInfo[JobType, JobKey]] = {}
 
         # A mapping between node and its input states
-        self._input_states: Dict[NodeType, List[AnalysisState]] = defaultdict(list)
+        self._input_states: dict[NodeType, list[AnalysisState]] = defaultdict(list)
         # A mapping between node and its output state
-        self._output_state: Dict[NodeType, AnalysisState] = {}
+        self._output_state: dict[NodeType, AnalysisState] = {}
 
         # The graph!
         # Analysis results (nodes) are stored here
@@ -149,16 +151,16 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
     def _job_key(self, job: JobType) -> JobKey:
         raise NotImplementedError("_job_key() is not implemented.")
 
-    def _get_successors(self, job: JobType) -> Union[List[SimState], List[JobType]]:
+    def _get_successors(self, job: JobType) -> list[SimState] | list[JobType]:
         raise NotImplementedError("_get_successors() is not implemented.")
 
     def _pre_job_handling(self, job: JobType) -> None:
         raise NotImplementedError("_pre_job_handling() is not implemented.")
 
-    def _post_job_handling(self, job: JobType, new_jobs, successors: List[SimState]) -> None:
+    def _post_job_handling(self, job: JobType, new_jobs, successors: list[SimState]) -> None:
         raise NotImplementedError("_post_job_handling() is not implemented.")
 
-    def _handle_successor(self, job: JobType, successor: SimState, successors: List[SimState]) -> List[JobType]:
+    def _handle_successor(self, job: JobType, successor: SimState, successors: list[SimState]) -> list[JobType]:
         raise NotImplementedError("_handle_successor() is not implemented.")
 
     def _job_queue_empty(self) -> None:
@@ -179,7 +181,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         """
         return node
 
-    def _run_on_node(self, node: NodeType, state: AnalysisState) -> Tuple[bool, AnalysisState]:
+    def _run_on_node(self, node: NodeType, state: AnalysisState) -> tuple[bool, AnalysisState]:
         """
         The analysis routine that runs on each node in the graph.
 
@@ -197,7 +199,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
 
         raise NotImplementedError("_run_on_node() is not implemented.")
 
-    def _merge_states(self, node: NodeType, *states: AnalysisState) -> Tuple[AnalysisState, bool]:
+    def _merge_states(self, node: NodeType, *states: AnalysisState) -> tuple[AnalysisState, bool]:
         """
         Merge multiple abstract states into one.
 
@@ -208,6 +210,20 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         """
 
         raise NotImplementedError("_merge_states() is not implemented.")
+
+    def _compare_states(self, node: NodeType, old_state: AnalysisState, new_state: AnalysisState) -> bool:
+        """
+        Determine if the analysis has reached fixed point at `node`.
+
+        You can override this method to implement a faster _compare_states() method.
+
+        :param node:        The node that has been analyzed.
+        :param old_state:   The original output state out of node.
+        :param new_state:   The new output state out of node.
+        :return:            True if the analysis has reached fixed at node. False otherwise.
+        """
+        _, has_no_changes = self._merge_states(node, old_state, new_state)
+        return has_no_changes
 
     def _widen_states(self, *states: AnalysisState) -> AnalysisState:
         raise NotImplementedError("_widen_states() is not implemented.")
@@ -288,7 +304,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
                     reached_fixedpoint = False
                 else:
                     # is the output state the same as the old one?
-                    _, reached_fixedpoint = self._merge_states(n, self._output_state[self._node_key(n)], output_state)
+                    reached_fixedpoint = self._compare_states(n, self._output_state[self._node_key(n)], output_state)
                 self._output_state[self._node_key(n)] = output_state
 
                 if not reached_fixedpoint:
@@ -297,7 +313,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
                     for succ in successors_to_visit:
                         self._graph_visitor.revisit_node(succ)
 
-    def _add_input_state(self, node: NodeType, input_state: AnalysisState) -> Set[NodeType]:
+    def _add_input_state(self, node: NodeType, input_state: AnalysisState) -> set[NodeType]:
         """
         Add the input state to all successors of the given node.
 
@@ -320,7 +336,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
 
         return successors
 
-    def _get_and_update_input_state(self, node: NodeType) -> Optional[AnalysisState]:
+    def _get_and_update_input_state(self, node: NodeType) -> AnalysisState | None:
         """
         Get the input abstract state for this node, and remove it from the state map.
 
@@ -334,7 +350,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
             return input_state
         return None
 
-    def _get_input_state(self, node: NodeType) -> Optional[AnalysisState]:
+    def _get_input_state(self, node: NodeType) -> AnalysisState | None:
         """
         Get the input abstract state for this node.
 
@@ -491,7 +507,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         if pos < len(self._job_info_queue):
             return self._job_info_queue[pos].job
 
-        raise IndexError()
+        raise IndexError
 
     def _remove_job(self, predicate: Callable) -> None:
         """

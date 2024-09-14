@@ -1,4 +1,5 @@
 # pylint:disable=wildcard-import
+from __future__ import annotations
 from .plugin import *
 from .libc import *
 from .inspect import *

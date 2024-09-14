@@ -1,4 +1,4 @@
-from typing import Dict
+from __future__ import annotations
 import time
 import multiprocessing
 import logging
@@ -25,7 +25,7 @@ class BadStatesDropper(ExplorationTechnique):
 
     def step(self, simgr, stash="active", **kwargs):
         for k in ("deadended", "avoid", "pruned", "unsat", "errored"):
-            if k in simgr.stashes and simgr.stashes[k]:
+            if simgr.stashes.get(k):
                 _l.debug("Storing states in stash %s.", k)
                 for state in simgr.stashes[k]:
                     state_id = self.vault.store(state)
@@ -33,8 +33,7 @@ class BadStatesDropper(ExplorationTechnique):
                 _l.debug("Dropping states in stash %s.", k)
                 simgr.drop(stash=k)
 
-        simgr = simgr.step(stash="active", **kwargs)
-        return simgr
+        return simgr.step(stash="active", **kwargs)
 
 
 class ExplorationStatusNotifier(ExplorationTechnique):
@@ -42,7 +41,7 @@ class ExplorationStatusNotifier(ExplorationTechnique):
     Force the exploration to stop if the server.stop is True.
     """
 
-    def __init__(self, server_state: Dict):
+    def __init__(self, server_state: dict):
         super().__init__()
         self.server_state = server_state
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import os
 import types
@@ -6,7 +7,7 @@ import pickle
 import string
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, cast
+from typing import Any, cast
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
@@ -19,7 +20,7 @@ from .errors import AngrNoPluginError
 l = logging.getLogger(name=__name__)
 
 
-def load_shellcode(shellcode: Union[bytes, str], arch, start_offset=0, load_address=0, thumb=False, **kwargs):
+def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
     """
     Load a new project based on a snippet of assembly or bytecode.
 
@@ -107,10 +108,10 @@ class Project:
         arch=None,
         simos=None,
         engine=None,
-        load_options: Optional[Dict[str, Any]] = None,
+        load_options: dict[str, Any] | None = None,
         translation_cache=True,
         selfmodifying_code: bool = False,
-        support_selfmodifying_code: Optional[bool] = None,  # deprecated. use selfmodifying_code instead
+        support_selfmodifying_code: bool | None = None,  # deprecated. use selfmodifying_code instead
         store_function=None,
         load_function=None,
         analyses_preset=None,
@@ -139,7 +140,7 @@ class Project:
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
         elif not isinstance(thing, (str, Path)) or not os.path.exists(thing) or not os.path.isfile(thing):
-            raise Exception("Not a valid binary file: %s" % repr(thing))
+            raise Exception(f"Not a valid binary file: {thing!r}")
         else:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
@@ -202,10 +203,9 @@ class Project:
             )
             self.selfmodifying_code = bool(support_selfmodifying_code)
 
-        if self.selfmodifying_code:
-            if self._translation_cache is True:
-                self._translation_cache = False
-                l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
+        if self.selfmodifying_code and self._translation_cache is True:
+            self._translation_cache = False
+            l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry
         self.storage = defaultdict(list)
@@ -248,7 +248,7 @@ class Project:
             # If we execute a Java archive that includes native JNI libraries,
             # we need to use the arch of the native simos for all (native) sim
             # procedures.
-            sim_proc_arch = getattr(self.simos, "native_arch")
+            sim_proc_arch = self.simos.native_arch
         else:
             sim_proc_arch = self.arch
         for obj in self.loader.initial_load_objects:
@@ -258,14 +258,14 @@ class Project:
         self.simos.configure_project()
 
     @property
-    def analyses(self) -> "AnalysesHubWithDefault":
+    def analyses(self) -> AnalysesHubWithDefault:
         result = self._analyses
         if result is None:
             raise ValueError("Cannot access analyses this early in project lifecycle")
         return result
 
     @analyses.setter
-    def analyses(self, v: "AnalysesHubWithDefault"):
+    def analyses(self, v: AnalysesHubWithDefault):
         self._analyses = v
 
     def _initialize_analyses_hub(self):
@@ -428,11 +428,7 @@ class Project:
         for lib in hinted_libs:
             if SIM_LIBRARIES[lib].has_implementation(f.name):
                 l.debug("Found implementation for %s in %s", f, lib)
-                if f.resolvedby:
-                    hook_at = f.resolvedby.rebased_addr
-                else:
-                    # ????
-                    hook_at = f.relative_addr
+                hook_at = f.resolvedby.rebased_addr if f.resolvedby else f.relative_addr  # ????
                 self.hook_symbol(hook_at, (SIM_LIBRARIES[lib].get(f.name, self.arch)))
                 return True
 
@@ -453,7 +449,7 @@ class Project:
 
     @staticmethod
     def _addr_to_str(addr):
-        return "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
+        return f"{addr!r}" if isinstance(addr, SootAddressDescriptor) else f"{addr:#x}"
 
     #
     # Public methods
@@ -461,7 +457,7 @@ class Project:
     #
 
     # pylint: disable=inconsistent-return-statements
-    def hook(self, addr, hook=None, length=0, kwargs=None, replace: Optional[bool] = False):
+    def hook(self, addr, hook=None, length=0, kwargs=None, replace: bool | None = False):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
@@ -491,7 +487,7 @@ class Project:
         """
         if hook is None:
             # if we haven't been passed a thing to hook with, assume we're being used as a decorator
-            return self._hook_decorator(addr, length=length, kwargs=kwargs)
+            return self._hook_decorator(addr, length=length, kwargs=kwargs, replace=replace)
 
         if kwargs is None:
             kwargs = {}
@@ -505,12 +501,12 @@ class Project:
                 l.warning(
                     "Address is already hooked, during hook(%s, %s). Not re-hooking.", self._addr_to_str(addr), hook
                 )
-                return
+                return None
             else:
                 l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", self._addr_to_str(addr), hook)
 
         if isinstance(hook, type):
-            raise TypeError("Please instanciate your SimProcedure before hooking with it")
+            raise TypeError("Please instantiate your SimProcedure before hooking with it")
 
         if callable(hook):
             hook = SIM_PROCEDURES["stubs"]["UserHook"](user_func=hook, length=length, **kwargs)
@@ -524,6 +520,7 @@ class Project:
         #    l.error("Consider also using angr.SIM_LIBRARIES instead of angr.SIM_PROCEDURES or angr.procedures.")
 
         self._sim_procedures[addr] = hook
+        return None
 
     def is_hooked(self, addr) -> bool:
         """
@@ -534,7 +531,7 @@ class Project:
         """
         return addr in self._sim_procedures
 
-    def hooked_by(self, addr) -> Optional[SimProcedure]:
+    def hooked_by(self, addr) -> SimProcedure | None:
         """
         Returns the current hook for `addr`.
 
@@ -561,7 +558,7 @@ class Project:
 
         del self._sim_procedures[addr]
 
-    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace: Optional[bool] = None):
+    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace: bool | None = None):
         """
         Resolve a dependency in a binary. Looks up the address of the given symbol, and then hooks that
         address. If the symbol was not available in the loaded libraries, this address may be provided
@@ -612,7 +609,7 @@ class Project:
         self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
-    def symbol_hooked_by(self, symbol_name) -> Optional[SimProcedure]:
+    def symbol_hooked_by(self, symbol_name) -> SimProcedure | None:
         """
         Return the SimProcedure, if it exists, for the given symbol name.
 
@@ -625,6 +622,8 @@ class Project:
             l.warning("Could not find symbol %s", symbol_name)
             return None
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        if not self.is_hooked(hook_addr):
+            return None
         return self.hooked_by(hook_addr)
 
     def is_symbol_hooked(self, symbol_name):
@@ -707,10 +706,7 @@ class Project:
         simulation manager.
         """
 
-        if args:
-            state = args[0]
-        else:
-            state = self.factory.full_init_state(**kwargs)
+        state = args[0] if args else self.factory.full_init_state(**kwargs)
 
         pg = self.factory.simulation_manager(state)
         self._executing = True
@@ -726,7 +722,7 @@ class Project:
     # Private methods related to hooking
     #
 
-    def _hook_decorator(self, addr, length=0, kwargs=None):
+    def _hook_decorator(self, addr, length=0, kwargs=None, replace=False):
         """
         Return a function decorator that allows easy hooking. Please refer to hook() for its usage.
 
@@ -734,7 +730,7 @@ class Project:
         """
 
         def hook_decorator(func):
-            self.hook(addr, func, length=length, kwargs=kwargs)
+            self.hook(addr, func, length=length, kwargs=kwargs, replace=replace)
             return func
 
         return hook_decorator
@@ -749,7 +745,7 @@ class Project:
             self.store_function, self.load_function = None, None
             # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
             # added analyses classes
-            d = {
+            return {
                 k: v
                 for k, v in self.__dict__.items()
                 if k
@@ -757,7 +753,6 @@ class Project:
                     "analyses",
                 }
             }
-            return d
         finally:
             self.store_function, self.load_function = store_func, load_func
 

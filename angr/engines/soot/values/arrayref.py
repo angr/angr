@@ -1,6 +1,7 @@
+from __future__ import annotations
 import logging
 
-from claripy import And
+import claripy
 
 from . import translate_value
 from ....errors import SimEngineError
@@ -29,8 +30,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
         """
         if self._default_value_generator:
             return self._default_value_generator(state)
-        else:
-            return state.project.simos.get_default_value_by_type(self.element_type, state=state)
+        return state.project.simos.get_default_value_by_type(self.element_type, state=state)
 
     def add_default_value_generator(self, generator):
         """
@@ -38,13 +38,13 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
 
         :param function generator: Function that given the state, returns a
                                    default value for array elements, e.g.
-                                   `generator = lambda state: state.solver.BVV(0, 32)`
+                                   `generator = lambda state: claripy.BVV(0, 32)`
         """
         self._default_value_generator = generator
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class SimSootValue_ArrayRef(SimSootValue):
@@ -72,18 +72,17 @@ class SimSootValue_ArrayRef(SimSootValue):
         if isinstance(idx_value, SimSootValue_IntConstant):
             # idx is a constant
             return idx_value.value
-        else:
-            # idx is a variable
-            # => load value from memory
-            return state.memory.load(idx_value)
+        # idx is a variable
+        # => load value from memory
+        return state.memory.load(idx_value)
 
     @staticmethod
     def check_array_bounds(idx, array, state):
-        # a valid idx fullfills the constraint
+        # a valid idx fulfills the constraint
         # 0 <= idx < length
-        zero = state.solver.BVV(0, 32)
+        zero = claripy.BVV(0, 32)
         length = array.size
-        bound_constraint = state.solver.And(
+        bound_constraint = claripy.And(
             length.SGT(idx),
             zero.SLE(idx),
         )
@@ -107,9 +106,8 @@ class SimSootValue_ArrayRef(SimSootValue):
         # raise exception, if index is *always* invalid
         if True not in idx_stays_within_bounds:
             raise SimEngineError(
-                "Access of %s[%s] (length %s) is always invalid. "
+                f"Access of {array.id}[{idx}] (length {length}) is always invalid. "
                 "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
-                "" % (array.id, idx, length)
             )
 
         # bound index and/or length, if there are *some* invalid values
@@ -121,4 +119,4 @@ class SimSootValue_ArrayRef(SimSootValue):
                 idx,
                 length,
             )
-            state.solver.add(And(length.SGT(idx), zero.SLE(idx)))
+            state.solver.add(claripy.And(length.SGT(idx), zero.SLE(idx)))

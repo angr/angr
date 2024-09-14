@@ -1,9 +1,12 @@
 # pylint:disable=missing-class-docstring,unused-argument
+from __future__ import annotations
 from collections import defaultdict
-from typing import Optional, Any, Dict, Set, Tuple, Iterable, Union, DefaultDict, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Iterable
 
 import ailment
 from ailment import Expression, Block, AILBlockWalker
+from ailment.expression import ITE
 from ailment.statement import Statement, Assignment, Call
 
 from ..sequence_walker import SequenceWalker
@@ -94,7 +97,7 @@ class ConditionLocation(LocationBase):
         "case_idx",
     )
 
-    def __init__(self, cond_node_addr, case_idx: Optional[int] = None):
+    def __init__(self, cond_node_addr, case_idx: int | None = None):
         self.node_addr = cond_node_addr
         self.case_idx = case_idx
 
@@ -138,7 +141,7 @@ class MultiStatementExpressionAssignmentFinder(AILBlockWalker):
         self._stmt_handler = stmt_handler
 
     def _handle_MultiStatementExpression(
-        self, expr_idx, expr: "MultiStatementExpression", stmt_idx: int, stmt: Statement, block: Optional[Block]
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         for idx, stmt_ in enumerate(expr.stmts):
             self._stmt_handler(idx, stmt_, block)
@@ -173,11 +176,11 @@ class ExpressionUseFinder(AILBlockWalker):
 
     def __init__(self):
         super().__init__()
-        self.uses: DefaultDict[SimVariable, Set[Tuple[Expression, Optional[ExpressionLocation]]]] = defaultdict(set)
+        self.uses: defaultdict[SimVariable, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
         self.has_load = False
 
     def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, ailment.Register) and expr.variable is not None:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
@@ -188,9 +191,7 @@ class ExpressionUseFinder(AILBlockWalker):
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Load(
-        self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement, block: Optional[Block]
-    ):
+    def _handle_Load(self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement, block: Block | None):
         self.has_load = True
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -212,37 +213,40 @@ class ExpressionCounter(SequenceWalker):
         # each element in the set is a tuple of (source of the assignment statement, a tuple of unified variables that
         # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
         # indicates if ExpressionUseFinder has succeeded or not)
-        self.assignments: DefaultDict[Any, Set[Tuple]] = defaultdict(set)
-        self.uses: Dict[SimVariable, Set[Tuple[Expression, Optional[LocationBase]]]] = {}
-        self._variable_manager: "VariableManagerInternal" = variable_manager
+        self.assignments: defaultdict[Any, set[tuple]] = defaultdict(set)
+        self.uses: dict[SimVariable, set[tuple[Expression, LocationBase | None]]] = {}
+        self._variable_manager: VariableManagerInternal = variable_manager
 
         super().__init__(handlers)
         self.walk(node)
 
-    def _u(self, v) -> Optional["SimVariable"]:
+    def _u(self, v) -> SimVariable | None:
         """
         Get unified variable for a given variable.
         """
 
         return self._variable_manager.unified_variable(v)
 
-    def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: Union[ailment.Block, LoopNode]):
-        if isinstance(stmt, ailment.Stmt.Assignment):
-            if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                u = self._u(stmt.dst.variable)
-                if u is not None:
-                    # dependency
-                    dependency_finder = ExpressionUseFinder()
-                    dependency_finder.walk_expression(stmt.src)
-                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                    self.assignments[u].add(
-                        (
-                            stmt.src,
-                            dependencies,
-                            StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
-                            dependency_finder.has_load,
-                        )
+    def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
+        if (
+            isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Register)
+            and stmt.dst.variable is not None
+        ):
+            u = self._u(stmt.dst.variable)
+            if u is not None:
+                # dependency
+                dependency_finder = ExpressionUseFinder()
+                dependency_finder.walk_expression(stmt.src)
+                dependencies = tuple({self._u(v) for v in dependency_finder.uses})
+                self.assignments[u].add(
+                    (
+                        stmt.src,
+                        dependencies,
+                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                        dependency_finder.has_load,
                     )
+                )
         if (
             isinstance(stmt, ailment.Stmt.Call)
             and isinstance(stmt.ret_expr, ailment.Expr.Register)
@@ -330,20 +334,20 @@ class ExpressionCounter(SequenceWalker):
 
 
 class ExpressionReplacer(AILBlockWalker):
-    def __init__(self, assignments: Dict, uses: Dict, variable_manager):
+    def __init__(self, assignments: dict, uses: dict, variable_manager):
         super().__init__()
         self._assignments = assignments
         self._uses = uses
-        self._variable_manager: "VariableManagerInternal" = variable_manager
+        self._variable_manager: VariableManagerInternal = variable_manager
 
-    def _u(self, v) -> Optional["SimVariable"]:
+    def _u(self, v) -> SimVariable | None:
         """
         Get unified variable for a given variable.
         """
         return self._variable_manager.unified_variable(v)
 
     def _handle_MultiStatementExpression(
-        self, expr_idx, expr: "MultiStatementExpression", stmt_idx: int, stmt: Statement, block: Optional[Block]
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         changed = False
         new_statements = []
@@ -352,11 +356,10 @@ class ExpressionReplacer(AILBlockWalker):
                 isinstance(stmt_, Assignment)
                 and isinstance(stmt_.dst, ailment.Expr.Register)
                 and stmt_.dst.variable is not None
-            ):
-                if stmt_.dst.variable in self._assignments:
-                    # remove this statement
-                    changed = True
-                    continue
+            ) and stmt_.dst.variable in self._assignments:
+                # remove this statement
+                changed = True
+                continue
 
             new_stmt = self._handle_stmt(idx, stmt_, None)
             if new_stmt is not None and new_stmt is not stmt_:
@@ -384,12 +387,12 @@ class ExpressionReplacer(AILBlockWalker):
             return expr_
         return None
 
-    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Optional[Block]):
-        # override the base handler and make sure we do not replace .dst with a Call expression
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
+        # override the base handler and make sure we do not replace .dst with a Call expression or an ITE expression
         changed = False
 
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-        if dst is not None and dst is not stmt.dst and not isinstance(dst, Call):
+        if dst is not None and dst is not stmt.dst and not isinstance(dst, (Call, ITE)):
             changed = True
         else:
             dst = stmt.dst
@@ -409,7 +412,7 @@ class ExpressionReplacer(AILBlockWalker):
         return None
 
     def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, ailment.Register) and expr.variable is not None:
             unified_var = self._u(expr.variable)
@@ -420,7 +423,7 @@ class ExpressionReplacer(AILBlockWalker):
 
 
 class ExpressionFolder(SequenceWalker):
-    def __init__(self, assignments: Dict, uses: Dict, node, variable_manager):
+    def __init__(self, assignments: dict, uses: dict, node, variable_manager):
         handlers = {
             ailment.Block: self._handle_Block,
             ConditionNode: self._handle_Condition,
@@ -434,7 +437,7 @@ class ExpressionFolder(SequenceWalker):
         self._variable_manager = variable_manager
         self.walk(node)
 
-    def _u(self, v) -> Optional["SimVariable"]:
+    def _u(self, v) -> SimVariable | None:
         """
         Get unified variable for a given variable.
         """
@@ -444,11 +447,15 @@ class ExpressionFolder(SequenceWalker):
         # Walk the block to remove each assignment and replace uses of each variable
         new_stmts = []
         for stmt in node.statements:
-            if isinstance(stmt, ailment.Stmt.Assignment):
-                if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                    if stmt.dst.variable in self._assignments:
-                        # remove this statement
-                        continue
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.Register)
+                and stmt.dst.variable is not None
+            ):
+                unified_var = self._u(stmt.dst.variable)
+                if unified_var in self._assignments:
+                    # remove this statement
+                    continue
             if (
                 isinstance(stmt, ailment.Stmt.Call)
                 and isinstance(stmt.ret_expr, ailment.Expr.Register)
@@ -528,7 +535,7 @@ class StoreStatementFinder(SequenceWalker):
     This class overrides _handle_Sequence() and _handle_MultiNode() to ensure they traverse nodes from top to bottom.
     """
 
-    def __init__(self, node, intervals: Iterable[Tuple[StatementLocation, LocationBase]]):
+    def __init__(self, node, intervals: Iterable[tuple[StatementLocation, LocationBase]]):
         handlers = {
             ConditionNode: self._handle_Condition,
             CascadingConditionNode: self._handle_CascadingCondition,
@@ -538,9 +545,9 @@ class StoreStatementFinder(SequenceWalker):
 
         self._intervals = intervals
 
-        self._start_to_ends: DefaultDict[StatementLocation, Set[LocationBase]] = defaultdict(set)
-        self._end_to_starts: DefaultDict[LocationBase, Set[StatementLocation]] = defaultdict(set)
-        self.interval_to_hasstore: Dict[Tuple[StatementLocation, StatementLocation], bool] = {}
+        self._start_to_ends: defaultdict[StatementLocation, set[LocationBase]] = defaultdict(set)
+        self._end_to_starts: defaultdict[LocationBase, set[StatementLocation]] = defaultdict(set)
+        self.interval_to_hasstore: dict[tuple[StatementLocation, StatementLocation], bool] = {}
         for start, end in intervals:
             self._start_to_ends[start].add(end)
             self._end_to_starts[end].add(start)

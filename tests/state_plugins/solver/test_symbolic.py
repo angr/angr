@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
+from __future__ import annotations
+
 __package__ = __package__ or "tests.state_plugins.solver"  # pylint:disable=redefined-builtin
 
 import unittest
 
-import angr
+import claripy
 
+import angr
 from ...common import broken
 
 
@@ -33,7 +36,7 @@ class TestSymbolic(unittest.TestCase):
         # sanity check
         assert s.solver.eval_upto(s.memory.load(3, size=1), 2, cast_to=bytes) == [b"D"]
 
-        x = s.solver.BVS("x", s.arch.bits)
+        x = claripy.BVS("x", s.arch.bits)
         s.add_constraints(x >= 1)
         s.add_constraints(x <= 3)
 
@@ -41,7 +44,7 @@ class TestSymbolic(unittest.TestCase):
         assert tuple(sorted(ss.solver.eval_upto(ss.memory.load(x, 1), 10, cast_to=bytes))) == (b"B", b"C", b"D")
 
         ss = s.copy()
-        x = s.solver.BVS("x", s.arch.bits)
+        x = claripy.BVS("x", s.arch.bits)
         s.add_constraints(x >= 1)
         ss.options.add(angr.options.CONSERVATIVE_READ_STRATEGY)
         ss.memory._create_default_read_strategies()
@@ -49,8 +52,8 @@ class TestSymbolic(unittest.TestCase):
 
     # def test_concretization(self):
     #   s = angr.SimState(arch="AMD64", mode="symbolic")
-    #   dst = s.solver.BVV(0x41424300, 32)
-    #   dst_addr = s.solver.BVV(0x1000, 64)
+    #   dst = claripy.BVV(0x41424300, 32)
+    #   dst_addr = claripy.BVV(0x1000, 64)
     #   s.memory.store(dst_addr, dst, 4)
 
     #   print "MEM KEYS", s.memory.mem.keys()
@@ -77,21 +80,21 @@ class TestSymbolic(unittest.TestCase):
     def test_symbolic_write(self):
         s = angr.SimState(arch="AMD64", mode="symbolic")
 
-        addr = s.solver.BVS("addr", 64)
-        s.add_constraints(s.solver.Or(addr == 10, addr == 20, addr == 30))
+        addr = claripy.BVS("addr", 64)
+        s.add_constraints(claripy.Or(addr == 10, addr == 20, addr == 30))
         assert len(s.solver.eval_upto(addr, 10)) == 3
 
-        s.memory.store(10, s.solver.BVV(1, 8))
-        s.memory.store(20, s.solver.BVV(2, 8))
-        s.memory.store(30, s.solver.BVV(3, 8))
+        s.memory.store(10, claripy.BVV(1, 8))
+        s.memory.store(20, claripy.BVV(2, 8))
+        s.memory.store(30, claripy.BVV(3, 8))
 
         assert s.solver.unique(s.memory.load(10, 1))
         assert s.solver.unique(s.memory.load(20, 1))
         assert s.solver.unique(s.memory.load(30, 1))
 
         # print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
-        # s.memory.store(addr, s.solver.BVV(255, 8), strategy=['symbolic','any'], limit=100)
-        s.memory.store(addr, s.solver.BVV(255, 8))
+        # s.memory.store(addr, claripy.BVV(255, 8), strategy=['symbolic','any'], limit=100)
+        s.memory.store(addr, claripy.BVV(255, 8))
         assert s.satisfiable()
 
         assert len(s.solver.eval_upto(addr, 10)) == 3
@@ -128,10 +131,10 @@ class TestSymbolic(unittest.TestCase):
         assert sv.solver.eval_upto(addr, 10) == [10, 20]
 
         s = angr.SimState(arch="AMD64", mode="symbolic")
-        s.memory.store(0, s.solver.BVV(0x4141414141414141, 64))
-        length = s.solver.BVS("length", 32)
-        # s.memory.store(0, s.solver.BVV(0x4242424242424242, 64), symbolic_length=length)
-        s.memory.store(0, s.solver.BVV(0x4242424242424242, 64))
+        s.memory.store(0, claripy.BVV(0x4141414141414141, 64))
+        length = claripy.BVS("length", 32)
+        # s.memory.store(0, claripy.BVV(0x4242424242424242, 64), symbolic_length=length)
+        s.memory.store(0, claripy.BVV(0x4242424242424242, 64))
 
         for i in range(8):
             ss = s.copy()
@@ -140,9 +143,9 @@ class TestSymbolic(unittest.TestCase):
 
     def test_unsat_core(self):
         s = angr.SimState(arch="AMD64", mode="symbolic", add_options={angr.options.CONSTRAINT_TRACKING_IN_SOLVER})
-        x = s.solver.BVS("x", 32)
-        s.add_constraints(s.solver.BVV(0, 32) == x)
-        s.add_constraints(s.solver.BVV(1, 32) == x)
+        x = claripy.BVS("x", 32)
+        s.add_constraints(claripy.BVV(0, 32) == x)
+        s.add_constraints(claripy.BVV(1, 32) == x)
 
         assert not s.satisfiable()
         unsat_core = s.solver.unsat_core()

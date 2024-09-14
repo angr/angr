@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use,arguments-differ,unused-argument
+from __future__ import annotations
+
 __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 
 import os
@@ -16,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 class TestSymbolHookedBy(unittest.TestCase):
     def test_hook_symbol(self):
         """
-        Test the hook_symbol (and related functions) useing the inet_ntoa simprocedure for functionality
+        Test the hook_symbol (and related functions) using the inet_ntoa simprocedure for functionality
         """
         bin_path = os.path.join(test_location, "x86_64", "inet_ntoa")
         proj = angr.Project(bin_path, auto_load_libs=False, use_sim_procedures=True)

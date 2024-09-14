@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import SootAddressDescriptor, SootAddressTerminator, SootClassDescriptor
@@ -83,7 +84,7 @@ class SimJavaVmClassloader(SimStatePlugin):
         self.initialized_classes.add(class_)
 
         if not class_.is_loaded:
-            l.warning("Class %r is not loaded in CLE. Skip initializiation.", class_)
+            l.warning("Class %r is not loaded in CLE. Skip initialization.", class_)
             return
 
         clinit_method = resolve_method(
@@ -106,7 +107,7 @@ class SimJavaVmClassloader(SimStatePlugin):
             self.state.memory.vm_static_table = simgr.deadended[-1].memory.vm_static_table.copy()
             self.state.memory.heap = simgr.deadended[-1].memory.heap.copy()
         else:
-            l.debug("Class initializer <clinit> is not loaded in CLE. Skip initializiation.")
+            l.debug("Class initializer <clinit> is not loaded in CLE. Skip initialization.")
 
     @property
     def initialized_classes(self):

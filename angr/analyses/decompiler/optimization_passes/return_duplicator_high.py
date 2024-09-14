@@ -1,9 +1,11 @@
+from __future__ import annotations
 import logging
 
 import networkx
 
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+from ..structuring import SAILRStructurer, DreamStructurer
 
 _l = logging.getLogger(name=__name__)
 
@@ -19,6 +21,7 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Duplicate return-only blocks (high)"
     DESCRIPTION = __doc__
+    STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
 
     def __init__(
         self,

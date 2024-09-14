@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
 
@@ -21,7 +22,7 @@ class BaseGoal:
         self.sort = sort
 
     def __repr__(self):
-        return "<TargetCondition %s>" % self.sort
+        return f"<TargetCondition {self.sort}>"
 
     #
     # Public methods
@@ -38,7 +39,7 @@ class BaseGoal:
         :rtype: bool
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def check_state(self, state):
         """
@@ -49,7 +50,7 @@ class BaseGoal:
         :rtype: bool
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     #
     # Private methods
@@ -121,7 +122,7 @@ class ExecuteAddressGoal(BaseGoal):
         self.addr = addr
 
     def __repr__(self):
-        return "<ExecuteAddressCondition targeting %#x>" % self.addr
+        return f"<ExecuteAddressCondition targeting {self.addr:#x}>"
 
     def check(self, cfg, state, peek_blocks):
         """
@@ -200,7 +201,7 @@ class CallFunctionGoal(BaseGoal):
         # TODO: allow user to provide an optional argument processor to process arguments
 
     def __repr__(self):
-        return "<FunctionCallCondition over %s>" % self.function
+        return f"<FunctionCallCondition over {self.function}>"
 
     def check(self, cfg, state, peek_blocks):
         """
@@ -232,15 +233,14 @@ class CallFunctionGoal(BaseGoal):
                     # we do not care about arguments
                     return True
 
-                else:
-                    # check arguments
-                    arch = state.arch
-                    state = the_node.input_state
-                    same_arguments = self._check_arguments(arch, state)
+                # check arguments
+                arch = state.arch
+                state = the_node.input_state
+                same_arguments = self._check_arguments(arch, state)
 
-                    if same_arguments:
-                        # all arguments are the same!
-                        return True
+                if same_arguments:
+                    # all arguments are the same!
+                    return True
 
         l.debug("SimState %s will not reach function %s.", state, self.function)
         return False
@@ -272,7 +272,7 @@ class CallFunctionGoal(BaseGoal):
         cc = default_cc(arch.name, platform=state.project.simos.name if state.project.simos is not None else None)(arch)
         real_args = cc.get_args(state, cc.guess_prototype([0] * len(self.arguments)))
 
-        for i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):
+        for _i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):
             if expected_arg is None:
                 continue
 
@@ -309,8 +309,7 @@ class CallFunctionGoal(BaseGoal):
                 ptr = real_value
                 return CallFunctionGoal._compare_pointer_content(state, ptr, expected_value)
 
-            else:
-                l.error("Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.", arg_type)
+            l.error("Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.", arg_type)
 
         elif isinstance(arg_type, SimTypeString):
             # resolve the pointer and compare the content
@@ -330,7 +329,7 @@ class CallFunctionGoal(BaseGoal):
     def _compare_pointer_content(state, ptr, expected):
         if isinstance(expected, str):
             # convert it to an AST
-            expected = state.solver.BVV(expected)
+            expected = claripy.BVV(expected)
         length = expected.size() // 8
         real_string = state.memory.load(ptr, length, endness="Iend_BE")
 
@@ -487,9 +486,8 @@ class Director(ExplorationTechnique):
 
         for goal in self._goals:
             for p in simgr.active:
-                if self._check_goals(goal, p):
-                    if self._goal_satisfied_callback is not None:
-                        self._goal_satisfied_callback(goal, p, simgr)
+                if self._check_goals(goal, p) and self._goal_satisfied_callback is not None:
+                    self._goal_satisfied_callback(goal, p, simgr)
 
         simgr.stash(
             filter_func=lambda p: all(

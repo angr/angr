@@ -1,5 +1,9 @@
-import angr
+from __future__ import annotations
 import select
+
+import claripy
+
+import angr
 
 
 class poll(angr.SimProcedure):
@@ -22,7 +26,7 @@ class poll(angr.SimProcedure):
         offset_revents = 6
 
         pollfd_array = []
-        for offset in range(0, nfds_v):
+        for offset in range(nfds_v):
             pollfd = {
                 "fd": self.state.memory.load(
                     fds + offset * size_of_pollfd + offset_fd, 4, endness=self.arch.memory_endness
@@ -43,12 +47,9 @@ class poll(angr.SimProcedure):
                 raise angr.errors.SimProcedureArgumentError("Can't handle symbolic pollfd arguments") from e
 
             if events & select.POLLIN and fd >= 0:
-                revents = pollfd["revents"][self.arch.sizeof["short"] - 1 : 1].concat(
-                    self.state.solver.BVS("fd_POLLIN", 1)
-                )
+                revents = pollfd["revents"][self.arch.sizeof["short"] - 1 : 1].concat(claripy.BVS("fd_POLLIN", 1))
                 self.state.memory.store(
                     fds + offset * size_of_pollfd + offset_revents, revents, endness=self.arch.memory_endness
                 )
 
-        retval = self.state.solver.BVV(0, 1).concat(self.state.solver.BVS("poll_ret", self.state.arch.bits - 1))
-        return retval
+        return claripy.BVV(0, 1).concat(claripy.BVS("poll_ret", self.state.arch.bits - 1))

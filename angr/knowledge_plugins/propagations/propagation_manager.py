@@ -1,5 +1,4 @@
-from typing import Dict, Tuple
-
+from __future__ import annotations
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .propagation_model import PropagationModel
 
@@ -11,9 +10,9 @@ class PropagationManager(KnowledgeBasePlugin):
 
     def __init__(self, kb):
         super().__init__(kb=kb)
-        self._propagations: Dict[Tuple, PropagationModel] = {}
+        self._propagations: dict[tuple, PropagationModel] = {}
 
-    def exists(self, prop_key: Tuple) -> bool:
+    def exists(self, prop_key: tuple) -> bool:
         """
         Internal function to check if a func, specified as a CodeLocation
         exists in our known propagations
@@ -23,7 +22,7 @@ class PropagationManager(KnowledgeBasePlugin):
         """
         return prop_key in self._propagations
 
-    def update(self, prop_key: Tuple, model: PropagationModel) -> None:
+    def update(self, prop_key: tuple, model: PropagationModel) -> None:
         """
         Add the replacements to known propagations
 
@@ -44,8 +43,7 @@ class PropagationManager(KnowledgeBasePlugin):
         """
         if prop_key in self._propagations:
             return self._propagations[prop_key]
-        else:
-            return default
+        return default
 
     def copy(self):
         o = PropagationManager(self._kb)

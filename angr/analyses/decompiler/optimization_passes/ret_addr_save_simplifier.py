@@ -1,4 +1,5 @@
-from typing import Tuple, Optional, List, Any
+from __future__ import annotations
+from typing import Any
 import logging
 
 import ailment
@@ -87,7 +88,7 @@ class RetAddrSaveSimplifier(OptimizationPass):
                 block_copy.statements.pop(stmt_idx)
                 self._update_block(block, block_copy)
 
-    def _find_retaddr_save_stmt(self) -> Optional[Tuple[Any, int, ailment.Expr.StackBaseOffset]]:
+    def _find_retaddr_save_stmt(self) -> tuple[Any, int, ailment.Expr.StackBaseOffset] | None:
         """
         Find the AIL statement that saves the return address to a stack slot.
 
@@ -126,7 +127,7 @@ class RetAddrSaveSimplifier(OptimizationPass):
         # Not found
         return None
 
-    def _find_retaddr_restore_stmt(self) -> Optional[List[Tuple[Any, int, ailment.Expr.StackBaseOffset]]]:
+    def _find_retaddr_restore_stmt(self) -> list[tuple[Any, int, ailment.Expr.StackBaseOffset]] | None:
         """
         Find the AIL statement that restores the return address from a stack slot.
 
@@ -162,11 +163,9 @@ class RetAddrSaveSimplifier(OptimizationPass):
                     if endpoint.addr not in callouts_and_jumpouts:
                         _l.debug("Could not find retaddr restoring statement in function %#x.", endpoint.addr)
                         return None
-                    else:
-                        _l.debug(
-                            "No retaddr restoring statement is found at callout/jumpout site %#x. "
-                            "Might be expected.",
-                            endpoint.addr,
-                        )
+                    _l.debug(
+                        "No retaddr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                        endpoint.addr,
+                    )
 
         return retaddr_restore_stmts

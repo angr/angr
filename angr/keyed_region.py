@@ -1,6 +1,7 @@
+from __future__ import annotations
 import logging
 import weakref
-from typing import Union, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
@@ -17,7 +18,7 @@ class StoredObject:
     def __init__(self, start, obj, size):
         self.start = start
         self.obj = obj
-        self.size: Union["UnknownSize", int] = size
+        self.size: UnknownSize | int = size
 
     def __eq__(self, other):
         assert type(other) is StoredObject
@@ -28,7 +29,7 @@ class StoredObject:
         return hash((self.start, self.size, self.obj))
 
     def __repr__(self):
-        return f"<SO {repr(self.obj)}@{self.start:#x}, {self.size} bytes>"
+        return f"<SO {self.obj!r}@{self.start:#x}, {self.size} bytes>"
 
     @property
     def obj_id(self):
@@ -101,8 +102,7 @@ class RegionObject:
         self.add_object(obj)
 
     def copy(self):
-        ro = RegionObject(self.start, self.size, objects=self.stored_objects.copy())
-        return ro
+        return RegionObject(self.start, self.size, objects=self.stored_objects.copy())
 
 
 class KeyedRegion:
@@ -133,7 +133,7 @@ class KeyedRegion:
         self._storage, om, self._phi_node_contains = s
         self._object_mapping = weakref.WeakValueDictionary(om)
 
-    def _get_container(self, offset) -> Tuple[int, Optional[RegionObject]]:
+    def _get_container(self, offset) -> tuple[int, RegionObject | None]:
         try:
             base_offset = next(self._storage.irange(maximum=offset, reverse=True))
         except StopIteration:
@@ -167,11 +167,7 @@ class KeyedRegion:
         if set(self._storage.keys()) != set(other._storage.keys()):
             return False
 
-        for k, v in self._storage.items():
-            if v != other._storage[k]:
-                return False
-
-        return True
+        return all(v == other._storage[k] for k, v in self._storage.items())
 
     def copy(self):
         if not self._storage:
@@ -327,8 +323,7 @@ class KeyedRegion:
         base_addr, container = self._get_container(addr)
         if container is None:
             return None
-        else:
-            return base_addr
+        return base_addr
 
     def get_variables_by_offset(self, start):
         """
@@ -342,8 +337,7 @@ class KeyedRegion:
         _, container = self._get_container(start)
         if container is None:
             return set()
-        else:
-            return container.internal_objects
+        return container.internal_objects
 
     def get_objects_by_offset(self, start):
         """
@@ -356,8 +350,7 @@ class KeyedRegion:
         _, container = self._get_container(start)
         if container is None:
             return set()
-        else:
-            return container.internal_objects
+        return container.internal_objects
 
     def get_all_variables(self):
         """
@@ -375,7 +368,7 @@ class KeyedRegion:
     # Private methods
     #
 
-    def _canonicalize_size(self, size: Union[int, "UnknownSize"]) -> int:
+    def _canonicalize_size(self, size: int | UnknownSize) -> int:
         # delayed import
         from .knowledge_plugins.key_definitions.unknown_size import (
             UnknownSize,

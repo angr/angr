@@ -2,18 +2,15 @@
 """
 All type constants used in type inference. They can be mapped, translated, or rewritten to C-style types.
 """
+from __future__ import annotations
 
-from typing import List, Optional, Set
 import functools
 
 
 def memoize(f):
     @functools.wraps(f)
     def wrapped_repr(self, *args, **kwargs):
-        if not kwargs or "memo" not in kwargs:
-            memo = set()
-        else:
-            memo = kwargs.pop("memo")
+        memo = set() if not kwargs or "memo" not in kwargs else kwargs.pop("memo")
         if self in memo:
             return "..."
         memo.add(self)
@@ -30,7 +27,7 @@ class TypeConstant:
     def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument
         return repr(self)
 
-    def _hash(self, visited: Set[int]):  # pylint:disable=unused-argument
+    def _hash(self, visited: set[int]):  # pylint:disable=unused-argument
         return hash(type(self))
 
     def __eq__(self, other):
@@ -42,11 +39,11 @@ class TypeConstant:
     @property
     def size(self) -> int:
         if self.SIZE is None:
-            raise NotImplementedError()
+            raise NotImplementedError
         return self.SIZE
 
     def __repr__(self, memo=None):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class TopType(TypeConstant):
@@ -123,13 +120,13 @@ class Double(FloatBase):
 
 
 class Pointer(TypeConstant):
-    def __init__(self, basetype: Optional[TypeConstant]):
-        self.basetype: Optional[TypeConstant] = basetype
+    def __init__(self, basetype: TypeConstant | None):
+        self.basetype: TypeConstant | None = basetype
 
     def __eq__(self, other):
         return type(self) is type(other) and self.basetype == other.basetype
 
-    def _hash(self, visited: Set[int]):
+    def _hash(self, visited: set[int]):
         if self.basetype is None:
             return hash(type(self))
         return hash((type(self), self.basetype._hash(visited)))
@@ -171,20 +168,19 @@ class Pointer64(Pointer, Int64):
 
 class Array(TypeConstant):
     def __init__(self, element=None, count=None):
-        self.element: Optional[TypeConstant] = element
-        self.count: Optional[int] = count
+        self.element: TypeConstant | None = element
+        self.count: int | None = count
 
     @memoize
     def __repr__(self, memo=None):
         if self.count is None:
-            return "%r[?]" % self.element
-        else:
-            return "%r[%d]" % (self.element, self.count)
+            return f"{self.element!r}[?]"
+        return "%r[%d]" % (self.element, self.count)
 
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count
 
-    def _hash(self, visited: Set[int]):
+    def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
         visited.add(id(self))
@@ -200,13 +196,13 @@ class Struct(TypeConstant):
         self.name = name
         self.field_names = field_names
 
-    def _hash(self, visited: Set[int]):
+    def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
         visited.add(id(self))
         return hash((type(self), self._hash_fields(visited)))
 
-    def _hash_fields(self, visited: Set[int]):
+    def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
         tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
@@ -226,7 +222,7 @@ class Struct(TypeConstant):
 
 
 class Function(TypeConstant):
-    def __init__(self, params: List, outputs: List):
+    def __init__(self, params: list, outputs: list):
         self.params = params
         self.outputs = outputs
 
@@ -241,7 +237,7 @@ class Function(TypeConstant):
             return False
         return self.params == other.params and self.outputs == other.outputs
 
-    def _hash(self, visited: Set[int]):
+    def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
         visited.add(id(self))
@@ -259,7 +255,7 @@ class TypeVariableReference(TypeConstant):
         self.typevar = typevar
 
     def __repr__(self, memo=None):
-        return "ref(%s)" % self.typevar
+        return f"ref({self.typevar})"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.typevar == other.typevar
@@ -273,7 +269,7 @@ class TypeVariableReference(TypeConstant):
 #
 
 
-def int_type(bits: int) -> Optional[Int]:
+def int_type(bits: int) -> Int | None:
     mapping = {
         1: Int1,
         8: Int8,
@@ -287,9 +283,9 @@ def int_type(bits: int) -> Optional[Int]:
     return None
 
 
-def float_type(bits: int) -> Optional[FloatBase]:
+def float_type(bits: int) -> FloatBase | None:
     if bits == 32:
         return Float()
-    elif bits == 64:
+    if bits == 64:
         return Double()
     return None

@@ -1,4 +1,5 @@
 # pylint:disable=unused-import
+from __future__ import annotations
 from ..models import DbCFGModel
 from ...knowledge_plugins.cfg.cfg_model import CFGModel
 
@@ -37,5 +38,4 @@ class CFGModelSerializer:
         if db_cfg is None:
             return None
 
-        cfg_model = CFGModel.parse(db_cfg.blob, cfg_manager=cfg_manager, loader=loader)
-        return cfg_model
+        return CFGModel.parse(db_cfg.blob, cfg_manager=cfg_manager, loader=loader)

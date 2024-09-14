@@ -1,6 +1,8 @@
 # pylint:disable=arguments-differ
+from __future__ import annotations
 import logging
-from typing import List, Set, Optional, Tuple, Union, Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 from sortedcontainers import SortedDict
 
@@ -83,30 +85,50 @@ class UltraPage(MemoryObjectMixin, PageBase):
             self.symbolic_data[global_start_addr - page_addr] = new_item
             result[-1] = (global_start_addr, new_item)
 
-        for subaddr in range(addr, addr + size):
+        subaddr = addr
+        end = addr + size
+        while subaddr < end:
             realaddr = subaddr + page_addr
             if self.symbolic_bitmap[subaddr]:
                 cur_val = self._get_object(subaddr, page_addr, memory=memory)
-                if cur_val is last_run and last_run is symbolic_run:
-                    pass
+                # it must be a different object
+                cycle(realaddr)
+                next_addr = subaddr + 1
+
+                # figure out how long the current object is (limit end of page)
+                if cur_val is None:
+                    obj_end = end
                 else:
-                    cycle(realaddr)
-                    last_run = symbolic_run = cur_val
-                    result.append((realaddr, cur_val))
+                    obj_end = subaddr + cur_val.length
+                    obj_end = min(end, obj_end)
+
+                # determine how many bytes come from this object
+                # loop until: end of object or not symbolic or until next object
+                next_place = None
+                while next_addr < obj_end and self.symbolic_bitmap[next_addr]:
+                    if next_addr == subaddr + 1:  # first loop
+                        next_place = self._get_next_place(next_addr)
+                    if next_place is not None and next_place <= next_addr:
+                        break
+                    next_addr += 1
+
+                subaddr = next_addr
+                last_run = symbolic_run = cur_val
+                result.append((realaddr, cur_val))
+
             else:
-                cur_val = self.concrete_data[subaddr]
-                if last_run is concrete_run:
-                    if endness == "Iend_LE":
-                        last_run = concrete_run = concrete_run | (
-                            cur_val << (memory.state.arch.byte_width * (realaddr - result[-1][0]))
-                        )
-                    else:
-                        last_run = concrete_run = (concrete_run << memory.state.arch.byte_width) | cur_val
-                    result[-1] = (result[-1][0], concrete_run)
+                max_concrete_read = subaddr
+                while max_concrete_read < end and not self.symbolic_bitmap[max_concrete_read]:
+                    max_concrete_read += 1
+                cur_val = self.concrete_data[subaddr:max_concrete_read]
+                subaddr = max_concrete_read
+                # we know the last run was not a concrete one
+                cycle(realaddr)
+                if endness == "Iend_LE":
+                    last_run = concrete_run = cur_val[::-1]
                 else:
-                    cycle(realaddr)
                     last_run = concrete_run = cur_val
-                    result.append((realaddr, cur_val))
+                result.append((realaddr, cur_val))
 
         cycle(page_addr + addr + size)
         if not cooperate:
@@ -116,8 +138,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def store(
         self,
         addr,
-        data: Union[int, SimMemoryObject],
-        size: int = None,
+        data: int | SimMemoryObject,
+        size: int | None = None,
         endness=None,
         memory=None,
         page_addr=None,  # pylint: disable=arguments-differ
@@ -133,29 +155,27 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 addr, data, size, endness, page_addr=page_addr, memory=memory, **kwargs
             )
 
-        if size >= memory.page_size - addr:
-            size = memory.page_size - addr
+        size = min(size, memory.page_size - addr)
 
         byte_width = memory.state.arch.byte_width
 
-        if type(data) is not int:
-            if data.object.op == "BVV" and not data.object.annotations:
-                # trim the unnecessary leading bytes if there are any
-                full_bits = len(data.object)
-                start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
-                if start >= data.base + data.length:
-                    raise SimMemoryError("Not enough bytes to store.")
-                start_bits = full_bits - start * byte_width - 1
-                # trim the overflowing bytes if there are any
-                end_bits = start_bits + 1 - size * byte_width
-                if start_bits != full_bits - 1 or end_bits != 0:
-                    if endness == "Iend_LE":
-                        start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
+        if type(data) is not int and data.object.op == "BVV" and not data.object.annotations:
+            # trim the unnecessary leading bytes if there are any
+            full_bits = len(data.object)
+            start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
+            if start >= data.base + data.length:
+                raise SimMemoryError("Not enough bytes to store.")
+            start_bits = full_bits - start * byte_width - 1
+            # trim the overflowing bytes if there are any
+            end_bits = start_bits + 1 - size * byte_width
+            if start_bits != full_bits - 1 or end_bits != 0:
+                if endness == "Iend_LE":
+                    start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
 
-                    concrete_data: bytes = data.concrete_bytes(
-                        (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits + 1) // byte_width
-                    )
-                    data = int.from_bytes(concrete_data, "big")
+                concrete_data: bytes = data.concrete_bytes(
+                    (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits + 1) // byte_width
+                )
+                data = int.from_bytes(concrete_data, "big")
 
         if type(data) is int or (data.object.op == "BVV" and not data.object.annotations):
             # mark range as not symbolic
@@ -163,10 +183,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             # store
             arange = range(addr, addr + size)
-            if type(data) is int:
-                ival = data
-            else:  # data.object.op == 'BVV'
-                ival = data.object.args[0]
+            ival = data if type(data) is int else data.object.args[0]
             if endness == "Iend_BE":
                 arange = reversed(arange)
 
@@ -197,14 +214,14 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def merge(
         self,
-        others: List["UltraPage"],
+        others: list[UltraPage],
         merge_conditions,
         common_ancestor=None,
-        page_addr: int = None,  # pylint: disable=arguments-differ
+        page_addr: int | None = None,  # pylint: disable=arguments-differ
         memory=None,
-        changed_offsets: Optional[Set[int]] = None,
+        changed_offsets: set[int] | None = None,
     ):
-        all_pages = [self] + others
+        all_pages = [self, *others]
         merged_to = None
         merged_objects = set()
         merged_offsets = set()
@@ -220,10 +237,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects: List[Tuple[SimMemoryObject, Any]] = []
-            concretes: List[Tuple[int, Any]] = []
-            unconstrained_in: List[Tuple["UltraPage", Any]] = []
-            our_mo: Optional[SimMemoryObject] = None
+            memory_objects: list[tuple[SimMemoryObject, Any]] = []
+            concretes: list[tuple[int, Any]] = []
+            unconstrained_in: list[tuple[UltraPage, Any]] = []
+            our_mo: SimMemoryObject | None = None
 
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
@@ -265,7 +282,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
-                merged_to = b + list(mo_lengths)[0]
+                merged_to = b + next(iter(mo_lengths))
 
                 merged_val = self._merge_values(to_merge, memory_objects[0][0].length, memory=memory)
                 if merged_val is None:
@@ -275,7 +292,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     # this object does not exist in the current page. do the store
                     new_object = SimMemoryObject(merged_val, page_addr + b, memory_objects[0][0].endness)
                     self.store(
-                        b, new_object, size=list(mo_lengths)[0], cooperate=True, page_addr=page_addr, memory=memory
+                        b, new_object, size=next(iter(mo_lengths)), cooperate=True, page_addr=page_addr, memory=memory
                     )
                     merged_objects.add(new_object)
                 else:
@@ -291,7 +308,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 # the size of all memory objects and unallocated spaces.
                 min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
                 for um, _ in unconstrained_in:
-                    for i in range(0, min_size):
+                    for i in range(min_size):
                         if um._contains(b + i, page_addr):
                             min_size = i
                             break
@@ -332,15 +349,14 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 memoryview(self.concrete_data)[addr : addr + size],
                 memoryview(self.symbolic_bitmap)[addr : addr + size],
             )
-        else:
-            return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
+        return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
 
-    def changed_bytes(self, other, page_addr=None) -> Set[int]:
+    def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
         if changed_candidates is None:
             changed_candidates = range(len(self.symbolic_bitmap))
 
-        changes: Set[int] = set()
+        changes: set[int] = set()
 
         for addr in changed_candidates:
             if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
@@ -391,27 +407,35 @@ class UltraPage(MemoryObjectMixin, PageBase):
         if not self.symbolic_bitmap[start]:
             # concrete data
             return True
-        else:
-            # symbolic data or does not exist
-            return self._get_object(start, page_addr) is not None
+        # symbolic data or does not exist
+        return self._get_object(start, page_addr) is not None
 
-    def _get_object(self, start: int, page_addr: int, memory=None) -> Optional[SimMemoryObject]:
+    def _get_object(self, start: int, page_addr: int, memory=None) -> SimMemoryObject | None:
         try:
             place = next(self.symbolic_data.irange(maximum=start, reverse=True))
         except StopIteration:
             return None
         else:
             obj = self.symbolic_data[place]
-            if obj.includes(start + page_addr):
+            if (
+                obj.includes(start + page_addr)
+                or memory is not None
+                and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
+            ):
                 return obj
-            elif memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits)):
-                return obj
-            else:
-                return None
+            return None
+
+    def _get_next_place(self, start):
+        try:
+            place = next(self.symbolic_data.irange(minimum=start, reverse=False))
+        except StopIteration:
+            return None
+        else:
+            return place
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
         memory_objects = set()
-        for offset in sorted(list(offsets)):
+        for offset in sorted(offsets):
             try:
                 a = next(self.symbolic_data.irange(maximum=offset, reverse=True))
             except StopIteration:

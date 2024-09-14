@@ -1,4 +1,5 @@
-from typing import List, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
@@ -26,27 +27,26 @@ class DebugVariableContainer:
         """
         self.less_visible_vars = []
 
-    def _insertvar(self, var: "DebugVariable"):
+    def _insertvar(self, var: DebugVariable):
         for i, v in enumerate(self.less_visible_vars):
             if var.test_unsupported_overlap(v):
                 if var.cle_variable.declaration_only:
                     # ignore var
                     return
-                elif v.cle_variable.declaration_only:
+                if v.cle_variable.declaration_only:
                     # ignore v
                     self.less_visible_vars[i] = var
                     var.less_visible_vars = v.less_visible_vars
                     return
-                else:
-                    l.warning(
-                        'Unsupported variable with overlapping scopes. Have "%s" with %d-%d and ignore %d-%d.',
-                        v.cle_variable.name,
-                        v.low_pc,
-                        v.high_pc,
-                        var.low_pc,
-                        var.high_pc,
-                    )
-                    return
+                l.warning(
+                    'Unsupported variable with overlapping scopes. Have "%s" with %d-%d and ignore %d-%d.',
+                    v.cle_variable.name,
+                    v.low_pc,
+                    v.high_pc,
+                    var.low_pc,
+                    var.high_pc,
+                )
+                return
             if var.contains(v):
                 self.less_visible_vars[i] = var
                 var.less_visible_vars.append(v)
@@ -102,10 +102,10 @@ class DebugVariable(DebugVariableContainer):
                 return var.from_pc(pc)
         return self.cle_variable
 
-    def contains(self, dvar: "DebugVariable") -> bool:
+    def contains(self, dvar: DebugVariable) -> bool:
         return self.low_pc <= dvar.low_pc and dvar.high_pc <= self.high_pc
 
-    def test_unsupported_overlap(self, dvar: "DebugVariable") -> bool:
+    def test_unsupported_overlap(self, dvar: DebugVariable) -> bool:
         """
         Test for an unsupported overlapping
 
@@ -120,9 +120,7 @@ class DebugVariable(DebugVariableContainer):
             return True
         if l2 < l1 < h2 < h1:
             return True
-        if l1 < l2 < h1 < h2:
-            return True
-        return False
+        return l1 < l2 < h1 < h2
 
 
 class DebugVariableManager(KnowledgeBasePlugin):
@@ -130,7 +128,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
     Structure to manage and access variables with different visibility scopes.
     """
 
-    def __init__(self, kb: "KnowledgeBase"):
+    def __init__(self, kb: KnowledgeBase):
         super().__init__(kb=kb)
         self._dvar_containers = {}
 
@@ -174,11 +172,11 @@ class DebugVariableManager(KnowledgeBasePlugin):
         return self.add_variable(cle_var, index.start, index.stop)
 
     # Methods similar to the once in VariableManager
-    def add_variable_list(self, vlist: List[Variable], low_pc: int, high_pc: int):
+    def add_variable_list(self, vlist: list[Variable], low_pc: int, high_pc: int):
         """
         Add all variables in a list with the same visibility range
 
-        :param vlist:       A list of cle varibles to add
+        :param vlist:       A list of cle variables to add
         :param low_pc:      Start of the visibility scope as program counter address (rebased)
         :param high_pc:     End of the visibility scope as program counter address (rebased)
         """
@@ -192,10 +190,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
         :param elf_object:  Optional, when only one elf object should be considered (e.g. p.loader.main_object)
         :param cu:          Optional, when only one compilation unit should be considered
         """
-        if elf_object:
-            objs = [elf_object]
-        else:
-            objs = self._kb._project.loader.all_elf_objects
+        objs = [elf_object] if elf_object else self._kb._project.loader.all_elf_objects
         for obj in objs:
             if cu:
                 if obj not in obj.compilation_units:

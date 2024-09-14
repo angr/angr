@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import itertools
 
@@ -142,9 +143,7 @@ class receive_until_fd(Func):
             self.version += "_allow_too_long_null_overflow"
         if error_too_long:
             self.version += "_error_too_long"
-        if self.version == "":
-            return False
-        return True
+        return self.version != ""
 
     def run_test(self, func, runner, test):
         # reorder args
@@ -299,9 +298,7 @@ class receive_until(Func):
             self.version += "_error_too_long"
         if not self.has_return:
             self.version += "_no_return"
-        if self.version == "":
-            return False
-        return True
+        return self.version != ""
 
     def run_test(self, func, runner, test):
         # reorder args

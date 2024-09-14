@@ -145,7 +145,7 @@ and many more !
 CFGFast details
 ---------------
 
-CFGFast peforms a static control-flow and function recovery. Starting with the
+CFGFast performs a static control-flow and function recovery. Starting with the
 entry point (or any user-defined points) roughly the following procedure is
 performed:
 

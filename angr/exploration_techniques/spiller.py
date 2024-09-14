@@ -1,4 +1,7 @@
 # pylint:disable=no-member,import-outside-toplevel
+from __future__ import annotations
+
+import contextlib
 import logging
 
 from . import ExplorationTechnique
@@ -17,7 +20,7 @@ class PickledStatesBase:
         Sort pickled states.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def add(self, prio, sid):
         """
@@ -27,7 +30,7 @@ class PickledStatesBase:
         :param str sid:     Persistent ID of the state.
         :return:            None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def pop_n(self, n):
         """
@@ -36,7 +39,7 @@ class PickledStatesBase:
         :param int n:   Number of states to take.
         :return:        A list of states.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class PickledStatesList(PickledStatesBase):
@@ -75,12 +78,9 @@ class PickledStatesDb(PickledStatesBase):
         # ORM declarations
         engine = create_engine(db_str)
 
-        # create table
-        try:
+        # create table (unless it already exists)
+        with contextlib.suppress(OperationalError):
             Base.metadata.create_all(engine, checkfirst=True)
-        except OperationalError:
-            # table already exists
-            pass
 
         self.Session = sessionmaker(bind=engine)
 

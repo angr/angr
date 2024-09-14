@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Any, Optional, List, Set, Tuple
+from typing import Any
 from collections import defaultdict
 
 import networkx
@@ -37,10 +38,10 @@ class GraphRegion:
         self,
         head,
         graph,
-        successors: Optional[Set],
-        graph_with_successors: Optional[networkx.DiGraph],
+        successors: set | None,
+        graph_with_successors: networkx.DiGraph | None,
         cyclic,
-        full_graph: Optional[networkx.DiGraph],
+        full_graph: networkx.DiGraph | None,
         cyclic_ancestor: bool = False,
     ):
         self.head = head
@@ -61,11 +62,11 @@ class GraphRegion:
         self._replaced_regions = {}
 
     def __repr__(self):
-        addrs: List[int] = []
+        addrs: list[int] = []
         s = ""
         if self.graph is None:
             # only head is available
-            return "<GraphRegion %r>" % self.head
+            return f"<GraphRegion {self.head!r}>"
 
         for node in self.graph.nodes():
             if hasattr(node, "addr"):
@@ -75,7 +76,7 @@ class GraphRegion:
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
-    def copy(self) -> "GraphRegion":
+    def copy(self) -> GraphRegion:
         return GraphRegion(
             self.head,
             networkx.DiGraph(self.graph) if self.graph is not None else None,
@@ -106,10 +107,7 @@ class GraphRegion:
             new_graph_with_successors = None
             successors = None
 
-        if self.full_graph is not None:
-            new_full_graph = self._recursive_copy(self.full_graph, nodes_map)
-        else:
-            new_full_graph = None
+        new_full_graph = self._recursive_copy(self.full_graph, nodes_map) if self.full_graph is not None else None
 
         return GraphRegion(
             nodes_map[self.head],
@@ -159,12 +157,7 @@ class GraphRegion:
 
     @staticmethod
     def dbg_get_repr(obj, ident=0):
-        if type(obj) is GraphRegion:
-            s = obj.dbg_print(ident=ident)
-        else:
-            s = " " * ident + str(obj)
-
-        return s
+        return obj.dbg_print(ident=ident) if type(obj) is GraphRegion else " " * ident + str(obj)
 
     def dbg_print(self, ident=0):
         s = self.dbg_get_repr(self.head, ident=ident) + "\n"
@@ -194,14 +187,14 @@ class GraphRegion:
 
     def replace_region(
         self,
-        sub_region: "GraphRegion",
-        updated_sub_region: "GraphRegion",
+        sub_region: GraphRegion,
+        updated_sub_region: GraphRegion,
         replace_with,
-        virtualized_edges: Set[Tuple[Any, Any]],
+        virtualized_edges: set[tuple[Any, Any]],
     ):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
-            raise Exception()
+            raise Exception
 
         if sub_region is self.head:
             self.head = replace_with
@@ -242,18 +235,17 @@ class GraphRegion:
                     if succ not in updated_sub_region.successors:
                         # find the corresponding node in graph_with_successors
                         real_succ = next(iter(nn for nn in real_succs if nn.addr == succ.addr), None)
-                        if real_succ is not None:
-                            if real_succ not in self.graph:
-                                self.graph_with_successors.remove_edge(sub_region, real_succ)
+                        if real_succ is not None and real_succ not in self.graph:
+                            self.graph_with_successors.remove_edge(sub_region, real_succ)
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with, edges_to_remove)
 
         self._node_to_replaced_regions[replace_with] = sub_region
         self._replaced_regions[sub_region] = replace_with
 
-    def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
+    def replace_region_with_region(self, sub_region: GraphRegion, replace_with: GraphRegion):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
-            raise Exception()
+            raise Exception
 
         if sub_region is self.head:
             self.head = replace_with.head
@@ -262,13 +254,12 @@ class GraphRegion:
         # successor in self.successors is a graph region (with the AIL block as its head). we handle this case here by
         # creating a new graph_with_successors for the replace_with region
         successor_map = {}
-        if self.successors:
-            if any(succ not in self.successors for succ in replace_with.successors):
-                for succ in replace_with.successors:
-                    if succ not in self.successors:
-                        for succ_ in self.successors:
-                            if isinstance(succ_, GraphRegion) and succ_.head == succ:
-                                successor_map[succ] = succ_
+        if self.successors and any(succ not in self.successors for succ in replace_with.successors):
+            for succ in replace_with.successors:
+                if succ not in self.successors:
+                    for succ_ in self.successors:
+                        if isinstance(succ_, GraphRegion) and succ_.addr == succ.addr:
+                            successor_map[succ] = succ_
         if successor_map:
             replace_with_graph_with_successors = networkx.DiGraph()
             for nn in replace_with.graph_with_successors:
@@ -299,7 +290,7 @@ class GraphRegion:
             )
 
     @staticmethod
-    def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with, removed_edges: Set):
+    def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with, removed_edges: set):
         in_edges = [(src, dst) for src, dst in graph.in_edges(node) if (src, dst) not in removed_edges]
         out_edges = [(src, dst) for src, dst in graph.out_edges(node) if (src, dst) not in removed_edges]
 
@@ -323,8 +314,8 @@ class GraphRegion:
     def _replace_node_in_graph_with_subgraph(
         self,
         graph: networkx.DiGraph,
-        known_successors: Optional[List],
-        reference_full_graph: Optional[networkx.DiGraph],
+        known_successors: list | None,
+        reference_full_graph: networkx.DiGraph | None,
         node,
         sub_graph: networkx.DiGraph,
         sub_graph_head,
@@ -351,10 +342,7 @@ class GraphRegion:
             if known_successors is not None and dst in known_successors:
                 continue
 
-            if dst in self._node_to_replaced_regions:
-                dst_in_subgraph = self._node_to_replaced_regions[dst]
-            else:
-                dst_in_subgraph = dst
+            dst_in_subgraph = self._node_to_replaced_regions.get(dst, dst)
 
             # find the correct source
             if isinstance(dst_in_subgraph, GraphRegion) and dst_in_subgraph not in sub_graph:
@@ -363,6 +351,16 @@ class GraphRegion:
                 dst_head = dst_in_subgraph
                 while isinstance(dst_head, GraphRegion) and dst_head not in sub_graph:
                     dst_head = dst_head.head
+
+                if dst_head not in sub_graph:
+                    # unexpected: structuring failed and resulted in a bad sub_graph
+                    l.warning(
+                        "Node %r for node %r is not found in the sub graph at address %#x. Nodes may go missing.",
+                        dst_head,
+                        dst_in_subgraph,
+                        sub_graph_head.addr,
+                    )
+                    continue
 
                 for src in sub_graph.predecessors(dst_head):
                     graph.add_edge(src, dst)

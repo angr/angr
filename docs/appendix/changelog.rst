@@ -71,7 +71,7 @@ angr 8.18.10.25
 * The IDA backend for CLE has been removed. It has been broken for quite some time, but now it has been disabled for your own safety.
 * Surveyors have been removed! Finally! This is thanks to @danse-macabre who contributed an Exploration Technique for the Slicecutor. Backwards slicing has now been brought out of the angr dark ages.
 * SimCC can now be initialized with a string containing C function prototype in its ``func_ty`` argument
-* Similarly, Callable can now be run with its arguments instanciated from a string containing C expressions
+* Similarly, Callable can now be run with its arguments instantiated from a string containing C expressions
 * Tracer has been substantially refactored - it will now handle more kinds of desyncs, ASLR slides, and is much more friendly for hacking. We will be continuing to improve it!
 * The Oppologist and Driller have been refactored to play nice with other exploration techniques
 * SimProcedure continuations now have symbols in the externs object, so ``describe_addr`` will work on them. Additionally, the representation for SimProcedure (appearing in ``history.descriptions`` and ``project._sim_procedures`` among other places) has been improved to show this information.
@@ -129,7 +129,7 @@ angr 7.8.6.16
 
 * The modeling of file system is refactored.
 * (#808) Add a new class Control flow blanket (CFBlanket) to support generating a linear view of a control flow graph.
-* (#863) Add support to AIL, the new angr intermediate language (still pretty WIP though). Merged in several static analyses (reaching definition analysis, VEX-to-AIL translation, redundant assignment elimination, code region identification, conrol flow structuring, etc.) that support the development of decompilation in the near future.
+* (#863) Add support to AIL, the new angr intermediate language (still pretty WIP though). Merged in several static analyses (reaching definition analysis, VEX-to-AIL translation, redundant assignment elimination, code region identification, control flow structuring, etc.) that support the development of decompilation in the near future.
 * (#888) SimulationManager is extensively refactored and cleaned up.
 * (#892) Keystone is integrated. You can assemble instructions inside angr now.
 * (#897) A new class ``PluginHub`` is added. Plugins (analyses, engines) are refactored to be based on ``PluginHub``.
@@ -158,7 +158,7 @@ angr 7.7.12.16
 
 * You can now tell where the variables implicitly created by angr come from! ``state.solver.BVS`` now can take a ``key`` parameter, which describes its meaning in relation to the emulated environment. You can then use ``state.solver.get_variables(...)`` and ``state.solver.describe_variables(...)`` to map tags and ASTs to and from each other. Check out the `API docs <http://angr.io/api-doc/angr.html#angr.state_plugins.solver.SimSolver>`_!
 * The SimOS for a project is now a public property - ``project.simos`` instead of ``project._simos``. Additionally, the SimOS code structure has been shuffled around a bit - it's now a subpackage instead of a submodule.
-* The core components of Tracer and Driller have been refactored into Exploration Techniques and integrated into angr proper, so you can now follow instrution traces without installing another repostory! (credit @tyb0807)
+* The core components of Tracer and Driller have been refactored into Exploration Techniques and integrated into angr proper, so you can now follow instruction traces without installing another repository! (credit @tyb0807)
 * Archinfo now contains a ``byte_width`` parameter and angr supports emulation of platforms with non-octet bytes, lord help us
 * Upgraded to networkx 2 (credit @tyb0807)
 * Hopefully installation issues with capstone should be fixed FOREVER
@@ -215,7 +215,7 @@ Building off of the engine changes from the last release, we have begun to exten
 
 
 * We have rebased our fork of VEX on the latest master branch from Valgrind (as of 2 months ago, at least...). We have also submitted our patches to VEX to upstream, so we should be able to stop maintaining a fork pretty soon.
-* The way we interact with VEX has changed substancially, and should speed things up a bit.
+* The way we interact with VEX has changed substantially, and should speed things up a bit.
 * Loading sets of binaries with many import symbols has been sped up
 * Many, many improvements to angr-management, including the switch away from enaml to using pyside directly.
 
@@ -389,7 +389,7 @@ angr 4.6.5.25
 New state constructor - ``call_state``. Comes with a refactor to ``SimCC``, a refactor to ``callable``, and the removal of ``PathGroup.call``.
 All these changes are thoroughly documented, in ``angr/docs/advanced-topics/structured_data.md``
 
-Refactor of ``SimType`` to make it easier to use types - they can be instanciated without a SimState and one can be added later.
+Refactor of ``SimType`` to make it easier to use types - they can be instantiated without a SimState and one can be added later.
 Comes with some usability improvements to SimMemView.
 Also, there's a better wrapper around PyCParser for generating SimType instances from c declarations and definitions.
 Again, thoroughly documented, still in the structured data doc.

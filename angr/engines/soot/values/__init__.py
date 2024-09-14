@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 def translate_value(value, state):
     value_name = value.__class__.__name__
     if value_name.startswith("Soot"):
@@ -10,8 +13,7 @@ def translate_value(value, state):
     else:
         return value
 
-    value_ = value_cls.from_sootvalue(value, state)
-    return value_
+    return value_cls.from_sootvalue(value, state)
 
 
 from .local import SimSootValue_Local

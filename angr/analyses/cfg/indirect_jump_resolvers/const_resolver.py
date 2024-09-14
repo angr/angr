@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
@@ -47,13 +48,10 @@ class ConstantResolver(IndirectJumpResolver):
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # we support both an indirect call and jump since the value can be resolved
-        if jumpkind in {"Ijk_Boring", "Ijk_Call"}:
-            return True
-
-        return False
+        return jumpkind in {"Ijk_Boring", "Ijk_Call"}
 
     def resolve(  # pylint:disable=unused-argument
-        self, cfg, addr: int, func_addr: int, block: "Block", jumpkind: str, func_graph_complete: bool = True, **kwargs
+        self, cfg, addr: int, func_addr: int, block: Block, jumpkind: str, func_graph_complete: bool = True, **kwargs
     ):
         """
         This function does the actual resolve. Our process is easy:

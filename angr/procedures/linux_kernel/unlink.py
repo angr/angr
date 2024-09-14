@@ -1,3 +1,4 @@
+from __future__ import annotations
 import angr
 
 
@@ -18,5 +19,4 @@ class unlink(angr.SimProcedure):  # pylint:disable=W0622
 
         if self.state.fs.delete(str_val):
             return 0
-        else:
-            return -1
+        return -1

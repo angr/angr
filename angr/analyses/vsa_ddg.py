@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict
 
@@ -368,7 +369,7 @@ class VSA_DDG(Analysis):
                 elif isinstance(variable, SimRegisterVariable):
                     type_ = "reg"
                 else:
-                    raise AngrDDGError("Unknown variable type %s" % type(variable))
+                    raise AngrDDGError(f"Unknown variable type {type(variable)}")
 
                 if self.keep_data is True:
                     data = variable
@@ -376,10 +377,7 @@ class VSA_DDG(Analysis):
                     prevdefs[code_loc] = {"type": type_, "data": data}
 
                 else:
-                    if code_loc in prevdefs:
-                        count = prevdefs[code_loc]["count"] + 1
-                    else:
-                        count = 0
+                    count = prevdefs[code_loc]["count"] + 1 if code_loc in prevdefs else 0
                     prevdefs[code_loc] = {"type": type_, "count": count}
         return prevdefs
 

@@ -1,12 +1,11 @@
+from __future__ import annotations
 import logging
 import struct
-from typing import Optional
 
-import angr  # for types
-
-import claripy
 from archinfo import ArchMIPS32, ArchS390X
+import claripy
 
+import angr
 from ..errors import (
     AngrCallableError,
     AngrCallableMultistateError,
@@ -28,7 +27,7 @@ class SimOS:
     A class describing OS/arch-level configuration.
     """
 
-    def __init__(self, project: "angr.Project", name=None):
+    def __init__(self, project: angr.Project, name=None):
         self.arch = project.arch
         self.project = project
         self.name = name
@@ -64,11 +63,8 @@ class SimOS:
                 resolver_addr, concrete_only=True, base_state=base_state, prototype=prototype
             )
             try:
-                if isinstance(self.arch, ArchS390X):
-                    # On s390x ifunc resolvers expect hwcaps.
-                    val = resolver(0)
-                else:
-                    val = resolver()
+                # On s390x ifunc resolvers expect hwcaps.
+                val = resolver(0) if isinstance(self.arch, ArchS390X) else resolver()
             except AngrCallableMultistateError:
                 _l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
                 return None
@@ -81,16 +77,12 @@ class SimOS:
         self.project.loader.perform_irelative_relocs(irelative_resolver)
 
     def _weak_hook_symbol(self, name, hook, scope=None):
-        if scope is None:
-            sym = self.project.loader.find_symbol(name)
-        else:
-            sym = scope.get_symbol(name)
+        sym = self.project.loader.find_symbol(name) if scope is None else scope.get_symbol(name)
 
         if sym is not None:
             addr, _ = self.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
-            if self.project.is_hooked(addr):
-                if not self.project.hooked_by(addr).is_stub:
-                    return
+            if self.project.is_hooked(addr) and not self.project.hooked_by(addr).is_stub:
+                return
             self.project.hook(addr, hook)
 
     def state_blank(
@@ -148,10 +140,8 @@ class SimOS:
                         perms |= 4  # PROT_EXEC
                     permission_map[(seg.min_addr, seg.max_addr)] = perms
             kwargs["permissions_map"] = permission_map
-        if self.project.loader.main_object.execstack:
-            stack_perms = 1 | 2 | 4  # RWX
-        else:
-            stack_perms = 1 | 2  # RW
+        # RWX or RW
+        stack_perms = 1 | 2 | 4 if self.project.loader.main_object.execstack else 1 | 2
 
         state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, stack_perms=stack_perms, **kwargs)
 
@@ -199,7 +189,7 @@ class SimOS:
                     # Backward compatibility
                     region_base = 0
                 else:
-                    raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
+                    raise AngrSimOSError(f'You must specify the base address for memory region "{mem_region}". ')
 
             # special case for stack_end overriding sp default
             if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
@@ -344,8 +334,8 @@ class SimOS:
     def syscall_abi(self, state) -> str:
         return None
 
-    def syscall_cc(self, state) -> Optional[angr.calling_conventions.SimCCSyscall]:
-        raise NotImplementedError()
+    def syscall_cc(self, state) -> angr.calling_conventions.SimCCSyscall | None:
+        raise NotImplementedError
 
     def is_syscall_addr(self, addr):
         return False
@@ -417,8 +407,7 @@ class SimOS:
         fs = selector
         selector = self._create_selector(4, S_GDT | S_PRIV_0)
         gs = selector
-        global_descriptor_table = GlobalDescriptorTable(GDT_ADDR, GDT_LIMIT, table, gdt, cs, ds, es, ss, fs, gs)
-        return global_descriptor_table
+        return GlobalDescriptorTable(GDT_ADDR, GDT_LIMIT, table, gdt, cs, ds, es, ss, fs, gs)
 
     @staticmethod
     def _create_selector(idx, flags):
@@ -438,6 +427,8 @@ class SimOS:
 
 
 class GlobalDescriptorTable:
+    """GlobalDescriptorTable object to store the GDT table and the segment registers values"""
+
     def __init__(self, addr, limit, table, gdt_sel, cs_sel, ds_sel, es_sel, ss_sel, fs_sel, gs_sel):
         self.addr = addr
         self.limit = limit

@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from __future__ import annotations
 from itertools import count
 
 from ... import sim_type
@@ -24,8 +24,8 @@ class TypeTranslator:
     def __init__(self, arch=None):
         self.arch = arch
 
-        self.translated: Dict[TypeConstant, SimType] = {}
-        self.translated_simtypes: Dict[SimType, TypeConstant] = {}
+        self.translated: dict[TypeConstant, SimType] = {}
+        self.translated_simtypes: dict[SimType, TypeConstant] = {}
         self.structs = {}
         self._struct_ctr = count()
 
@@ -56,8 +56,7 @@ class TypeTranslator:
         except KeyError:
             return sim_type.SimTypeBottom().with_arch(self.arch)
 
-        translated = handler(self, tc)
-        return translated
+        return handler(self, tc)
 
     def simtype2tc(self, simtype: sim_type.SimType) -> typeconsts.TypeConstant:
         return self._simtype2tc(simtype)
@@ -99,10 +98,7 @@ class TypeTranslator:
         if tc in self.structs:
             return self.structs[tc]
 
-        if tc.name:
-            name = tc.name
-        else:
-            name = self.struct_name()
+        name = tc.name if tc.name else self.struct_name()
 
         s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s
@@ -112,7 +108,7 @@ class TypeTranslator:
             if offset > next_offset:
                 # we need padding!
                 padding_size = offset - next_offset
-                s.fields["padding_%x" % next_offset] = sim_type.SimTypeFixedSizeArray(
+                s.fields[f"padding_{next_offset:x}"] = sim_type.SimTypeFixedSizeArray(
                     sim_type.SimTypeChar(signed=False).with_arch(self.arch), padding_size
                 ).with_arch(self.arch)
 
@@ -122,10 +118,7 @@ class TypeTranslator:
                 # for now, we replace it with an unsigned char
                 translated_type = sim_type.SimTypeChar(signed=False).with_arch(self.arch)
 
-            if tc.field_names and offset in tc.field_names:
-                field_name = tc.field_names[offset]
-            else:
-                field_name = f"field_{offset:x}"
+            field_name = tc.field_names[offset] if tc.field_names and offset in tc.field_names else f"field_{offset:x}"
             s.fields[field_name] = translated_type
 
             if isinstance(translated_type, SimTypeTempRef):
@@ -206,16 +199,13 @@ class TypeTranslator:
 
     def _translate_SimTypeArray(self, st: sim_type.SimTypeArray) -> typeconsts.Array:
         elem_type = self._simtype2tc(st.elem_type)
-        array_tc = typeconsts.Array(elem_type, count=st.length)
-        return array_tc
+        return typeconsts.Array(elem_type, count=st.length)
 
-    def _translate_SimTypePointer(
-        self, st: sim_type.SimTypePointer
-    ) -> Union[typeconsts.Pointer32, typeconsts.Pointer64]:
+    def _translate_SimTypePointer(self, st: sim_type.SimTypePointer) -> typeconsts.Pointer32 | typeconsts.Pointer64:
         base = self._simtype2tc(st.pts_to)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base)
-        elif self.arch.bits == 64:
+        if self.arch.bits == 64:
             return typeconsts.Pointer64(base)
         raise TypeError("Unsupported pointer size %d" % self.arch.bits)
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 from collections import defaultdict
 
@@ -47,10 +48,8 @@ class StochasticSearch(ExplorationTechnique):
                     weight = self.affinity[state.addr]
                     if selected < weight:
                         break
-                    else:
-                        selected -= weight
-                picked = states[i]
-                return picked
+                    selected -= weight
+                return states[i]
 
             simgr.stashes[stash] = [weighted_pick(simgr.stashes[stash])]
 

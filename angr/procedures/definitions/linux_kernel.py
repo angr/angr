@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Dict
 
@@ -1279,7 +1280,7 @@ _amd64_fd_spots = \
 }
 
 
-_syscall_abis: Dict[str,Dict[str,SimTypeFunction]] = {
+_syscall_abis: dict[str,dict[str,SimTypeFunction]] = {
     "amd64": {},
     "arm": {},
     "armhf": {},

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 
 from ..func import Func, TestData
@@ -36,8 +37,7 @@ class strcpy(Func):
         test_output = [buf, buf]
         max_steps = 20
         return_val = None
-        test = TestData(test_input, test_output, return_val, max_steps)
-        return test
+        return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
         return True

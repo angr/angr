@@ -1,4 +1,5 @@
-from typing import Optional, Set, Any, List
+from __future__ import annotations
+from typing import Any
 from functools import reduce
 
 from .transitions import merge_transitions
@@ -56,7 +57,7 @@ class CFGSliceToSink:
         return set(reduce(lambda acc, destinations: acc + destinations, self._transitions.values(), []))
 
     @property
-    def nodes(self) -> List[int]:
+    def nodes(self) -> list[int]:
         """
         :return: The complete list of addresses present in the slice.
         """
@@ -69,7 +70,7 @@ class CFGSliceToSink:
 
         :return List[int]: The list of entrypoints addresses.
         """
-        return sorted(list(self._origins - self._destinations))
+        return sorted(self._origins - self._destinations)
 
     def add_transitions(self, transitions):
         """
@@ -91,9 +92,9 @@ class CFGSliceToSink:
         """
         return not bool(self._transitions)
 
-    def path_between(self, source: int, destination: int, visited: Optional[Set[Any]] = None) -> bool:
+    def path_between(self, source: int, destination: int, visited: set[Any] | None = None) -> bool:
         """
-        Check the existence of a path in the slice between two given node adresses.
+        Check the existence of a path in the slice between two given node addresses.
 
         :param source: The source address.
         :param destination: The destination address.
@@ -113,5 +114,4 @@ class CFGSliceToSink:
 
         if destination in direct_successors:
             return True
-        else:
-            return any(map(lambda s: self.path_between(s, destination, _visited), direct_successors))
+        return any(self.path_between(s, destination, _visited) for s in direct_successors)

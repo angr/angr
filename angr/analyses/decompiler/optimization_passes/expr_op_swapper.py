@@ -1,5 +1,7 @@
+from __future__ import annotations
 import logging
-from typing import Optional, Dict, Any, Callable, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Callable
 
 from ailment.block import Block as AILBlock
 from ailment.statement import Statement
@@ -23,9 +25,9 @@ class OuterWalker(SequenceWalker):
 
     def __init__(self, desc):
         super().__init__()
-        self.desc: Dict[OpDescriptor, str] = desc
+        self.desc: dict[OpDescriptor, str] = desc
 
-    def _handle_Condition(self, node: "ConditionNode", **kwargs):
+    def _handle_Condition(self, node: ConditionNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
                 hasattr(node.condition, "ins_addr")
@@ -35,7 +37,7 @@ class OuterWalker(SequenceWalker):
                 node.condition = self._swap_expr_op(new_op, node.condition)
         return super()._handle_Condition(node, **kwargs)
 
-    def _handle_Loop(self, node: "LoopNode", **kwargs):
+    def _handle_Loop(self, node: LoopNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
                 hasattr(node.condition, "ins_addr")
@@ -45,7 +47,7 @@ class OuterWalker(SequenceWalker):
                 node.condition = self._swap_expr_op(new_op, node.condition)
         return super()._handle_Loop(node, **kwargs)
 
-    def _handle_ConditionalBreak(self, node: "ConditionalBreakNode", **kwargs):
+    def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
                 hasattr(node.condition, "ins_addr")
@@ -56,12 +58,11 @@ class OuterWalker(SequenceWalker):
         return super()._handle_ConditionalBreak(node, **kwargs)
 
     @staticmethod
-    def _swap_expr_op(new_op: str, atom: Expression) -> Optional[Expression]:
+    def _swap_expr_op(new_op: str, atom: Expression) -> Expression | None:
         # swap
-        new_expr = BinaryOp(
+        return BinaryOp(
             atom.idx, new_op, (atom.operands[1], atom.operands[0]), atom.signed, bits=atom.bits, **atom.tags
         )
-        return new_expr
 
 
 class ExpressionReplacer(AILBlockWalker):
@@ -76,11 +77,10 @@ class ExpressionReplacer(AILBlockWalker):
         self._callback = callback
 
     def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[AILBlock]
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if self._target_expr_predicate(expr):
-            new_expr = self._callback(self._block_addr, expr)
-            return new_expr
+            return self._callback(self._block_addr, expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -119,7 +119,7 @@ class ExprOpSwapper(SequenceOptimizationPass):
     NAME = "Swap operands of expressions as requested"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, binop_operators: Optional[Dict[OpDescriptor, str]] = None, **kwargs):
+    def __init__(self, func, binop_operators: dict[OpDescriptor, str] | None = None, **kwargs):
         super().__init__(func, **kwargs)
         self._expr_operators = {} if binop_operators is None else binop_operators
 

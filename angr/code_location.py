@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Tuple, Any
+from __future__ import annotations
+from typing import Any
 
 
 class CodeLocation:
@@ -20,12 +21,12 @@ class CodeLocation:
 
     def __init__(
         self,
-        block_addr: int,
-        stmt_idx: Optional[int],
+        block_addr: int | None,
+        stmt_idx: int | None,
         sim_procedure=None,
-        ins_addr: Optional[int] = None,
+        ins_addr: int | None = None,
         context: Any = None,
-        block_idx: int = None,
+        block_idx: int | None = None,
         **kwargs,
     ):
         """
@@ -36,36 +37,36 @@ class CodeLocation:
                                     the entire block.
         :param class sim_procedure: The corresponding SimProcedure class.
         :param ins_addr:            The instruction address.
-        :param context:             A tuple that represents the context of this CodeLocation in contextful mode, or
+        :param context:             A tuple that represents the context of this CodeLocation in contextual mode, or
                                     None in contextless mode.
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
-        self.block_addr: int = block_addr
-        self.stmt_idx: Optional[int] = stmt_idx
+        self.block_addr: int | None = block_addr
+        self.stmt_idx: int | None = stmt_idx
         self.sim_procedure = sim_procedure
-        self.ins_addr: Optional[int] = ins_addr
-        self.context: Optional[Tuple[int]] = context
-        self.block_idx = block_idx
+        self.ins_addr: int | None = ins_addr
+        self.context: tuple[int] | None = context
+        self.block_idx: int | None = block_idx
         self._hash = None
 
-        self.info: Optional[Dict] = None
+        self.info: dict | None = None
 
         if kwargs:
             self._store_kwargs(**kwargs)
 
     def __repr__(self):
         if self.block_addr is None:
-            return "<%s>" % self.sim_procedure
+            return f"<{self.sim_procedure}>"
 
         if self.stmt_idx is None:
             s = "<{}{:#x}(-)".format(
-                ("%#x " % self.ins_addr) if self.ins_addr else "",
+                (f"{self.ins_addr:#x} ") if self.ins_addr else "",
                 self.block_addr,
             )
         else:
             s = "<%s%#x[%d]" % (
-                ("%#x id=" % self.ins_addr) if self.ins_addr else "",
+                (f"{self.ins_addr:#x} id=") if self.ins_addr else "",
                 self.block_addr,
                 self.stmt_idx,
             )
@@ -81,7 +82,7 @@ class CodeLocation:
                 if v != () and v is not None:
                     ss.append(f"{k}={v}")
             if ss:
-                s += " with %s" % ", ".join(ss)
+                s += " with {}".format(", ".join(ss))
         s += ">"
 
         return s
@@ -89,9 +90,8 @@ class CodeLocation:
     @property
     def short_repr(self):
         if self.ins_addr is not None:
-            return "%#x" % self.ins_addr
-        else:
-            return repr(self)
+            return f"{self.ins_addr:#x}"
+        return repr(self)
 
     def __eq__(self, other):
         """
@@ -111,20 +111,19 @@ class CodeLocation:
         if self.block_addr != other.block_addr:
             if self.block_addr is None and other.block_addr is not None:
                 return True
-            elif self.block_addr is not None and other.block_addr is None:
+            if self.block_addr is not None and other.block_addr is None:
                 return False
             # elif self.block_addr is not None and other.block_addr is not None:
             return self.block_addr < other.block_addr
         if self.stmt_idx != other.stmt_idx:
             if self.stmt_idx is None and other.stmt_idx is not None:
                 return True
-            elif self.stmt_idx is not None and other.stmt_idx is None:
+            if self.stmt_idx is not None and other.stmt_idx is None:
                 return False
             # elif self.stmt_idx is not None and other.stmt_idx is not None
             return self.stmt_idx < other.stmt_idx
-        if self.ins_addr is not None and other.ins_addr is not None:
-            if self.ins_addr != other.ins_addr:
-                return self.ins_addr < other.ins_addr
+        if self.ins_addr is not None and other.ins_addr is not None and self.ins_addr != other.ins_addr:
+            return self.ins_addr < other.ins_addr
         return False
 
     def __hash__(self):
@@ -152,7 +151,7 @@ class ExternalCodeLocation(CodeLocation):
 
     __slots__ = ("call_string",)
 
-    def __init__(self, call_string: Optional[Tuple[int, ...]] = None):
+    def __init__(self, call_string: tuple[int, ...] | None = None):
         super().__init__(0, None)
         self.call_string = call_string if call_string is not None else ()
 

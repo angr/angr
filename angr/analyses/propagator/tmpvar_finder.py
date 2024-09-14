@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.expression import Expression, Tmp
 from ailment import AILBlockWalkerBase
 

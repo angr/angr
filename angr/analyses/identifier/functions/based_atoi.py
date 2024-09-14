@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import string
 
@@ -34,18 +35,14 @@ class OneTwoOrThree:
             return True
         if other == 2:
             return True
-        if other == 3:
-            return True
-        return False
+        return other == 3
 
     def __ne__(self, other):
         if other == 1:
             return False
         if other == 2:
             return False
-        if other == 3:
-            return False
-        return True
+        return not other == 3
 
 
 class based_atoi(Func):

@@ -1,5 +1,5 @@
+from __future__ import annotations
 from enum import Enum
-from typing import Union
 
 import ailment
 
@@ -15,7 +15,7 @@ class SubjectType(Enum):
 
 
 class Subject:
-    _visitor: Union[FunctionGraphVisitor, SingleNodeGraphVisitor]
+    _visitor: FunctionGraphVisitor | SingleNodeGraphVisitor
 
     def __init__(self, content, func_graph=None, cc=None):
         """
@@ -43,7 +43,7 @@ class Subject:
     @property
     def cc(self):
         if self.type not in (SubjectType.Function, SubjectType.CallTrace):
-            raise TypeError("There are no `cc` attribute for <%s>." % self.type)
+            raise TypeError(f"There are no `cc` attribute for <{self.type}>.")
         return self._cc
 
     @property
@@ -53,7 +53,7 @@ class Subject:
     @property
     def func_graph(self):
         if self.type is not SubjectType.Function:
-            raise TypeError("There are no `func_graph` attribute for <%s>." % self.type)
+            raise TypeError(f"There are no `func_graph` attribute for <{self.type}>.")
         return self._func_graph
 
     @property
@@ -61,5 +61,5 @@ class Subject:
         return self._type
 
     @property
-    def visitor(self) -> Union[FunctionGraphVisitor, SingleNodeGraphVisitor]:
+    def visitor(self) -> FunctionGraphVisitor | SingleNodeGraphVisitor:
         return self._visitor

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
 
 import os
@@ -74,7 +76,7 @@ class TestCallingConvention(TestCase):
         execve = parse_file("int execve(const char *pathname, char *const argv[], char *const envp[]);")[0]["execve"]
         cc = p.factory.cc()
         assert all((x == y).is_true() for x, y in zip(cc.get_args(s, execve), (123, 456, 789)))
-        # however, this is defintely right
+        # however, this is definitely right
         assert [list(loc.get_footprint()) for loc in cc.arg_locs(execve)] == [
             [SimRegArg("rdi", 8)],
             [SimRegArg("rsi", 8)],

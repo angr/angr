@@ -1,7 +1,9 @@
+from __future__ import annotations
 import logging
 
 import networkx
 from . import Analysis
+import contextlib
 
 l = logging.getLogger(name=__name__)
 
@@ -16,7 +18,7 @@ class Loop:
         self.graph = graph
         self.subloops = subloops
 
-        self.has_calls = any(map(lambda loop: loop.has_calls, subloops))
+        self.has_calls = any(loop.has_calls for loop in subloops)
 
         if not self.has_calls:
             for _, _, data in self.graph.edges(data=True):
@@ -26,8 +28,7 @@ class Loop:
                     break
 
     def __repr__(self):
-        s = "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
-        return s
+        return "<Loop @ %s, %d blocks>" % (self.entry.addr, len(self.body_nodes))
 
 
 class LoopFinder(Analysis):
@@ -113,10 +114,8 @@ class LoopFinder(Analysis):
                     except networkx.NetworkXError:
                         if entry_edge in removed_entries:
                             subg.add_edge(removed_entries[entry_edge], subloop)
-                            try:
+                            with contextlib.suppress(networkx.NetworkXError):
                                 subg.remove_edge(removed_entries[entry_edge], entry_edge[1])
-                            except networkx.NetworkXError:
-                                pass
                         else:
                             raise
                     else:
@@ -128,10 +127,8 @@ class LoopFinder(Analysis):
                     except networkx.NetworkXError:
                         if exit_edge in removed_entries:
                             subg.add_edge(subloop, removed_entries[exit_edge])
-                            try:
+                            with contextlib.suppress(networkx.NetworkXError):
                                 subg.remove_edge(exit_edge[0], removed_entries[exit_edge])
-                            except networkx.NetworkXError:
-                                pass
                         else:
                             raise
                     else:
@@ -143,7 +140,7 @@ class LoopFinder(Analysis):
                 )
                 subg = next(filter(lambda g: entry_node in g.nodes(), _subgraphs))
         me = Loop(entry_node, entry_edges, break_edges, continue_edges, loop_body_nodes, subg, tops[:])
-        return me, [me] + alls
+        return me, [me, *alls]
 
     def _parse_loops_from_graph(self, graph: networkx.DiGraph):
         """
@@ -159,9 +156,8 @@ class LoopFinder(Analysis):
         for subg in (
             networkx.induced_subgraph(graph, nodes).copy() for nodes in networkx.strongly_connected_components(graph)
         ):
-            if len(subg.nodes()) == 1:
-                if len(list(subg.successors(list(subg.nodes())[0]))) == 0:
-                    continue
+            if len(subg.nodes()) == 1 and len(list(subg.successors(next(iter(subg.nodes()))))) == 0:
+                continue
             thisloop, allloops = self._parse_loop_graph(subg, graph)
             if thisloop is not None:
                 outall += allloops
