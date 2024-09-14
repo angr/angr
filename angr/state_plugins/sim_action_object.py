@@ -12,6 +12,7 @@ from ..sim_state import SimState
 
 if typing.TYPE_CHECKING:
     from claripy.annotation import Annotation
+    from claripy.ast import BV, FP
     from claripy.ast.base import ArgType
 
 Ast = typing.Union[claripy.ast.Base, "SimActionObject"]
@@ -258,3 +259,11 @@ class SimActionObject:
 
     def widen(self, other: Ast) -> Ast:
         return ast_preserving_op(self.ast.widen, self, other)
+
+    # Bits-specific methods
+
+    def raw_to_bv(self) -> BV:
+        return self.ast.raw_to_bv()
+
+    def bv_to_fp(self) -> FP:
+        return self.ast.raw_to_fp()
