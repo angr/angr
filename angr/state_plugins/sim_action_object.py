@@ -10,6 +10,10 @@ from angr.errors import SimActionError
 from .sim_action import SimActionData, SimActionOperation
 from ..sim_state import SimState
 
+if typing.TYPE_CHECKING:
+    from claripy.annotation import Annotation
+    from claripy.ast.base import ArgType
+
 Ast = typing.Union[claripy.ast.Base, "SimActionObject"]
 
 
@@ -107,7 +111,35 @@ class SimActionObject:
     def is_leaf(self) -> bool:
         return self.ast.is_leaf()
 
-    # Operator forwarding to ast
+    # Forwarding to ast
+
+    @property
+    def op(self) -> str:
+        return self.ast.op
+
+    @property
+    def args(self) -> tuple[ArgType, ...]:
+        return self.ast.args
+
+    @property
+    def length(self) -> int | None:
+        return self.ast.length
+
+    @property
+    def variables(self) -> frozenset[str]:
+        return self.ast.variables
+
+    @property
+    def symbolic(self) -> bool:
+        return self.ast.symbolic
+
+    @property
+    def annotations(self) -> tuple[Annotation, ...]:
+        return self.ast.annotations
+
+    @property
+    def depth(self) -> int:
+        return self.ast.depth
 
     # Arithmetic operations
     def __add__(self, other: Ast) -> Ast:
