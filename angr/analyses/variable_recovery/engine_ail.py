@@ -114,7 +114,6 @@ class SimEngineVRAIL(
                 args.append(richr)
 
         ret_expr = None
-        ret_reg_offset = None
         ret_expr_bits = self.state.arch.bits
         ret_val = None  # stores the value that this method should return to its caller when this is a call expression.
         create_variable = True
@@ -123,7 +122,6 @@ class SimEngineVRAIL(
             ret_expr: ailment.Expr.VirtualVariable | None = stmt.ret_expr
             if ret_expr is not None:
                 if ret_expr.category == ailment.Expr.VirtualVariableCategory.REGISTER:
-                    ret_reg_offset = ret_expr.oident
                     ret_expr_bits = ret_expr.bits
             else:
                 # the return expression is not used, so we treat this call as not returning anything
@@ -137,8 +135,6 @@ class SimEngineVRAIL(
                     )
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
 
-                if ret_expr is not None:
-                    ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
                 create_variable = False
         else:
             # this is a call expression. we just return the value at the end of this method
@@ -188,10 +184,7 @@ class SimEngineVRAIL(
                 )
             elif isinstance(ret_expr, ailment.Expr.Register):
                 l.warning("Left-over register found in call.ret_expr.")
-                if return_value_use_full_width_reg:
-                    expr_bits = self.state.arch.bits
-                else:
-                    expr_bits = ret_expr_bits
+                expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
                 self._assign_to_register(
                     ret_expr.reg_offset,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
@@ -261,8 +254,7 @@ class SimEngineVRAIL(
         return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_VirtualVariable(self, expr: ailment.Expr.VirtualVariable):
-        r = self._read_from_vvar(expr, expr=expr, vvar_id=self._mapped_vvarid(expr.varid))
-        return r
+        return self._read_from_vvar(expr, expr=expr, vvar_id=self._mapped_vvarid(expr.varid))
 
     def _ail_handle_Phi(self, expr: ailment.Expr.Phi):
         tvs = set()

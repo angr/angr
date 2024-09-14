@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import contextlib
 from collections import defaultdict
 
 from ailment.block import Block
@@ -64,10 +66,8 @@ class SPropagatorAnalysis(Analysis):
             the_func = self.func
         else:
             if self.func_addr is not None:
-                try:
+                with contextlib.suppress(KeyError):
                     the_func = self.kb.functions.get_by_addr(self.func_addr)
-                except KeyError:
-                    pass
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
         self._bp_as_gpr = bp_as_gpr
@@ -176,29 +176,21 @@ class SPropagatorAnalysis(Analysis):
                             replacements[vvar_useloc][vvar_used] = stmt.src
 
         for vvar_id, uselocs in vvar_uselocs.items():
-            if vvar_id not in vvarid_to_vvar:
-                vvar = next(iter(uselocs))[0]
-            else:
-                vvar = vvarid_to_vvar[vvar_id]
+            vvar = next(iter(uselocs))[0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
 
-            if self._sp_tracker is not None:
-                if vvar.category == VirtualVariableCategory.REGISTER:
-                    if vvar.oident == self.project.arch.sp_offset:
-                        for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                            sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
-                            if sb_offset is not None:
-                                replacements[useloc][vvar_at_use] = StackBaseOffset(
-                                    None, self.project.arch.bits, sb_offset
-                                )
-                        continue
-                    if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
-                        for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                            sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
-                            if sb_offset is not None:
-                                replacements[useloc][vvar_at_use] = StackBaseOffset(
-                                    None, self.project.arch.bits, sb_offset
-                                )
-                        continue
+            if self._sp_tracker is not None and vvar.category == VirtualVariableCategory.REGISTER:
+                if vvar.oident == self.project.arch.sp_offset:
+                    for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                        sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
+                        if sb_offset is not None:
+                            replacements[useloc][vvar_at_use] = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                    continue
+                if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
+                    for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                        sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
+                        if sb_offset is not None:
+                            replacements[useloc][vvar_at_use] = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                    continue
 
         # find all tmp definitions
         tmp_deflocs = get_tmp_deflocs(blocks.values())
@@ -226,7 +218,7 @@ class SPropagatorAnalysis(Analysis):
                     if r:
                         # we can propagate it!
                         if isinstance(stmt.src, VirtualVariable):
-                            v = stmt.src if stmt.src.varid not in const_vvars else const_vvars[stmt.src.varid]
+                            v = const_vvars.get(stmt.src.varid, stmt.src)
                         else:
                             v = stmt.src
 

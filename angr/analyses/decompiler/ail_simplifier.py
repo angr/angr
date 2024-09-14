@@ -699,8 +699,7 @@ class AILSimplifier(Analysis):
         # some use locations are phi assignments. we keep tracking the uses of phi variables and update the dictionary
         result = self._get_vvar_use_and_exprs_recursive(def_.atom, rd, addr_and_idx_to_block)
         if result is None:
-            info = ExprNarrowingInfo(False)
-            return info
+            return ExprNarrowingInfo(False)
         use_and_exprs, phi_vars = result
 
         all_used_sizes = set()
@@ -711,14 +710,12 @@ class AILSimplifier(Analysis):
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
             if old_block is None:
                 # missing a block for whatever reason
-                info = ExprNarrowingInfo(False)
-                return info
+                return ExprNarrowingInfo(False)
 
             block = self.blocks.get(old_block, old_block)
             if loc.stmt_idx >= len(block.statements):
                 # missing a statement for whatever reason
-                info = ExprNarrowingInfo(False)
-                return info
+                return ExprNarrowingInfo(False)
             stmt = block.statements[loc.stmt_idx]
 
             # special case: if the statement is a Call statement and expr is None, it means we have not been able to
@@ -732,8 +729,7 @@ class AILSimplifier(Analysis):
             expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:
                 # it's probably used in full width
-                info = ExprNarrowingInfo(False)
-                return info
+                return ExprNarrowingInfo(False)
 
             all_used_sizes.add(expr_size)
             used_by_loc[loc].append((atom, used_by_exprs))
@@ -764,11 +760,9 @@ class AILSimplifier(Analysis):
                     for atom, used_by_exprs in ordered:
                         used_by.append((atom, loc, used_by_exprs))
 
-            info = ExprNarrowingInfo(True, to_size=next(iter(all_used_sizes)), use_exprs=used_by, phi_vars=phi_vars)
-            return info
+            return ExprNarrowingInfo(True, to_size=next(iter(all_used_sizes)), use_exprs=used_by, phi_vars=phi_vars)
 
-        info = ExprNarrowingInfo(False)
-        return info
+        return ExprNarrowingInfo(False)
 
     @staticmethod
     def _exprs_from_used_by_exprs(used_by_exprs) -> set[Expression]:
@@ -1078,13 +1072,16 @@ class AILSimplifier(Analysis):
                         # found the copied definition (either a stack variable or a register variable)
 
                         # Make sure there is no other write to this stack location if the copy is a stack variable
-                        if isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack:
-                            if any(
+                        if (
+                            isinstance(arg_copy_def.atom, atoms.VirtualVariable)
+                            and arg_copy_def.atom.was_stack
+                            and any(
                                 (def_ != arg_copy_def and def_.atom.stack_offset == arg_copy_def.atom.stack_offset)
                                 for def_ in rd.all_definitions
                                 if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_stack
-                            ):
-                                continue
+                            )
+                        ):
+                            continue
 
                         # Make sure the register is never updated across this function
                         if any(
@@ -1320,7 +1317,7 @@ class AILSimplifier(Analysis):
                     )
 
                 r, new_block = self._replace_expr_and_update_block(
-                    the_block, u.stmt_idx, stmt, def_, u, used_expr, replace_with_copy
+                    the_block, u.stmt_idx, stmt, used_expr, replace_with_copy
                 )
                 if r:
                     self.blocks[old_block] = new_block
@@ -1412,15 +1409,14 @@ class AILSimplifier(Analysis):
         for eq in equivalence:
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
-                call_addr: int | None
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1
-                    call_addr = call.target.value if isinstance(call.target, Const) else None
+                    # call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
-                    call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
+                    # call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
                 else:
                     continue
 
@@ -1539,9 +1535,7 @@ class AILSimplifier(Analysis):
                 if expr_ctr.count > 1:
                     continue
 
-                replaced, new_block = self._replace_expr_and_update_block(
-                    the_block, u.stmt_idx, stmt, the_def, u, src, dst
-                )
+                replaced, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, src, dst)
 
                 if replaced:
                     self.blocks[old_block] = new_block
@@ -1574,19 +1568,12 @@ class AILSimplifier(Analysis):
                 break
         return lst
 
-    def _replace_expr_and_update_block(
-        self, block, stmt_idx, stmt, the_def, codeloc, src_expr, dst_expr
-    ) -> tuple[bool, Block | None]:
+    def _replace_expr_and_update_block(self, block, stmt_idx, stmt, src_expr, dst_expr) -> tuple[bool, Block | None]:
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()
             new_block.statements = block.statements[::]
             new_block.statements[stmt_idx] = new_stmt
-
-            # update the uses
-            rd = self._compute_reaching_definitions()
-            # TODO: can we still update uses here?
-            # rd.all_uses.remove_use(the_def, codeloc, expr=src_expr)
             return True, new_block
 
         return False, None
@@ -1629,11 +1616,14 @@ class AILSimplifier(Analysis):
 
                 elif def_.atom.was_reg:
                     uses = rd.get_vvar_uses(def_.atom)
-                    if def_.atom.reg_offset in self.project.arch.artificial_registers_offsets:
-                        if len(uses) == 1 and next(iter(uses)) == def_.codeloc:
-                            # TODO: Verify if we still need this hack after moving to SSA
-                            # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                            uses = set()
+                    if (
+                        def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
+                        and len(uses) == 1
+                        and next(iter(uses)) == def_.codeloc
+                    ):
+                        # TODO: Verify if we still need this hack after moving to SSA
+                        # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
+                        uses = set()
 
                 elif def_.atom.was_parameter:
                     uses = rd.get_vvar_uses(def_.atom)
@@ -1661,12 +1651,13 @@ class AILSimplifier(Analysis):
         while True:
             new_removed_vvar_ids = set()
             for phi_varid, phi_use_varids in rd.phivarid_to_varids.items():
-                if phi_varid not in all_removed_var_ids:
-                    if any(vvarid in removed_vvar_ids for vvarid in phi_use_varids):
-                        loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
-                        stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
-                        new_removed_vvar_ids.add(phi_varid)
-                        all_removed_var_ids.add(phi_varid)
+                if phi_varid not in all_removed_var_ids and any(
+                    vvarid in removed_vvar_ids for vvarid in phi_use_varids
+                ):
+                    loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+                    stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
+                    new_removed_vvar_ids.add(phi_varid)
+                    all_removed_var_ids.add(phi_varid)
             if not new_removed_vvar_ids:
                 break
             removed_vvar_ids = new_removed_vvar_ids
@@ -1703,18 +1694,17 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove and idx in stmts_to_keep:
+                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, Call):
                     # this statement declares more than one variable. we should handle it surgically
-                    if isinstance(stmt, Call):
-                        # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
-                        if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
-                            stmt = stmt.copy()
-                            stmt.ret_expr = None
-                            simplified = True
-                        if isinstance(stmt.fp_ret_expr, VirtualVariable) and stmt.fp_ret_expr.varid in dead_vvar_ids:
-                            stmt = stmt.copy()
-                            stmt.fp_ret_expr = None
-                            simplified = True
+                    # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
+                    if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
+                        stmt = stmt.copy()
+                        stmt.ret_expr = None
+                        simplified = True
+                    if isinstance(stmt.fp_ret_expr, VirtualVariable) and stmt.fp_ret_expr.varid in dead_vvar_ids:
+                        stmt = stmt.copy()
+                        stmt.fp_ret_expr = None
+                        simplified = True
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, Store)):

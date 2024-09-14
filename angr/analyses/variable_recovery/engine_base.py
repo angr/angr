@@ -1034,18 +1034,14 @@ class SimEngineVRBase(SimEngineLight):
 
         # fallback for register arguments
         if value is None and vvar.was_reg:
-            richr = self._read_from_register(vvar.reg_offset, vvar.size, expr=vvar, create_variable=True)
-            return richr
+            return self._read_from_register(vvar.reg_offset, vvar.size, expr=vvar, create_variable=True)
 
         if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER and vvar.oident in (
             self.arch.sp_offset,
             self.arch.ip_offset,
         ):
             # load values. don't worry about variables
-            if value is None:
-                r_value = self.state.top(vvar.size)
-            else:
-                r_value = value
+            r_value = self.state.top(vvar.size) if value is None else value
             return RichR(r_value, variable=None, typevar=None)
 
         if value is None:

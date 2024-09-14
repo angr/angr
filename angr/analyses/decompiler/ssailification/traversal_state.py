@@ -16,13 +16,12 @@ class TraversalState:
         self.live_stackvars: set[tuple[int, int]] = set() if live_stackvars is None else live_stackvars
 
     def copy(self) -> TraversalState:
-        state = TraversalState(
+        return TraversalState(
             self.arch,
             self.func,
             live_registers=self.live_registers.copy(),
             live_stackvars=self.live_stackvars.copy(),
         )
-        return state
 
     def merge(self, *others: TraversalState) -> bool:
         merge_occurred = False

@@ -41,7 +41,7 @@ class RewritingState:
         for k, vdict in self.stackvars.items():
             copy_stackvars[k] = vdict.copy()
 
-        state = RewritingState(
+        return RewritingState(
             self.loc,
             self.arch,
             self.func,
@@ -49,7 +49,6 @@ class RewritingState:
             registers=copy_regs,
             stackvars=copy_stackvars,
         )
-        return state
 
     def append_statement(self, stmt: Statement):
         if self.out_block is None:

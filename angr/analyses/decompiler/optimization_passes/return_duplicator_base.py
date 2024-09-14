@@ -82,7 +82,7 @@ class ReturnDuplicatorBase:
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
         ri: RegionIdentifier | None = None,
-        vvar_id_start: int = None,
+        vvar_id_start: int | None = None,
         **kwargs,
     ):
         self.node_idx = count(start=node_idx_start)
@@ -260,8 +260,7 @@ class ReturnDuplicatorBase:
                     continue
             stmts.append(stmt)
 
-        copied = Block(node.addr, node.original_size, statements=stmts, idx=node.idx)
-        return copied
+        return Block(node.addr, node.original_size, statements=stmts, idx=node.idx)
 
     @staticmethod
     def _update_phi_variables_after_removing_predecessor(node: Block, pred: Block) -> None:

@@ -97,8 +97,7 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
             and operand_0 == operand_1
         ):
             count = Expr.Const(expr.idx, None, 0, 8)
-            new_expr = Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
-            return new_expr
+            return Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
 
         # 2*x - x = x
         if Expr.BinaryOp in [type(operand_0), type(operand_1)]:

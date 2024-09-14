@@ -922,14 +922,12 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _handle_Stmt(self, stmt):
         handler = f"_handle_{type(stmt).__name__}"
         if hasattr(self, handler):
-            r = getattr(self, handler)(stmt)
-            return r
+            return getattr(self, handler)(stmt)
 
         # compatibility
         old_handler = f"_ail_handle_{type(stmt).__name__}"
         if hasattr(self, old_handler):
-            r = getattr(self, old_handler)(stmt)
-            return r
+            return getattr(self, old_handler)(stmt)
 
         if self.l is not None:
             self.l.warning("Unsupported statement type %s.", type(stmt).__name__)

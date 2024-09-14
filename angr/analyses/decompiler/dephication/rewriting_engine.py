@@ -80,13 +80,12 @@ class SimEngineDephiRewriting(
             )
 
         if new_dst is not None or new_src is not None:
-            new_stmt = Assignment(
+            return Assignment(
                 stmt.idx,
                 stmt.dst if new_dst is None else new_dst,
                 stmt.src if new_src is None else new_src,
                 **stmt.tags,
             )
-            return new_stmt
         return None
 
     def _handle_Store(self, stmt: Store) -> Store | None:

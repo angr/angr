@@ -41,14 +41,15 @@ class SimEngineSSARewriting(
     def __init__(
         self,
         arch,
-        project=None,
-        sp_tracker=None,
-        bp_as_gpr: bool = False,
-        udef_to_phiid: dict[tuple, set[int]] = None,
-        phiid_to_loc: dict[int, tuple[int, int | None]] = None,
-        stackvar_locs: dict[int, int] = None,
+        *,
+        project,
+        sp_tracker,
+        udef_to_phiid: dict[tuple, set[int]],
+        phiid_to_loc: dict[int, tuple[int, int | None]],
+        stackvar_locs: dict[int, int],
         ail_manager=None,
         vvar_id_start: int = 0,
+        bp_as_gpr: bool = False,
     ):
         super().__init__()
 
@@ -199,17 +200,15 @@ class SimEngineSSARewriting(
                 self._clear_aliasing_regs(base_off, base_size)
                 self.state.registers[base_off][base_size] = None
 
-        if new_ret_expr is not None:
-            if isinstance(stmt.ret_expr, Register):
-                base_off, base_size = get_reg_offset_base_and_size(
-                    stmt.ret_expr.reg_offset, self.arch, size=stmt.ret_expr.size
-                )
-                self._clear_aliasing_regs(base_off, base_size)
-                self.state.registers[base_off][base_size] = new_ret_expr
-        if new_fp_ret_expr is not None:
-            if isinstance(stmt.fp_ret_expr, Register):
-                self._clear_aliasing_regs(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size)
-                self.state.registers[stmt.fp_ret_expr.reg_offset][stmt.fp_ret_expr.size] = new_fp_ret_expr
+        if new_ret_expr is not None and isinstance(stmt.ret_expr, Register):
+            base_off, base_size = get_reg_offset_base_and_size(
+                stmt.ret_expr.reg_offset, self.arch, size=stmt.ret_expr.size
+            )
+            self._clear_aliasing_regs(base_off, base_size)
+            self.state.registers[base_off][base_size] = new_ret_expr
+        if new_fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
+            self._clear_aliasing_regs(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size)
+            self.state.registers[stmt.fp_ret_expr.reg_offset][stmt.fp_ret_expr.size] = new_fp_ret_expr
 
         if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
             return Call(
@@ -225,8 +224,7 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_Register(self, expr: Register) -> VirtualVariable | None:
-        new_expr = self._replace_use_reg(expr)
-        return new_expr
+        return self._replace_use_reg(expr)
 
     def _handle_Load(self, expr: Load) -> Load | VirtualVariable | None:
         if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
@@ -406,7 +404,7 @@ class SimEngineSSARewriting(
         else:
             shifted_vvar = extended_vvar
         assert new_base_expr.bits == shifted_vvar.bits
-        new_expr = BinaryOp(
+        return BinaryOp(
             self.ail_manager.next_atom(),
             "Or",
             [
@@ -417,7 +415,6 @@ class SimEngineSSARewriting(
             bits=new_base_expr.bits,
             **new_base_expr.tags,
         )
-        return new_expr
 
     def _replace_def_expr(self, thing: Expression | Statement) -> VirtualVariable | None:
         """
@@ -467,19 +464,23 @@ class SimEngineSSARewriting(
         return self.state.registers[base_off][base_size]
 
     def _replace_def_store(self, stmt: Store) -> VirtualVariable | None:
-        if isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
-            if stmt.addr.offset in self.stackvar_locs and stmt.size == self.stackvar_locs[stmt.addr.offset]:
-                vvar_id = self.get_vvid_by_def(stmt)
-                vvar = VirtualVariable(
-                    self.ail_manager.next_atom(),
-                    vvar_id,
-                    stmt.size * self.arch.byte_width,
-                    category=VirtualVariableCategory.STACK,
-                    oident=stmt.addr.offset,
-                    # FIXME: tags
-                )
-                self.state.stackvars[stmt.addr.offset][stmt.size] = vvar
-                return vvar
+        if (
+            isinstance(stmt.addr, StackBaseOffset)
+            and isinstance(stmt.addr.offset, int)
+            and stmt.addr.offset in self.stackvar_locs
+            and stmt.size == self.stackvar_locs[stmt.addr.offset]
+        ):
+            vvar_id = self.get_vvid_by_def(stmt)
+            vvar = VirtualVariable(
+                self.ail_manager.next_atom(),
+                vvar_id,
+                stmt.size * self.arch.byte_width,
+                category=VirtualVariableCategory.STACK,
+                oident=stmt.addr.offset,
+                **stmt.tags,
+            )
+            self.state.stackvars[stmt.addr.offset][stmt.size] = vvar
+            return vvar
         return None
 
     def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
@@ -504,7 +505,7 @@ class SimEngineSSARewriting(
                     vvar = self.state.registers[reg_expr.reg_offset][existing_size]
                     if vvar is not None:
                         # extract it
-                        truncated = Convert(
+                        return Convert(
                             self.ail_manager.next_atom(),
                             vvar.bits,
                             reg_expr.bits,
@@ -512,7 +513,6 @@ class SimEngineSSARewriting(
                             vvar,
                             **reg_expr.tags,
                         )
-                        return truncated
                 else:
                     break
 
@@ -538,7 +538,7 @@ class SimEngineSSARewriting(
             bits=vvar.bits,
             **reg_expr.tags,
         )
-        truncated = Convert(
+        return Convert(
             self.ail_manager.next_atom(),
             shifted.bits,
             reg_expr.bits,
@@ -546,34 +546,36 @@ class SimEngineSSARewriting(
             shifted,
             **reg_expr.tags,
         )
-        return truncated
 
     def _replace_use_load(self, expr: Load) -> VirtualVariable | None:
-        if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
-            if expr.addr.offset in self.stackvar_locs and expr.size == self.stackvar_locs[expr.addr.offset]:
-                if expr.size not in self.state.stackvars[expr.addr.offset]:
-                    vvar_id = self.get_vvid_by_def(expr)
-                    vvar = VirtualVariable(
-                        self.ail_manager.next_atom(),
-                        vvar_id,
-                        expr.size * self.arch.byte_width,
-                        category=VirtualVariableCategory.STACK,
-                        oident=expr.addr.offset,
-                        **expr.tags,
-                    )
-                    return vvar
-
-                # TODO: Support truncation
-                # TODO: Maybe also support concatenation
-                vvar = self.state.stackvars[expr.addr.offset][expr.size]
+        if (
+            isinstance(expr.addr, StackBaseOffset)
+            and isinstance(expr.addr.offset, int)
+            and expr.addr.offset in self.stackvar_locs
+            and expr.size == self.stackvar_locs[expr.addr.offset]
+        ):
+            if expr.size not in self.state.stackvars[expr.addr.offset]:
+                vvar_id = self.get_vvid_by_def(expr)
                 return VirtualVariable(
-                    expr.idx,
-                    vvar.varid,
-                    vvar.bits,
-                    VirtualVariableCategory.STACK,
-                    oident=vvar.stack_offset,
-                    **vvar.tags,
+                    self.ail_manager.next_atom(),
+                    vvar_id,
+                    expr.size * self.arch.byte_width,
+                    category=VirtualVariableCategory.STACK,
+                    oident=expr.addr.offset,
+                    **expr.tags,
                 )
+
+            # TODO: Support truncation
+            # TODO: Maybe also support concatenation
+            vvar = self.state.stackvars[expr.addr.offset][expr.size]
+            return VirtualVariable(
+                expr.idx,
+                vvar.varid,
+                vvar.bits,
+                VirtualVariableCategory.STACK,
+                oident=vvar.stack_offset,
+                **vvar.tags,
+            )
         return None
 
     #

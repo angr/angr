@@ -84,9 +84,8 @@ class SimplifierAILEngine(
         src = self._expr(stmt.src)
         dst = self._expr(stmt.dst)
 
-        if isinstance(dst, Expr.VirtualVariable):
-            if not isinstance(src, Expr.Phi):
-                self.state.store_variable(dst, src)
+        if isinstance(dst, Expr.VirtualVariable) and not isinstance(src, Expr.Phi):
+            self.state.store_variable(dst, src)
 
         if (src, dst) != (stmt.src, stmt.dst):
             return Stmt.Assignment(stmt.idx, dst, src, **stmt.tags)

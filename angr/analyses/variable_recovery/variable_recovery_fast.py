@@ -397,7 +397,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                     self._ail_engine.vvar_region[arg_vvar_id] = v
                     internal_manager.add_variable("stack", arg.offset, arg)
                 else:
-                    raise TypeError("Unsupported function argument type %s." % type(arg))
+                    raise TypeError(f"Unsupported function argument type {type(arg)}")
         elif self._func_args:
             for arg in self._func_args:
                 if isinstance(arg, SimRegisterVariable):

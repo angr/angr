@@ -205,9 +205,10 @@ class StackCanarySimplifier(OptimizationPass):
                         isinstance(op0, ailment.Expr.VirtualVariable)
                         and op0.was_reg
                         and isinstance(op1, ailment.Expr.Const)
+                        and op0.reg_offset == self.project.arch.get_register_offset("fs")
+                        and op1.value == 0x28
                     ):
-                        if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
-                            return first_block, idx
+                        return first_block, idx
 
             succs = list(self._graph.successors(first_block))
             if len(succs) == 1:

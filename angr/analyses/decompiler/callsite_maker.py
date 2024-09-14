@@ -223,13 +223,13 @@ class CallSiteMaker(Analysis):
             and prototype is not None
             and prototype.returnty is not None
             and not isinstance(prototype.returnty, SimTypeBottom)
+            and not isinstance(ret_expr, Expr.VirtualVariable)
         ):
-            if not isinstance(ret_expr, Expr.VirtualVariable):
-                # try to narrow the return expression if needed
-                ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
-                if ret_expr.bits > ret_type_bits:
-                    ret_expr = ret_expr.copy()
-                    ret_expr.bits = ret_type_bits
+            # try to narrow the return expression if needed
+            ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
+            if ret_expr.bits > ret_type_bits:
+                ret_expr = ret_expr.copy()
+                ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
         new_stmt = Stmt.Call(
@@ -274,7 +274,6 @@ class CallSiteMaker(Analysis):
         return None
 
     def _resolve_register_argument(self, call_stmt, arg_loc) -> tuple[int | None, Expr.VirtualVariable] | None:
-        size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:

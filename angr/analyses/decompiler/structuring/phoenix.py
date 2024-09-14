@@ -16,7 +16,7 @@ from angr.utils.graph import GraphUtils
 from angr.utils.ail import is_phi_assignment
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges, GraphUtils
+from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,

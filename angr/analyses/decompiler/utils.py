@@ -393,10 +393,7 @@ def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
 
 def first_nonlabel_nonphi_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
-        if isinstance(node, CodeNode):
-            inner_node = node.node
-        else:
-            inner_node = node
+        inner_node = node.node if isinstance(node, CodeNode) else node
         if isinstance(inner_node, ailment.Block) and not has_nonlabel_nonphi_statements(inner_node):
             continue
         return node

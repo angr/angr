@@ -849,7 +849,7 @@ class VariableManagerInternal(Serializable):
         labels=None,
         arg_names: list[str] | None = None,
         reset: bool = False,
-        func_blocks: list[ailment.Block] = None,
+        func_blocks: list[ailment.Block] | None = None,
     ) -> None:
         """
         Assign default names to all unified variables. If `func_blocks` is provided, we will find out variables that

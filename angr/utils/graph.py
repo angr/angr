@@ -844,10 +844,7 @@ class GraphUtils:
             for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
                 if n in cycle:
                     idx = cycle.index(n)
-                    if idx == 0:
-                        loop_backedge = (cycle[-1], cycle[idx])
-                    else:
-                        loop_backedge = (cycle[idx - 1], cycle[idx])
+                    loop_backedge = (cycle[-1], cycle[idx]) if idx == 0 else (cycle[idx - 1], cycle[idx])
                     break
 
             loop_head = loop_backedge[1]

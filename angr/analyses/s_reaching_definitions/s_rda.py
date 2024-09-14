@@ -172,10 +172,7 @@ class SRDAView:
             block, start_stmt_idx = queue.pop(0)
             traversed.add(block)
 
-            if start_stmt_idx is not None:
-                stmts = block.statements[:start_stmt_idx]
-            else:
-                stmts = block.statements
+            stmts = block.statements[:start_stmt_idx] if start_stmt_idx is not None else block.statements
 
             for stmt in reversed(stmts):
                 should_break = predicate(stmt)
@@ -324,7 +321,12 @@ class SReachingDefinitionsAnalysis(Analysis):
     """
 
     def __init__(
-        self, subject, func_graph=None, func_addr: int = None, track_tmps: bool = False, stack_pointer_tracker=None
+        self,
+        subject,
+        func_addr: int | None = None,
+        func_graph=None,
+        track_tmps: bool = False,
+        stack_pointer_tracker=None,
     ):
         if isinstance(subject, Block):
             self.block = subject

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
+from functools import partial
 import logging
 
 import networkx
@@ -164,6 +165,28 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         else:
             node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
 
+    def _reg_predicate(self, node_, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
+        out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
+        if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
+            if out_state.registers[reg_offset][reg_size] is None:
+                # the vvar is not set. it should never be referenced
+                return True, None
+            vvar = out_state.registers[reg_offset][reg_size].copy()
+            vvar.idx = self._ail_manager.next_atom()
+            return True, vvar
+        return False, None
+
+    def _stack_predicate(self, node_, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
+        out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
+        if stack_offset in out_state.stackvars and stackvar_size in out_state.stackvars[stack_offset]:
+            if out_state.stackvars[stack_offset][stackvar_size] is None:
+                # the vvar is not set. it should never be referenced
+                return True, None
+            vvar = out_state.stackvars[stack_offset][stackvar_size].copy()
+            vvar.idx = self._ail_manager.next_atom()
+            return True, vvar
+        return False, None
+
     #
     # Main analysis routines
     #
@@ -234,10 +257,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         # update phi nodes
         for original_node in self.graph:
             node_key = original_node.addr, original_node.idx
-            if node_key in self.out_blocks:
-                node = self.out_blocks[node_key]
-            else:
-                node = original_node
+            node = self.out_blocks.get(node_key, original_node)
 
             if any(
                 isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
@@ -257,43 +277,24 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
                     src_and_vvars = []
                     if stmt.dst.was_reg:
-                        reg_offset = stmt.dst.oident
-                        reg_size = stmt.dst.size
-
-                        def reg_predicate(node_) -> tuple[bool, Any]:
-                            out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
-                            if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
-                                if out_state.registers[reg_offset][reg_size] is None:
-                                    # the vvar is not set. it should never be referenced
-                                    return True, None
-                                vvar = out_state.registers[reg_offset][reg_size].copy()
-                                vvar.idx = self._ail_manager.next_atom()
-                                return True, vvar
-                            return False, None
-
                         for pred in self.graph.predecessors(original_node):
-                            vvar = self._follow_one_path_backward(self.graph, pred, reg_predicate)
+                            vvar = self._follow_one_path_backward(
+                                self.graph,
+                                pred,
+                                partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset, reg_size=stmt.dst.size),
+                            )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                     elif stmt.dst.was_stack:
-                        stack_offset = stmt.dst.stack_offset
-                        stackvar_size = stmt.dst.size
-
-                        def stack_predicate(node_) -> tuple[bool, Any]:
-                            out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
-                            if (
-                                stack_offset in out_state.stackvars
-                                and stackvar_size in out_state.stackvars[stack_offset]
-                            ):
-                                if out_state.stackvars[stack_offset][stackvar_size] is None:
-                                    # the vvar is not set. it should never be referenced
-                                    return True, None
-                                vvar = out_state.stackvars[stack_offset][stackvar_size].copy()
-                                vvar.idx = self._ail_manager.next_atom()
-                                return True, vvar
-                            return False, None
-
                         for pred in self.graph.predecessors(original_node):
-                            vvar = self._follow_one_path_backward(self.graph, pred, stack_predicate)
+                            vvar = self._follow_one_path_backward(
+                                self.graph,
+                                pred,
+                                partial(
+                                    self._stack_predicate,
+                                    stack_offset=stmt.dst.stack_offset,
+                                    stackvar_size=stmt.dst.size,
+                                ),
+                            )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                     else:
                         raise NotImplementedError

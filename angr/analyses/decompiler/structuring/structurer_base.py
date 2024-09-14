@@ -951,3 +951,4 @@ class StructurerBase(Analysis):
             return any(has_nonlabel_nonphi_statements(b) for b in node.nodes)
         if isinstance(node, SequenceNode):
             return any(StructurerBase.has_nonlabel_nonphi_statements(nn) for nn in node.nodes)
+        return False

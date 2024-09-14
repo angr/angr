@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Any
 
 from ailment import AILBlockWalkerBase
 from ailment.block import Block
@@ -24,8 +23,8 @@ class HasExprWalker(AILBlockWalkerBase):
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
+    ) -> None:
         if expr in self.exprs_to_check:
             self.contains_exprs = True
         if not self.contains_exprs:
-            return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
