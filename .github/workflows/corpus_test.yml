@@ -293,7 +293,7 @@ jobs:
         env:
           ANGR_BRANCH: github.event.pull_request.head.ref
           SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
-        if: ! inputs.nightly
+        if: ${{ ! inputs.nightly }}
         run: |
           source .venv/bin/activate
           cd corpus_tests
@@ -368,7 +368,7 @@ jobs:
         env:
           ANGR_BRANCH: github.event.pull_request.head.ref
           SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
-        if: ! inputs.nightly
+        if: ${{ ! inputs.nightly }}
         run: |
           source .venv/bin/activate
           cd corpus_tests
