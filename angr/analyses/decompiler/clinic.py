@@ -418,17 +418,17 @@ class Clinic(Analysis):
         )
 
         # Make function arguments
-        self._update_progress(75.0, text="Making argument list")
+        self._update_progress(33.0, text="Making argument list")
         arg_list = self._make_argument_list()
         arg_vvars = {}
         ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
 
         # Transform the graph into partial SSA form
-        self._update_progress(21.0, text="Transforming to partial-SSA form")
+        self._update_progress(35.0, text="Transforming to partial-SSA form")
         ail_graph = self._transform_to_ssa_level0(ail_graph)
 
         # full-function constant-only propagation
-        self._update_progress(33.0, text="Constant propagation")
+        self._update_progress(36.0, text="Constant propagation")
         self._simplify_function(
             ail_graph,
             remove_dead_memdefs=False,
@@ -443,13 +443,13 @@ class Clinic(Analysis):
         block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
 
         # Track stack pointers
-        self._update_progress(15.0, text="Tracking stack pointers")
+        self._update_progress(37.0, text="Tracking stack pointers")
         spt = self._track_stack_pointers()
 
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
-        self._update_progress(35.0, text="Simplifying blocks 1")
+        self._update_progress(38.0, text="Simplifying blocks 1")
         ail_graph = self._simplify_blocks(
             ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
         )
@@ -566,7 +566,7 @@ class Clinic(Analysis):
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list, arg_vvars, vvar2vvar)
 
         # Run simplification passes
-        self._update_progress(95.0, text="Running simplifications 4")
+        self._update_progress(85.0, text="Running simplifications 4")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
 
         # Make function prototype
