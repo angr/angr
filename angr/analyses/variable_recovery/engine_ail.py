@@ -379,6 +379,12 @@ class SimEngineVRAIL(
     _ail_handle_CmpLE = _ail_handle_Cmp
     _ail_handle_CmpGT = _ail_handle_Cmp
     _ail_handle_CmpGE = _ail_handle_Cmp
+    _ail_handle_CasCmpEQ = _ail_handle_Cmp
+    _ail_handle_CasCmpNE = _ail_handle_Cmp
+    _ail_handle_CasCmpLT = _ail_handle_Cmp
+    _ail_handle_CasCmpLE = _ail_handle_Cmp
+    _ail_handle_CasCmpGT = _ail_handle_Cmp
+    _ail_handle_CasCmpGE = _ail_handle_Cmp
 
     def _ail_handle_Add(self, expr):
         arg0, arg1 = expr.operands
