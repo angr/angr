@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ailment.statement import Call
 from ailment.expression import Const
 import claripy

@@ -1,8 +1,7 @@
-from ailment.statement import Call
+from __future__ import annotations
 from ailment.expression import Const, Load
 
-from angr import SIM_LIBRARIES, SIM_PROCEDURES
-from angr.procedures.definitions import SimSyscallLibrary
+from angr import SIM_LIBRARIES
 from angr.calling_conventions import default_cc
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS

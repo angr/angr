@@ -1,4 +1,5 @@
-from typing import List, Optional, Tuple, Any, Dict, Set
+from __future__ import annotations
+from typing import Any
 import string
 import logging
 
@@ -26,7 +27,7 @@ class StringDeobFuncDescriptor:
         self.string_input_arg_idx = None
         self.string_output_arg_idx = None
         self.string_length_arg_idx = None
-        self.string_null_terminating: Optional[bool] = None
+        self.string_null_terminating: bool | None = None
 
 
 class StringObfuscationFinder(Analysis):
@@ -57,7 +58,7 @@ class StringObfuscationFinder(Analysis):
                 type2_string_loader_candidates = self._analyze_type2(
                     type2_func_addr, desc, {addr for addr, _, _ in string_candidates}
                 )
-                type2_deobfuscated_strings = dict((addr, s) for addr, _, s in string_candidates)
+                type2_deobfuscated_strings = {addr: s for addr, _, s in string_candidates}
                 self.kb.obfuscations.type2_deobfuscated_strings.update(type2_deobfuscated_strings)
                 self.kb.obfuscations.type2_string_loader_candidates |= type2_string_loader_candidates
 
@@ -66,7 +67,7 @@ class StringObfuscationFinder(Analysis):
                 type3_strings = self._analyze_type3(type3_func_addr, desc)
                 self.kb.obfuscations.type3_deobfuscated_strings.update(type3_strings)
 
-    def _find_type1(self) -> List[Tuple[int, StringDeobFuncDescriptor]]:
+    def _find_type1(self) -> list[tuple[int, StringDeobFuncDescriptor]]:
         # Type 1 string deobfuscation functions
         # - Take a constant string or local string as input
         # - Output strings that are reasonable
@@ -77,7 +78,7 @@ class StringObfuscationFinder(Analysis):
         cfg = self.kb.cfgs.get_most_accurate()
         arch = self.project.arch
 
-        type1_candidates: List[Tuple[int, StringDeobFuncDescriptor]] = []
+        type1_candidates: list[tuple[int, StringDeobFuncDescriptor]] = []
 
         for func in self.project.kb.functions.values():
             if func.is_simprocedure or func.is_plt or func.is_alignment:
@@ -136,7 +137,7 @@ class StringObfuscationFinder(Analysis):
                         ObservationPointType.OP_BEFORE,
                     )
                     # load values for each function argument
-                    args: List[Tuple[int, Any]] = []
+                    args: list[tuple[int, Any]] = []
                     for arg_idx, func_arg in enumerate(func.arguments):
                         # FIXME: We are ignoring all non-register function arguments until we see a test case where
                         # FIXME: stack-passing arguments are used
@@ -176,7 +177,7 @@ class StringObfuscationFinder(Analysis):
                 )
 
                 # before calling the function, let's record the crime scene
-                values: List[Tuple[int, int, bytes]] = []
+                values: list[tuple[int, int, bytes]] = []
                 for arg_idx, arg in args:
                     if arg is not None and arg.concrete:
                         v = arg.concrete_value
@@ -211,7 +212,7 @@ class StringObfuscationFinder(Analysis):
 
         return type1_candidates
 
-    def _analyze_type1(self, func_addr: int, desc: StringDeobFuncDescriptor) -> Tuple[Dict, Set]:
+    def _analyze_type1(self, func_addr: int, desc: StringDeobFuncDescriptor) -> tuple[dict, set]:
         """
         Analyze Type 1 string deobfuscation functions, determine the following information:
 
@@ -308,7 +309,7 @@ class StringObfuscationFinder(Analysis):
         string_loader_candidates = set()
         for str_addr in deobfuscated_strings:
             xref_set = xrefs.get_xrefs_by_dst(str_addr)
-            block_addrs = set(xref.block_addr for xref in xref_set)
+            block_addrs = {xref.block_addr for xref in xref_set}
             for block_addr in block_addrs:
                 node = cfg.get_any_node(block_addr)
                 if node is not None:
@@ -320,7 +321,7 @@ class StringObfuscationFinder(Analysis):
 
         return deobfuscated_strings, string_loader_candidates
 
-    def _find_type2(self) -> List[Tuple[int, StringDeobFuncDescriptor, List[Tuple[int, int, bytes]]]]:
+    def _find_type2(self) -> list[tuple[int, StringDeobFuncDescriptor, list[tuple[int, int, bytes]]]]:
         # Type 2 string deobfuscation functions
         # - Deobfuscates an entire table of encrypted strings
         # - May or may not take any arguments. All arguments should be concrete.
@@ -329,7 +330,7 @@ class StringObfuscationFinder(Analysis):
 
         cfg = self.kb.cfgs.get_most_accurate()
 
-        type2_candidates: List[Tuple[int, StringDeobFuncDescriptor, List[Tuple[int, int, bytes]]]] = []
+        type2_candidates: list[tuple[int, StringDeobFuncDescriptor, list[tuple[int, int, bytes]]]] = []
 
         for func in self.project.kb.functions.values():
             if func.is_simprocedure or func.is_plt or func.is_alignment:
@@ -408,7 +409,7 @@ class StringObfuscationFinder(Analysis):
             all_global_writes = sorted(set(all_global_writes))
             all_global_write_set = set(all_global_writes)
             # TODO: Handle cases where reads and writes are not going to the same place
-            region_candidates: List[Tuple[int, int, bytes]] = []
+            region_candidates: list[tuple[int, int, bytes]] = []
             idx = 0
             while idx < len(all_global_reads):
                 starting_offset = all_global_reads[idx]
@@ -444,7 +445,7 @@ class StringObfuscationFinder(Analysis):
 
         return type2_candidates
 
-    def _analyze_type2(self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: Set[int]) -> Set:
+    def _analyze_type2(self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]) -> set:
         """
         Analyze Type 2 string deobfuscation functions, determine the following information:
 
@@ -463,7 +464,7 @@ class StringObfuscationFinder(Analysis):
         string_loader_candidates = set()
         for table_addr in table_addrs:
             xref_set = xrefs.get_xrefs_by_dst(table_addr)
-            block_addrs = set(xref.block_addr for xref in xref_set)
+            block_addrs = {xref.block_addr for xref in xref_set}
             for block_addr in block_addrs:
                 node = cfg.get_any_node(block_addr)
                 if node is not None:
@@ -475,7 +476,7 @@ class StringObfuscationFinder(Analysis):
 
         return string_loader_candidates
 
-    def _find_type3(self) -> List[Tuple[int, StringDeobFuncDescriptor]]:
+    def _find_type3(self) -> list[tuple[int, StringDeobFuncDescriptor]]:
         # Type 3 string deobfuscation functions
         # - Uses a buffer in the stack frame of its parent function
         # - Before the call, the values in the buffer or the struct are initialized during runtime
@@ -571,7 +572,7 @@ class StringObfuscationFinder(Analysis):
 
         return type3_functions
 
-    def _analyze_type3(self, func_addr: int, desc: StringDeobFuncDescriptor) -> Dict[int, bytes]:
+    def _analyze_type3(self, func_addr: int, desc: StringDeobFuncDescriptor) -> dict[int, bytes]:
         """
         Analyze Type 3 string deobfuscation functions, determine the following information:
 

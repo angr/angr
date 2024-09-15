@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple, Any, Dict
+from typing import Any
 from enum import IntEnum
 import string
 import logging
@@ -43,7 +43,7 @@ class Type1AssignmentFinder(CStructuredCodeWalker):
     def __init__(self, func_addr: int, desc: APIDeobFuncDescriptor):
         self.func_addr = func_addr
         self.desc = desc
-        self.assignments: Dict[int, Tuple[str, str]] = {}
+        self.assignments: dict[int, tuple[str, str]] = {}
 
     def handle_CAssignment(self, obj: CAssignment):
         if (
@@ -119,7 +119,7 @@ class APIObfuscationFinder(Analysis):
         load_library_funcs = [func for func in load_library_funcs if func.is_simprocedure]
 
         if not load_library_funcs:
-            return
+            return None
 
         # find callers of each load library func, up to three callers back
         callgraph = self.kb.functions.callgraph
@@ -152,7 +152,7 @@ class APIObfuscationFinder(Analysis):
             return False, None
 
         arch = self.project.arch
-        valid_apiname_charset = set(ord(ch) for ch in (string.ascii_letters + string.digits + "._"))
+        valid_apiname_charset = {ord(ch) for ch in (string.ascii_letters + string.digits + "._")}
 
         # decompile the function to get a prototype with types
         dec = self.project.analyses.Decompiler(func, cfg=cfg)
@@ -189,7 +189,7 @@ class APIObfuscationFinder(Analysis):
                     callsite_node.instruction_addrs[-1],
                     ObservationPointType.OP_BEFORE,
                 )
-                args: List[Tuple[int, Any]] = []
+                args: list[tuple[int, Any]] = []
                 for arg_idx, func_arg in enumerate(func.arguments):
                     # FIXME: We are ignoring all non-register function arguments until we see a test case where
                     # FIXME: stack-passing arguments are used
@@ -207,7 +207,7 @@ class APIObfuscationFinder(Analysis):
 
                 # the args must have at least one concrete address that points to an initialized memory location
                 acceptable_args = True
-                arg_strs: List[Tuple[int, str]] = []
+                arg_strs: list[tuple[int, str]] = []
                 for idx, arg in args:
                     if arg is not None and arg.concrete:
                         v = arg.concrete_value
@@ -245,10 +245,10 @@ class APIObfuscationFinder(Analysis):
             return True, {"libname_arg_idx": libname_arg_idx, "funcname_arg_idx": funcname_arg_idx}
         return False, None
 
-    def _analyze_type1(self, func_addr, desc: APIDeobFuncDescriptor) -> Dict[int, Tuple[str, str]]:
+    def _analyze_type1(self, func_addr, desc: APIDeobFuncDescriptor) -> dict[int, tuple[str, str]]:
         cfg = self.kb.cfgs.get_most_accurate()
 
-        assignments: Dict[int, Tuple[str, str]] = {}
+        assignments: dict[int, tuple[str, str]] = {}
 
         # get all call sites
         caller_addrs = sorted({caller_addr for caller_addr in self.kb.functions.callgraph.predecessors(func_addr)})

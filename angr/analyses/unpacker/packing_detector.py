@@ -1,4 +1,5 @@
-from typing import Optional, List, Tuple, TYPE_CHECKING
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
 import math
 import logging
 
@@ -21,7 +22,7 @@ class PackingDetector(Analysis):
     PACKED_MIN_BYTES = 256
     PACKED_ENTROPY_MIN_THRESHOLD = 0.88
 
-    def __init__(self, cfg: Optional[CFGModel] = None, region_size_threshold: int = 0x20):
+    def __init__(self, cfg: CFGModel | None = None, region_size_threshold: int = 0x20):
         self.packed: bool = False
         self.region_size_threshold: int = region_size_threshold
 
@@ -41,8 +42,8 @@ class PackingDetector(Analysis):
         # collect all regions that are not covered by the CFG in r+x sections, and then compute the entropy. we believe
         # the binary is packed if it is beyond a threshold
 
-        covered_regions: List[Tuple[int, int]] = []
-        last_known_section: Optional["Section"] = None
+        covered_regions: list[tuple[int, int]] = []
+        last_known_section: Optional[Section] = None
         for node in sorted(self._cfg.nodes(), key=lambda n: n.addr):
             section = None
             if last_known_section is not None:
@@ -76,14 +77,14 @@ class PackingDetector(Analysis):
                     covered_regions.append((node.addr, node.addr + node.size))
 
         # now we get the uncovered regions
-        uncovered_regions: List[Tuple[int, int]] = self._get_uncovered_regions(covered_regions)
+        uncovered_regions: list[tuple[int, int]] = self._get_uncovered_regions(covered_regions)
 
         # compute entropy
         total_bytes, entropy = self._compute_entropy(uncovered_regions)
 
         self.packed = total_bytes >= self.PACKED_MIN_BYTES and entropy >= self.PACKED_ENTROPY_MIN_THRESHOLD
 
-    def _get_uncovered_regions(self, covered_regions: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    def _get_uncovered_regions(self, covered_regions: list[tuple[int, int]]) -> list[tuple[int, int]]:
         # FIXME: We only support binaries with sections. Add support for segments in the future
         all_executable_sections = [
             sec
@@ -93,7 +94,7 @@ class PackingDetector(Analysis):
         all_executable_sections = sorted(all_executable_sections, key=lambda sec: sec.vaddr)
         idx = 0
 
-        uncovered_regions: List[Tuple[int, int]] = []
+        uncovered_regions: list[tuple[int, int]] = []
         for section in all_executable_sections:
             if idx >= len(covered_regions):
                 if section.memsize > self.region_size_threshold:
@@ -116,7 +117,7 @@ class PackingDetector(Analysis):
 
         return uncovered_regions
 
-    def _compute_entropy(self, regions: List[Tuple[int, int]]) -> Tuple[int, float]:
+    def _compute_entropy(self, regions: list[tuple[int, int]]) -> tuple[int, float]:
         byte_counts = [0] * 256
 
         for start, end in regions:

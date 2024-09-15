@@ -1,5 +1,5 @@
 # pylint:disable=no-self-use,unused-argument
-from typing import Set, Tuple
+from __future__ import annotations
 
 import pyvex
 
@@ -15,7 +15,7 @@ class IRSBRegisterCollector(SimEngineLightVEXMixin):
         super().__init__(*args, **kwargs)
 
         self.block = block
-        self.reg_reads: Set[Tuple[int, int]] = set()
+        self.reg_reads: set[tuple[int, int]] = set()
 
     def process(self):
         self.tmps = {}

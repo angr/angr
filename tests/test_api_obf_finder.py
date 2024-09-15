@@ -1,9 +1,9 @@
-from unittest import TestCase, main
+from __future__ import annotations
+from unittest import TestCase
 
 import os
 
 import angr
-from angr.analyses import deobfuscator
 
 binaries_base = os.path.join(
     os.path.dirname(os.path.realpath(str(__file__))),

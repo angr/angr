@@ -1,4 +1,4 @@
-from typing import Dict
+from __future__ import annotations
 
 import archinfo
 
@@ -80,7 +80,7 @@ class StringObfType3Rewriter(OptimizationPass):
 
         # remove N-2 continuous stack assignment
         if len(deobf_content) > 2:
-            stack_offset_to_stmtid: Dict[int, int] = {}
+            stack_offset_to_stmtid: dict[int, int] = {}
             for idx, stmt in enumerate(statements):
                 if (
                     isinstance(stmt, Store)

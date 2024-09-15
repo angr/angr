@@ -1,9 +1,9 @@
+from __future__ import annotations
 from unittest import TestCase, main
 
 import os
 
 import angr
-from angr.analyses import deobfuscator
 from angr.sim_type import parse_signature
 
 binaries_base = os.path.join(

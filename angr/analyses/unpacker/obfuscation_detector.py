@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, TYPE_CHECKING
+from __future__ import annotations
 import networkx
 import logging
 
@@ -15,9 +15,9 @@ class ObfuscationDetector(Analysis):
     existence of obfuscation techniques in a binary.
     """
 
-    def __init__(self, cfg: Optional[CFGModel] = None):
+    def __init__(self, cfg: CFGModel | None = None):
         self.obfuscated: bool = False
-        self.possible_obfuscators: List[str] = []
+        self.possible_obfuscators: list[str] = []
 
         if cfg is None:
             _l.warning(
@@ -42,7 +42,7 @@ class ObfuscationDetector(Analysis):
                 self.obfuscated = True
                 self.possible_obfuscators.append(tool)
 
-    def _analyze_vmprotect(self) -> Optional[str]:
+    def _analyze_vmprotect(self) -> str | None:
         """
         We detect VMProtect v3 (with control-flow obfuscation) based on two main characteristics:
 
@@ -92,9 +92,7 @@ class ObfuscationDetector(Analysis):
             high_pushf = True
         if popf_ctr > cfg_node_count * 0.002:
             high_popf = True
-        if not is_x86:
-            high_clc = True
-        elif clc_ctr > cfg_node_count * 0.002:
+        if not is_x86 or clc_ctr > cfg_node_count * 0.002:
             high_clc = True
 
         if high_scc_node_edge_ratio and high_pushf and high_popf:

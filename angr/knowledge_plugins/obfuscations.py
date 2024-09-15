@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from __future__ import annotations
 
 from .plugin import KnowledgeBasePlugin
 
@@ -19,7 +19,7 @@ class Obfuscations(KnowledgeBasePlugin):
         self.type3_deobfuscated_strings = {}  # from the address of the call instruction to the actual string (in bytes)
 
         self.obfuscated_apis_analyzed: bool = False
-        self.type1_deobfuscated_apis: Dict[int, Tuple[str, str]] = {}
+        self.type1_deobfuscated_apis: dict[int, tuple[str, str]] = {}
 
     def copy(self):
         o = Obfuscations(self._kb)
