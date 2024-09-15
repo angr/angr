@@ -127,91 +127,54 @@ def is_const_assignment(stmt: Statement) -> tuple[bool, Const | None]:
     return False, None
 
 
-class ConstAndVVarWalker(AILBlockWalkerBase):
-    def __init__(self):
+class AILBlacklistExprTypeWalker(AILBlockWalkerBase):
+    """
+    Walks an AIL expression or statement and determines if it does not contain certain types of expressions.
+    """
+
+    def __init__(self, blacklist_expr_types: tuple[type, ...]):
         super().__init__()
-        self.all_const_and_vvar_expr = True
+        self.blacklist_expr_types = blacklist_expr_types
+        self.has_blacklisted_exprs = False
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, (Tmp, Load, Register, Phi, Call, DirtyExpression)):
-            self.all_const_and_vvar_expr = False
+        if isinstance(expr, self.blacklist_expr_types):
+            self.has_blacklisted_exprs = True
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = ConstAndVVarWalker()
+        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression))
         walker.walk_expression(stmt.src)
-        return walker.all_const_and_vvar_expr
+        return not walker.has_blacklisted_exprs
     return False
-
-
-class ConstVVarAndTmpWalker(AILBlockWalkerBase):
-    def __init__(self):
-        super().__init__()
-        self.all_const_vvar_tmp_expr = True
-
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
-        if isinstance(expr, (Load, Register, Phi, Call, DirtyExpression)):
-            self.all_const_vvar_tmp_expr = False
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = ConstVVarAndTmpWalker()
+        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression))
         walker.walk_expression(stmt.src)
-        return walker.all_const_vvar_tmp_expr
+        return not walker.has_blacklisted_exprs
     return False
-
-
-class ConstVVarAndLoadWalker(AILBlockWalkerBase):
-    def __init__(self):
-        super().__init__()
-        self.all_const_vvar_load_expr = True
-
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
-        if isinstance(expr, (Tmp, Register, Phi, Call, DirtyExpression)):
-            self.all_const_vvar_load_expr = False
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_vvar_load_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = ConstVVarAndLoadWalker()
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression))
         walker.walk_expression(stmt.src)
-        return walker.all_const_vvar_load_expr
+        return not walker.has_blacklisted_exprs
     return False
-
-
-class ConstVVarLoadDirtyWalker(AILBlockWalkerBase):
-    def __init__(self):
-        super().__init__()
-        self.all_const_vvar_load_expr = True
-
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
-        if isinstance(expr, (Tmp, Register, Phi, Call)):
-            self.all_const_vvar_load_expr = False
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = ConstVVarLoadDirtyWalker()
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call))
         walker.walk_expression(stmt.src)
-        return walker.all_const_vvar_load_expr
+        return not walker.has_blacklisted_exprs
     return False
 
 

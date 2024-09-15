@@ -1,4 +1,4 @@
-# pylint:disable=too-many-boolean-expressions
+# pylint:disable=too-many-boolean-expressions,consider-using-enumerate
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
@@ -649,8 +649,9 @@ class AILSimplifier(Analysis):
 
         return narrowed
 
+    @staticmethod
     def _compute_narrowables_once(
-        self, rd, narrowing_candidates: dict, vvar_to_narrowing_size: dict[int, int], blacklist_varids: set
+        rd, narrowing_candidates: dict, vvar_to_narrowing_size: dict[int, int], blacklist_varids: set
     ):
         repeat = False
         narrowable_phivarids = set()
@@ -1520,7 +1521,8 @@ class AILSimplifier(Analysis):
 
                     if isinstance(dst, Call) and dst.ret_expr is not None:
                         dst_bits = dst.ret_expr.bits
-                        # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an expression
+                        # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an
+                        # expression
                         dst.ret_expr = None
                         dst.fp_ret_expr = None
                         dst.bits = dst_bits
@@ -1568,7 +1570,8 @@ class AILSimplifier(Analysis):
                 break
         return lst
 
-    def _replace_expr_and_update_block(self, block, stmt_idx, stmt, src_expr, dst_expr) -> tuple[bool, Block | None]:
+    @staticmethod
+    def _replace_expr_and_update_block(block, stmt_idx, stmt, src_expr, dst_expr) -> tuple[bool, Block | None]:
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()

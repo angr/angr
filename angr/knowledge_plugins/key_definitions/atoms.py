@@ -241,7 +241,7 @@ class Register(Atom):
 
 class VirtualVariable(Atom):
     """
-    TODO
+    Represents a virtual variable.
     """
 
     __slots__ = (

@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 import logging
 
@@ -161,14 +162,14 @@ class SimplifierAILEngine(
     def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_VirtualVariable(self, expr: Expr.VirtualVariable):
+    def _ail_handle_VirtualVariable(self, expr: Expr.VirtualVariable):  # pylint:disable=no-self-use
         # We don't want to return new values and construct new AIL expressions in caller methods without def-use
         # information. Otherwise, we may end up creating incorrect expressions.
         # Therefore, we do not perform vvar load, which essentially turns SimplifierAILEngine into a peephole
         # optimization engine.
         return expr
 
-    def _ail_handle_Phi(self, expr: Expr.Phi):
+    def _ail_handle_Phi(self, expr: Expr.Phi):  # pylint:disable=no-self-use
         return expr
 
     def _ail_handle_Load(self, expr):

@@ -9,6 +9,10 @@ from angr.utils.ssa import is_phi_assignment, VVarUsesCollector
 
 
 class SLivenessModel:
+    """
+    The SLiveness model that stores LiveIn and LiveOut sets for each block in a partial-SSA function.
+    """
+
     def __init__(self):
         self.live_ins = {}
         self.live_outs = {}

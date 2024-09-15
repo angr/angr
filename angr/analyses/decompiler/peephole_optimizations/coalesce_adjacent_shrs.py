@@ -5,6 +5,10 @@ from .base import PeepholeOptimizationExprBase
 
 
 class CoalesceAdjacentShiftRights(PeepholeOptimizationExprBase):
+    """
+    Coalesce adjacent SHR/SAR operations if possible.
+    """
+
     __slots__ = ()
 
     NAME = "Coalesce adjacent shr/sars"

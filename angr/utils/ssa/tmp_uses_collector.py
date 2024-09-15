@@ -8,6 +8,10 @@ from ailment.block import Block
 
 
 class TmpUsesCollector(AILBlockWalkerBase):
+    """
+    Collect all uses of temporary variables and their use statement IDs in an AIL block.
+    """
+
     def __init__(self):
         super().__init__()
 

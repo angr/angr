@@ -2,6 +2,10 @@ from __future__ import annotations
 
 
 class TraversalState:
+    """
+    The abstract state for the traversal engine.
+    """
+
     def __init__(
         self,
         arch,

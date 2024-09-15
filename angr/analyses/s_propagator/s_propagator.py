@@ -25,6 +25,10 @@ from angr.utils.ssa import (
 
 
 class SPropagatorModel:
+    """
+    The SPropagator model that stores replacements for virtual variables.
+    """
+
     def __init__(self):
         self.replacements = {}
 

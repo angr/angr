@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any
 from collections.abc import Generator
@@ -23,6 +24,10 @@ _l = logging.getLogger(__name__)
 
 
 class SRDAModel:
+    """
+    The model for SRDA.
+    """
+
     def __init__(self, func_graph, arch):
         self.func_graph = func_graph
         self.arch = arch
@@ -116,13 +121,20 @@ class SRDAModel:
 
     def get_uses_by_def(self, def_: Definition) -> set[CodeLocation]:
         if isinstance(def_.atom, atoms.Tmp):
-            return self.get_tmp_uses(def_.atom, CodeLocation(def_.codeloc.block_addr, block_idx=def_.codeloc.block_idx))
+            return self.get_tmp_uses(
+                def_.atom,
+                CodeLocation(def_.codeloc.block_addr, def_.codeloc.stmt_idx, block_idx=def_.codeloc.block_idx),
+            )
         if isinstance(def_.atom, atoms.VirtualVariable):
             return self.get_vvar_uses(def_.atom)
         return set()
 
 
 class SRDAView:
+    """
+    A view of SRDA model that provides various functionalities for querying the model.
+    """
+
     def __init__(self, model: SRDAModel):
         self.model = model
 
@@ -432,8 +444,8 @@ class SReachingDefinitionsAnalysis(Analysis):
                     if call.calling_convention is not None:
                         cc = call.calling_convention
                     else:
-                        # just use all registers in the default calling convention because we don't know anything about the
-                        # calling convention yet
+                        # just use all registers in the default calling convention because we don't know anything about
+                        # the calling convention yet
                         cc = default_cc(self.project.arch.name)(self.project.arch)
 
                     codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
@@ -445,37 +457,6 @@ class SReachingDefinitionsAnalysis(Analysis):
                             vvarid = reg_to_vvarids[reg_offset]
                             vvar = self.model.varid_to_vvar[vvarid]
                             self.model.all_vvar_uses[vvar].add((None, codeloc))
-
-            # fix register uses at return sites
-            # ret_site_addrs = {ret_site.addr for ret_site in self.func.ret_sites}
-            # if ret_site_addrs:
-            #     observations = srda_view.observe(
-            #         [
-            #             ("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)
-            #             for block in blocks.values()
-            #             if block.addr in ret_site_addrs
-            #         ]
-            #     )
-            #     for key, reg_to_vvarids in observations.items():
-            #         _, (block_addr, block_idx), _ = key
-            #         block = blocks[(block_addr, block_idx)]
-            #         if not block.statements:
-            #             continue
-            #         last_stmt = block.statements[-1]
-            #         if not isinstance(last_stmt, Return):
-            #             continue
-        #
-        #         if self.project.arch.bp_offset in reg_to_vvarids:
-        #             vvar_id = reg_to_vvarids[self.project.arch.bp_offset]
-        #             codeloc = CodeLocation(
-        #                 block_addr, len(block.statements) - 1, block_idx=block_idx, ins_addr=last_stmt.ins_addr
-        #             )
-        #             if not self._bp_as_gpr:
-        #                 # use bp
-        #                 vvar = next(
-        #                     iter(vvar for vvar in self.model.all_vvar_definitions if vvar.varid == vvar_id)
-        #                 )  # TODO: optimize it with a lookup
-        #                 self.model.all_vvar_uses[vvar].add((None, codeloc))
 
         if self._track_tmps:
             # track tmps

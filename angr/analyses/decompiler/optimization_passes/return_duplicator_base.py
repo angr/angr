@@ -264,7 +264,7 @@ class ReturnDuplicatorBase:
 
     @staticmethod
     def _update_phi_variables_after_removing_predecessor(node: Block, pred: Block) -> None:
-        for idx in range(len(node.statements)):
+        for idx in range(len(node.statements)):  # pylint:disable=consider-using-enumerate
             stmt = node.statements[idx]
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
                 # remove the variable from the specified source
@@ -397,7 +397,7 @@ class ReturnDuplicatorBase:
 
         ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0]) if ret_exprs and len(ret_exprs) == 1 else None
         # check if ret_expr is a virtual variable or not
-        if not (isinstance(ret_expr, (VirtualVariable, Const))):
+        if not isinstance(ret_expr, (VirtualVariable, Const)):
             return False
 
         # stop early if there are no assignments at all and just jumps and rets, or a const ret

@@ -20,6 +20,11 @@ l = logging.getLogger(__name__)
 
 
 class PhiAssignmentCollector(SequenceWalker):
+    """
+    PhiAssignmentCollector collects all phi variables and their corresponding source virtual variables in a
+    SequenceNode.
+    """
+
     def __init__(self, seq_node: SequenceNode):
         super().__init__(
             handlers={
@@ -31,7 +36,7 @@ class PhiAssignmentCollector(SequenceWalker):
 
         self.walk(seq_node)
 
-    def _handle_Block(self, block: Block, **kwargs) -> None:
+    def _handle_Block(self, block: Block, **kwargs) -> None:  # pylint:disable=unused-argument
 
         for stmt in block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
@@ -43,6 +48,11 @@ class PhiAssignmentCollector(SequenceWalker):
 
 
 class SeqNodeRewriter(SequenceWalker):
+    """
+    SeqNodeRewriter rewrites a SequenceNode by replacing all phi variables with their corresponding source virtual
+    variables.
+    """
+
     def __init__(self, seq_node: SequenceNode, vvar_to_vvar: dict[int, int], arch):
         super().__init__(
             handlers={
@@ -58,9 +68,7 @@ class SeqNodeRewriter(SequenceWalker):
             # nothing is changed during rewriting
             self.output = seq_node
 
-    # TODO: Implement other handlers
-
-    def _handle_Block(self, block: Block, **kwargs) -> Block | None:
+    def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
         self.engine.out_block = None
         self.engine.process(None, block=block)
         if self.engine.out_block is not None:

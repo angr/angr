@@ -1,11 +1,11 @@
 from __future__ import annotations
+from typing import Any, NamedTuple, TYPE_CHECKING
 import copy
-from collections import defaultdict, namedtuple
 import logging
 import enum
-from dataclasses import dataclass
-from typing import Any, NamedTuple, TYPE_CHECKING
+from collections import defaultdict, namedtuple
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 import networkx
 import capstone
@@ -144,6 +144,7 @@ class Clinic(Analysis):
         self._cache = cache
         self._mode = mode
         self.vvar_id_start = vvar_id_start
+        self.vvar_to_vvar: dict[int, int] | None = None
 
         # inlining help
         self._sp_shift = sp_shift

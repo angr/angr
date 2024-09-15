@@ -255,7 +255,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         return 1, {((phi_block_addr, phi_block_idx), phi_varid, new_vvar_id)}
 
-    def _append_stmt(self, block, stmt):
+    @staticmethod
+    def _append_stmt(block, stmt):
         if block.statements and isinstance(block.statements[-1], (Jump, ConditionalJump)):
             block.statements.insert(len(block.statements) - 1, stmt)
         else:
@@ -264,7 +265,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _record_stmt_for_prepending(self, block, stmt):
         self._stmts_to_prepend[block].append(stmt)
 
-    def _prepend_stmt(self, block, stmt):
+    @staticmethod
+    def _prepend_stmt(block, stmt):
         # TODO: This insertion breaks the assumption that all phi statements appear before any assignments. We must
         # TODO: fix the assumption elsewhere in the code base.
         first_nonlabel_idx = len(block.statements)
@@ -274,7 +276,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 break
         block.statements.insert(first_nonlabel_idx, stmt)
 
-    def _used_in_phi(self, dst_block, src_block, vvar_id: int) -> bool:
+    @staticmethod
+    def _used_in_phi(dst_block, src_block, vvar_id: int) -> bool:
         src = src_block.addr, src_block.idx
         for stmt in dst_block.statements:
             if isinstance(stmt, Label):

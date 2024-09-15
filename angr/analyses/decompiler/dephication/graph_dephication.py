@@ -17,8 +17,8 @@ l = logging.getLogger(name=__name__)
 
 class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
     """
-    GraphDephication removes phi expressions from an AIL graph, essentially transforms a partial-SSA form of AIL graph to a
-    normal AIL graph.
+    GraphDephication removes phi expressions from an AIL graph, essentially transforms a partial-SSA form of AIL graph
+    to a normal AIL graph.
     """
 
     def __init__(

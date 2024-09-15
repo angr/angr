@@ -156,8 +156,9 @@ class ITERegionConverter(OptimizationPass):
 
         return ite_candidates
 
+    @staticmethod
     def _has_qualified_phi_assignments(
-        self, block: Block, block0: Block, stmt0: Assignment | Call, block1: Block, stmt1: Assignment | Call
+        block: Block, block0: Block, stmt0: Assignment | Call, block1: Block, stmt1: Assignment | Call
     ):
         vvar0 = stmt0.dst if isinstance(stmt0, Assignment) else stmt0.ret_expr
         vvar1 = stmt1.dst if isinstance(stmt1, Assignment) else stmt1.ret_expr

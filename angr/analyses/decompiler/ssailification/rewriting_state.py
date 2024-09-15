@@ -9,6 +9,10 @@ from angr.code_location import CodeLocation
 
 
 class RewritingState:
+    """
+    The abstract state for the expression rewriting engine.
+    """
+
     def __init__(
         self,
         loc: CodeLocation,

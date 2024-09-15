@@ -153,7 +153,8 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         return phi_stmts
 
-    def insert_phi_statements(self, node: Block, phi_stmts: list[Assignment]):
+    @staticmethod
+    def insert_phi_statements(node: Block, phi_stmts: list[Assignment]):
         idx = 0
         while idx < len(node.statements):
             if not isinstance(node.statements[idx], Label):
@@ -265,7 +266,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
             ):
                 # there we go
                 new_stmts = []
-                for stmt_idx, stmt in enumerate(node.statements):
+                for stmt in node.statements:
                     if not (
                         isinstance(stmt, Assignment)
                         and isinstance(stmt.dst, VirtualVariable)
@@ -305,7 +306,8 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                 node = node.copy(statements=new_stmts)
                 self.out_blocks[node_key] = node
 
-    def _follow_one_path_backward(self, graph: networkx.DiGraph, src, predicate: Callable) -> Any:
+    @staticmethod
+    def _follow_one_path_backward(graph: networkx.DiGraph, src, predicate: Callable) -> Any:
         visited = set()
         return_value = None
         the_node = src

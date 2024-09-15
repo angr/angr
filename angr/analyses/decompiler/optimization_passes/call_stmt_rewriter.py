@@ -33,7 +33,7 @@ class CallStatementRewriter(OptimizationPass):
         changed = False
 
         for block in self._graph.nodes:
-            for idx in range(len(block.statements)):
+            for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
                 stmt = block.statements[idx]
                 if isinstance(stmt, Call) and stmt.ret_expr is not None and stmt.fp_ret_expr is None:
                     src = stmt.copy()

@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
 import logging
 
@@ -56,7 +57,8 @@ class SimEngineDephiRewriting(
         new_stmt = super()._handle_Stmt(stmt)
         if new_stmt is not None:
             if type(new_stmt) is tuple:
-                map(self.append_statement, new_stmt)
+                for s in new_stmt:
+                    self.append_statement(s)
             else:
                 self.append_statement(new_stmt)
         else:

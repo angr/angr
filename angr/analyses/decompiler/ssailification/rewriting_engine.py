@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
 from typing import Any
 import logging

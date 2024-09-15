@@ -164,7 +164,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
 
-    def _calculate_iterated_dominace_frontier_set(self, frontiers: dict, blocks: set) -> set:
+    @staticmethod
+    def _calculate_iterated_dominace_frontier_set(frontiers: dict, blocks: set) -> set:
         last_frontier: set | None = None
         while True:
             frontier = set()
@@ -176,7 +177,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             blocks |= frontier
         return last_frontier
 
-    def _synthesize_stackvar_locs(self, defs: list[Store]) -> dict[int, int]:
+    @staticmethod
+    def _synthesize_stackvar_locs(defs: list[Store]) -> dict[int, int]:
         accesses: defaultdict[int, set[int]] = defaultdict(set)
         offs: set[int] = set()
 

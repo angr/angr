@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+import contextlib
 import logging
 
 import ailment
@@ -12,7 +13,6 @@ from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, 
 from ...code_location import CodeLocation
 from ..typehoon import typevars, typeconsts
 from ..typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
-import contextlib
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase
@@ -96,7 +96,7 @@ class SimEngineVRBase(SimEngineLight):
 
     def _process(
         self, state, successors, block=None, func_addr=None
-    ):  # pylint:disable=unused-argument,arguments-differ
+    ):  # pylint:disable=unused-argument,arguments-differ,arguments-renamed
         super()._process(state, successors, block=block)
 
     #
@@ -292,7 +292,9 @@ class SimEngineVRBase(SimEngineLight):
                 offset = None
             variable_manager.reference_at(var, offset, codeloc, atom=src)
 
-    def _assign_to_register(self, offset, richr, size, src=None, dst=None, create_variable: bool = True):
+    def _assign_to_register(
+        self, offset, richr, size, src=None, dst=None, create_variable: bool = True
+    ):  # pylint:disable=unused-argument
         """
 
         :param int offset:
@@ -372,7 +374,7 @@ class SimEngineVRBase(SimEngineLight):
         dst=None,
         create_variable: bool = True,
         vvar_id: int | None = None,
-    ):
+    ):  # pylint:disable=unused-argument
 
         if vvar_id is None:
             vvar_id = vvar.varid

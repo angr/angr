@@ -10,6 +10,11 @@ from angr.code_location import CodeLocation
 
 
 class VVarUsesCollector(AILBlockWalkerBase):
+    """
+    Collect all uses of virtual variables and their use locations in an AIL block. Skip collecting use locations if
+    block is not specified.
+    """
+
     def __init__(self):
         super().__init__()
 
