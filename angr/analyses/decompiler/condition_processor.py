@@ -33,7 +33,7 @@ from .structuring.structurer_nodes import (
     IncompleteSwitchCaseNode,
 )
 from .graph_region import GraphRegion
-from .utils import first_nonlabel_statement, peephole_optimize_expr
+from .utils import first_nonlabel_nonphi_statement, peephole_optimize_expr
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -592,9 +592,9 @@ class ConditionProcessor:
         if (
             isinstance(src_block, ailment.Block)
             and src_block.statements
-            and isinstance(first_nonlabel_statement(src_block), ailment.Stmt.ConditionalJump)
+            and isinstance(first_nonlabel_nonphi_statement(src_block), ailment.Stmt.ConditionalJump)
         ):
-            last_stmt = first_nonlabel_statement(src_block)
+            last_stmt = first_nonlabel_nonphi_statement(src_block)
         else:
             last_stmt = self.get_last_statement(src_block)
 
@@ -743,7 +743,7 @@ class ConditionProcessor:
             return _dummy_bvs(condition, self._condition_mapping)
         if isinstance(condition, ailment.Stmt.Call):
             return _dummy_bvs(condition, self._condition_mapping, name_suffix=hex(condition.tags.get("ins_addr", 0)))
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
             if condition.variable is not None:
                 var = claripy.BVS(

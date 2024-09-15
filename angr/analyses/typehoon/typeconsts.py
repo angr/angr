@@ -212,7 +212,12 @@ class Struct(TypeConstant):
         prefix = "struct"
         if self.name:
             prefix = f"struct {self.name}"
-        return prefix + "{" + ", ".join(f"{k}:{v.__repr__(memo=memo)}" for k, v in self.fields.items()) + "}"
+        return (
+            prefix
+            + "{"
+            + ", ".join(f"{k}:{v.__repr__(memo=memo) if v is not None else 'None'}" for k, v in self.fields.items())
+            + "}"
+        )
 
     def __eq__(self, other):
         return type(other) is type(self) and hash(self) == hash(other)

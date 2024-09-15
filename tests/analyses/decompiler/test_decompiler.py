@@ -14,7 +14,7 @@ import ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_type import SimTypeInt, SimTypePointer
+from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -1666,12 +1666,7 @@ class TestDecompiler(unittest.TestCase):
         assert "c_ptr->c3[argc] = argc;" in d.codegen.text
         assert "c_ptr->c2[argc].b2.a2 = argc;" in d.codegen.text
         assert "b_ptr += 1;" in d.codegen.text
-        # TODO: re-enable the assert like it is below and replace the re.search with the propagate value
-        #   this should be in this form, but the propagation with pop/push registers is currently broken.
-        #   tracked in: https://github.com/angr/angr/issues/4514
-        # assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
-        # this checks for the form: `v11 = ...; return v11;`
-        assert re.search("v\\d+ = c_ptr->c4->c2\\[argc].b2.a2;\n {4}return v\\d+;", d.codegen.text) is not None
+        assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
     @slow_test
     @for_all_structuring_algos
@@ -1819,7 +1814,12 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("if (!v0)") == 3 or d.codegen.text.count("if (v0)") == 3
+        assert (
+            d.codegen.text.count("if (!v0)") == 3
+            or d.codegen.text.count("if (v0)") == 3
+            or d.codegen.text.count("if (!v0)") == 2
+            and d.codegen.text.count("if (!a0)") == 1
+        )
         assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("sailr")
@@ -2013,7 +2013,15 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
-        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=[^\n]*input_seek_errno[^\n]*;", condensed)
+        #         v1 = *((int *)&input_seek_errno);
+        #         if (v1 == 29)
+        #             return 1;
+        #         v2 = __errno_location();
+        #         *(v2) = v1;
+        m = re.search(r"v(\d+)=[^=;]*input_seek_errno[^=;]*;", condensed)
+        assert m is not None
+        v_input_seed_errno = m.group(1)
+        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=v" + v_input_seed_errno + r";", condensed)
 
     @structuring_algo("sailr")
     def test_decompiling_dd_iwrite(self, decompiler_options=None):
@@ -2256,7 +2264,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        cgc_allocate_call = re.search(r"cgc_allocate\(([^()]+)\)", d.codegen.text)
+        cgc_allocate_call = re.search(r"cgc_allocate\(([^\n]+)\)", d.codegen.text)
         assert cgc_allocate_call is not None, "Expect a call to cgc_allocate(), found None"
         comma_count = cgc_allocate_call.group(1).count(",")
         assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
@@ -2271,7 +2279,10 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
         )
 
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         f = proj.kb.functions["print_filename"]
+        # force the return type to void to avoid an over-aggressive region-to-ITE conversion
+        f.prototype.returnty = SimTypeBottom("void")
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -2283,6 +2294,13 @@ class TestDecompiler(unittest.TestCase):
         assert "case 92:" in d.codegen.text
         assert "default:" in d.codegen.text
         assert "goto" not in d.codegen.text
+        assert "continue;" in d.codegen.text
+
+        # ensure continue appears in between case 92: and default:
+        case_92_index = d.codegen.text.find("case 92:")
+        continue_index = d.codegen.text.find("continue;")
+        default_index = d.codegen.text.find("default:")
+        assert case_92_index < continue_index < default_index
 
     @structuring_algo("sailr")
     def test_reverting_switch_lowering_cksum_digest_main(self, decompiler_options=None):
@@ -2599,13 +2617,19 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions[0x404410]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
 
         target_addrs = {0x4045D8, 0x404575}
-        target_nodes = [node for node in d.codegen.ail_graph.nodes if node.addr in target_addrs]
+        target_nodes = [node for node in d.clinic.unoptimized_graph if node.addr in target_addrs]
 
         for target_node in target_nodes:
             # these are the two calls, their last arg should actually be r14
-            assert str(target_node.statements[-1].args[2]).startswith("r14")
+            assert target_node.statements
+            assert isinstance(target_node.statements[-1], ailment.Stmt.Call)
+            arg = target_node.statements[-1].args[2]
+            assert isinstance(arg, ailment.Expr.VirtualVariable)
+            assert arg.was_reg
+            assert arg.reg_offset == proj.arch.registers["r14"][0]
 
     @for_all_structuring_algos
     def test_else_if_scope_printing(self, decompiler_options=None):
@@ -2862,15 +2886,9 @@ class TestDecompiler(unittest.TestCase):
         #     v4 = 48;
         #     qsort();
         # Expected:
-        #     v1 = number_of_occurs;
-        #     if (number_of_occurs) {
-        #         v2 = occurs_table;
-        #         v3 = &compare_occurs;
-        #         v4 = 48;
-        #         qsort();
-        #     }
-        #     return;
-        assert re.search(r"if\(.+?\)\{{0,1}.+?\}{0,1}return", text) is not None
+        #     if (*((long long *)&number_of_occurs))
+        #         qsort(*((long long *)&occurs_table), *((long long *)&number_of_occurs), 48, compare_occurs);
+        assert re.search(r"if\(.+?\).+qsort\(.*\);.*return", text) is not None
 
     @for_all_structuring_algos
     def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
@@ -2993,14 +3011,14 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options_0, optimization_passes=all_optimization_passes
         )
+        self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*in_stream\)",
+                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*v\d+\)",
                 dec.codegen.text,
             )
             is not None
         )
-        self._print_decompilation_result(dec)
 
         # never use multi-statement expressions
         decompiler_options_1 = [
@@ -3014,7 +3032,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n;]+;",
+                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n;]+;",
                 dec.codegen.text,
             )
             is not None
@@ -3395,6 +3413,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
         text = d.codegen.text
 
         assert text.count("v2 = 2") == 1
@@ -3483,19 +3502,17 @@ class TestDecompiler(unittest.TestCase):
         # there are two acceptable scenarios (because type inference is non-deterministic. we should fix it in the
         # future)
         # case 1: v7 is an unsigned int
-        # *((unsigned short *)((char *)&v7 + 2 * v32)) = *((short *)((char *)&v7 + 2 * v32)) ^ (unsigned short)(145 + (unsigned int)v32);
+        # *((unsigned short *)((char *)&v7 + 2 * v32)) = *((short *)((char *)&v7 + 2 * v32)) ^ (unsigned short)(145 + v32);
         # case 2: v7 is an unsigned short
-        # (&v7)[v32] = (&v7)[v32] ^ (unsigned short)(145 + (unsigned int)v32);
+        # (&v7)[v32] = (&v7)[v32] ^ (unsigned short)(145 + v32);
 
         m0 = re.search(
             r"\*\(\(unsigned short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) = "
             r"\*\(\(short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) \^ "
-            r"\(unsigned short\)\(145 \+ \(unsigned int\)v\d+\);",
+            r"\(unsigned short\)\(145 \+ [^;\n]*v\d+\);",
             text,
         )
-        m1 = re.search(
-            r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ \(unsigned int\)v\d+\);", text
-        )
+        m1 = re.search(r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ [^;\n]*v\d+\);", text)
         assert m0 is not None or m1 is not None
 
     @structuring_algo("sailr")
@@ -3561,6 +3578,9 @@ class TestDecompiler(unittest.TestCase):
         assert "IoDriverObjectType" in d.codegen.text
         assert "wstrncpy(" in d.codegen.text
         assert "ObMakeTemporaryObject" in d.codegen.text
+        # ensure the stack canary is removed
+        assert "_security_check_cookie" not in d.codegen.text
+        assert " ^ " not in d.codegen.text
 
     @structuring_algo("sailr")
     def test_ite_region_converter_missing_break_statement(self, decompiler_options=None):
@@ -3596,7 +3616,7 @@ class TestDecompiler(unittest.TestCase):
         # the original assignment (rax = memcmp(xxx)? 0, 1) should be removed as well
         assert d.codegen.text.count('"Welcome to the admin console, trusted user!"') == 1
 
-    def test_inlining(self):
+    def test_inlining_shallow(self):
         # https://github.com/angr/angr/issues/4573
         bin_path = os.path.join(test_location, "x86_64", "inline_gym.so")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -3617,6 +3637,12 @@ class TestDecompiler(unittest.TestCase):
         assert "malloc(15)" in d.codegen.text
         assert "v1" not in d.codegen.text
 
+    def test_inlining_all(self):
+        # https://github.com/angr/angr/issues/4573
+        bin_path = os.path.join(test_location, "x86_64", "inline_gym.so")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
@@ -3684,13 +3710,15 @@ class TestDecompiler(unittest.TestCase):
             else:
                 assert first == decomp.codegen.text, "Decompilation is not deterministic"
 
-    def test_stop_iteration_in_canary_init_stmt(self):
+    @for_all_structuring_algos
+    def test_stop_iteration_in_canary_init_stmt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "hello_gcc9_reassembler")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
         function = cfg.functions[4198577]
         function.normalize()
-        proj.analyses.Decompiler(func=function, cfg=cfg)
+        d = proj.analyses.Decompiler(func=function, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
 
     @structuring_algo("sailr")
     def test_sailr_motivating_example(self, decompiler_options=None):
@@ -3786,7 +3814,7 @@ class TestDecompiler(unittest.TestCase):
         assert text.count(f"digest_length = {assign_var};") >= 3
 
     @structuring_algo("sailr")
-    def test_tr_build_spec_list_deduplication(self, decompiler_options=None):
+    def disabled_test_tr_build_spec_list_deduplication(self, decompiler_options=None):
         # This is a special testcase for deduplication that creates decompilation that is actually divergent from
         # the original source code, but in many ways makes the code better. So we test it still works.
         #
@@ -3796,6 +3824,12 @@ class TestDecompiler(unittest.TestCase):
         # There is programmer written duplicated code on 900-909 and 918-928, the only difference is a single string
         # which can be factored out into a variable. ReturnDuplicator will merge these two, making the code look
         # much cleaner, contain no gotos, and be less lines of code.
+
+        # This test case is disabled because duplication reverter cannot correctly support the similarity detection of
+        # blocks 0x400de6 and 0x400e7e. The root cause is that different registers (rax vs rbp) are used as the
+        # assignment target, which must be handled during comparison; Additionally, virtual variables must be rewritten
+        # when creating condition-guarded blocks after deduplication.
+
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
 

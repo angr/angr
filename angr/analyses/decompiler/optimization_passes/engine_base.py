@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 import logging
 
@@ -30,25 +31,15 @@ class SimplifierAILState:
     def merge(self, *others):
         raise NotImplementedError
 
-    def store_variable(self, old, new):
+    def store_variable(self, old: Expr.VirtualVariable, new):
         if new is not None:
-            self._variables[old] = new
+            self._variables[old.varid] = new
 
-    def get_variable(self, old):
-        return self._variables.get(old, None)
+    def get_variable(self, old: Expr.VirtualVariable):
+        return self._variables.get(old.varid, None)
 
     def remove_variable(self, old):
         self._variables.pop(old, None)
-
-    def filter_variables(self, atom):
-        keys_to_remove = set()
-
-        for k, v in self._variables.items():
-            if isinstance(v, Expr.Expression) and (v == atom or v.has_atom(atom, identity=False)):
-                keys_to_remove.add(k)
-
-        for k in keys_to_remove:
-            self._variables.pop(k)
 
 
 class SimplifierAILEngine(
@@ -94,8 +85,7 @@ class SimplifierAILEngine(
         src = self._expr(stmt.src)
         dst = self._expr(stmt.dst)
 
-        if isinstance(dst, Expr.Register) and not src.has_atom(dst, identity=False):
-            self.state.filter_variables(dst)
+        if isinstance(dst, Expr.VirtualVariable) and not isinstance(src, Expr.Phi):
             self.state.store_variable(dst, src)
 
         if (src, dst) != (stmt.src, stmt.dst):
@@ -139,6 +129,8 @@ class SimplifierAILEngine(
             prototype=stmt.prototype,
             args=new_args,
             ret_expr=stmt.ret_expr,
+            fp_ret_expr=stmt.fp_ret_expr,
+            bits=stmt.bits,
             **stmt.tags,
         )
 
@@ -155,16 +147,6 @@ class SimplifierAILEngine(
                 return new_stmt
         return stmt
 
-    def _ail_handle_Load(self, expr):
-        # We don't want to load new values and construct new AIL expressions in caller methods without def-use
-        # information. Otherwise, we may end up creating incorrect expressions.
-        # Therefore, we do not perform memory load, which essentially turns SimplifierAILEngine into a peephole
-        # optimization engine.
-        addr = self._expr(expr.addr)
-        if addr != expr.addr:
-            return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
-        return expr
-
     # handle expr
 
     def _expr(self, expr):
@@ -178,6 +160,26 @@ class SimplifierAILEngine(
         return expr
 
     def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
+        return expr
+
+    def _ail_handle_VirtualVariable(self, expr: Expr.VirtualVariable):  # pylint:disable=no-self-use
+        # We don't want to return new values and construct new AIL expressions in caller methods without def-use
+        # information. Otherwise, we may end up creating incorrect expressions.
+        # Therefore, we do not perform vvar load, which essentially turns SimplifierAILEngine into a peephole
+        # optimization engine.
+        return expr
+
+    def _ail_handle_Phi(self, expr: Expr.Phi):  # pylint:disable=no-self-use
+        return expr
+
+    def _ail_handle_Load(self, expr):
+        # We don't want to load new values and construct new AIL expressions in caller methods without def-use
+        # information. Otherwise, we may end up creating incorrect expressions.
+        # Therefore, we do not perform memory load, which essentially turns SimplifierAILEngine into a peephole
+        # optimization engine.
+        addr = self._expr(expr.addr)
+        if addr != expr.addr:
+            return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
         return expr
 
     def _ail_handle_Register(self, expr):  # pylint:disable=no-self-use

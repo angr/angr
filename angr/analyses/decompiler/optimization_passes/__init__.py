@@ -18,7 +18,6 @@ from .return_duplicator_low import ReturnDuplicatorLow
 from .return_duplicator_high import ReturnDuplicatorHigh
 from .const_derefs import ConstantDereferencesSimplifier
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
-from .spilled_register_finder import SpilledRegisterFinder
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
@@ -30,6 +29,7 @@ from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
 from .deadblock_remover import DeadblockRemover
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .const_prop_reverter import ConstPropOptReverter
+from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
 
 # order matters!
@@ -59,6 +59,7 @@ _all_optimization_passes = [
     (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
     (InlinedStringTransformationSimplifier, True),
+    (CallStatementRewriter, True),
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph

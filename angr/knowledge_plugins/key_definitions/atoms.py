@@ -239,6 +239,57 @@ class Register(Atom):
         )
 
 
+class VirtualVariable(Atom):
+    """
+    Represents a virtual variable.
+    """
+
+    __slots__ = (
+        "varid",
+        "category",
+        "oident",
+    )
+
+    def __init__(
+        self, varid: int, size: int, category: ailment.Expr.VirtualVariableCategory, oident: str | int | None = None
+    ):
+        super().__init__(size)
+
+        self.varid = varid
+        self.category = category
+        self.oident = oident
+
+    def __repr__(self):
+        return "<VVar %d<%d>>" % (self.varid, self.size)
+
+    def _identity(self):
+        return self.varid, self.size
+
+    @property
+    def was_reg(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.REGISTER
+
+    @property
+    def was_stack(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.STACK
+
+    @property
+    def was_parameter(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.PARAMETER
+
+    @property
+    def reg_offset(self) -> int | None:
+        if self.was_reg:
+            return self.oident
+        return None
+
+    @property
+    def stack_offset(self) -> int | None:
+        if self.was_stack:
+            return self.oident
+        return None
+
+
 class MemoryLocation(Atom):
     """
     Represents a memory slice.

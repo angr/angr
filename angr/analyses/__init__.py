@@ -45,3 +45,6 @@ from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
 from .flirt import FlirtAnalysis
+from .s_propagator import SPropagatorAnalysis
+from .s_reaching_definitions import SReachingDefinitionsAnalysis
+from .s_liveness import SLivenessAnalysis

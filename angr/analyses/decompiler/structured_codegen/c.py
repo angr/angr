@@ -2426,6 +2426,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
+            Expr.VirtualVariable: self._handle_VirtualVariable,
         }
 
         self._func = func
@@ -3193,8 +3194,35 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
-        cdst = self._handle(stmt.dst, lvalue=True)
         csrc = self._handle(stmt.src, lvalue=False)
+        cdst = None
+
+        if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
+
+            def negotiate(old_ty, proposed_ty):
+                # transfer casts from the dst to the src if possible
+                # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
+                nonlocal csrc
+                if old_ty != proposed_ty and qualifies_for_simple_cast(old_ty, proposed_ty):
+                    csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
+                    return proposed_ty
+                return old_ty
+
+            if stmt.dst.variable is not None:
+                if "struct_member_info" in stmt.dst.tags:
+                    offset, var, _ = stmt.dst.struct_member_info
+                    cvar = self._variable(var, stmt.dst.size)
+                else:
+                    cvar = self._variable(stmt.dst.variable, stmt.dst.size)
+                    offset = stmt.dst.variable_offset or 0
+                assert type(offset) is int  # I refuse to deal with the alternative
+
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cvar), offset, csrc.type, True, negotiate
+                )
+
+        if cdst is None:
+            cdst = self._handle(stmt.dst, lvalue=True)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
@@ -3520,6 +3548,28 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
         cexpr = self._handle(expr.expr)
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
+
+    def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
+        if expr.variable:
+            cvar = self._variable(expr.variable, None)
+            if expr.variable.size != expr.size:
+                l.warning(
+                    "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
+                    expr.size,
+                    expr.variable.size,
+                )
+                src_type = cvar.type
+                dst_type = {
+                    64: SimTypeLongLong(signed=False),
+                    32: SimTypeInt(signed=False),
+                    16: SimTypeShort(signed=False),
+                    8: SimTypeChar(signed=False),
+                }.get(expr.bits, None)
+                if dst_type is not None:
+                    dst_type = dst_type.with_arch(self.project.arch)
+                    return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
+            return cvar
+        return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         if expr.variable is not None:

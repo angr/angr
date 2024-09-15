@@ -35,11 +35,17 @@ class SimEngineVRAIL(
     state: VariableRecoveryFastState
     block: ailment.Block
 
-    def __init__(self, *args, call_info=None, **kwargs):
+    def __init__(self, *args, call_info=None, vvar_to_vvar: dict[int, int] | None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
+        self.vvar_to_vvar = vvar_to_vvar
+
+    def _mapped_vvarid(self, vvar_id: int) -> int | None:
+        if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
+            return self.vvar_to_vvar[vvar_id]
+        return None
 
     # Statement handlers
 
@@ -67,6 +73,21 @@ class SimEngineVRAIL(
 
             self.tmps[stmt.dst.tmp_idx] = data
 
+        elif dst_type is ailment.Expr.VirtualVariable:
+            data = self._expr(stmt.src)
+            self._assign_to_vvar(
+                stmt.dst, data, src=stmt.src, dst=stmt.dst, vvar_id=self._mapped_vvarid(stmt.dst.varid)
+            )
+
+            if stmt.dst.was_stack and isinstance(stmt.dst.stack_offset, int):
+                # store it to the stack region in case it's directly referenced later
+                self._store(
+                    RichR(self.state.stack_address(stmt.dst.stack_offset)),
+                    data,
+                    stmt.dst.bits // self.arch.byte_width,
+                    stmt=stmt,
+                )
+
         else:
             l.warning("Unsupported dst type %s.", dst_type)
 
@@ -93,16 +114,15 @@ class SimEngineVRAIL(
                 args.append(richr)
 
         ret_expr = None
-        ret_reg_offset = None
         ret_expr_bits = self.state.arch.bits
         ret_val = None  # stores the value that this method should return to its caller when this is a call expression.
         create_variable = True
         if not is_expr:
             # this is a call statement. we need to update the return value register later
-            ret_expr: ailment.Expr.Register | None = stmt.ret_expr
+            ret_expr: ailment.Expr.VirtualVariable | None = stmt.ret_expr
             if ret_expr is not None:
-                ret_reg_offset = ret_expr.reg_offset
-                ret_expr_bits = ret_expr.bits
+                if ret_expr.category == ailment.Expr.VirtualVariableCategory.REGISTER:
+                    ret_expr_bits = ret_expr.bits
             else:
                 # the return expression is not used, so we treat this call as not returning anything
                 if stmt.calling_convention is not None:
@@ -115,13 +135,10 @@ class SimEngineVRAIL(
                     )
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
 
-                if ret_expr is not None:
-                    ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
                 create_variable = False
         else:
             # this is a call expression. we just return the value at the end of this method
-            if stmt.ret_expr is not None:
-                ret_expr_bits = stmt.ret_expr.bits
+            ret_expr_bits = stmt.bits
 
         if isinstance(target, ailment.Expr.Expression) and not isinstance(target, ailment.Expr.Const):
             # this is a dynamically calculated call target
@@ -155,11 +172,21 @@ class SimEngineVRAIL(
             # call expression mode
             ret_val = RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
         else:
-            if ret_expr is not None:
-                # update the return value register
+            # update the return value register
+            if isinstance(ret_expr, ailment.Expr.VirtualVariable):
+                expr_bits = ret_expr_bits
+                self._assign_to_vvar(
+                    ret_expr,
+                    RichR(self.state.top(expr_bits), typevar=ret_ty),
+                    dst=ret_expr,
+                    create_variable=create_variable,
+                    vvar_id=self._mapped_vvarid(ret_expr.varid),
+                )
+            elif isinstance(ret_expr, ailment.Expr.Register):
+                l.warning("Left-over register found in call.ret_expr.")
                 expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
                 self._assign_to_register(
-                    ret_reg_offset,
+                    ret_expr.reg_offset,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
                     expr_bits // self.arch.byte_width,
                     dst=ret_expr,
@@ -225,6 +252,22 @@ class SimEngineVRAIL(
         size = expr.size
 
         return self._load(addr_r, size, expr=expr)
+
+    def _ail_handle_VirtualVariable(self, expr: ailment.Expr.VirtualVariable):
+        return self._read_from_vvar(expr, expr=expr, vvar_id=self._mapped_vvarid(expr.varid))
+
+    def _ail_handle_Phi(self, expr: ailment.Expr.Phi):
+        tvs = set()
+        for _, vvar in expr.src_and_vvars:
+            if vvar is not None:
+                r = self._read_from_vvar(vvar, expr=expr, vvar_id=self._mapped_vvarid(vvar.varid))
+                if r.typevar is not None:
+                    tvs.add(r.typevar)
+
+        tv = typevars.TypeVariable()
+        for tv_ in tvs:
+            self.state.add_type_constraint(typevars.Subtype(tv, tv_))
+        return RichR(self.state.top(expr.bits), typevar=tv)
 
     def _ail_handle_Const(self, expr: ailment.Expr.Const):
         if isinstance(expr.value, float):

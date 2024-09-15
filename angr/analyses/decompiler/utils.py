@@ -11,6 +11,7 @@ import ailment
 
 import angr
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
+from angr.utils.ail import is_phi_assignment
 from .seq_to_blocks import SequenceToBlocks
 
 _l = logging.getLogger(__name__)
@@ -333,6 +334,12 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
+def has_nonlabel_nonphi_statements(block: ailment.Block) -> bool:
+    return block.statements and any(
+        not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)) for stmt in block.statements
+    )
+
+
 def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
     if isinstance(block, MultiNode):
         for n in block.nodes:
@@ -343,6 +350,27 @@ def first_nonlabel_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.S
 
     for stmt in block.statements:
         if not isinstance(stmt, ailment.Stmt.Label):
+            return stmt
+    return None
+
+
+def first_nonlabel_statement_id(block: ailment.Block) -> int | None:
+    for idx, stmt in enumerate(block.statements):
+        if not isinstance(stmt, ailment.Stmt.Label):
+            return idx
+    return len(block.statements)
+
+
+def first_nonlabel_nonphi_statement(block: ailment.Block | MultiNode) -> ailment.Stmt.Statement | None:
+    if isinstance(block, MultiNode):
+        for n in block.nodes:
+            stmt = first_nonlabel_nonphi_statement(n)
+            if stmt is not None:
+                return stmt
+        return None
+
+    for stmt in block.statements:
+        if not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)):
             return stmt
     return None
 
@@ -358,6 +386,15 @@ def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
         inner_node = node.node if isinstance(node, CodeNode) else node
         if isinstance(inner_node, ailment.Block) and not has_nonlabel_statements(inner_node):
+            continue
+        return node
+    return None
+
+
+def first_nonlabel_nonphi_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
+    for node in seq.nodes:
+        inner_node = node.node if isinstance(node, CodeNode) else node
+        if isinstance(inner_node, ailment.Block) and not has_nonlabel_nonphi_statements(inner_node):
             continue
         return node
     return None
@@ -454,7 +491,15 @@ def structured_node_is_simple_return(
     if use_packed_successors:
         last_block = node
 
-    return valid_last_stmt and last_block in graph and not list(graph.successors(last_block))
+    if valid_last_stmt:
+        # note that the block may not be the same block in the AIL graph post dephication. we must find the block again
+        # in the graph.
+        for bb in graph:
+            if bb.addr == last_block.addr and bb.idx == last_block.idx:
+                # found it
+                succs = list(graph.successors(bb))
+                return not succs or succs == [bb]
+    return False
 
 
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
@@ -482,6 +527,11 @@ def peephole_optimize_exprs(block, expr_opts):
     def _handle_expr(
         expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expr.Expression | None:
+        # process the expr
+        processed = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+        if processed is not None:
+            expr = processed
         old_expr = expr
 
         redo = True
@@ -497,11 +547,8 @@ def peephole_optimize_exprs(block, expr_opts):
 
         if expr is not old_expr:
             _any_update.v = True
-            # continue to process the expr
-            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-            return expr if r is None else r
 
-        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+        return expr
 
     # run expression optimizers
     walker = ailment.AILBlockWalker()
