@@ -81,8 +81,11 @@ class SimActionObject:
 
         self.ast = ast
         if len(deps) != 0 and (state is None or o.ACTION_DEPS in state.options):
-            self.reg_deps = self.tmp_deps = frozenset.union(
+            self.reg_deps = frozenset.union(
                 *[r.reg_deps for r in deps if isinstance(r, SimActionData | SimActionOperation)]
+            )
+            self.tmp_deps = frozenset.union(
+                *[r.tmp_deps for r in deps if isinstance(r, SimActionData | SimActionOperation)]
             )
         else:
             self.reg_deps = reg_deps
