@@ -116,7 +116,7 @@ class SimStateScratch(SimStatePlugin):
         return v
 
     # pylint:disable=unused-argument
-    def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, deps=None, **kwargs):
+    def store_tmp(self, tmp, content, reg_deps=frozenset(), tmp_deps=frozenset(), deps=None, **kwargs):
         """
         Stores a Claripy expression in a VEX temp value.
         If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.

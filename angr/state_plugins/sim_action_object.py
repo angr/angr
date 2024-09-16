@@ -1,54 +1,51 @@
 from __future__ import annotations
-import logging
 
-l = logging.getLogger(name=__name__)
+import functools
+from itertools import chain
+import typing
 
 import claripy
-import functools
 
-from .. import sim_options as o
+from angr import sim_options as o
+from angr.errors import SimActionError
+from .sim_action import SimActionData, SimActionOperation
+from ..sim_state import SimState
 
-# pylint:disable=unidiomatic-typecheck
-
-_noneset = frozenset()
+if typing.TYPE_CHECKING:
+    from claripy.annotation import Annotation
+    from claripy.ast.base import ArgType
 
 
 def _raw_ast(a):
-    if type(a) is SimActionObject:
+    if isinstance(a, SimActionObject):
         return a.ast
-    if type(a) is dict:
-        return {k: _raw_ast(a[k]) for k in a}
-    if type(a) in (tuple, list, set, frozenset):
+    if isinstance(a, dict):
+        return {k: _raw_ast(v) for k, v in a.items()}
+    if isinstance(a, tuple | list | set | frozenset):
         return type(a)(_raw_ast(b) for b in a)
-    if type(a) in (zip, filter, map):
+    if isinstance(a, zip | filter | map):
         return (_raw_ast(i) for i in a)
     return a
 
 
 def _all_objects(a):
-    if type(a) is SimActionObject:
+    if isinstance(a, SimActionObject):
         yield a
-    elif type(a) is dict:
-        for b in a.values():
-            yield from _all_objects(b)
-    elif type(a) is (tuple, list, set, frozenset):
-        for b in a:
-            yield from _all_objects(b)
+    elif isinstance(a, dict):
+        yield from chain(*(_all_objects(b) for b in a.values()))
+    elif isinstance(a, tuple | list | set | frozenset):
+        yield from chain(*(_all_objects(b) for b in a))
 
 
-def ast_stripping_op(f, *args, **kwargs):
-    new_args = _raw_ast(args)
-    new_kwargs = _raw_ast(kwargs)
-    return f(*new_args, **new_kwargs)
+def ast_preserving_op(f, *args):
+    a = f(_raw_ast(*args)) if len(args) else f()
 
-
-def ast_preserving_op(f, *args, **kwargs):
-    tmp_deps = frozenset.union(_noneset, *(a.tmp_deps for a in _all_objects(args)))
-    reg_deps = frozenset.union(_noneset, *(a.reg_deps for a in _all_objects(args)))
-
-    a = ast_stripping_op(f, *args, **kwargs)
     if isinstance(a, claripy.ast.Base):
+        tmp_deps = frozenset.union(frozenset(), *(a.tmp_deps for a in _all_objects(args)))
+        reg_deps = frozenset.union(frozenset(), *(a.reg_deps for a in _all_objects(args)))
+
         return SimActionObject(a, reg_deps=reg_deps, tmp_deps=tmp_deps)
+
     return a
 
 
@@ -67,24 +64,32 @@ class SimActionObject:
     A SimActionObject tracks an AST and its dependencies.
     """
 
-    def __init__(self, ast, reg_deps=None, tmp_deps=None, deps=None, state=None):
-        if type(ast) is SimActionObject:
+    ast: claripy.ast.Base
+    reg_deps: frozenset[SimActionData | SimActionOperation]
+    tmp_deps: frozenset[SimActionData | SimActionOperation]
+
+    def __init__(
+        self,
+        ast: claripy.ast.Base,
+        reg_deps: frozenset[SimActionData | SimActionOperation] = frozenset(),
+        tmp_deps: frozenset[SimActionData | SimActionOperation] = frozenset(),
+        deps: frozenset = frozenset(),
+        state: SimState | None = None,
+    ):
+        if isinstance(ast, SimActionObject):
             raise SimActionError("SimActionObject inception!!!")
+
         self.ast = ast
-        if deps is not None:
-            if len(deps) == 0 or (state is not None and o.ACTION_DEPS not in state.options):
-                self.reg_deps = _noneset
-                self.tmp_deps = _noneset
-            else:
-                self.reg_deps = frozenset.union(
-                    *[r.reg_deps for r in deps if type(r) in (sim_action.SimActionData, sim_action.SimActionOperation)]
-                )
-                self.tmp_deps = frozenset.union(
-                    *[r.tmp_deps for r in deps if type(r) in (sim_action.SimActionData, sim_action.SimActionOperation)]
-                )
+        if len(deps) != 0 and (state is None or o.ACTION_DEPS in state.options):
+            self.reg_deps = frozenset.union(
+                *[r.reg_deps for r in deps if isinstance(r, SimActionData | SimActionOperation)]
+            )
+            self.tmp_deps = frozenset.union(
+                *[r.tmp_deps for r in deps if isinstance(r, SimActionData | SimActionOperation)]
+            )
         else:
-            self.reg_deps = _noneset if reg_deps is None else reg_deps
-            self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
+            self.reg_deps = reg_deps
+            self.tmp_deps = tmp_deps
 
     def __repr__(self):
         return f"<SAO {self.ast}>"
@@ -95,55 +100,172 @@ class SimActionObject:
     def __setstate__(self, data):
         self.ast, self.reg_deps, self.tmp_deps = data
 
-    def _preserving_unbound(self, f, *args, **kwargs):
-        return ast_preserving_op(f, *((self, *tuple(args))), **kwargs)
-
-    def _preserving_bound(self, f, *args, **kwargs):  # pylint:disable=no-self-use
-        return ast_preserving_op(f, *args, **kwargs)
-
-    def __getattr__(self, attr):
-        if attr == "__slots__":
-            raise AttributeError("not forwarding __slots__ to AST")
-
-        f = getattr(self.ast, attr)
-        if callable(f):
-            return functools.partial(self._preserving_bound, f)
-        if isinstance(f, claripy.ast.Base):
-            return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)
-        return f
-
-    def __len__(self):
+    def __len__(self) -> int | None:
         return len(self.ast)
 
-    def to_claripy(self):
+    def __getitem__(self, k: int):
+        return self.ast[k]
+
+    def to_claripy(self) -> claripy.ast.Base:
         return self.ast
 
-    def copy(self):
+    def copy(self) -> SimActionObject:
         return SimActionObject(self.ast, self.reg_deps, self.tmp_deps)
 
     def is_leaf(self) -> bool:
         return self.ast.is_leaf()
 
+    # Forwarding to ast
 
-#
-# Overload the operators
-#
+    @property
+    def op(self) -> str:
+        return self.ast.op
 
+    @property
+    def args(self) -> tuple[ArgType, ...]:
+        return self.ast.args
 
-def _operator(cls, op_name):
-    def wrapper(self, *args, **kwargs):
-        return self._preserving_unbound(getattr(self.ast.__class__, op_name), *args, **kwargs)
+    @property
+    def length(self) -> int | None:
+        return self.ast.length
 
-    wrapper.__name__ = op_name
-    setattr(cls, op_name, wrapper)
+    @property
+    def variables(self) -> frozenset[str]:
+        return self.ast.variables
 
+    @property
+    def symbolic(self) -> bool:
+        return self.ast.symbolic
 
-def make_methods():
-    for name in claripy.operations.expression_operations | {"__getitem__"}:
-        _operator(SimActionObject, name)
+    @property
+    def annotations(self) -> tuple[Annotation, ...]:
+        return self.ast.annotations
 
+    @property
+    def depth(self) -> int:
+        return self.ast.depth
 
-make_methods()
+    # Arithmetic operations
+    def __add__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__add__, other)
 
-from ..errors import SimActionError
-from . import sim_action
+    def __radd__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__radd__, other)
+
+    def __truediv__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__truediv__, other)
+
+    def __rtruediv__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rtruediv__, other)
+
+    def __floordiv__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__floordiv__, other)
+
+    def __rfloordiv__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rfloordiv__, other)
+
+    def __mul__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__mul__, other)
+
+    def __rmul__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rmul__, other)
+
+    def __sub__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__sub__, other)
+
+    def __rsub__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rsub__, other)
+
+    def __pow__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__pow__, other)
+
+    def __rpow__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rpow__, other)
+
+    def __mod__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__mod__, other)
+
+    def __rmod__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rmod__, other)
+
+    def SDiv(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.SDiv, other)
+
+    def SMod(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.SMod, other)
+
+    def __neg__(self) -> SimActionObject:
+        return ast_preserving_op(self.ast.__neg__)
+
+    def __abs__(self) -> SimActionObject:
+        return ast_preserving_op(self.ast.__abs__)
+
+    # Comparison -> SimActionObjects
+    def __eq__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__eq__, other)
+
+    def __ne__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__ne__, other)
+
+    def __ge__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__ge__, other)
+
+    def __le__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__le__, other)
+
+    def __gt__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__gt__, other)
+
+    def __lt__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__lt__, other)
+
+    # Bitwise operations
+    def __invert__(self) -> SimActionObject:
+        return ast_preserving_op(self.ast.__invert__)
+
+    def __or__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__or__, other)
+
+    def __ror__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__ror__, other)
+
+    def __and__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__and__, other)
+
+    def __rand__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rand__, other)
+
+    def __xor__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__xor__, other)
+
+    def __rxor__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rxor__, other)
+
+    def __lshift__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__lshift__, other)
+
+    def __rlshift__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rlshift__, other)
+
+    def __rshift__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rshift__, other)
+
+    def __rrshift__(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.__rrshift__, other)
+
+    # Set operations
+    def union(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.union, other)
+
+    def intersection(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.intersection, other)
+
+    def widen(self, other) -> SimActionObject:
+        return ast_preserving_op(self.ast.widen, other)
+
+    # Bits-specific methods
+    def raw_to_bv(self) -> SimActionObject:
+        return ast_preserving_op(self.ast.raw_to_bv)
+
+    def bv_to_fp(self) -> SimActionObject:
+        return ast_preserving_op(self.ast.raw_to_fp)
