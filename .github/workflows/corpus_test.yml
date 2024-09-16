@@ -20,15 +20,65 @@ env:
   CORPUS_GITHUB_BRANCH: "main"
   CORPUS_GITHUB_OWNER: "project-purcellville"
   # NB: The full corpus can be invoked with: path=cgc-challenges
-  #     The Estadio challenge binaries were chosen for their lower run-time for
-  #     testing.
-  CORPUS_GITHUB_PATH: "cgc-challenges/windows-build/challenges/Estadio;cgc-challenges/linux-build64/challenges/Estadio;cgc-challenges/linux-build/challenges/Estadio"
+  #     These challenge binaries were chosen for their low testing run-times.
+  CORPUS_GITHUB_PATH: "stable/cgc-challenges/linux-build64"
   CORPUS_GITHUB_REPO: "direct-file-store-0000"
   SNAPSHOT_GITHUB_BRANCH: "main"
   SNAPSHOT_GITHUB_OWNER: "project-purcellville"
   SNAPSHOT_GITHUB_REPO: "snapshots-0000"
 
 jobs:
+  build:
+    name: "Download dependencies to a cached virtual environment."
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python and Install Testing Dependencies
+        uses: actions/setup-python@v5
+        id: setup_python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Restore venv Cache
+        uses: actions/cache/restore@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
+      - run: python -m venv .venv
+        name: Create venv
+        shell: bash
+
+      - run: |
+          source .venv/bin/activate
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
+          pip install git+https://github.com/angr/archinfo.git
+          pip install git+https://github.com/angr/pyvex.git
+          pip install git+https://github.com/angr/cle.git
+          pip install git+https://github.com/angr/claripy.git
+          pip install git+https://github.com/angr/ailment.git
+          pip install requests
+        name: Install angr Dependencies
+
+      - run: |
+          source .venv/bin/activate
+          pip install --no-build-isolation .
+        name: Install angr
+
+      - run: |
+          source .venv/bin/activate
+          pip install pytest pytest-insta
+        name: Install test frameworks
+
+      - name: Save venv Cache
+        uses: actions/cache/save@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
   fetch_metadata_for_binaries:
     runs-on: ubuntu-latest
     outputs:
@@ -39,7 +89,14 @@ jobs:
         if: ${{ env.ACT }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl jq
+          sudo apt-get install -y curl jq wget
+
+          sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
 
       - name: Fetch metadata for binaries
         id: fetch_metadata_for_binaries
@@ -142,7 +199,7 @@ jobs:
           echo "chunks=$(printf '%s\n' "${chunks[@]}" | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
 
   analyze_binaries:
-    needs: [fetch_metadata_for_binaries]
+    needs: [build, fetch_metadata_for_binaries]
     runs-on: ubuntu-latest
 
     strategy:
@@ -153,6 +210,17 @@ jobs:
       - name: Checkout current repository
         uses: actions/checkout@v4
 
+      - name: Install GitHub CLI
+        if: ${{ env.ACT }}
+        run: |
+          (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
+          && sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
       - name: Setup Python and Install Testing Dependencies
         uses: actions/setup-python@v5
         id: setup_python
@@ -162,37 +230,6 @@ jobs:
 
       - name: Restore venv Cache
         uses: actions/cache/restore@v4
-        with:
-          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
-          path: .venv
-
-      - run: python -m venv .venv
-        name: Create venv
-        shell: bash
-
-      - run: |
-          source .venv/bin/activate
-          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
-          pip install git+https://github.com/angr/archinfo.git
-          pip install git+https://github.com/angr/pyvex.git
-          pip install git+https://github.com/angr/cle.git
-          pip install git+https://github.com/angr/claripy.git
-          pip install git+https://github.com/angr/ailment.git
-          pip install requests
-        name: Install angr Dependencies
-
-      - run: |
-          source .venv/bin/activate
-          pip install --no-build-isolation .
-        name: Install angr
-
-      - run: |
-          source .venv/bin/activate
-          pip install pytest pytest-insta
-        name: Install test frameworks
-
-      - name: Save venv Cache
-        uses: actions/cache/save@v4
         with:
           key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
           path: .venv
@@ -223,12 +260,10 @@ jobs:
               mkdir -p "binaries/$(dirname "$file")"
 
               # Fetch the binary file from the binaries repository
-              owner_repo_branch="$CORPUS_OWNER/$CORPUS_REPO/$CORPUS_BRANCH"
+              owner_repo_branch="$CORPUS_GITHUB_OWNER/$CORPUS_GITHUB_REPO/$CORPUS_GITHUB_BRANCH"
               binary_url="https://raw.githubusercontent.com/${owner_repo_branch}/$file"
               echo "Retrieving binary from '${binary_url}'."
-              curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                  -o "binaries/$file" \
-                  "${binary_url}"
+              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "binaries/$file" "${binary_url}"
 
               echo -e "Downloaded binary:\n$(ls -l "binaries/$file")"
 
@@ -245,9 +280,7 @@ jobs:
               snapshot_url="https://raw.githubusercontent.com/${owner_repo_branch}/snapshots/${snapshot_repo_file}"
 
               echo "Retrieving snapshot from '${snapshot_url}'."
-              curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                  -o "${pytest_insta_snapshot_file}" \
-                  "${snapshot_url}"
+              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
 
               if [ ! -e "${pytest_insta_snapshot_file}" ]; then
                 echo "*** Failed to download snapshot at '${snapshot_url}'."
@@ -262,6 +295,7 @@ jobs:
 
               # Run Angr Analysis on the binary file
               echo "Running 'angr' and 'pytest --insta update' to compare decompiler snapshots for '${file}'."
+
               pytest --insta update --binary "binaries/$file" > "${pytest_insta_snapshot_file}.log" 2>&1
               if [ -e "${pytest_insta_snapshot_file}.log" ]; then
                 head_lines=100
@@ -285,20 +319,20 @@ jobs:
           done
 
           if [ "$NIGHTLY" == "true" ] && [ $changed_snapshots -gt 0 ]; then
-            echo "Failing nightly build due to snapshot diffs."
+            echo "Failing nightly build due to $changed_snapshots snapshot diffs."
             exit 1
           fi
 
       - name: Push snapshots to snapshot repo
         env:
-          ANGR_BRANCH: github.event.pull_request.head.ref
+          ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         if: ${{ ! inputs.nightly }}
         run: |
           source .venv/bin/activate
           cd corpus_tests
 
-          snapshot_branch="update-snapshots-${ANGR_BRANCH}"
+          snapshot_branch="${ANGR_BRANCH}"
           ghapi=./ghapi.py
           tries=3
 
@@ -339,7 +373,7 @@ jobs:
             done
           done
 
-  create_pr_custom:
+  create_snapshot_pr:
     needs: [analyze_binaries]
     runs-on: ubuntu-latest
 
@@ -347,61 +381,50 @@ jobs:
       - name: Checkout current repository
         uses: actions/checkout@v4
 
-      - name: Setup Python and Install Testing Dependencies
-        uses: actions/setup-python@v5
-        id: setup_python
-        with:
-          python-version: "3.10"
-          cache: "pip"
-
-      - name: Restore venv Cache
-        uses: actions/cache/restore@v4
-        with:
-          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
-          path: .venv
-
-      - run: python -m venv .venv
-        name: Create venv
-        shell: bash
-
-      - name: Create pull request
-        env:
-          ANGR_BRANCH: github.event.pull_request.head.ref
-          SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
-        if: ${{ ! inputs.nightly }}
+      - name: Install apt packages (when testing locally in act)
+        if: ${{ env.ACT }}
         run: |
-          source .venv/bin/activate
-          cd corpus_tests
+          sudo apt-get update
+          sudo apt-get install -y curl jq wget
 
-          snapshot_branch="update-snapshots-${ANGR_BRANCH}"
-          ghapi=./ghapi.py
-          tries=3
+          sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
 
-          echo "Creating snapshots PR for '${snapshot_branch}' -> '${snapshot_base_branch}'."
-          n=0
-          while ! python3 $ghapi \
-              --auth-token "$SNAPSHOT_TOKEN" \
-              --owner "$SNAPSHOT_GITHUB_OWNER" \
-              --repo "$SNAPSHOT_GITHUB_REPO" \
-              --branch "${SNAPSHOT_GITHUB_BRANCH}" \
-              create_pr "${snapshot_branch}" "Decompilation snapshots: ${snapshot_branch} -> ${SNAPSHOT_GITHUB_BRANCH}"; do
-            n=$((n+1))
-            if [ $n -ge $tries ]; then
-              break
-            fi
-            wait_time="$(printf '%u.%03u' $((RANDOM % 4)) $((RANDOM % 1000)))"
-            echo "Pull request creation failed; waiting ${wait_time}s to try again."
-            sleep "${wait_time}"
-          done
+      - name: Maybe Create Snapshot Pull Request
+        id: snapshot-pr
+        if: ${{ ! inputs.nightly }}
+        env:
+          ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          title="Decompilation snapshots: ${ANGR_BRANCH} -> ${SNAPSHOT_GITHUB_BRANCH}"
+          gh api -X POST "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" \
+            -f base="${SNAPSHOT_GITHUB_BRANCH}" \
+            -f body="" \
+            -f head="${ANGR_BRANCH}" \
+            -f title="${title}"
+          success="$?"
 
-          # If the PR cannot be created it is (usually) because there are no
-          # changes between the branches. ghapi.py push_file command will
-          # not push the file if its contents have not changed.
-
-          if [[ $n -ge $tries ]]; then
-            echo "Snapshot pull request not created. Decompiler output UNCHANGED (SUCCESS)."
-            exit 0
-          else
-            echo "Snapshot pull request successfully created. Decompiler output CHANGED. (FAILURE)"
+          url="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
+                 jq --arg title "$title" '.[] | select(.title == $title) | .html_url')"
+          if [[ -z "$url" ]]; then
+            echo "Error: failed to create pull request in snapshots repository."
             exit 1
+          elif [[ "$success" -eq "0" ]]; then
+            echo "Created new snapshot pull request."
+          else
+            echo "Updating existing snapshot pull request."
           fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment snapshot_url to Pull Request
+        if: ${{ ! inputs.nightly }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
