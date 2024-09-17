@@ -106,6 +106,7 @@ class AILBlockWalkerBase:
         self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+        self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
         if stmt.args:
             for i, arg in enumerate(stmt.args):
                 self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -128,6 +129,7 @@ class AILBlockWalkerBase:
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+        self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
         if expr.args:
             for i, arg in enumerate(expr.args):
                 self._handle_expr(i, arg, stmt_idx, stmt, block)
