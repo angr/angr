@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import math
 import logging
 
@@ -43,7 +43,7 @@ class PackingDetector(Analysis):
         # the binary is packed if it is beyond a threshold
 
         covered_regions: list[tuple[int, int]] = []
-        last_known_section: Optional[Section] = None
+        last_known_section: Section | None = None
         for node in sorted(self._cfg.nodes(), key=lambda n: n.addr):
             section = None
             if last_known_section is not None:
