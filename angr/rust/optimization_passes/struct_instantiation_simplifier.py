@@ -7,7 +7,7 @@ from archinfo import Endness
 
 from ..ailment.expression import Struct, Array
 from ..definitions.structs import ArrayReference
-from ..sim_type import RustSimStruct
+from ..sim_type import RustSimStruct, RustSimTypeReference
 from ..utils.ail_util import get_terminal_call
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
@@ -31,29 +31,17 @@ class StructResolver:
                 return StructResolver(field_ty).find_field_type(offset - field_offset)
         return None
 
-    def resolve_element_ptrs(self, base, length):
-        result = []
-        if isinstance(self.struct_ty, ArrayReference) and isinstance(length, Const) and isinstance(length.value, int):
-            length = length.value
-            if isinstance(base, Const) and isinstance(base.value, int):
-                for i in range(length):
-                    ele = base.copy()
-                    ele.value += i * self.struct_ty.ele_ty.size // 8
-                    result.append(ele)
-            elif isinstance(base, BasePointerOffset):
-                for i in range(length):
-                    ele = base.copy()
-                    ele.variable = base.variable
-                    ele.offset += i * self.struct_ty.ele_ty.size // 8
-                    result.append(ele)
-        return result
-
 
 class StructBuilder:
-    def __init__(self, struct_ty: RustSimStruct, struct_members, arch):
+    def __init__(self, struct_ty: RustSimStruct, struct_members, context: "StructInstantiationSimplifier"):
         self.struct_ty = struct_ty
         self.struct_members = struct_members
-        self._arch = arch
+        self.context = context
+
+        self.pending_potential_structs = []
+
+        self._arch = context.project.arch
+        self._variable_manager = context.variable_manager
 
         self._fix_struct_members()
 
@@ -104,11 +92,25 @@ class StructBuilder:
         ele_ty = self.struct_ty.fields["ptr"].pts_to
         len_expr = self.struct_members[len_offset]
         if isinstance(len_expr, Const):
-            if len_expr.value != 0 and isinstance(ptr_expr, Const):
+            if isinstance(ptr_expr, Const):
                 for i in range(len_expr.value):
                     ele_expr = ptr_expr.copy()
                     ele_expr.value = ptr_expr.value + ele_ty.size // 8 * i
                     elements.append(ele_expr)
+            elif isinstance(ptr_expr, BasePointerOffset):
+                for i in range(len_expr.value):
+                    ele_expr = ptr_expr.copy()
+                    ele_expr.offset = ptr_expr.offset + ele_ty.size // 8 * i
+                    potential_variables = self._variable_manager.find_variables_by_stack_offset(ele_expr.offset)
+                    if not potential_variables:
+                        return None
+                    ele_expr.variable = next(iter(potential_variables))  # FIXME: Choose the correct variable
+                    # Looking for nested struct references
+                    if isinstance(ele_ty, RustSimTypeReference) and isinstance(ele_ty.pts_to, RustSimStruct):
+                        self.pending_potential_structs.append((ele_expr, ele_ty.pts_to))
+                    elements.append(ele_expr)
+            else:
+                return None
             return Array(0, elements, self.struct_ty)
         return None
 
@@ -122,7 +124,9 @@ class StructBuilder:
         for field_name, field_ty in self.struct_ty.fields.items():
             field_offset = self.struct_ty.offsets[field_name]
             if isinstance(field_ty, RustSimStruct):
-                field_struct = StructBuilder(field_ty, self._rebased_struct_members(field_offset), self._arch).build()
+                builder = StructBuilder(field_ty, self._rebased_struct_members(field_offset), self.context)
+                field_struct = builder.build()
+                self.pending_potential_structs += builder.pending_potential_structs
                 if field_struct is None:
                     return None
                 fields[field_offset] = field_struct
@@ -145,9 +149,14 @@ class StructInstantiationSimplifier(OptimizationPass):
         self.srda = self.project.analyses.SReachingDefinitions(subject=self._func, func_graph=self._graph)
         self.srda_view = SRDAView(self.srda.model)
         self.variable_manager = self._variable_kb.variables[self._func.addr]
+
         self.codeloc_to_block = {}
         for node in self._graph.nodes:
             self.codeloc_to_block[(node.addr, node.idx)] = node
+
+        self._stmts_to_replace = defaultdict(list)
+        self._stmts_to_remove = defaultdict(list)
+
         self.analyze()
 
     def _check(self):
@@ -189,9 +198,50 @@ class StructInstantiationSimplifier(OptimizationPass):
     def _get_block_by_codeloc(self, codeloc: CodeLocation):
         return self.codeloc_to_block.get((codeloc.block_addr, codeloc.block_idx), None)
 
+    def _simplify_struct_instantiation(self, block, stmt, expr: BasePointerOffset, struct_ty: RustSimStruct):
+        # If we can find all definitions of struct fields, let's create a struct instantiation
+        # Otherwise just bind the offset and head variable to each field definition
+        collected_members = {}
+        offset = expr.offset
+        offset_to_def = {}
+        while offset - expr.offset < struct_ty.size // 8:
+            vvar = self._get_stack_vvar_by_insn(offset, stmt.ins_addr, block.idx)
+            if vvar:
+                def_ = self._get_def_by_stack_vvar(vvar)
+                offset_to_def[offset - expr.offset] = def_
+                value = self.srda_view.get_vvar_value(vvar)
+                collected_members[offset - expr.offset] = value
+                offset += value.size if hasattr(value, "size") else 1
+            else:
+                offset += 1
+        builder = StructBuilder(struct_ty, collected_members, self)
+        struct = builder.build()
+
+        if struct and 0 in offset_to_def:
+            def_ = offset_to_def[0]
+            head_stmt = self._get_stmt_by_codeloc(def_.codeloc)
+            store = Store(
+                idx=head_stmt.idx,
+                addr=expr,
+                data=struct,
+                size=struct.size,
+                endness=self.project.arch.memory_endness,
+                **head_stmt.tags,
+            )
+
+            for expr, struct_ty in builder.pending_potential_structs:
+                self._simplify_struct_instantiation(block, stmt, expr, struct_ty)
+
+            for offset, def_ in offset_to_def.items():
+                block = self._get_block_by_codeloc(def_.codeloc)
+                stmt = self._get_stmt_by_codeloc(def_.codeloc)
+                if stmt in block.statements:
+                    if offset == 0:
+                        self._stmts_to_replace[block].append((def_.codeloc.stmt_idx, store))
+                    else:
+                        self._stmts_to_remove[block].append(stmt)
+
     def _analyze(self, cache=None):
-        stmts_to_replace = defaultdict(list)
-        stmts_to_remove = defaultdict(list)
         for block in self._graph.nodes:
             call = get_terminal_call(block)
             if call and call.args:
@@ -206,50 +256,13 @@ class StructInstantiationSimplifier(OptimizationPass):
                         )
                         and isinstance(arg_ty, RustSimStruct)
                     ):
-                        # If we can find all definitions of struct fields, let's create a struct instantiation
-                        # Otherwise just bind the offset and head variable to each field definition
-                        collected_members = {}
-                        offset = arg.offset
-                        offset_to_def = {}
-                        while offset - arg.offset < arg_ty.size // 8:
-                            vvar = self._get_stack_vvar_by_insn(offset, block.statements[-1].ins_addr, block.idx)
-                            if vvar:
-                                def_ = self._get_def_by_stack_vvar(vvar)
-                                offset_to_def[offset - arg.offset] = def_
-                                value = self.srda_view.get_vvar_value(vvar)
-                                # collected_members.append((vvar, def_, value))
-                                collected_members[offset - arg.offset] = value
-                                offset += value.size if hasattr(value, "size") else 1
-                            else:
-                                offset += 1
-                        struct = StructBuilder(arg_ty, collected_members, self.project.arch).build()
+                        self._simplify_struct_instantiation(block, block.statements[-1], arg, arg_ty)
 
-                        if struct and 0 in offset_to_def:
-                            def_ = offset_to_def[0]
-                            head_stmt = self._get_stmt_by_codeloc(def_.codeloc)
-                            store = Store(
-                                idx=head_stmt.idx,
-                                addr=arg,
-                                data=struct,
-                                size=struct.size,
-                                endness=self.project.arch.memory_endness,
-                                **head_stmt.tags,
-                            )
-
-                            for offset, def_ in offset_to_def.items():
-                                block = self._get_block_by_codeloc(def_.codeloc)
-                                stmt = self._get_stmt_by_codeloc(def_.codeloc)
-                                if stmt in block.statements:
-                                    if offset == 0:
-                                        stmts_to_replace[block].append((def_.codeloc.stmt_idx, store))
-                                    else:
-                                        stmts_to_remove[block].append(stmt)
-
-        for block in stmts_to_replace:
-            for stmt_idx, replacement in stmts_to_replace[block]:
+        for block in self._stmts_to_replace:
+            for stmt_idx, replacement in self._stmts_to_replace[block]:
                 block.statements[stmt_idx] = replacement
 
-        for block in stmts_to_remove:
-            for stmt in stmts_to_remove[block]:
+        for block in self._stmts_to_remove:
+            for stmt in self._stmts_to_remove[block]:
                 if stmt in block.statements:
                     block.statements.remove(stmt)
