@@ -1168,13 +1168,13 @@ class SimLyingRegArg(SimRegArg):
         # val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = state.registers.load(self.reg_name).raw_to_fp()
         if self._real_size == 4:
-            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)
+            val = claripy.fpToFP(val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ,unused-argument
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
-            value = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE)
+            value = claripy.fpToFP(value.raw_to_fp(), claripy.FSORT_DOUBLE)
         state.registers.store(self.reg_name, value)
         # super(SimLyingRegArg, self).set_value(state, value, endness=endness, **kwargs)
 

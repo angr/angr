@@ -110,7 +110,7 @@ def concretize_float64_to_float32(state, args):
 
 def concretize_float64_to_int64s(state, args):
     rm = translate_rm(args[0])
-    return state.solver.fpToSBV(rm, args[1], 64)
+    return state.solver.fpToSBV(args[1], 64, rm)
 
 
 def concretize_int32s_to_float64(state, args):
