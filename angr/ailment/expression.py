@@ -435,11 +435,11 @@ class UnaryOp(Op):
         "variable_offset",
     )
 
-    def __init__(self, idx, op, operand, variable=None, variable_offset=None, **kwargs):
+    def __init__(self, idx, op, operand, variable=None, variable_offset=None, bits: int | None = None, **kwargs):
         super().__init__(idx, (operand.depth if isinstance(operand, Expression) else 0) + 1, op, **kwargs)
 
         self.operand = operand
-        self.bits = operand.bits
+        self.bits = operand.bits if bits is None else bits
         self.variable = variable
         self.variable_offset = variable_offset
 
@@ -478,7 +478,7 @@ class UnaryOp(Op):
             r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
         if r:
-            return True, UnaryOp(self.idx, self.op, replaced_operand, **self.tags)
+            return True, UnaryOp(self.idx, self.op, replaced_operand, bits=self.bits, **self.tags)
         else:
             return False, self
 
@@ -492,7 +492,13 @@ class UnaryOp(Op):
 
     def copy(self) -> UnaryOp:
         return UnaryOp(
-            self.idx, self.op, self.operand, variable=self.variable, variable_offset=self.variable_offset, **self.tags
+            self.idx,
+            self.op,
+            self.operand,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            bits=self.bits,
+            **self.tags,
         )
 
     def has_atom(self, atom, identity=True):

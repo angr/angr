@@ -205,6 +205,7 @@ class VEXExprConverter(Converter):
             manager.next_atom(),
             op_name,
             VEXExprConverter.convert(expr.args[0], manager),
+            bits=expr.result_size(manager.tyenv),
             ins_addr=manager.ins_addr,
             vex_block_addr=manager.block_addr,
             vex_stmt_idx=manager.vex_stmt_idx,
@@ -498,7 +499,7 @@ class VEXStmtConverter(Converter):
             "ILGop_16Sto32": (16, 32, True),
         }
 
-        dst = VEXExprConverter.tmp(stmt.dst, manager.tyenv.sizeof(stmt.dst) // 8, manager)
+        dst = VEXExprConverter.tmp(stmt.dst, manager.tyenv.sizeof(stmt.dst), manager)
         load_bits, convert_bits, signed = sizes[stmt.cvt]
         src = Load(
             manager.next_atom(),
