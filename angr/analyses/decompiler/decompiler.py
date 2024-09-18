@@ -334,6 +334,7 @@ class Decompiler(Analysis):
                 )
                 continue
 
+            pass_ = timethis(pass_)
             a = pass_(
                 self.func,
                 blocks_by_addr=addr_to_blocks,
@@ -389,6 +390,7 @@ class Decompiler(Analysis):
                 )
                 continue
 
+            pass_ = timethis(pass_)
             a = pass_(
                 self.func,
                 blocks_by_addr=addr_to_blocks,
@@ -425,6 +427,7 @@ class Decompiler(Analysis):
             if pass_.STAGE != OptimizationPassStage.AFTER_STRUCTURING:
                 continue
 
+            pass_ = timethis(pass_)
             a = pass_(self.func, seq=seq_node, **kwargs)
             if a.out_seq:
                 seq_node = a.out_seq

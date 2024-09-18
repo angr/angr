@@ -1210,6 +1210,7 @@ class Clinic(Analysis):
                 # of the graph is applied
                 self.unoptimized_graph = self._copy_graph(ail_graph)
 
+            pass_ = timethis(pass_)
             a = pass_(
                 self.function,
                 blocks_by_addr=addr_to_blocks,
