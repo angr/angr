@@ -140,7 +140,7 @@ class AILMergeGraph:
         self.starts = []
         self.original_ends = []
 
-    def create_conditionless_graph(self, starting_blocks: list[Block], graph_lcs):
+    def create_conditionless_graph(self, starting_blocks: list[Block], graph_lcs) -> dict[Block, Block] | None:
         # get all the original blocks (reverted from the LCS) and their split blocks.
         # split-blocks are blocks that need to be split at some stmt index to make the two blocks
         # equal across both graphs. At a highlevel, the first block in both matching graphs either need
@@ -180,9 +180,12 @@ class AILMergeGraph:
         # we create a new graph, full of the original blocks of the base, with blocks
         # that should be split replaced.
         # this graph is only the initial merge_graph needed, where only the blocks
-        self.graph, update_blocks = self.clone_graph_replace_splits(
-            nx.subgraph(self.original_graph, self.original_blocks[merge_base]), base_to_split
-        )
+        subgraph = nx.subgraph(self.original_graph, self.original_blocks[merge_base])
+        # ensure all base blocks are within the subgraph
+        for block in base_to_split:
+            if block not in subgraph:
+                return None
+        self.graph, update_blocks = self.clone_graph_replace_splits(subgraph, base_to_split)
         self._update_all_split_refs(update_blocks)
         for update_block, new_block in update_blocks.items():
             if update_block in starting_blocks:
