@@ -888,6 +888,7 @@ class Clinic(Analysis):
             self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
             avoid_vvar_ids=self.copied_var_ids,
+            variable_kb=variable_kb
         )
 
         # Make function prototype
