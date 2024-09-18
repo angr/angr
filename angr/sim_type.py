@@ -496,8 +496,13 @@ class SimTypeLongLong(SimTypeInt):
 
 
 class SimTypeFixedSizeInt(SimTypeInt):
-    _base_name = None
-    _fixed_size = None
+    """
+    The base class for all fixed-size (i.e., the size stays the same on all platforms) integer types. Do not
+    instantiate this class directly.
+    """
+
+    _base_name: str = "int"
+    _fixed_size: int = 32
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         out = self._base_name
@@ -507,7 +512,7 @@ class SimTypeFixedSizeInt(SimTypeInt):
             return out
         return f"{out} {name}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         name = self._base_name
         if not self.signed:
             name = "u" + name
