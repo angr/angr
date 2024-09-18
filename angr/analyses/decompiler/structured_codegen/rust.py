@@ -1476,21 +1476,25 @@ class RustStruct(RustExpression):
             return
         indent_str = self.indent_str(indent=indent)
         field_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
-        yield str(self.type.name), self
-        yield " {\n", brace
-        for offset, name in self.field_names.items():
-            yield field_indent_str, None
-            yield name, self
-            yield ": ", self
-            try:
-                yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.fields[offset]))
-            except Exception as e:
-                import ipdb
-
-                ipdb.set_trace()
-            yield "\n", None
-        yield indent_str, None
-        yield "}", brace
+        if isinstance(self.type, Option):
+            if isinstance(self.fields[0], ailment.expression.Const) and self.fields[0].value == 0:
+                yield "None", None
+        else:
+            yield str(self.type.name), self
+            yield " {\n", brace
+            for offset, name in self.field_names.items():
+                yield field_indent_str, None
+                yield name, self
+                yield ": ", self
+                if offset in self.fields:
+                    yield from RustExpression._try_c_repr_chunks(
+                        self.codegen._handle(self.fields[offset]), indent=indent + INDENT_DELTA
+                    )
+                else:
+                    yield "<UNKNOWN>", None
+                yield "\n", None
+            yield indent_str, None
+            yield "}", brace
 
 
 class RustStructField(RustExpression):
@@ -2459,6 +2463,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
+            Expr.VirtualVariable: self._handle_VirtualVariable,
             String: self._handle_Expr_String,
             Vec: self._handle_Expr_Vec,
             Struct: self._handle_Expr_Struct,
@@ -3639,6 +3644,23 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cstmts = RustStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
         cexpr = self._handle(expr.expr)
         return RustMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
+
+    def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
+        if expr.variable:
+            cvar = self._variable(expr.variable, None)
+            if expr.variable.size != expr.size:
+                l.warning(
+                    "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
+                    expr.size,
+                    expr.variable.size,
+                )
+                src_type = cvar.type
+                dst_type = RustSimTypeInt(expr.bits, signed=False)
+                if dst_type is not None:
+                    dst_type = dst_type.with_arch(self.project.arch)
+                    return RustTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
+            return cvar
+        return RustDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         if expr.variable is not None:

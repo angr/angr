@@ -1,5 +1,6 @@
 import ailment
-from ailment import Const
+from ailment import Const, AILBlockWalker, Block
+from ailment.statement import Call, Statement
 
 from ..utils.library import demangle, normalize
 from ... import SIM_LIBRARIES
@@ -26,27 +27,29 @@ class LibFunctionIdentifier(OptimizationPass):
 
     def _analyze(self, cache=None):
         librust = SIM_LIBRARIES["librust"]
+
+        class CallWalker(AILBlockWalker):
+            def __init__(self, pass_):
+                super().__init__()
+                self._pass = pass_
+                self.prototype = None
+                self.cc = None
+
+            def _handle_Call_Unified(self, call: Call):
+                target = self._pass._extract_target(call)
+                if target is not None:
+                    normalized_name = normalize(target.name, remove_polymorphism=True)
+                    if librust.has_prototype(normalized_name):
+                        self.prototype = librust.get_prototype(normalized_name).with_arch(self._pass.project.arch)
+                        self.cc = target.calling_convention
+
+            def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+                self._handle_Call_Unified(stmt)
+
+            def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+                self._handle_Call_Unified(expr)
+
         for block in list(self._graph.nodes()):
-            new_stmts = []
-            for stmt in block.statements:
-                new_stmt = stmt
-                if isinstance(stmt, ailment.Stmt.Call):
-                    target = self._extract_target(stmt)
-                    if target is not None:
-                        normalized_name = normalize(target.name, remove_polymorphism=True)
-                        if librust.has_prototype(normalized_name):
-                            prototype = librust.get_prototype(normalized_name).with_arch(self.project.arch)
-                            new_stmt = ailment.Stmt.Call(
-                                stmt.idx,
-                                stmt.target,
-                                stmt.calling_convention,
-                                prototype,
-                                stmt.args,
-                                stmt.ret_expr if prototype.returnty else None,
-                                stmt.fp_ret_expr,
-                                **stmt.tags,
-                            )
-                            target.prototype = prototype
-                            new_stmt.prototype = prototype
-                new_stmts.append(new_stmt)
-            block.statements = new_stmts
+            walker = CallWalker(self)
+            walker.walk(block)
+            self.kb.callsite_prototypes.set_prototype(block.addr, walker.cc, walker.prototype, True)
