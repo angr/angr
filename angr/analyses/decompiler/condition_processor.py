@@ -157,6 +157,7 @@ _ail2claripy_op_mapping = {
     "SBorrow": lambda expr, _, m: _dummy_bvs(expr, m),
     "ExpCmpNE": lambda expr, _, m: _dummy_bools(expr, m),
     "CmpORD": lambda expr, _, m: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
+    "GetMSBs": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #
@@ -746,6 +747,7 @@ class ConditionProcessor:
             "ZeroExt": lambda cond_, tags: _binary_op_reduce(
                 "Concat", [claripy.BVV(0, cond_.args[0]), cond_.args[1]], tags
             ),
+            "Concat": lambda cond_, tags: _binary_op_reduce("Concat", cond_.args, tags),
         }
 
         if cond.op in _mapping:
