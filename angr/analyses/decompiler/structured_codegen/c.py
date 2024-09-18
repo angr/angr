@@ -31,6 +31,8 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
     dereference_simtype,
+    SimTypeInt128,
+    SimTypeInt256,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -3479,8 +3481,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
-        if 64 >= expr.to_bits > 32:
-            dst_type: SimTypeInt | SimTypeChar = SimTypeLongLong()
+        dst_type: SimTypeInt | SimTypeChar
+        if 258 >= expr.to_bits > 128:
+            dst_type = SimTypeInt256()
+        elif 128 >= expr.to_bits > 64:
+            dst_type = SimTypeInt128()
+        elif 64 >= expr.to_bits > 32:
+            dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
             dst_type = SimTypeInt()
         elif 16 >= expr.to_bits > 8:
