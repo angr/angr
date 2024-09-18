@@ -679,6 +679,10 @@ class DuplicationReverter(StructuringOptimizationPass):
         ail_merge_graph = AILMergeGraph(original_graph=graph)
         # some blocks in originals may update during this time (if-statements can change)
         update_blocks = ail_merge_graph.create_conditionless_graph(blocks, graph_lcs)
+        if update_blocks is None:
+            # failed to create the condition-less graph
+            self.candidate_blacklist.add(tuple(blocks))
+            raise SAILRSemanticError("Failed to create a condition-less graph, this analysis must skip it")
 
         #
         # SPECIAL CASE: the merged graph contains only 1 node and no splits
