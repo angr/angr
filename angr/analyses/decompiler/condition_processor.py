@@ -56,6 +56,25 @@ _UNIFIABLE_COMPARISONS = {
     "SGE",
 }
 
+
+_INVERSE_OPERATIONS = {
+    "__eq__": "__ne__",
+    "__ne__": "__eq__",
+    "__gt__": "__le__",
+    "__lt__": "__ge__",
+    "__ge__": "__lt__",
+    "__le__": "__gt__",
+    "ULT": "UGE",
+    "UGE": "ULT",
+    "UGT": "ULE",
+    "ULE": "UGT",
+    "SLT": "SGE",
+    "SGE": "SLT",
+    "SLE": "SGT",
+    "SGT": "SLE",
+}
+
+
 #
 # Util methods and mapping used during AIL AST to claripy AST conversion
 #
@@ -839,7 +858,7 @@ class ConditionProcessor:
 
         if ast.op in _UNIFIABLE_COMPARISONS:
             # unify comparisons to enable more simplification opportunities without going "deep" in sympy
-            inverse_op = getattr(ast.args[0], claripy.operations.inverse_operations[ast.op])
+            inverse_op = getattr(ast.args[0], _INVERSE_OPERATIONS[ast.op])
             return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
 
         if memo is not None and ast in memo:
