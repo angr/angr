@@ -495,6 +495,43 @@ class SimTypeLongLong(SimTypeInt):
     _base_name = "long long"
 
 
+class SimTypeFixedSizeInt(SimTypeInt):
+    _base_name = None
+    _fixed_size = None
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0):
+        out = self._base_name
+        if not self.signed:
+            out = "u" + out
+        if name is None:
+            return out
+        return f"{out} {name}"
+
+    def __repr__(self):
+        name = self._base_name
+        if not self.signed:
+            name = "u" + name
+
+        try:
+            return name + " (%d bits)" % self.size
+        except ValueError:
+            return name
+
+    @property
+    def size(self) -> int:
+        return self._fixed_size
+
+
+class SimTypeInt128(SimTypeFixedSizeInt):
+    _base_name = "int128_t"
+    _fixed_size = 128
+
+
+class SimTypeInt256(SimTypeFixedSizeInt):
+    _base_name = "int256_t"
+    _fixed_size = 256
+
+
 class SimTypeChar(SimTypeReg):
     """
     SimTypeChar is a type that specifies a character;
