@@ -1,24 +1,35 @@
 from __future__ import annotations
+
+import contextlib
 import functools
 import itertools
-import contextlib
-import weakref
-
 import logging
-
+import weakref
 from typing import TypeVar, TYPE_CHECKING
 
-from archinfo import Arch
-
-l = logging.getLogger(name=__name__)
-
-import claripy
 import archinfo
+import claripy
+from archinfo import Arch
 from archinfo.arch_soot import SootAddressDescriptor
 
+from . import sim_options as o
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 from .state_plugins import SimStatePlugin
+
+if TYPE_CHECKING:
+    from .storage import DefaultMemory
+    from .state_plugins.solver import SimSolver
+    from .state_plugins.posix import SimSystemPosix
+    from .state_plugins.view import SimRegNameView, SimMemView
+    from .state_plugins.callstack import CallStack
+    from .state_plugins.inspect import SimInspector
+    from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.scratch import SimStateScratch
+
+
+l = logging.getLogger(name=__name__)
 
 
 def arch_overridable(f):
@@ -513,16 +524,6 @@ class SimState(PluginHub):
                 if self.solver.is_true(arg):
                     continue
 
-                # `is_true` and `is_false` does not use VSABackend currently (see commits 97a75366 and 2dfba73e in
-                # claripy). There is a chance that VSA backend can in fact handle it.
-                # Therefore we try to resolve it with VSABackend again
-                if claripy.backends.vsa.is_false(arg):
-                    self._satisfiable = False
-                    return
-
-                if claripy.backends.vsa.is_true(arg):
-                    continue
-
                 # It's neither True or False. Let's try to apply the condition
 
                 # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
@@ -976,17 +977,3 @@ SimState.register_preset("default", default_state_plugin_preset)
 from .state_plugins.history import SimStateHistory
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
-
-from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
-
-# Type imports for annotations
-if TYPE_CHECKING:
-    from .storage import DefaultMemory
-    from .state_plugins.solver import SimSolver
-    from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.view import SimRegNameView, SimMemView
-    from .state_plugins.callstack import CallStack
-    from .state_plugins.inspect import SimInspector
-    from .state_plugins.jni_references import SimStateJNIReferences
-    from .state_plugins.scratch import SimStateScratch
