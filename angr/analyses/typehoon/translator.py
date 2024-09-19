@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
 from itertools import count
 
@@ -8,11 +9,15 @@ from .typeconsts import TypeConstant
 
 
 class SimTypeTempRef(sim_type.SimType):
+    """
+    Represents a temporary reference to another type. TypeVariableReference is translated to SimTypeTempRef.
+    """
+
     def __init__(self, typevar):
         super().__init__()
         self.typevar = typevar
 
-    def c_repr(self):
+    def c_repr(self, **kwargs):
         return "<SimTypeTempRef>"
 
 
