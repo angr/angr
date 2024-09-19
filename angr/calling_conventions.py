@@ -343,9 +343,9 @@ class SimStackArg(SimFunctionArgument):
     :ivar bool is_fp:  Whether loads from this location should return a floating point bitvector
     """
 
-    def __init__(self, stack_offset, size, is_fp=False):
+    def __init__(self, stack_offset: int, size: int, is_fp: bool = False):
         SimFunctionArgument.__init__(self, size, is_fp)
-        self.stack_offset = stack_offset
+        self.stack_offset: int = stack_offset
 
     def get_footprint(self):
         return {self}
@@ -1086,15 +1086,21 @@ class SimCC:
         if sp_delta != cls.STACKARG_SP_DIFF:
             return False
 
+        def _arg_ident(a: SimRegArg | SimStackArg) -> int | str:
+            if isinstance(a, SimRegArg):
+                return a.reg_name
+            return a.stack_offset
+
         sample_inst = cls(arch)
-        all_fp_args = list(sample_inst.fp_args)
-        all_int_args = list(sample_inst.int_args)
+        all_fp_args: set[int | str] = {_arg_ident(a) for a in sample_inst.fp_args}
+        all_int_args: set[int | str] = {_arg_ident(a) for a in sample_inst.int_args}
         both_iter = sample_inst.memory_args
-        some_both_args = [next(both_iter) for _ in range(len(args))]
+        some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(len(args))}
 
         new_args = []
         for arg in args:
-            if arg not in all_fp_args and arg not in all_int_args and arg not in some_both_args:
+            arg_ident = _arg_ident(arg)
+            if arg_ident not in all_fp_args and arg_ident not in all_int_args and arg_ident not in some_both_args:
                 if isinstance(arg, SimRegArg) and arg.reg_name in sample_inst.CALLER_SAVED_REGS:
                     continue
                 return False
