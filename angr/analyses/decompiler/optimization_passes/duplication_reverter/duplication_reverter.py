@@ -51,7 +51,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             strictly_less_gotos=False,
             recover_structure_fails=True,
             must_improve_rel_quality=True,
-            max_opt_iters=30,
+            max_opt_iters=5,
             simplify_ail=True,
             require_gotos=True,
             readd_labels=True,
