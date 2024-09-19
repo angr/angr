@@ -349,8 +349,6 @@ class SimIROp:
         elif self._float and self._vector_zero:
             # /* --- lowest-lane-only scalar FP --- */
             f = getattr(claripy, "fp" + self._generic_name, None)
-            if f is not None:
-                f = partial(f, claripy.fp.RM.default())  # always? really?
 
             f = f if f is not None else getattr(self, "_op_fgeneric_" + self._generic_name, None)
             if f is None:
