@@ -29,7 +29,7 @@ prototypes = {
         returnty=None,
     ),
     "std::env::args": RustSimTypeFunction(
-        args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_returnty_struct=True
+        args=[RustSimTypeReference(Arguments)], returnty=None, is_returnty_struct=True
     ),
     "std::env::Args::len": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=RustSimTypeSize(), is_class_member_function=True

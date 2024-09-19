@@ -1,5 +1,6 @@
 from .call_site_simplifier import CallSiteSimplifier
 from .calling_convention_recovery import CallingConventionRecovery
+from .callsite_corrector import CallsiteCorrector
 from .error_handling_simplifier import ErrorHandlingSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
 from .ret_site_simplifier import RetSiteSimplifier
@@ -24,11 +25,12 @@ _all_optimization_passes.extend(
         # (CallingConventionRecovery, True),
         # (OwnershipSimplifier, True),
         # (AllocSimplifier, True),
+        (CallsiteCorrector, True),
         # After type recovery
         (StructInstantiationSimplifier, True),
         # (UnwrapSimplifier, True),
         # (LifetimeSimplifier, True),
         # (StringSimplifier, True),
-        # (TypeCorrector, True),
+        (TypeCorrector, True),
     ]
 )
