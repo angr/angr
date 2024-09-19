@@ -419,7 +419,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         vector_size, vector_count = None, None
         if handler is not None:
             # vector information
-            m = re.match(r"Iop_[^\d]+(\d+)U{0,1}x(\d+)", expr.op)
+            m = re.match(r"Iop_[^\d]+(\d+)[SU]{0,1}x(\d+)", expr.op)
             if m is not None:
                 vector_size = int(m.group(1))
                 vector_count = int(m.group(2))
