@@ -254,10 +254,13 @@ class SimEngineVRVEX(
             typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data.concrete_value))
 
         sum_ = r0.data + r1.data
+        tc = set()
+        if r0.typevar is not None and r1.typevar is not None:
+            tc.add(typevars.Subtype(r0.typevar, r1.typevar))
         return RichR(
             sum_,
             typevar=typevar,
-            type_constraints={typevars.Subtype(r0.typevar, r1.typevar)},
+            type_constraints=tc,
         )
 
     def _handle_Sub(self, expr):
