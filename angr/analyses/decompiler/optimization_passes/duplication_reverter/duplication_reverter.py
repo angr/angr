@@ -1174,9 +1174,9 @@ class DuplicationReverter(StructuringOptimizationPass):
             entry_blocks = [node for node in graph.nodes if graph.in_degree(node) == 0]
             entry_block = None if len(entry_blocks) != 1 else entry_blocks[0]
 
-            self._entry_node_cache[graph] = entry_block
             if entry_block is None:
                 return None
+            self._entry_node_cache[graph] = entry_block
 
         entry_blk = self._entry_node_cache[graph]
 
