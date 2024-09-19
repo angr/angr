@@ -10,7 +10,6 @@ from ..definitions.structs import ArrayReference
 from ..sim_type import RustSimStruct, RustSimTypeReference
 from ..utils.ail_util import get_terminal_call
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
 from ...analyses.s_reaching_definitions import SRDAView
 from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -41,7 +40,6 @@ class StructBuilder:
         self.pending_potential_structs = []
 
         self._arch = context.project.arch
-        self._variable_manager = context.variable_manager
 
         self._fix_struct_members()
 
@@ -84,7 +82,7 @@ class StructBuilder:
                 rebased_struct_members[offset - field_offset] = self.struct_members[offset]
         return rebased_struct_members
 
-    def _build_for_array(self) -> Array | None:
+    def _build_for_array(self, block, stmt) -> Array | None:
         ptr_offset = self.struct_ty.offsets["ptr"]
         len_offset = self.struct_ty.offsets["len"]
         elements = []
@@ -100,11 +98,7 @@ class StructBuilder:
             elif isinstance(ptr_expr, BasePointerOffset):
                 for i in range(len_expr.value):
                     ele_expr = ptr_expr.copy()
-                    ele_expr.offset = ptr_expr.offset + ele_ty.size // 8 * i
-                    potential_variables = self._variable_manager.find_variables_by_stack_offset(ele_expr.offset)
-                    if not potential_variables:
-                        return None
-                    ele_expr.variable = next(iter(potential_variables))  # FIXME: Choose the correct variable
+                    ele_expr.offset += ele_ty.size // 8 * i
                     # Looking for nested struct references
                     if isinstance(ele_ty, RustSimTypeReference) and isinstance(ele_ty.pts_to, RustSimStruct):
                         self.pending_potential_structs.append((ele_expr, ele_ty.pts_to))
@@ -114,10 +108,10 @@ class StructBuilder:
             return Array(0, elements, self.struct_ty)
         return None
 
-    def build(self) -> Struct | Array | None:
+    def build(self, block, stmt) -> Struct | Array | None:
         if isinstance(self.struct_ty, ArrayReference):
             # Special handling for ArrayReference type
-            array = self._build_for_array()
+            array = self._build_for_array(block, stmt)
             if array:
                 return array
         fields = {}
@@ -125,7 +119,7 @@ class StructBuilder:
             field_offset = self.struct_ty.offsets[field_name]
             if isinstance(field_ty, RustSimStruct):
                 builder = StructBuilder(field_ty, self._rebased_struct_members(field_offset), self.context)
-                field_struct = builder.build()
+                field_struct = builder.build(block, stmt)
                 self.pending_potential_structs += builder.pending_potential_structs
                 if field_struct is None:
                     return None
@@ -141,14 +135,13 @@ class StructBuilder:
 class StructInstantiationSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Make callsite based on known/recovered prototypes"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
         self.srda = self.project.analyses.SReachingDefinitions(subject=self._func, func_graph=self._graph)
         self.srda_view = SRDAView(self.srda.model)
-        self.variable_manager = self._variable_kb.variables[self._func.addr]
 
         self.codeloc_to_block = {}
         for node in self._graph.nodes:
@@ -198,24 +191,28 @@ class StructInstantiationSimplifier(OptimizationPass):
     def _get_block_by_codeloc(self, codeloc: CodeLocation):
         return self.codeloc_to_block.get((codeloc.block_addr, codeloc.block_idx), None)
 
-    def _simplify_struct_instantiation(self, block, stmt, expr: BasePointerOffset, struct_ty: RustSimStruct):
+    def _simplify_struct_instantiation(
+        self, block, stmt, expr: BasePointerOffset | VirtualVariable, struct_ty: RustSimStruct
+    ):
+        assert isinstance(expr, BasePointerOffset) or (isinstance(expr, VirtualVariable) and expr.was_stack)
+        expr_offset = expr.offset if isinstance(expr, BasePointerOffset) else expr.stack_offset
         # If we can find all definitions of struct fields, let's create a struct instantiation
         # Otherwise just bind the offset and head variable to each field definition
         collected_members = {}
-        offset = expr.offset
+        offset = expr_offset
         offset_to_def = {}
-        while offset - expr.offset < struct_ty.size // 8:
+        while offset - expr_offset < struct_ty.size // 8:
             vvar = self._get_stack_vvar_by_insn(offset, stmt.ins_addr, block.idx)
             if vvar:
                 def_ = self._get_def_by_stack_vvar(vvar)
-                offset_to_def[offset - expr.offset] = def_
+                offset_to_def[offset - expr_offset] = def_
                 value = self.srda_view.get_vvar_value(vvar)
-                collected_members[offset - expr.offset] = value
+                collected_members[offset - expr_offset] = value
                 offset += value.size if hasattr(value, "size") else 1
             else:
                 offset += 1
         builder = StructBuilder(struct_ty, collected_members, self)
-        struct = builder.build()
+        struct = builder.build(block, stmt)
 
         if struct and 0 in offset_to_def:
             def_ = offset_to_def[0]
@@ -244,18 +241,17 @@ class StructInstantiationSimplifier(OptimizationPass):
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
             call = get_terminal_call(block)
-            if call and call.args:
-                for arg in call.args:
-                    if isinstance(arg, BasePointerOffset) and (
-                        (
-                            arg_ty := unpack_typeref(
-                                self.variable_manager.get_variable_type(
-                                    arg.variable if hasattr(arg, "variable") else None
-                                )
-                            )
-                        )
-                        and isinstance(arg_ty, RustSimStruct)
-                    ):
+            if (
+                call
+                and call.args
+                and call.prototype
+                and call.prototype.args
+                and len(call.args) == len(call.prototype.args)
+            ):
+                for arg, arg_ty in zip(call.args, call.prototype.args):
+                    if isinstance(arg_ty, RustSimTypeReference):
+                        arg_ty = arg_ty.pts_to
+                    if isinstance(arg, BasePointerOffset) and isinstance(arg_ty, RustSimStruct):
                         self._simplify_struct_instantiation(block, block.statements[-1], arg, arg_ty)
 
         for block in self._stmts_to_replace:
