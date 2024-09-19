@@ -1282,13 +1282,13 @@ class RustFunctionCall(RustStatement, RustExpression):
         is_class_member_function = False
         if isinstance(prototype, RustSimTypeFunction):
             # Special handling for Rust calling convention - return type is struct
-            if prototype.is_returnty_struct:
-                ret_expr = args[0]
-                if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
-                    ret_expr = ret_expr.operand
-                else:
-                    ret_expr = RustUnaryOp("Dereference", ret_expr, codegen=self.codegen)
-                args = args[1:]
+            # if prototype.is_returnty_struct:
+            #     ret_expr = args[0]
+            #     if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
+            #         ret_expr = ret_expr.operand
+            #     else:
+            #         ret_expr = RustUnaryOp("Dereference", ret_expr, codegen=self.codegen)
+            #     args = args[1:]
             # Special handling for Rust calling convention - it's a class member function
             if prototype.is_class_member_function:
                 is_class_member_function = True
