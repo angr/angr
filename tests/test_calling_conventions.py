@@ -8,7 +8,16 @@ from unittest import TestCase, main
 
 import archinfo
 
-from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction, SimRegArg
+from angr.calling_conventions import (
+    SimReferenceArgument,
+    SimStackArg,
+    SimTypeInt,
+    SimTypeFixedSizeArray,
+    SimCCSystemVAMD64,
+    SimTypeFunction,
+    SimRegArg,
+    SimCCMicrosoftAMD64,
+)
 from angr.sim_type import parse_file, SimStructValue
 from angr import Project, load_shellcode
 
@@ -82,6 +91,27 @@ class TestCallingConvention(TestCase):
             [SimRegArg("rsi", 8)],
             [SimRegArg("rdx", 8)],
         ]
+
+    def test_microsoft_amd64(self):
+        arch = archinfo.ArchAMD64()
+        cc = SimCCMicrosoftAMD64(arch)
+        ty1 = parse_file("struct foo { int x; int y; };", arch=arch)[1]["struct foo"]
+        loc1 = cc.return_val(ty1, perspective_returned=True)
+        assert loc1 is not None
+        assert loc1.get_footprint() == {SimRegArg("rax", 8)}
+        loc2 = cc.return_val(ty1, perspective_returned=False)
+        assert loc2 is not None
+        assert loc2.get_footprint() == {SimRegArg("rax", 8)}
+
+        ty3 = parse_file("struct foo { short x; int y; short z; };", arch=arch)[1]["struct foo"]
+        loc3 = cc.return_val(ty3, perspective_returned=True)
+        assert isinstance(loc3, SimReferenceArgument)
+        assert loc3.ptr_loc == SimRegArg("rax", 8)
+        assert loc3.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
+        loc4 = cc.return_val(ty3, perspective_returned=False)
+        assert isinstance(loc4, SimReferenceArgument)
+        assert loc4.ptr_loc == SimRegArg("rcx", 8)
+        assert loc4.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
 
 
 if __name__ == "__main__":
