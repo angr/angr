@@ -63,7 +63,7 @@ class ConvenientMappingsMixin(MemoryMixin):
                         self._updated_mappings.remove((v, id(self._name_mapping)))
 
                 if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                    h = old_obj.cache_key
+                    h = hash(old_obj)
                     self._mark_updated_mapping(self._hash_mapping, h)
                     self._hash_mapping[h].difference_update(range(addr, addr + size))
                     if len(self._hash_mapping[h]) == 0:
@@ -82,7 +82,7 @@ class ConvenientMappingsMixin(MemoryMixin):
 
         if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
             # add the new variables to the hash->addrs mapping
-            h = data.cache_key
+            h = hash(data)
             self._mark_updated_mapping(self._hash_mapping, h)
             if h not in self._hash_mapping:
                 self._hash_mapping[h] = set()
@@ -208,10 +208,8 @@ class ConvenientMappingsMixin(MemoryMixin):
         for e in self._hash_mapping[h]:
             try:
                 present = self.load(e, size=1)
-                if h == present.cache_key or (
-                    present.op == "Extract"
-                    and present.args[0] - present.args[1] == 7
-                    and h == present.args[2].cache_key
+                if h == hash(present) or (
+                    present.op == "Extract" and present.args[0] - present.args[1] == 7 and h == hash(present.args[2])
                 ):
                     yield e
                 else:

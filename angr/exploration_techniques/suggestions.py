@@ -20,12 +20,12 @@ def ast_weight(ast, memo=None):
     if memo is None:
         memo = {}
 
-    result = memo.get(ast.cache_key, None)
+    result = memo.get(hash(ast), None)
     if result is not None:
         return result
 
     result = 1 + sum(ast_weight(arg, memo) for arg in ast.args)
-    memo[ast.cache_key] = result
+    memo[hash(ast)] = result
     return result
 
 

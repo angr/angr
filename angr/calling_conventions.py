@@ -59,7 +59,7 @@ class AllocHelper:
     def dump(self, val, state, loc=None):
         if loc is None:
             loc = self.stack_loc(val, state.arch)
-        self.stores[self.ptr.cache_key] = (val, loc)
+        self.stores[hash(self.ptr)] = (val, loc)
         return self.alloc(self.calc_size(val, state.arch))
 
     def translate(self, val, base):

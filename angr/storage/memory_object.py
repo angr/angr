@@ -57,10 +57,6 @@ class SimMemoryObject:
         return self.object.variables
 
     @property
-    def cache_key(self):
-        return self.object.cache_key
-
-    @property
     def symbolic(self):
         return self.object.symbolic
 
@@ -125,7 +121,7 @@ class SimMemoryObject:
 
         if self.is_bytes:
             return self.object == other.object
-        return self.object.cache_key == other.object.cache_key
+        return hash(self.object) == hash(other.object)
 
     def _length_equals(self, other):
         if type(self.length) is not type(other.length):
@@ -133,7 +129,7 @@ class SimMemoryObject:
 
         if isinstance(self.length, int):
             return self.length == other.length
-        return self.length.cache_key == other.length.cache_key
+        return hash(self.length) == hash(other.length)
 
     def __eq__(self, other):
         if self is other:
@@ -145,8 +141,7 @@ class SimMemoryObject:
         return self.base == other.base and self._object_equals(other) and self._length_equals(other)
 
     def __hash__(self):
-        obj_hash = hash(self.object) if self.is_bytes else self.object.cache_key
-        return hash((obj_hash, self.base, hash(self.length)))
+        return hash((self.object, self.base, self.length))
 
     def __ne__(self, other):
         return not self == other
