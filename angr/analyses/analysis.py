@@ -5,8 +5,10 @@ import sys
 import contextlib
 from collections import defaultdict
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Type, Generic, Optional
+from typing import TYPE_CHECKING, TypeVar, Generic, cast
 from collections.abc import Callable
+from types import NoneType
+from itertools import chain
 
 import logging
 import time
@@ -16,6 +18,7 @@ from rich import progress
 
 from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
+from ..misc import telemetry
 
 if TYPE_CHECKING:
     from ..knowledge_base import KnowledgeBase
@@ -55,6 +58,7 @@ if TYPE_CHECKING:
     AnalysisParams = ParamSpec("AnalysisParams")
 
 l = logging.getLogger(name=__name__)
+t = telemetry.get_tracer(name=__name__)
 
 
 class AnalysisLogEntry:
@@ -186,7 +190,45 @@ class AnalysisFactory(Generic[A]):
         show_progressbar: bool = False,
     ) -> type[A]:
         @functools.wraps(self._analysis_cls.__init__)
+        @t.start_as_current_span(self._analysis_cls.__name__)
         def wrapper(*args, **kwargs):
+            span = telemetry.get_current_span()
+            sig = cast(Signature, self.__call__.__func__.__signature__)
+            bound = sig.bind(None, *args, **kwargs)
+            for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
+                if name in ("kwargs", "self"):
+                    continue
+                if isinstance(val, (str, bytes, bool, int, float, NoneType)):
+                    if val is None:
+                        span.set_attribute(f"arg.{name}.is_none", True)
+                    else:
+                        span.set_attribute(f"arg.{name}", val)
+                elif isinstance(val, (list, tuple, set, frozenset)):
+                    listval = list(val)
+                    if not listval or (
+                        isinstance(listval[0], (str, bytes, bool, int, float))
+                        and all(type(sval) == type(listval[0]) for sval in listval)
+                    ):
+                        span.set_attribute(f"arg.{name}", listval)
+                elif isinstance(val, dict):
+                    listval_keys = list(val)
+                    listval_values = list(val.values())
+                    if not listval_keys or (
+                        isinstance(listval_keys[0], (str, bytes, bool, int, float))
+                        and all(type(sval) == type(listval_keys[0]) for sval in listval_keys)
+                    ):
+                        span.set_attribute(f"arg.{name}.keys", listval_keys)
+                    if not listval_values or (
+                        isinstance(listval_values[0], (str, bytes, bool, int, float))
+                        and all(type(sval) == type(listval_values[0]) for sval in listval_values)
+                    ):
+                        span.set_attribute(f"arg.{name}.values", listval_values)
+                else:
+                    span.set_attribute(f"arg.{name}.unrepresentable", True)
+            if self._project.filename is not None:
+                span.set_attribute("project.binary_name", self._project.filename)
+            span.set_attribute("project.arch_name", self._project.arch.name)
+
             oself = object.__new__(self._analysis_cls)
             oself.named_errors = defaultdict(list)
             oself.errors = []
