@@ -147,13 +147,13 @@ class SimStatePreconstrainer(SimStatePlugin):
         precon_cache_keys = set()
 
         for con in self.preconstraints:
-            precon_cache_keys.add(hash(con))
+            precon_cache_keys.add(con.hash())
 
         # if we used the replacement solver we didn't add constraints we need to remove so keep all constraints
         if o.REPLACEMENT_SOLVER in self.state.options:
             new_constraints = self.state.solver.constraints
         else:
-            new_constraints = [x for x in self.state.solver.constraints if hash(x) not in precon_cache_keys]
+            new_constraints = [x for x in self.state.solver.constraints if x.hash() not in precon_cache_keys]
 
         if self.state.has_plugin("zen_plugin"):
             new_constraints = self.state.get_plugin("zen_plugin").filter_constraints(new_constraints)

@@ -121,7 +121,7 @@ class SimMemoryObject:
 
         if self.is_bytes:
             return self.object == other.object
-        return hash(self.object) == hash(other.object)
+        return self.object.hash() == other.object.hash()
 
     def _length_equals(self, other):
         if type(self.length) is not type(other.length):
@@ -129,7 +129,7 @@ class SimMemoryObject:
 
         if isinstance(self.length, int):
             return self.length == other.length
-        return hash(self.length) == hash(other.length)
+        return self.length.hash() == other.length.hash()
 
     def __eq__(self, other):
         if self is other:

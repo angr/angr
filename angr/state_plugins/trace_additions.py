@@ -219,7 +219,7 @@ def end_info_hook(state):
         )
         chall_resp_plugin.str_to_int_pairs.append((input_bvs, new_var))
         if pending_info.allows_negative:
-            chall_resp_plugin.allows_negative_bvs.add(hash(input_bvs))
+            chall_resp_plugin.allows_negative_bvs.add(input_bvs.hash())
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
     elif pending_info.get_type() == "IntToStr":
         # result constraint
@@ -459,11 +459,11 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
             base = int(int_var_name.split("_")[1], 10)
             original_len = str_var.size() // 8
             abs_max = (1 << int_var.size()) - 1
-            if hash(str_var) in self.allows_negative_bvs:
+            if str_var.hash() in self.allows_negative_bvs:
                 abs_max = (1 << (int_var.size() - 1)) - 1
             max_val = base ** (original_len) - 1
             min_val = 0
-            if hash(str_var) in self.allows_negative_bvs and original_len > 1:
+            if str_var.hash() in self.allows_negative_bvs and original_len > 1:
                 min_val = -(base ** (original_len - 1) - 1)
 
             max_val = min(max_val, abs_max)
@@ -569,10 +569,10 @@ def zen_hook(state, expr):
         if len(flag_args) > 1:
             zen_plugin = state.get_plugin("zen_plugin")
 
-            if hash(expr) in zen_plugin.replacements:
+            if expr.hash() in zen_plugin.replacements:
                 # we already have the replacement
                 concrete_val = state.solver.eval(expr)
-                replacement = zen_plugin.replacements[hash(expr)]
+                replacement = zen_plugin.replacements[expr.hash()]
                 state.preconstrainer.preconstrain(concrete_val, replacement)
                 zen_plugin.preconstraints.append(replacement == concrete_val)
             else:
@@ -603,7 +603,7 @@ def zen_hook(state, expr):
                 zen_plugin.state.preconstrainer.preconstraints.append(constraint)
                 zen_plugin.preconstraints.append(replacement == concrete_val)
 
-                zen_plugin.replacements[hash(expr)] = replacement
+                zen_plugin.replacements[expr.hash()] = replacement
 
             return replacement
     return None
@@ -701,11 +701,11 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         return contained_bytes
 
     def filter_constraints(self, constraints):
-        zen_cache_keys = {hash(x) for x in self.zen_constraints}
+        zen_cache_keys = {x.hash() for x in self.zen_constraints}
         new_cons = []
         for con in constraints:
             if (
-                hash(con) in zen_cache_keys
+                con.hash() in zen_cache_keys
                 or not all(v.startswith(("cgc-flag", "random")) for v in con.variables)
                 or len(con.variables) == 0
             ):

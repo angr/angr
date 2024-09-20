@@ -45,7 +45,7 @@ class MultiValueMergerMixin(MemoryMixin):
                 # python implicitly calls __eq__ to determine if the two objects are actually the same
                 # and that just results in a new AST for a BV. Python then tries to convert that AST to a bool
                 # which fails with the safeguard in claripy.ast.bool.Bool.__bool__.
-                stripped_values_dict = {hash(v): v for v in values_set}
+                stripped_values_dict = {v.hash(): v for v in values_set}
                 if len(stripped_values_dict) > 1:
                     ret_val = self._top_func(merged_size * self.state.arch.byte_width)
                 else:

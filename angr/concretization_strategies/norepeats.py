@@ -29,8 +29,8 @@ class SimConcretizationStrategyNorepeats(SimConcretizationStrategy):
         )
 
     def merge(self, others):
-        seen = {hash(s) for s in self._repeat_constraints}
+        seen = {s.hash() for s in self._repeat_constraints}
         for c in itertools.chain.from_iterable(o._repeat_constraints for o in others):
-            if hash(c) not in seen:
-                seen.add(hash(c))
+            if c.hash() not in seen:
+                seen.add(c.hash())
                 self._repeat_constraints.append(c)
