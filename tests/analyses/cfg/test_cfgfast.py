@@ -974,6 +974,13 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
         assert cfg.kb.functions[0x21514B5600].name == "_security_init_cookie"
 
+    def test_windows_x86_driver_entry_merge_jmp(self):
+        path = os.path.join(test_location, "x86", "windows", "CorsairLLAccess32.sys")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        # make sure it is merged properly
+        assert len(cfg.kb.functions["_start"].endpoints) == 1
+        assert cfg.kb.functions["_start"].endpoints[0].addr == 0x40400b
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
