@@ -4272,7 +4272,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
             irsb = None
-            irsb_string = None
             lifted_block = None
             try:
                 lifted_block = self._lift(
@@ -4283,10 +4282,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     load_from_ro_regions=True,
                     initial_regs=initial_regs,
                 )
-                irsb = lifted_block.vex_nostmt
-                irsb_string = lifted_block.bytes[: irsb.size]
+                irsb = lifted_block.vex_nostmt  # may raise SimTranslationError
             except SimTranslationError:
                 nodecode = True
+
+            irsb_string: bytes = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
 
             # special logic during the complete scanning phase
             if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING and is_arm_arch(self.project.arch):
@@ -4324,9 +4324,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             initial_regs=initial_regs,
                         )
                         irsb = lifted_block.vex_nostmt
-                        irsb_string = lifted_block.bytes[: irsb.size]
                     except SimTranslationError:
                         nodecode = True
+
+                    irsb_string: bytes = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
 
                     if not (nodecode or irsb.size == 0 or irsb.jumpkind == "Ijk_NoDecode"):
                         # it is decodeable
@@ -4397,7 +4398,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 nodecode_size = 1
 
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
-                if irsb_string[-2:] == b"\x0f\x0b" and self.project.arch.name == "AMD64":
+                if self.project.arch.name == "AMD64" and irsb_string[-2:] == b"\x0f\x0b":
                     # VEX supports ud2 and make it part of the block size, only in AMD64.
                     valid_ins = True
                     nodecode_size = 0
