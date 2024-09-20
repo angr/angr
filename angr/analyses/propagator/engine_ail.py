@@ -141,13 +141,14 @@ class SimEnginePropagatorAIL(
                 size = data_v.size() // self.arch.byte_width
                 to_store = PropValue.from_value_and_details(data_v, size, expr, self._codeloc())
             else:
+                expr = data.one_expr
                 size = stmt.size
                 to_store = data.with_details(
                     stmt.size, data.one_expr if data.one_expr is not None else stmt.data, self._codeloc()
                 )
 
             # ensure there isn't a Tmp variable in the data
-            if not self.has_tmpexpr(expr):
+            if expr is None or not self.has_tmpexpr(expr):
                 # Storing data to a stack variable
                 self.state.store_stack_variable(sp_offset, to_store, endness=stmt.endness)
 
