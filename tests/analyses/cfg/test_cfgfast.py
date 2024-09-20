@@ -980,7 +980,8 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
         # make sure it is merged properly
         assert len(cfg.kb.functions["_start"].endpoints) == 1
-        assert cfg.kb.functions["_start"].endpoints[0].addr == 0x40400b
+        assert cfg.kb.functions["_start"].endpoints[0].addr == 0x40400B
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
