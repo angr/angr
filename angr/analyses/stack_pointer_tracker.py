@@ -1,7 +1,7 @@
 # pylint:disable=abstract-method,ungrouped-imports
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import re
 import logging
 from collections import defaultdict
@@ -179,7 +179,13 @@ class FrozenStackPointerTrackerState:
 
     __slots__ = "regs", "memory", "is_tracking_memory", "resilient"
 
-    def __init__(self, regs, memory, is_tracking_memory, resilient):
+    def __init__(
+        self,
+        regs,
+        memory,
+        is_tracking_memory,
+        resilient,
+    ):
         self.regs = regs
         self.memory = memory
         self.is_tracking_memory = is_tracking_memory
@@ -193,8 +199,10 @@ class FrozenStackPointerTrackerState:
             return hash((FrozenStackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory))
         return hash((FrozenStackPointerTrackerState, self.regs, self.is_tracking_memory))
 
-    def merge(self, other):
-        return self.unfreeze().merge(other.unfreeze()).freeze()
+    def merge(
+        self, other, addr: int, reg_merge_cache: dict[tuple[int, int], Any], mem_merge_cache: dict[tuple[int, int], Any]
+    ):
+        return self.unfreeze().merge(other.unfreeze(), addr, reg_merge_cache, mem_merge_cache).freeze()
 
     def __eq__(self, other):
         if type(other) is FrozenStackPointerTrackerState or isinstance(other, FrozenStackPointerTrackerState):
@@ -278,16 +286,18 @@ class StackPointerTrackerState:
             return hash((StackPointerTrackerState, self.regs, self.memory, self.is_tracking_memory))
         return hash((StackPointerTrackerState, self.regs, self.is_tracking_memory))
 
-    def merge(self, other):
+    def merge(
+        self, other, addr: int, reg_merge_cache: dict[tuple[int, int], Any], mem_merge_cache: dict[tuple[int, int], Any]
+    ):
         return StackPointerTrackerState(
-            regs=_dict_merge(self.regs, other.regs, self.resilient),
-            memory=_dict_merge(self.memory, other.memory, self.resilient),
+            regs=_dict_merge(self.regs, other.regs, self.resilient, addr, reg_merge_cache),
+            memory=_dict_merge(self.memory, other.memory, self.resilient, addr, mem_merge_cache),
             is_tracking_memory=self.is_tracking_memory and other.is_tracking_memory,
             resilient=self.resilient or other.resilient,
         )
 
 
-def _dict_merge(d1, d2, resilient: bool):
+def _dict_merge(d1, d2, resilient: bool, addr: int, merge_cache: dict[tuple[int, int], Any]):
     all_keys = set(d1.keys()) | set(d2.keys())
     merged = {}
     for k in all_keys:
@@ -299,7 +309,12 @@ def _dict_merge(d1, d2, resilient: bool):
             merged[k] = d1[k]
         else:  # d1[k] != d2[k]
             if resilient and isinstance(d1[k], OffsetVal) and isinstance(d2[k], OffsetVal):
-                merged[k] = min(d1[k], d2[k])
+                if (addr, k) in merge_cache:
+                    merged[k] = merge_cache[(addr, k)]
+                else:
+                    v = min(d1[k], d2[k])
+                    merge_cache[(addr, k)] = v
+                    merged[k] = v
             else:
                 merged[k] = TOP
     return merged
@@ -350,6 +365,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
         self._resilient = resilient
+        # in resilience mode, cache previously merged values to ensure we reach a fixed point
+        self._reg_merge_cache = {}
+        self._mem_merge_cache = {}
 
         if initial_reg_values:
             self._reg_value_at_block_start[func.addr if func is not None else block.addr] = initial_reg_values
@@ -492,7 +510,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _set_state(self, addr, new_val, pre_or_post):
         previous_val = self._state_for(addr, pre_or_post)
         if previous_val is not None:
-            new_val = previous_val.merge(new_val)
+            new_val = previous_val.merge(new_val, addr, self._reg_merge_cache, self._mem_merge_cache)
         if addr not in self.states:
             self.states[addr] = {}
         self.states[addr][pre_or_post] = new_val
@@ -808,7 +826,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _merge_states(self, node, *states: StackPointerTrackerState):
         merged_state = states[0]
         for other in states[1:]:
-            merged_state = merged_state.merge(other)
+            merged_state = merged_state.merge(other, node.addr, self._reg_merge_cache, self._mem_merge_cache)
         return merged_state, merged_state == states[0]
 
     def _find_callees(self, node) -> list[Function]:
