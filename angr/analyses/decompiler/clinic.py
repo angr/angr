@@ -39,7 +39,6 @@ from ..reaching_definitions import ReachingDefinitionsAnalysis
 from .return_maker import ReturnMaker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import (
-    get_default_optimization_passes,
     OptimizationPassStage,
     RegisterSaveAreaSimplifier,
     StackCanarySimplifier,
@@ -165,8 +164,7 @@ class Clinic(Analysis):
         if optimization_passes is not None:
             self._optimization_passes = optimization_passes
         else:
-            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
-            l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
+            self._optimization_passes = []
 
         if self._mode == ClinicMode.DECOMPILE:
             self._analyze_for_decompiling()

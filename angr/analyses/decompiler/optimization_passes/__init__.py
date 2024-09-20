@@ -1,6 +1,5 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
-from typing import Optional, Union
 
 from archinfo import Arch
 
@@ -33,33 +32,33 @@ from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
 
 # order matters!
-_all_optimization_passes = [
-    (RegisterSaveAreaSimplifier, True),
-    (StackCanarySimplifier, True),
-    (WinStackCanarySimplifier, True),
-    (BasePointerSaveSimplifier, True),
-    (DivSimplifier, True),
-    (MultiSimplifier, True),
-    (ModSimplifier, True),
-    (ConstantDereferencesSimplifier, True),
-    (RetAddrSaveSimplifier, True),
-    (X86GccGetPcSimplifier, True),
-    (ITERegionConverter, True),
-    (ITEExprConverter, True),
-    (ExprOpSwapper, True),
-    (ReturnDuplicatorHigh, True),
-    (DeadblockRemover, True),
-    (SwitchDefaultCaseDuplicator, True),
-    (ConstPropOptReverter, True),
-    (DuplicationReverter, True),
-    (LoweredSwitchSimplifier, True),
-    (ReturnDuplicatorLow, True),
-    (ReturnDeduplicator, True),
-    (CodeMotionOptimization, False),
-    (CrossJumpReverter, True),
-    (FlipBooleanCmp, True),
-    (InlinedStringTransformationSimplifier, True),
-    (CallStatementRewriter, True),
+ALL_OPTIMIZATION_PASSES = [
+    RegisterSaveAreaSimplifier,
+    StackCanarySimplifier,
+    WinStackCanarySimplifier,
+    BasePointerSaveSimplifier,
+    DivSimplifier,
+    MultiSimplifier,
+    ModSimplifier,
+    ConstantDereferencesSimplifier,
+    RetAddrSaveSimplifier,
+    X86GccGetPcSimplifier,
+    ITERegionConverter,
+    ITEExprConverter,
+    ExprOpSwapper,
+    ReturnDuplicatorHigh,
+    DeadblockRemover,
+    SwitchDefaultCaseDuplicator,
+    ConstPropOptReverter,
+    DuplicationReverter,
+    LoweredSwitchSimplifier,
+    ReturnDuplicatorLow,
+    ReturnDeduplicator,
+    CodeMotionOptimization,
+    CrossJumpReverter,
+    FlipBooleanCmp,
+    InlinedStringTransformationSimplifier,
+    CallStatementRewriter,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -78,7 +77,7 @@ def get_optimization_passes(arch, platform):
         platform = "windows"  # sigh
 
     passes = []
-    for pass_, _ in _all_optimization_passes:
+    for pass_ in ALL_OPTIMIZATION_PASSES:
         if (pass_.ARCHES is None or arch in pass_.ARCHES) and (
             pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS
         ):
@@ -87,28 +86,5 @@ def get_optimization_passes(arch, platform):
     return passes
 
 
-def get_default_optimization_passes(arch: Arch | str, platform: str | None, enable_opts=None, disable_opts=None):
-    if isinstance(arch, Arch):
-        arch = arch.name
-
-    if platform is not None:
-        platform = platform.lower()
-    if platform == "win32":
-        platform = "windows"  # sigh
-
-    passes = []
-    enable_opts = enable_opts or []
-    disable_opts = disable_opts or []
-    for pass_, default in _all_optimization_passes:
-        if (not default and pass_ not in enable_opts) or pass_ in disable_opts:
-            continue
-        if (pass_.ARCHES is None or arch in pass_.ARCHES) and (
-            pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS
-        ):
-            passes.append(pass_)
-
-    return passes
-
-
-def register_optimization_pass(opt_pass, enable_by_default: bool):
-    _all_optimization_passes.append((opt_pass, enable_by_default))
+def register_optimization_pass(opt_pass):
+    ALL_OPTIMIZATION_PASSES.append(opt_pass)

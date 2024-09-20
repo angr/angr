@@ -18,7 +18,6 @@ from .. import Analysis, AnalysesHub
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
-from .optimization_passes import get_default_optimization_passes
 from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
@@ -26,6 +25,7 @@ from .decompilation_cache import DecompilationCache
 from .utils import remove_labels
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
+from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
@@ -52,6 +52,7 @@ class Decompiler(Analysis):
         func: Function | str | int,
         cfg: CFGFast | CFGModel | None = None,
         options=None,
+        preset: str | DecompilationPreset | None = None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
         variable_kb=None,
@@ -73,11 +74,21 @@ class Decompiler(Analysis):
         self.func: Function = func
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
         self._options = options
-        if optimization_passes is None:
-            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
-            l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
-        else:
+
+        if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
+        else:
+            # we use the preset
+            if isinstance(preset, str):
+                if preset not in DECOMPILATION_PRESETS:
+                    raise KeyError(f"Decompilation preset {preset} is not found")
+                preset = DECOMPILATION_PRESETS[preset]
+            elif preset is None:
+                preset = DECOMPILATION_PRESETS["default"]
+            if not isinstance(preset, DecompilationPreset):
+                raise TypeError('"preset" must be a DecompilationPreset instance')
+            self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
+        l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct

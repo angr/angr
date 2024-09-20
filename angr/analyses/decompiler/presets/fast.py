@@ -1,0 +1,49 @@
+from .preset import DecompilationPreset
+from ..optimization_passes import (
+    RegisterSaveAreaSimplifier,
+    StackCanarySimplifier,
+    WinStackCanarySimplifier,
+    BasePointerSaveSimplifier,
+    ConstantDereferencesSimplifier,
+    RetAddrSaveSimplifier,
+    X86GccGetPcSimplifier,
+    ITERegionConverter,
+    ITEExprConverter,
+    ExprOpSwapper,
+    ReturnDuplicatorHigh,
+    SwitchDefaultCaseDuplicator,
+    LoweredSwitchSimplifier,
+    ReturnDuplicatorLow,
+    ReturnDeduplicator,
+    FlipBooleanCmp,
+    InlinedStringTransformationSimplifier,
+    CallStatementRewriter,
+)
+
+
+preset_fast = DecompilationPreset(
+    "fast",
+    [
+        RegisterSaveAreaSimplifier,
+        StackCanarySimplifier,
+        WinStackCanarySimplifier,
+        BasePointerSaveSimplifier,
+        ConstantDereferencesSimplifier,
+        RetAddrSaveSimplifier,
+        X86GccGetPcSimplifier,
+        ITERegionConverter,
+        ITEExprConverter,
+        ExprOpSwapper,
+        ReturnDuplicatorHigh,
+        SwitchDefaultCaseDuplicator,
+        LoweredSwitchSimplifier,
+        ReturnDuplicatorLow,
+        ReturnDeduplicator,
+        FlipBooleanCmp,
+        InlinedStringTransformationSimplifier,
+        CallStatementRewriter,
+    ],
+)
+
+
+__all__ = ["preset_fast"]
