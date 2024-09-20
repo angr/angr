@@ -85,6 +85,8 @@ class StructBuilder:
     def _build_for_array(self, block, stmt) -> Array | None:
         ptr_offset = self.struct_ty.offsets["ptr"]
         len_offset = self.struct_ty.offsets["len"]
+        if ptr_offset not in self.struct_members or len_offset not in self.struct_members:
+            return None
         elements = []
         ptr_expr = self.struct_members[ptr_offset]
         ele_ty = self.struct_ty.fields["ptr"].pts_to

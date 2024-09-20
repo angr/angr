@@ -23,7 +23,7 @@ class EpilogueSimplifier(TransformationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _is_potential_junk_block(self, block):
+    def _is_cleanup_block(self, block):
         for stmt in reversed(block.statements):
             if any(
                 pred.statements
@@ -55,7 +55,7 @@ class EpilogueSimplifier(TransformationPass):
             if block in visited:
                 continue
             visited.add(block)
-            if self._is_potential_junk_block(block):
+            if self._is_cleanup_block(block):
                 all_epilogue_blocks.add(block)
                 for pred in self._graph.predecessors(block):
                     queue.append(pred)
@@ -108,8 +108,6 @@ class EpilogueSimplifier(TransformationPass):
                                 self.replace_jump_target(block, succ, return_block)
                                 redirected.add(block)
 
-        Stats.redirected_blocks += len(redirected)
-
         for return_block, bad_blocks in epilogue_blocks.items():
             for bad_block in bad_blocks:
                 if bad_block not in return_blocks:
@@ -117,4 +115,5 @@ class EpilogueSimplifier(TransformationPass):
                     self._graph.remove_node(bad_block)
 
     def _analyze(self, cache=None):
-        self._simlify_epilogue()
+        pass
+        # self._simlify_epilogue()
