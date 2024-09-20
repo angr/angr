@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .preset import DecompilationPreset
 from ..optimization_passes import (
     RegisterSaveAreaSimplifier,

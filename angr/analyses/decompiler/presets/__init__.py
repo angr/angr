@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .preset import DecompilationPreset
 from .fast import preset_fast
 from .full import preset_full
