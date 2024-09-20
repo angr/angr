@@ -18,7 +18,7 @@ from .ownership_simplifier import OwnershipSimplifier
 _all_optimization_passes.extend(
     [
         # Before type recovery
-        (LibFunctionIdentifier, True),
+        # (LibFunctionIdentifier, True),
         # (CallSiteSimplifier, True),
         # (EpilogueSimplifier, True),
         # (ErrorHandlingSimplifier, True),
@@ -26,13 +26,13 @@ _all_optimization_passes.extend(
         # (CallingConventionRecovery, True),
         # (OwnershipSimplifier, True),
         # (AllocSimplifier, True),
-        (CallsiteCorrector, True),
+        # (CallsiteCorrector, True),
         # After type recovery
-        (StructInstantiationSimplifier, True),
+        # (StructInstantiationSimplifier, True),
         # (UnwrapSimplifier, True),
         # (LifetimeSimplifier, True),
         # (StringSimplifier, True),
-        (TypeCorrector, True),
-        (DropSimplifier, True),
+        # (TypeCorrector, True),
+        # (DropSimplifier, True),
     ]
 )

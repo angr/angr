@@ -6,7 +6,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import (
     SequenceOptimizationPass,
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, SequenceNode, LoopNode
+from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, SequenceNode, LoopNode, CodeNode
 from angr.rust.utils.ail_util import get_terminal_call
 from angr.rust.utils.library import normalize
 
