@@ -3843,6 +3843,25 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("goto ") == 0
         assert d.codegen.text.count("star_digits_closebracket") == 1
 
+    @structuring_algo("phoenix")
+    def test_decompiling_sp_altering_function(self, decompiler_options=None):
+        # function 4011de has a loop that subtracts constants from esp. ensure SPTracker reaches a fixed point in this
+        # case.
+
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "00f53f8bf3df545f0422a7c68170ac379ec8d78bee9782b49ce05b14f8bcc7d5"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x4011DE]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # basic check to ensure the output is not nothing
+        assert "sub_40dbca(" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
