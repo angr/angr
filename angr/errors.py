@@ -605,5 +605,9 @@ class SimConcreteBreakpointError(AngrError):
 #
 
 
+class AngrDecompilationError(AngrError):
+    pass
+
+
 class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass

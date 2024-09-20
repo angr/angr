@@ -12,6 +12,7 @@ import capstone
 
 import ailment
 
+from angr.errors import AngrDecompilationError
 from ...knowledge_base import KnowledgeBase
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -1795,21 +1796,30 @@ class Clinic(Analysis):
         if blocks_by_addr_and_size is None:
             blocks_by_addr_and_size = self._blocks_by_addr_and_size
 
-        node_to_block_mapping = {}
         graph = networkx.DiGraph()
 
-        for node in func_graph.nodes():
-            ail_block = blocks_by_addr_and_size.get((node.addr, node.size), node)
-            node_to_block_mapping[node] = ail_block
+        entry_node = next(iter(node for node in func_graph if node.addr == self._entry_node_addr[0]), None)
+        if entry_node is None:
+            raise AngrDecompilationError(
+                f"Entry node with address {self._entry_node_addr[0]:#x} not found in the function graph"
+            )
 
-            if ail_block is not None:
-                graph.add_node(ail_block)
+        # add the entry node into the graph
+        ail_block = blocks_by_addr_and_size.get((entry_node.addr, entry_node.size))
+        if ail_block is None:
+            raise AngrDecompilationError(f"AIL block at address {entry_node.addr:#x} not found")
+        graph.add_node(ail_block)
 
-        for src_node, dst_node, data in func_graph.edges(data=True):
-            src = node_to_block_mapping[src_node]
-            dst = node_to_block_mapping[dst_node]
+        # get all descendants and only include them in the AIL graph.
+        # this way all unreachable blocks will be excluded from the AIL graph.
+        descendants = networkx.descendants(func_graph, entry_node) | {entry_node}
+        for src_node, dst_node, data in networkx.subgraph_view(
+            func_graph, filter_node=lambda n: n in descendants
+        ).edges(data=True):
+            src = blocks_by_addr_and_size.get((src_node.addr, src_node.size))
+            dst = blocks_by_addr_and_size.get((dst_node.addr, dst_node.size))
 
-            if dst is not None:
+            if src is not None and dst is not None:
                 graph.add_edge(src, dst, **data)
 
         return graph
