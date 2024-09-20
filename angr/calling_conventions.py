@@ -50,6 +50,7 @@ class AllocHelper:
         self.base = claripy.BVS("alloc_base", ptrsize)
         self.ptr = self.base
         self.stores = {}
+        self.store_asts = {}
 
     def alloc(self, size):
         out = self.ptr
@@ -59,7 +60,7 @@ class AllocHelper:
     def dump(self, val, state, loc=None):
         if loc is None:
             loc = self.stack_loc(val, state.arch)
-        self.stores[self.ptr.cache_key] = (val, loc)
+        self.stores[self.ptr] = (val, loc)
         return self.alloc(self.calc_size(val, state.arch))
 
     def translate(self, val, base):
@@ -76,7 +77,7 @@ class AllocHelper:
     def apply(self, state, base):
         for ptr, (val, loc) in self.stores.items():
             translated_val = self.translate(val, base)
-            translated_ptr = self.translate(ptr.ast, base)
+            translated_ptr = self.translate(ptr, base)
             loc.set_value(state, translated_val, stack_base=translated_ptr)
 
     def size(self):

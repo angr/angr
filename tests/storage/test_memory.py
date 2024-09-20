@@ -198,7 +198,7 @@ class TestMemory(unittest.TestCase):
         s.memory.store(0x1000, x)
         s.memory.store(0x2000, x)
         assert set(s.memory.addrs_for_name("ref_test")) == {0x1000, 0x1001, 0x2000, 0x2001}
-        assert set(s.memory.addrs_for_hash(x.cache_key)) == {0x1000, 0x1001, 0x2000, 0x2001}
+        assert set(s.memory.addrs_for_hash(x.hash())) == {0x1000, 0x1001, 0x2000, 0x2001}
 
         s2 = s.copy()
         y = claripy.BVS("ref_test2", 16, explicit_name=True)
@@ -206,11 +206,11 @@ class TestMemory(unittest.TestCase):
         assert s2.memory.load(0x2000, 2) is y
         assert s.memory.load(0x2000, 2) is x
         assert set(s.memory.addrs_for_name("ref_test")) == {0x1000, 0x1001, 0x2000, 0x2001}
-        assert set(s.memory.addrs_for_hash(x.cache_key)) == {0x1000, 0x1001, 0x2000, 0x2001}
+        assert set(s.memory.addrs_for_hash(x.hash())) == {0x1000, 0x1001, 0x2000, 0x2001}
         assert set(s2.memory.addrs_for_name("ref_test")) == {0x1000, 0x1001}
-        assert set(s2.memory.addrs_for_hash(x.cache_key)) == {0x1000, 0x1001}
+        assert set(s2.memory.addrs_for_hash(x.hash())) == {0x1000, 0x1001}
         assert set(s2.memory.addrs_for_name("ref_test2")) == {0x2000, 0x2001}
-        assert set(s2.memory.addrs_for_hash(y.cache_key)) == {0x2000, 0x2001}
+        assert set(s2.memory.addrs_for_hash(y.hash())) == {0x2000, 0x2001}
 
         s.memory.store(0x3000, claripy.BVS("replace_old", 32, explicit_name=True))
         s.memory.store(0x3001, claripy.BVV(b"AB"))
