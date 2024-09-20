@@ -11,6 +11,7 @@ def obj_bit_size(o):
 
 
 # TODO: get rid of is_bytes and have the bytes-backed objects be a separate class
+# pylint: disable=too-many-positional-arguments
 
 
 class SimMemoryObject:
@@ -84,7 +85,7 @@ class SimMemoryObject:
     def bytes_at(self, addr, length, allow_concrete=False, endness="Iend_BE"):
         rev = endness != self.endness
         if allow_concrete and rev:
-            raise Exception("allow_concrete must be used with the stored endness")
+            raise ValueError("allow_concrete must be used with the stored endness")
 
         if self.is_bytes:
             if addr == self.base and length == self.length:
@@ -151,6 +152,8 @@ class SimMemoryObject:
 
 
 class SimLabeledMemoryObject(SimMemoryObject):
+    """SimLabeledMemoryObject is a SimMemoryObject with a label"""
+
     __slots__ = ("label",)
 
     def __init__(self, obj, base, endness, length=None, byte_width=8, label=None):
