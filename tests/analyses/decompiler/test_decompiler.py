@@ -565,7 +565,7 @@ class TestDecompiler(unittest.TestCase):
         # doit
         f = cfg.functions["doit"]
         optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            p.arch, p.simos.name, enable_opts=DUPLICATING_OPTS
+            p.arch, p.simos.name, additional_opts=DUPLICATING_OPTS
         )
         dec = p.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=optimization_passes
@@ -850,7 +850,7 @@ class TestDecompiler(unittest.TestCase):
 
         # enable Lowered Switch Simplifier
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -872,7 +872,7 @@ class TestDecompiler(unittest.TestCase):
 
         # enable Lowered Switch Simplifier, disable duplication
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
         )
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -897,7 +897,7 @@ class TestDecompiler(unittest.TestCase):
 
         # enable Lowered Switch Simplifier
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
         d = proj.analyses[Decompiler].prep()(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -2273,7 +2273,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
 
         proj.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
@@ -2306,7 +2306,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
 
         f = proj.kb.functions["main"]
@@ -2326,7 +2326,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
 
         f = proj.kb.functions["filename_unescape"]
@@ -2355,7 +2355,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier]
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
 
         f = proj.kb.functions["main"]
@@ -2378,7 +2378,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         # enable Lowered Switch Simplifier, disable duplication
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
-            "AMD64", "linux", enable_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
         )
 
         f = proj.kb.functions["main"]
