@@ -116,7 +116,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         successors.sort = "IRSB"
         successors.description = "IRSB"
         self.state.history.recent_block_count = 1
-        self.state.scratch.guard = claripy.true
+        self.state.scratch.guard = claripy.true()
         self.state.scratch.sim_procedure = None
         addr = successors.addr
         self.state.scratch.bbl_addr = addr
@@ -216,7 +216,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                guard = claripy.true() if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false()
                 ret_target = claripy.BVV(successors.addr + irsb.size, ret_state.arch.bits)
                 ret_state.registers.store(
                     ret_state.arch.ret_offset, ret_state.solver.Unconstrained("fake_ret_value", ret_state.arch.bits)

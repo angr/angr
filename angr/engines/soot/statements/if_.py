@@ -15,5 +15,5 @@ class SimSootStmt_If(SimSootStmt):
         self._add_jmp_target(target=jmp_target, condition=jmp_condition)
         self._add_jmp_target(
             target=None,  # if target is None, engine goes on linearly
-            condition=(jmp_condition == claripy.false),
+            condition=(jmp_condition == claripy.false()),
         )

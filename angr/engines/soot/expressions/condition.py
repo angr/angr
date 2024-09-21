@@ -19,7 +19,7 @@ class SimSootExpr_Condition(SimSootExpr):
         elif isinstance(v1.expr, (SootNullConstant, SimSootValue_StringRef)) or isinstance(
             v2.expr, (SootNullConstant, SimSootValue_StringRef)
         ):
-            self.expr = claripy.true if operator_func(v1.expr, v2.expr) else claripy.false
+            self.expr = claripy.true() if operator_func(v1.expr, v2.expr) else claripy.false()
         else:
             self.expr = operator_func(v1.expr, v2.expr)
 

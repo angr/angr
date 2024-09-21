@@ -911,7 +911,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
 
     def seek(self, offset, whence="start"):
         if not self.file.seekable:
-            return claripy.false
+            return claripy.false()
 
         if type(offset) is int:
             offset = claripy.BVV(offset, self.state.arch.bits)
@@ -929,9 +929,9 @@ class SimFileDescriptor(SimFileDescriptorBase):
 
     def eof(self):
         if not self.file.seekable:
-            return claripy.false
+            return claripy.false()
         if not getattr(self.file, "has_end", True):
-            return claripy.false
+            return claripy.false()
         return self._pos == self.file.size
 
     def tell(self):
@@ -1048,16 +1048,16 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
     def eof(self):
         # the thing that makes the most sense is for this to refer to the read eof status...
         if not self._read_file.seekable:
-            return claripy.false
+            return claripy.false()
         if not getattr(self._read_file, "has_end", True):
-            return claripy.false
+            return claripy.false()
         return self._read_pos == self._read_file.size
 
     def tell(self):
         return None
 
     def seek(self, offset, whence="start"):
-        return claripy.false
+        return claripy.false()
 
     def size(self):
         return None

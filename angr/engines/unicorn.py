@@ -184,7 +184,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         self._instr_mem_write_addrs = set()  # pylint:disable=attribute-defined-outside-init
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
-            self.state.scratch.guard = claripy.true
+            self.state.scratch.guard = claripy.true()
             try:
                 if self.state.os_name == "CGC" and block_details["block_addr"] in {
                     self.state.unicorn.cgc_random_addr,
@@ -481,7 +481,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         if state.unicorn.jumpkind.startswith("Ijk_Sys"):
             state.ip = state.unicorn._syscall_pc
-        successors.add_successor(state, state.ip, claripy.true, state.unicorn.jumpkind)
+        successors.add_successor(state, state.ip, claripy.true(), state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True

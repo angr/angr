@@ -46,7 +46,7 @@ class ActionsMixinHigh(MemoryMixin):
             self.state, region_type, kind, addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback
         )
 
-        action.added_constraints = claripy.true
+        action.added_constraints = claripy.true()
         return action
 
     def _add_constraints(self, c, action=None, **kwargs):

@@ -198,7 +198,7 @@ class ConditionProcessor:
             predicate = self._extract_predicate(src, dst, edge_type)
         except EmptyBlockNotice:
             # catch empty block notice - although this should not really happen
-            predicate = claripy.true
+            predicate = claripy.true()
         return predicate
 
     def recover_edge_conditions(self, region, graph=None) -> dict:
@@ -274,15 +274,15 @@ class ConditionProcessor:
 
             if node is head:
                 # the head is always reachable
-                reaching_condition = claripy.true
+                reaching_condition = claripy.true()
             elif idoms is not None and _strictly_postdominates(idoms, node, head):
                 # the node that post dominates the head is always reachable
-                reaching_conditions[node] = claripy.true
+                reaching_conditions[node] = claripy.true()
             else:
                 for pred in preds:
                     edge = (pred, node)
-                    pred_condition = reaching_conditions.get(pred, claripy.true)
-                    edge_condition = edge_conditions.get(edge, claripy.true)
+                    pred_condition = reaching_conditions.get(pred, claripy.true())
+                    edge_condition = edge_conditions.get(edge, claripy.true())
 
                     if reaching_condition is None:
                         reaching_condition = claripy.And(pred_condition, edge_condition)
@@ -616,7 +616,7 @@ class ConditionProcessor:
             return claripy.Not(bool_var)
 
         if type(src_block) is GraphRegion:
-            return claripy.true
+            return claripy.true()
 
         # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
         if (
@@ -629,10 +629,10 @@ class ConditionProcessor:
             last_stmt = self.get_last_statement(src_block)
 
         if last_stmt is None:
-            return claripy.true
+            return claripy.true()
         if type(last_stmt) is ailment.Stmt.Jump:
             if isinstance(last_stmt.target, ailment.Expr.Const):
-                return claripy.true
+                return claripy.true()
             # indirect jump
             target_ast = self.claripy_ast_from_ail_condition(last_stmt.target)
             return target_ast == dst_block.addr
@@ -642,7 +642,7 @@ class ConditionProcessor:
                 return bool_var
             return claripy.Not(bool_var)
 
-        return claripy.true
+        return claripy.true()
 
     #
     # Expression conversion
@@ -802,7 +802,7 @@ class ConditionProcessor:
             else:
                 var = claripy.BVV(condition.value, condition.bits)
             if isinstance(var, claripy.Bits) and var.size() == 1:
-                var = claripy.true if var.concrete_value == 1 else claripy.false
+                var = claripy.true() if var.concrete_value == 1 else claripy.false()
             return var
         if isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
@@ -881,9 +881,9 @@ class ConditionProcessor:
         if isinstance(expr, sympy.Not):
             return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
         if isinstance(expr, sympy.logic.boolalg.BooleanTrue):
-            return claripy.true
+            return claripy.true()
         if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
-            return claripy.false
+            return claripy.false()
         raise AngrRuntimeError("Unreachable reached")
 
     @staticmethod
@@ -1113,7 +1113,9 @@ class ConditionProcessor:
         for term in all_terms_without_negs:
             neg = negations.get(term)
 
-            replaced_with_true = ConditionProcessor._replace_term_in_ast(cond, term, claripy.true, neg, claripy.false)
+            replaced_with_true = ConditionProcessor._replace_term_in_ast(
+                cond, term, claripy.true(), neg, claripy.false()
+            )
             sat0 = solver.satisfiable(
                 extra_constraints=(
                     cond,
@@ -1129,7 +1131,9 @@ class ConditionProcessor:
             if sat0 or sat1:
                 continue
 
-            replaced_with_false = ConditionProcessor._replace_term_in_ast(cond, term, claripy.false, neg, claripy.true)
+            replaced_with_false = ConditionProcessor._replace_term_in_ast(
+                cond, term, claripy.false(), neg, claripy.true()
+            )
             sat0 = solver.satisfiable(
                 extra_constraints=(
                     cond,

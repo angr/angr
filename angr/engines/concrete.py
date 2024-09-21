@@ -61,7 +61,7 @@ class SimEngineConcrete(SuccessorsMixin):
 
         successors.engine = "SimEngineConcrete"
         successors.sort = "SimEngineConcrete"
-        successors.add_successor(new_state, new_state.ip, claripy.true, new_state.unicorn.jumpkind)
+        successors.add_successor(new_state, new_state.ip, claripy.true(), new_state.unicorn.jumpkind)
         successors.description = "Concrete Successors"
         successors.processed = True
 

@@ -213,7 +213,7 @@ class StateHierarchy:
                 n()._satisfiable = False
                 try:
                     if n().state is not None:
-                        n().state.add_constraints(claripy.false)
+                        n().state.add_constraints(claripy.false())
                 except ReferenceError:
                     pass
             self._graph.remove_nodes_from(all_children)

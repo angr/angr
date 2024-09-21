@@ -99,7 +99,7 @@ class SmartFindMixin(MemoryMixin):
         able to handle wide characters
         """
         if condition is None:
-            condition = claripy.true
+            condition = claripy.true()
         chunk = None
         chunk_progress = chunk_size
 
@@ -139,7 +139,7 @@ class SmartFindMixin(MemoryMixin):
 
     def _find_condition(self, target_addr):  # pylint:disable=unused-argument,no-self-use
         # TODO: fill this in in order to make each load have the correct condition associated with it
-        return claripy.true
+        return claripy.true()
 
     def _find_compare(self, element, target):
         comparison = element == target

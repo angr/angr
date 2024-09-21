@@ -573,8 +573,8 @@ class TestMemory(unittest.TestCase):
         asdf = claripy.BVV(b"asdf")
         fdsa = claripy.BVV(b"fdsa")
         s.memory.store(0x1000, asdf)
-        s.memory.store(0x1000, fdsa, condition=claripy.false)
-        s.memory.store(0, fdsa, condition=claripy.false)
+        s.memory.store(0x1000, fdsa, condition=claripy.false())
+        s.memory.store(0, fdsa, condition=claripy.false())
 
         assert s.memory.load(0x1000, 4) is asdf
         assert 0 not in s.memory._pages
