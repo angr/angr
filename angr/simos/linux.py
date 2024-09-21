@@ -238,7 +238,7 @@ class SimLinux(SimUserland):
                 fs[name] = fs[name].encode("utf-8")
             if type(fs[name]) is bytes:
                 fs[name] = claripy.BVV(fs[name])
-            if isinstance(fs[name], claripy.Bits):
+            if isinstance(fs[name], claripy.ast.Bits):
                 fs[name] = SimFile(name, content=fs[name])
             if not isinstance(fs[name], SimFileBase):
                 raise TypeError(f"Provided fs initializer with unusable type {type(fs[name])!r}")

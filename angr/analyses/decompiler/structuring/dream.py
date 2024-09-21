@@ -767,7 +767,7 @@ class DreamStructurer(StructurerBase):
                 if (
                     arg.op == "__eq__"
                     and arg.args[0] is jumptable_var
-                    and isinstance(arg.args[1], claripy.Bits)
+                    and isinstance(arg.args[1], claripy.ast.Bits)
                     and arg.args[1].concrete
                 ):
                     # found it
@@ -780,7 +780,7 @@ class DreamStructurer(StructurerBase):
                 # unsupported
                 return None
         elif cond.op == "__eq__":
-            if cond.args[0] is jumptable_var and isinstance(cond.args[1], claripy.Bits) and cond.args[1].concrete:
+            if cond.args[0] is jumptable_var and isinstance(cond.args[1], claripy.ast.Bits) and cond.args[1].concrete:
                 # found it
                 eq_condition = cond
                 true_node = cond_node.true_node

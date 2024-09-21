@@ -68,7 +68,7 @@ class AllocHelper:
             return SimStructValue(
                 val.struct, {field: self.translate(subval, base) for field, subval in val._values.items()}
             )
-        if isinstance(val, claripy.Bits):
+        if isinstance(val, claripy.ast.Bits):
             return val.replace(self.base, base)
         if type(val) is list:
             return [self.translate(subval, base) for subval in val]
@@ -89,7 +89,7 @@ class AllocHelper:
     def calc_size(cls, val, arch):
         if type(val) is SimStructValue:
             return val.struct.size // arch.byte_width
-        if isinstance(val, claripy.Bits):
+        if isinstance(val, claripy.ast.Bits):
             return len(val) // arch.byte_width
         if type(val) is list:
             # TODO real strides
@@ -100,7 +100,7 @@ class AllocHelper:
 
     @classmethod
     def stack_loc(cls, val, arch, offset=0):
-        if isinstance(val, claripy.Bits):
+        if isinstance(val, claripy.ast.Bits):
             return SimStackArg(offset, len(val) // arch.byte_width)
         if type(val) is list:
             # TODO real strides
@@ -964,7 +964,7 @@ class SimCC:
                 raise TypeError(f"Type mismatch: expected {ty}, got pointer-wrapper")
 
             if arg.buffer:
-                if isinstance(arg.value, claripy.Bits):
+                if isinstance(arg.value, claripy.ast.Bits):
                     real_value = arg.value.chop(state.arch.byte_width)
                 elif type(arg.value) in (bytes, str):
                     real_value = claripy.BVV(arg.value).chop(8)

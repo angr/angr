@@ -464,7 +464,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if replaced_object is not None:
                 self._replace_memory_object(mo, replaced_object, memory=memory)
 
-    def _replace_memory_object(self, old: SimMemoryObject, new_content: claripy.Bits, memory=None):
+    def _replace_memory_object(self, old: SimMemoryObject, new_content: claripy.ast.Bits, memory=None):
         """
         Replaces the memory object `old` with a new memory object containing `new_content`.
 

@@ -60,12 +60,12 @@ class InlinedStringTransformationState:
     def _get_weakref(self):
         return self
 
-    def reg_store(self, reg: Register, value: claripy.Bits) -> None:
+    def reg_store(self, reg: Register, value: claripy.ast.Bits) -> None:
         self.registers.store(
             reg.reg_offset, value, size=value.size() // self.arch.byte_width, endness=str(self.arch.register_endness)
         )
 
-    def reg_load(self, reg: Register) -> claripy.Bits | None:
+    def reg_load(self, reg: Register) -> claripy.ast.Bits | None:
         try:
             return self.registers.load(
                 reg.reg_offset, size=reg.size, endness=self.arch.register_endness, fill_missing=False
@@ -73,19 +73,19 @@ class InlinedStringTransformationState:
         except SimMemoryMissingError:
             return None
 
-    def mem_store(self, addr: int, value: claripy.Bits, endness: str) -> None:
+    def mem_store(self, addr: int, value: claripy.ast.Bits, endness: str) -> None:
         self.memory.store(addr, value, size=value.size() // self.arch.byte_width, endness=endness)
 
-    def mem_load(self, addr: int, size: int, endness) -> claripy.Bits | None:
+    def mem_load(self, addr: int, size: int, endness) -> claripy.ast.Bits | None:
         try:
             return self.memory.load(addr, size=size, endness=str(endness), fill_missing=False)
         except SimMemoryMissingError:
             return None
 
-    def vvar_store(self, vvar: VirtualVariable, value: claripy.Bits | None) -> None:
+    def vvar_store(self, vvar: VirtualVariable, value: claripy.ast.Bits | None) -> None:
         self.virtual_variables[vvar.varid] = value
 
-    def vvar_load(self, vvar: VirtualVariable) -> claripy.Bits | None:
+    def vvar_load(self, vvar: VirtualVariable) -> claripy.ast.Bits | None:
         if vvar.varid in self.virtual_variables:
             return self.virtual_variables[vvar.varid]
         return None
@@ -109,7 +109,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         self.MASK = 0xFFFF_FFFF if self.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
         state = InlinedStringTransformationState(project)
-        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
+        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.ast.Bits]]] = defaultdict(list)
         self.finished: bool = False
 
         i = 0
@@ -140,7 +140,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
             if v0_and_type is not None:
                 v0 = v0_and_type[0]
                 v1 = self._expr(addr.operands[1])
-                if isinstance(v1, claripy.Bits) and v1.concrete:
+                if isinstance(v1, claripy.ast.Bits) and v1.concrete:
                     return (v0 + v1.concrete_value) & self.MASK, "stack"
         return None
 
@@ -148,7 +148,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         if isinstance(stmt.dst, VirtualVariable):
             if stmt.dst.was_reg:
                 val = self._expr(stmt.src)
-                if isinstance(val, claripy.Bits):
+                if isinstance(val, claripy.ast.Bits):
                     self.state.vvar_store(stmt.dst, val)
             elif stmt.dst.was_stack:
                 addr = (stmt.dst.stack_offset + self.STACK_BASE) & self.MASK
@@ -190,9 +190,9 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         if isinstance(stmt.true_target, Const) and isinstance(stmt.false_target, Const):
             cond = self._expr(stmt.condition)
             if cond is not None:
-                if isinstance(cond, claripy.Bits) and cond.concrete_value == 1:
+                if isinstance(cond, claripy.ast.Bits) and cond.concrete_value == 1:
                     self.pc = stmt.true_target.value
-                elif isinstance(cond, claripy.Bits) and cond.concrete_value == 0:
+                elif isinstance(cond, claripy.ast.Bits) and cond.concrete_value == 0:
                     self.pc = stmt.false_target.value
 
     def _handle_Const(self, expr):
@@ -220,7 +220,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         if expr.was_stack:
             addr = (expr.stack_offset + self.STACK_BASE) & self.MASK
             v = self.state.mem_load(addr, expr.size, self.arch.memory_endness)
-            if isinstance(v, claripy.Bits):
+            if isinstance(v, claripy.ast.Bits):
                 # log it
                 for i in range(expr.size):
                     byte_off = i
@@ -240,7 +240,7 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
 
     def _handle_Convert(self, expr: Convert):
         v = self._expr(expr.operand)
-        if isinstance(v, claripy.Bits):
+        if isinstance(v, claripy.ast.Bits):
             if expr.to_bits > expr.from_bits:
                 if not expr.is_signed:
                     return claripy.ZeroExt(expr.to_bits - expr.from_bits, v)
@@ -252,37 +252,37 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
 
     def _handle_CmpEQ(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value == op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpNE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value != op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpLT(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value < op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpLE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value <= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpGT(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value > op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpGE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value >= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
