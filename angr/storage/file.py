@@ -209,7 +209,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
             content = claripy.BVV(content.encode())
         elif content is None:
             pass
-        elif isinstance(content, claripy.Bits):
+        elif isinstance(content, claripy.ast.Bits):
             if concrete is None and not content.symbolic:
                 concrete = True
         else:
@@ -322,7 +322,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
 
         data = _deps_unpack(data)[0]
         if size is None:
-            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
+            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.ast.Bits) else len(data)
         # \(_^^)/
         self.store(pos, data, size=size)
         new_end = _deps_unpack(pos + size)[0]  # decline to store SAO
@@ -442,7 +442,7 @@ class SimPackets(SimFileBase):
                     if type(x) is tuple
                     else (
                         (x, len(x) // 8)
-                        if isinstance(x, claripy.Bits)
+                        if isinstance(x, claripy.ast.Bits)
                         else (
                             (x.ast, len(x) // 8)
                             if isinstance(x, SimActionObject)
@@ -593,7 +593,7 @@ class SimPackets(SimFileBase):
         if type(data) is bytes:
             data = claripy.BVV(data)
         if size is None:
-            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
+            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.ast.Bits) else len(data)
         if type(size) is int:
             size = claripy.BVV(size, self.state.arch.bits)
 
@@ -903,7 +903,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
 
         data = _deps_unpack(data)[0]
         if size is None:
-            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
+            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.ast.Bits) else len(data)
 
         size = self._prep_write(size)
         self._pos = self.file.write(self._pos, data, size)
@@ -1034,7 +1034,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
     def write_data(self, data, size=None, **kwargs):
         data = _deps_unpack(data)[0]
         if size is None:
-            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.Bits) else len(data)
+            size = len(data) // self.state.arch.byte_width if isinstance(data, claripy.ast.Bits) else len(data)
 
         size = self._prep_write(size)
         self._write_pos = self._write_file.write(self._write_pos, data, size)

@@ -130,7 +130,7 @@ class FormatString:
                 if type(component) is bytes:
                     sdata, _ = simfd.read_data(len(component), short_reads=False)
                     self.state.add_constraints(sdata == component)
-                elif isinstance(component, claripy.Bits):
+                elif isinstance(component, claripy.ast.Bits):
                     sdata, _ = simfd.read_data(len(component) // 8, short_reads=False)
                     self.state.add_constraints(sdata == component)
                 elif component.spec_type == b"s":

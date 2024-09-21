@@ -801,7 +801,7 @@ class ConditionProcessor:
                 var = claripy.BoolV(condition.value)
             else:
                 var = claripy.BVV(condition.value, condition.bits)
-            if isinstance(var, claripy.Bits) and var.size() == 1:
+            if isinstance(var, claripy.ast.Bits) and var.size() == 1:
                 var = claripy.true() if var.concrete_value == 1 else claripy.false()
             return var
         if isinstance(condition, ailment.Expr.Tmp):

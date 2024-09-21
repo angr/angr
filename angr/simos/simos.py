@@ -149,7 +149,7 @@ class SimOS:
             if type(stdin) is type:
                 stdin = stdin(name="stdin", has_end=False)
             else:
-                if isinstance(stdin, claripy.Bits):
+                if isinstance(stdin, claripy.ast.Bits):
                     num_bytes = len(stdin) // self.project.arch.byte_width
                 else:
                     num_bytes = len(stdin)
