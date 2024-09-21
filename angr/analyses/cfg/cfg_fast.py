@@ -1049,15 +1049,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # no wide string is found
         return 0
 
-    def _scan_for_repeating_bytes(self, start_addr, repeating_byte, threshold=2):
+    def _scan_for_repeating_bytes(self, start_addr: int, repeating_byte: int, threshold: int = 2) -> int:
         """
         Scan from a given address and determine the occurrences of a given byte.
 
-        :param int start_addr:      The address in memory to start scanning.
-        :param int repeating_byte:  The repeating byte to scan for.
-        :param int threshold:  The minimum occurrences.
-        :return:                    The occurrences of a given byte.
-        :rtype:                     int
+        :param start_addr:      The address in memory to start scanning.
+        :param repeating_byte:  The repeating byte to scan for.
+        :param threshold:       The minimum occurrences.
+        :return:                The occurrences of a given byte.
         """
 
         addr = start_addr
@@ -1078,6 +1077,66 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             return repeating_length
         return 0
 
+    def _scan_for_consecutive_pointers(self, start_addr: int, threshold: int = 2) -> int:
+        """
+        Scan from a given address and determine if there are at least `threshold` of pointers.
+
+        This function will yield high numbers of false positives if the mapped memory regions are too low (for example,
+        <= 0x100000). It is recommended to set `threshold` to a higher value in such cases.
+
+        :param start_addr:  The address to start scanning from.
+        :param threshold:   The minimum number of pointers to be found.
+        :return:            The number of pointers found.
+        """
+
+        addr = start_addr
+        pointer_count = 0
+        pointer_size = self.project.arch.bytes
+
+        while self._inside_regions(addr):
+            val = self._fast_memory_load_pointer(addr)
+            if val is None:
+                break
+            if self.project.loader.find_object_containing(val):
+                pointer_count += 1
+            else:
+                break
+            addr += pointer_size
+
+        if pointer_count >= threshold:
+            return pointer_count
+        return 0
+
+    def _scan_for_mixed_pointers(self, start_addr: int, threshold: int = 3, window: int = 6) -> int:
+        """
+        Scan from a given address and determine if there are at least `threshold` of pointers within a given window of pointers.
+
+        This function will yield high numbers of false positives if the mapped memory regions are too low (for example,
+        <= 0x100000). It is recommended to set `threshold` to a higher value in such cases.
+
+        :param start_addr:  The address to start scanning from.
+        :param threshold:   The minimum number of pointers to be found.
+        :return:            The number of pointers found.
+        """
+
+        addr = start_addr
+        ctr = 0
+        pointer_count = 0
+        pointer_size = self.project.arch.bytes
+
+        while self._inside_regions(addr) and ctr < window:
+            ctr += 1
+            val = self._fast_memory_load_pointer(addr)
+            if val is None:
+                break
+            if self.project.loader.find_object_containing(val):
+                pointer_count += 1
+            addr += pointer_size
+
+        if pointer_count >= threshold:
+            return ctr
+        return 0
+
     def _next_code_addr_core(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
@@ -1091,28 +1150,55 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         start_addr = next_addr
 
         while True:
-            string_length = self._scan_for_printable_strings(start_addr)
-            if string_length == 0:
-                string_length = self._scan_for_printable_widestrings(start_addr)
+            pointer_length, string_length, cc_length = 0, 0, 0
+            matched_something = False
 
-            if string_length:
-                self._seg_list.occupy(start_addr, string_length, "string")
-                start_addr += string_length
+            if start_addr % self.project.arch.bytes == 0:
+                # find potential pointer array
+                threshold = 8 if start_addr <= 0x100000 else 2
+                pointer_count = self._scan_for_consecutive_pointers(start_addr, threshold=threshold)
+                pointer_length = pointer_count * self.project.arch.bytes
 
-            if self.project.arch.name in ("X86", "AMD64"):
+                if pointer_length:
+                    matched_something = True
+                    self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
+                    start_addr += pointer_length
+
+                else:
+                    threshold = 4 if start_addr <= 0x100000 else 3
+                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=6)
+                    pointer_length = pointer_count * self.project.arch.bytes
+
+                    if pointer_length:
+                        matched_something = True
+                        self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
+                        start_addr += pointer_length
+
+            if not matched_something:
+                # find strings
+                string_length = self._scan_for_printable_strings(start_addr)
+                if string_length == 0:
+                    string_length = self._scan_for_printable_widestrings(start_addr)
+
+                if string_length:
+                    matched_something = True
+                    self._seg_list.occupy(start_addr, string_length, "string")
+                    start_addr += string_length
+
+            if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
                 cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
                 if cc_length:
+                    matched_something = True
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
                     start_addr += cc_length
-            else:
-                cc_length = 0
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
+                matched_something = True
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
                 start_addr += zeros_length
 
-            if string_length == 0 and cc_length == 0 and zeros_length == 0:
+            if not matched_something:
                 # umm now it's probably code
                 break
 
