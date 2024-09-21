@@ -1185,13 +1185,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self._seg_list.occupy(start_addr, string_length, "string")
                     start_addr += string_length
 
-            if not matched_something:
-                if self.project.arch.name in ("X86", "AMD64"):
-                    cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
-                    if cc_length:
-                        matched_something = True
-                        self._seg_list.occupy(start_addr, cc_length, "alignment")
-                        start_addr += cc_length
+            if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
+                cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
+                if cc_length:
+                    matched_something = True
+                    self._seg_list.occupy(start_addr, cc_length, "alignment")
+                    start_addr += cc_length
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
