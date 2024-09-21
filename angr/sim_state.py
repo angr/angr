@@ -679,7 +679,7 @@ class SimState(PluginHub):
             merge_conditions = [merge_flag == b for b in merge_values]
         else:
             merge_conditions = [
-                (claripy.true if len(mc) == 0 else claripy.And(*[c.to_claripy() for c in mc]))
+                (claripy.true() if len(mc) == 0 else claripy.And(*[c.to_claripy() for c in mc]))
                 for mc in merge_conditions
             ]
 

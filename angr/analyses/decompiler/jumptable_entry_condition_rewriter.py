@@ -16,7 +16,7 @@ class JumpTableEntryConditionRewriter(SequenceWalker):
 
     def _process_expr(self, expr):
         if expr in self._jumptable_entry_conds:
-            return claripy.true
+            return claripy.true()
 
         new_args = []
         replaced = False

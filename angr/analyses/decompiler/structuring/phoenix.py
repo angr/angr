@@ -368,7 +368,7 @@ class PhoenixStructurer(StructurerBase):
                         jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
                         cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
                         new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
-                        loop_node = LoopNode("while", claripy.true, new_node, addr=node.addr)
+                        loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
                         # on the original graph
                         self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -392,7 +392,7 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_last_statement_if_jump(head_block)
                             cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
                             new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
-                            loop_node = LoopNode("while", claripy.true, new_node, addr=node.addr)
+                            loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -572,7 +572,7 @@ class PhoenixStructurer(StructurerBase):
             seen_nodes.add(next_node)
             seq_node.nodes.append(next_node)
 
-        loop_node = LoopNode("while", claripy.true, seq_node, addr=node.addr)
+        loop_node = LoopNode("while", claripy.true(), seq_node, addr=node.addr)
 
         # on the original graph
         for node_ in seq_node.nodes:

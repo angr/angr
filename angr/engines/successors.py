@@ -320,7 +320,7 @@ class SimSuccessors:
                 skip_max_targets_warning = False
                 if o.NO_IP_CONCRETIZATION in state.options:
                     # Don't try to concretize the IP
-                    cond_and_targets = [(claripy.true, target)]
+                    cond_and_targets = [(claripy.true(), target)]
                     max_targets = 0
                     skip_max_targets_warning = True  # don't warn
                 elif o.KEEP_IP_SYMBOLIC in state.options:

@@ -30,7 +30,7 @@ class SimStateScratch(SimStatePlugin):
 
         # information on exits *from* this state
         self.jumpkind = None
-        self.guard = claripy.true
+        self.guard = claripy.true()
         self.target = None
         self.source = None
         self.exit_stmt_idx = None

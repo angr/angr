@@ -422,7 +422,7 @@ class SimWindows(SimOS):
 
         # let's go let's go!
         # we want to use a true guard here. if it's not true, then it's already been added in windup.
-        successors.add_successor(exc_state, self._exception_handler, claripy.true, "Ijk_Exception")
+        successors.add_successor(exc_state, self._exception_handler, claripy.true(), "Ijk_Exception")
         successors.processed = True
 
     # these two methods load and store register state from a struct CONTEXT

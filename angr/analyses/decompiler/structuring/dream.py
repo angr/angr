@@ -800,7 +800,8 @@ class DreamStructurer(StructurerBase):
             return None
 
         return CodeNode(
-            ConditionNode(cond_node.addr, claripy.true, remaining_cond, true_node, false_node=false_node), eq_condition
+            ConditionNode(cond_node.addr, claripy.true(), remaining_cond, true_node, false_node=false_node),
+            eq_condition,
         )
 
     def _switch_check_existence_of_jumptable_entries(
@@ -942,11 +943,11 @@ class DreamStructurer(StructurerBase):
                         )
                     ],
                 )
-                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true())])
                 converted_nodes[entry_addr] = case_node
                 continue
 
-            case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true)])
+            case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true())])
             to_remove.add(entry_node)
             entry_node_idx = seq.nodes.index(entry_node)
 
@@ -966,7 +967,7 @@ class DreamStructurer(StructurerBase):
                         )
                     ],
                 )
-                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true())])
                 converted_nodes[entry_addr] = case_node
                 continue
 
@@ -1097,7 +1098,7 @@ class DreamStructurer(StructurerBase):
     def _nodes_guarded_by_common_subexpr(seq, common_subexpr, starting_idx):
         candidates = []
 
-        if common_subexpr is claripy.true:
+        if common_subexpr is claripy.true():
             return []
         for j, node_1 in enumerate(seq.nodes[starting_idx:]):
             rcond_1 = getattr(node_1, "reaching_condition", None)
