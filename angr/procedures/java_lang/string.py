@@ -65,7 +65,7 @@ class StringLength(JavaSimProcedure):
     def run(self, this_str):
         log.debug(f"Called SimProcedure java.lang.String.length with args: {this_str}")
 
-        return claripy.StrLen(self.state.memory.load(this_str), 32)
+        return claripy.StrLen(self.state.memory.load(this_str))
 
 
 class StringCharAt(JavaSimProcedure):
