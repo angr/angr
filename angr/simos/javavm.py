@@ -192,13 +192,13 @@ class SimJavaVM(SimOS):
         return state
 
     @staticmethod
-    def generate_symbolic_cmd_line_arg(state, max_length=1000):
+    def generate_symbolic_cmd_line_arg(state):
         """
         Generates a new symbolic cmd line argument string.
         :return: The string reference.
         """
         str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
-        str_sym = StringS("cmd_line_arg", max_length)
+        str_sym = StringS("cmd_line_arg")
         state.solver.add(str_sym != StringV(""))
         state.memory.store(str_ref, str_sym)
         return str_ref
@@ -310,7 +310,7 @@ class SimJavaVM(SimOS):
         if type_ == "double":
             return FPS(f"default_value_{type_}", FSORT_DOUBLE)
         if type_ == "java.lang.String":
-            return SimSootValue_StringRef.new_string(state, StringS(f"default_value_{type_}", 1000))
+            return SimSootValue_StringRef.new_string(state, StringS(f"default_value_{type_}"))
         if type_.endswith("[][]"):
             raise NotImplementedError
         if type_.endswith("[]"):
