@@ -1089,6 +1089,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:            The number of pointers found.
         """
 
+        current_object = self.project.loader.find_object_containing(start_addr)
         addr = start_addr
         pointer_count = 0
         pointer_size = self.project.arch.bytes
@@ -1097,7 +1098,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             val = self._fast_memory_load_pointer(addr)
             if val is None:
                 break
-            if self.project.loader.find_object_containing(val):
+            obj = self.project.loader.find_object_containing(val)
+            if obj is not None and obj is current_object:
                 pointer_count += 1
             else:
                 break
@@ -1119,6 +1121,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:            The number of pointers found.
         """
 
+        current_object = self.project.loader.find_object_containing(start_addr)
         addr = start_addr
         ctr = 0
         pointer_count = 0
@@ -1129,7 +1132,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             val = self._fast_memory_load_pointer(addr)
             if val is None:
                 break
-            if self.project.loader.find_object_containing(val):
+            obj = self.project.loader.find_object_containing(val)
+            if obj is not None and obj is current_object:
                 pointer_count += 1
             addr += pointer_size
 
@@ -1155,34 +1159,51 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             if start_addr % self.project.arch.bytes == 0:
                 # find potential pointer array
-                threshold = 8 if start_addr <= 0x100000 else 2
+                threshold = 6 if start_addr <= 0x100000 else 1
                 pointer_count = self._scan_for_consecutive_pointers(start_addr, threshold=threshold)
                 pointer_length = pointer_count * self.project.arch.bytes
 
                 if pointer_length:
                     matched_something = True
                     self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
+                    self.model.memory_data[start_addr] = MemoryData(
+                        start_addr, pointer_length, MemoryDataSort.PointerArray
+                    )
                     start_addr += pointer_length
 
-                else:
-                    threshold = 4 if start_addr <= 0x100000 else 3
+                elif start_addr <= 0x100000:
+                    # for high addresses, all pointers have been found in _scan_for_consecutive_pointers() because we
+                    # set threshold there to 1
+                    threshold = 4
                     pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=6)
                     pointer_length = pointer_count * self.project.arch.bytes
 
                     if pointer_length:
                         matched_something = True
                         self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
+                        self.model.memory_data[start_addr] = MemoryData(
+                            start_addr, pointer_length, MemoryDataSort.PointerArray
+                        )
                         start_addr += pointer_length
 
             if not matched_something:
                 # find strings
+                is_widestring = False
                 string_length = self._scan_for_printable_strings(start_addr)
                 if string_length == 0:
+                    is_widestring = True
                     string_length = self._scan_for_printable_widestrings(start_addr)
 
                 if string_length:
                     matched_something = True
                     self._seg_list.occupy(start_addr, string_length, "string")
+                    md = MemoryData(
+                        start_addr,
+                        string_length,
+                        MemoryDataSort.String if not is_widestring else MemoryDataSort.UnicodeString,
+                    )
+                    md.fill_content(self.project.loader)
+                    self.model.memory_data[start_addr] = md
                     start_addr += string_length
 
             if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
@@ -1190,12 +1211,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 if cc_length:
                     matched_something = True
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
+                    self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Unknown)
                     start_addr += cc_length
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
                 matched_something = True
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
+                self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Unknown)
                 start_addr += zeros_length
 
             if not matched_something:
@@ -1205,7 +1228,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
             # occupy those few bytes
-            self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), "alignment")
+            size = instr_alignment - (start_addr % instr_alignment)
+            self._seg_list.occupy(start_addr, size, "alignment")
+            self.model.memory_data[start_addr] = MemoryData(start_addr, size, MemoryDataSort.Unknown)
             start_addr = start_addr - start_addr % instr_alignment + instr_alignment
             # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
             if not self._inside_regions(start_addr):
