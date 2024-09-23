@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 import logging
 
-from angr import SIM_PROCEDURES, options
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootArgument, SootNullConstant
 from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
 from claripy.ast.fp import FP, fpToIEEEBV
 from claripy.ast.bv import BV
 
+from angr import SIM_PROCEDURES, options
+
 from ..calling_conventions import default_cc, SimCCSoot
 from ..engines.soot import SootMixin
-from ..engines.soot.expressions import SimSootExpr_NewArray  # , SimSootExpr_NewMultiArray
+from ..engines.soot.expressions import SimSootExpr_NewArray
 from ..engines.soot.values import (
     SimSootValue_ArrayRef,
     SimSootValue_StringRef,
@@ -106,10 +108,6 @@ class SimJavaVM(SimOS):
             kwargs["arch"] = self.arch
         if not kwargs.get("os_name", None):
             kwargs["os_name"] = self.name
-        # enable support for string analysis
-        add_options = kwargs.get("add_options", set())
-        add_options.add(options.COMPOSITE_SOLVER)
-        kwargs["add_options"] = add_options
 
         if self.is_javavm_with_jni_support:
             # If the JNI support is enabled (i.e. JNI libs are loaded), the SimState
@@ -434,9 +432,6 @@ class SimJavaVM(SimOS):
         # if it's not a primitive type, we treat it as a reference
         jni_type_size = ArchSoot.sizeof.get(java_type, self.native_simos.arch.bits)
         return SimTypeNum(size=jni_type_size)
-
-    def get_method_native_type(self, method):
-        return SimTypeFunction
 
     @property
     def native_arch(self):
