@@ -106,10 +106,6 @@ class SimJavaVM(SimOS):
             kwargs["arch"] = self.arch
         if not kwargs.get("os_name", None):
             kwargs["os_name"] = self.name
-        # enable support for string analysis
-        add_options = kwargs.get("add_options", set())
-        add_options.add(options.COMPOSITE_SOLVER)
-        kwargs["add_options"] = add_options
 
         if self.is_javavm_with_jni_support:
             # If the JNI support is enabled (i.e. JNI libs are loaded), the SimState
