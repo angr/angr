@@ -84,4 +84,4 @@ class GetStringUTFLength(JNISimProcedure):
     def run(self, ptr_env, str_ref_):
         str_ref = self.state.jni_references.lookup(str_ref_)
         str_val = self.state.javavm_memory.load(str_ref)
-        return StrLen(str_val, 32)
+        return StrLen(str_val)
