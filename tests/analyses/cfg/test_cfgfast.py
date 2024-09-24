@@ -1114,6 +1114,23 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert cfg.model.memory_data[0x1DD90].content == cstring_to_unicode_string(b"ntdll.dll")
         assert cfg.model.memory_data[0x1DD90].size == 20
 
+    def test_pe_32bit_pointer_array_detection(self):
+        path = os.path.join(
+            test_location, "i386", "windows", "53575875777863a69a573be858e75ceea834ea54c844bb528128a4ad16879d45"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(show_progressbar=True)
+        cfg_model = cfg.model
+        assert cfg._seg_list.is_occupied(0x100018BC) is True
+        assert cfg._seg_list.occupied_by_sort(0x100018BC) == "pointer-array"
+        assert cfg_model.memory_data[0x100018BC].size == 4
+        assert cfg_model.memory_data[0x100018BC].sort == MemoryDataSort.PointerArray
+        assert cfg._seg_list.is_occupied(0x10001004) is True
+        assert cfg._seg_list.occupied_by_sort(0x10001004) == "pointer-array"
+        assert cfg_model.memory_data[0x10001004].size == 228
+        assert cfg_model.memory_data[0x10001004].sort == MemoryDataSort.PointerArray
+
 
 if __name__ == "__main__":
     unittest.main()
