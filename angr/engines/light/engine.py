@@ -1340,12 +1340,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         if expr_1 is None:
             expr_1 = arg1
 
-        try:
-            if isinstance(expr_1, claripy.ast.BV) and expr_1.concrete:
-                return expr_0 << expr_1.concrete_value
-        except TypeError:
-            pass
-
+        if isinstance(expr_0, claripy.ast.BV) and isinstance(expr_1, claripy.ast.BV) and expr_1.concrete:
+            return expr_0 << expr_1.concrete_value
         return ailment.Expr.BinaryOp(expr.idx, "Shl", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Sal(self, expr):
@@ -1385,10 +1381,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         if expr_1 is None:
             expr_1 = arg1
 
-        try:
-            return expr_0 >> expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, "Sar", [expr_0, expr_1], expr.signed, **expr.tags)
+        if isinstance(expr_0, claripy.ast.Bits) and isinstance(expr_1, claripy.ast.Bits) and expr_1.concrete:
+            return expr_0 >> expr_1.concrete_value
+        return ailment.Expr.BinaryOp(expr.idx, "Sar", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Concat(self, expr):
         arg0, arg1 = expr.operands
