@@ -19,6 +19,8 @@ from ..optimization_passes import (
     FlipBooleanCmp,
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
+    MultiSimplifier,
+    DeadblockRemover,
 )
 
 
@@ -29,6 +31,7 @@ preset_fast = DecompilationPreset(
         StackCanarySimplifier,
         WinStackCanarySimplifier,
         BasePointerSaveSimplifier,
+        MultiSimplifier,  # TODO: MultiSimplifier should be replaced by a peephole optimization
         ConstantDereferencesSimplifier,
         RetAddrSaveSimplifier,
         X86GccGetPcSimplifier,
@@ -36,6 +39,7 @@ preset_fast = DecompilationPreset(
         ITEExprConverter,
         ExprOpSwapper,
         ReturnDuplicatorHigh,
+        DeadblockRemover,
         SwitchDefaultCaseDuplicator,
         LoweredSwitchSimplifier,
         ReturnDuplicatorLow,

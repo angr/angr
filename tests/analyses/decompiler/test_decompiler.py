@@ -2154,7 +2154,9 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["scan_entries"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, preset=DECOMPILATION_PRESETS["full"]
+        )
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("goto ") == 0
@@ -3728,7 +3730,9 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["schedule_job"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, preset=DECOMPILATION_PRESETS["full"]
+        )
         self._print_decompilation_result(d)
 
         text = d.codegen.text
@@ -3750,7 +3754,9 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["main"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, preset=DECOMPILATION_PRESETS["full"]
+        )
         self._print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3773,7 +3779,9 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions[0x404410]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, preset=DECOMPILATION_PRESETS["full"]
+        )
         self._print_decompilation_result(d)
 
         text = d.codegen.text

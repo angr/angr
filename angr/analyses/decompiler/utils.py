@@ -694,6 +694,7 @@ def decompile_functions(
     catch_errors: bool = False,
     show_casts: bool = True,
     base_address: int | None = None,
+    preset: str | None = None,
 ) -> str | None:
     """
     Decompile a binary into a set of functions.
@@ -704,6 +705,7 @@ def decompile_functions(
     :param catch_errors:    The structuring algorithms to use.
     :param show_casts:      Whether to show casts in the decompiled output.
     :param base_address:    The base address of the binary.
+    :param preset:          The configuration preset to use during decompilation.
     :return:                The decompilation of all functions appended in order.
     """
     # delayed imports to avoid circular imports
@@ -757,11 +759,11 @@ def decompile_functions(
 
         exception_string = ""
         if not catch_errors:
-            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options)
+            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset)
         else:
             try:
                 # TODO: add a timeout
-                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options)
+                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset)
             except Exception as e:
                 exception_string = str(e).replace("\n", " ")
                 dec = None
