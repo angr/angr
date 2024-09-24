@@ -16,6 +16,7 @@ class MemoryDataSort:
     GOTPLTEntry = "GOT PLT Entry"
     ELFHeader = "elf-header"
     FloatingPoint = "fp"  # the size is determined by the MemoryData itself
+    Alignment = "alignment"
 
 
 _SORT_TO_IDX = {

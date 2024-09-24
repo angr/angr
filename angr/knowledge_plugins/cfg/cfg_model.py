@@ -721,7 +721,8 @@ class CFGModel(Serializable):
                             new_data_found = True
 
             else:
-                memory_data.size = memory_data.max_size
+                if memory_data.max_size is not None:
+                    memory_data.size = memory_data.max_size
 
             if seg_list is not None:
                 seg_list.occupy(data_addr, memory_data.size, memory_data.sort)

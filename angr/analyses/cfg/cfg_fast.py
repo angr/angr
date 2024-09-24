@@ -1211,14 +1211,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 if cc_length:
                     matched_something = True
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
-                    self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Unknown)
+                    self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Alignment)
                     start_addr += cc_length
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
                 matched_something = True
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
-                self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Unknown)
+                self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Alignment)
                 start_addr += zeros_length
 
             if not matched_something:
