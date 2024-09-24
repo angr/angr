@@ -475,7 +475,7 @@ class AILSimplifier(Analysis):
                     assert is_phi_assignment(stmt)
 
                     for _, vvar in stmt.src.src_and_vvars:
-                        if vvar.varid == def_.atom.varid:
+                        if vvar is not None and vvar.varid == def_.atom.varid:
                             use_exprs.append((vvar, loc, ("phi-src-expr", (vvar,))))
 
             # replace all uses if necessary
