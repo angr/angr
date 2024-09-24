@@ -370,10 +370,14 @@ class FunctionHandler:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
 
-        if data.prototype is not None and data.function is not None:
+        if data.prototype is not None:
             # make sure the function prototype is resolved.
             # TODO: Cache resolved function prototypes globally
-            prototype_libname = data.function.prototype_libname or hook_libname
+            prototype_libname = (
+                data.function.prototype_libname
+                if data.function is not None and data.function.prototype_libname
+                else hook_libname
+            )
             type_collections = []
             if prototype_libname is not None:
                 prototype_lib = SIM_LIBRARIES[prototype_libname]
