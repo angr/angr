@@ -11,7 +11,6 @@ from claripy.ast import Bool, Bits, BV
 from ....sim_options import (
     AVOID_MULTIVALUED_READS,
     CONSERVATIVE_READ_STRATEGY,
-    KEEP_MEMORY_READS_DISCRETE,
     CONSERVATIVE_WRITE_STRATEGY,
 )
 from ....state_plugins.sim_action_object import _raw_ast
@@ -126,13 +125,7 @@ class RegionedMemoryMixin(MemoryMixin):
                 **kwargs,
             )
 
-            if val is None:
-                if KEEP_MEMORY_READS_DISCRETE in self.state.options:
-                    val = self.state.solver.DSIS(to_conv=new_val, max_card=100000)
-                else:
-                    val = new_val
-            else:
-                val = val.union(new_val)
+            val = new_val if val is None else val.union(new_val)
 
         if val is None:
             # address_wrappers is empty - we cannot concretize the address in static mode.
