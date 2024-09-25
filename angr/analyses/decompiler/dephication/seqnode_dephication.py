@@ -10,7 +10,7 @@ from ailment.expression import VirtualVariable, Phi
 from angr.utils.ail import is_phi_assignment
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode
+from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, LoopNode
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from .dephication_base import DephicationBase
 from .rewriting_engine import SimEngineDephiRewriting
@@ -57,6 +57,8 @@ class SeqNodeRewriter(SequenceWalker):
         super().__init__(
             handlers={
                 Block: self._handle_Block,
+                # statement handlers
+                Assignment: self._handle_Assignment,
             }
         )
 
@@ -68,6 +70,9 @@ class SeqNodeRewriter(SequenceWalker):
             # nothing is changed during rewriting
             self.output = seq_node
 
+    def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:  # pylint:disable=unused-argument
+        return self.engine._handle_Assignment(stmt)
+
     def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
         self.engine.out_block = None
         self.engine.process(None, block=block)
@@ -77,6 +82,19 @@ class SeqNodeRewriter(SequenceWalker):
             self.engine.out_block = None
             return out
         return None
+
+    def _handle_Loop(self, node: LoopNode, **kwargs):
+        new_loop = super()._handle_Loop(node, **kwargs)
+        changed = False
+        if new_loop is None:
+            new_loop = node
+        else:
+            changed = True
+
+        if is_phi_assignment(new_loop.initializer):
+            changed = True
+            new_loop.initializer = None
+        return new_loop if changed else None
 
 
 class SeqNodeDephication(DephicationBase):
