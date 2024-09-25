@@ -247,14 +247,23 @@ class LoopNode(BaseNode):
         "_continue_addr",
     )
 
-    def __init__(self, sort, condition, sequence_node, addr=None, continue_addr=None, initializer=None, iterator=None):
-        self.sort = sort
-        self.condition = condition
-        self.sequence_node = sequence_node
-        self.initializer = initializer
-        self.iterator = iterator
-        self._addr = addr
-        self._continue_addr = continue_addr
+    def __init__(
+        self,
+        sort: str,
+        condition: ailment.Expr.Expression | None,
+        sequence_node: SequenceNode,
+        addr: int = None,
+        continue_addr: int | None = None,
+        initializer: ailment.Stmt.Assignment | None = None,
+        iterator: ailment.Stmt.Assignment | None = None,
+    ):
+        self.sort: str = sort
+        self.condition: ailment.Expr.Expression | None = condition
+        self.sequence_node: SequenceNode = sequence_node
+        self.initializer: ailment.Stmt.Assignment | None = initializer
+        self.iterator: ailment.Stmt.Assignment | None = iterator
+        self._addr: int = addr
+        self._continue_addr: int | None = continue_addr
 
     def copy(self):
         return LoopNode(
