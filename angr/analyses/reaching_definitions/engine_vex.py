@@ -737,6 +737,11 @@ class SimEngineRDVEX(
 
         return MultiValues(self.state.top(bits))
 
+    def _handle_Mod(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+        return MultiValues(self.state.top(bits))
+
     def _handle_And(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
