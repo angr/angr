@@ -1,6 +1,6 @@
 from ailment import Const, AILBlockWalker, Block
 from ailment.expression import BasePointerOffset, VirtualVariable, VirtualVariableCategory
-from ailment.statement import Call, Statement
+from ailment.statement import Call, Statement, Assignment
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from angr.rust.optimization_passes.base import TransformationPass
@@ -20,8 +20,9 @@ class CallsiteCorrector(TransformationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _correct_callsite(self, call: Call):
-        prototype = call.prototype
+    def _correct_callsite(self, call: Call) -> Assignment | None:
+        prototype = call.prototype.copy()
+        call = call.copy()
         if (
             isinstance(prototype, RustSimTypeFunction)
             and prototype.is_returnty_struct
@@ -44,24 +45,35 @@ class CallsiteCorrector(TransformationPass):
                     oident=first_arg.offset,
                     **call.tags,
                 )
-                call.ret_expr = vvar
                 call.args = call.args[1:]
-                call.prototype.returnty = struct_ty
-                call.prototype.args = call.prototype.args[1:]
-                call.prototype.is_returnty_struct = False
+                call.bits = vvar_bits
+                prototype.returnty = struct_ty
+                prototype.args = call.prototype.args[1:]
+                prototype.is_returnty_struct = False
+                call.prototype = prototype
+                assignment = Assignment(idx=None, dst=vvar, src=call, **call.tags)
+                return assignment
+        return None
 
     def _analyze(self, cache=None):
         class CallWalker(AILBlockWalker):
             def __init__(self, context: CallsiteCorrector):
                 super().__init__()
                 self.context = context
+                self.calls_to_replace = []
 
             def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-                self.context._correct_callsite(stmt)
+                replacement = self.context._correct_callsite(stmt)
+                if replacement:
+                    self.calls_to_replace.append((block, stmt_idx, replacement))
 
-            def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-                self.context._correct_callsite(expr)
+            # def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+            #     replacement = self.context._correct_callsite(expr)
+            #     self.calls_to_replace.append((block, stmt_idx, replacement))
 
         for block in self._graph.nodes:
             walker = CallWalker(self)
             walker.walk(block)
+            for block, stmt_idx, replacement in walker.calls_to_replace:
+                block.statements[stmt_idx] = replacement
+        self.out_graph = self._graph

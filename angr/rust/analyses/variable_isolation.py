@@ -13,6 +13,8 @@ class VariableIsolation(Analysis):
         self._analyze()
 
     def _analyze(self):
+        return
+
         class CallWalker(AILBlockWalker):
             def __init__(self, analysis):
                 super().__init__()
