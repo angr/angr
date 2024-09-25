@@ -360,7 +360,7 @@ class TestMemory(unittest.TestCase):
         # Test default values
         s.options.remove(o.SYMBOLIC_INITIAL_VALUES)
         expr = s.memory.load(to_vs("global", 100), 4)
-        assert expr.identical(claripy.BVS("unnamed", 32, 0, 0, 0))
+        assert expr.identical(claripy.BVV(0, 32))
 
         # Test default values (symbolic)
         s.options.add(o.SYMBOLIC_INITIAL_VALUES)
@@ -451,12 +451,12 @@ class TestMemory(unittest.TestCase):
             add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY},
         )
 
-        s.memory.store(4, claripy.TSI(bits=64))
+        s.memory.store(4, claripy.BVS("unnamed", 64))
 
         test_cases = [
-            (1, claripy.BVV(b"A"), claripy.SI(bits=64, to_conv=1)),
-            (1, claripy.BVV(b"B"), claripy.SI(bits=64, to_conv=2)),
-            (1, claripy.BVV(b"\0"), claripy.SI(bits=64, to_conv=3)),
+            (1, claripy.BVV(b"A"), claripy.BVV(1, 64)),
+            (1, claripy.BVV(b"B"), claripy.BVV(2, 64)),
+            (1, claripy.BVV(b"\0"), claripy.BVV(3, 64)),
             (4, claripy.BVV("\0"), claripy.SI(bits=64, stride=1, lower_bound=4, upper_bound=11)),
         ]
 

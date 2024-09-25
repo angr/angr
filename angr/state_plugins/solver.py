@@ -346,23 +346,19 @@ class SimSolver(SimStatePlugin):
         """
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
-            if o.ABSTRACT_MEMORY in self.state.options:
-                l.debug("Creating new top StridedInterval")
-                r = claripy.TSI(bits=bits, name=name, uninitialized=uninitialized, **kwargs)
-            else:
-                l.debug("Creating new unconstrained BV named %s", name)
-                r = self.BVS(
-                    name,
-                    bits,
-                    uninitialized=uninitialized,
-                    key=key,
-                    eternal=eternal,
-                    inspect=inspect,
-                    events=events,
-                    **kwargs,
-                )
-                if uc_alloc_depth is not None:
-                    self.state.uc_manager.set_alloc_depth(r, uc_alloc_depth)
+            l.debug("Creating new unconstrained BV named %s", name)
+            r = self.BVS(
+                name,
+                bits,
+                uninitialized=uninitialized,
+                key=key,
+                eternal=eternal,
+                inspect=inspect,
+                events=events,
+                **kwargs,
+            )
+            if uc_alloc_depth is not None:
+                self.state.uc_manager.set_alloc_depth(r, uc_alloc_depth)
 
             return r
         # Return a default value, aka. 0
