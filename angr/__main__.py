@@ -1,6 +1,7 @@
 from __future__ import annotations
 import argparse
 
+from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
 from angr.analyses.decompiler.utils import decompile_functions
 
@@ -59,6 +60,12 @@ def main():
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--preset",
+        help="The configuration preset to use for decompilation.",
+        choices=DECOMPILATION_PRESETS,
+        default="default",
+    )
 
     args = parser.parse_args()
     if args.command == COMMANDS.DECOMPILE:
@@ -69,6 +76,7 @@ def main():
             catch_errors=args.catch_exceptions,
             show_casts=not args.no_casts,
             base_address=args.base_addr,
+            preset=args.preset,
         )
         print(decompilation)
     else:

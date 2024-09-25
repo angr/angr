@@ -57,11 +57,13 @@ class TestCommandLineInterface(unittest.TestCase):
         f1_offset = f1_default_addr - default_base_addr
 
         # function resolving is based on symbol
-        sym_based_dec = run_cli("decompile", bin_path, "--functions", f1)
+        sym_based_dec = run_cli("decompile", bin_path, "--functions", f1, "--preset", "full")
         # function resolving is based on the address (with default angr loading)
-        base_addr_dec = run_cli("decompile", bin_path, "--functions", hex(f1_default_addr))
+        base_addr_dec = run_cli("decompile", bin_path, "--functions", hex(f1_default_addr), "--preset", "full")
         # function resolving is based on the address (with base address specified)
-        offset_dec = run_cli("decompile", bin_path, "--functions", hex(f1_offset), "--base-addr", hex(0))
+        offset_dec = run_cli(
+            "decompile", bin_path, "--functions", hex(f1_offset), "--base-addr", hex(0), "--preset", "full"
+        )
 
         # since the externs can be unpredictable, we only check the function name down
         sym_based_dec = re.sub(r"extern .*;", "", sym_based_dec).lstrip("\n")
