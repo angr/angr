@@ -42,8 +42,10 @@ class RegionIdentifier(Analysis):
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
         complete_successors=False,
+        entry_node_addr: tuple[int, int | None] | None = None,
     ):
         self.function = func
+        self.entry_node_addr = entry_node_addr if entry_node_addr is not None else (func.addr, None)
         self.cond_proc = (
             cond_proc
             if cond_proc is not None
@@ -145,7 +147,7 @@ class RegionIdentifier(Analysis):
             pass
 
         try:
-            return next(n for n in graph.nodes() if n.addr == self.function.addr)
+            return next(n for n in graph.nodes() if (n.addr, n.idx) == self.entry_node_addr)
         except StopIteration as ex:
             raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
 

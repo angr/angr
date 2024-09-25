@@ -310,6 +310,7 @@ class Decompiler(Analysis):
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             complete_successors=self._complete_successors,
+            entry_node_addr=self.clinic.entry_node_addr,
             **self.options_to_params(self.options_by_class["region_identifier"]),
         )
 
@@ -353,6 +354,7 @@ class Decompiler(Analysis):
                 graph=ail_graph,
                 variable_kb=self._variable_kb,
                 reaching_definitions=reaching_definitions,
+                entry_node_addr=self.clinic.entry_node_addr,
                 **kwargs,
             )
 
@@ -411,6 +413,7 @@ class Decompiler(Analysis):
                 region_identifier=ri,
                 reaching_definitions=reaching_definitions,
                 vvar_id_start=self.vvar_id_start,
+                entry_node_addr=self.clinic.entry_node_addr,
                 **kwargs,
             )
 
