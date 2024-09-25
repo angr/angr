@@ -1,69 +1,53 @@
-from collections import defaultdict
-from typing import Optional
 import logging
 import traceback
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset
-from ailment.statement import Store, Call, Statement
+from ailment.expression import BasePointerOffset, VirtualVariable
+from ailment.statement import Store
 
+from ..definitions.structs import Option
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
-from ..sim_type import RustSimType, RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
-from ..utils.ail_util import get_terminal_call
+from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from ..utils.library import normalize
 from ...analyses import Analysis, AnalysesHub
 from ...knowledge_plugins import Function
 
-
 l = logging.getLogger(name=__name__)
 
 
-class RustCallingConventionAILBlockWalker(AILBlockWalker):
-    def __init__(self, analysis: "RustCallingConventionAnalysis"):
+class FactsCollector(AILBlockWalker):
+    def __init__(self, model: RustCallingConventionModel):
         super().__init__()
-        self.analysis = analysis
+        self.model = model
+
+    def add_memory_write(self, arg_idx, block, offset, expr):
+        if block not in self.model.memory_writes[arg_idx]:
+            self.model.memory_writes[arg_idx][block] = {}
+        self.model.memory_writes[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
+
+    def add_memory_read(self, arg_idx, block, offset, expr):
+        if block not in self.model.memory_reads[arg_idx]:
+            self.model.memory_reads[arg_idx][block] = {}
+        self.model.memory_reads[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
-        var, offset = None, 0
         addr = stmt.addr
-        if isinstance(addr, BinaryOp) and addr.op == "Add" and isinstance(addr.operands[1], Const):
+        offset = 0
+        if (
+            isinstance(stmt.addr, BinaryOp)
+            and addr.op == "Add"
+            and isinstance(addr.operands[0], VirtualVariable)
+            and isinstance(addr.operands[1], Const)
+        ):
             offset = addr.operands[1].value
             addr = addr.operands[0]
-        if hasattr(addr, "variable") and addr.variable:
-            var = addr.variable
-        if var and var in self.analysis.clinic.arg_list:
-            self.analysis.add_memory_write(var, offset, stmt.data)
-
-    def _handle_CallStmtOrExpr(self, call: Call):
-        if (
-            call.args
-            and any(arg.variable in self.analysis.clinic.arg_list for arg in call.args)
-            and isinstance(call.target, Const)
-        ):
-            func = self.analysis.kb.functions[call.target.value]
-            if func.normalized and func.size:
-                rcc: RustCallingConventionAnalysis = self.analysis.project.analyses.RustCallingConvention(
-                    func=self.analysis.kb.functions[call.target.value],
-                    depth=self.analysis._depth + 1,
-                    max_depth=self.analysis._max_depth,
-                )
-                for var in rcc.model.memory_writes:
-                    var_idx = rcc.clinic.arg_list.index(var)
-                    mapped_var = call.args[var_idx].variable
-                    if mapped_var in self.analysis.clinic.arg_list:
-                        self.analysis.model.memory_writes[mapped_var] = rcc.model.memory_writes[var]
-
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        super()._handle_Call(stmt_idx, stmt, block)
-        self._handle_CallStmtOrExpr(stmt)
-
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
-        self._handle_CallStmtOrExpr(expr)
+        addr: VirtualVariable
+        if addr.was_parameter:
+            self.add_memory_write(addr.varid, block, offset, stmt.data)
 
 
 class RustCallingConventionAnalysis(Analysis):
-    def __init__(self, func, caller_graph=None, depth=0, max_depth=1, clinic=None):
+    def __init__(self, func, caller_graph=None, depth=0, max_depth=1):
         self.func: Function = func
         self.model = RustCallingConventionModel()
         self.model.caller_graph = caller_graph
@@ -78,17 +62,34 @@ class RustCallingConventionAnalysis(Analysis):
                 l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
                 l.debug("".join(traceback.format_exception(e)))
 
-    def _infer_arg_type(self, var) -> Optional[RustSimType]:
+    def _infer_arg_type(self, arg_idx):
         fields = {}
-        memory_writes = self.model.memory_writes[var]
-        memory_writes.update(self.model.callsite_memory_writes[var])
-        for offset in sorted(memory_writes.keys()):
-            data, func_addr = memory_writes[offset]
-            arg_ty = self.clinic.variable_kb.variables[func_addr].get_variable_type(data.variable)
-            if not arg_ty:
-                arg_ty = RustSimTypeInt(data.bits, signed=False)
-            fields[f"field_{offset}"] = arg_ty
-        if fields:
+        memory_writes = self.model.memory_writes[arg_idx]
+        # If we find potential discriminant in collected facts, the type maybe Result or Option
+        discriminant = None
+        overlapping_discriminant = False
+        struct_types = []
+
+        def _maybe_discriminant(block_memory_writes):
+            return (
+                len(block_memory_writes) == 1
+                and 0 in block_memory_writes
+                and isinstance(block_memory_writes[0][0], Const)
+            )
+
+        for block in memory_writes:
+            block_memory_writes = memory_writes[block]
+            if _maybe_discriminant(block_memory_writes):
+                discriminant = block_memory_writes[0][0].value
+
+        for block in memory_writes:
+            block_memory_writes = memory_writes[block]
+            if _maybe_discriminant(block_memory_writes):
+                continue
+            for offset in sorted(block_memory_writes.keys()):
+                expr, func_addr = block_memory_writes[offset]
+                arg_ty = RustSimTypeInt(expr.bits, signed=False)
+                fields[f"field_{offset}"] = arg_ty
             ty = RustSimTypeReference(
                 RustSimStruct(
                     fields,
@@ -96,25 +97,26 @@ class RustCallingConventionAnalysis(Analysis):
                     pack=True,
                 )
             ).with_arch(self.project.arch)
-            return ty
-        return None
+            struct_types.append(ty)
+
+        if discriminant is not None and discriminant != 0 and len(struct_types):
+            struct_ty = Option(struct_types[0].pts_to, overlapping_discriminant=overlapping_discriminant)
+            return RustSimTypeReference(struct_ty).with_arch(self.project.arch)
+        return struct_types[0] if len(struct_types) else None
 
     def _infer_prototype(self):
         args = []
-        is_first_arg_ret_buffer = False
-        for idx, old_arg_type, arg in zip(
-            range(len(self.clinic.arg_list)), self.func.prototype.args, self.clinic.arg_list
-        ):
-            arg_type = self._infer_arg_type(arg)
+        is_arg0_ret_buf = False
+        for arg_idx, old_arg_type in zip(range(len(self.clinic.arg_list)), self.func.prototype.args):
+            arg_type = self._infer_arg_type(arg_idx)
             if not arg_type:
                 arg_type = old_arg_type
             if (
-                idx == 0
+                arg_idx == 0
                 and isinstance(arg_type, RustSimTypeReference)
                 and isinstance(arg_type.pts_to, RustSimStruct)
-                and len(self.model.callsite_memory_writes[arg]) == 0
             ):
-                is_first_arg_ret_buffer = True
+                is_arg0_ret_buf = True
             args.append(arg_type)
         prototype = self.func.prototype
         return RustSimTypeFunction(
@@ -123,7 +125,7 @@ class RustCallingConventionAnalysis(Analysis):
             label=prototype.label,
             arg_names=prototype.arg_names,
             variadic=prototype.variadic,
-            is_returnty_struct=is_first_arg_ret_buffer,
+            is_returnty_struct=is_arg0_ret_buf,
         )
 
     def _collect_callsite_facts(self, block, call):
@@ -182,17 +184,9 @@ class RustCallingConventionAnalysis(Analysis):
             cfg = self.kb.cfgs.get_most_accurate()
             self.clinic = self.project.analyses.Clinic(self.func, cfg=cfg, optimization_passes=[])
 
-        # Collect facts for inferring return type
-        walker = RustCallingConventionAILBlockWalker(self)
+        walker = FactsCollector(self.model)
         for block in self.clinic.graph.nodes:
             walker.walk(block)
-
-        if self.caller_graph:
-            # Collect callsite facts for inferring argument types
-            for block in self.caller_graph.nodes:
-                call = get_terminal_call(block)
-                if call and isinstance(call.target, Const) and call.target.value == self.func.addr:
-                    self._collect_callsite_facts(block, call)
 
         prototype = self._infer_prototype()
         self.model.inferred_prototype = prototype

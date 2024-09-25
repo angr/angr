@@ -1218,6 +1218,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         "args",
         "returning",
         "ret_expr",
+        "receiver",
         "tags",
         "is_expr",
         "show_demangled_name",
@@ -1232,6 +1233,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         args,
         returning=True,
         ret_expr=None,
+        receiver=None,
         tags=None,
         is_expr: bool = False,
         show_demangled_name=True,
@@ -1245,6 +1247,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         self.args = args if args is not None else []
         self.returning = returning
         self.ret_expr = ret_expr
+        self.receiver = receiver
         self.tags = tags
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
@@ -1275,29 +1278,8 @@ class RustFunctionCall(RustStatement, RustExpression):
                         semicolons and newlines at the end of the call).
         """
 
-        prototype = self.prototype
         ret_expr = self.ret_expr
         args = self.args
-        object_expr = None
-        is_class_member_function = False
-        if isinstance(prototype, RustSimTypeFunction):
-            # Special handling for Rust calling convention - return type is struct
-            # if prototype.is_returnty_struct:
-            #     ret_expr = args[0]
-            #     if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
-            #         ret_expr = ret_expr.operand
-            #     else:
-            #         ret_expr = RustUnaryOp("Dereference", ret_expr, codegen=self.codegen)
-            #     args = args[1:]
-            # Special handling for Rust calling convention - it's a class member function
-            if prototype.is_class_member_function:
-                is_class_member_function = True
-                object_expr = args[0]
-                if isinstance(object_expr, RustUnaryOp) and object_expr.op == "Reference":
-                    object_expr = object_expr.operand
-                else:
-                    object_expr = RustUnaryOp("Dereference", object_expr, codegen=self.codegen)
-                args = args[1:]
 
         indent_str = self.indent_str(indent=indent)
         yield indent_str, None
@@ -1306,15 +1288,16 @@ class RustFunctionCall(RustStatement, RustExpression):
             yield from RustExpression._try_c_repr_chunks(ret_expr)
             yield " = ", None
 
-        if is_class_member_function:
-            yield from RustExpression._try_c_repr_chunks(object_expr)
+        # If it's a class member function?
+        if self.receiver:
+            yield from RustExpression._try_c_repr_chunks(self.receiver)
             yield ".", None
 
         if self.callee_func is not None:
-            func_name = normalize(self.callee_func.name, remove_polymorphism=True, concise=is_class_member_function)
+            func_name = normalize(self.callee_func.name, remove_polymorphism=True, concise=self.receiver is not None)
             yield func_name, self
         elif isinstance(self.callee_target, str):
-            func_name = normalize(self.callee_target, remove_polymorphism=True, concise=is_class_member_function)
+            func_name = normalize(self.callee_target, remove_polymorphism=True, concise=self.receiver is not None)
             yield func_name, self
         else:
             yield from RustExpression._try_c_repr_chunks(self.callee_target)
@@ -3308,20 +3291,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
                 ret_expr = ret_expr.operand
 
-        # prototype = stmt.prototype
-        # if prototype and isinstance(prototype, RustSimTypeFunction) and prototype.is_returnty_struct:
-        #     if len(args) >= 1:
-        #         ret_expr = args[0]
-        #         args = args[1:]
-        #         if isinstance(ret_expr, RustUnaryOp):
-        #             ret_expr = ret_expr.operand
-
         result = RustFunctionCall(
             target,
             target_func,
             args,
             returning=target_func.returning if target_func is not None else True,
             ret_expr=ret_expr,
+            receiver=self._handle(stmt.tags["receiver"]) if "receiver" in stmt.tags else None,
             tags=stmt.tags,
             is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,

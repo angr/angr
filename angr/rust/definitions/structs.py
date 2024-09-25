@@ -60,20 +60,27 @@ class StrReference(RustSimStruct):
 
 
 class Option(RustSimStruct):
-    def __init__(self, T):
+    def __init__(self, T, overlapping_discriminant=False):
         name = f"Option<{repr(T)}>"
-        super().__init__(fields={"is_some": RustSimTypeSize(), "value": T}, name=f"Option<{repr(T)}>")
+        super().__init__(fields={"discriminant": RustSimTypeSize(), "value": T}, name=f"Option<{repr(T)}>")
         PreDefinedStructs[name] = self
         self.T = T
+        self.overlapping_discriminant = overlapping_discriminant
 
     def copy(self):
-        return Option(self.T).with_arch(self._arch)
+        return Option(self.T, overlapping_discriminant=self.overlapping_discriminant).with_arch(self._arch)
+
+    @property
+    def offsets(self):
+        if self.overlapping_discriminant:
+            return {"value": 0}
+        return {"discriminant": 0, "value": self._arch.bytes}
 
     def _with_arch(self, arch):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = Option(self.T)
+        out = Option(self.T, overlapping_discriminant=self.overlapping_discriminant)
         out._arch = arch
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
 
