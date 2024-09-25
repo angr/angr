@@ -70,7 +70,7 @@ class SeqNodeRewriter(SequenceWalker):
             # nothing is changed during rewriting
             self.output = seq_node
 
-    def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:
+    def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:  # pylint:disable=unused-argument
         return self.engine._handle_Assignment(stmt)
 
     def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
