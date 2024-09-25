@@ -1313,6 +1313,23 @@ class CFGBase(Analysis):
 
             if new_node is None:
                 # Create a new one
+
+                instruction_addrs = []
+                for ins_addr in n.instruction_addrs:
+                    if n.addr <= ins_addr < n.addr + new_size:
+                        instruction_addrs.append(ins_addr)
+                    elif ins_addr == n.addr + new_size:
+                        break
+                    elif ins_addr > n.addr + new_size:
+                        # the immediate next instruction does not start right after the new node. this means we break
+                        # an existing instruction in the middle! we need to drop the last instruction address from
+                        # instruction_addrs.
+                        instruction_addrs.pop()
+                        break
+                    else:
+                        # should not happen if the instruction_addrs list is normal...
+                        break
+
                 if self.tag == "CFGFast":
                     new_node = CFGNode(
                         n.addr,
@@ -1320,7 +1337,7 @@ class CFGBase(Analysis):
                         self.model,
                         function_address=n.function_address,
                         block_id=n.block_id,
-                        instruction_addrs=[i for i in n.instruction_addrs if n.addr <= i <= n.addr + new_size],
+                        instruction_addrs=instruction_addrs,
                         thumb=n.thumb,
                     )
                 elif self.tag == "CFGEmulated":
@@ -1331,16 +1348,12 @@ class CFGBase(Analysis):
                         callstack_key=callstack_key,
                         function_address=n.function_address,
                         block_id=n.block_id,
-                        instruction_addrs=[i for i in n.instruction_addrs if n.addr <= i <= n.addr + new_size],
+                        instruction_addrs=instruction_addrs,
                         thumb=n.thumb,
                     )
                 else:
                     raise ValueError(f"Unknown tag {self.tag}.")
 
-                # Copy instruction addresses
-                new_node.instruction_addrs = [
-                    ins_addr for ins_addr in n.instruction_addrs if ins_addr < n.addr + new_size
-                ]
                 # Put the new node into end_addresses list
                 if key in smallest_nodes:
                     end_addresses_to_nodes[key].add(smallest_nodes[key])

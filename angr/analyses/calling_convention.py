@@ -557,7 +557,13 @@ class CallingConventionAnalysis(Analysis):
         fact: CallSiteFact,
     ) -> None:
         # determine if potential register and stack arguments are set
-        state = rda.observed_results[("insn", call_insn_addr, OP_BEFORE)]
+        observation_key = "insn", call_insn_addr, OP_BEFORE
+        state = rda.observed_results.get(observation_key)
+        if state is None:
+            # the observation state is not found. it can happen if call_insn_addr is incorrect, which may happen (but
+            # rarely) on incorrect CFGs.
+            return
+
         defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
         all_reg_defs: set[Definition] = get_all_definitions(state.registers)
         all_stack_defs: set[Definition] = get_all_definitions(state.stack)
