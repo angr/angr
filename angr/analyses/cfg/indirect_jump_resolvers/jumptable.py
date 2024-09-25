@@ -1723,7 +1723,10 @@ class JumpTableResolver(IndirectJumpResolver):
         all_targets = []
         jump_table = []
 
-        jumptable_si = claripy.SI(bits=project.arch.bits, to_conv=jumptable_addr)
+        try:
+            jumptable_si = claripy.SI(bits=project.arch.bits, to_conv=jumptable_addr)
+        except claripy.errors.BackendError:
+            return None
 
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
