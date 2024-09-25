@@ -22,6 +22,9 @@ from . import MemoryMixin
 l = logging.getLogger(name=__name__)
 
 
+# pylint: disable=too-many-positional-arguments
+
+
 class JavaVmMemoryMixin(MemoryMixin):
     def __init__(
         self,
@@ -38,7 +41,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
         self._stack = [] if stack is None else stack
         # delayed import
-        from . import KeyValueMemory
+        from . import KeyValueMemory  # pylint: disable=import-outside-toplevel
 
         self.heap = KeyValueMemory("mem") if heap is None else heap
         self.vm_static_table = KeyValueMemory("mem") if vm_static_table is None else vm_static_table
@@ -81,16 +84,16 @@ class JavaVmMemoryMixin(MemoryMixin):
         else:
             l.error("Unknown addr type %s", addr)
 
-    def load(self, addr, frame=0, none_if_missing=False):  # pylint: disable=arguments-differ
+    def load(self, addr, size=0, none_if_missing=False):  # pylint: disable=arguments-differ
         if type(addr) is SimSootValue_Local:
-            cstack = self._stack[-1 + (-1 * frame)]
+            cstack = self._stack[-1 + (-1 * size)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         if type(addr) is SimSootValue_ArrayRef:
             return self.load_array_element(addr.base, addr.index)
 
         if type(addr) is SimSootValue_ParamRef:
-            cstack = self._stack[-1 + (-1 * frame)]
+            cstack = self._stack[-1 + (-1 * size)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         if type(addr) is SimSootValue_StaticFieldRef:
@@ -118,7 +121,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         return None
 
     def push_stack_frame(self):
-        from . import KeyValueMemory
+        from . import KeyValueMemory  # pylint: disable=import-outside-toplevel
 
         self._stack.append(KeyValueMemory("mem"))
 
@@ -379,11 +382,10 @@ class JavaVmMemoryMixin(MemoryMixin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         l.warning("Merging is not implemented for JavaVM memory!")
 
-    def widen(self, others):  # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=no-self-use,unused-argument
         l.warning("Widening is not implemented for JavaVM memory!")
 
     def _find(
         self, addr, what, max_search=None, max_symbolic_bytes=None, default=None
     ):  # pylint: disable=unused-argument
         l.warning("Find is not implemented for JavaVM memory!")
-        return

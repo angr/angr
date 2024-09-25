@@ -1,9 +1,9 @@
-# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any
-from collections.abc import Generator
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
+from collections.abc import Generator
+from typing import Any
 
 from ailment.block import Block
 from ailment.statement import Assignment, Call, Return, Label
@@ -231,7 +231,7 @@ class SRDAView:
         assert len(vvars) <= 1
         return next(iter(vvars), None)
 
-    def get_stack_vvar_by_insn(
+    def get_stack_vvar_by_insn(  # pylint: disable=too-many-positional-arguments
         self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         vvars = set()
@@ -268,7 +268,6 @@ class SRDAView:
         return None
 
     def observe(self, observation_points: list[ObservationPoint]):
-
         insn_ops: dict[int, ObservationPointType] = {op[1]: op[2] for op in observation_points if op[0] == "insn"}
         stmt_ops: dict[tuple[tuple[int, int | None], int], ObservationPointType] = {
             op[1]: op[2] for op in observation_points if op[0] == "stmt"
@@ -332,7 +331,7 @@ class SReachingDefinitionsAnalysis(Analysis):
     Constant and expression propagation that only supports SSA AIL graphs.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         subject,
         func_addr: int | None = None,
@@ -365,7 +364,6 @@ class SReachingDefinitionsAnalysis(Analysis):
         self._analyze()
 
     def _analyze(self):
-
         match self.mode:
             case "block":
                 blocks = {(self.block.addr, self.block.idx): self.block}

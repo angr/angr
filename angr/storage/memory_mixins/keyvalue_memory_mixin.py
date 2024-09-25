@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from . import MemoryMixin
 
 
@@ -14,18 +15,20 @@ class TypedVariable:
 
 
 class KeyValueMemoryMixin(MemoryMixin):
+    """KeyValueMemoryMixin is a mixin that provides a simple key-value store for memory."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._store = {}
 
-    def load(self, key, none_if_missing=False, **kwargs):
-        if none_if_missing and key not in self._store:
+    def load(self, addr, size=None, none_if_missing=False, **kwargs):  # pylint: disable=unused-argument
+        if none_if_missing and addr not in self._store:
             return None
-        return self._store[key].value
+        return self._store[addr].value
 
-    def store(self, key, data, type_=None, **kwargs):
-        self._store[key] = TypedVariable(type_, data)
+    def store(self, addr, data, type_=None, **kwargs):
+        self._store[addr] = TypedVariable(type_, data)
 
     @MemoryMixin.memo
     def copy(self, memo):

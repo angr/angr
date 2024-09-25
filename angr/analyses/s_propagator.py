@@ -38,7 +38,7 @@ class SPropagatorAnalysis(Analysis):
     Constant and expression propagation that only supports SSA AIL graphs.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         subject,
         func_graph=None,
