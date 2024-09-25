@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+from functools import reduce
 
 import claripy
 
@@ -39,7 +41,7 @@ class strlen(angr.SimProcedure):
             addr_desc: AbstractAddressDescriptor = self.state.memory._normalize_address(s)
 
             # size_t
-            length = claripy.ESI(self.arch.bits)
+            lengths = []
             for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
                 s_ptr = s_aw.to_valueset(self.state)
                 r, c, i = self.state.memory.find(
@@ -65,9 +67,15 @@ class strlen(angr.SimProcedure):
 
                 for r_aw in r_aw_iter:
                     r_ptr = r_aw.to_valueset(self.state)
-                    length = length.union(r_ptr - s_ptr)
+                    lengths.append(r_ptr - s_ptr)
 
-            return length
+            match len(lengths):
+                case 0:
+                    return claripy.BVS("unnamed", self.state.arch.bits)
+                case 1:
+                    return lengths[0]
+                case _:
+                    return reduce(claripy.union, lengths)
 
         search_len = max_str_len
         r, c, i = self.state.memory.find(

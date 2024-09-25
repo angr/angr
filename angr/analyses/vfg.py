@@ -1508,7 +1508,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 successor_state.registers.store(arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
-                top_si = claripy.TSI(arch.bits)
+                top_si = claripy.BVS("unnamed", arch.bits)
                 successor_state.registers.store(arch.ret_offset, top_si)
 
             if job.call_skipped:
@@ -1686,7 +1686,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
 
         reg_sp_val = successor_state.solver.min(reg_sp_expr)
-        reg_sp_si = claripy.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
+        reg_sp_si = claripy.BVV(reg_sp_val, successor_state.arch.bits)
 
         reg_sp_val = reg_sp_val - arch.bytes  # TODO: Is it OK?
         new_stack_region_id = successor_state.memory.stack_id(successor_ip)
