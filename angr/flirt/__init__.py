@@ -1,7 +1,6 @@
 # This submodule stores and manages FLIRT signatures
 from __future__ import annotations
 
-from typing import Set, List, Dict, Optional
 import os
 import json
 from collections import defaultdict

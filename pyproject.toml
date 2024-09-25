@@ -51,10 +51,6 @@ extend-ignore = [
 "angr/state_plugins/solver.py" = [
 	"E501", # Long docstrings with examples
  ]
-"__init__.py" = [
-	"F401",
-	"F403",
-]
 
 [tool.ruff.lint.isort]
 required-imports = ["from __future__ import annotations"]

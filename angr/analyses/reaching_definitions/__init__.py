@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Set, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import ObservationPointType

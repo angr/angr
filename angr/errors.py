@@ -66,10 +66,6 @@ class AngrBackwardSlicingError(AngrError):
     pass
 
 
-class AngrGirlScoutError(AngrError):
-    pass
-
-
 class AngrCallableError(AngrSurveyorError):
     pass
 

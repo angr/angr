@@ -1,8 +1,9 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
+
 from typing import Any, TYPE_CHECKING
 
-from .. import KnowledgeBasePlugin
+from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator

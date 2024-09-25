@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Type
 
 from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst
 from .a_mul_const_div_shr_const import AMulConstDivShrConst
@@ -49,23 +48,61 @@ from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
-MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = []
-STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = []
-EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = []
+MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
+    InlinedStrcpyConsolidation,
+]
+STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = [
+    CoalesceSameCascadingIfs,
+    RemoveEmptyIfBody,
+    RolRorRewriter,
+    InlinedStrcpy,
+    InlinedWstrcpy,
+    CmpORDRewriter,
+]
+EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
+    ADivConstAddAMulNDivConst,
+    AMulConstDivShrConst,
+    AShlConstSubA,
+    ASubADiv,
+    ASubADivConstMulConst,
+    ARMCmpF,
+    Bswap,
+    ConstantDereferences,
+    ConstMullAShift,
+    ExtendedByteAndMask,
+    RemoveRedundantITEBranches,
+    SingleBitXor,
+    ASubASubN,
+    ConvASub0ShrAnd,
+    EagerEvaluation,
+    OneSubBool,
+    BoolExprXor1,
+    BitwiseOrToLogicalOr,
+    RemoveRedundantBitmasks,
+    RemoveRedundantNots,
+    RemoveRedundantReinterprets,
+    RemoveRedundantShifts,
+    RemoveRedundantShiftsAroundComparators,
+    SimplifyPcRelativeLoads,
+    BasePointerOffsetAddN,
+    BasePointerOffsetAndMask,
+    RemoveRedundantConversions,
+    RemoveCascadingConversions,
+    ConvShlShr,
+    RewriteMipsGpLoads,
+    RemoveNoopConversions,
+    RewriteBitExtractions,
+    RemoveRedundantITEComparisons,
+    SingleBitCondToBoolExpr,
+    SarToSignedDiv,
+    TidyStackAddr,
+    InvertNegatedLogicalConjunctionsAndDisjunctions,
+    CoalesceAdjacentShiftRights,
+]
 
-_g = globals().copy()
-for v in _g.values():
-    if isinstance(v, type) and issubclass(v, PeepholeOptimizationExprBase) and v is not PeepholeOptimizationExprBase:
-        EXPR_OPTS.append(v)
 
-    if isinstance(v, type) and issubclass(v, PeepholeOptimizationStmtBase) and v is not PeepholeOptimizationStmtBase:
-        STMT_OPTS.append(v)
-
-    if (
-        isinstance(v, type)
-        and issubclass(v, PeepholeOptimizationMultiStmtBase)
-        and v is not PeepholeOptimizationMultiStmtBase
-    ):
-        MULTI_STMT_OPTS.append(v)
-
-_g = None
+__all__ = (
+    "MULTI_STMT_OPTS",
+    "STMT_OPTS",
+    "EXPR_OPTS",
+)

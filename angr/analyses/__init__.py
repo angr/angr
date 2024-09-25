@@ -1,5 +1,6 @@
 # pylint:disable=wrong-import-position
 from __future__ import annotations
+
 from .analysis import Analysis, AnalysesHub
 
 
@@ -48,3 +49,56 @@ from .flirt import FlirtAnalysis
 from .s_propagator import SPropagatorAnalysis
 from .s_reaching_definitions import SReachingDefinitionsAnalysis
 from .s_liveness import SLivenessAnalysis
+
+
+__all__ = (
+    "Analysis",
+    "AnalysesHub",
+    "register_analysis",
+    "ForwardAnalysis",
+    "visitors",
+    "PropagatorAnalysis",
+    "CFGFast",
+    "CFGEmulated",
+    "CFG",
+    "CFGArchOptions",
+    "CFGFastSoot",
+    "CDG",
+    "DDG",
+    "VFG",
+    "BoyScout",
+    "BackwardSlice",
+    "Veritesting",
+    "VSA_DDG",
+    "BinDiff",
+    "LoopFinder",
+    "CongruencyCheck",
+    "StaticHooker",
+    "Reassembler",
+    "BinaryOptimizer",
+    "Disassembly",
+    "VariableRecovery",
+    "VariableRecoveryFast",
+    "Identifier",
+    "CalleeCleanupFinder",
+    "ReachingDefinitionsAnalysis",
+    "CallingConventionAnalysis",
+    "CodeTagging",
+    "StackPointerTracker",
+    "DominanceFrontier",
+    "DataDependencyGraphAnalysis",
+    "Decompiler",
+    "SootClassHierarchy",
+    "XRefsAnalysis",
+    "InitializationFinder",
+    "CompleteCallingConventionsAnalysis",
+    "Typehoon",
+    "ProximityGraphAnalysis",
+    "VtableFinder",
+    "StaticObjectFinder",
+    "ClassIdentifier",
+    "FlirtAnalysis",
+    "SPropagatorAnalysis",
+    "SReachingDefinitionsAnalysis",
+    "SLivenessAnalysis",
+)

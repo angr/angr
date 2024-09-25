@@ -8,17 +8,17 @@ import logging
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
-    from ..project import Project
-    from ..knowledge_plugins import FunctionManager
-    from ..knowledge_plugins import VariableManager
-    from ..knowledge_plugins import KeyDefinitionManager
-    from ..knowledge_plugins import CFGManager
-    from ..knowledge_plugins import StructuredCodeManager
-    from ..knowledge_plugins import TypesStore
-    from ..knowledge_plugins import PropagationManager
-    from ..knowledge_plugins import XRefManager
+    from .project import Project
+    from .knowledge_plugins import FunctionManager
+    from .knowledge_plugins import VariableManager
+    from .knowledge_plugins import KeyDefinitionManager
+    from .knowledge_plugins import CFGManager
+    from .knowledge_plugins import StructuredCodeManager
+    from .knowledge_plugins import TypesStore
+    from .knowledge_plugins import PropagationManager
+    from .knowledge_plugins import XRefManager
 
-from ..knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
+from .knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
 
 l = logging.getLogger(name=__name__)
 

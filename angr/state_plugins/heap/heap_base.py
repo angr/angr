@@ -2,7 +2,7 @@ from __future__ import annotations
 from ..plugin import SimStatePlugin
 
 from ...errors import SimMemoryError
-from .. import sim_options as opts
+import angr.sim_options as opts
 
 import logging
 

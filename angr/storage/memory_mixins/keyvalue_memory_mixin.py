@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import MemoryMixin
+from . import MemoryMixin
 
 
 class TypedVariable:
