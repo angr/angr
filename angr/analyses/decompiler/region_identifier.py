@@ -45,7 +45,9 @@ class RegionIdentifier(Analysis):
         entry_node_addr: tuple[int, int | None] | None = None,
     ):
         self.function = func
-        self.entry_node_addr = entry_node_addr if entry_node_addr is not None else (func.addr, None)
+        self.entry_node_addr: tuple[int, int | None] | None = (
+            entry_node_addr if entry_node_addr is not None else (func.addr, None) if func is not None else None
+        )
         self.cond_proc = (
             cond_proc
             if cond_proc is not None
@@ -146,10 +148,20 @@ class RegionIdentifier(Analysis):
         except StopIteration:
             pass
 
-        try:
-            return next(n for n in graph.nodes() if (n.addr, n.idx) == self.entry_node_addr)
-        except StopIteration as ex:
-            raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
+        if self.entry_node_addr is not None:
+            try:
+                return next(
+                    n
+                    for n in graph.nodes()
+                    if (
+                        (n.addr, n.idx) == self.entry_node_addr
+                        if isinstance(n, Block)
+                        else n.addr == self.entry_node_addr[0]
+                    )
+                )
+            except StopIteration as ex:
+                raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
+        raise AngrRuntimeError("Cannot find the start node from the graph!")
 
     def _test_reducibility(self):
         # make a copy of the graph
