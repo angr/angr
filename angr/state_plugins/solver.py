@@ -412,7 +412,7 @@ class SimSolver(SimStatePlugin):
                 or min != r.args[1]
                 or max != r.args[2]
                 or stride != r.args[3]
-                or uninitialized != r.args[4]
+                or uninitialized != r.uninitialized
                 or bool(explicit_name) ^ (r.args[0] == name)
             ):
                 l.warning("Variable %s being retrieved with different settings than it was tracked with", name)
