@@ -286,8 +286,7 @@ class CallSiteMaker(Analysis):
                 vvar_value = view.get_vvar_value(vvar)
                 if not isinstance(vvar_value, Expr.Phi):
                     return vvar_value, vvar
-                else:
-                    return None, vvar
+                return None, vvar
 
         return None
 
