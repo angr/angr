@@ -48,18 +48,7 @@ from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
-MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
-    InlinedStrcpyConsolidation,
-]
-STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = [
-    CoalesceSameCascadingIfs,
-    RemoveEmptyIfBody,
-    RolRorRewriter,
-    InlinedStrcpy,
-    InlinedWstrcpy,
-    CmpORDRewriter,
-]
-EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
+ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     ADivConstAddAMulNDivConst,
     AMulConstDivShrConst,
     AShlConstSubA,
@@ -67,9 +56,11 @@ EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     ASubADivConstMulConst,
     ARMCmpF,
     Bswap,
+    CoalesceSameCascadingIfs,
     ConstantDereferences,
     ConstMullAShift,
     ExtendedByteAndMask,
+    RemoveEmptyIfBody,
     RemoveRedundantITEBranches,
     SingleBitXor,
     ASubASubN,
@@ -97,9 +88,23 @@ EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     SarToSignedDiv,
     TidyStackAddr,
     InvertNegatedLogicalConjunctionsAndDisjunctions,
+    RolRorRewriter,
+    InlinedStrcpy,
+    InlinedStrcpyConsolidation,
+    InlinedWstrcpy,
+    CmpORDRewriter,
     CoalesceAdjacentShiftRights,
 ]
 
+MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
+    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationMultiStmtBase)
+]
+STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = [
+    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationStmtBase)
+]
+EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
+    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationExprBase)
+]
 
 __all__ = (
     "MULTI_STMT_OPTS",
