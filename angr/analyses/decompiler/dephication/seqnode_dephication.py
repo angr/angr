@@ -71,8 +71,7 @@ class SeqNodeRewriter(SequenceWalker):
             self.output = seq_node
 
     def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:
-        new_stmt = self.engine._handle_Assignment(stmt)
-        return new_stmt
+        return self.engine._handle_Assignment(stmt)
 
     def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
         self.engine.out_block = None

@@ -181,18 +181,11 @@ class SequenceWalker:
         return None
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
-        if node.initializer is not None:
-            new_initializer = self._handle(node.initializer)
-        else:
-            new_initializer = None
-        if node.iterator is not None:
-            new_iterator = self._handle(node.iterator)
-        else:
-            new_iterator = None
-        if node.condition is not None:
-            new_condition = self._handle(node.condition, parent=node, label="condition")
-        else:
-            new_condition = None
+        new_initializer = self._handle(node.initializer) if node.initializer is not None else None
+        new_iterator = self._handle(node.iterator) if node.iterator is not None else None
+        new_condition = (
+            self._handle(node.condition, parent=node, label="condition") if node.condition is not None else None
+        )
         seq_node = self._handle(node.sequence_node, parent=node, label="body", index=0)
         if seq_node is not None or new_initializer is not None or new_iterator is not None or new_condition is not None:
             return LoopNode(

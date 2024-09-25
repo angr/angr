@@ -252,7 +252,7 @@ class LoopNode(BaseNode):
         sort: str,
         condition: ailment.Expr.Expression | None,
         sequence_node: SequenceNode,
-        addr: int = None,
+        addr: int | None = None,
         continue_addr: int | None = None,
         initializer: ailment.Stmt.Assignment | None = None,
         iterator: ailment.Stmt.Assignment | None = None,
@@ -262,7 +262,7 @@ class LoopNode(BaseNode):
         self.sequence_node: SequenceNode = sequence_node
         self.initializer: ailment.Stmt.Assignment | None = initializer
         self.iterator: ailment.Stmt.Assignment | None = iterator
-        self._addr: int = addr
+        self._addr: int | None = addr
         self._continue_addr: int | None = continue_addr
 
     def copy(self):
