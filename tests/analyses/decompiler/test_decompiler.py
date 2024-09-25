@@ -3863,6 +3863,26 @@ class TestDecompiler(unittest.TestCase):
         # basic check to ensure the output is not nothing
         assert "sub_40dbca(" in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_decompiling_no_phivar_in_call_statements(self, decompiler_options=None):
+        # Phi variables should never be folded into call statements
+
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "9f2ef84bde1e4ef445708cc5a605a09226363d502b1f5b5bf4a1cfc6dd5fc41e"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x401000]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # basic check to ensure the output is not nothing; crashes didn't happen during decompilation
+        assert 'RegisterWindowMessageA("ISDEL_MSG_DELDONE32");' in d.codegen.text
+        assert "𝜙" not in d.codegen.text
+        assert "Phi" not in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

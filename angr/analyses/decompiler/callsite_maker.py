@@ -284,7 +284,9 @@ class CallSiteMaker(Analysis):
 
             if vvar is not None:
                 vvar_value = view.get_vvar_value(vvar)
-                return vvar_value, vvar
+                if not isinstance(vvar_value, Expr.Phi):
+                    return vvar_value, vvar
+                return None, vvar
 
         return None
 
@@ -311,7 +313,7 @@ class CallSiteMaker(Analysis):
                 )
                 if vvar is not None:
                     value = view.get_vvar_value(vvar)
-                    if value is not None:
+                    if value is not None and not isinstance(value, Expr.Phi):
                         return None, value
                     return None, Expr.VirtualVariable(
                         self._atom_idx(),
