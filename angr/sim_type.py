@@ -69,7 +69,7 @@ class SimType:
         return self_type.__eq__(other, avoid=avoid)  # pylint:disable=unnecessary-dunder-call
 
     def __eq__(self, other, avoid=None):
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
 
         for attr in self._fields:
