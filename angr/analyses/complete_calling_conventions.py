@@ -185,7 +185,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if self._cc_callback is not None:
                     self._cc_callback(func_addr)
 
-                percentage = idx + 1 / total_funcs * 100.0
+                percentage = (idx + 1) / total_funcs * 100.0
                 self._update_progress(percentage, text=f"{idx + 1}/{total_funcs} - {func.demangled_name}")
                 if self._low_priority:
                     self._release_gil(idx + 1, 10, 0.000001)
