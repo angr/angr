@@ -158,6 +158,8 @@ _ail2claripy_op_mapping = {
     "ExpCmpNE": lambda expr, _, m: _dummy_bools(expr, m),
     "CmpORD": lambda expr, _, m: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
     "GetMSBs": lambda expr, _, m: _dummy_bvs(expr, m),
+    "InterleaveLOV": lambda expr, _, m: _dummy_bvs(expr, m),
+    "InterleaveHIV": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #
