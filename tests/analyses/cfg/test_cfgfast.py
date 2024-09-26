@@ -974,6 +974,15 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
         assert cfg.kb.functions[0x21514B5600].name == "_security_init_cookie"
 
+    def test_pe_unmapped_section_data(self):
+        path = os.path.join(
+            test_location, "i386", "windows", "0b6e56e2325f8e34fc07669414f6b6fdd45b0de37937947c77c7b81c1fed4329"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(force_smart_scan=False)
+        for block in cfg.kb.functions[0x42CDD0].blocks:
+            assert block.addr < 0x42CE00
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
