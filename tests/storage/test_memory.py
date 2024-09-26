@@ -332,7 +332,7 @@ class TestMemory(unittest.TestCase):
         assert s.solver.eval(expr) == 0x44
 
         # Store a single-byte StridedInterval to global region
-        si_0 = claripy.BVS("unnamed", 8, 10, 20, 2)
+        si_0 = s.solver.BVS("unnamed", 8, 10, 20, 2)
         s.memory.store(to_vs("global", 4), si_0)
 
         # Load the single-byte StridedInterval from global region
@@ -342,7 +342,7 @@ class TestMemory(unittest.TestCase):
         assert s.solver.eval_upto(expr, 100) == [10, 12, 14, 16, 18, 20]
 
         # Store a two-byte StridedInterval object to global region
-        si_1 = claripy.BVS("unnamed", 16, 10, 20, 2)
+        si_1 = s.solver.BVS("unnamed", 16, 10, 20, 2)
         s.memory.store(to_vs("global", 5), si_1)
 
         # Load the two-byte StridedInterval object from global region
@@ -350,12 +350,12 @@ class TestMemory(unittest.TestCase):
         assert expr.identical(si_1)
 
         # Store a four-byte StridedInterval object to global region
-        si_2 = claripy.BVS("unnamed", 32, 8000, 9000, 2)
+        si_2 = s.solver.BVS("unnamed", 32, 8000, 9000, 2)
         s.memory.store(to_vs("global", 7), si_2)
 
         # Load the four-byte StridedInterval object from global region
         expr = s.memory.load(to_vs("global", 7), 4)
-        assert expr.identical(claripy.BVS("unnamed", 32, 8000, 9000, 2))
+        assert expr.identical(s.solver.BVS("unnamed", 32, 8000, 9000, 2))
 
         # Test default values
         s.options.remove(o.SYMBOLIC_INITIAL_VALUES)
@@ -365,21 +365,20 @@ class TestMemory(unittest.TestCase):
         # Test default values (symbolic)
         s.options.add(o.SYMBOLIC_INITIAL_VALUES)
         expr = s.memory.load(to_vs("global", 104), 4)
-        assert expr.identical(claripy.BVS("unnamed", 32, 0, 0xFFFFFFFF, 1))
-        assert expr.identical(claripy.BVS("unnamed", 32, -0x80000000, 0x7FFFFFFF, 1))
+        assert expr.identical(claripy.BVS("unnamed", 32))
 
         #
         # Merging
         #
 
         # Merging two one-byte values
-        s.memory.store(to_vs("function_merge", 0), claripy.BVS("unnamed", 8, 0x10, 0x10, 0))
+        s.memory.store(to_vs("function_merge", 0), claripy.BVV(0x10, 8))
         a = s.copy()
-        a.memory.store(to_vs("function_merge", 0), claripy.BVS("unnamed", 8, 0x20, 0x20, 0))
+        a.memory.store(to_vs("function_merge", 0), claripy.BVV(0x20, 8))
 
         b = s.merge(a)[0]
         expr = b.memory.load(to_vs("function_merge", 0), 1)
-        assert expr.identical(claripy.BVS("unnamed", 8, 0x10, 0x20, 0x10))
+        assert expr.identical(s.solver.BVS("unnamed", 8, 0x10, 0x20, 0x10))
 
         #  |  MO(value_0)  |
         #  |  MO(value_1)  |
@@ -462,10 +461,8 @@ class TestMemory(unittest.TestCase):
 
         for offset, what, expected in test_cases:
             r, _, _ = s.memory.find(claripy.VS(s.arch.bits, "global", 0, offset), what, 8)
-            assert r.has_annotation_type(claripy.annotation.RegionAnnotation)
-            r_annotations = r.get_annotations_by_type(claripy.annotation.RegionAnnotation)
-            assert len(r_annotations) == 1
-            assert r_annotations[0].region_id == "global"
+            r_annotation = r.get_annotation(claripy.annotation.RegionAnnotation)
+            assert r_annotation.region_id == "global"
             assert r.clear_annotations().identical(expected)
 
     def test_registers(self):
