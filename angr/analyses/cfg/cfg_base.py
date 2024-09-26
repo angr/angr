@@ -748,7 +748,8 @@ class CFGBase(Analysis):
                     # Get all executable sections
                     for section in b.sections:
                         if section.is_executable:
-                            tpl = (section.min_addr, section.max_addr + 1)
+                            max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                            tpl = (section.min_addr, max_mapped_addr)
                             sections.append(tpl)
                     memory_regions += sections
 
@@ -756,7 +757,8 @@ class CFGBase(Analysis):
                 # Get all executable segments
                 for segment in b.segments:
                     if segment.is_executable:
-                        tpl = (segment.min_addr, segment.max_addr + 1)
+                        max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
+                        tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
                 if sections and segments:
                     # are there executable segments with no sections inside?
@@ -770,7 +772,8 @@ class CFGBase(Analysis):
             elif isinstance(b, (Coff, PE)):
                 for section in b.sections:
                     if section.is_executable:
-                        tpl = (section.min_addr, section.max_addr + 1)
+                        max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                        tpl = (section.min_addr, max_mapped_addr)
                         memory_regions.append(tpl)
 
             elif isinstance(b, XBE):
@@ -781,7 +784,7 @@ class CFGBase(Analysis):
                         and not section.is_writable
                         and section.name not in {".data", ".rdata", ".rodata"}
                     ):
-                        tpl = (section.min_addr, section.max_addr + 1)
+                        tpl = (section.min_addr, section.max_addr)
                         memory_regions.append(tpl)
 
             elif isinstance(b, MachO):
@@ -791,7 +794,8 @@ class CFGBase(Analysis):
                         if seg.is_executable:
                             # Take all sections from this segment (MachO style)
                             for section in seg.sections:
-                                tpl = (section.min_addr, section.max_addr + 1)
+                                max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                                tpl = (section.min_addr, max_mapped_addr)
                                 memory_regions.append(tpl)
 
             elif isinstance(b, (Hex, SRec)):
