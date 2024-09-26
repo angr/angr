@@ -132,7 +132,7 @@ class KnowledgeBase:
         """
         # Get first plugin of this type already registered, or default to None
         return next(
-            filter(lambda registered_plugin: type(registered_plugin) == requested_plugin_cls, self._plugins.values()),
+            (plugin for plugin in self._plugins.values() if isinstance(plugin, requested_plugin_cls)),
             None,
         )
 
