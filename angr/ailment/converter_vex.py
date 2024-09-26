@@ -225,9 +225,13 @@ class VEXExprConverter(Converter):
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
+        vector_count = None
+        vector_size = None
         if op._vector_count is not None and op._vector_size is not None:
             # SIMD conversions
             op_name += "V"  # vectorized
+            vector_count = op._vector_count
+            vector_size = op._vector_size
         elif op_name in {"CmpLE", "CmpLT", "CmpGE", "CmpGT", "Div", "DivMod", "Mod", "Mul", "Mull"}:
             if op.is_signed:
                 signed = True
@@ -311,6 +315,8 @@ class VEXExprConverter(Converter):
             vex_block_addr=manager.block_addr,
             vex_stmt_idx=manager.vex_stmt_idx,
             bits=bits,
+            vector_count=vector_count,
+            vector_size=vector_size,
             **extra_kwargs,
         )
 
@@ -553,11 +559,23 @@ class VEXStmtConverter(Converter):
             }[ty]
             dataHi = VEXExprConverter.convert(stmt.dataHi, manager)
             dataLo = VEXExprConverter.convert(stmt.dataLo, manager)
-            data = BinaryOp(idx, "Concat", (dataHi, dataLo), False)
+            data = BinaryOp(manager.next_atom(), "Concat", (dataHi, dataLo), False)
 
-            expdHi = Convert(idx, widen_from_bits, widen_to_bits, False, VEXExprConverter.convert(stmt.dataHi, manager))
-            expdLo = Convert(idx, widen_from_bits, widen_to_bits, False, VEXExprConverter.convert(stmt.dataLo, manager))
-            expd = BinaryOp(idx, "Concat", (expdHi, expdLo), False)
+            expdHi = Convert(
+                manager.next_atom(),
+                widen_from_bits,
+                widen_to_bits,
+                False,
+                VEXExprConverter.convert(stmt.dataHi, manager),
+            )
+            expdLo = Convert(
+                manager.next_atom(),
+                widen_from_bits,
+                widen_to_bits,
+                False,
+                VEXExprConverter.convert(stmt.dataLo, manager),
+            )
+            expd = BinaryOp(manager.next_atom(), "Concat", (expdHi, expdLo), False)
         else:
             narrow_to_bits = widen_to_bits = None
             data = VEXExprConverter.convert(stmt.dataLo, manager)
@@ -579,9 +597,9 @@ class VEXStmtConverter(Converter):
             size,
             stmt.endness,
         )
-        cmp = BinaryOp(idx, "CmpEQ", (val, expd), False)
+        cmp = BinaryOp(manager.next_atom(), "CmpEQ", (val, expd), False)
         store = Store(
-            idx,
+            manager.next_atom(),
             addr.copy(),
             data,
             size,
@@ -594,13 +612,14 @@ class VEXStmtConverter(Converter):
         stmts.append(store)
 
         if double:
-            val_shifted = BinaryOp(idx, "Shr", (val, narrow_to_bits), False)
-            valHi = Convert(idx, widen_to_bits, narrow_to_bits, False, val_shifted)
-            valLo = Convert(idx, widen_to_bits, narrow_to_bits, False, val)
+            narrow_to_bits_con = Const(manager.next_atom(), None, narrow_to_bits, 8)
+            val_shifted = BinaryOp(manager.next_atom(), "Shr", [val, narrow_to_bits_con], False)
+            valHi = Convert(manager.next_atom(), widen_to_bits, narrow_to_bits, False, val_shifted)
+            valLo = Convert(manager.next_atom(), widen_to_bits, narrow_to_bits, False, val)
 
             wrtmp_0 = Assignment(
-                idx,
-                Tmp(idx, None, stmt.oldLo, narrow_to_bits),
+                manager.next_atom(),
+                Tmp(manager.next_atom(), None, stmt.oldLo, narrow_to_bits),
                 valLo,
                 ins_addr=manager.ins_addr,
                 vex_block_addr=manager.block_addr,
@@ -608,7 +627,7 @@ class VEXStmtConverter(Converter):
             )
             wrtmp_1 = Assignment(
                 idx,
-                Tmp(idx, None, stmt.oldHi, narrow_to_bits),
+                Tmp(manager.next_atom(), None, stmt.oldHi, narrow_to_bits),
                 valHi,
                 ins_addr=manager.ins_addr,
                 vex_block_addr=manager.block_addr,
@@ -619,7 +638,7 @@ class VEXStmtConverter(Converter):
         else:
             wrtmp = Assignment(
                 idx,
-                Tmp(idx, None, stmt.oldLo, size),
+                Tmp(manager.next_atom(), None, stmt.oldLo, size),
                 val,
                 ins_addr=manager.ins_addr,
                 vex_block_addr=manager.block_addr,

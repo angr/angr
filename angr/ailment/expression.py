@@ -727,6 +727,8 @@ class BinaryOp(Op):
         "rounding_mode",
         "from_bits",  # for divmod
         "to_bits",  # for divmod
+        "vector_count",
+        "vector_size",
     )
 
     OPSTR_MAP = {
@@ -791,10 +793,12 @@ class BinaryOp(Op):
         variable=None,
         variable_offset=None,
         bits=None,
-        floating_point=False,
-        rounding_mode=None,
-        from_bits=None,
-        to_bits=None,
+        floating_point: bool = False,
+        rounding_mode: str | None = None,
+        from_bits: int | None = None,
+        to_bits: int | None = None,
+        vector_count: int | None = None,
+        vector_size: int | None = None,
         **kwargs,
     ):
         depth = (
@@ -841,7 +845,9 @@ class BinaryOp(Op):
         self.variable = variable
         self.variable_offset = variable_offset
         self.floating_point = floating_point
-        self.rounding_mode = rounding_mode
+        self.rounding_mode: str | None = rounding_mode
+        self.vector_count = vector_count
+        self.vector_size = vector_size
 
         self.from_bits = from_bits
         self.to_bits = to_bits
@@ -924,24 +930,21 @@ class BinaryOp(Op):
         else:
             r1, replaced_operand_1 = False, None
 
+        r2, replaced_rm = False, None
         if self.rounding_mode is not None:
             if self.rounding_mode == old_expr:
                 r2 = True
                 replaced_rm = new_expr
-            elif isinstance(self.rounding_mode, Expression):
-                r2, replaced_rm = self.rounding_mode.replace(old_expr, new_expr)
-            else:
-                r2, replaced_rm = False, None
 
         if r0 or r1:
             return True, BinaryOp(
                 self.idx,
                 self.op,
-                [replaced_operand_0, replaced_operand_1],
+                [replaced_operand_0 if r0 else self.operands[0], replaced_operand_1 if r1 else self.operands[1]],
                 self.signed,
                 bits=self.bits,
                 floating_point=self.floating_point,
-                rounding_mode=self.rounding_mode,
+                rounding_mode=replaced_rm if r2 else self.rounding_mode,
                 from_bits=self.from_bits,
                 to_bits=self.to_bits,
                 **self.tags,
