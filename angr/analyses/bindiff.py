@@ -198,7 +198,7 @@ def compare_statement_dict(statement_1, statement_2):
     # should return whether or not the statement's type/effects changed
     # need to return the specific number that changed too
 
-    if type(statement_1) != type(statement_2):
+    if type(statement_1) is not type(statement_2):
         return [Difference(DIFF_TYPE, None, None)]
 
     # None

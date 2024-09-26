@@ -150,7 +150,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
         return self._dvar_containers[var_name]
 
     def __getitem__(self, var_name):
-        assert type(var_name) == str
+        assert isinstance(var_name, str)
         return self.from_name(var_name)
 
     def add_variable(self, cle_var: Variable, low_pc: int, high_pc: int):

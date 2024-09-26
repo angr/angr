@@ -249,8 +249,8 @@ class VFGNode:
 
     def __eq__(self, o):
         return (
-            type(self) == type(o)
-            and self.key == o.key  # pylint:disable=unidiomatic-typecheck
+            type(self) is type(o)
+            and self.key == o.key
             and self.addr == o.addr
             and self.state == o.state
             and self.actions == o.actions

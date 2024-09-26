@@ -207,7 +207,7 @@ class AnalysisFactory(Generic[A]):
                     listval = list(val)
                     if not listval or (
                         isinstance(listval[0], (str, bytes, bool, int, float))
-                        and all(type(sval) == type(listval[0]) for sval in listval)
+                        and all(type(sval) is type(listval[0]) for sval in listval)
                     ):
                         span.set_attribute(f"arg.{name}", listval)
                 elif isinstance(val, dict):
@@ -215,12 +215,12 @@ class AnalysisFactory(Generic[A]):
                     listval_values = list(val.values())
                     if not listval_keys or (
                         isinstance(listval_keys[0], (str, bytes, bool, int, float))
-                        and all(type(sval) == type(listval_keys[0]) for sval in listval_keys)
+                        and all(type(sval) is type(listval_keys[0]) for sval in listval_keys)
                     ):
                         span.set_attribute(f"arg.{name}.keys", listval_keys)
                     if not listval_values or (
                         isinstance(listval_values[0], (str, bytes, bool, int, float))
-                        and all(type(sval) == type(listval_values[0]) for sval in listval_values)
+                        and all(type(sval) is type(listval_values[0]) for sval in listval_values)
                     ):
                         span.set_attribute(f"arg.{name}.values", listval_values)
                 else:

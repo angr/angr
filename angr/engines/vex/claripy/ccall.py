@@ -57,7 +57,7 @@ def op_concretize(op):
 
 
 def strip_simaction(val):
-    if type(val) == SimActionObject:
+    if isinstance(val, SimActionObject):
         return _raw_ast(val)
     return val
 
