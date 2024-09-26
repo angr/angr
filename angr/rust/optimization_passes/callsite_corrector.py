@@ -21,6 +21,8 @@ class CallsiteCorrector(TransformationPass):
         return self.project.is_rust_binary, None
 
     def _correct_callsite(self, call: Call) -> Assignment | None:
+        if not call.prototype:
+            return None
         prototype = call.prototype.copy()
         call = call.copy()
         if (

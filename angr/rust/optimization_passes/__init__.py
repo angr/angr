@@ -24,7 +24,6 @@ _all_optimization_passes.extend(
         # (ErrorHandlingSimplifier, True),
         # (RetSiteSimplifier, True),
         # (CallingConventionRecovery, True),
-        # (OwnershipSimplifier, True),
         # (AllocSimplifier, True),
         # AFTER_MAKING_CALLSITES
         (CallsiteSimplifier, True),
@@ -32,6 +31,7 @@ _all_optimization_passes.extend(
         # AFTER_GLOBAL_SIMPLIFICATION
         (StructInstantiationSimplifier, True),
         (UnwrapSimplifier, True),
+        (OwnershipSimplifier, True),
         # (LifetimeSimplifier, True),
         # (StringSimplifier, True),
         # AFTER_VARIABLE_RECOVERY
