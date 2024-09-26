@@ -1,9 +1,11 @@
 import ailment
+from ailment.expression import VirtualVariable
 from ailment.statement import Call, Store, Assignment
 
 from ..sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..ailment.expression import Struct
+from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
 from ...knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from ...sim_variable import SimVariable
 
@@ -53,7 +55,6 @@ class TypeCorrector(OptimizationPass):
             labels=self.kb.labels,
             arg_names=self._func.prototype.arg_names if self._func.prototype else None,
             reset=True,
-            func_blocks=list(self._graph.nodes),
         )
 
     def _analyze(self, cache=None):
@@ -78,3 +79,11 @@ class TypeCorrector(OptimizationPass):
                 ):
                     self.force_new_variable(stmt.dst.variable)
                     self._set_variable_type(stmt.dst.variable, stmt.src.prototype.returnty)
+                elif (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, VirtualVariable)
+                ):
+                    struct_ty = unpack_typeref(self.variable_manager.get_variable_type(stmt.src.variable))
+                    if isinstance(struct_ty, RustSimStruct):
+                        self._set_variable_type(stmt.dst.variable, struct_ty)
