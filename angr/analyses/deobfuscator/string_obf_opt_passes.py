@@ -117,4 +117,4 @@ class StringObfType3Rewriter(OptimizationPass):
         return False
 
 
-register_optimization_pass(StringObfType3Rewriter, True)
+register_optimization_pass(StringObfType3Rewriter)
