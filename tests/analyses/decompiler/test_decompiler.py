@@ -3844,7 +3844,6 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("goto ") == 0
         assert d.codegen.text.count("star_digits_closebracket") == 1
 
-    @structuring_algo("phoenix")
     def test_decompiling_sp_altering_function(self, decompiler_options=None):
         # function 4011de has a loop that subtracts constants from esp. ensure SPTracker reaches a fixed point in this
         # case.
@@ -3863,7 +3862,6 @@ class TestDecompiler(unittest.TestCase):
         # basic check to ensure the output is not nothing
         assert "sub_40dbca(" in d.codegen.text
 
-    @structuring_algo("phoenix")
     def test_decompiling_no_phivar_in_call_statements(self, decompiler_options=None):
         # Phi variables should never be folded into call statements
 
