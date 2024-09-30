@@ -1,22 +1,18 @@
 # pylint:disable=abstract-method,line-too-long,missing-class-docstring,wrong-import-position
 from __future__ import annotations
-from __future__ import annotations
 
 import contextlib
-from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
-from typing import Literal, Optional, Any, Union, TYPE_CHECKING, cast, overload
-from collections.abc import Iterable
 import logging
-
-try:
-    import CppHeaderParser
-except ImportError:
-    CppHeaderParser = None
+from collections import OrderedDict, defaultdict, ChainMap
+from collections.abc import Iterable
+from typing import Literal, Any, TYPE_CHECKING, cast, overload
 
 from archinfo import Endness, Arch
 import claripy
+import CppHeaderParser
+import pycparser
 
 from angr.errors import AngrMissingTypeError, AngrTypeError
 from .misc.ux import deprecated
@@ -26,12 +22,7 @@ if TYPE_CHECKING:
     from angr.procedures.definitions import SimTypeCollection
     from angr.storage.memory_mixins import _Coerce
 
-    StoreType = Union[_Coerce, claripy.ast.BV]
-else:
-    try:
-        import pycparser
-    except ImportError:
-        pycparser = None
+    StoreType = _Coerce
 
 
 l = logging.getLogger(name=__name__)
@@ -3499,7 +3490,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     func_decls: dict[str, SimTypeCppFunction] = {}
     for the_func in h.functions:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto = cast(Optional[SimTypeCppFunction], _cpp_decl_to_type(the_func, {}, opaque_classes=True))
+        proto = cast(SimTypeCppFunction | None, _cpp_decl_to_type(the_func, {}, opaque_classes=True))
         if proto is not None and the_func["class"]:
             func_name = cast(str, the_func["class"] + "::" + the_func["name"])
             proto.args = (
