@@ -102,11 +102,11 @@ class SimJavaVM(SimOS):
     #
 
     def state_blank(self, addr=None, **kwargs):  # pylint: disable=arguments-differ
-        if not kwargs.get("mode", None):
+        if not kwargs.get("mode"):
             kwargs["mode"] = self.project._default_analysis_mode
-        if not kwargs.get("arch", None):
+        if not kwargs.get("arch"):
             kwargs["arch"] = self.arch
-        if not kwargs.get("os_name", None):
+        if not kwargs.get("os_name"):
             kwargs["os_name"] = self.name
 
         if self.is_javavm_with_jni_support:
@@ -161,7 +161,7 @@ class SimJavaVM(SimOS):
 
         # initialize class containing the current method
         state.javavm_classloader.get_class(
-            state.addr.method.class_name, init_class=True, step_func=kwargs.get("step_function", None)
+            state.addr.method.class_name, init_class=True, step_func=kwargs.get("step_function")
         )
 
         # initialize the Java environment
