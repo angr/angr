@@ -84,16 +84,16 @@ class JavaVmMemoryMixin(MemoryMixin):
         else:
             l.error("Unknown addr type %s", addr)
 
-    def load(self, addr, size=0, none_if_missing=False):  # pylint: disable=arguments-differ
+    def load(self, addr, frame=0, none_if_missing=False):  # pylint: disable=arguments-differ
         if type(addr) is SimSootValue_Local:
-            cstack = self._stack[-1 + (-1 * size)]
+            cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         if type(addr) is SimSootValue_ArrayRef:
             return self.load_array_element(addr.base, addr.index)
 
         if type(addr) is SimSootValue_ParamRef:
-            cstack = self._stack[-1 + (-1 * size)]
+            cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         if type(addr) is SimSootValue_StaticFieldRef:
