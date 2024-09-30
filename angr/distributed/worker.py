@@ -10,7 +10,6 @@ from ..vaults import VaultDirShelf
 
 
 _l = logging.getLogger(__name__)
-_l.setLevel(logging.INFO)
 
 
 class BadStatesDropper(ExplorationTechnique):

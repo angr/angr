@@ -6,7 +6,6 @@ from ...calling_conventions import default_cc
 
 
 l = logging.getLogger(name=__name__)
-# l.setLevel("DEBUG")
 
 
 class IdentifierCallable:

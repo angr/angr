@@ -9,7 +9,6 @@ from .engine import SuccessorsMixin
 from ..errors import SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
-# l.setLevel(logging.DEBUG)
 
 try:
     from angr_targets.concrete import ConcreteTarget

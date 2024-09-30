@@ -4,7 +4,6 @@ import logging
 from ..stubs.format_parser import FormatParser
 
 l = logging.getLogger(name=__name__)
-l.setLevel("INFO")
 
 
 class syslog(FormatParser):

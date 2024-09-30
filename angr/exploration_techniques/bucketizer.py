@@ -7,7 +7,6 @@ from ..engines.successors import SimSuccessors
 from . import ExplorationTechnique
 
 _l = logging.getLogger(__name__)
-_l.setLevel(logging.DEBUG)
 
 
 class Bucketizer(ExplorationTechnique):

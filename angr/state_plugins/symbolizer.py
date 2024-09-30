@@ -8,7 +8,6 @@ from ..storage.memory_mixins import PagedMemoryMixin
 
 
 l = logging.getLogger(name=__name__)
-l.setLevel("DEBUG")
 
 
 def _mem_write_cb(s):

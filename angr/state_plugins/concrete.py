@@ -11,7 +11,6 @@ from ..errors import SimConcreteRegisterError
 from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
-# l.setLevel(logging.DEBUG)
 
 
 class Concrete(SimStatePlugin):
