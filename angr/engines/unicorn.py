@@ -394,9 +394,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         if not self.__check(**kwargs):
             return super().process_successors(successors, **kwargs)
 
-        extra_stop_points = kwargs.get("extra_stop_points", None)
-        last_block_details = kwargs.get("last_block_details", None)
-        step = kwargs.get("step", None)
+        extra_stop_points = kwargs.get("extra_stop_points")
+        last_block_details = kwargs.get("last_block_details")
+        step = kwargs.get("step")
         if extra_stop_points is None:
             extra_stop_points = set(self.project._sim_procedures)
         else:
@@ -425,8 +425,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # initialize unicorn plugin
         try:
-            syscall_data = kwargs.get("syscall_data", None)
-            fd_bytes = kwargs.get("fd_bytes", None)
+            syscall_data = kwargs.get("syscall_data")
+            fd_bytes = kwargs.get("fd_bytes")
             state.unicorn.setup(syscall_data=syscall_data, fd_bytes=fd_bytes)
         except SimValueError:
             # it's trying to set a symbolic register somehow

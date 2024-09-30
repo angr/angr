@@ -112,20 +112,20 @@ class SimOS:
         Any additional arguments will be passed to the SimState constructor
         """
         # TODO: move ALL of this into the SimState constructor
-        if kwargs.get("mode", None) is None:
+        if kwargs.get("mode") is None:
             kwargs["mode"] = self.project._default_analysis_mode
         if permissions_backer is not None:
             kwargs["permissions_map"] = permissions_backer[1]
             kwargs["default_permissions"] = 7 if permissions_backer[0] else 3
-        if kwargs.get("cle_memory_backer", None) is None:
+        if kwargs.get("cle_memory_backer") is None:
             kwargs["cle_memory_backer"] = self.project.loader
-        if kwargs.get("os_name", None) is None:
+        if kwargs.get("os_name") is None:
             kwargs["os_name"] = self.name
         actual_stack_end = stack_end
         if stack_end is None:
             stack_end = self.arch.initial_sp
 
-        if kwargs.get("permissions_map", None) is None:
+        if kwargs.get("permissions_map") is None:
             # just a dict of address ranges to permission bits
             permission_map = {}
             for obj in self.project.loader.all_objects:

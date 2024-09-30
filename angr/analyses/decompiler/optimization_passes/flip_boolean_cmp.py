@@ -79,7 +79,7 @@ class FlipBooleanCmp(SequenceOptimizationPass):
 
     def __init__(self, func, flip_size=10, **kwargs):
         super().__init__(func, **kwargs)
-        self._graph = kwargs.get("graph", None)
+        self._graph = kwargs.get("graph")
         self._flip_size = flip_size
         self.analyze()
 
