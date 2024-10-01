@@ -7,7 +7,7 @@ l = logging.getLogger(name=__name__)
 
 
 class syslog(FormatParser):
-    def run(self, priority, fmt):
+    def run(self, priority, fmt):  # pylint:disable=arguments-differ
         fmt = self._parse(fmt)
         formatted = fmt.replace(self.va_arg)
         if not formatted.symbolic:
