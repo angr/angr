@@ -1,6 +1,7 @@
 from .callsite_simplifier import CallsiteSimplifier
 from .calling_convention_recovery import CallingConventionRecovery
 from .callsite_corrector import CallsiteCorrector
+from .cleanup_code_remover import CleanupCodeRemover
 from .drop_simplifier import DropSimplifier
 from .error_handling_simplifier import ErrorHandlingSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
@@ -32,11 +33,12 @@ _all_optimization_passes.extend(
         (StructInstantiationSimplifier, True),
         (UnwrapSimplifier, True),
         (OwnershipSimplifier, True),
+        (CleanupCodeRemover, True),
         # (LifetimeSimplifier, True),
         # (StringSimplifier, True),
         # AFTER_VARIABLE_RECOVERY
         (TypeCorrector, True),
         # AFTER_STRUCTURING
-        (DropSimplifier, True),
+        # (DropSimplifier, True),
     ]
 )
