@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 
 class StructuredCodeManager(KnowledgeBasePlugin):
+    """A knowledge base plugin to store structured code generator results."""
+
     def __init__(self, kb):
         super().__init__(kb=kb)
         self.cached: dict[Any, DecompilationCache] = {}

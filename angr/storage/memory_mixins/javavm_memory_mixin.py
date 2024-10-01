@@ -26,6 +26,8 @@ l = logging.getLogger(name=__name__)
 
 
 class JavaVmMemoryMixin(MemoryMixin):
+    """A memory mixin for JavaVM memory."""
+
     def __init__(
         self,
         memory_id="mem",
@@ -84,7 +86,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         else:
             l.error("Unknown addr type %s", addr)
 
-    def load(self, addr, frame=0, none_if_missing=False):  # pylint: disable=arguments-differ
+    def load(self, addr, frame=0, none_if_missing=False):  # pylint: disable=arguments-differ,arguments-renamed
         if type(addr) is SimSootValue_Local:
             cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
@@ -385,7 +387,6 @@ class JavaVmMemoryMixin(MemoryMixin):
     def widen(self, others):  # pylint: disable=no-self-use,unused-argument
         l.warning("Widening is not implemented for JavaVM memory!")
 
-    def _find(
-        self, addr, what, max_search=None, max_symbolic_bytes=None, default=None
-    ):  # pylint: disable=unused-argument
+    # pylint: disable=no-self-use,unused-argument
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         l.warning("Find is not implemented for JavaVM memory!")

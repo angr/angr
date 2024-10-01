@@ -99,14 +99,9 @@ class SReachingDefinitionsAnalysis(Analysis):
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
                     if (
-                        isinstance(stmt, Call)
-                        and stmt.args is None
-                        or isinstance(stmt, Assignment)
-                        and isinstance(stmt.src, Call)
-                        and stmt.src.args is None
-                        or isinstance(stmt, Return)
-                        and stmt.ret_exprs
-                        and isinstance(stmt.ret_exprs[0], Call)
+                        (isinstance(stmt, Call) and stmt.args is None)
+                        or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
+                        or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call))
                     ):
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
