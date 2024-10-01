@@ -17,7 +17,7 @@ class COMMANDS:
     ALL_COMMANDS = [DECOMPILE]
 
 
-def main(args=sys.argv, out=sys.stdout):
+def main(args=sys.argv[1:], out=sys.stdout):
     parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
     parser.add_argument(
         "command",
