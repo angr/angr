@@ -141,7 +141,6 @@ from .tech_builder import TechniqueBuilder
 from .stochastic import StochasticSearch
 from .unique import UniqueSearch
 from .symbion import Symbion
-from ..errors import AngrError, AngrExplorationTechniqueError
 from .memory_watcher import MemoryWatcher
 from .bucketizer import Bucketizer
 from .local_loop_seer import LocalLoopSeer

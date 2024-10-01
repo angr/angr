@@ -15,6 +15,7 @@ import CppHeaderParser
 import pycparser
 
 from angr.errors import AngrMissingTypeError, AngrTypeError
+from angr.sim_state import SimState
 from .misc.ux import deprecated
 
 if TYPE_CHECKING:
@@ -3590,4 +3591,3 @@ struct timeval {
     )
 
 from .state_plugins.view import SimMemView
-from .state_plugins import SimState

@@ -88,3 +88,39 @@ def get_optimization_passes(arch, platform):
 
 def register_optimization_pass(opt_pass):
     ALL_OPTIMIZATION_PASSES.append(opt_pass)
+
+
+__all__ = (
+    "OptimizationPassStage",
+    "StackCanarySimplifier",
+    "BasePointerSaveSimplifier",
+    "ExprOpSwapper",
+    "ITERegionConverter",
+    "ITEExprConverter",
+    "LoweredSwitchSimplifier",
+    "MultiSimplifier",
+    "DivSimplifier",
+    "ModSimplifier",
+    "ReturnDuplicatorLow",
+    "ReturnDuplicatorHigh",
+    "ConstantDereferencesSimplifier",
+    "RegisterSaveAreaSimplifier",
+    "RetAddrSaveSimplifier",
+    "X86GccGetPcSimplifier",
+    "FlipBooleanCmp",
+    "ReturnDeduplicator",
+    "WinStackCanarySimplifier",
+    "CrossJumpReverter",
+    "CodeMotionOptimization",
+    "SwitchDefaultCaseDuplicator",
+    "DeadblockRemover",
+    "InlinedStringTransformationSimplifier",
+    "ConstPropOptReverter",
+    "CallStatementRewriter",
+    "DuplicationReverter",
+    "ALL_OPTIMIZATION_PASSES",
+    "DUPLICATING_OPTS",
+    "CONDENSING_OPTS",
+    "get_optimization_passes",
+    "register_optimization_pass",
+)

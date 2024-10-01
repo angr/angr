@@ -1,8 +1,9 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
+
 from typing import Any, TYPE_CHECKING
 
-from .. import KnowledgeBasePlugin
+from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
 
 
 class StructuredCodeManager(KnowledgeBasePlugin):
+    """A knowledge base plugin to store structured code generator results."""
+
     def __init__(self, kb):
         super().__init__(kb=kb)
         self.cached: dict[Any, DecompilationCache] = {}
@@ -25,8 +28,8 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return self.cached[self._normalize_key(item)]
 
     def __setitem__(self, key, value: DecompilationCache | BaseStructuredCodeGenerator):
-        from ...analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
-        from ...analyses.decompiler.decompilation_cache import DecompilationCache
+        from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
+        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 
         nkey = self._normalize_key(key)
 

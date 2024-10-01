@@ -11,7 +11,7 @@ from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
-from angr.analyses.s_reaching_definitions.s_rda import SRDAView
+from angr.analyses.s_reaching_definitions import SRDAView
 from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 if TYPE_CHECKING:

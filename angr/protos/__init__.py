@@ -12,3 +12,11 @@ from . import function_pb2
 from . import cfg_pb2
 from . import xrefs_pb2
 from . import variables_pb2
+
+__all__ = (
+    "primitives_pb2",
+    "function_pb2",
+    "cfg_pb2",
+    "xrefs_pb2",
+    "variables_pb2",
+)

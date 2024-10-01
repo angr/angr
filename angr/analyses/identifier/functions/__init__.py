@@ -1,13 +1,13 @@
 from __future__ import annotations
-import os
-from collections import defaultdict
-import importlib
 
+import importlib
 import logging
+import os
+
+from ..func import Func
 
 l = logging.getLogger(name=__name__)
 
-from ..func import Func
 
 # Import all classes under the current directory, and group them based on
 # lib names.

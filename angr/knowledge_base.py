@@ -7,18 +7,19 @@ import logging
 
 from typing import TYPE_CHECKING, TypeVar
 
-if TYPE_CHECKING:
-    from ..project import Project
-    from ..knowledge_plugins import FunctionManager
-    from ..knowledge_plugins import VariableManager
-    from ..knowledge_plugins import KeyDefinitionManager
-    from ..knowledge_plugins import CFGManager
-    from ..knowledge_plugins import StructuredCodeManager
-    from ..knowledge_plugins import TypesStore
-    from ..knowledge_plugins import PropagationManager
-    from ..knowledge_plugins import XRefManager
+from .knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
 
-from ..knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
+if TYPE_CHECKING:
+    from .project import Project
+    from .knowledge_plugins import FunctionManager
+    from .knowledge_plugins import VariableManager
+    from .knowledge_plugins import KeyDefinitionManager
+    from .knowledge_plugins import CFGManager
+    from .knowledge_plugins import StructuredCodeManager
+    from .knowledge_plugins import TypesStore
+    from .knowledge_plugins import PropagationManager
+    from .knowledge_plugins import XRefManager
+
 
 l = logging.getLogger(name=__name__)
 
@@ -131,10 +132,7 @@ class KnowledgeBase:
         :return: Instance of the requested plugin class or null if it is not a known plugin
         """
         # Get first plugin of this type already registered, or default to None
-        return next(
-            (plugin for plugin in self._plugins.values() if isinstance(plugin, requested_plugin_cls)),
-            None,
-        )
+        return next((plugin for plugin in self._plugins.values() if isinstance(plugin, requested_plugin_cls)), None)
 
     def request_knowledge(self, requested_plugin_cls: type[K]) -> K:
         existing = self.get_knowledge(requested_plugin_cls)
