@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 from typing import Optional
 
@@ -14,6 +15,9 @@ from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 
 UNWRAP_FUNCTIONS = ("core::result::unwrap_failed",)
 UNWRAP_FAILED_FUNCTIONS = ("core::result::unwrap_failed", "core::option::unwrap_failed")
+
+
+l = logging.getLogger(name=__name__)
 
 
 class OptionEnum(Enum):
@@ -179,4 +183,41 @@ class UnwrapSimplifier(TransformationPass):
     def _analyze(self, cache=None):
         if normalize(self._func.name) == "oxdizer_test::test_unwrap_simplifier::test_option_unwrap":
             self._simplify_unwrap()
+        # if normalize(self._func.name) == "uu_fmt::uumain":
+        #     removed = set()
+        #     for block in self._graph.nodes:
+        #         if (
+        #             block.statements
+        #             and isinstance(block.statements[-1], ConditionalJump)
+        #             and self.num_successors(block) == 2
+        #         ):
+        #             jump: ConditionalJump = block.statements[-1]
+        #             if isinstance(jump.condition, BinaryOp) and isinstance(jump.condition.operands[1], Const):
+        #                 value = jump.condition.operands[1].value
+        #                 if value == 0x8000000000000000 or value == 0x8000000000000001:
+        #                     op = jump.condition.op
+        #                     queue = []
+        #                     try:
+        #                         block = None
+        #                         if op == "CmpEQ" and isinstance(jump.true_target, Const):
+        #                             block = self.blocks_by_addr_and_idx[(jump.true_target.value, jump.true_target_idx)]
+        #                         elif op == "CmpNE" and isinstance(jump.false_target, Const):
+        #                             block = self.blocks_by_addr_and_idx[
+        #                                 (jump.false_target.value, jump.false_target_idx)
+        #                             ]
+        #                         if block:
+        #                             queue.append(block)
+        #                     except:
+        #                         import ipdb
+        #
+        #                         ipdb.set_trace()
+        #                     while len(queue):
+        #                         block = queue.pop(0)
+        #                         if block not in removed:
+        #                             removed.add(block)
+        #                             queue.extend(self._graph.successors(block))
+        #     import ipdb
+        #
+        #     ipdb.set_trace()
+
         self.out_graph = self._graph

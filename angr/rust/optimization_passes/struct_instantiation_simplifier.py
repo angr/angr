@@ -111,6 +111,8 @@ class StructBuilder:
         return None
 
     def build(self, block, stmt) -> Struct | Array | None:
+        if self.struct_members is None:
+            return None
         if isinstance(self.struct_ty, ArrayReference):
             # Special handling for ArrayReference type
             array = self._build_for_array(block, stmt)
