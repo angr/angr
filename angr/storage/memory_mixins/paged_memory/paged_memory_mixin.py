@@ -9,7 +9,7 @@ import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
-from ....errors import SimMemoryError
+from angr.errors import SimMemoryError
 
 # yeet
 ffi = cffi.FFI()

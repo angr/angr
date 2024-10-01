@@ -4,9 +4,9 @@ import logging
 from archinfo.arch_soot import ArchSoot
 
 from . import JNISimProcedure
-from ...engines.soot.exceptions import SootFieldNotLoadedException
-from ...engines.soot.field_dispatcher import resolve_field
-from ...engines.soot.values import SimSootValue_InstanceFieldRef, SimSootValue_StaticFieldRef
+from angr.engines.soot.exceptions import SootFieldNotLoadedException
+from angr.engines.soot.field_dispatcher import resolve_field
+from angr.engines.soot.values import SimSootValue_InstanceFieldRef, SimSootValue_StaticFieldRef
 
 l = logging.getLogger("angr.procedures.java_jni.field_access")
 

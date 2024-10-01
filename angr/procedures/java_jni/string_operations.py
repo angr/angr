@@ -4,7 +4,7 @@ import logging
 from claripy import StringV, StrLen
 
 from . import JNISimProcedure
-from ...engines.soot.values import SimSootValue_StringRef
+from angr.engines.soot.values import SimSootValue_StringRef
 
 l = logging.getLogger("angr.procedures.java_jni.string_operations")
 

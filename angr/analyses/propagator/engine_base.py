@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
-from ...engines.light import SimEngineLight
-from ...errors import SimEngineError
+from angr.engines.light import SimEngineLight
+from angr.errors import SimEngineError
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel

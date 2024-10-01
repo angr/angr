@@ -3,7 +3,7 @@ import claripy
 import logging
 
 from . import MemoryMixin
-from ... import sim_options as o
+from angr import sim_options as o
 
 l = logging.getLogger(__name__)
 

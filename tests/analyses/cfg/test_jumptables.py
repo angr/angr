@@ -19,7 +19,7 @@ from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump
 
-from ...common import bin_location, compile_c, has_32_bit_compiler_support, skip_if_not_linux, slow_test
+from tests.common import bin_location, compile_c, has_32_bit_compiler_support, skip_if_not_linux, slow_test
 
 
 test_location = os.path.join(bin_location, "tests")

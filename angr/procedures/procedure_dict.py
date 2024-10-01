@@ -4,8 +4,8 @@ import os
 
 l = logging.getLogger(name=__name__)
 
-from ..misc import autoimport
-from ..sim_procedure import SimProcedure
+from angr.misc import autoimport
+from angr.sim_procedure import SimProcedure
 
 # Import all classes under the current directory, and group them based on
 # lib names.

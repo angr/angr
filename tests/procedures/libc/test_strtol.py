@@ -10,7 +10,7 @@ import unittest
 
 import angr
 
-from ...common import slow_test, bin_location  # pylint:disable=import-error,wrong-import-position
+from tests.common import slow_test, bin_location  # pylint:disable=import-error,wrong-import-position
 
 
 class TestStrtol(unittest.TestCase):

@@ -4,7 +4,7 @@ import logging
 from archinfo import ArchSoot
 
 from .base import SimSootExpr
-from ..values.thisref import SimSootValue_ThisRef
+from angr.engines.soot.values.thisref import SimSootValue_ThisRef
 
 l = logging.getLogger("angr.engines.soot.expressions.cast")
 

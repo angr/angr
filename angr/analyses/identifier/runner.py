@@ -5,12 +5,12 @@ import os
 
 import claripy
 
-from ... import sim_options as so
-from ... import SIM_LIBRARIES
-from ... import BP_BEFORE, BP_AFTER
-from ...storage.file import SimFile, SimFileDescriptor
-from ...state_plugins import SimSystemPosix
-from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
+from angr import sim_options as so
+from angr import SIM_LIBRARIES
+from angr import BP_BEFORE, BP_AFTER
+from angr.storage.file import SimFile, SimFileDescriptor
+from angr.state_plugins import SimSystemPosix
+from angr.errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
 from .custom_callable import IdentifierCallable
 
 

@@ -8,11 +8,11 @@ import claripy
 import pyvex
 
 
-from .... import options, BP_BEFORE
-from ....blade import Blade
-from ....annocfg import AnnotatedCFG
-from ....exploration_techniques import Slicecutor
-from ....utils.constants import DEFAULT_STATEMENT
+from angr import options, BP_BEFORE
+from angr.blade import Blade
+from angr.annocfg import AnnotatedCFG
+from angr.exploration_techniques import Slicecutor
+from angr.utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:

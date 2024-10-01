@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ..posix.mmap import mmap
+from angr.procedures.posix.mmap import mmap
 
 
 class old_mmap(mmap):

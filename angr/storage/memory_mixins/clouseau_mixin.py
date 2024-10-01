@@ -129,4 +129,4 @@ class InspectMixinHigh(MemoryMixin):
         super()._add_constraints(c, add_constraints=add_constraints, inspect=inspect, **kwargs)
 
 
-from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER

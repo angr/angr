@@ -9,7 +9,7 @@ import unittest
 import claripy
 import angr
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 class A:

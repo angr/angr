@@ -4,7 +4,7 @@ import logging
 
 l = logging.getLogger(name=__name__)
 
-from ..protos.primitives_pb2 import Edge
+from angr.protos.primitives_pb2 import Edge
 
 
 _CFG_JUMPKINDS = {

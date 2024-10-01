@@ -12,11 +12,11 @@ from ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
 from ailment.expression import Const, Phi, VirtualVariable
 
 from angr.utils.ail import is_phi_assignment
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
-from ..graph_region import GraphRegion
-from ..utils import remove_labels, to_ail_supergraph, calls_in_graph
-from ..structuring.structurer_nodes import MultiNode, ConditionNode
-from ..region_identifier import RegionIdentifier
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, calls_in_graph
+from angr.analyses.decompiler.structuring.structurer_nodes import MultiNode, ConditionNode
+from angr.analyses.decompiler.region_identifier import RegionIdentifier
 
 _l = logging.getLogger(name=__name__)
 

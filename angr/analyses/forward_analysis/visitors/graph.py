@@ -3,8 +3,8 @@ from typing import TypeVar, Generic
 from collections.abc import Collection, Iterator
 from collections import defaultdict
 
-from ....misc.ux import deprecated
-from ....utils.algo import binary_insert
+from angr.misc.ux import deprecated
+from angr.utils.algo import binary_insert
 
 NodeType = TypeVar("NodeType")
 

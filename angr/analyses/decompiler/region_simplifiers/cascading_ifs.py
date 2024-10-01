@@ -2,8 +2,8 @@
 from __future__ import annotations
 import ailment
 
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     MultiNode,
@@ -11,7 +11,7 @@ from ..structuring.structurer_nodes import (
     ConditionNode,
     CascadingConditionNode,
 )
-from ..utils import is_empty_node
+from angr.analyses.decompiler.utils import is_empty_node
 
 
 class CascadingIfsRemover(SequenceWalker):

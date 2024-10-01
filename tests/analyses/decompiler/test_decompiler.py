@@ -40,7 +40,7 @@ from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.misc.testing import is_testing
 from angr.utils.library import convert_cproto_to_py
 
-from ...common import bin_location, slow_test
+from tests.common import bin_location, slow_test
 
 
 test_location = os.path.join(bin_location, "tests")

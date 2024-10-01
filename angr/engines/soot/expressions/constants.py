@@ -3,7 +3,7 @@ import claripy
 from archinfo.arch_soot import SootClassDescriptor, SootNullConstant
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
-from ..values import SimSootValue_StringRef
+from angr.engines.soot.values import SimSootValue_StringRef
 from .base import SimSootExpr
 
 

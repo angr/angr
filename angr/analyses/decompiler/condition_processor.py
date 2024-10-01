@@ -12,11 +12,11 @@ from unique_log_filter import UniqueLogFilter
 
 
 from angr.utils.graph import GraphUtils
-from ...utils.lazy_import import lazy_import
-from ...utils import is_pyinstaller
-from ...utils.graph import dominates, inverted_idoms
-from ...block import Block, BlockNode
-from ...errors import AngrRuntimeError
+from angr.utils.lazy_import import lazy_import
+from angr.utils import is_pyinstaller
+from angr.utils.graph import dominates, inverted_idoms
+from angr.block import Block, BlockNode
+from angr.errors import AngrRuntimeError
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .structuring.structurer_nodes import (
     MultiNode,

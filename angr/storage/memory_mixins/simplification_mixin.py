@@ -1,6 +1,6 @@
 from __future__ import annotations
 from . import MemoryMixin
-from ... import sim_options as options
+from angr import sim_options as options
 
 
 class SimplificationMixin(MemoryMixin):

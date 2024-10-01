@@ -2,12 +2,12 @@ from __future__ import annotations
 import claripy
 
 from . import MemoryMixin
-from ... import sim_options as options
-from ... import concretization_strategies
-from ...sim_state_options import SimStateOptions
-from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
-from ...storage import DUMMY_SYMBOLIC_READ_VALUE
+from angr import sim_options as options
+from angr import concretization_strategies
+from angr.sim_state_options import SimStateOptions
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
+from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 
 class MultiwriteAnnotation(claripy.Annotation):

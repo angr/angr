@@ -9,8 +9,8 @@ from cle.backends.tls.elf_tls import ELFTLSObject
 
 from sortedcontainers import SortedDict
 
-from ...knowledge_plugins.cfg.memory_data import MemoryDataSort, MemoryData
-from ..analysis import Analysis
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort, MemoryData
+from angr.analyses.analysis import Analysis
 
 _l = logging.getLogger(name=__name__)
 

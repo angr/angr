@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ...errors import AngrAnalysisError
+from angr.errors import AngrAnalysisError
 
 
 class IdentifierException(AngrAnalysisError):

@@ -2,8 +2,8 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
-from ...utils.cowdict import DefaultChainMapCOW
-from ...code_location import CodeLocation
+from angr.utils.cowdict import DefaultChainMapCOW
+from angr.code_location import CodeLocation
 
 if TYPE_CHECKING:
     from .definition import Definition

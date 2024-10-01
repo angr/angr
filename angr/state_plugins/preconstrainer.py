@@ -4,8 +4,8 @@ import logging
 import claripy
 
 from .plugin import SimStatePlugin
-from .. import sim_options as o
-from ..errors import AngrError
+from angr import sim_options as o
+from angr.errors import AngrError
 
 
 l = logging.getLogger(name=__name__)

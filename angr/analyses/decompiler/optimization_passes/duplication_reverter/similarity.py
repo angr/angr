@@ -7,7 +7,7 @@ import networkx as nx
 from ailment.block import Block
 
 from .utils import bfs_list_blocks
-from ...block_similarity import longest_ail_subseq, is_similar
+from angr.analyses.decompiler.block_similarity import longest_ail_subseq, is_similar
 
 _l = logging.getLogger(name=__name__)
 

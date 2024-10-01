@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import MemoryMixin
+from angr.storage.memory_mixins import MemoryMixin
 
 
 class RegionCategoryMixin(MemoryMixin):

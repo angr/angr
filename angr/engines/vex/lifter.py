@@ -8,11 +8,11 @@ import cle
 from archinfo import ArchARM
 import claripy
 
-from ..engine import SimEngineBase
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
-from ...misc.ux import once
-from ...errors import SimEngineError, SimTranslationError, SimError
-from ... import sim_options as o
+from angr.engines.engine import SimEngineBase
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from angr.misc.ux import once
+from angr.errors import SimEngineError, SimTranslationError, SimError
+from angr import sim_options as o
 
 l = logging.getLogger(__name__)
 

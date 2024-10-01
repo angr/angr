@@ -2,9 +2,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
-from ...errors import AngrRuntimeError
-from ..analysis import Analysis, AnalysesHub
+from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
+from angr.errors import AngrRuntimeError
+from angr.analyses.analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType

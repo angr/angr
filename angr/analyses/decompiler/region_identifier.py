@@ -11,9 +11,9 @@ from ailment.statement import ConditionalJump, Jump
 from ailment.expression import Const
 
 from angr.utils.graph import GraphUtils
-from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
-from ...errors import AngrRuntimeError
-from .. import Analysis, register_analysis
+from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
+from angr.errors import AngrRuntimeError
+from angr.analyses import Analysis, register_analysis
 from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor

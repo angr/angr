@@ -5,9 +5,9 @@ import claripy
 import pyvex
 
 from angr.analyses import visitors, ForwardAnalysis
-from ..knowledge_plugins.xrefs import XRef, XRefType
-from ..knowledge_plugins.functions.function import Function
-from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+from angr.knowledge_plugins.functions.function import Function
+from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
 from .propagator.values import Top
 from . import register_analysis, PropagatorAnalysis

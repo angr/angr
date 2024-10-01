@@ -1,12 +1,12 @@
 from __future__ import annotations
 import ailment
 
-from ..goto_manager import GotoManager
-from ....analyses import AnalysesHub
-from ...analysis import Analysis
-from ..empty_node_remover import EmptyNodeRemover
-from ..jump_target_collector import JumpTargetCollector
-from ..redundant_label_remover import RedundantLabelRemover
+from angr.analyses.decompiler.goto_manager import GotoManager
+from angr.analyses import AnalysesHub
+from angr.analyses.analysis import Analysis
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
+from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover

@@ -13,9 +13,9 @@ from angr.analyses import ForwardAnalysis, visitors
 from angr.knowledge_plugins.propagations.propagation_model import PropagationModel
 from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from angr.knowledge_plugins.propagations.states import PropagatorAILState, PropagatorVEXState, PropagatorState
-from ... import sim_options
-from .. import register_analysis
-from ..analysis import Analysis
+from angr import sim_options
+from angr.analyses import register_analysis
+from angr.analyses.analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 import contextlib

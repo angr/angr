@@ -27,14 +27,14 @@ from ailment.expression import (
 
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.utils.ail import is_phi_assignment, HasExprWalker
-from ...code_location import CodeLocation, ExternalCodeLocation
-from ...sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
-from ...knowledge_plugins.propagations.states import Equivalence
-from ...knowledge_plugins.key_definitions import atoms
-from ...knowledge_plugins.key_definitions.definition import Definition
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
-from ...errors import AngrRuntimeError
-from .. import Analysis, AnalysesHub
+from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
+from angr.knowledge_plugins.propagations.states import Equivalence
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.errors import AngrRuntimeError
+from angr.analyses import Analysis, AnalysesHub
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier

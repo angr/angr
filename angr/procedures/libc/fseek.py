@@ -3,7 +3,7 @@ import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 import angr
-from ...errors import SimSolverError
+from angr.errors import SimSolverError
 
 
 class fseek(angr.SimProcedure):

@@ -2,9 +2,9 @@ from __future__ import annotations
 import claripy
 import logging
 
-from ..java import JavaSimProcedure
-from ...engines.soot.expressions import SimSootExpr_NewArray
-from ...engines.soot.values import SimSootValue_ThisRef
+from angr.procedures.java import JavaSimProcedure
+from angr.engines.soot.expressions import SimSootExpr_NewArray
+from angr.engines.soot.values import SimSootValue_ThisRef
 from .collection import ELEMS, SIZE
 
 log = logging.getLogger(name=__name__)

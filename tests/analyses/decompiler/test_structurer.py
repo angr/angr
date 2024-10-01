@@ -14,7 +14,7 @@ import angr.analyses.decompiler
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.structuring import DreamStructurer
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

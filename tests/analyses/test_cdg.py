@@ -12,7 +12,7 @@ import angr
 from angr.analyses.cdg import TemporaryNode
 from angr.utils.graph import compute_dominance_frontier
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

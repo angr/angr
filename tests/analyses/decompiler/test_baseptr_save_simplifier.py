@@ -12,7 +12,7 @@ from angr.analyses.decompiler.optimization_passes.base_ptr_save_simplifier impor
     BasePointerSaveSimplifier,
 )
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

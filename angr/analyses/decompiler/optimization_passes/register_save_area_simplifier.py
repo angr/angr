@@ -5,8 +5,8 @@ import logging
 import archinfo
 import ailment
 
-from ....calling_conventions import SimRegArg
-from ....code_location import CodeLocation
+from angr.calling_conventions import SimRegArg
+from angr.code_location import CodeLocation
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

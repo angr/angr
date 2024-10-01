@@ -3,7 +3,7 @@ from typing import NamedTuple, Any
 from collections.abc import Callable
 import multiprocessing
 import platform
-from ..errors import AngrRuntimeError
+from angr.errors import AngrRuntimeError
 
 
 class Closure(NamedTuple):

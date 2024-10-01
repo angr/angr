@@ -10,14 +10,14 @@ import ailment
 import pyvex
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
-from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
-from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import default_cc, SimRegArg, SimTypeBottom
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from ...code_location import CodeLocation, ExternalCodeLocation
+from angr.engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
+from angr.errors import SimEngineError, SimMemoryMissingError
+from angr.calling_conventions import default_cc, SimRegArg, SimTypeBottom
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from .subject import SubjectType
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler, FunctionCallData

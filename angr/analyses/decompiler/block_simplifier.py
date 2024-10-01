@@ -10,9 +10,9 @@ from ailment import AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation, CodeLocation
 
-from ...analyses.s_propagator import SPropagatorAnalysis
-from ...analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
-from .. import Analysis, register_analysis
+from angr.analyses.s_propagator import SPropagatorAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
+from angr.analyses import Analysis, register_analysis
 from .peephole_optimizations import (
     MULTI_STMT_OPTS,
     STMT_OPTS,

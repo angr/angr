@@ -9,7 +9,7 @@ import unittest
 import claripy
 
 import angr
-from ...common import broken
+from tests.common import broken
 
 
 class TestSymbolic(unittest.TestCase):

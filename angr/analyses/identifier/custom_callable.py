@@ -1,8 +1,8 @@
 from __future__ import annotations
 import logging
 
-from ...errors import AngrCallableError, AngrCallableMultistateError
-from ...calling_conventions import default_cc
+from angr.errors import AngrCallableError, AngrCallableMultistateError
+from angr.calling_conventions import default_cc
 
 
 l = logging.getLogger(name=__name__)

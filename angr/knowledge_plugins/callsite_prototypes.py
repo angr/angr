@@ -1,7 +1,7 @@
 from __future__ import annotations
 from .plugin import KnowledgeBasePlugin
-from ..sim_type import SimTypeFunction
-from ..calling_conventions import SimCC
+from angr.sim_type import SimTypeFunction
+from angr.calling_conventions import SimCC
 
 
 class CallsitePrototypes(KnowledgeBasePlugin):

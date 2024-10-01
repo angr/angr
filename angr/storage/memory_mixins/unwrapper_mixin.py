@@ -24,4 +24,4 @@ class UnwrapperMixin(MemoryMixin):
         return super().copy_contents(_raw_ast(dst), _raw_ast(src), _raw_ast(size), _raw_ast(condition), **kwargs)
 
 
-from ...state_plugins.sim_action_object import _raw_ast
+from angr.state_plugins.sim_action_object import _raw_ast

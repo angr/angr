@@ -6,10 +6,10 @@ from collections.abc import Callable
 import networkx
 
 from .visitors.graph import NodeType
-from ...sim_state import SimState
-from ...errors import AngrForwardAnalysisError
-from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
-from ...utils.algo import binary_insert
+from angr.sim_state import SimState
+from angr.errors import AngrForwardAnalysisError
+from angr.errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
+from angr.utils.algo import binary_insert
 from .job_info import JobInfo, JobType, JobKey
 
 if TYPE_CHECKING:

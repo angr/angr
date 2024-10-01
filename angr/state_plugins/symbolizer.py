@@ -4,7 +4,7 @@ import claripy
 import struct
 
 from .plugin import SimStatePlugin
-from ..storage.memory_mixins import PagedMemoryMixin
+from angr.storage.memory_mixins import PagedMemoryMixin
 
 
 l = logging.getLogger(name=__name__)
@@ -285,6 +285,6 @@ class SimSymbolizer(SimStatePlugin):  # pylint:disable=abstract-method
         return sc
 
 
-from ..sim_state import SimState
+from angr.sim_state import SimState
 
 SimState.register_default("symbolizer", SimSymbolizer)

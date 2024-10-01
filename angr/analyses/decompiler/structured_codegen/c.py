@@ -10,8 +10,8 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
-from ....procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
-from ....sim_type import (
+from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
+from angr.sim_type import (
     SimTypeLongLong,
     SimTypeInt,
     SimTypeShort,
@@ -34,17 +34,17 @@ from ....sim_type import (
     SimTypeInt128,
     SimTypeInt256,
 )
-from ....knowledge_plugins.functions import Function
-from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
-from ....utils.constants import is_alignment_mask
-from ....utils.library import get_cpp_function_name
-from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
-from ..utils import structured_node_is_simple_return
-from ....errors import UnsupportedNodeTypeError, AngrRuntimeError
-from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from ... import Analysis, register_analysis
-from ..region_identifier import MultiNode
-from ..structuring.structurer_nodes import (
+from angr.knowledge_plugins.functions import Function
+from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
+from angr.utils.constants import is_alignment_mask
+from angr.utils.library import get_cpp_function_name
+from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
+from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.analyses import Analysis, register_analysis
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     ConditionNode,

@@ -12,7 +12,7 @@ import time
 import angr
 from angr.utils.constants import DEFAULT_STATEMENT
 
-from ..common import bin_location, broken
+from tests.common import bin_location, broken
 
 
 log = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ...serializable import Serializable
-from ...protos import primitives_pb2
+from angr.serializable import Serializable
+from angr.protos import primitives_pb2
 from .xref_types import XRefType
 
 
@@ -83,7 +83,7 @@ class XRef(Serializable):
         # pylint:disable=no-member
 
         # delayed import
-        from ...engines.light import SpOffset  # pylint:disable=import-outside-toplevel
+        from angr.engines.light import SpOffset  # pylint:disable=import-outside-toplevel
 
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
@@ -119,7 +119,7 @@ class XRef(Serializable):
         # Note that we cannot recover _memory_data from cmsg
 
         # delayed import
-        from ...engines.light import SpOffset  # pylint:disable=import-outside-toplevel
+        from angr.engines.light import SpOffset  # pylint:disable=import-outside-toplevel
 
         if not isinstance(bits, int):
             raise TypeError("bits must be provided.")
@@ -150,4 +150,4 @@ class XRef(Serializable):
         )
 
 
-from ..cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort

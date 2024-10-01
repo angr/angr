@@ -15,7 +15,7 @@ from claripy import BVS
 import angr
 from angr.storage import SimFile
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

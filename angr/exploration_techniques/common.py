@@ -1,6 +1,6 @@
 from __future__ import annotations
-from .. import engines
-from ..errors import SimError, AngrError, AngrExplorationTechniqueError
+from angr import engines
+from angr.errors import SimError, AngrError, AngrExplorationTechniqueError
 
 
 def condition_to_lambda(condition, default=False):

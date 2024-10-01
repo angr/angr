@@ -2,8 +2,8 @@ from __future__ import annotations
 import logging
 
 from . import ExplorationTechnique
-from ..knowledge_base import KnowledgeBase
-from ..knowledge_plugins.functions import Function
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions import Function
 
 
 l = logging.getLogger(name=__name__)
@@ -233,4 +233,4 @@ class LoopSeer(ExplorationTechnique):
         return f
 
 
-from ..analyses.loopfinder import Loop
+from angr.analyses.loopfinder import Loop

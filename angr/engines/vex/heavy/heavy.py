@@ -4,12 +4,12 @@ import claripy
 import pyvex
 
 from angr.engines.engine import SuccessorsMixin
-from ..light import VEXMixin
-from ..lifter import VEXLifter
-from ..claripy.datalayer import ClaripyDataMixin, symbol
-from ....utils.constants import DEFAULT_STATEMENT
-from .... import sim_options as o
-from .... import errors
+from angr.engines.vex.light import VEXMixin
+from angr.engines.vex.lifter import VEXLifter
+from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr import sim_options as o
+from angr import errors
 from . import dirty
 
 l = logging.getLogger(__name__)

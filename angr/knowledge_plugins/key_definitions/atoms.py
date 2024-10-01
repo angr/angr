@@ -5,8 +5,8 @@ import claripy
 import ailment
 from archinfo import Arch, RegisterOffset
 
-from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
-from ...engines.light import SpOffset
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
+from angr.engines.light import SpOffset
 from .heap_address import HeapAddress
 
 

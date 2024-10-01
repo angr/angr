@@ -8,11 +8,11 @@ from copy import copy
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
-from ...utils.constants import DEFAULT_STATEMENT
-from ...errors import AngrCFGError, SimMemoryError, SimEngineError
-from ...codenode import HookNode, SootBlockNode
-from ...knowledge_plugins.cfg import CFGNode
-from .. import register_analysis
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.errors import AngrCFGError, SimMemoryError, SimEngineError
+from angr.codenode import HookNode, SootBlockNode
+from angr.knowledge_plugins.cfg import CFGNode
+from angr.analyses import register_analysis
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 
 l = logging.getLogger(name=__name__)

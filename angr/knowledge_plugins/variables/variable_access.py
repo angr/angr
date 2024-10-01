@@ -2,9 +2,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ...code_location import CodeLocation
-from ...serializable import Serializable
-from ...protos import variables_pb2
+from angr.code_location import CodeLocation
+from angr.serializable import Serializable
+from angr.protos import variables_pb2
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable

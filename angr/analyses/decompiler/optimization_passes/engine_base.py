@@ -4,8 +4,8 @@ import logging
 
 from ailment import Expr, Stmt
 
-from ....engines.light import SimEngineLightAILMixin
-from ....engines.light import SimEngineLight
+from angr.engines.light import SimEngineLightAILMixin
+from angr.engines.light import SimEngineLight
 
 _l = logging.getLogger(name=__name__)
 

@@ -11,7 +11,7 @@ from cle.backends.elf.elf import ELF
 from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
-    from ..knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 l = logging.getLogger(name=__name__)
 

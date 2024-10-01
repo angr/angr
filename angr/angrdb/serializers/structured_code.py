@@ -3,10 +3,10 @@ from typing import Any, TYPE_CHECKING
 import json
 import pickle
 
-from ...analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from ...analyses.decompiler.decompilation_cache import DecompilationCache
-from ...knowledge_plugins import StructuredCodeManager
-from ..models import DbStructuredCode
+from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+from angr.knowledge_plugins import StructuredCodeManager
+from angr.angrdb.models import DbStructuredCode
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

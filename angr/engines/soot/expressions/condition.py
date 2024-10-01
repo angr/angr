@@ -4,7 +4,7 @@ import operator
 from archinfo.arch_soot import SootNullConstant
 import claripy
 
-from ..values import SimSootValue_StringRef, SimSootValue_ThisRef
+from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
 from .base import SimSootExpr
 
 

@@ -67,6 +67,6 @@ class ProcedureEngine(ProcedureMixin, SuccessorsMixin):
         self.process_procedure(self.state, successors, procedure, **kwargs)
 
 
-from .. import sim_options as o
-from .. import errors
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr import sim_options as o
+from angr import errors
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER

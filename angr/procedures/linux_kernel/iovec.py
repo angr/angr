@@ -1,8 +1,8 @@
 from __future__ import annotations
 import angr
-from ..posix.read import read
-from ..posix.write import write
-from ...sim_type import register_types, parse_types
+from angr.procedures.posix.read import read
+from angr.procedures.posix.write import write
+from angr.sim_type import register_types, parse_types
 
 register_types(
     parse_types(

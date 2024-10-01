@@ -6,13 +6,13 @@ import logging
 import ailment
 import claripy
 
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...engines.light import SimEngineLight, ArithmeticExpression
-from ...errors import SimEngineError, SimMemoryMissingError
-from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
-from ...code_location import CodeLocation
-from ..typehoon import typevars, typeconsts
-from ..typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.engines.light import SimEngineLight, ArithmeticExpression
+from angr.errors import SimEngineError, SimMemoryMissingError
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.code_location import CodeLocation
+from angr.analyses.typehoon import typevars, typeconsts
+from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase

@@ -1,7 +1,7 @@
 # pylint:disable=unused-import
 from __future__ import annotations
-from ..models import DbComment
-from ...knowledge_plugins.comments import Comments
+from angr.angrdb.models import DbComment
+from angr.knowledge_plugins.comments import Comments
 
 
 class CommentsSerializer:

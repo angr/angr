@@ -6,13 +6,13 @@ import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from ...errors import SimMemoryMissingError
-from ...calling_conventions import SimRegArg, SimStackArg, default_cc
-from ...engines.vex.claripy.datalayer import value as claripy_value
-from ...engines.light import SimEngineLightVEXMixin
-from ...knowledge_plugins import Function
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ..typehoon import typevars, typeconsts
+from angr.errors import SimMemoryMissingError
+from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.engines.light import SimEngineLightVEXMixin
+from angr.knowledge_plugins import Function
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.analyses.typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
 from .irsb_scanner import VEXIRSBScanner
 

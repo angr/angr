@@ -4,9 +4,9 @@ import logging
 import claripy
 from cle import BackedCGC
 
-from ..procedures import SIM_LIBRARIES as L
-from ..state_plugins import SimActionData
-from .. import sim_options as o
+from angr.procedures import SIM_LIBRARIES as L
+from angr.state_plugins import SimActionData
+from angr import sim_options as o
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)

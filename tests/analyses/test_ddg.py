@@ -13,7 +13,7 @@ import angr
 from angr.code_location import CodeLocation
 from angr.sim_variable import SimRegisterVariable
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 l = logging.getLogger("angr.tests.test_ddg")

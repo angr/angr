@@ -9,11 +9,11 @@ from collections import defaultdict
 import pyvex
 
 from angr.analyses import ForwardAnalysis, visitors
-from ..utils.constants import is_alignment_mask
-from ..analyses import AnalysesHub
-from ..knowledge_plugins import Function
-from ..block import BlockNode
-from ..errors import SimTranslationError
+from angr.utils.constants import is_alignment_mask
+from angr.analyses import AnalysesHub
+from angr.knowledge_plugins import Function
+from angr.block import BlockNode
+from angr.errors import SimTranslationError
 from .analysis import Analysis
 import contextlib
 

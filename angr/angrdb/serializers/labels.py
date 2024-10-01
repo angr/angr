@@ -1,7 +1,7 @@
 # pylint:disable=unused-import
 from __future__ import annotations
-from ..models import DbLabel
-from ...knowledge_plugins.labels import Labels
+from angr.angrdb.models import DbLabel
+from angr.knowledge_plugins.labels import Labels
 
 
 class LabelsSerializer:

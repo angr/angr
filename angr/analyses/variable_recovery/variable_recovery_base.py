@@ -10,13 +10,13 @@ from claripy.annotation import Annotation
 from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
-from ...utils.cowdict import DefaultChainMapCOW
-from ...engines.light import SpOffset
-from ...sim_variable import SimVariable
-from ...errors import AngrRuntimeError
-from ...storage.memory_mixins import MultiValuedMemory
-from ..analysis import Analysis
-from ..typehoon.typevars import TypeVariables, TypeVariable
+from angr.utils.cowdict import DefaultChainMapCOW
+from angr.engines.light import SpOffset
+from angr.sim_variable import SimVariable
+from angr.errors import AngrRuntimeError
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.analyses.analysis import Analysis
+from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject

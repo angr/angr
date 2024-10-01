@@ -15,7 +15,7 @@ class NameResolutionMixin(MemoryMixin):
 
     def _resolve_location_name(self, name, is_write=False):
         # Delayed load so SimMemory does not rely on SimEngines
-        from ...engines.vex.claripy.ccall import _get_flags
+        from angr.engines.vex.claripy.ccall import _get_flags
 
         if self.category == "reg":
             if self.state.arch.name in ("X86", "AMD64"):
@@ -64,4 +64,4 @@ class NameResolutionMixin(MemoryMixin):
         return super().load(addr, size=size, **kwargs)
 
 
-from ...errors import SimMemoryError
+from angr.errors import SimMemoryError

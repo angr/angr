@@ -12,10 +12,10 @@ from cle.backends.elf.variable import Variable
 
 from angr.utils.orderedset import OrderedSet
 from angr.utils.ail import is_phi_assignment
-from ...protos import variables_pb2
-from ...serializable import Serializable
-from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
-from ...sim_type import (
+from angr.protos import variables_pb2
+from angr.serializable import Serializable
+from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
+from angr.sim_type import (
     TypeRef,
     SimType,
     SimStruct,
@@ -26,9 +26,9 @@ from ...sim_type import (
     SimTypeInt,
     SimTypeLong,
 )
-from ...keyed_region import KeyedRegion
-from ..plugin import KnowledgeBasePlugin
-from ..types import TypesStore
+from angr.keyed_region import KeyedRegion
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.knowledge_plugins.types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:

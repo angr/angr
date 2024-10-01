@@ -8,11 +8,18 @@ import ailment
 from ailment import UnaryOp
 from ailment.expression import negate
 
-from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode, BaseNode, BreakNode
-from ..sequence_walker import SequenceWalker
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
-from ..utils import is_statement_terminating
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    SwitchCaseNode,
+    ConditionNode,
+    SequenceNode,
+    MultiNode,
+    BaseNode,
+    BreakNode,
+)
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.utils import is_statement_terminating
 
 
 class CmpOp(enum.Enum):

@@ -5,7 +5,7 @@ from typing import cast
 import logging
 
 import angr
-from ..misc.ux import once
+from angr.misc.ux import once
 
 l = logging.getLogger(name=__name__)
 

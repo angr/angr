@@ -1,7 +1,7 @@
 from __future__ import annotations
 import string
 
-from ...errors import SimValueError
+from angr.errors import SimValueError
 from . import MemoryMixin
 import contextlib
 

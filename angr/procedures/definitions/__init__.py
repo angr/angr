@@ -11,14 +11,14 @@ import itanium_demangler
 
 import archinfo
 
-from ...errors import AngrMissingTypeError
-from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeBottom
-from ...calling_conventions import DEFAULT_CC
-from ...misc import autoimport
-from ...misc.ux import once
-from ...sim_type import parse_file
-from ..stubs.ReturnUnconstrained import ReturnUnconstrained
-from ..stubs.syscall_stub import syscall as stub_syscall
+from angr.errors import AngrMissingTypeError
+from angr.sim_type import parse_cpp_file, SimTypeFunction, SimTypeBottom
+from angr.calling_conventions import DEFAULT_CC
+from angr.misc import autoimport
+from angr.misc.ux import once
+from angr.sim_type import parse_file
+from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
+from angr.procedures.stubs.syscall_stub import syscall as stub_syscall
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCCSyscall

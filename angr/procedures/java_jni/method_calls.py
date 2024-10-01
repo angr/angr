@@ -4,8 +4,8 @@ import logging
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootArgument, SootMethodDescriptor
 
 from . import JNISimProcedure
-from ...calling_conventions import SimCCSoot
-from ...engines.soot.method_dispatcher import resolve_method
+from angr.calling_conventions import SimCCSoot
+from angr.engines.soot.method_dispatcher import resolve_method
 
 l = logging.getLogger("angr.procedures.java_jni.callmethod")
 

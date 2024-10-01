@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 
-from ...errors import SimValueError, SimSolverModeError
-from ...state_plugins.callstack import CallStack
+from angr.errors import SimValueError, SimSolverModeError
+from angr.state_plugins.callstack import CallStack
 
 if TYPE_CHECKING:
-    from ...sim_state import SimState
+    from angr.sim_state import SimState
 l = logging.getLogger(name=__name__)
 
 # TODO: Make callsite an object and use it in BlockID and FunctionKey

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from . import Analysis
-from .. import SIM_PROCEDURES
+from angr import SIM_PROCEDURES
 
 import logging
 

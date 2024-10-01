@@ -12,8 +12,8 @@ import networkx
 
 from archinfo.arch_soot import SootMethodDescriptor
 
-from ...errors import SimEngineError
-from ..plugin import KnowledgeBasePlugin
+from angr.errors import SimEngineError
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .function import Function
 from .soot_function import SootFunction
 

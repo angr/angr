@@ -10,7 +10,7 @@ import unittest
 import angr
 from angr.analyses.propagator.vex_vars import VEXReg
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

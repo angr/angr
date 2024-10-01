@@ -6,7 +6,7 @@ import logging
 import inspect
 
 from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
-from ..counters import AILBlockCallCounter
+from angr.analyses.decompiler.counters import AILBlockCallCounter
 
 l = logging.getLogger(__name__)
 
