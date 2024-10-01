@@ -116,7 +116,7 @@ class RustCallingConventionAnalysis(Analysis):
         sizes = {ty.size for ty in struct_types}
         if len(sizes) == 1:
             return next(iter(struct_types))
-        # Return an enum type
+        # TODO: Return an enum type
         return next(iter(struct_types))
 
     def _infer_arg_type(self, arg_idx):

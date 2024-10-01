@@ -1,11 +1,17 @@
+import logging
 from typing import Optional, List
 
 import archinfo
 from ailment import Block, Const
 from ailment.expression import Convert
-from ailment.statement import Call, Statement, Jump, ConditionalJump, Return
+from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
+from networkx import NetworkXError
+
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from ...rust.utils.library import normalize
+
+
+l = logging.getLogger(name=__name__)
 
 
 class TransformationPass(OptimizationPass):
@@ -26,6 +32,8 @@ class TransformationPass(OptimizationPass):
             stmt = stmt.ret_exprs[0]
             if isinstance(stmt, Convert):
                 stmt = stmt.operand
+        elif isinstance(stmt, Assignment):
+            stmt = stmt.src
         if isinstance(stmt, Call) and isinstance(stmt.target, str):
             name = normalize(stmt.target, remove_polymorphism=True)
             return name in func_list
@@ -51,16 +59,13 @@ class TransformationPass(OptimizationPass):
             return
         terminal = block.statements[-1]
         if isinstance(terminal, Jump):
-            if isinstance(terminal.target, Const):
-                terminal.target.value = new_target.addr
-                terminal.target_idx = new_target.idx
-            elif old_target is None:
+            if old_target is None or (isinstance(terminal.target, Const) and terminal.target.value == old_target.addr):
                 target = Const(0, None, new_target.addr, terminal.target.bits)
                 block.statements[-1] = Jump(
                     terminal.idx,
                     target,
                     new_target.idx,
-                    ins_addr=terminal.ins_addr,
+                    **terminal.tags,
                 )
             else:
                 return
@@ -109,7 +114,21 @@ class TransformationPass(OptimizationPass):
         elif isinstance(terminal, Call):
             pass
         else:
+            l.debug(f"Unexpected terminal: {terminal}")
             return
+        # Remove old edges
+        if old_target:
+            try:
+                self._graph.remove_edge(block, old_target)
+            except NetworkXError:
+                pass
+        else:
+            for succ in self._graph.successors(block):
+                try:
+                    self._graph.remove_edge(block, succ)
+                except NetworkXError:
+                    pass
+        # Add new edge
         self._graph.add_edge(block, new_target)
 
     def num_successors(self, block):
