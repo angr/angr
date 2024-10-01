@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections.abc import Iterable
 
-from . import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class LabelMergerMixin(MemoryMixin):

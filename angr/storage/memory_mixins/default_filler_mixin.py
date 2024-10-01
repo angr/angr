@@ -3,7 +3,7 @@ import logging
 
 import claripy
 
-from . import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr import sim_options as options
 from angr.misc.ux import once
 from angr.errors import SimMemoryMissingError

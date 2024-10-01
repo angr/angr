@@ -1,7 +1,7 @@
 from __future__ import annotations
 import typing
 
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from .cooperation import CooperationBase, MemoryObjectMixin
 from .ispo_mixin import ISPOMixin
 from .refcount_mixin import RefcountMixin

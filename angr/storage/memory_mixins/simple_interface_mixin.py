@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import claripy
 
-from . import MemoryMixin
 from angr.errors import SimMemoryError
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class SimpleInterfaceMixin(MemoryMixin):

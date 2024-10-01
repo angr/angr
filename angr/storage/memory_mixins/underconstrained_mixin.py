@@ -1,9 +1,11 @@
 from __future__ import annotations
-import claripy
+
 import logging
 
-from . import MemoryMixin
+import claripy
+
 from angr import sim_options as o
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)
 
