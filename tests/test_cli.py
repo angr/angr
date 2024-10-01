@@ -12,15 +12,11 @@ import unittest
 import angr
 from angr.__main__ import main
 from angr.analyses.decompiler.utils import decompile_functions
-from angr.misc.testing import is_testing
 
 from .common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")
-WORKER = is_testing or bool(
-    os.environ.get("WORKER", False)
-)  # this variable controls whether we print the decompilation code or not
 
 
 def run_cli(*args):
