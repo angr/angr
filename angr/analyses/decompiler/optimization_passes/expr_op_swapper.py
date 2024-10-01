@@ -7,8 +7,8 @@ from ailment.block import Block as AILBlock
 from ailment.statement import Statement
 from ailment.expression import Expression, BinaryOp
 
-from ..sequence_walker import SequenceWalker
-from ..ail_simplifier import AILBlockWalker
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

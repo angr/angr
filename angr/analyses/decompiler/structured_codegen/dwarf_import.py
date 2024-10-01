@@ -4,9 +4,9 @@ import re
 import logging
 from sortedcontainers import SortedList
 
-from ... import Analysis, register_analysis
+from angr.analyses import Analysis, register_analysis
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
-from ....knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.functions.function import Function
 
 
 l = logging.getLogger(__name__)

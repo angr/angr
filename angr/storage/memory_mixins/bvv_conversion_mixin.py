@@ -70,4 +70,4 @@ class DataNormalizationMixin(MemoryMixin):
             return raw_to_bv()
 
 
-from ...errors import SimMemoryError
+from angr.errors import SimMemoryError

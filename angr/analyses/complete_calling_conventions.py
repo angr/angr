@@ -14,8 +14,8 @@ import claripy
 
 from angr.utils.graph import GraphUtils
 from angr.simos import SimWindows
-from ..utils.mp import mp_context, Initializer
-from ..knowledge_plugins.cfg import CFGModel
+from angr.utils.mp import mp_context, Initializer
+from angr.knowledge_plugins.cfg import CFGModel
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 if TYPE_CHECKING:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 
-from ..stubs.format_parser import FormatParser
+from angr.procedures.stubs.format_parser import FormatParser
 
 l = logging.getLogger(name=__name__)
 

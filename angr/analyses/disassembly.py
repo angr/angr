@@ -10,16 +10,16 @@ from angr.knowledge_plugins import Function
 
 from . import Analysis
 
-from ..errors import AngrTypeError
-from ..utils.library import get_cpp_function_name
-from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
-from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
-from ..codenode import BlockNode
+from angr.errors import AngrTypeError
+from angr.utils.library import get_cpp_function_name
+from angr.utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
+from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
+from angr.codenode import BlockNode
 from .disassembly_utils import decode_instruction
 import contextlib
 
 try:
-    from ..engines import pcode
+    from angr.engines import pcode
     import pypcode
 
     IRSBType = Union[pyvex.IRSB, pcode.lifter.IRSB]

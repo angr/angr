@@ -20,13 +20,13 @@ from cachetools import LRUCache
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 
 from .behavior import BehaviorFactory
-from ..engine import SimEngineBase
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ...sim_state import SimState
-from ...misc.ux import once
-from ...errors import SimEngineError, SimTranslationError, SimError
-from ... import sim_options as o
-from ...block import DisassemblerBlock, DisassemblerInsn
+from angr.engines.engine import SimEngineBase
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.sim_state import SimState
+from angr.misc.ux import once
+from angr.errors import SimEngineError, SimTranslationError, SimError
+from angr import sim_options as o
+from angr.block import DisassemblerBlock, DisassemblerInsn
 
 
 try:

@@ -3,8 +3,8 @@ import logging
 
 from . import Analysis
 
-from .. import SIM_LIBRARIES
-from ..errors import AngrValueError
+from angr import SIM_LIBRARIES
+from angr.errors import AngrValueError
 
 l = logging.getLogger(name=__name__)
 

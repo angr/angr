@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ...knowledge_plugins import FunctionManager, Function
-from ..models import DbFunction
+from angr.knowledge_plugins import FunctionManager, Function
+from angr.angrdb.models import DbFunction
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

@@ -10,7 +10,7 @@ import unittest
 import angr
 from angr.analyses.code_tagging import CodeTags
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

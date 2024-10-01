@@ -8,7 +8,7 @@ import unittest
 
 from angr.project import Project
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 # pylint: disable=missing-class-docstring

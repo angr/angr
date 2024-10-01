@@ -29,6 +29,7 @@ extend-select = [
 	"RSE",
 	"RUF",
 	"SIM",
+	"TID252",
 	"UP",
 ]
 extend-ignore = [

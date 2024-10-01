@@ -7,8 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError
 
-from ..errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
-from ..project import Project
+from angr.errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
+from angr.project import Project
 from .models import Base, DbInformation
 from .serializers import LoaderSerializer, KnowledgeBaseSerializer
 

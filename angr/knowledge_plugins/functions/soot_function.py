@@ -126,5 +126,5 @@ class SootFunction(Function):
                 self._addr_to_block_node[node.addr] = node
 
 
-from ...codenode import BlockNode
-from ...errors import AngrValueError
+from angr.codenode import BlockNode
+from angr.errors import AngrValueError

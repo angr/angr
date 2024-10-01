@@ -5,7 +5,7 @@ __package__ = __package__ or "tests.sim.exec_insn"  # pylint:disable=redefined-b
 
 import unittest
 
-from ...common import run_simple_unicorn_congruency_check
+from tests.common import run_simple_unicorn_congruency_check
 
 
 # pylint: disable=missing-class-docstring

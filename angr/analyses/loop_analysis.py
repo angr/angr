@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 from angr.analyses import ForwardAnalysis, visitors
-from ..block import SootBlockNode
-from ..errors import AngrLoopAnalysisError
+from angr.block import SootBlockNode
+from angr.errors import AngrLoopAnalysisError
 from . import register_analysis
 from .analysis import Analysis
 

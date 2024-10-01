@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from archinfo import Arch
 
-from ..optimization_passes.optimization_pass import OptimizationPass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 
 
 class DecompilationPreset:

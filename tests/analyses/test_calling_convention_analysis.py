@@ -18,7 +18,7 @@ from angr.calling_conventions import (
 )
 from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom
 
-from ..common import bin_location, requires_binaries_private
+from tests.common import bin_location, requires_binaries_private
 
 
 test_location = os.path.join(bin_location, "tests")

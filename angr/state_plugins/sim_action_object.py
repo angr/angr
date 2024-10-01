@@ -9,7 +9,7 @@ import claripy
 from angr import sim_options as o
 from angr.errors import SimActionError
 from .sim_action import SimActionData, SimActionOperation
-from ..sim_state import SimState
+from angr.sim_state import SimState
 
 if typing.TYPE_CHECKING:
     from claripy.annotation import Annotation

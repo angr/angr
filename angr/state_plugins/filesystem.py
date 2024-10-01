@@ -4,9 +4,9 @@ import logging
 from collections import namedtuple
 
 from .plugin import SimStatePlugin
-from ..storage.file import SimFile
-from ..errors import SimMergeError
-from ..misc.ux import once
+from angr.storage.file import SimFile
+from angr.errors import SimMergeError
+from angr.misc.ux import once
 
 l = logging.getLogger(name=__name__)
 

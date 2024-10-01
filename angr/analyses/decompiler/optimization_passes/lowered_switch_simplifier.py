@@ -10,10 +10,14 @@ from ailment.statement import ConditionalJump, Label, Assignment, Jump
 from ailment.expression import Expression, BinaryOp, Const, Load
 
 from angr.utils.graph import GraphUtils
-from ..utils import first_nonlabel_nonphi_statement, remove_last_statement
-from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
+from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    IncompleteSwitchCaseHeadStatement,
+    SequenceNode,
+    MultiNode,
+)
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
-from ..region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
+from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
 
 if TYPE_CHECKING:
     from ailment.expression import UnaryOp, Convert

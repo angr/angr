@@ -2,7 +2,7 @@ from __future__ import annotations
 import claripy
 import logging
 
-from ..java import JavaSimProcedure
+from angr.procedures.java import JavaSimProcedure
 
 log = logging.getLogger(name=__name__)
 

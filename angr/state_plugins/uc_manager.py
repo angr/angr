@@ -4,7 +4,7 @@ import logging
 import claripy
 
 from .plugin import SimStatePlugin
-from ..errors import SimUCManagerAllocationError
+from angr.errors import SimUCManagerAllocationError
 
 l = logging.getLogger(name=__name__)
 

@@ -9,8 +9,8 @@ import claripy
 from claripy.ast.bv import BV
 
 from .plugin import SimStatePlugin
-from .. import sim_options
-from ..state_plugins.sim_action import SimActionObject
+from angr import sim_options
+from angr.state_plugins.sim_action import SimActionObject
 
 l = logging.getLogger(name=__name__)
 

@@ -5,9 +5,9 @@ from collections.abc import Callable
 
 from ailment import Block, Stmt, Expr, AILBlockWalker
 
-from ...code_location import CodeLocation
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions import atoms
+from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions import atoms
 
 if TYPE_CHECKING:
     from archinfo import Arch

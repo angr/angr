@@ -10,8 +10,8 @@ from ailment.expression import ITE
 from ailment.statement import Statement, Assignment, Call
 
 from angr.utils.ail import is_phi_assignment
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     ConditionNode,
     ConditionalBreakNode,
     LoopNode,

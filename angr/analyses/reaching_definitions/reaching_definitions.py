@@ -8,17 +8,17 @@ import ailment
 import pyvex
 
 from angr.analyses import ForwardAnalysis
-from ...block import Block
-from ...knowledge_plugins.cfg.cfg_node import CFGNode
-from ...codenode import CodeNode
-from ...engines.light import SimEngineLight
-from ...knowledge_plugins.functions import Function
-from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType, ObservationPoint
-from ...code_location import CodeLocation, ExternalCodeLocation
-from ...misc.ux import deprecated
-from ..forward_analysis.visitors.graph import NodeType
-from ..analysis import Analysis
+from angr.block import Block
+from angr.knowledge_plugins.cfg.cfg_node import CFGNode
+from angr.codenode import CodeNode
+from angr.engines.light import SimEngineLight
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType, ObservationPoint
+from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.misc.ux import deprecated
+from angr.analyses.forward_analysis.visitors.graph import NodeType
+from angr.analyses.analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState

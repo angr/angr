@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ...serializable import Serializable
+from angr.serializable import Serializable
 
 
 class IndirectJumpType:

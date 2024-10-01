@@ -4,8 +4,8 @@ from collections import OrderedDict
 
 import ailment
 
-from ..structuring.structurer_nodes import SwitchCaseNode
-from ..sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 
 class SwitchExpressionSimplifier(SequenceWalker):
@@ -29,7 +29,7 @@ class SwitchExpressionSimplifier(SequenceWalker):
         convert = None
 
         # pylint: disable=import-outside-toplevel
-        from ..peephole_optimizations.remove_noop_conversions import RemoveNoopConversions
+        from angr.analyses.decompiler.peephole_optimizations.remove_noop_conversions import RemoveNoopConversions
 
         while isinstance(switch_expr, ailment.Expr.Convert):
             optimized = RemoveNoopConversions(None, None).optimize(switch_expr)

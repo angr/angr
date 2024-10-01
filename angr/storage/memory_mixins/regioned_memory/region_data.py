@@ -3,8 +3,8 @@ from sortedcontainers import SortedDict
 
 import claripy
 
-from ....errors import SimRegionMapError
-from ....state_plugins import SimStatePlugin
+from angr.errors import SimRegionMapError
+from angr.state_plugins import SimStatePlugin
 
 
 class AddressWrapper:

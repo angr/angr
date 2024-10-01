@@ -13,7 +13,7 @@ import claripy
 
 import angr
 from angr import SimState, SIM_LIBRARIES
-from ...common import broken, slow_test
+from tests.common import broken, slow_test
 
 log = logging.getLogger("angr.tests.string")
 

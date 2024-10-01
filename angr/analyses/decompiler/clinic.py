@@ -13,13 +13,13 @@ import capstone
 import ailment
 
 from angr.errors import AngrDecompilationError
-from ...knowledge_base import KnowledgeBase
-from ...knowledge_plugins.functions import Function
-from ...knowledge_plugins.cfg.memory_data import MemoryDataSort
-from ...codenode import BlockNode
-from ...utils import timethis
-from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
-from ...sim_type import (
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.codenode import BlockNode
+from angr.utils import timethis
+from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
+from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeLongLong,
@@ -29,13 +29,13 @@ from ...sim_type import (
     SimTypeFloat,
     SimTypePointer,
 )
-from ..stack_pointer_tracker import Register, OffsetVal
-from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
-from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
-from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from .. import Analysis, register_analysis
-from ..cfg.cfg_base import CFGBase
-from ..reaching_definitions import ReachingDefinitionsAnalysis
+from angr.analyses.stack_pointer_tracker import Register, OffsetVal
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.analyses import Analysis, register_analysis
+from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from .return_maker import ReturnMaker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import (

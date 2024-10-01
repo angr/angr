@@ -8,7 +8,7 @@ import unittest
 
 from angr.utils.bits import truncate_bits
 
-from ...common import run_simple_unicorn_congruency_check
+from tests.common import run_simple_unicorn_congruency_check
 
 
 # pylint: disable=missing-class-docstring

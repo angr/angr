@@ -2,8 +2,8 @@
 from __future__ import annotations
 from itertools import count
 
-from ... import sim_type
-from ...sim_type import SimType
+from angr import sim_type
+from angr.sim_type import SimType
 from . import typeconsts
 from .typeconsts import TypeConstant
 

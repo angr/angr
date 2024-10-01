@@ -7,23 +7,23 @@ import logging
 import pyvex
 import claripy
 
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
-from ...engines.vex.claripy.datalayer import value as claripy_value
-from ...engines.vex.claripy.irop import operations as vex_operations
-from ...errors import SimEngineError, SimMemoryMissingError
-from ...utils.constants import DEFAULT_STATEMENT
-from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, Tag
-from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...code_location import CodeLocation, ExternalCodeLocation
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.engines.vex.claripy.irop import operations as vex_operations
+from angr.errors import SimEngineError, SimMemoryMissingError
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from angr.knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, Tag
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionCallData
 
 if TYPE_CHECKING:
-    from ...knowledge_plugins import FunctionManager
+    from angr.knowledge_plugins import FunctionManager
     from .function_handler import FunctionHandler
 
 

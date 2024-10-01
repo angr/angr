@@ -4,7 +4,7 @@ import importlib
 import logging
 import os
 
-from ..func import Func
+from angr.analyses.identifier.func import Func
 
 l = logging.getLogger(name=__name__)
 

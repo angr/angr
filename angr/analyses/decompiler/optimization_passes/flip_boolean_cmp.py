@@ -5,9 +5,9 @@ from typing import Any
 import ailment
 from ailment.expression import Op
 
-from ..structuring.structurer_nodes import ConditionNode
-from ..utils import structured_node_is_simple_return, sequence_to_statements
-from ..sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
+from angr.analyses.decompiler.utils import structured_node_is_simple_return, sequence_to_statements
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 

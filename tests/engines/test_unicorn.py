@@ -16,7 +16,7 @@ import claripy
 
 import angr
 from angr import options as so
-from ..common import bin_location, broken, slow_test
+from tests.common import bin_location, broken, slow_test
 
 test_location = os.path.join(bin_location, "tests")
 

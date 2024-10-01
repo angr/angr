@@ -24,7 +24,7 @@ class MultiNode:
 
     def __init__(self, nodes, addr=None, idx=None):
         # delayed import
-        from ..graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
 
         self.nodes = []
 

@@ -1,13 +1,9 @@
 from __future__ import annotations
 import logging
 
-from ...sim_type import SimTypeFunction, \
-    SimTypeInt, \
-    SimTypePointer, \
-    SimTypeChar, \
-    SimTypeBottom
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimTypeBottom
 
-from .. import SIM_PROCEDURES as P
+from angr.procedures import SIM_PROCEDURES as P
 from . import SimLibrary
 
 

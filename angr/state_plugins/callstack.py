@@ -5,7 +5,7 @@ import logging
 from collections.abc import Iterator
 
 from .plugin import SimStatePlugin
-from ..errors import AngrError, SimEmptyCallStackError
+from angr.errors import AngrError, SimEmptyCallStackError
 
 l = logging.getLogger(name=__name__)
 

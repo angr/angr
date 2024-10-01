@@ -1,7 +1,7 @@
 # pylint:disable=unused-import
 from __future__ import annotations
-from ..models import DbCFGModel
-from ...knowledge_plugins.cfg.cfg_model import CFGModel
+from angr.angrdb.models import DbCFGModel
+from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 
 
 class CFGModelSerializer:

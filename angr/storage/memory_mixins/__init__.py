@@ -5,8 +5,8 @@ from collections.abc import Iterable
 
 import claripy
 
-from ...state_plugins.plugin import SimStatePlugin
-from ...errors import SimMemoryError
+from angr.state_plugins.plugin import SimStatePlugin
+from angr.errors import SimMemoryError
 
 
 class MemoryMixin(SimStatePlugin):

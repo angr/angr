@@ -6,9 +6,9 @@ import networkx
 import pyvex
 from . import Analysis
 
-from ..code_location import CodeLocation
-from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
-from ..sim_variable import (
+from angr.code_location import CodeLocation
+from angr.errors import SimSolverModeError, SimUnsatError, AngrDDGError
+from angr.sim_variable import (
     SimRegisterVariable,
     SimMemoryVariable,
     SimTemporaryVariable,

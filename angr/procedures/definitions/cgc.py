@@ -1,6 +1,6 @@
 from __future__ import annotations
 from . import SimSyscallLibrary
-from .. import SIM_PROCEDURES as P
+from angr.procedures import SIM_PROCEDURES as P
 
 lib = SimSyscallLibrary()
 lib.set_library_names('cgcabi')

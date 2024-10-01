@@ -6,10 +6,10 @@ import networkx
 
 import claripy
 
-from ..sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
-from ..calling_conventions import default_cc
-from ..knowledge_base import KnowledgeBase
-from ..errors import AngrDirectorError
+from angr.sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
+from angr.calling_conventions import default_cc
+from angr.knowledge_base import KnowledgeBase
+from angr.errors import AngrDirectorError
 from . import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)

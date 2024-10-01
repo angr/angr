@@ -331,7 +331,7 @@ class StructMode:
             self.__getattr__(k).store(v)
 
 
-from ..sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
+from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
 
 SimMemView.types = ALL_TYPES  # identity purposefully here
 

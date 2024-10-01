@@ -3,8 +3,8 @@ import logging
 
 import pyvex
 
-from ...engine import SimEngineBase
-from ....utils.constants import DEFAULT_STATEMENT
+from angr.engines.engine import SimEngineBase
+from angr.utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
 

@@ -7,9 +7,9 @@ import logging
 from angr.calling_conventions import DEFAULT_CC, default_cc, SimRegArg
 from angr.engines.engine import SuccessorsMixin, SimSuccessors
 from angr.misc.ux import once
-from ...utils.constants import DEFAULT_STATEMENT
-from ... import sim_options as o
-from ... import errors
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr import sim_options as o
+from angr import errors
 from .lifter import PcodeLifterEngineMixin, IRSB
 from .emulate import PcodeEmulatorMixin
 

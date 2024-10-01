@@ -6,12 +6,12 @@ from typing import Any, TYPE_CHECKING
 from ailment.statement import ConditionalJump, Assignment, Statement
 from ailment.expression import Const, ITE, Expression
 
-from ....analyses import ReachingDefinitionsAnalysis
-from ....code_location import CodeLocation
-from ..region_walker import RegionWalker
-from ..ail_simplifier import AILBlockWalker
-from ..condition_processor import ConditionProcessor
-from ..structuring.structurer_nodes import EmptyBlockNotice
+from angr.analyses import ReachingDefinitionsAnalysis
+from angr.code_location import CodeLocation
+from angr.analyses.decompiler.region_walker import RegionWalker
+from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.structuring.structurer_nodes import EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

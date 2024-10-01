@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterable
 import claripy
 from claripy.ast.bv import BV
 
-from ...errors import AngrError
+from angr.errors import AngrError
 
 try:
     from pypcode import OpCode

@@ -16,13 +16,13 @@ import typing
 
 from rich import progress
 
-from ..misc.plugins import PluginVendor, VendorPreset
-from ..misc.ux import deprecated
-from ..misc import telemetry
+from angr.misc.plugins import PluginVendor, VendorPreset
+from angr.misc.ux import deprecated
+from angr.misc import telemetry
 
 if TYPE_CHECKING:
-    from ..knowledge_base import KnowledgeBase
-    from ..project import Project
+    from angr.knowledge_base import KnowledgeBase
+    from angr.project import Project
     from typing_extensions import ParamSpec
     from .identifier import Identifier
     from .callee_cleanup_finder import CalleeCleanupFinder

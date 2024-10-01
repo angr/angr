@@ -4,9 +4,9 @@ from collections import defaultdict
 
 import ailment
 
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     MultiNode,
@@ -15,7 +15,7 @@ from ..structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
-from ..utils import is_statement_terminating, has_nonlabel_nonphi_statements
+from angr.analyses.decompiler.utils import is_statement_terminating, has_nonlabel_nonphi_statements
 
 
 class LoopSimplifier(SequenceWalker):

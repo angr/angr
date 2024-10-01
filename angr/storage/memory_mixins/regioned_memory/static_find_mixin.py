@@ -1,7 +1,7 @@
 from __future__ import annotations
 import claripy
 
-from ..smart_find_mixin import SmartFindMixin
+from angr.storage.memory_mixins.smart_find_mixin import SmartFindMixin
 
 
 class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method

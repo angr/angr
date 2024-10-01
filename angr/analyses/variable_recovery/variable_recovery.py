@@ -6,11 +6,11 @@ import claripy
 
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses import AnalysesHub
-from ...errors import SimMemoryMissingError
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ... import BP, BP_AFTER
-from ...sim_variable import SimRegisterVariable, SimStackVariable
-from ...code_location import CodeLocation
+from angr.errors import SimMemoryMissingError
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr import BP, BP_AFTER
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from angr.code_location import CodeLocation
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .annotations import StackLocationAnnotation
 

@@ -10,7 +10,7 @@ import unittest
 
 import angr
 
-from ..common import bin_location, broken
+from tests.common import bin_location, broken
 
 
 test_location = os.path.join(bin_location, "tests")

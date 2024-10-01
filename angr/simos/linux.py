@@ -11,11 +11,11 @@ from cle.address_translator import AT
 from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
-from ..tablespecs import StringTableSpec
-from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
-from ..state_plugins import SimFilesystem, SimHostFilesystem
-from ..storage.file import SimFile, SimFileBase
-from ..errors import AngrSyscallError
+from angr.tablespecs import StringTableSpec
+from angr.procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
+from angr.state_plugins import SimFilesystem, SimHostFilesystem
+from angr.storage.file import SimFile, SimFileBase
+from angr.errors import AngrSyscallError
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)

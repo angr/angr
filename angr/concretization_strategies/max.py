@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ..errors import SimSolverError
+from angr.errors import SimSolverError
 from . import SimConcretizationStrategy
 
 

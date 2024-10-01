@@ -4,7 +4,7 @@ import logging
 
 import ailment
 
-from ....calling_conventions import SimRegArg, default_cc, DEFAULT_CC
+from angr.calling_conventions import SimRegArg, default_cc, DEFAULT_CC
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

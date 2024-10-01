@@ -11,7 +11,7 @@ from archinfo import ArchAMD64
 import angr
 from angr.utils.constants import DEFAULT_STATEMENT
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

@@ -10,11 +10,11 @@ from cle import SymbolType
 import ailment
 
 from angr.analyses.cfg import CFGFast
-from ...knowledge_plugins.functions.function import Function
-from ...knowledge_base import KnowledgeBase
-from ...sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
-from ...utils import timethis
-from .. import Analysis, AnalysesHub
+from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.utils import timethis
+from angr.analyses import Analysis, AnalysesHub
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage

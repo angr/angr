@@ -9,10 +9,15 @@ import networkx
 import ailment
 import claripy
 
-from ... import Analysis
-from ..condition_processor import ConditionProcessor
-from ..sequence_walker import SequenceWalker
-from ..utils import extract_jump_targets, insert_node, remove_last_statement, has_nonlabel_nonphi_statements
+from angr.analyses import Analysis
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.utils import (
+    extract_jump_targets,
+    insert_node,
+    remove_last_statement,
+    has_nonlabel_nonphi_statements,
+)
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,

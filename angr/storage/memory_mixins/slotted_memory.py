@@ -3,7 +3,7 @@ import claripy
 
 from . import MemoryMixin
 from .paged_memory.pages.ispo_mixin import ISPOMixin
-from ...errors import SimMergeError
+from angr.errors import SimMergeError
 
 
 class SlottedMemoryMixin(MemoryMixin):

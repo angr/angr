@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 from . import Analysis, CFGEmulated
 
-from ..errors import SimEngineError, SimMemoryError
+from angr.errors import SimEngineError, SimMemoryError
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants

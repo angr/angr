@@ -6,17 +6,13 @@ from archinfo import ArchMIPS32, ArchS390X
 import claripy
 
 import angr
-from ..errors import (
-    AngrCallableError,
-    AngrCallableMultistateError,
-    AngrSimOSError,
-)
-from ..sim_state import SimState
-from ..state_plugins import SimSystemPosix
-from ..calling_conventions import default_cc
-from ..procedures import SIM_PROCEDURES as P
-from .. import sim_options as o
-from ..storage.file import SimFileStream, SimFileBase
+from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrSimOSError
+from angr.sim_state import SimState
+from angr.state_plugins import SimSystemPosix
+from angr.calling_conventions import default_cc
+from angr.procedures import SIM_PROCEDURES as P
+from angr import sim_options as o
+from angr.storage.file import SimFileStream, SimFileBase
 
 
 _l = logging.getLogger(name=__name__)

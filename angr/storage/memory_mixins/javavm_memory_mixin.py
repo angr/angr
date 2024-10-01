@@ -5,9 +5,9 @@ import os
 
 import claripy
 
-from ... import concretization_strategies
-from ...errors import SimUnsatError, SimMemoryAddressError
-from ...engines.soot.values import (
+from angr import concretization_strategies
+from angr.errors import SimUnsatError, SimMemoryAddressError
+from angr.engines.soot.values import (
     SimSootValue_ArrayRef,
     SimSootValue_ArrayBaseRef,
     SimSootValue_InstanceFieldRef,

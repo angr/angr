@@ -12,7 +12,7 @@ import ailment
 import angr
 from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

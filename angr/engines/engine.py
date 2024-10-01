@@ -204,7 +204,7 @@ class SuccessorsMixin(SimEngine):
 
 
 # pylint:disable=wrong-import-position
-from .. import sim_options as o
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr import sim_options as o
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 from .successors import SimSuccessors
-from ..errors import SimException
+from angr.errors import SimException

@@ -10,12 +10,12 @@ import pyvex
 import claripy
 import archinfo
 
-from ...misc.ux import once
-from ...engines.vex.claripy.datalayer import value as claripy_value
-from ...engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
-from ...code_location import CodeLocation
-from ...utils.constants import DEFAULT_STATEMENT
-from ..engine import SimEngine
+from angr.misc.ux import once
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
+from angr.code_location import CodeLocation
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.engines.engine import SimEngine
 import contextlib
 
 

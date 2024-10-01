@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 
 
-from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...knowledge_plugins.key_definitions.unknown_size import UnknownSize
-from ...knowledge_plugins.key_definitions.undefined import Undefined
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
+from angr.knowledge_plugins.key_definitions.unknown_size import UnknownSize
+from angr.knowledge_plugins.key_definitions.undefined import Undefined
 
 _l = logging.getLogger(name=__name__)
 

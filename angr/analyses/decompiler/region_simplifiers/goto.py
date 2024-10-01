@@ -4,8 +4,8 @@ import logging
 
 import ailment
 
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     MultiNode,
@@ -14,7 +14,7 @@ from ..structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from .node_address_finder import NodeAddressFinder
-from ..goto_manager import Goto
+from angr.analyses.decompiler.goto_manager import Goto
 
 
 l = logging.getLogger(name=__name__)

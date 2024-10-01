@@ -15,7 +15,7 @@ from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeCh
 from angr.engines.successors import SimSuccessors
 from angr.calling_conventions import SimCCStdcall, SimStackArg
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

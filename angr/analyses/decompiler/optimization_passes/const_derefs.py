@@ -7,7 +7,7 @@ from ailment import Block, AILBlockWalker
 from ailment.expression import Load, Const, BinaryOp, UnaryOp
 from ailment.statement import Statement, Assignment, Call, ConditionalJump
 
-from ..ailgraph_walker import AILGraphWalker
+from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ..sim_type import SimCppClass, SimTypeCppFunction
-from ..analyses import AnalysesHub
+from angr.sim_type import SimCppClass, SimTypeCppFunction
+from angr.analyses import AnalysesHub
 from . import Analysis, CFGFast, VtableFinder
 
 

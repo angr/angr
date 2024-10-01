@@ -10,9 +10,9 @@ from networkx import NetworkXError
 from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
-from .. import Analysis
-from ... import options
-from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
+from angr.analyses import Analysis
+from angr import options
+from angr.errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
 l = logging.getLogger(name=__name__)
 

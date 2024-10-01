@@ -3,10 +3,10 @@ import logging
 
 import claripy
 
-from ..plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin
 from .heap_freelist import SimHeapFreelist, Chunk
 from .utils import concretize
-from ...errors import SimHeapError, SimMergeError, SimSolverError
+from angr.errors import SimHeapError, SimMergeError, SimSolverError
 
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")

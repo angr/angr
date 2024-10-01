@@ -13,8 +13,8 @@ import networkx
 import claripy
 from cle.loader import Loader
 
-from ...code_location import CodeLocation, ExternalCodeLocation
-from ...knowledge_plugins.key_definitions.atoms import (
+from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.knowledge_plugins.key_definitions.atoms import (
     Atom,
     MemoryLocation,
     AtomKind,
@@ -23,9 +23,9 @@ from ...knowledge_plugins.key_definitions.atoms import (
     ConstantSrc,
     GuardUse,
 )
-from ...knowledge_plugins.key_definitions.definition import A, Definition, DefinitionMatchPredicate
-from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
-from ...knowledge_plugins.cfg import CFGModel
+from angr.knowledge_plugins.key_definitions.definition import A, Definition, DefinitionMatchPredicate
+from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
+from angr.knowledge_plugins.cfg import CFGModel
 
 if TYPE_CHECKING:
     pass

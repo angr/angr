@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-from ...serializable import Serializable
-from ...protos import xrefs_pb2
-from ..plugin import KnowledgeBasePlugin
+from angr.serializable import Serializable
+from angr.protos import xrefs_pb2
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .xref import XRef, XRefType
 
 

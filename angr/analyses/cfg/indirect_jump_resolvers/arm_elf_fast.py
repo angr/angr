@@ -4,8 +4,8 @@ import logging
 import archinfo
 import pyvex
 
-from ....blade import Blade
-from ....utils.constants import DEFAULT_STATEMENT
+from angr.blade import Blade
+from angr.utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
 
 _l = logging.getLogger(name=__name__)

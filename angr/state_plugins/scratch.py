@@ -167,10 +167,10 @@ class SimStateScratch(SimStatePlugin):
 
 # pylint:disable=wrong-import-position
 from .sim_action import SimActionObject, SimActionData
-from ..errors import SimValueError, SimMissingTempError
-from .. import sim_options as o
+from angr.errors import SimValueError, SimMissingTempError
+from angr import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
 
-from ..sim_state import SimState
+from angr.sim_state import SimState
 
 SimState.register_default("scratch", SimStateScratch)

@@ -10,13 +10,13 @@ from archinfo.arch_soot import (
     SootMethodDescriptor,
 )
 
-from ... import sim_options as o
-from ...errors import SimEngineError, SimTranslationError
+from angr import sim_options as o
+from angr.errors import SimEngineError, SimTranslationError
 from cle import CLEError
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ...sim_type import SimTypeFunction, parse_type
-from ..engine import SuccessorsMixin
-from ..procedure import ProcedureMixin
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.sim_type import SimTypeFunction, parse_type
+from angr.engines.engine import SuccessorsMixin
+from angr.engines.procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from .statements import SimSootStmt_Return, SimSootStmt_ReturnVoid, translate_stmt
 from .values import SimSootValue_Local, SimSootValue_ParamRef
@@ -204,7 +204,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
     def _get_sim_procedure(self, addr):
         # Delayed import
-        from ...procedures import SIM_PROCEDURES
+        from angr.procedures import SIM_PROCEDURES
 
         if addr in self.project._sim_procedures:
             return self.project._sim_procedures[addr]
@@ -226,7 +226,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
     def get_unconstrained_simprocedure(self):
         # Delayed import
-        from ...procedures import SIM_PROCEDURES
+        from angr.procedures import SIM_PROCEDURES
 
         # TODO: fix method prototype
         procedure_cls = SIM_PROCEDURES["angr.unconstrained"]["unconstrained()"]

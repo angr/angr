@@ -3,7 +3,7 @@ import logging
 
 import claripy
 
-from ..cgc.receive import receive as orig_receive
+from angr.procedures.cgc.receive import receive as orig_receive
 
 
 l = logging.getLogger(name=__name__)

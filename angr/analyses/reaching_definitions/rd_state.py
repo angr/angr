@@ -13,16 +13,10 @@ from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from angr.knowledge_plugins.key_definitions.definition import A
 from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...storage.memory_mixins import MultiValuedMemory
-from ...knowledge_plugins.key_definitions import LiveDefinitions, DerefSize, Definition
-from ...knowledge_plugins.key_definitions.atoms import (
-    Atom,
-    GuardUse,
-    Register,
-    MemoryLocation,
-    ConstantSrc,
-)
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.knowledge_plugins.key_definitions import LiveDefinitions, DerefSize, Definition
+from angr.knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, ConstantSrc
 from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType
 from .rd_initializer import RDAStateInitializer

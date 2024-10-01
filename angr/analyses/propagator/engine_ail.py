@@ -11,10 +11,10 @@ from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from angr.knowledge_plugins.key_definitions.atoms import Register
 
 from angr.code_location import ExternalCodeLocation
-from ...utils.constants import is_alignment_mask
-from ...engines.light import SimEngineLightAILMixin
-from ...sim_variable import SimStackVariable, SimMemoryVariable
-from ..reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
+from angr.utils.constants import is_alignment_mask
+from angr.engines.light import SimEngineLightAILMixin
+from angr.sim_variable import SimStackVariable, SimMemoryVariable
+from angr.analyses.reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
 from .engine_base import SimEnginePropagatorBase
 
 if TYPE_CHECKING:

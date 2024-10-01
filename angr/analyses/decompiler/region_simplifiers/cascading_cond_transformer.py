@@ -4,9 +4,9 @@ from __future__ import annotations
 import ailment
 import claripy
 
-from ..structuring.structurer_nodes import ConditionNode, CascadingConditionNode
-from ..sequence_walker import SequenceWalker
-from ....errors import AngrRuntimeError
+from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, CascadingConditionNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.errors import AngrRuntimeError
 
 
 class CascadingConditionTransformer(SequenceWalker):

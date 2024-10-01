@@ -14,7 +14,7 @@ import networkx
 import angr
 from angr import options as o
 
-from ...common import bin_location, broken
+from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgemulated")
 

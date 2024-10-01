@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import itertools
 
-from ...sim_procedure import SimProcedure
-from ...engines.soot.values import SimSootValue_Local, SimSootValue_ParamRef
+from angr.sim_procedure import SimProcedure
+from angr.engines.soot.values import SimSootValue_Local, SimSootValue_ParamRef
 
 
 class JavaSimProcedure(SimProcedure):

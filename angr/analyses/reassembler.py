@@ -16,11 +16,11 @@ from . import Analysis
 from .cfg.cfg_emulated import CFGEmulated
 from .ddg import DDG
 from .cfg.cfg_fast import CFGFast
-from ..codenode import CodeNode
-from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
-from ..knowledge_plugins.functions import Function
-from ..knowledge_base import KnowledgeBase
-from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
+from angr.codenode import CodeNode
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_variable import SimMemoryVariable, SimTemporaryVariable
 
 if TYPE_CHECKING:
     from .cfg import CFGNode

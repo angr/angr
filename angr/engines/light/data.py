@@ -1,7 +1,7 @@
 from __future__ import annotations
 import ailment
 
-from ...utils.constants import is_alignment_mask
+from angr.utils.constants import is_alignment_mask
 
 
 class ArithmeticExpression:

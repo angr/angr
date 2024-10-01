@@ -7,8 +7,8 @@ from ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
 from ailment.expression import ITE, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
-from ....utils.graph import subgraph_between_nodes
-from ..utils import remove_labels, to_ail_supergraph
+from angr.utils.graph import subgraph_between_nodes
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

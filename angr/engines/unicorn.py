@@ -6,14 +6,14 @@ import logging
 import archinfo
 import claripy
 
-from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
+from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
 from .vex.heavy.heavy import VEXEarlyExit
-from .. import sim_options as o
-from ..misc.ux import once
-from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
-from ..utils.constants import DEFAULT_STATEMENT
+from angr import sim_options as o
+from angr.misc.ux import once
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
+from angr.utils.constants import DEFAULT_STATEMENT
 
 # pylint: disable=arguments-differ
 

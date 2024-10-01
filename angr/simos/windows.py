@@ -10,16 +10,11 @@ import claripy
 from archinfo import ArchX86, ArchAMD64
 import cle.backends
 
-from ..errors import (
-    AngrSimOSError,
-    SimSegfaultException,
-    SimUnsupportedError,
-    SimZeroDivisionException,
-)
-from .. import sim_options as o
-from ..tablespecs import StringTableSpec
-from ..procedures import SIM_LIBRARIES as L
-from ..procedures.definitions import load_win32api_definitions
+from angr.errors import AngrSimOSError, SimSegfaultException, SimUnsupportedError, SimZeroDivisionException
+from angr import sim_options as o
+from angr.tablespecs import StringTableSpec
+from angr.procedures import SIM_LIBRARIES as L
+from angr.procedures.definitions import load_win32api_definitions
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)

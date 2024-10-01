@@ -6,9 +6,9 @@ import pyvex
 
 from . import irop
 from . import ccall
-from ..light import VEXMixin
-from .... import errors
-from .... import sim_options as o
+from angr.engines.vex.light import VEXMixin
+from angr import errors
+from angr import sim_options as o
 
 l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)

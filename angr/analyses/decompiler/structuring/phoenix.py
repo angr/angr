@@ -14,11 +14,11 @@ from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from angr.utils.graph import GraphUtils
 from angr.utils.ail import is_phi_assignment
-from ....knowledge_plugins.cfg import IndirectJumpType
-from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges
-from ..sequence_walker import SequenceWalker
-from ..utils import (
+from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
+from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.utils import (
     remove_last_statement,
     extract_jump_targets,
     switch_extract_cmp_bounds,
@@ -26,7 +26,7 @@ from ..utils import (
     has_nonlabel_nonphi_statements,
     first_nonlabel_nonphi_statement,
 )
-from ..counters.call_counter import AILCallCounter
+from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,

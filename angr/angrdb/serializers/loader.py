@@ -7,8 +7,8 @@ import logging
 
 import cle
 
-from ...errors import AngrCorruptDBError, AngrDBError
-from ..models import DbObject
+from angr.errors import AngrCorruptDBError, AngrDBError
+from angr.angrdb.models import DbObject
 
 
 _l = logging.getLogger(__name__)
