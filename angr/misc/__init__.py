@@ -11,9 +11,7 @@ from .picklable_lock import PicklableLock
 __all__ = (
     "ux",
     "autoimport",
-    "weakpatch",
     "Loggers",
-    "IRange",
     "PluginHub",
     "PluginPreset",
     "HookSet",

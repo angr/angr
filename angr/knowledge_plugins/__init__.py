@@ -31,7 +31,6 @@ __all__ = (
     "CFGManager",
     "XRefManager",
     "KnowledgeBasePlugin",
-    "SyncController",
     "PatchManager",
     "KeyDefinitionManager",
     "PropagationManager",
