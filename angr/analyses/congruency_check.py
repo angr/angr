@@ -6,7 +6,6 @@ import claripy
 from . import Analysis
 
 l = logging.getLogger(name=__name__)
-# l.setLevel(logging.DEBUG)
 
 
 class CongruencyCheck(Analysis):

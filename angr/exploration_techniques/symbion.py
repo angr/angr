@@ -4,7 +4,6 @@ from .common import condition_to_lambda
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
-# l.setLevel(logging.DEBUG)
 
 
 class Symbion(ExplorationTechnique):

@@ -7,7 +7,6 @@ from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
 from angr import errors
 
 l = logging.getLogger(name=__name__)
-# l.setLevel(logging.DEBUG)
 
 # pylint: disable=R0911
 # pylint: disable=W0613

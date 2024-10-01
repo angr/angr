@@ -9,7 +9,6 @@ from .worker import Worker
 
 
 _l = logging.getLogger(__name__)
-_l.setLevel(logging.INFO)
 
 
 class Server:
