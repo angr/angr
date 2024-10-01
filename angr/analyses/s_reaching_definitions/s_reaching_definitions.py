@@ -98,7 +98,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             call_stmt_ids = []
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
-                    if (
+                    if (  # pylint:disable=too-many-boolean-expressions
                         (isinstance(stmt, Call) and stmt.args is None)
                         or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
                         or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call))

@@ -4,6 +4,8 @@ from . import MemoryMixin
 
 
 class TypedVariable:
+    """TypedVariable is a simple class that holds a value and a type."""
+
     __slots__ = (
         "type",
         "value",
