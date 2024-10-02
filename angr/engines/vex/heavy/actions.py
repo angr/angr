@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import pyvex
 
-from .heavy import HeavyVEXMixin
-
-from angr.state_plugins.sim_action import SimActionObject, SimActionData, SimActionExit, SimActionOperation
 from angr import sim_options as o
+from angr.state_plugins.sim_action import SimActionData, SimActionExit, SimActionObject, SimActionOperation
+
+from .heavy import HeavyVEXMixin
 
 
 class TrackActionsMixin(HeavyVEXMixin):
@@ -91,8 +92,8 @@ class TrackActionsMixin(HeavyVEXMixin):
             a = self.__tmp_deps.get(tmp, frozenset())
         return result, a
 
-    def _perform_vex_expr_Get(self, offset_bundle, ty, **kwargs):
-        offset, offset_deps = offset_bundle
+    def _perform_vex_expr_Get(self, offset, ty, **kwargs):
+        offset, offset_deps = offset
         result = super()._perform_vex_expr_Get(offset, ty, **kwargs)
 
         if o.TRACK_REGISTER_ACTIONS in self.state.options:
@@ -111,15 +112,15 @@ class TrackActionsMixin(HeavyVEXMixin):
             a = frozenset()
         return result, a
 
-    def _perform_vex_expr_Load(self, addr_bundle, ty, end, condition=None, **kwargs):
-        addr, addr_deps = addr_bundle
+    def _perform_vex_expr_Load(self, addr, ty, endness, condition=None, **kwargs):
+        addr, addr_deps = addr
 
         if condition is not None:
             condition, condition_deps = condition
         else:
             condition_deps = None
 
-        result = super()._perform_vex_expr_Load(addr, ty, end, condition=condition, **kwargs)
+        result = super()._perform_vex_expr_Load(addr, ty, endness, condition=condition, **kwargs)
 
         if o.TRACK_MEMORY_ACTIONS in self.state.options:
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
@@ -156,9 +157,9 @@ class TrackActionsMixin(HeavyVEXMixin):
             self.__tmp_deps[tmp] = data_deps
         super()._perform_vex_stmt_WrTmp(tmp, data, deps=data_deps)
 
-    def _perform_vex_stmt_Put(self, offset_bundle, data_bundle, **kwargs):
-        offset, offset_deps = offset_bundle
-        data, data_deps = data_bundle
+    def _perform_vex_stmt_Put(self, offset, data, **kwargs):
+        offset, _ = offset
+        data, data_deps = data
         # track the put
         if o.TRACK_REGISTER_ACTIONS in self.state.options:
             data_ao = SimActionObject(data, deps=data_deps, state=self.state)
@@ -172,9 +173,9 @@ class TrackActionsMixin(HeavyVEXMixin):
 
         super()._perform_vex_stmt_Put(offset, data, action=a, **kwargs)
 
-    def _perform_vex_stmt_Store(self, addr_bundle, data_bundle, end, condition=None, **kwargs):
-        addr, addr_deps = addr_bundle
-        data, data_deps = data_bundle
+    def _perform_vex_stmt_Store(self, addr, data, endness, condition=None, **kwargs):
+        addr, addr_deps = addr
+        data, data_deps = data
 
         if condition is not None:
             condition, condition_deps = condition
@@ -204,11 +205,11 @@ class TrackActionsMixin(HeavyVEXMixin):
         else:
             a = None
 
-        super()._perform_vex_stmt_Store(addr, data, end, action=a, condition=condition, **kwargs)
+        super()._perform_vex_stmt_Store(addr, data, endness, action=a, condition=condition, **kwargs)
 
-    def _perform_vex_stmt_Exit(self, guard_bundle, target_bundle, jumpkind):
-        guard, guard_deps = guard_bundle
-        target, target_deps = target_bundle
+    def _perform_vex_stmt_Exit(self, guard, expr, jumpkind):
+        guard, guard_deps = guard
+        target, target_deps = expr
 
         if o.TRACK_JMP_ACTIONS in self.state.options:
             guard_ao = SimActionObject(guard, deps=guard_deps, state=self.state)
