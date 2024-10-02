@@ -3,8 +3,8 @@ import logging
 
 import claripy
 
-from . import MemoryMixin
 from angr.errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)
 

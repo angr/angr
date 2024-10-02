@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from collections.abc import Iterable, Callable
 
-from . import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class MultiValueMergerMixin(MemoryMixin):

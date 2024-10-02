@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import claripy
 
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)
 

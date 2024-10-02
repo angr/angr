@@ -2,7 +2,7 @@ from __future__ import annotations
 import string
 
 from angr.errors import SimValueError
-from . import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 import contextlib
 
 
