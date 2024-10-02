@@ -463,7 +463,7 @@ class TestMemory(unittest.TestCase):
             r, _, _ = s.memory.find(claripy.VS(s.arch.bits, "global", 0, offset), what, 8)
             r_annotation = r.get_annotation(claripy.annotation.RegionAnnotation)
             assert r_annotation.region_id == "global"
-            assert r.clear_annotations().identical(expected)
+            assert r.clear_annotation_type(claripy.annotation.RegionAnnotation).identical(expected)
 
     def test_registers(self):
         s = SimState(arch="AMD64")
