@@ -92,7 +92,6 @@ def for_all_structuring_algos(func):
     @wraps(func)
     def _for_all_structuring_algos(*args, **kwargs):
         orig_opts = kwargs.pop("decompiler_options", None) or []
-        ret_vals = []
         structurer_option = get_structurer_option()
         for structurer in STRUCTURER_CLASSES:
             # skip Phoenix since SAILR supersedes it and is a subclass
@@ -100,9 +99,7 @@ def for_all_structuring_algos(func):
                 continue
 
             new_opts = [*orig_opts, (structurer_option, structurer)]
-            ret_vals.append(func(*args, decompiler_options=new_opts, **kwargs))
-
-        return ret_vals
+            func(*args, decompiler_options=new_opts, **kwargs)
 
     return _for_all_structuring_algos
 
@@ -112,11 +109,9 @@ def structuring_algo(algo: str):
         @wraps(func)
         def inner(*args, **kwargs):
             orig_opts = kwargs.pop("decompiler_options", None) or []
-            ret_vals = []
             structurer_option = get_structurer_option()
             new_opts = [*orig_opts, (structurer_option, algo)]
-            ret_vals.append(func(*args, decompiler_options=new_opts, **kwargs))
-            return ret_vals
+            func(*args, decompiler_options=new_opts, **kwargs)
 
         return inner
 
