@@ -32,12 +32,6 @@ class SimEngineBase:
         self.project = state[0]
         self.state = None
 
-    def _is_true(self, v):
-        return v is True
-
-    def _is_false(self, v):
-        return v is False
-
 
 class SimEngine(SimEngineBase, metaclass=abc.ABCMeta):
     """

@@ -15,12 +15,6 @@ class TrackActionsMixin(HeavyVEXMixin):
 
     __tls = ("__tmp_deps",)
 
-    def _is_true(self, v):
-        return super()._is_true(v[0])
-
-    def _is_false(self, v):
-        return super()._is_false(v[0])
-
     def _optimize_guarded_addr(self, addr, guard):
         addr, addr_deps = addr
         guard, _ = guard

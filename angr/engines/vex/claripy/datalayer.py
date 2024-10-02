@@ -39,12 +39,6 @@ class ClaripyDataMixin(VEXMixin):
 
     # util methods
 
-    def _is_true(self, v):
-        return claripy.is_true(v)
-
-    def _is_false(self, v):
-        return claripy.is_false(v)
-
     def _optimize_guarded_addr(self, addr, guard):
         # optimization: is the guard the same as the condition inside the address? if so, unpack the address and remove
         # the guarding condition.
