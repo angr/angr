@@ -195,7 +195,7 @@ class LabeledMemory(
     LabeledMemory is used in static analysis. It allows storing values with labels, such as `Definition`.
     """
 
-    def _default_value(self, addr, size, **kwargs):
+    def _default_value(self, addr, size, **kwargs):  # pylint:disable=arguments-differ
         # TODO: Make _default_value() a separate Mixin
 
         if kwargs.get("name", "").startswith("merge_uc_"):
@@ -216,7 +216,7 @@ class MultiValuedMemory(
     PagedMemoryMixin,
     PagedMemoryMultiValueMixin,
 ):
-    def _default_value(self, addr, size, **kwargs):
+    def _default_value(self, addr, size, **kwargs):  # pylint:disable=arguments-differ
         # TODO: Make _default_value() a separate Mixin
 
         if kwargs.get("name", "").startswith("merge_uc_"):

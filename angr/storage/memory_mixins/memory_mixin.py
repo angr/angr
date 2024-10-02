@@ -10,6 +10,12 @@ from angr.state_plugins.plugin import SimStatePlugin
 
 
 class MemoryMixin(SimStatePlugin):
+    """
+    Base class for memory mixins. In angr, all memory objects are made by
+    subclassing one or more MemoryMixins, each adding some functionality to the
+    memory object.
+    """
+
     SUPPORTS_CONCRETE_LOAD = False
 
     def __init__(self, memory_id=None, endness="Iend_BE"):
@@ -17,7 +23,7 @@ class MemoryMixin(SimStatePlugin):
         self.id = memory_id
         self.endness = endness
 
-    def copy(self, memo):
+    def copy(self, memo):  # pylint:disable=unused-argument
         o = type(self).__new__(type(self))
         o.id = self.id
         o.endness = self.endness
@@ -51,7 +57,7 @@ class MemoryMixin(SimStatePlugin):
     def find(self, addr, data, max_search, **kwargs):
         pass
 
-    def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):
+    def _add_constraints(self, c, add_constraints=True, condition=None, **kwargs):  # pylint:disable=unused-argument
         if add_constraints:
             to_add = c & condition | ~condition if condition is not None else c
             self.state.add_constraints(to_add)
@@ -104,7 +110,9 @@ class MemoryMixin(SimStatePlugin):
         """
         raise NotImplementedError
 
-    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
+    def _default_value(  # pylint:disable=too-many-positional-arguments
+        self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs
+    ):
         """
         Override this method to provide default values for a variety of edge cases and base cases.
 
