@@ -10,11 +10,11 @@ class GetStdHandle(angr.SimProcedure):
             raise angr.errors.SimProcedureArgumentError("Can't deal with symbolic std handle")
 
         # for now, return file descriptors + 1000 as handles
-        if (handle == -10).is_true():
+        if self.state.solver.is_true(handle == -10):
             return 1000
-        if (handle == -11).is_true():
+        if self.state.solver.is_true(handle == -11):
             return 1001
-        if (handle == -12).is_true():
+        if self.state.solver.is_true(handle == -12):
             return 1002
         return -1
 

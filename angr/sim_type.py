@@ -979,7 +979,7 @@ class SimTypeString(NamedTypeMixin, SimType):
             if state.solver.symbolic(last_byte):
                 raise ValueError(f"Trying to extract a symbolic string at {state.solver.eval(addr):#x}")
             addr += 1
-            while not (claripy.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
+            while not (state.solver.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
                 out = last_byte if out is None else out.concat(last_byte)
                 last_byte = state.memory.load(addr, size=1)
                 addr += 1
@@ -1049,7 +1049,7 @@ class SimTypeWString(NamedTypeMixin, SimType):
             if state.solver.symbolic(last_byte):
                 raise ValueError(f"Trying to extract a symbolic string at {state.solver.eval(addr):#x}")
             addr += 2
-            while not (claripy.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
+            while not (state.solver.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
                 out = last_byte if out is None else out.concat(last_byte)
                 last_byte = state.memory.load(addr, 2)
                 addr += 2

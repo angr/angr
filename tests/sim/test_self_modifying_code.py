@@ -7,7 +7,6 @@ __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 import os
 from unittest import TestCase, main
 
-import claripy
 
 import angr
 from angr import options as o
@@ -30,14 +29,14 @@ class TestSelfModifyingCOde(TestCase):
 
         pg.run(until=lambda lpg: len(lpg.active) != 1)
         retval = pg.one_deadended.regs.ebx
-        assert claripy.is_true(retval == 65)
+        assert pg.one_deadended.solver.is_true(retval == 65)
 
         pgu = p.factory.simulation_manager(p.factory.entry_state(add_options={o.STRICT_PAGE_ACCESS} | o.unicorn))
         for offs in range(0, 0x6000, 0x1000):
             pgu.one_active.memory.load(pgu.one_active.regs.sp - offs, size=1)
         pgu.run(until=lambda lpg: len(lpg.active) != 1)
         retval = pgu.one_deadended.regs.ebx
-        assert claripy.is_true(retval == 65)
+        assert pg.one_deadended.solver.is_true(retval == 65)
 
         # the two histories are not the same because angr does not add relifted block addresses (caused by raising
         # SimReliftExceptions during execution) to the history. whether this is a good design decision or not is a

@@ -84,7 +84,7 @@ class TestCallingConvention(TestCase):
         s.regs.rdx = 789
         execve = parse_file("int execve(const char *pathname, char *const argv[], char *const envp[]);")[0]["execve"]
         cc = p.factory.cc()
-        assert all((x == y).is_true() for x, y in zip(cc.get_args(s, execve), (123, 456, 789)))
+        assert all(s.solver.is_true(x == y) for x, y in zip(cc.get_args(s, execve), (123, 456, 789)))
         # however, this is definitely right
         assert [list(loc.get_footprint()) for loc in cc.arg_locs(execve)] == [
             [SimRegArg("rdi", 8)],

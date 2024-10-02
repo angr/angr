@@ -26,7 +26,7 @@ class TestOps(unittest.TestCase):
         s1.regs.xmm1 = 0x3C899A56814EE9B84C7B5D8394C85881
         s1.regs.xmm2 = 0xA55C66A2CDEF1CBCD72B42078D1B7F8B
         s2 = s1.step(num_inst=1).successors[0]
-        assert (s2.regs.xmm0 == 0x00567B00000056000081C84C00813C00).is_true()
+        assert s2.solver.is_true(s2.regs.xmm0 == 0x00567B00000056000081C84C00813C00)
 
         # symbolic test
         s3 = p.factory.blank_state()
@@ -45,7 +45,7 @@ class TestOps(unittest.TestCase):
         s1.regs.xmm1 = 0x3ACA92553C2526D4F20987AEAB250255
         s1.regs.xmm2 = 0x1AEBCB281463274EC3CE6473619A8541
         s2 = s1.step(num_inst=1).successors[0]
-        assert (s2.regs.xmm0 == 0x62E16A304CA05F60348D0C9DFA5FEE1).is_true()
+        assert s2.solver.is_true(s2.regs.xmm0 == 0x62E16A304CA05F60348D0C9DFA5FEE1)
 
     def test_irop_catevenlanes(self):
         p = angr.load_shellcode("pmulhrsw xmm0, xmm1", "amd64")
@@ -55,7 +55,7 @@ class TestOps(unittest.TestCase):
         s1.regs.xmm0 = 0x4713E06BF3235E97CA8CFDE0647D65FD
         s1.regs.xmm1 = 0x31F1F86DA1DCE7DE252ADC78160E1016
         s2 = s1.step(num_inst=1).successors[0]
-        assert (s2.regs.xmm0 == 0x1BBB01DE0976EE2BF07B009711500CD1).is_true()
+        assert s2.solver.is_true(s2.regs.xmm0 == 0x1BBB01DE0976EE2BF07B009711500CD1)
 
     def test_saturating_packing(self):
         # SaturateSignedWordToUnsignedByte
@@ -63,21 +63,21 @@ class TestOps(unittest.TestCase):
         s = p.factory.blank_state()
         s.regs.xmm0 = 0x0000_0001_7FFE_7FFF_8000_8001_FFFE_FFFF
         s = s.step(num_inst=1).successors[0]
-        assert (s.regs.xmm1 == 0x00_01_FF_FF_00_00_00_00_0001FFFF00000000).is_true()
+        assert s.solver.is_true(s.regs.xmm1 == 0x00_01_FF_FF_00_00_00_00_0001FFFF00000000)
 
         # "Pack with unsigned saturation"
         p = angr.load_shellcode("vpackusdw xmm1, xmm0, xmm0", arch="amd64")
         s = p.factory.blank_state()
         s.regs.xmm0 = 0x00000001_7FFFFFFE_80000001_FFFFFFFE
         s = s.step(num_inst=1).successors[0]
-        assert (s.regs.xmm1 == 0x0001_FFFF_0000_0000_0001FFFF00000000).is_true()
+        assert s.solver.is_true(s.regs.xmm1 == 0x0001_FFFF_0000_0000_0001FFFF00000000)
 
         # SaturateSignedWordToSignedByte
         p = angr.load_shellcode("vpacksswb xmm1, xmm0, xmm0", arch="amd64")
         s = p.factory.blank_state()
         s.regs.xmm0 = 0x0000_0001_7FFE_7FFF_8000_8001_FFFE_FFFF
         s = s.step(num_inst=1).successors[0]
-        assert (s.regs.xmm1 == 0x00_01_7F_7F_80_80_FE_FF_00017F7F8080FEFF).is_true()
+        assert s.solver.is_true(s.regs.xmm1 == 0x00_01_7F_7F_80_80_FE_FF_00017F7F8080FEFF)
 
 
 if __name__ == "__main__":

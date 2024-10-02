@@ -188,7 +188,7 @@ class SimSuccessors:
         if state.history.jumpkind == "Ijk_Call":
             state._inspect("call", BP_BEFORE, function_address=state.regs._ip)
             new_func_addr = state._inspect_getattr("function_address", None)
-            if new_func_addr is not None and not claripy.is_true(new_func_addr == state.regs._ip):
+            if new_func_addr is not None and not state.solver.is_true(new_func_addr == state.regs._ip):
                 state.regs._ip = new_func_addr
 
             try:
@@ -231,8 +231,8 @@ class SimSuccessors:
 
             if (
                 not state.arch.call_pushes_ret
-                and claripy.is_true(state.regs._ip == state.callstack.ret_addr)
-                and claripy.is_true(state.regs._sp == state.callstack.stack_ptr)
+                and state.solver.is_true(state.regs._ip == state.callstack.ret_addr)
+                and state.solver.is_true(state.regs._sp == state.callstack.stack_ptr)
             ):
                 # very weird edge case that's not actually weird or on the edge at all:
                 # if we use a link register for the return address, the stack pointer will be the same

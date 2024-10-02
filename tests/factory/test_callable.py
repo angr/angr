@@ -254,14 +254,14 @@ class TestCallable(unittest.TestCase):
         s = p.factory.call_state(
             0, "hello", prototype="void x(char*)", stack_base=0x1234, alloc_base=0x5678, grow_like_stack=False
         )
-        assert (s.regs.sp == 0x1234).is_true()
-        assert (s.mem[0x1234 + 4].long.resolved == 0x5678).is_true()
-        assert (s.memory.load(0x5678, 5) == b"hello").is_true()
+        assert s.solver.is_true(s.regs.sp == 0x1234)
+        assert s.solver.is_true(s.mem[0x1234 + 4].long.resolved == 0x5678)
+        assert s.solver.is_true(s.memory.load(0x5678, 5) == b"hello")
 
         s = p.factory.call_state(0, "hello", prototype="void x(char*)", stack_base=0x1234)
-        assert (s.regs.sp == 0x1234).is_true()
-        assert (s.mem[0x1234 + 4].long.resolved == 0x1234 + 8).is_true()
-        assert (s.memory.load(0x1234 + 8, 5) == b"hello").is_true()
+        assert s.solver.is_true(s.regs.sp == 0x1234)
+        assert s.solver.is_true(s.mem[0x1234 + 4].long.resolved == 0x1234 + 8)
+        assert s.solver.is_true(s.memory.load(0x1234 + 8, 5) == b"hello")
 
 
 if __name__ == "__main__":

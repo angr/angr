@@ -140,7 +140,7 @@ class TestInspect(unittest.TestCase):
             # change exit target
             state.inspect.exit_target = 0x41414141
             assert state.inspect.exit_jumpkind == "Ijk_Boring"
-            assert state.inspect.exit_guard.is_true()
+            assert state.solver.is_true(state.inspect.exit_guard)
 
         def handle_exit_after(state):  # pylint:disable=unused-argument
             counts.exit_after += 1

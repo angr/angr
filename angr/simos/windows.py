@@ -329,7 +329,7 @@ class SimWindows(SimOS):
             try:
                 r = self.project.factory.default_engine.process(successors.initial_state, num_inst=num_inst)
                 if len(r.flat_successors) != 1:
-                    if exception.guard.is_true():
+                    if self.state.solver.is_true(exception.guard):
                         _l.error(
                             "Got %d successors while re-executing %d instructions at %#x "
                             "for unconditional exception windup",

@@ -1398,7 +1398,7 @@ class Unicorn(SimStatePlugin):
         # figure out why we stopped
         if unicorn_obj.stop_reason == STOP.STOP_NOSTART and unicorn_obj.steps > 0:
             # unicorn just does quits without warning if it sees hlt. detect that.
-            if (state.memory.load(state.ip, 1) == 0xF4).is_true():
+            if self.state.solver.is_true(state.memory.load(state.ip, 1) == 0xF4):
                 unicorn_obj.stop_reason = STOP.STOP_HLT
             else:
                 raise SimUnicornError("Got STOP_NOSTART but steps > 0. This indicates a serious unicorn bug.")

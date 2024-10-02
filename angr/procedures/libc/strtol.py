@@ -120,7 +120,7 @@ class strtol(angr.SimProcedure):
             constraints_num_bytes.append(claripy.And(*case_constraints))
 
             # break the loop early if no value past this is viable
-            if condition.is_false():
+            if state.solver.is_false(condition):
                 cutoff = True
                 break
 

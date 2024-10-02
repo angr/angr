@@ -1,6 +1,5 @@
 from __future__ import annotations
 import angr
-import claripy
 import logging
 
 l = logging.getLogger(name=__name__)
@@ -56,7 +55,7 @@ class GetProcAddress(angr.SimProcedure):
                 l.warning("GetProcAddress: invalid library handle %s", lib_handle)
                 return 0
 
-        if claripy.is_true(name_addr < 0x10000):
+        if self.state.solver.is_true(name_addr < 0x10000):
             # this matches the bogus name specified in the loader...
             ordinal = self.state.solver.eval(name_addr)
             name = "ordinal.%d.%s" % (ordinal, obj.provides)
