@@ -28,11 +28,13 @@ class Equivalence(TypeConstraint):
     __slots__ = (
         "type_a",
         "type_b",
+        "_cached_hash",
     )
 
     def __init__(self, type_a, type_b):
         self.type_a = type_a
         self.type_b = type_b
+        self._cached_hash = hash((Equivalence, self.type_a, self.type_b))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"{self.type_a.pp_str(mapping)} == {self.type_b.pp_str(mapping)}"
@@ -49,14 +51,15 @@ class Equivalence(TypeConstraint):
         )
 
     def __hash__(self):
-        return hash((Equivalence, tuple(sorted((hash(self.type_a), hash(self.type_b))))))
+        return self._cached_hash
 
 
 class Existence(TypeConstraint):
-    __slots__ = ("type_",)
+    __slots__ = ("type_", "_cached_hash")
 
     def __init__(self, type_):
         self.type_ = type_
+        self._cached_hash = hash((Existence, self.type_))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"V {self.type_.pp_str(mapping)}"
@@ -68,7 +71,7 @@ class Existence(TypeConstraint):
         return type(other) is Existence and self.type_ == other.type_
 
     def __hash__(self):
-        return hash((Existence, self.type_))
+        return self._cached_hash
 
     def replace(self, replacements):
         if self.type_ in replacements:
@@ -84,11 +87,13 @@ class Subtype(TypeConstraint):
     __slots__ = (
         "super_type",
         "sub_type",
+        "_cached_hash",
     )
 
     def __init__(self, sub_type: TypeType, super_type: TypeType):
         self.super_type = super_type
         self.sub_type = sub_type
+        self._cached_hash = hash((Subtype, self.sub_type, self.super_type))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"{self.sub_type.pp_str(mapping)} <: {self.super_type.pp_str(mapping)}"
@@ -100,7 +105,7 @@ class Subtype(TypeConstraint):
         return type(other) is Subtype and self.sub_type == other.sub_type and self.super_type == other.super_type
 
     def __hash__(self):
-        return hash((Subtype, hash(self.sub_type), hash(self.super_type)))
+        return self._cached_hash
 
     def replace(self, replacements):
         subtype, supertype = None, None
@@ -139,12 +144,14 @@ class Add(TypeConstraint):
         "type_0",
         "type_1",
         "type_r",
+        "_cached_hash",
     )
 
     def __init__(self, type_0, type_1, type_r):
         self.type_0 = type_0
         self.type_1 = type_1
         self.type_r = type_r
+        self._cached_hash = hash((Add, self.type_0, self.type_1, self.type_r))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"{self.type_r.pp_str(mapping)} == {self.type_0.pp_str(mapping)} + {self.type_1.pp_str(mapping)}"
@@ -161,7 +168,7 @@ class Add(TypeConstraint):
         )
 
     def __hash__(self):
-        return hash((Add, self.type_0, self.type_1, self.type_r))
+        return self._cached_hash
 
     def replace(self, replacements):
         t0, t1, tr = None, None, None
@@ -206,12 +213,14 @@ class Sub(TypeConstraint):
         "type_0",
         "type_1",
         "type_r",
+        "_cached_hash",
     )
 
     def __init__(self, type_0, type_1, type_r):
         self.type_0 = type_0
         self.type_1 = type_1
         self.type_r = type_r
+        self._cached_hash = hash((Sub, self.type_0, self.type_1, self.type_r))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         return f"{self.type_r.pp_str(mapping)} == {self.type_0.pp_str(mapping)} - {self.type_1.pp_str(mapping)}"
@@ -228,7 +237,7 @@ class Sub(TypeConstraint):
         )
 
     def __hash__(self):
-        return hash((Sub, self.type_0, self.type_1, self.type_r))
+        return self._cached_hash
 
     def replace(self, replacements):
         t0, t1, tr = None, None, None
@@ -268,7 +277,7 @@ _typevariable_counter = count()
 
 
 class TypeVariable:
-    __slots__ = ("idx", "name")
+    __slots__ = ("idx", "name", "_cached_hash")
 
     def __init__(self, idx: int | None = None, name: str | None = None):
         if idx is None:
@@ -276,6 +285,8 @@ class TypeVariable:
         else:
             self.idx: int = idx
         self.name = name
+
+        self._cached_hash = hash((TypeVariable, self.name if self.name else self.idx))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         varname = mapping.get(self, self.name)
@@ -291,12 +302,10 @@ class TypeVariable:
         return self.idx == other.idx
 
     def _hash(self, visited=None):  # pylint:disable=unused-argument
-        if self.name:
-            return hash((TypeVariable, self.name))
-        return hash((TypeVariable, self.idx))
+        return self._cached_hash
 
     def __hash__(self):
-        return self._hash()
+        return self._cached_hash
 
     def __repr__(self):
         if self.name:
@@ -336,6 +345,8 @@ class DerivedTypeVariable(TypeVariable):
         if not self.labels:
             raise ValueError("A DerivedTypeVariable must have at least one label")
 
+        self._cached_hash = hash((DerivedTypeVariable, self.type_var, self.labels))
+
     def one_label(self) -> BaseLabel | None:
         return self.labels[0] if len(self.labels) == 1 else None
 
@@ -358,10 +369,10 @@ class DerivedTypeVariable(TypeVariable):
         )
 
     def _hash(self, visited=None):
-        return hash((DerivedTypeVariable, self.type_var, self.labels))
+        return self._cached_hash
 
     def __hash__(self):
-        return self._hash()
+        return self._cached_hash
 
     def __repr__(self):
         return ".".join([repr(self.type_var)] + [repr(lbl) for lbl in self.labels])
@@ -437,13 +448,16 @@ class TypeVariables:
 
 
 class BaseLabel:
-    __slots__ = ()
+    __slots__ = ("_cached_hash",)
+
+    def __init__(self):
+        self._cached_hash = hash((type(self), *tuple(getattr(self, k) for k in self.__slots__)))
 
     def __eq__(self, other):
-        return type(self) is type(other) and hash(self) == hash(other)
+        return type(self) is type(other) and self._cached_hash == other._cached_hash
 
     def __hash__(self):
-        return hash((type(self), *tuple(getattr(self, k) for k in self.__slots__)))
+        return self._cached_hash
 
     @property
     def variance(self) -> Variance:
@@ -455,6 +469,7 @@ class FuncIn(BaseLabel):
 
     def __init__(self, loc):
         self.loc = loc
+        super().__init__()
 
     def __repr__(self):
         return f"in<{self.loc}>"
@@ -465,6 +480,7 @@ class FuncOut(BaseLabel):
 
     def __init__(self, loc):
         self.loc = loc
+        super().__init__()
 
     def __repr__(self):
         return f"out<{self.loc}>"
@@ -493,6 +509,7 @@ class AddN(BaseLabel):
 
     def __init__(self, n):
         self.n = n
+        super().__init__()
 
     def __repr__(self):
         return "+%d" % self.n
@@ -503,6 +520,7 @@ class SubN(BaseLabel):
 
     def __init__(self, n):
         self.n = n
+        super().__init__()
 
     def __repr__(self):
         return "-%d" % self.n
@@ -513,6 +531,7 @@ class ConvertTo(BaseLabel):
 
     def __init__(self, to_bits):
         self.to_bits = to_bits
+        super().__init__()
 
     def __repr__(self):
         return "conv(%d)" % self.to_bits
@@ -527,6 +546,7 @@ class ReinterpretAs(BaseLabel):
     def __init__(self, to_type, to_bits):
         self.to_type = to_type
         self.to_bits = to_bits
+        super().__init__()
 
     def __repr__(self):
         return f"reinterpret({self.to_type}{self.to_bits})"
@@ -541,6 +561,7 @@ class HasField(BaseLabel):
     def __init__(self, bits, offset):
         self.bits = bits
         self.offset = offset
+        super().__init__()
 
     def __repr__(self):
         if self.bits == MAX_POINTSTO_BITS:
