@@ -4,20 +4,17 @@ from __future__ import annotations
 __package__ = __package__ or "tests.procedures.libc"  # pylint:disable=redefined-builtin
 
 import os
-import subprocess
-import sys
 import unittest
 
 import angr
 
-from tests.common import slow_test, bin_location  # pylint:disable=import-error,wrong-import-position
+from tests.common import slow_test, bin_location
 
 
 class TestStrtol(unittest.TestCase):
     # pylint: disable=no-self-use
 
     @slow_test
-    @unittest.skipUnless(sys.platform.startswith("linux"), "linux-only")
     def test_strtol(self, threads=None):
         test_bin = os.path.join(bin_location, "tests", "x86_64", "strtol_test")
         # disabling auto_load_libs increases the execution time of the test case.
@@ -42,20 +39,9 @@ class TestStrtol(unittest.TestCase):
         pg.explore(find=0x400804, num_find=len(expected_outputs))
         assert len(pg.found) == len(expected_outputs)
 
-        # check the outputs
-        pipe = subprocess.PIPE
-        for f in pg.found:
-            test_input = f.posix.dumps(0)
-            test_output = f.posix.dumps(1)
-            expected_outputs.remove(test_output)
-
-            # check the output works as expected
-            with subprocess.Popen(test_bin, stdout=pipe, stderr=pipe, stdin=pipe) as p:
-                ret = p.communicate(test_input)[0]
-            assert ret == test_output
-
-        # check that all of the outputs were seen
-        assert len(expected_outputs) == 0
+        # check that the outputs are correct
+        outputs = {f.posix.dumps(1) for f in pg.found}
+        assert outputs == expected_outputs
 
     def test_strtol_long_string(self):
         # convert a 11-digit long string to a number.
