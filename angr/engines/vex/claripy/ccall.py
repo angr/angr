@@ -43,7 +43,7 @@ def boolean_extend(O, a, b, size):
 def op_concretize(op):
     if type(op) is int:
         return op
-    op_e = op.ite_excavated
+    op_e = claripy.excavate_ite(op)
     if op_e.op == "If":
         cases = list(claripy.reverse_ite_cases(op_e))
         if all(c.op == "BVV" for _, c in cases):
