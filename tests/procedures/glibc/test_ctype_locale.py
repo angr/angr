@@ -8,6 +8,7 @@ import os
 import unittest
 
 import angr
+from angr.sim_options import concrete
 
 from tests.common import bin_location
 
@@ -58,7 +59,8 @@ class TestCtypeLocale(unittest.TestCase):
             result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 2].short.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_b_loc()
-        sim_mgr = b.factory.simulation_manager(b.factory.full_init_state(remove_options={angr.options.SYMBOLIC}))
+        p_concrete = angr.Project(bin_path, auto_load_libs=True, exclude_sim_procedures_list=["__ctype_toupper_loc"])
+        sim_mgr = p_concrete.factory.simulation_manager(p_concrete.factory.entry_state(options=concrete))
         sim_mgr.run()
         output = sim_mgr.one_deadended.posix.dumps(1)
         assert result == output
@@ -108,7 +110,8 @@ class TestCtypeLocale(unittest.TestCase):
             result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 4].int.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_tolower_loc()
-        sim_mgr = b.factory.simulation_manager(b.factory.full_init_state(remove_options={angr.options.SYMBOLIC}))
+        p_concrete = angr.Project(bin_path, auto_load_libs=True, exclude_sim_procedures_list=["__ctype_toupper_loc"])
+        sim_mgr = p_concrete.factory.simulation_manager(p_concrete.factory.entry_state(options=concrete))
         sim_mgr.run()
         output = sim_mgr.one_deadended.posix.dumps(1)
         assert result == output
@@ -158,7 +161,8 @@ class TestCtypeLocale(unittest.TestCase):
             result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 4].int.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_toupper_loc()
-        sim_mgr = b.factory.simulation_manager(b.factory.full_init_state(remove_options={angr.options.SYMBOLIC}))
+        p_concrete = angr.Project(bin_path, auto_load_libs=True, exclude_sim_procedures_list=["__ctype_toupper_loc"])
+        sim_mgr = p_concrete.factory.simulation_manager(p_concrete.factory.entry_state(options=concrete))
         sim_mgr.run()
         output = sim_mgr.one_deadended.posix.dumps(1)
         assert result == output
