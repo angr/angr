@@ -3,6 +3,9 @@ name: Test on macOS
 on:
   workflow_dispatch:
   workflow_call:
+  pull_request:
+    paths:
+      - ".github/workflows/macos.yml"
 
 jobs:
   macos:
