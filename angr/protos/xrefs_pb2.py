@@ -3,19 +3,14 @@
 # source: protos/xrefs.proto
 # Protobuf Python Version: 5.28.2
 """Generated protocol buffer code."""
+
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
-_runtime_version.ValidateProtobufRuntimeVersion(
-    _runtime_version.Domain.PUBLIC,
-    5,
-    28,
-    2,
-    '',
-    'protos/xrefs.proto'
-)
+
+_runtime_version.ValidateProtobufRuntimeVersion(_runtime_version.Domain.PUBLIC, 5, 28, 2, "", "protos/xrefs.proto")
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
@@ -24,13 +19,15 @@ _sym_db = _symbol_database.Default()
 from . import primitives_pb2 as protos_dot_primitives__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12protos/xrefs.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"2\n\x05XRefs\x12)\n\x05xrefs\x18\x01 \x03(\x0b\x32\x1a.angr.protos.CodeReferenceb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
+    b'\n\x12protos/xrefs.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto"2\n\x05XRefs\x12)\n\x05xrefs\x18\x01 \x03(\x0b\x32\x1a.angr.protos.CodeReferenceb\x06proto3'
+)
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
-_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'protos.xrefs_pb2', _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "protos.xrefs_pb2", _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  DESCRIPTOR._loaded_options = None
-  _globals['_XREFS']._serialized_start=60
-  _globals['_XREFS']._serialized_end=110
+    DESCRIPTOR._loaded_options = None
+    _globals["_XREFS"]._serialized_start = 60
+    _globals["_XREFS"]._serialized_end = 110
 # @@protoc_insertion_point(module_scope)

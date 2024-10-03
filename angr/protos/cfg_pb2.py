@@ -3,19 +3,14 @@
 # source: protos/cfg.proto
 # Protobuf Python Version: 5.28.2
 """Generated protocol buffer code."""
+
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
-_runtime_version.ValidateProtobufRuntimeVersion(
-    _runtime_version.Domain.PUBLIC,
-    5,
-    28,
-    2,
-    '',
-    'protos/cfg.proto'
-)
+
+_runtime_version.ValidateProtobufRuntimeVersion(_runtime_version.Domain.PUBLIC, 5, 28, 2, "", "protos/cfg.proto")
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
@@ -24,19 +19,21 @@ _sym_db = _symbol_database.Default()
 from . import primitives_pb2 as protos_dot_primitives__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"]\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\x12\x13\n\x0binstr_addrs\x18\x05 \x03(\x04\"\x9d\x01\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edge\x12,\n\x0bmemory_data\x18\x04 \x03(\x0b\x32\x17.angr.protos.MemoryData\x12\x12\n\nnormalized\x18\x05 \x01(\x08\"\xfb\x02\n\nMemoryData\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x11\n\x04size\x18\x02 \x01(\rH\x00\x88\x01\x01\x12\x34\n\x04type\x18\x03 \x01(\x0e\x32&.angr.protos.MemoryData.MemoryDataType\x12\x1b\n\x0ereference_size\x18\x04 \x01(\rH\x01\x88\x01\x01\"\xde\x01\n\x0eMemoryDataType\x12\x13\n\x0fUnknownDataType\x10\x00\x12\x0f\n\x0bUnspecified\x10\x01\x12\x0b\n\x07Integer\x10\x02\x12\x10\n\x0cPointerArray\x10\x03\x12\n\n\x06String\x10\x04\x12\x11\n\rUnicodeString\x10\x05\x12\x13\n\x0fSegmentBoundary\x10\x06\x12\x11\n\rCodeReference\x10\x07\x12\x0f\n\x0bGOTPLTEntry\x10\x08\x12\r\n\tELFHeader\x10\t\x12\x11\n\rFloatingPoint\x10\n\x12\r\n\tAlignment\x10\x0b\x42\x07\n\x05_sizeB\x11\n\x0f_reference_sizeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
+    b'\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto"]\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\x12\x13\n\x0binstr_addrs\x18\x05 \x03(\x04"\x9d\x01\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edge\x12,\n\x0bmemory_data\x18\x04 \x03(\x0b\x32\x17.angr.protos.MemoryData\x12\x12\n\nnormalized\x18\x05 \x01(\x08"\xfb\x02\n\nMemoryData\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x11\n\x04size\x18\x02 \x01(\rH\x00\x88\x01\x01\x12\x34\n\x04type\x18\x03 \x01(\x0e\x32&.angr.protos.MemoryData.MemoryDataType\x12\x1b\n\x0ereference_size\x18\x04 \x01(\rH\x01\x88\x01\x01"\xde\x01\n\x0eMemoryDataType\x12\x13\n\x0fUnknownDataType\x10\x00\x12\x0f\n\x0bUnspecified\x10\x01\x12\x0b\n\x07Integer\x10\x02\x12\x10\n\x0cPointerArray\x10\x03\x12\n\n\x06String\x10\x04\x12\x11\n\rUnicodeString\x10\x05\x12\x13\n\x0fSegmentBoundary\x10\x06\x12\x11\n\rCodeReference\x10\x07\x12\x0f\n\x0bGOTPLTEntry\x10\x08\x12\r\n\tELFHeader\x10\t\x12\x11\n\rFloatingPoint\x10\n\x12\r\n\tAlignment\x10\x0b\x42\x07\n\x05_sizeB\x11\n\x0f_reference_sizeb\x06proto3'
+)
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
-_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'protos.cfg_pb2', _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "protos.cfg_pb2", _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  DESCRIPTOR._loaded_options = None
-  _globals['_CFGNODE']._serialized_start=58
-  _globals['_CFGNODE']._serialized_end=151
-  _globals['_CFG']._serialized_start=154
-  _globals['_CFG']._serialized_end=311
-  _globals['_MEMORYDATA']._serialized_start=314
-  _globals['_MEMORYDATA']._serialized_end=693
-  _globals['_MEMORYDATA_MEMORYDATATYPE']._serialized_start=443
-  _globals['_MEMORYDATA_MEMORYDATATYPE']._serialized_end=665
+    DESCRIPTOR._loaded_options = None
+    _globals["_CFGNODE"]._serialized_start = 58
+    _globals["_CFGNODE"]._serialized_end = 151
+    _globals["_CFG"]._serialized_start = 154
+    _globals["_CFG"]._serialized_end = 311
+    _globals["_MEMORYDATA"]._serialized_start = 314
+    _globals["_MEMORYDATA"]._serialized_end = 693
+    _globals["_MEMORYDATA_MEMORYDATATYPE"]._serialized_start = 443
+    _globals["_MEMORYDATA_MEMORYDATATYPE"]._serialized_end = 665
 # @@protoc_insertion_point(module_scope)
