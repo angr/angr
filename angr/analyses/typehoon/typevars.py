@@ -451,7 +451,7 @@ class BaseLabel:
     __slots__ = ("_cached_hash",)
 
     def __init__(self):
-        self._cached_hash = hash((type(self), *tuple(getattr(self, k) for k in self.__slots__)))
+        self._cached_hash = hash((type(self), *tuple(getattr(self, k) for k in self.__slots__ if k != "_cached_hash")))
 
     def __eq__(self, other):
         return type(self) is type(other) and self._cached_hash == other._cached_hash
