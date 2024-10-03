@@ -32,7 +32,7 @@ class SimpleInterfaceMixin(MemoryMixin):
     def _translate_addr(self, a):
         if isinstance(a, int):
             return a
-        if isinstance(a, claripy.ast.Base) and not a.singlevalued:
+        if isinstance(a, claripy.ast.BV) and not claripy.singlevalued(a):
             raise SimMemoryError("address not supported")
         return self.state.solver.eval(a)
 
@@ -48,7 +48,7 @@ class SimpleInterfaceMixin(MemoryMixin):
     def _translate_size(self, s, data):
         if isinstance(s, int):
             return s
-        if isinstance(s, claripy.ast.Base) and not s.singlevalued:
+        if isinstance(s, claripy.ast.BV) and not claripy.singlevalued(s):
             raise SimMemoryError("size not supported")
         if s is None:
             if isinstance(data, claripy.ast.BV):
@@ -59,7 +59,7 @@ class SimpleInterfaceMixin(MemoryMixin):
         return self.state.solver.eval(s)
 
     def _translate_cond(self, c):
-        if isinstance(c, claripy.ast.Base) and not c.singlevalued:
+        if isinstance(c, claripy.ast.BV) and not claripy.singlevalued(c):
             raise SimMemoryError("condition not supported")
         if c is None:
             return True

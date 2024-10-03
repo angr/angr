@@ -1723,15 +1723,10 @@ class JumpTableResolver(IndirectJumpResolver):
         all_targets = []
         jump_table = []
 
-        if jumptable_addr.op == "BVV":
-            stride = 0
-        else:
-            try:
-                jumptable_si = claripy.backends.vsa.simplify(jumptable_addr)
-                si_annotation = jumptable_si.get_annotation(claripy.annotation.StridedIntervalAnnotation)
-                stride = si_annotation.stride if si_annotation is not None else 0
-            except claripy.errors.BackendError:
-                return None
+        try:
+            stride = claripy.stride(jumptable_addr)
+        except claripy.errors.BackendError:
+            return None
 
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
@@ -1739,10 +1734,10 @@ class JumpTableResolver(IndirectJumpResolver):
         # the current function) and vtables (where each entry is a function).
         if stride < load_size:
             stride = load_size
-            total_cases = jumptable_addr.cardinality // load_size
+            total_cases = claripy.cardinality(jumptable_addr) // load_size
             sort = "vtable"  # it's probably a vtable!
         else:
-            total_cases = jumptable_addr.cardinality
+            total_cases = claripy.cardinality(jumptable_addr)
             sort = "jumptable"
 
         if total_cases > self._max_targets:

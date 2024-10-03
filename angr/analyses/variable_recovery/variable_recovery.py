@@ -151,7 +151,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     def _hook_register_read(self, state):
         reg_read_offset = state.inspect.reg_read_offset
         if isinstance(reg_read_offset, claripy.ast.BV):
-            if reg_read_offset.multivalued:
+            if claripy.multivalued(reg_read_offset):
                 # Multi-valued register offsets are not supported
                 l.warning("Multi-valued register offsets are not supported.")
                 return
@@ -183,7 +183,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     def _hook_register_write(self, state):
         reg_write_offset = state.inspect.reg_write_offset
         if isinstance(reg_write_offset, claripy.ast.BV):
-            if reg_write_offset.multivalued:
+            if claripy.multivalued(reg_write_offset):
                 # Multi-valued register offsets are not supported
                 l.warning("Multi-valued register offsets are not supported.")
                 return

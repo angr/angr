@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections.abc import Generator
 
+from claripy import cardinality
 from claripy.ast import BV
 
 
@@ -24,10 +25,7 @@ class AbstractAddressDescriptor:
 
     @property
     def cardinality(self):
-        n = 0
-        for _, si in self._regioned_addrs:
-            n += si.cardinality
-        return n
+        return sum(cardinality(si) for _, si in self._regioned_addrs)
 
     def add_regioned_address(self, region: str, addr: BV):
         self._regioned_addrs.append((region, addr))

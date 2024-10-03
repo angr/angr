@@ -1021,7 +1021,7 @@ class SimSolver(SimStatePlugin):
         if self.state.mode == "static":
             if type(e) in (int, bytes, float, bool):
                 return True
-            return e.cardinality <= 1
+            return claripy.singlevalued(e) <= 1
 
         # All symbolic expressions are not single-valued
         return not self.symbolic(e)
