@@ -46,9 +46,6 @@ class CleanupCodeRemover(TransformationPass):
             for predecessor in predecessors:
                 self.replace_jump_target(predecessor, block, successor)
             self._remove_block(block)
-        import ipdb
-
-        ipdb.set_trace()
 
     def _analyze(self, cache=None):
         self._simplify_if_drop()

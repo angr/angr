@@ -3,15 +3,41 @@ from typing import Optional, List
 
 import archinfo
 from ailment import Block, Const
-from ailment.expression import Convert
+from ailment.expression import Convert, VirtualVariable, Phi
 from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
 from networkx import NetworkXError
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
+from ...analyses.s_reaching_definitions import SRDAView
 from ...rust.utils.library import normalize
 
 
 l = logging.getLogger(name=__name__)
+
+
+class SRDAHelper:
+    def __init__(self, context: OptimizationPass):
+        self.srda = context.project.analyses.SReachingDefinitions(subject=context._func, func_graph=context._graph)
+        self.srda_view = SRDAView(self.srda.model)
+
+    def get_real_vvar_value(self, vvar):
+        visited = set()
+        value = vvar
+        while (value := self.srda_view.get_vvar_value(value)) and value not in visited:
+            visited.add(value)
+            if isinstance(value, VirtualVariable):
+                continue
+            elif isinstance(value, Phi):
+                result = set()
+                for _, phi_vvar in value.src_and_vvars:
+                    result.add(self.get_real_vvar_value(phi_vvar))
+                if len(result) == 1:
+                    return next(iter(result))
+                else:
+                    return value
+            else:
+                return value
+        return None
 
 
 class TransformationPass(OptimizationPass):

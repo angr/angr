@@ -25,7 +25,7 @@ _all_optimization_passes.extend(
         # (ErrorHandlingSimplifier, True),
         # (RetSiteSimplifier, True),
         # (CallingConventionRecovery, True),
-        # (AllocSimplifier, True),
+        (AllocSimplifier, True),
         # AFTER_MAKING_CALLSITES
         (CallsiteSimplifier, True),
         (CallsiteCorrector, True),
