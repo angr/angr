@@ -356,7 +356,7 @@ class SimSuccessors:
                         if o.KEEP_IP_SYMBOLIC in split_state.options:
                             split_state.regs.ip = target
                         else:
-                            split_state.add_constraints(cond, action=True)
+                            split_state.add_constraints(cond)
                             split_state.regs.ip = a
                         if split_state.supports_inspect:
                             split_state.inspect.downsize()
