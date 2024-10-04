@@ -43,7 +43,7 @@ class AngrDB:
         except DatabaseError as ex:
             raise AngrCorruptDBError("The target file may not be an angr database or it is corrupted.") from ex
         except Exception as ex:
-            raise AngrDBError(str(ex)) from ex
+            raise AngrDBError from ex
 
     @staticmethod
     @contextmanager

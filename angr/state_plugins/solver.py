@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import functools
 import time
 import logging
@@ -10,8 +11,10 @@ import claripy
 from angr import sim_options as o
 from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
 from angr.sim_state import SimState
+from .inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
+from .sim_action import SimActionConstraint
 
 l = logging.getLogger(name=__name__)
 
@@ -684,6 +687,9 @@ class SimSolver(SimStatePlugin):
 
         :return:                    True if sat, otherwise false
         """
+        if o.ABSTRACT_SOLVER in self.state.options or o.SYMBOLIC not in self.state.options:
+            return all(not self.is_false(e) for e in extra_constraints)
+
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
             ar = self._solver.satisfiable(
@@ -703,8 +709,69 @@ class SimSolver(SimStatePlugin):
 
         :param constraints:     Pass any constraints that you want to add (ASTs) as varargs.
         """
-        cc = self._adjust_constraint_list(constraints)
-        return self._solver.add(cc)
+        if len(constraints) > 0 and isinstance(constraints[0], (list, tuple)):
+            raise Exception("Tuple or list passed to add!")
+
+        if o.TRACK_CONSTRAINTS in self.state.options and len(constraints) > 0:
+            constraints = (
+                [self.simplify(a) for a in constraints] if o.SIMPLIFY_CONSTRAINTS in self.state.options else constraints
+            )
+
+            self.state._inspect("constraints", BP_BEFORE, added_constraints=constraints)
+            constraints = self.state._inspect_getattr("added_constraints", constraints)
+            cc = self._adjust_constraint_list(constraints)
+            added = self._solver.add(cc)
+            self.state._inspect("constraints", BP_AFTER)
+
+            # add actions for the added constraints
+            if o.TRACK_CONSTRAINT_ACTIONS in self.state.options:
+                for c in added:
+                    sac = SimActionConstraint(self.state, c)
+                    self.state.history.add_action(sac)
+
+        if o.ABSTRACT_SOLVER in self.state.options and len(constraints) > 0:
+            for arg in constraints:
+                if self.is_false(arg):
+                    return
+
+                if self.is_true(arg):
+                    continue
+
+                # It's neither True or False. Let's try to apply the condition
+
+                # We take the argument, extract a list of constrained SIs out of
+                # it (if we could, of course), and then replace each original SI
+                # the intersection of original SI and the constrained one.
+
+                _, converted = claripy.constraint_to_si(arg)
+
+                for original_expr, constrained_si in converted:
+                    if not original_expr.variables:
+                        l.error(
+                            "Incorrect original_expression to replace in add(). "
+                            "This is due to defects in VSA logics inside claripy. "
+                            "Please report to Fish and he will fix it if he's free."
+                        )
+                        continue
+
+                    new_expr = constrained_si
+                    self.state.registers.replace_all(original_expr, new_expr)
+                    self.state.memory.replace_all(original_expr, new_expr)
+                    # tmps
+                    temps = self.state.scratch.temps
+                    for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
+                        t = temps[idx]
+                        if t is None:
+                            continue
+                        if t.variables.intersection(original_expr.variables):
+                            # replace
+                            temps[idx] = t.replace(original_expr, new_expr)
+
+                    l.debug("SimSolver.add: Applied to final state.")
+        elif o.SYMBOLIC not in self.state.options and len(constraints) > 0:
+            for arg in constraints:
+                if self.is_false(arg):
+                    return
 
     #
     # And some convenience stuff
@@ -1055,5 +1122,3 @@ class SimSolver(SimStatePlugin):
 
 
 SimState.register_default("solver", SimSolver)
-
-from .inspect import BP_AFTER
