@@ -485,92 +485,18 @@ class SimState(PluginHub):
         """
         return self.solver.simplify(*args)
 
-    def add_constraints(self, *args, **kwargs):
+    def add_constraints(self, *constraints):
         """
         Add some constraints to the state.
 
         You may pass in any number of symbolic booleans as variadic positional arguments.
         """
-        if len(args) > 0 and isinstance(args[0], (list, tuple)):
-            raise Exception("Tuple or list passed to add_constraints!")
-
-        if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
-            constraints = [self.simplify(a) for a in args] if o.SIMPLIFY_CONSTRAINTS in self.options else args
-
-            self._inspect("constraints", BP_BEFORE, added_constraints=constraints)
-            constraints = self._inspect_getattr("added_constraints", constraints)
-            added = self.solver.add(*constraints)
-            self._inspect("constraints", BP_AFTER)
-
-            # add actions for the added constraints
-            if o.TRACK_CONSTRAINT_ACTIONS in self.options:
-                for c in added:
-                    sac = SimActionConstraint(self, c)
-                    self.history.add_action(sac)
-        else:
-            # preserve the old action logic for when we don't track constraints (why?)
-            if "action" in kwargs and kwargs["action"] and o.TRACK_CONSTRAINT_ACTIONS in self.options and len(args) > 0:
-                for arg in args:
-                    if self.solver.symbolic(arg):
-                        sac = SimActionConstraint(self, arg)
-                        self.history.add_action(sac)
-
-        if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
-            for arg in args:
-                if self.solver.is_false(arg):
-                    self._satisfiable = False
-                    return
-
-                if self.solver.is_true(arg):
-                    continue
-
-                # It's neither True or False. Let's try to apply the condition
-
-                # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
-                # then replace each original SI the intersection of original SI and the constrained one.
-
-                _, converted = claripy.constraint_to_si(arg)
-
-                for original_expr, constrained_si in converted:
-                    if not original_expr.variables:
-                        l.error(
-                            "Incorrect original_expression to replace in add_constraints(). "
-                            "This is due to defects in VSA logics inside claripy. Please report "
-                            "to Fish and he will fix it if he's free."
-                        )
-                        continue
-
-                    new_expr = constrained_si
-                    self.registers.replace_all(original_expr, new_expr)
-                    self.memory.replace_all(original_expr, new_expr)
-                    # tmps
-                    temps = self.scratch.temps
-                    for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
-                        t = temps[idx]
-                        if t is None:
-                            continue
-                        if t.variables.intersection(original_expr.variables):
-                            # replace
-                            temps[idx] = t.replace(original_expr, new_expr)
-
-                    l.debug("SimState.add_constraints: Applied to final state.")
-        elif o.SYMBOLIC not in self.options and len(args) > 0:
-            for arg in args:
-                if self.solver.is_false(arg):
-                    self._satisfiable = False
-                    return
+        return self.solver.add(*constraints)
 
     def satisfiable(self, **kwargs):
         """
         Whether the state's constraints are satisfiable
         """
-        if o.ABSTRACT_SOLVER in self.options or o.SYMBOLIC not in self.options:
-            extra_constraints = kwargs.pop("extra_constraints", ())
-            for e in extra_constraints:
-                if self.solver.is_false(e):
-                    return False
-
-            return self._satisfiable
         return self.solver.satisfiable(**kwargs)
 
     def downsize(self):
@@ -975,5 +901,3 @@ default_state_plugin_preset = PluginPreset()
 SimState.register_preset("default", default_state_plugin_preset)
 
 from .state_plugins.history import SimStateHistory
-from .state_plugins.inspect import BP_AFTER, BP_BEFORE
-from .state_plugins.sim_action import SimActionConstraint
