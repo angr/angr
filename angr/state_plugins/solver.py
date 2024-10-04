@@ -765,7 +765,7 @@ class SimSolver(SimStatePlugin):
                             continue
                         if t.variables.intersection(original_expr.variables):
                             # replace
-                            temps[idx] = t.replace(original_expr, new_expr)
+                            temps[idx] = claripy.replace(t, original_expr, new_expr)
 
                     l.debug("SimSolver.add: Applied to final state.")
         elif o.SYMBOLIC not in self.state.options and len(constraints) > 0:

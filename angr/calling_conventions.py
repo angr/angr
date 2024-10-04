@@ -69,7 +69,7 @@ class AllocHelper:
                 val.struct, {field: self.translate(subval, base) for field, subval in val._values.items()}
             )
         if isinstance(val, claripy.ast.Bits):
-            return val.replace(self.base, base)
+            return claripy.replace(val, self.base, base)
         if type(val) is list:
             return [self.translate(subval, base) for subval in val]
         raise TypeError(type(val))

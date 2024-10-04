@@ -414,7 +414,7 @@ class RegionedMemoryMixin(MemoryMixin):
     def _apply_condition_to_symbolic_addr(addr, condition):
         _, converted = claripy.constraint_to_si(condition)
         for original_expr, constrained_expr in converted:
-            addr = addr.replace(original_expr, constrained_expr)
+            addr = claripy.replace(addr, original_expr, constrained_expr)
         return addr
 
     @staticmethod
