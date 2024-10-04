@@ -31,6 +31,7 @@ _SORT_TO_IDX = {
     MemoryDataSort.GOTPLTEntry: cfg_pb2.MemoryData.GOTPLTEntry,
     MemoryDataSort.ELFHeader: cfg_pb2.MemoryData.ELFHeader,
     MemoryDataSort.FloatingPoint: cfg_pb2.MemoryData.FloatingPoint,
+    MemoryDataSort.Alignment: cfg_pb2.MemoryData.Alignment,
 }
 
 _IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}
