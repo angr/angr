@@ -455,7 +455,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     replaced_object = replaced_objects_cache[mo.object]
 
             else:
-                replaced_object = mo.object.replace(old, new)
+                replaced_object = claripy.replace(mo.object, old, new)
                 replaced_objects_cache[mo.object] = replaced_object
                 if mo.object is replaced_object:
                     # The replace does not really occur
