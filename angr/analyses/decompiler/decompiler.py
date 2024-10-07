@@ -128,6 +128,10 @@ class Decompiler(Analysis):
             if not isinstance(preset, DecompilationPreset):
                 raise TypeError('"preset" must be a DecompilationPreset instance')
             self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
+
+        if self.project.is_rust_binary:
+            self._optimization_passes.extend(get_rust_optimization_passes())
+
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
