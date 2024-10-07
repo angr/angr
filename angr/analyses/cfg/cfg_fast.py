@@ -4131,7 +4131,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = []
             for segment in self.project.loader.main_object.segments:
-                if segment.is_readable and not segment.is_writable:
+                if segment.is_readable and segment.memsize >= 8:
+                    # the gp area is sometimes writable, so we can't test for (not segment.is_writable)
                     content = self.project.loader.memory.load(segment.vaddr, segment.memsize)
                     content_buf = pyvex.ffi.from_buffer(content)
                     self._ro_region_cdata_cache.append(content_buf)

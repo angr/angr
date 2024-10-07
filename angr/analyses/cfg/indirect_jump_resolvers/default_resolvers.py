@@ -9,6 +9,7 @@ from . import AMD64ElfGotResolver
 from . import ConstantResolver
 from . import ArmElfFastResolver
 from . import AMD64PeIatResolver
+from . import MipsElfGotResolver
 
 DEFAULT_RESOLVERS = {
     "X86": {
@@ -29,6 +30,7 @@ DEFAULT_RESOLVERS = {
     },
     "MIPS32": {
         cle.MetaELF: [
+            MipsElfGotResolver,
             MipsElfFastResolver,
         ],
     },
