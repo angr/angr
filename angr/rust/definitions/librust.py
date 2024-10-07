@@ -28,6 +28,10 @@ prototypes = {
         args=[RustSimTypeReference(Arguments)],
         returnty=None,
     ),
+    "alloc::fmt::format::format_inner": RustSimTypeFunction(
+        args=[RustSimTypeReference(Arguments)],
+        returnty=None,
+    ),
     "std::io::stdio::_eprint": RustSimTypeFunction(
         args=[RustSimTypeReference(Arguments)],
         returnty=None,

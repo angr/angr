@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 from ailment import Const
 from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory
-from ailment.statement import Store, Assignment, Call, ConditionalJump
+from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump
 
 from .base import TransformationPass, SRDAHelper
 from ... import SIM_LIBRARIES
@@ -11,7 +11,7 @@ from ..ailment.expression import String
 
 
 class SimplificationState:
-    def __init__(self, context: "AllocSimplifier", alloc_block, alloc_call, condition_block, error_handling_block):
+    def __init__(self, context: "AllocSimplifier", alloc_block, alloc_call):
         self.context = context
         self.alloc_block = alloc_block
         self.alloc_call = alloc_call
@@ -23,9 +23,6 @@ class SimplificationState:
             self.alloc_size = args[0]
         if len(args) >= 2:
             self.alloc_align = args[1]
-
-        self.condition_block = condition_block
-        self.error_handling_block = error_handling_block
         # Statements that initiate the allocated heap memory
         self.init_stmts = []
         # Statements that construct the final object
@@ -147,19 +144,8 @@ class AllocSimplifier(TransformationPass, SRDAHelper):
                 and self.match_call(terminal, RUST_ALLOC_FUNCTIONS)
                 and self.num_successors(block) == 1
             ):
-                condition_block = self.get_one_successor(block)
                 alloc_call = terminal.src
-                if (
-                    condition_block.statements
-                    and isinstance(condition_block.statements[-1], ConditionalJump)
-                    and len(successors := list(self._graph.successors(condition_block))) == 2
-                ):
-                    error_handling_block = list(
-                        filter(lambda succ: self.match_call(succ, RUST_ALLOC_ERROR_HANDLING_FUNCTIONS), successors)
-                    )
-                    if len(error_handling_block) == 1:
-                        error_handling_block = next(iter(error_handling_block))
-                        return SimplificationState(self, block, alloc_call, condition_block, error_handling_block)
+                return SimplificationState(self, block, alloc_call)
         return None
 
     def extract_vvar_and_offset(self, expr) -> [Optional[VirtualVariable], Optional[int]]:
@@ -243,7 +229,52 @@ class AllocSimplifier(TransformationPass, SRDAHelper):
                         state.construct_stmts = construct_stmts
                         self._used_construct_stmts = self._used_construct_stmts.union(construct_stmts)
 
+    def _get_real_jump_target(self, target, target_idx):
+        if isinstance(target, Const):
+            block_addr = target.value
+            block_idx = target_idx
+            visited = set()
+            visited_blocks = []
+            while (block_addr, block_idx) not in visited:
+                visited.add((block_addr, block_idx))
+                block = self.blocks_by_addr_and_idx[(block_addr, block_idx)]
+                visited_blocks.append(block)
+                if (
+                    all(isinstance(stmt, Label) or isinstance(stmt, Jump) for stmt in block.statements)
+                    and self.num_successors(block) == 1
+                ):
+                    succ = self.get_one_successor(block)
+                    block_addr = succ.addr
+                    block_idx = succ.idx
+                else:
+                    return visited_blocks, block
+        return None, None
+
+    def _remove_alloc_error_handling_blocks(self):
+        error_handling_blocks = set()
+        for block in self._graph.nodes:
+            if self.match_call(block, RUST_ALLOC_ERROR_HANDLING_FUNCTIONS):
+                error_handling_blocks.add(block)
+
+        blocks_to_remove = set(error_handling_blocks)
+
+        for block in self._graph.nodes:
+            if block.statements and isinstance(jump := block.statements[-1], ConditionalJump):
+                true_visited_blocks, true_block = self._get_real_jump_target(jump.true_target, jump.true_target_idx)
+                false_visited_blocks, false_block = self._get_real_jump_target(jump.false_target, jump.false_target_idx)
+                if true_block in error_handling_blocks and false_block not in error_handling_blocks:
+                    self.replace_jump_target(block, true_visited_blocks[0], false_block)
+                    blocks_to_remove |= set(true_visited_blocks)
+                elif false_block in error_handling_blocks and true_block not in error_handling_blocks:
+                    self.replace_jump_target(block, false_visited_blocks[0], true_block)
+                    blocks_to_remove |= set(false_visited_blocks)
+
+        for block in blocks_to_remove:
+            self._remove_block(block)
+
     def _analyze(self, cache=None):
+        self._remove_alloc_error_handling_blocks()
+
         for block in self._graph.nodes:
             for stmt in block.statements:
                 self._stmt_to_block[stmt] = block
@@ -270,12 +301,4 @@ class AllocSimplifier(TransformationPass, SRDAHelper):
                     idx = block.statements.index(old_stmt)
                     block.statements[idx] = replacement
 
-                successors = list(
-                    filter(
-                        lambda block: block.addr != state.error_handling_block.addr,
-                        self._graph.successors(state.condition_block),
-                    )
-                )
-                self.replace_jump_target(state.condition_block, state.error_handling_block, next(iter(successors)))
-                self._remove_block(state.error_handling_block)
         self.out_graph = self._graph

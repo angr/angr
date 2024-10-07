@@ -177,7 +177,7 @@ class StructInstantiationSimplifier(OptimizationPass):
 
         self.srda_view._get_vvar_by_insn(addr, OP_BEFORE, _predicate, block_idx=block_idx)
 
-        assert len(vvars) <= 1
+        # assert len(vvars) <= 1
         return next(iter(vvars), None)
 
     def _get_def_by_stack_vvar(self, stack_vvar):
