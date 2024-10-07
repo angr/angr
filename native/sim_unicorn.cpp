@@ -1722,7 +1722,14 @@ VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
 		lift_address = block_address;
 	}
 	uc_mem_read(this->uc, lift_address, instructions.get(), block_size);
-	return vex_lift(vex_guest, vex_archinfo, instructions.get(), lift_address, 99, block_size, 1, 0, 1, 1, 0,
+	return vex_lift(vex_guest, vex_archinfo, instructions.get(), lift_address, 99, block_size,
+	    1 /* opt_level */,
+	    0 /* traceflags */,
+	    1 /* allow_arch_optimizations */,
+	    1 /* strict_block_end */,
+	    0 /* collect_data_refs */,
+	    0 /* load_from_ro_regions */,
+	    0 /* const_prop */,
 	    pxControl, 0);
 }
 

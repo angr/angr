@@ -1,17 +1,14 @@
-# pylint:disable=too-many-boolean-expressions,global-statement
+# pylint:disable=too-many-boolean-expressions,global-statement,too-many-positional-arguments
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
+from enum import Enum
 
 import archinfo
-import claripy
 import pyvex
 
 
-from angr import options, BP_BEFORE
 from angr.blade import Blade
-from angr.annocfg import AnnotatedCFG
-from angr.exploration_techniques import Slicecutor
 from angr.utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
 
@@ -22,14 +19,15 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 PROFILING = False
-HITS_CASE_0, HITS_CASE_1, MISSES = 0, 0, 0
+HITS_CASE_1, HITS_CASE_2, MISSES = 0, 0, 0
 
 
 def enable_profiling():
-    global PROFILING, HITS_CASE_0, HITS_CASE_1, MISSES
+    global PROFILING, HITS_CASE_1, HITS_CASE_2, MISSES
+
     PROFILING = True
-    HITS_CASE_0 = 0
     HITS_CASE_1 = 0
+    HITS_CASE_2 = 0
     MISSES = 0
 
 
@@ -38,16 +36,14 @@ def disable_profiling():
     PROFILING = False
 
 
-class OverwriteTmpValueCallback:
+class Case2Result(Enum):
     """
-    Overwrites temporary values during resolution
+    Describes the result of resolving case 2 function calls.
     """
 
-    def __init__(self, gp_value):
-        self.gp_value = gp_value
-
-    def overwrite_tmp_value(self, state):
-        state.inspect.tmp_write_expr = claripy.BVV(self.gp_value, state.arch.bits)
+    SUCCESS = 0
+    FAILURE = 1
+    RESUME = 2
 
 
 class MipsElfFastResolver(IndirectJumpResolver):
@@ -76,10 +72,14 @@ class MipsElfFastResolver(IndirectJumpResolver):
         :return: If it was resolved and targets alongside it
         :rtype: tuple
         """
-        for max_level in range(2, 4):
-            resolved, resolved_targets = self._resolve(cfg, addr, func_addr, block, jumpkind, max_level=max_level)
-            if resolved:
-                return resolved, resolved_targets
+        global MISSES
+
+        resolved, resolved_targets = self._resolve(cfg, addr, func_addr, block, jumpkind, max_level=2)
+        if resolved:
+            return resolved, resolved_targets
+
+        if PROFILING:
+            MISSES += 1
         return False, []
 
     def _resolve(self, cfg, addr, func_addr, block, jumpkind, max_level):  # pylint:disable=unused-argument
@@ -96,16 +96,15 @@ class MipsElfFastResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
-        global HITS_CASE_0, HITS_CASE_1, MISSES
+        global HITS_CASE_1, HITS_CASE_2
 
-        project = self.project
-
+        func = cfg.kb.functions.function(addr=func_addr)
         b = Blade(
             cfg.graph,
             addr,
             -1,
             cfg=cfg,
-            project=project,
+            project=self.project,
             ignore_sp=True,
             ignore_bp=True,
             ignored_regs=("gp",),
@@ -115,11 +114,10 @@ class MipsElfFastResolver(IndirectJumpResolver):
             include_imarks=False,
         )
 
-        func = cfg.kb.functions.function(addr=func_addr)
         gp_value = func.info.get("gp", None)
 
         # see if gp is used on this slice at all
-        gp_used = self._is_gp_used_on_slice(project, b)
+        gp_used = self._is_gp_used_on_slice(self.project, b)
         if gp_used and gp_value is None:
             # this might a special case: gp is only used once in this function, and it can be initialized right
             # before its use site.
@@ -128,362 +126,135 @@ class MipsElfFastResolver(IndirectJumpResolver):
             l.warning("Failed to determine value of register gp for function %#x.", func.addr)
             return False, []
 
-        if gp_value is not None:
-            target = self._try_handle_simple_case_0(gp_value, b)
-            if target is not None:
+        # we support two cases:
+        # Case 1. t9 is set in the current block, and jalr $t9 at the end of the same block.
+        # Case 2. t9 is set in both predecessor blocks, and jalr $t9 at the end of the current block.
+
+        block_addrs = {block_addr for block_addr, _ in b.slice}
+        if len(block_addrs) == 2 and addr in block_addrs:
+            first_block_addr = next(iter(block_addrs - {addr}))
+            r, target = self._resolve_case_2(first_block_addr, block, func_addr, gp_value, cfg)
+            if r == Case2Result.SUCCESS:
                 if PROFILING:
-                    HITS_CASE_0 += 1
-                    # print(f"hit/miss: {HITS_CASE_0 + HITS_CASE_1}/{MISSES}, {HITS_CASE_0}|{HITS_CASE_1}")
+                    HITS_CASE_2 += 1
                 return True, [target]
-            target = self._try_handle_simple_case_1(gp_value, b)
-            if target is not None:
-                if PROFILING:
-                    HITS_CASE_1 += 1
-                    # print(f"hit/miss: {HITS_CASE_0 + HITS_CASE_1}/{MISSES}, {HITS_CASE_0}|{HITS_CASE_1}")
-                return True, [target]
-
-        if PROFILING:
-            MISSES += 1
-            # print(f"hit/miss: {HITS_CASE_0 + HITS_CASE_1}/{MISSES}, {HITS_CASE_0}|{HITS_CASE_1}")
-
-        sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
-        if not sources:
-            return False, []
-
-        source = sources[0]
-        source_addr = source[0]
-        annotated_cfg = AnnotatedCFG(project, None, detect_loops=False)
-        annotated_cfg.from_digraph(b.slice)
-
-        state = project.factory.blank_state(
-            addr=source_addr,
-            mode="fastpath",
-            remove_options=options.refs,
-            # suppress unconstrained stack reads for `gp`
-            add_options={
-                options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
-                options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
-                options.NO_CROSS_INSN_OPT,
-            },
-        )
-        state.regs._t9 = func_addr
-
-        if gp_used:
-            # Special handling for cases where `gp` is stored on the stack
-            gp_offset = project.arch.registers["gp"][0]
-            self._set_gp_load_callback(state, b, project, gp_offset, gp_value)
-            state.regs._gp = gp_value
-
-        simgr = self.project.factory.simulation_manager(state)
-        simgr.use_technique(Slicecutor(annotated_cfg, force_sat=True))
-        simgr.run()
-
-        if simgr.cut:
-            # pick the successor that is cut right after executing `addr`
-            try:
-                target_state = next(iter(cut for cut in simgr.cut if cut.history.addr == addr))
-            except StopIteration:
-                l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
+            if r == Case2Result.FAILURE:
                 return False, []
-            target = target_state.addr
+            # otherwise, we need to resume the analysis
 
-            if self._is_target_valid(cfg, target) and target != func_addr:
-                l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)
-                return True, [target]
+        target = self._resolve_case_1(addr, block, func_addr, gp_value, cfg)
+        if target is not None:
+            if PROFILING:
+                HITS_CASE_1 += 1
+            return True, [target]
 
-            l.info("Indirect jump at %#x is resolved to target %#x, which seems to be invalid.", addr, target)
-            return False, []
-
-        l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
+        # no luck
         return False, []
 
-    def _try_handle_simple_case_0(self, gp: int, blade: Blade) -> int | None:
-        # we only attempt to support the following case:
-        #  + A | t37 = GET:I32(gp)
-        #  + B | t36 = Add32(t37,0xffff8624)
-        #  + C | t38 = LDbe:I32(t36)
-        #  + D | PUT(t9) = t38
-        #  + E | t8 = GET:I32(t9)
-        #  Next: t8
+    def _resolve_case_1(self, addr: int, block: pyvex.IRSB, func_addr: int, gp_value: int, cfg) -> int | None:
+        # lift the block again with the correct setting
+        first_irsb = self.project.factory.block(
+            addr,
+            size=block.size,
+            collect_data_refs=False,
+            const_prop=True,
+            cross_insn_opt=False,
+            load_from_ro_regions=True,
+            initial_regs=[
+                (self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1], func_addr),
+                (self.project.arch.registers["gp"][0], self.project.arch.registers["gp"][1], gp_value),
+            ],
+        ).vex_nostmt
 
-        nodes_with_no_outedges = []
-        for node in blade.slice.nodes():
-            if blade.slice.out_degree(node) == 0:
-                nodes_with_no_outedges.append(node)
-        if len(nodes_with_no_outedges) != 1:
+        if not isinstance(first_irsb.next, pyvex.IRExpr.RdTmp):
             return None
-
-        end_node = nodes_with_no_outedges[0]
-        if end_node[-1] != DEFAULT_STATEMENT:
-            return None
-
-        end_block = self.project.factory.block(end_node[0], cross_insn_opt=blade._cross_insn_opt).vex
-        if not isinstance(end_block.next, pyvex.IRExpr.RdTmp):
-            return None
-        next_tmp = end_block.next.tmp
-
-        # step backward
-
-        # E
-        previous_node = self._previous_node(blade, end_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Get):
-            return None
-        if stmt.tmp != next_tmp:
-            return None
-        if stmt.data.offset != self.project.arch.registers["t9"][0]:
+        target_tmp = first_irsb.next.tmp
+        if first_irsb.const_vals is None:
             return None
 
-        # D
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if not isinstance(stmt, pyvex.IRStmt.Put) or not isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-            return None
-        if stmt.offset != self.project.arch.registers["t9"][0]:
-            return None
-        data_tmp = stmt.data.tmp
+        # find the value of the next tmp
+        for cv in first_irsb.const_vals:
+            if cv.tmp == target_tmp:
+                target = cv.value
+                if self._is_target_valid(cfg, target):
+                    return target
+                break
 
-        # C
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or not isinstance(stmt.data, pyvex.IRExpr.Load)
-            or not isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp)
-        ):
-            return None
-        if stmt.tmp != data_tmp:
-            return None
-        addr_tmp = stmt.data.addr.tmp
+        return None
 
-        # B
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or stmt.tmp != addr_tmp
-            or not isinstance(stmt.data, pyvex.IRExpr.Binop)
-            or stmt.data.op != "Iop_Add32"
-            or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
-            or not isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
-        ):
-            return None
-        add_tmp = stmt.data.args[0].tmp
-        add_const = stmt.data.args[1].con.value
+    def _resolve_case_2(
+        self, first_block_addr: int, second_block: pyvex.IRSB, func_addr: int, gp_value: int, cfg
+    ) -> tuple[Case2Result, int | None]:
+        jump_target_reg = self._get_jump_target_reg(second_block)
+        if jump_target_reg is None:
+            return Case2Result.FAILURE, None
+        last_reg_setting_tmp = self._get_last_reg_setting_tmp(second_block, jump_target_reg)
+        if last_reg_setting_tmp is not None:
+            # the register (t9) is set in this block - we can resolve the jump target using only the current block
+            return Case2Result.RESUME, None
 
-        # A
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or stmt.tmp != add_tmp
-            or not isinstance(stmt.data, pyvex.IRExpr.Get)
-        ):
-            return None
-        if stmt.data.offset != self.project.arch.registers["gp"][0]:
-            return None
+        # lift the first block again with the correct setting
+        first_irsb = self.project.factory.block(
+            first_block_addr,
+            cross_insn_opt=False,
+            collect_data_refs=False,
+            const_prop=True,
+            load_from_ro_regions=True,
+            initial_regs=[
+                (self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1], func_addr),
+                (self.project.arch.registers["gp"][0], self.project.arch.registers["gp"][1], gp_value),
+            ],
+        ).vex_nostmt
 
-        # matching complete
-        addr = (gp + add_const) & 0xFFFF_FFFF
-        try:
-            return self.project.loader.memory.unpack_word(addr, size=4)
-        except KeyError:
-            return None
+        last_reg_setting_tmp = self._get_last_reg_setting_tmp(first_irsb, jump_target_reg)
+        if last_reg_setting_tmp is None:
+            return Case2Result.FAILURE, None
 
-    def _try_handle_simple_case_1(self, gp: int, blade: Blade) -> int | None:
-        # we only attempt to support the following case:
-        #  + A | t22 = GET:I32(gp)
-        #  + B | t21 = Add32(t22,0xffff8020)
-        #  + C | t23 = LDbe:I32(t21)
-        #  + D | PUT(t9) = t23
-        #  + E | t27 = GET:I32(t9)
-        #  + F | t26 = Add32(t27,0x00007cec)
-        #  + G | PUT(t9) = t26
-        #  + H | t4 = GET:I32(t9)
-        #  + Next: t4
+        # find the value of the next tmp
+        if first_irsb.const_vals is None:
+            return Case2Result.FAILURE, None
+        for cv in first_irsb.const_vals:
+            if cv.tmp == last_reg_setting_tmp:
+                target = cv.value
+                if self._is_target_valid(cfg, target):
+                    return Case2Result.SUCCESS, target
+                break
 
-        nodes_with_no_outedges = []
-        for node in blade.slice.nodes():
-            if blade.slice.out_degree(node) == 0:
-                nodes_with_no_outedges.append(node)
-        if len(nodes_with_no_outedges) != 1:
-            return None
-
-        end_node = nodes_with_no_outedges[0]
-        if end_node[-1] != DEFAULT_STATEMENT:
-            return None
-
-        end_block = self.project.factory.block(end_node[0], cross_insn_opt=blade._cross_insn_opt).vex
-        if not isinstance(end_block.next, pyvex.IRExpr.RdTmp):
-            return None
-        next_tmp = end_block.next.tmp
-
-        # step backward
-
-        # H
-        previous_node = self._previous_node(blade, end_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Get):
-            return None
-        if stmt.tmp != next_tmp:
-            return None
-        if stmt.data.offset != self.project.arch.registers["t9"][0]:
-            return None
-
-        # G
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if not isinstance(stmt, pyvex.IRStmt.Put) or not isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-            return None
-        if stmt.offset != self.project.arch.registers["t9"][0]:
-            return None
-        t9_tmp_G = stmt.data.tmp
-
-        # F
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or stmt.tmp != t9_tmp_G
-            or not isinstance(stmt.data, pyvex.IRExpr.Binop)
-            or stmt.data.op != "Iop_Add32"
-            or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
-            or not isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
-        ):
-            return None
-        t9_tmp_F = stmt.data.args[0].tmp
-        t9_add_const = stmt.data.args[1].con.value
-
-        # E
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Get):
-            return None
-        if stmt.tmp != t9_tmp_F:
-            return None
-        if stmt.data.offset != self.project.arch.registers["t9"][0]:
-            return None
-
-        # D
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if not isinstance(stmt, pyvex.IRStmt.Put) or not isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-            return None
-        if stmt.offset != self.project.arch.registers["t9"][0]:
-            return None
-        t9_tmp_D = stmt.data.tmp
-
-        # C
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or not isinstance(stmt.data, pyvex.IRExpr.Load)
-            or not isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp)
-        ):
-            return None
-        if stmt.tmp != t9_tmp_D:
-            return None
-        addr_tmp = stmt.data.addr.tmp
-
-        # B
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or stmt.tmp != addr_tmp
-            or not isinstance(stmt.data, pyvex.IRExpr.Binop)
-            or stmt.data.op != "Iop_Add32"
-            or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
-            or not isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
-        ):
-            return None
-        add_tmp = stmt.data.args[0].tmp
-        add_const = stmt.data.args[1].con.value
-
-        # A
-        previous_node = self._previous_node(blade, previous_node)
-        if previous_node is None:
-            return None
-        stmt = end_block.statements[previous_node[1]]
-        if (
-            not isinstance(stmt, pyvex.IRStmt.WrTmp)
-            or stmt.tmp != add_tmp
-            or not isinstance(stmt.data, pyvex.IRExpr.Get)
-        ):
-            return None
-        if stmt.data.offset != self.project.arch.registers["gp"][0]:
-            return None
-
-        # matching complete
-        addr = (gp + add_const) & 0xFFFF_FFFF
-        try:
-            target_0 = self.project.loader.memory.unpack_word(addr, size=4)
-            return (target_0 + t9_add_const) & 0xFFFF_FFFF
-        except KeyError:
-            return None
+        return Case2Result.FAILURE, None
 
     @staticmethod
-    def _previous_node(blade: Blade, curr_node: tuple[int, int]) -> tuple[int, int] | None:
-        if blade.slice.in_degree(curr_node) != 1:
+    def _get_jump_target_reg(block: pyvex.IRSB) -> int | None:
+        if block.jumpkind != "Ijk_Call":
             return None
-        nn = next(iter(blade.slice.predecessors(curr_node)))
-        if nn[0] != curr_node[0]:
+        if not isinstance(block.next, pyvex.IRExpr.RdTmp):
             return None
-        return nn
+        next_tmp = block.next.tmp
+
+        for stmt in reversed(block.statements):
+            if (
+                isinstance(stmt, pyvex.IRStmt.Put)
+                and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                and stmt.data.tmp == next_tmp
+            ):
+                return stmt.offset
+            if (
+                isinstance(stmt, pyvex.IRStmt.WrTmp)
+                and stmt.tmp == next_tmp
+                and isinstance(stmt.data, pyvex.IRExpr.Get)
+            ):
+                return stmt.data.offset
+
+        return None
 
     @staticmethod
-    def _set_gp_load_callback(state, blade, project, gp_offset, gp_value):
-        tmps = {}
-        for block_addr_in_slice in {slice_node[0] for slice_node in blade.slice.nodes()}:
-            for stmt in project.factory.block(block_addr_in_slice, cross_insn_opt=False).vex.statements:
-                if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
-                    # Load from memory to a tmp - assuming it's loading from the stack
-                    tmps[stmt.tmp] = "stack"
-                elif (
-                    isinstance(stmt, pyvex.IRStmt.Put)
-                    and stmt.offset == gp_offset
-                    and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
-                ):
-                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                    if tmps.get(tmp_offset) == "stack":
-                        # found the load from stack
-                        # we must make sure value of that temporary variable equals to the correct gp value
-                        state.inspect.make_breakpoint(
-                            "tmp_write",
-                            when=BP_BEFORE,
-                            condition=(
-                                lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
-                                == bbl_addr_
-                                and s.inspect.tmp_write_num == tmp_offset_
-                            ),
-                            action=OverwriteTmpValueCallback(gp_value).overwrite_tmp_value,
-                        )
-                        break
+    def _get_last_reg_setting_tmp(block: pyvex.IRSB, target_reg: int) -> int | None:
+        for stmt in reversed(block.statements):
+            if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == target_reg:
+                if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                    return stmt.data.tmp
+                return None
+
+        return None
 
     @staticmethod
     def _is_gp_used_on_slice(project, b: Blade) -> bool:
