@@ -23,7 +23,7 @@ class MipsElfGotResolver(IndirectJumpResolver):
     """
     A timeless indirect jump resolver that resolves GOT stub entries in MIPS ELF binaries.
 
-    Reference: MIPS Assembly Language Programmer’s Guide, Calling Position Independent Functions
+    Reference: MIPS Assembly Language Programmer's Guide, Calling Position Independent Functions
     """
 
     def __init__(self, project):
