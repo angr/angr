@@ -47,5 +47,56 @@ class CleanupCodeRemover(TransformationPass):
                 self.replace_jump_target(predecessor, block, successor)
             self._remove_block(block)
 
+    def _is_do_while_loop(self, do_while_loop_head, do_while_loop_end):
+        return self.num_successors(do_while_loop_end) == 2 and do_while_loop_head in set(
+            self._graph.successors(do_while_loop_end)
+        )
+
+    def _is_for_loop(self, for_loop_head, for_loop_body_head, for_loop_end):
+        return self.num_successors(for_loop_head) == 2 and {for_loop_body_head, for_loop_end} == set(
+            self._graph.successors(for_loop_head)
+        )
+
+    def _simplify_for_loop_drop(self):
+        blocks_to_remove = set()
+        jumps_to_replace = {}
+        for block in self._graph.nodes:
+            if self.match_call(block, CLEANUP_FUNCTIONS):
+                if self.num_successors(block) == 1 and self.num_predecessors(block) == 1:
+                    do_while_loop_head = self.get_one_predecessor(block)
+                    intermediate_block = self.get_one_successor(block)
+                    if self.num_successors(intermediate_block) != 1:
+                        continue
+                    do_while_loop_end = self.get_one_successor(intermediate_block)
+                    if (
+                        self._is_do_while_loop(do_while_loop_head, do_while_loop_end)
+                        and self.num_predecessors(do_while_loop_head) == 2
+                    ):
+                        predecessors = set(self._graph.predecessors(do_while_loop_head))
+                        predecessors.remove(do_while_loop_end)
+                        for_loop_body_head = next(iter(predecessors))
+                        for_loop_end = set(self._graph.successors(do_while_loop_end))
+                        for_loop_end.remove(do_while_loop_head)
+                        if len(for_loop_end) == 1:
+                            for_loop_end = next(iter(for_loop_end))
+                        else:
+                            continue
+                        for_loop_heads = list(self._graph.predecessors(for_loop_body_head))
+                        if all(
+                            self._is_for_loop(for_loop_head, for_loop_body_head, for_loop_end)
+                            for for_loop_head in for_loop_heads
+                        ):
+                            blocks_to_remove.update(
+                                {for_loop_body_head, do_while_loop_head, block, intermediate_block, do_while_loop_end}
+                            )
+                            for for_loop_head in for_loop_heads:
+                                jumps_to_replace[for_loop_head] = for_loop_end
+
+        for src, dst in jumps_to_replace.items():
+            self.replace_jump_target(src, None, dst)
+        for block in blocks_to_remove:
+            self._remove_block(block)
+
     def _analyze(self, cache=None):
+        self._simplify_for_loop_drop()
         self._simplify_if_drop()
