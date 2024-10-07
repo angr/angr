@@ -251,7 +251,13 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
         # Raise an exception if we're suddenly in self-modifying code
         if (self.project is None or self.project.selfmodifying_code) and self.state.scratch.dirty_addrs:
-            for subaddr in range(stmt.len):
+            instruction_len = stmt.len
+            if instruction_len == 0:
+                # We don't know how long this instruction is.
+                # Conservatively assume it is the maximum instruction
+                # length for the purpose of dirty checks.
+                instruction_len = self.project.arch.max_inst_bytes
+            for subaddr in range(instruction_len):
                 if subaddr + stmt.addr in self.state.scratch.dirty_addrs:
                     raise errors.SimReliftException(self.state)
 

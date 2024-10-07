@@ -62,6 +62,54 @@ class TestSelfModifyingCOde(TestCase):
         # also ensure that block.pp() does not raise any exceptions
         p.factory.block(0xBAAA7B42, backup_state=pg.one_deadended).pp()
 
+    def test_self_modifying_code_overwrite_invalid_instruction(self):
+        # mov byte ptr [rip+invalid], 0x90
+        # invalid:
+        # .byte 0x6
+        # mov rax, 0x1234
+        # int3
+        code = b'\xc6\x05\x00\x00\x00\x00\x90\x06H\xc7\xc04\x12\x00\x00\xcc'
+        proj = angr.load_shellcode(code, "amd64", selfmodifying_code=True)
+        state = proj.factory.blank_state(
+            addr=0,
+            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+
+        simgr = proj.factory.simgr(state)
+        simgr.step()
+
+        assert len(simgr.active) == 1
+
+        rax = simgr.active[0].regs.rax
+        assert rax.concrete
+        assert rax.concrete_value == 0x1234
+
+    def test_self_modifying_code_overwrite_middle_of_invalid_instruction(self):
+        # xor rax, rax
+        # ; "ff ff" becomes "ff c0", which is is "inc eax"
+        # mov byte ptr [rip+invalid1], 0xc0
+        # .byte 0xff
+        # invalid1:
+        # .byte 0xff
+        # mov rbx, 0x1234
+        # int3
+        code = b'H1\xc0\xc6\x05\x01\x00\x00\x00\xc0\xff\xffH\xc7\xc34\x12\x00\x00\xcc'
+        proj = angr.load_shellcode(code, "amd64", selfmodifying_code=True)
+        state = proj.factory.blank_state(
+            addr=0,
+            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+
+        simgr = proj.factory.simgr(state)
+        simgr.step()
+
+        assert len(simgr.active) == 1
+
+        rax = simgr.active[0].regs.rax
+        assert rax.concrete
+        assert rax.concrete_value == 1
+
+        rbx = simgr.active[0].regs.rbx
+        assert rbx.concrete
+        assert rbx.concrete_value == 0x1234
 
 if __name__ == "__main__":
     main()
