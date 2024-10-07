@@ -1073,7 +1073,7 @@ def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
     if sz.op != "BVV":
         raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
 
-    want_flags = claripy.SLT(sz, 0).is_true()
+    want_flags = state.solver.is_true(claripy.SLT(sz, 0))
     if want_flags:
         sz = -sz
     carry_bit_in = eflags_in[data["AMD64"]["CondBitOffsets"]["G_CC_SHIFT_C"]]
@@ -1095,7 +1095,7 @@ def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
     if sz.op != "BVV":
         raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
 
-    want_flags = claripy.SLT(sz, 0).is_true()
+    want_flags = state.solver.is_true(claripy.SLT(sz, 0))
     if want_flags:
         sz = -sz
     carry_bit_in = eflags_in[data["AMD64"]["CondBitOffsets"]["G_CC_SHIFT_C"]]
@@ -1345,7 +1345,7 @@ def get_segdescr_limit(state, descriptor):
     lo = descriptor[15:0]
     hi = descriptor[51:48]
     limit = claripy.Concat(hi, lo).zero_extend(12)
-    if (granularity == 0).is_true():
+    if state.solver.is_true(granularity == 0):
         return limit
     return (limit << 12) | 0xFFF
 
@@ -1357,7 +1357,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             l.warning("x86g_use_seg_selector: %s", msg)
         return claripy.BVV(1 << 32, 32).zero_extend(32)
 
-    if (seg_selector & ~0xFFFF != 0).is_true():
+    if state.solver.is_true(seg_selector & ~0xFFFF != 0):
         return bad("invalid selector (" + str(seg_selector) + ")")
 
     if virtual_addr.length == 16:
@@ -1373,7 +1373,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     if (
         state.project.simos.name == "Win32"
-        and (segment_selector_val == 0x6).is_true()
+        and state.solver.is_true(segment_selector_val == 0x6)
         and state.project.concrete_target is not None
     ):
         return bad(
@@ -1388,7 +1388,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     #    return bad()
 
     tiBit = (seg_selector >> 2) & 1
-    if (tiBit == 0).is_true():
+    if state.solver.is_true(tiBit == 0):
         # GDT access
         gdt_value = state.solver.eval_one(gdt)
         if gdt_value == 0:
@@ -1398,7 +1398,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         seg_selector = seg_selector.zero_extend(32)
 
         gdt_limit = gdt[15:0]
-        if (seg_selector >= gdt_limit.zero_extend(48)).is_true():
+        if state.solver.is_true(seg_selector >= gdt_limit.zero_extend(48)):
             return bad("index out of range")
 
         gdt_base = gdt[47:16]
@@ -1414,7 +1414,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         seg_selector = seg_selector.zero_extend(32)
 
         ldt_limit = ldt[15:0]
-        if (seg_selector >= ldt_limit.zero_extend(48)).is_true():
+        if state.solver.is_true(seg_selector >= ldt_limit.zero_extend(48)):
             return bad("index out of range")
 
         ldt_base = ldt[47:16]
@@ -1424,7 +1424,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         descriptor = state.memory.load(ldt_value + seg_selector * 8, 8, endness="Iend_LE")
 
     present = descriptor[47]
-    if (present == 0).is_true():
+    if state.solver.is_true(present == 0):
         return bad("present bit set to 0")
 
     base = get_segdescr_base(state, descriptor)

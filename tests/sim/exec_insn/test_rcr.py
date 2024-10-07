@@ -7,7 +7,6 @@ __package__ = __package__ or "tests.sim.exec_insn"  # pylint:disable=redefined-b
 import os
 import unittest
 
-import claripy
 
 import angr
 
@@ -21,7 +20,7 @@ class TestRcr(unittest.TestCase):
     def test_rcr(self):
         p = angr.Project(os.path.join(test_location, "i386", "rcr_test"), auto_load_libs=False)
         result = p.factory.successors(p.factory.entry_state()).successors[0]
-        assert claripy.is_true(result.regs.cl == 8)
+        assert result.solver.is_true(result.regs.cl == 8)
 
 
 if __name__ == "__main__":

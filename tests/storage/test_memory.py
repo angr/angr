@@ -581,8 +581,8 @@ class TestMemory(unittest.TestCase):
 
         s.regs.rax = 0x4142434445464748
         s.regs.rbx = 0x5555555544444444
-        assert (s.regs.rax == 0x4142434445464748).is_true()
-        assert (s.regs.rbx == 0x5555555544444444).is_true()
+        assert s.solver.is_true(s.regs.rax == 0x4142434445464748)
+        assert s.solver.is_true(s.regs.rbx == 0x5555555544444444)
 
         self._concrete_memory_tests(s)
 
@@ -592,16 +592,16 @@ class TestMemory(unittest.TestCase):
 
         assert s.regs.rax.symbolic
         s.regs.rax = 0x4142434445464748
-        assert (s.regs.rax == 0x4142434445464748).is_true()
+        assert s.solver.is_true(s.regs.rax == 0x4142434445464748)
 
         assert s.regs.rbx.symbolic
         s.regs.rbx = 0x5555555544444444
-        assert (s.regs.rbx == 0x5555555544444444).is_true()
+        assert s.solver.is_true(s.regs.rbx == 0x5555555544444444)
 
         assert s.regs.rcx.symbolic
 
         s.regs.ah = 0
-        assert (s.regs.rax == 0x4142434445460048).is_true()
+        assert s.solver.is_true(s.regs.rax == 0x4142434445460048)
 
         s.regs.cl = 0
         assert s.regs.rcx.symbolic
@@ -935,7 +935,7 @@ class TestMemory(unittest.TestCase):
         state.memory.store(addr, 0x12345678, size=4, condition=cond, endness=state.arch.memory_endness)
         val = state.memory.load(addr, size=4, condition=cond, endness=state.arch.memory_endness)
         assert set(state.solver.eval_upto(cond, 2)) == {True, False}
-        assert (val == 0x12345678).is_true()
+        assert state.solver.is_true(val == 0x12345678)
 
 
 if __name__ == "__main__":

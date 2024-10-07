@@ -89,7 +89,7 @@ class strlen(angr.SimProcedure):
 
         # try doubling the search len and searching again
         s_new = s
-        while c and all(con.is_false() for con in c):
+        while c and all(self.state.solver.is_false(con) for con in c):
             s_new += search_len
             search_len *= 2
             r, c, i = self.state.memory.find(

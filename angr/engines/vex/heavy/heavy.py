@@ -258,7 +258,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         # HACK: mips64 may put an instruction which may fault in the delay slot of a branch likely instruction
         # if the branch is not taken, we must not execute that instruction if the condition fails (i.e. the current
         # guard is False)
-        if self.state.scratch.guard.is_false():
+        if self.state.solver.is_false(self.state.scratch.guard):
             self.successors.add_successor(self.state, ins_addr, self.state.scratch.guard, "Ijk_Boring")
             raise VEXEarlyExit
 
@@ -278,7 +278,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             # very special logic to try to minimize copies
             # first, check if this branch is impossible
             if (
-                guard.is_false()
+                self.state.solver.is_false(guard)
                 or o.LAZY_SOLVES not in self.state.options
                 and not self.state.solver.satisfiable(extra_constraints=(guard,))
             ):
@@ -286,7 +286,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
             # then, check if it's impossible to continue from this branch
             elif (
-                guard.is_true()
+                self.state.solver.is_true(guard)
                 or o.LAZY_SOLVES not in self.state.options
                 and not self.state.solver.satisfiable(extra_constraints=(claripy.Not(guard),))
             ):

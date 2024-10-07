@@ -431,9 +431,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         else:
             expected_result = operation(x, y)
 
-        solver = claripy.Solver()
-        maybe_true = solver.eval(result == expected_result, 1)[0]
-        assert solver.is_true(maybe_true)
+        assert state.solver.is_true(result == expected_result)
 
     def test_arith_binary_ops(self):
         for opcode in [
@@ -506,7 +504,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         result = state.memory.load(result_addr, result_size, endness="Iend_LE")
         expected_result = operation(x)
 
-        assert claripy.Solver().is_true(result == expected_result)
+        assert state.solver.is_true(result == expected_result)
 
     def test_arith_unary_ops(self):
         for opcode in [

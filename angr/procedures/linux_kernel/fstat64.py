@@ -10,7 +10,7 @@ import angr
 class fstat64(angr.SimProcedure):
     def run(self, fd, stat_buf):  # pylint:disable=arguments-differ
         stat, result = self.state.posix.fstat_with_result(fd)
-        if claripy.is_true(result == -1):
+        if self.state.solver.is_true(result == -1):
             return -1
         # TODO: make arch-neutral
         if self.arch.name == "X86":
