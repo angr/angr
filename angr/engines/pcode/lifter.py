@@ -1046,6 +1046,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         collect_data_refs: bool = False,
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
+        const_prop: bool | None = None,
     ):
         """
         Temporary compatibility interface for integration with block code.
@@ -1067,6 +1068,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
             collect_data_refs,
             load_from_ro_regions,
             cross_insn_opt,
+            const_prop,
         )
 
     def lift_pcode(
@@ -1087,6 +1089,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         collect_data_refs: bool = False,
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
+        const_prop: bool | None = None,
     ):
         """
         Lift an IRSB.
@@ -1114,6 +1117,8 @@ class PcodeLifterEngineMixin(SimEngineBase):
         """
         if cross_insn_opt:
             l.debug("cross_insn_opt is ignored for p-code lifter")
+        if const_prop:
+            l.debug("const_prop is ignored for p-code lifter")
         if load_from_ro_regions:
             l.debug("load_from_ro_regions is ignored for p-code lifter")
 
