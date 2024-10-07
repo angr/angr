@@ -1,4 +1,4 @@
-# pylint:disable=too-many-boolean-expressions,global-statement
+# pylint:disable=too-many-boolean-expressions,global-statement,too-many-positional-arguments
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
@@ -96,7 +96,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
-        global HITS_CASE_1, HITS_CASE_2, MISSES
+        global HITS_CASE_1, HITS_CASE_2
 
         func = cfg.kb.functions.function(addr=func_addr)
         b = Blade(
@@ -222,7 +222,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         return Case2Result.FAILURE, None
 
-    def _get_jump_target_reg(self, block: pyvex.IRSB) -> int | None:
+    @staticmethod
+    def _get_jump_target_reg(block: pyvex.IRSB) -> int | None:
         if block.jumpkind != "Ijk_Call":
             return None
         if not isinstance(block.next, pyvex.IRExpr.RdTmp):
@@ -245,7 +246,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         return None
 
-    def _get_last_reg_setting_tmp(self, block: pyvex.IRSB, target_reg: int) -> int | None:
+    @staticmethod
+    def _get_last_reg_setting_tmp(block: pyvex.IRSB, target_reg: int) -> int | None:
         for stmt in reversed(block.statements):
             if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == target_reg:
                 if isinstance(stmt.data, pyvex.IRExpr.RdTmp):

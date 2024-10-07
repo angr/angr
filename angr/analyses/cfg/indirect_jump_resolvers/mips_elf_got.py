@@ -1,3 +1,4 @@
+# pylint:disable=too-many-positional-arguments
 from __future__ import annotations
 import logging
 
@@ -35,7 +36,7 @@ class MipsElfGotResolver(IndirectJumpResolver):
         return jumpkind == "Ijk_Call" and addr == func_addr
 
     def resolve(  # pylint:disable=unused-argument
-        self, cfg, addr, func_addr, irsb, jumpkind, func_graph_complete: bool = True, **kwargs
+        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
     ):
         # The stub must look like the following:
         #   585b80  lw      $t9, -0x7ff0($gp)
@@ -56,13 +57,13 @@ class MipsElfGotResolver(IndirectJumpResolver):
         if dynstr_addr is None:
             return None
 
-        if irsb.size != 16:
+        if block.size != 16:
             return False, []
-        block = self.project.factory.block(irsb.addr, size=irsb.size)
-        if len(block.capstone.insns) != 4:
+        the_block = self.project.factory.block(block.addr, size=block.size)
+        if len(the_block.capstone.insns) != 4:
             return False, []
 
-        insn0 = block.capstone.insns[0]
+        insn0 = the_block.capstone.insns[0]
         if not (
             insn0.insn.mnemonic == "lw"
             and insn0.insn.operands[0].type == MIPS_OP_REG
@@ -70,7 +71,7 @@ class MipsElfGotResolver(IndirectJumpResolver):
         ):
             return False, []
 
-        insn1 = block.capstone.insns[1]
+        insn1 = the_block.capstone.insns[1]
         if not (
             insn1.insn.mnemonic == "move"
             and insn1.insn.operands[0].type == MIPS_OP_REG
@@ -80,7 +81,7 @@ class MipsElfGotResolver(IndirectJumpResolver):
         ):
             return False, []
 
-        insn2 = block.capstone.insns[2]
+        insn2 = the_block.capstone.insns[2]
         if not (
             insn2.insn.mnemonic == "jalr"
             and insn2.insn.operands[0].type == MIPS_OP_REG
@@ -88,7 +89,7 @@ class MipsElfGotResolver(IndirectJumpResolver):
         ):
             return False, []
 
-        insn3 = block.capstone.insns[3]
+        insn3 = the_block.capstone.insns[3]
         if not (
             insn3.insn.mnemonic == "addiu"
             and insn3.insn.operands[0].type == MIPS_OP_REG
