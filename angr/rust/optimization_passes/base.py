@@ -149,13 +149,19 @@ class TransformationPass(OptimizationPass):
             except NetworkXError:
                 pass
         else:
-            for succ in self._graph.successors(block):
+            for succ in list(self._graph.successors(block)):
                 try:
                     self._graph.remove_edge(block, succ)
                 except NetworkXError:
                     pass
         # Add new edge
         self._graph.add_edge(block, new_target)
+
+    def num_predecessors(self, block):
+        return len(list(self._graph.predecessors(block)))
+
+    def get_one_predecessor(self, block) -> Block:
+        return next(self._graph.predecessors(block))
 
     def num_successors(self, block):
         return len(list(self._graph.successors(block)))
