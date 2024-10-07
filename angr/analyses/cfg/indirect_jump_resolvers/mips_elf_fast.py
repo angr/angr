@@ -138,7 +138,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 if PROFILING:
                     HITS_CASE_2 += 1
                 return True, [target]
-            elif r == Case2Result.FAILURE:
+            if r == Case2Result.FAILURE:
                 return False, []
             # otherwise, we need to resume the analysis
 
