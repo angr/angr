@@ -10,7 +10,7 @@ from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference, RustSi
 class CallsiteCorrector(TransformationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify callsites"
 
     def __init__(self, func, **kwargs):
