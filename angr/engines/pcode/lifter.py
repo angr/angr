@@ -122,6 +122,7 @@ class IRSB:
         "arch",
         "behaviors",
         "data_refs",
+        "const_vals",
         "default_exit_target",
         "jumpkind",
         "next",
@@ -138,6 +139,7 @@ class IRSB:
     arch: archinfo.Arch
     behaviors: BehaviorFactory | None
     data_refs: Sequence  # Note: currently unused
+    const_vals: Sequence  # Note: currently unused
     default_exit_target: Optional  # Note: currently used
     jumpkind: str | None
     next: int | None
@@ -204,6 +206,7 @@ class IRSB:
         self.arch = arch
         self.behaviors = None
         self.data_refs = ()
+        self.const_vals = ()
         self.default_exit_target = None
         self.jumpkind = None
         self.next = None

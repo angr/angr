@@ -142,6 +142,7 @@ class Block(Serializable):
         "_strict_block_end",
         "_cross_insn_opt",
         "_load_from_ro_regions",
+        "_const_prop",
         "_initial_regs",
     ]
 
@@ -164,6 +165,7 @@ class Block(Serializable):
         collect_data_refs=False,
         cross_insn_opt=True,
         load_from_ro_regions=False,
+        const_prop=False,
         initial_regs=None,
         skip_stmts=False,
     ):
@@ -191,7 +193,9 @@ class Block(Serializable):
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
-        self._initial_regs: list[tuple[int, int, int]] | None = initial_regs if collect_data_refs else None
+        self._initial_regs: list[tuple[int, int, int]] | None = (
+            initial_regs if (collect_data_refs or const_prop) else None
+        )
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -218,6 +222,7 @@ class Block(Serializable):
                     strict_block_end=strict_block_end,
                     collect_data_refs=collect_data_refs,
                     load_from_ro_regions=load_from_ro_regions,
+                    const_prop=const_prop,
                     cross_insn_opt=cross_insn_opt,
                     skip_stmts=skip_stmts,
                 )
@@ -238,6 +243,7 @@ class Block(Serializable):
         self._strict_block_end = strict_block_end
         self._cross_insn_opt = cross_insn_opt
         self._load_from_ro_regions = load_from_ro_regions
+        self._const_prop = const_prop
 
         self._instructions = num_inst
         self._instruction_addrs: list[int] = []
@@ -342,6 +348,7 @@ class Block(Serializable):
                 strict_block_end=self._strict_block_end,
                 cross_insn_opt=self._cross_insn_opt,
                 load_from_ro_regions=self._load_from_ro_regions,
+                const_prop=self._const_prop,
             )
             if self._initial_regs:
                 self.reset_initial_regs()
@@ -373,6 +380,7 @@ class Block(Serializable):
             strict_block_end=self._strict_block_end,
             cross_insn_opt=self._cross_insn_opt,
             load_from_ro_regions=self._load_from_ro_regions,
+            const_prop=self._const_prop,
         )
         if self._initial_regs:
             self.reset_initial_regs()
