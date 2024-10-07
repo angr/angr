@@ -68,11 +68,9 @@ class TestSelfModifyingCOde(TestCase):
         # .byte 0x6
         # mov rax, 0x1234
         # int3
-        code = b'\xc6\x05\x00\x00\x00\x00\x90\x06H\xc7\xc04\x12\x00\x00\xcc'
+        code = b"\xc6\x05\x00\x00\x00\x00\x90\x06H\xc7\xc04\x12\x00\x00\xcc"
         proj = angr.load_shellcode(code, "amd64", selfmodifying_code=True)
-        state = proj.factory.blank_state(
-            addr=0,
-            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+        state = proj.factory.blank_state(addr=0, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
 
         simgr = proj.factory.simgr(state)
         simgr.step()
@@ -92,11 +90,9 @@ class TestSelfModifyingCOde(TestCase):
         # .byte 0xff
         # mov rbx, 0x1234
         # int3
-        code = b'H1\xc0\xc6\x05\x01\x00\x00\x00\xc0\xff\xffH\xc7\xc34\x12\x00\x00\xcc'
+        code = b"H1\xc0\xc6\x05\x01\x00\x00\x00\xc0\xff\xffH\xc7\xc34\x12\x00\x00\xcc"
         proj = angr.load_shellcode(code, "amd64", selfmodifying_code=True)
-        state = proj.factory.blank_state(
-            addr=0,
-            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+        state = proj.factory.blank_state(addr=0, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
 
         simgr = proj.factory.simgr(state)
         simgr.step()
@@ -110,6 +106,7 @@ class TestSelfModifyingCOde(TestCase):
         rbx = simgr.active[0].regs.rbx
         assert rbx.concrete
         assert rbx.concrete_value == 0x1234
+
 
 if __name__ == "__main__":
     main()
