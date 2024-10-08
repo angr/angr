@@ -1629,7 +1629,9 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def size(self):
-        return max(ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom))
+        member_sizes = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
+        # fall back to word size in case all members are SimTypeBottom
+        return max(member_sizes) if member_sizes else self._arch.bytes
 
     @property
     def alignment(self):
