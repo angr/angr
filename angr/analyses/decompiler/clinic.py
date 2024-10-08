@@ -1767,7 +1767,7 @@ class Clinic(Analysis):
                 s = self.kb.custom_strings[expr.value]
                 expr.tags["reference_values"] = {
                     SimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(self.project.arch): s.decode(
-                        "ascii"
+                        "latin-1"
                     ),
                 }
             else:
