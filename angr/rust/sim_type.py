@@ -416,3 +416,28 @@ class RustSimTypeVec(RustSimStruct, SimType):
 
 class RustSimTypeBottom(RustSimType, SimTypeBottom):
     pass
+
+
+class RustSimEnum(RustSimStruct):
+    def __init__(self, variants, overlapping_discriminant=False):
+        assert len(variants) > 0
+        largest_struct = list(sorted(variants, key=lambda variant: variant.size, reverse=True))[0]
+        super().__init__(fields=largest_struct.fields, name=f"Enum")
+
+        self.variants = variants
+        self.overlapping_discriminant = overlapping_discriminant
+
+    def copy(self):
+        return RustSimEnum(self.variants, self.overlapping_discriminant).with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimEnum(self.variants, self.overlapping_discriminant)
+        out._arch = arch
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        self._arch_memo[arch.name] = out
+
+        return out

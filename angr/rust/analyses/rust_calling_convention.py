@@ -5,6 +5,7 @@ from ailment import BinaryOp, Const, AILBlockWalker, Block
 from ailment.expression import BasePointerOffset, VirtualVariable, Phi
 from ailment.statement import Store, Call, Statement
 
+from ..sim_type import RustSimEnum
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from ..utils.library import normalize
@@ -117,7 +118,8 @@ class RustCallingConventionAnalysis(Analysis):
         if len(sizes) == 1:
             return next(iter(struct_types))
         # TODO: Return an enum type
-        return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))
+        # return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))
+        return RustSimEnum(struct_types, False)
 
     def _infer_arg_type(self, arg_idx):
         fields = {}
