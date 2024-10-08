@@ -120,7 +120,8 @@ class SimType:
         if self._arch is None:
             raise ValueError("Can't tell my alignment without an arch!")
         if self.size is None:
-            raise AngrTypeError("Cannot compute the alignment of a type with no size")
+            l.debug("The size of the type %r is unknown; assuming word size of the arch.", self)
+            return self._arch.bytes
         return self.size // self._arch.byte_width
 
     def with_arch(self, arch: Arch | None):
@@ -1339,14 +1340,26 @@ class SimTypeDouble(SimTypeFloat):
 
 
 class SimStruct(NamedTypeMixin, SimType):
-    _fields = ("name", "fields")
+    _fields = ("name", "fields", "anonymous")
 
-    def __init__(self, fields: dict[str, SimType] | OrderedDict[str, SimType], name=None, pack=False, align=None):
+    def __init__(
+        self,
+        fields: dict[str, SimType] | OrderedDict[str, SimType],
+        name=None,
+        pack=False,
+        align=None,
+        anonymous: bool = False,
+    ):
         super().__init__(None, name="<anon>" if name is None else name)
 
         self._pack = pack
         self._align = align
+        self.anonymous = anonymous
         self.fields: OrderedDict[str, SimType] = OrderedDict(fields)
+
+        # FIXME: Hack for supporting win32 struct definitions
+        if self.name == "_Anonymous_e__Struct":
+            self.anonymous = True
 
         self._arch_memo = {}
 
@@ -1363,7 +1376,7 @@ class SimStruct(NamedTypeMixin, SimType):
         offset_so_far = 0
         for name, ty in self.fields.items():
             if ty.size is None:
-                l.warning(
+                l.debug(
                     "Found a bottom field in struct %s. Ignore and increment the offset using the default "
                     "element size.",
                     self.name,
@@ -3537,7 +3550,8 @@ def dereference_simtype(
             return memo[t.name]
 
         real_type = t.copy()
-        memo[t.name] = real_type
+        if not t.anonymous:
+            memo[t.name] = real_type
         fields = OrderedDict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.fields.items())
         real_type.fields = fields
     elif isinstance(t, SimTypePointer):
