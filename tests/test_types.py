@@ -321,6 +321,15 @@ class TestTypes(unittest.TestCase):
         t = dereference_simtype(variant_type, [angr.SIM_TYPE_COLLECTIONS["win32"]]).with_arch(archinfo.ArchX86())
         assert t.size > 0  # an exception is raised if anonymous structs are not handled correctly
 
+    def test_simunion_size_bottom_types(self):
+        union_type = SimUnion(
+            {"filterType": SimTypeBottom(label="Guid"), "calloutKey": SimTypeBottom(label="Guid")},
+            name="<anon>",
+            label="None",
+        )
+        union_type = union_type.with_arch(archinfo.ArchAMD64())
+        assert union_type.size == 8  # fall back to architecture word size
+
 
 class TestSimTypeFunction(unittest.TestCase):
     def test_c_repr(self):
