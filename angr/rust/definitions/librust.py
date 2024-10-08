@@ -29,8 +29,9 @@ prototypes = {
         returnty=None,
     ),
     "alloc::fmt::format::format_inner": RustSimTypeFunction(
-        args=[RustSimTypeReference(Arguments)],
+        args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(Arguments)],
         returnty=None,
+        is_returnty_struct=True,
     ),
     "std::io::stdio::_eprint": RustSimTypeFunction(
         args=[RustSimTypeReference(Arguments)],
