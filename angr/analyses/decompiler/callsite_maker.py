@@ -8,7 +8,7 @@ from ailment import Stmt, Expr, Const
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, dereference_simtype
-from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
+from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg, SimComboArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAView
@@ -129,7 +129,17 @@ class CallSiteMaker(Analysis):
                         arg_locs = cc.arg_locs(callsite_ty)
 
         if arg_locs is not None:
+            expanded_arg_locs = []
             for arg_loc in arg_locs:
+                if isinstance(arg_loc, SimComboArg):
+                    # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
+                    # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
+                    # have no way to know that until later down the pipeline.
+                    expanded_arg_locs += arg_loc.locations
+                else:
+                    expanded_arg_locs.append(arg_loc)
+
+            for arg_loc in expanded_arg_locs:
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
