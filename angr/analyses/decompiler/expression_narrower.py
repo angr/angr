@@ -6,7 +6,6 @@ import logging
 from ailment import AILBlockWalkerBase, AILBlockWalker
 from ailment.statement import Assignment, Call
 from ailment.expression import VirtualVariable, Phi, Const, Convert, BinaryOp
-from aiohttp.web_routedef import static
 
 from angr.knowledge_plugins.key_definitions import Definition
 from angr.knowledge_plugins.key_definitions import atoms
@@ -335,7 +334,7 @@ class ExpressionNarrower(AILBlockWalker):
                     )
 
                 return {use_loc: {use_expr_1: new_use_expr_1}}
-            elif len(use_expr_tpl) == 1:
+            if len(use_expr_tpl) == 1:
                 if use_expr_0.size > new_use_expr_0.size:
                     new_use_expr_0 = Convert(
                         None,
@@ -346,9 +345,8 @@ class ExpressionNarrower(AILBlockWalker):
                         **new_use_expr_0.tags,
                     )
                 return {use_loc: {use_expr_0: new_use_expr_0}}
-            else:
-                _l.warning("Nothing to replace at %s.", use_loc)
-                return {}
+            _l.warning("Nothing to replace at %s.", use_loc)
+            return {}
 
         if use_type == "phi-src-expr":
             # the size of the replaced variable will be different from its original size, and it's expected
