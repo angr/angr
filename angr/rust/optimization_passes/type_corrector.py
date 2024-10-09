@@ -77,7 +77,7 @@ class TypeCorrector(OptimizationPass):
                     and stmt.src.prototype
                     and isinstance(stmt.src.prototype.returnty, RustSimStruct)
                 ):
-                    self.force_new_variable(stmt.dst.variable)
+                    # self.force_new_variable(stmt.dst.variable)
                     self._set_variable_type(stmt.dst.variable, stmt.src.prototype.returnty)
                 elif (
                     isinstance(stmt, Assignment)
