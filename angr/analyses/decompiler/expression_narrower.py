@@ -259,21 +259,18 @@ class ExpressionNarrower(AILBlockWalker):
             )
             return {self._codeloc2tuple(def_.codeloc): {stmt.dst: new_assignment_dst, stmt.src: new_assignment_src}}
 
-        if isinstance(stmt, Call):
-            if stmt.ret_expr is not None:
-                tags = dict(stmt.ret_expr.tags)
-                tags["reg_name"] = self.project.arch.translate_register_name(
-                    def_.atom.reg_offset, size=narrow_info.to_size
-                )
-                new_retexpr = VirtualVariable(
-                    stmt.ret_expr.idx,
-                    stmt.ret_expr.varid,
-                    narrow_info.to_size * self.project.arch.byte_width,
-                    category=def_.atom.category,
-                    oident=def_.atom.oident,
-                    **stmt.ret_expr.tags,
-                )
-                return {self._codeloc2tuple(def_.codeloc): {stmt.ret_expr: new_retexpr}}
+        if isinstance(stmt, Call) and stmt.ret_expr is not None:
+            tags = dict(stmt.ret_expr.tags)
+            tags["reg_name"] = self.project.arch.translate_register_name(def_.atom.reg_offset, size=narrow_info.to_size)
+            new_retexpr = VirtualVariable(
+                stmt.ret_expr.idx,
+                stmt.ret_expr.varid,
+                narrow_info.to_size * self.project.arch.byte_width,
+                category=def_.atom.category,
+                oident=def_.atom.oident,
+                **stmt.ret_expr.tags,
+            )
+            return {self._codeloc2tuple(def_.codeloc): {stmt.ret_expr: new_retexpr}}
 
         return {}
 
@@ -419,14 +416,13 @@ class ExpressionNarrower(AILBlockWalker):
     ) -> Any:
         loc: StmtLocType = block.addr, block.idx, stmt_idx
 
-        if loc in self.replacements:
-            if expr in self.replacements[loc] and self.replacements[loc][expr]:
-                print(f"Replaced! {expr} -> {self.replacements[loc][expr]}")
-                self.narrowed_any = True
-                first_replacement_expr = self.replacements[loc][expr][0]
-                all_replacements = self.replacements[loc][expr]
-                self.replacements[loc][expr] = self.replacements[loc][expr][1:]
-                new_expr = super()._handle_expr(expr_idx, first_replacement_expr, stmt_idx, stmt, block)
-                self.replacements[loc][expr] = all_replacements
-                return new_expr if new_expr is not None else first_replacement_expr
+        if loc in self.replacements and expr in self.replacements[loc] and self.replacements[loc][expr]:
+            # print(f"Replaced! {expr} -> {self.replacements[loc][expr]}")
+            self.narrowed_any = True
+            first_replacement_expr = self.replacements[loc][expr][0]
+            all_replacements = self.replacements[loc][expr]
+            self.replacements[loc][expr] = self.replacements[loc][expr][1:]
+            new_expr = super()._handle_expr(expr_idx, first_replacement_expr, stmt_idx, stmt, block)
+            self.replacements[loc][expr] = all_replacements
+            return new_expr if new_expr is not None else first_replacement_expr
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
