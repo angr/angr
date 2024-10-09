@@ -2,13 +2,16 @@ import logging
 import traceback
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset, VirtualVariable, Phi
+from ailment.expression import BasePointerOffset, VirtualVariable, Phi, Tmp
 from ailment.statement import Store, Call, Statement
+import networkx as nx
 
 from ..sim_type import RustSimEnum
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
+from ..utils.ail_util import get_terminal_call
 from ..utils.library import normalize
+from ..utils.srda_util import SRDAUtil
 from ...analyses import Analysis, AnalysesHub
 from ...analyses.s_reaching_definitions import SRDAView
 from ...knowledge_plugins import Function
@@ -28,6 +31,11 @@ class FactsCollector(AILBlockWalker):
         if block not in self.model.memory_writes[arg_idx]:
             self.model.memory_writes[arg_idx][block] = {}
         self.model.memory_writes[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
+
+    def add_callsite_memory_write(self, arg_idx, block, offset, expr):
+        if block not in self.model.callsite_memory_writes[arg_idx]:
+            self.model.callsite_memory_writes[arg_idx][block] = {}
+        self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
 
     def add_memory_read(self, arg_idx, block, offset, expr):
         if block not in self.model.memory_reads[arg_idx]:
@@ -67,7 +75,7 @@ class FactsCollector(AILBlockWalker):
         if isinstance(addr, VirtualVariable) and addr.was_parameter:
             self.add_memory_write(addr.varid, block, offset, stmt.data)
 
-    def handle_Call(self, call: Call):
+    def handle_Call(self, call: Call, block: Block):
         if (
             isinstance(call.target, Const)
             and call.target.value in self.project.kb.functions
@@ -77,25 +85,54 @@ class FactsCollector(AILBlockWalker):
             and call.args[0].varid == 0
         ):
             func = self.project.kb.functions[call.target.value]
-            result = self.project.analyses.RustCallingConvention(
-                func, self.context.clinic.graph, depth=self.context.depth + 1, max_depth=self.context.max_depth
-            )
-            self.model.memory_writes[0] |= result.model.memory_writes[0]
+            if func.normalized and func.size:
+                result = self.project.analyses.RustCallingConvention(
+                    func, block, depth=self.context.depth + 1, max_depth=self.context.max_depth
+                )
+                self.model.memory_writes[0] |= result.model.memory_writes[0]
+            elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
+                self.add_memory_write(
+                    0, block, 0, Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
+                )
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        self.handle_Call(stmt)
+        self.handle_Call(stmt, block)
         super()._handle_Call(stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        self.handle_Call(expr)
+        self.handle_Call(expr, block)
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def collect_callsite_facts(self):
+        callsite_block = self.model.callsite_block
+        call = get_terminal_call(callsite_block)
+        if call and call.args:
+            func_graph = nx.DiGraph()
+            func_graph.add_node(callsite_block)
+            srda = self.project.analyses.SReachingDefinitions(subject=callsite_block, func_graph=func_graph)
+            srda_util = SRDAUtil(srda)
+            stack_offsets = []
+            for arg in call.args:
+                if isinstance(arg, BasePointerOffset):
+                    stack_offsets.append(arg.offset)
+            for idx, arg in enumerate(call.args):
+                if isinstance(arg, BasePointerOffset):
+                    cur_offset = arg.offset
+                    while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
+                        list(filter(lambda offset: arg.offset >= offset, stack_offsets))
+                    ):
+                        vvar = srda_util.get_stack_vvar_by_insn(cur_offset, call.ins_addr, callsite_block.idx)
+                        if vvar is None:
+                            break
+                        self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, vvar)
+                        cur_offset += vvar.size
 
 
 class RustCallingConventionAnalysis(Analysis):
-    def __init__(self, func, caller_graph=None, depth=0, max_depth=1):
+    def __init__(self, func, callsite_block=None, depth=0, max_depth=1):
         self.func: Function = func
         self.model = RustCallingConventionModel()
-        self.model.caller_graph = caller_graph
+        self.model.callsite_block = callsite_block
 
         self.depth = depth
         self.max_depth = max_depth
@@ -123,7 +160,7 @@ class RustCallingConventionAnalysis(Analysis):
 
     def _infer_arg_type(self, arg_idx):
         fields = {}
-        memory_writes = self.model.memory_writes[arg_idx]
+        memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]
         struct_types = []
 
         for block in memory_writes:
@@ -170,32 +207,6 @@ class RustCallingConventionAnalysis(Analysis):
             is_returnty_struct=is_arg0_ret_buf,
         )
 
-    def _collect_callsite_facts(self, block, call):
-        args = call.args
-        stack = {}
-
-        def collect_stack_writes(cur_block):
-            for stmt in cur_block.statements:
-                if isinstance(stmt, Store) and isinstance(stmt.addr, BasePointerOffset):
-                    stack[stmt.addr.offset] = stmt.data
-
-        collect_stack_writes(block)
-        if not stack:
-            for pred in self.caller_graph.predecessors(block):
-                collect_stack_writes(pred)
-
-        stack_offsets = sorted(stack.keys())
-        args = [arg.offset if isinstance(arg, BasePointerOffset) else None for arg in args]
-        for arg_idx, arg in enumerate(args):
-            if arg in stack_offsets:
-                idx = stack_offsets.index(arg)
-                for i in range(idx, len(stack_offsets)):
-                    offset = stack_offsets[i]
-                    if offset != arg and offset in args:
-                        break
-                    mapped_var = self.clinic.arg_list[arg_idx]
-                    self.add_callsite_memory_write(mapped_var, offset - arg, stack[offset])
-
     @property
     def clinic(self):
         return self.model.clinic
@@ -203,10 +214,6 @@ class RustCallingConventionAnalysis(Analysis):
     @clinic.setter
     def clinic(self, value):
         self.model.clinic = value
-
-    @property
-    def caller_graph(self):
-        return self.model.caller_graph
 
     def add_memory_write(self, var, offset, data):
         self.model.memory_writes[var][offset] = (data, self.func.addr)
@@ -231,6 +238,7 @@ class RustCallingConventionAnalysis(Analysis):
         walker = FactsCollector(self, srda_view)
         for block in self.clinic.graph.nodes:
             walker.walk(block)
+        walker.collect_callsite_facts()
 
         prototype = self._infer_prototype()
 

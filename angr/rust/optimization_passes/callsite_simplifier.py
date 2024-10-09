@@ -11,7 +11,7 @@ from angr.rust.utils.ail_util import get_terminal_call
 class CallsiteSimplifier(TransformationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify function return sites"
 
     def __init__(self, func, **kwargs):
@@ -31,5 +31,5 @@ class CallsiteSimplifier(TransformationPass):
                 and call.target.value in self.kb.functions
             ):
                 func = self.kb.functions[call.target.value]
-                rcc = self.project.analyses.RustCallingConvention(func, caller_graph=self._graph)
+                rcc = self.project.analyses.RustCallingConvention(func, callsite_block=block)
                 call.prototype = rcc.model.inferred_prototype
