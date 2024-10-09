@@ -604,6 +604,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if self._is_top(expr_0) or self._is_top(expr_1):
             return self._top(expr.result_size(self.tyenv))
 
+        if expr_1.concrete and expr_1.concrete_value == 0:
+            return self._top(expr.result_size(self.tyenv))
+
         signed = "U" in expr.op  # Iop_DivModU64to32 vs Iop_DivMod
         from_size = expr_0.size()
         to_size = expr_1.size()
@@ -632,10 +635,13 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if self._is_top(expr_0) or self._is_top(expr_1):
             return self._top(expr_0.size())
 
+        if expr_1.concrete and expr_1.concrete_value == 0:
+            return self._top(expr.result_size(self.tyenv))
+
         try:
             return expr_0 / expr_1
         except ZeroDivisionError:
-            return self._top(expr_0.size())
+            return self._top(expr.result_size(self.tyenv))
 
     def _handle_Mod(self, expr):
         args, r = self._binop_get_args(expr)
@@ -645,6 +651,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         if self._is_top(expr_0) or self._is_top(expr_1):
             return self._top(expr_0.size())
+
+        if expr_1.concrete and expr_1.concrete_value == 0:
+            return self._top(expr.result_size(self.tyenv))
 
         try:
             return expr_0 - (expr_1 // expr_1) * expr_1
