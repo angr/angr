@@ -326,7 +326,7 @@ class AILSimplifier(Analysis):
         narrower = ExpressionNarrower(self.project, rd, narrowables, addr_and_idx_to_block, self.blocks)
         for old_block in addr_and_idx_to_block.values():
             new_block = self.blocks.get(old_block, old_block)
-            narrower.walk(new_block)
+            new_block = narrower.walk(new_block)
             if narrower.narrowed_any:
                 narrowed = True
                 self.blocks[old_block] = new_block
