@@ -42,10 +42,8 @@ class ITERegionConverter(OptimizationPass):
             if not ite_assign_regions:
                 break
 
-            for region_head, region_tail, true_block, true_stmt, false_block, false_stmt in ite_assign_regions:
-                round_update |= self._convert_region_to_ternary_expr(
-                    region_head, region_tail, true_block, true_stmt, false_block, false_stmt
-                )
+            for region_head, region_tail, _, true_stmt, _, false_stmt in ite_assign_regions:
+                round_update |= self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
 
             if not round_update:
                 break
@@ -188,9 +186,7 @@ class ITERegionConverter(OptimizationPass):
         self,
         region_head,
         region_tail,
-        true_block,
         true_stmt: Assignment | Call,
-        false_block,
         false_stmt: Assignment | Call,
     ):
         if region_head not in self._graph or region_tail not in self._graph:
