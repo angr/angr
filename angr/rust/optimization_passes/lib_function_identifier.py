@@ -38,7 +38,7 @@ class LibFunctionIdentifier(OptimizationPass):
             def _handle_Call_Unified(self, call: Call):
                 target = self._pass._extract_target(call)
                 if target is not None:
-                    normalized_name = normalize(target.name, remove_polymorphism=True)
+                    normalized_name = normalize(target.name, monopolize=True)
                     if librust.has_prototype(normalized_name):
                         self.prototype = librust.get_prototype(normalized_name).with_arch(self._pass.project.arch)
                         self.cc = target.calling_convention

@@ -10,7 +10,7 @@ from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode,
 from angr.rust.utils.ail_util import get_terminal_call
 from angr.rust.utils.library import normalize
 
-DECONSTRUCTION_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place")
+DECONSTRUCTION_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place", "core::ops::drop::Drop::drop")
 
 
 class DropWalker(SequenceWalker):
@@ -23,11 +23,11 @@ class DropWalker(SequenceWalker):
         if isinstance(stmt, Block):
             stmt = get_terminal_call(block_or_stmt)
         if isinstance(stmt, Call) and isinstance(stmt.target, str):
-            name = normalize(stmt.target, remove_polymorphism=True)
+            name = normalize(stmt.target, monopolize=True, use_trait_name=True)
             return name in func_list
         if isinstance(stmt, Call) and isinstance(stmt.target, Const) and stmt.target.value in self.context.kb.functions:
             func = self.context.kb.functions[stmt.target.value]
-            name = normalize(func.name, remove_polymorphism=True)
+            name = normalize(func.name, monopolize=True, use_trait_name=True)
             return name in func_list
         return False
 

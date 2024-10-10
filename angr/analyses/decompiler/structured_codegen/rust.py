@@ -1294,10 +1294,10 @@ class RustFunctionCall(RustStatement, RustExpression):
             yield ".", None
 
         if self.callee_func is not None:
-            func_name = normalize(self.callee_func.name, remove_polymorphism=True, concise=self.receiver is not None)
+            func_name = normalize(self.callee_func.name, monopolize=False, concise=self.receiver is not None)
             yield func_name, self
         elif isinstance(self.callee_target, str):
-            func_name = normalize(self.callee_target, remove_polymorphism=True, concise=self.receiver is not None)
+            func_name = normalize(self.callee_target, monopolize=False, concise=self.receiver is not None)
             yield func_name, self
         else:
             yield from RustExpression._try_c_repr_chunks(self.callee_target)

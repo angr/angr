@@ -61,11 +61,11 @@ class TransformationPass(OptimizationPass):
         elif isinstance(stmt, Assignment):
             stmt = stmt.src
         if isinstance(stmt, Call) and isinstance(stmt.target, str):
-            name = normalize(stmt.target, remove_polymorphism=True)
+            name = normalize(stmt.target, monopolize=True, use_trait_name=True)
             return name in func_list
         if isinstance(stmt, Call) and isinstance(stmt.target, Const) and stmt.target.value in self.kb.functions:
             func = self.kb.functions[stmt.target.value]
-            name = normalize(func.name, remove_polymorphism=True)
+            name = normalize(func.name, monopolize=True, use_trait_name=True)
             return name in func_list
         return False
 
