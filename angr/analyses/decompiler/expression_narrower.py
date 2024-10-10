@@ -146,6 +146,7 @@ class ExpressionNarrower(AILBlockWalker):
         # so we end up with
         #     v13<32> = Convert(64->32, Convert(32->64, v8<32>))
         # other simplifications will collapse the nested Convert expressions.
+        self.replacement_core_vvars: dict[StmtLocType, list[VirtualVariable]] = defaultdict(list)
         self.replacements: dict[StmtLocType, dict[Expression, list[Expression]]] = self._parse_narrowables(narrowables)
         self.narrowed_any = False
 
@@ -300,6 +301,7 @@ class ExpressionNarrower(AILBlockWalker):
                 oident=def_.atom.oident,
                 **use_expr_0.tags,
             )
+            self.replacement_core_vvars[use_loc].append(new_use_expr_0)
 
             # the second used expr (if it exists)
             if len(use_expr_tpl) == 2:
@@ -356,6 +358,7 @@ class ExpressionNarrower(AILBlockWalker):
                 oident=def_.atom.oident,
                 **use_expr.tags,
             )
+            self.replacement_core_vvars[use_loc].append(new_use_expr)
             return {use_loc: {use_expr: new_use_expr}}
 
         if use_type == "binop-convert":
@@ -368,6 +371,7 @@ class ExpressionNarrower(AILBlockWalker):
                 oident=def_.atom.oident,
                 **use_expr_0.tags,
             )
+            self.replacement_core_vvars[use_loc].append(new_use_expr_0)
 
             use_expr_1: BinaryOp = use_expr_tpl[1]
             # build the new use_expr_1
