@@ -983,7 +983,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         return expr
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
-        self._expr(expr.target)
+        if not isinstance(expr.target, str):
+            self._expr(expr.target)
         return expr
 
     def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):

@@ -216,10 +216,26 @@ class SequenceWalker:
         )
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
-        for index, (_, child_node) in enumerate(node.condition_and_nodes):
-            self._handle(child_node, parent=node, index=index)
+        cond_nodes_changed = False
+        new_condition_and_nodes = []
+        for index, (cond, child_node) in enumerate(node.condition_and_nodes):
+            new_child = self._handle(child_node, parent=node, index=index)
+            if new_child is not None:
+                cond_nodes_changed = True
+                new_condition_and_nodes.append((cond, new_child))
+            else:
+                new_condition_and_nodes.append((cond, child_node))
+
+        new_else = None
         if node.else_node is not None:
-            self._handle(node.else_node, parent=node, index=-1)
+            new_else = self._handle(node.else_node, parent=node, index=-1)
+
+        if cond_nodes_changed or new_else is not None:
+            return CascadingConditionNode(
+                node.addr,
+                new_condition_and_nodes if cond_nodes_changed else node.condition_and_nodes,
+                else_node=new_else if new_else is not None else node.else_node,
+            )
         return
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):  # pylint:disable=no-self-use
