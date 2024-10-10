@@ -42,10 +42,8 @@ class ITERegionConverter(OptimizationPass):
             if not ite_assign_regions:
                 break
 
-            for region_head, region_tail, true_block, true_stmt, false_block, false_stmt in ite_assign_regions:
-                round_update |= self._convert_region_to_ternary_expr(
-                    region_head, region_tail, true_block, true_stmt, false_block, false_stmt
-                )
+            for region_head, region_tail, _, true_stmt, _, false_stmt in ite_assign_regions:
+                round_update |= self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
 
             if not round_update:
                 break
@@ -188,9 +186,7 @@ class ITERegionConverter(OptimizationPass):
         self,
         region_head,
         region_tail,
-        true_block,
         true_stmt: Assignment | Call,
-        false_block,
         false_stmt: Assignment | Call,
     ):
         if region_head not in self._graph or region_tail not in self._graph:
@@ -242,6 +238,14 @@ class ITERegionConverter(OptimizationPass):
         #
 
         region_nodes = subgraph_between_nodes(self._graph, region_head, [region_tail])
+
+        # we must obtain the predecessors of the region tail instead of using true_block and false_block because
+        # true_block and false_block may have other successors before reaching the region tail!
+        region_tail_preds = [pred for pred in self._graph.predecessors(region_tail) if pred in region_nodes]
+        if len(region_tail_preds) != 2:
+            return False
+        region_tail_pred_srcs = {(pred.addr, pred.idx) for pred in region_tail_preds}
+
         for node in region_nodes:
             if node is region_head or node is region_tail:
                 continue
@@ -259,7 +263,7 @@ class ITERegionConverter(OptimizationPass):
                 continue
             new_src_and_vvars = []
             for src, vvar in stmt.src.src_and_vvars:
-                if src not in {(true_block.addr, true_block.idx), (false_block.addr, false_block.idx)}:
+                if src not in region_tail_pred_srcs:
                     new_src_and_vvars.append((src, vvar))
             new_vvar = new_assignment.dst.copy()
             new_src_and_vvars.append(((region_head.addr, region_head.idx), new_vvar))
