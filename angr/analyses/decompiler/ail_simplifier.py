@@ -332,17 +332,16 @@ class AILSimplifier(Analysis):
                 self.blocks[old_block] = new_block
 
         # update self._arg_vvars if necessary
-        for _, rs in narrower.replacements.items():
-            for new_exprs in rs.values():
-                for new_expr in new_exprs:
-                    if isinstance(new_expr, VirtualVariable) and new_expr.was_parameter and self._arg_vvars:
-                        for func_arg_idx in list(self._arg_vvars):
-                            vvar, simvar = self._arg_vvars[func_arg_idx]
-                            if vvar.varid == new_expr.varid:
-                                simvar_new = simvar.copy()
-                                simvar_new._hash = None
-                                simvar_new.size = new_expr.size
-                                self._arg_vvars[func_arg_idx] = new_expr, simvar_new
+        for new_vvars in narrower.replacement_core_vvars.values():
+            for new_vvar in new_vvars:
+                if new_vvar.was_parameter and self._arg_vvars:
+                    for func_arg_idx in list(self._arg_vvars):
+                        vvar, simvar = self._arg_vvars[func_arg_idx]
+                        if vvar.varid == new_vvar.varid:
+                            simvar_new = simvar.copy()
+                            simvar_new._hash = None
+                            simvar_new.size = new_vvar.size
+                            self._arg_vvars[func_arg_idx] = new_vvar, simvar_new
 
         return narrowed
 
