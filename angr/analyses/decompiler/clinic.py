@@ -749,8 +749,9 @@ class Clinic(Analysis):
                 continue
 
             call_sites = []
-            for pred in self.function.transition_graph.predecessors(node):
-                call_sites.append(pred)
+            for pred, _, data in self.function.transition_graph.in_edges(node, data=True):
+                if data.get("type", None) != "return":
+                    call_sites.append(pred)
             # case 1: calling conventions and prototypes are available at every single call site
             if call_sites and all(self.kb.callsite_prototypes.has_prototype(callsite.addr) for callsite in call_sites):
                 continue

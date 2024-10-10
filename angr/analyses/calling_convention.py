@@ -356,9 +356,12 @@ class CallingConventionAnalysis(Analysis):
         caller_block_addr: int,
         call_insn_addr: int,
         include_preds: bool = False,
-    ) -> CallSiteFact:
+    ) -> CallSiteFact | None:
         func = self.kb.functions[caller_addr]
         subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
+        if subgraph is None:
+            # failed to generate a subgraph when the caller block cannot be found in the function graph
+            return None
 
         observation_points: list = [("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)]
 
@@ -440,6 +443,8 @@ class CallingConventionAnalysis(Analysis):
                     call_insn_addr,
                     include_preds=include_callsite_preds,
                 )
+                if fact is None:
+                    continue
                 facts.append(fact)
 
                 ctr += 1
