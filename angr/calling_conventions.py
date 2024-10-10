@@ -1212,7 +1212,7 @@ class SimCCCdecl(SimCC):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         locs_size = 0
-        byte_size = arg_type.size // self.arch.byte_width
+        byte_size = arg_type.size // self.arch.byte_width if arg_type.size is not None else self.arch.bytes
         locs = []
         while locs_size < byte_size:
             locs.append(next(session.both_iter))
