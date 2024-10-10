@@ -31,9 +31,9 @@ def get_rust_optimization_passes():
         CallsiteSimplifier,
         CallsiteCorrector,
         # AFTER_GLOBAL_SIMPLIFICATION
-        StructInstantiationSimplifier,
         UnwrapSimplifier,
         OwnershipSimplifier,
+        StructInstantiationSimplifier,
         CleanupCodeRemover,
         # (LifetimeSimplifier, True),
         # (StringSimplifier, True),

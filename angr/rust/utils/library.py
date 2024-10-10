@@ -101,14 +101,14 @@ def demangle(s):
     return demangled
 
 
-def normalize(name, remove_polymorphism=True, concise=False):
+def normalize(name, monopolize=True, concise=False, use_trait_name=False):
     demangled = demangle(name)
-    if remove_polymorphism:
+    if monopolize:
         old_len = 0
         while old_len != len(demangled):
             old_len = len(demangled)
             demangled = GENERIC_TYPE_PATTERN.sub("", demangled)
-            demangled = XXX_AS_YYY_PATTERN.sub(lambda match: match.groups()[0], demangled)
+            demangled = XXX_AS_YYY_PATTERN.sub(lambda match: match.groups()[1 if use_trait_name else 0], demangled)
             demangled = IMPL_XXX_AS_YYY_PATTERN.sub(lambda match: match.groups()[1], demangled)
     if concise:
         demangled = demangled.split("::")[-1]

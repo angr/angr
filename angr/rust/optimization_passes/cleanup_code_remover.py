@@ -2,7 +2,7 @@ from .base import TransformationPass
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ...utils.graph import GraphUtils
 
-CLEANUP_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place")
+CLEANUP_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place", "core::ops::drop::Drop::drop")
 
 
 class CleanupCodeRemover(TransformationPass):
@@ -97,6 +97,12 @@ class CleanupCodeRemover(TransformationPass):
         for block in blocks_to_remove:
             self._remove_block(block)
 
+    def _simplify_drop(self):
+        for block in self._graph.nodes:
+            if self.match_call(block, CLEANUP_FUNCTIONS):
+                block.statements = block.statements[:-1]
+
     def _analyze(self, cache=None):
         self._simplify_for_loop_drop()
         self._simplify_if_drop()
+        self._simplify_drop()
