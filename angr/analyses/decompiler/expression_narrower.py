@@ -422,7 +422,7 @@ class ExpressionNarrower(AILBlockWalker):
             first_replacement_expr = self.replacements[loc][expr][0]
             all_replacements = self.replacements[loc][expr]
             self.replacements[loc][expr] = self.replacements[loc][expr][1:]
-            new_expr = super()._handle_expr(expr_idx, first_replacement_expr, stmt_idx, stmt, block)
+            new_expr = self._handle_expr(expr_idx, first_replacement_expr, stmt_idx, stmt, block)
             self.replacements[loc][expr] = all_replacements
             return new_expr if new_expr is not None else first_replacement_expr
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)

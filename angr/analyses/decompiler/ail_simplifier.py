@@ -366,6 +366,9 @@ class AILSimplifier(Analysis):
                 if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
                     # we can narrow this phi vvar!
                     narrowable_phivarids.add(def_vvarid)
+                else:
+                    # blacklist it for now
+                    blacklist_varids.add(def_vvarid)
 
         # now determine what to narrow!
         narrowables = []
