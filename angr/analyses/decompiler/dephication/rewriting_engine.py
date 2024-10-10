@@ -126,7 +126,7 @@ class SimEngineDephiRewriting(
         return None
 
     def _handle_Call(self, stmt: Call) -> Call | None:
-        new_target = self._expr(stmt.target) if stmt.target is not None else None
+        new_target = self._expr(stmt.target) if stmt.target is not None and not isinstance(stmt.target, str) else None
         new_ret_expr = self._expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
