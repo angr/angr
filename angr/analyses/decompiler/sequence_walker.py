@@ -236,7 +236,7 @@ class SequenceWalker:
                 new_condition_and_nodes if cond_nodes_changed else node.condition_and_nodes,
                 else_node=new_else if new_else is not None else node.else_node,
             )
-        return
+        return None
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):  # pylint:disable=no-self-use
         return None
