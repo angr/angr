@@ -27,11 +27,17 @@ class CleanupCodeRemover(TransformationPass):
                 return block
         return None
 
+    def _is_if(self, if_head, if_body):
+        if self.num_successors(if_body) == 1:
+            if_end = self.get_one_successor(if_body)
+            return set(self._graph.successors(if_head)) == {if_body, if_end}
+        return False
+
     def _simplify_if_drop(self):
         blocks_to_replace = {}
         for block in self._graph.nodes:
             if self.match_call(block, CLEANUP_FUNCTIONS):
-                predecessors = list(self._graph.predecessors(block))
+                predecessors = list(filter(lambda pred: self._is_if(pred, block), self._graph.predecessors(block)))
                 successors = list(self._graph.successors(block))
                 if len(predecessors) >= 1 and len(successors) == 1:
                     successor = next(iter(successors))

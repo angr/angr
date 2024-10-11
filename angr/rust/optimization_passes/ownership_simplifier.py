@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from ailment.expression import BasePointerOffset, Load, VirtualVariable, VirtualVariableCategory, StackBaseOffset
-from ailment.statement import Assignment, Call
+from ailment.statement import Assignment, Call, Store
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -114,25 +114,34 @@ class OwnershipSimplifier(OptimizationPass):
                             and (block.addr, block.idx) == (defs[0].codeloc.block_addr, defs[0].codeloc.block_idx)
                             and self._is_consecutive_defs(defs)
                         ):
-                            vvar_id = self.vvar_id_start
-                            self.vvar_id_start += 1
-                            vvar_bits = struct_ty.size
-                            dst_vvar = VirtualVariable(
-                                None,
-                                vvar_id,
-                                vvar_bits,
-                                VirtualVariableCategory.STACK,
-                                oident=dst_offset,
-                                **stmt.tags,
-                            )
-                            src = Load(
+                            # vvar_id = self.vvar_id_start
+                            # self.vvar_id_start += 1
+                            # vvar_bits = struct_ty.size
+                            # dst_vvar = VirtualVariable(
+                            #     None,
+                            #     vvar_id,
+                            #     vvar_bits,
+                            #     VirtualVariableCategory.STACK,
+                            #     oident=dst_offset,
+                            #     **stmt.tags,
+                            # )
+                            addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
+                            data = Load(
                                 None,
                                 StackBaseOffset(None, self.project.arch.bits, src_offset),
-                                vvar_bits // 8,
+                                struct_ty.size // 8,
                                 endness=self.project.arch.memory_endness,
                             )
-                            assignment = Assignment(idx=None, dst=dst_vvar, src=src, **stmt.tags)
-                            stmts_to_replace.append((block, defs[0].codeloc.stmt_idx, assignment))
+                            # assignment = Assignment(idx=None, dst=dst_vvar, src=src, **stmt.tags)
+                            replacement = Store(
+                                idx=None,
+                                addr=addr,
+                                data=data,
+                                size=data.size,
+                                endness=self.project.arch.memory_endness,
+                                **stmt.tags,
+                            )
+                            stmts_to_replace.append((block, defs[0].codeloc.stmt_idx, replacement))
                             for vvar_def in defs[1:]:
                                 stmts_to_remove[block].add(block.statements[vvar_def.codeloc.stmt_idx])
 
