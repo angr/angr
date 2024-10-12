@@ -159,11 +159,11 @@ class RustCallingConventionAnalysis(Analysis):
         return RustSimEnum(struct_types, False)
 
     def _infer_arg_type(self, arg_idx):
-        fields = {}
         memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]
         struct_types = []
 
         for block in memory_writes:
+            fields = {}
             block_memory_writes = memory_writes[block]
             for offset in sorted(block_memory_writes.keys()):
                 expr, func_addr = block_memory_writes[offset]
