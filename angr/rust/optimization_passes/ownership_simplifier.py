@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+import ailment
 from ailment.expression import BasePointerOffset, Load, VirtualVariable, VirtualVariableCategory, StackBaseOffset
 from ailment.statement import Assignment, Call, Store
 

@@ -18,13 +18,13 @@ def get_rust_optimization_passes():
         # AFTER_SINGLE_BLOCK_SIMPLIFICATION
         LibFunctionIdentifier,
         # AFTER_GLOBAL_SIMPLIFICATION
+        CleanupCodeRemover,
         AllocSimplifier,
         CallsiteSimplifier,
         CallsiteCorrector,
         UnwrapSimplifier,
         OwnershipSimplifier,
         StructInstantiationSimplifier,
-        CleanupCodeRemover,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
     ]
