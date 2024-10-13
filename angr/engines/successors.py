@@ -504,7 +504,7 @@ class SimSuccessors:
                 fallback = True
                 break
 
-            cond_and_targets.append((cond, target if not outer_reverse else state.solver.Reverse(target)))
+            cond_and_targets.append((cond, target if not outer_reverse else claripy.Reverse(target)))
 
         if reached_sentinel is False:
             # huh?

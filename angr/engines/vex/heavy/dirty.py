@@ -120,7 +120,7 @@ EmWarn_S390X_invalid_rounding = 11
 
 
 def amd64g_check_ldmxcsr(state, mxcsr):
-    rmode = state.solver.LShR(mxcsr, 13) & 3
+    rmode = claripy.LShR(mxcsr, 13) & 3
 
     ew = claripy.If(
         (mxcsr & 0x1F80) != 0x1F80,

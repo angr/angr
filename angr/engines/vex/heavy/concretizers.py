@@ -23,7 +23,7 @@ def concretize_2xm1(state, args):
     # 2xm1(x) = 2 ** x - 1. Concretize 2**x part alone since only that cannot be modelled in Z3.
     arg_x = state.solver.eval(args[1])
     if -1 <= arg_x <= 1:
-        return state.solver.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
 
     # If x is outside range [-1.0, 1.0], result is undefined. We return argument itself as observed on an Intel CPU.
     return args[1]
@@ -31,26 +31,26 @@ def concretize_2xm1(state, args):
 
 def concretize_abs_float64(state, args):
     arg_val = state.solver.eval(args[0])
-    return state.solver.FPV(abs(arg_val), args[0].sort)
+    return claripy.FPV(abs(arg_val), args[0].sort)
 
 
 def concretize_add_float64(state, args):
     arg0 = state.solver.eval(args[1])
     arg1 = state.solver.eval(args[2])
-    return state.solver.FPV(arg0 + arg1, claripy.FSORT_DOUBLE)
+    return claripy.FPV(arg0 + arg1, claripy.FSORT_DOUBLE)
 
 
 def concretize_add32f04(state, args):
     fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 + fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    result = claripy.FPV(fp_arg0 + fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
 def concretize_add64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 + fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    result = claripy.FPV(fp_arg0 + fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
@@ -71,18 +71,18 @@ def concretize_divf64(state, args):
     arg1 = state.solver.eval(args[1])
     arg2 = state.solver.eval(args[2])
     if arg2 == 0:
-        return state.solver.FPV(math.inf, args[1].sort)
+        return claripy.FPV(math.inf, args[1].sort)
 
-    return state.solver.FPV(arg1 / arg2, args[1].sort)
+    return claripy.FPV(arg1 / arg2, args[1].sort)
 
 
 def concretize_div32f04(state, args):
     fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
     if fp_arg1 == 0:
-        result = state.solver.FPV(math.inf, claripy.FSORT_FLOAT).raw_to_bv()
+        result = claripy.FPV(math.inf, claripy.FSORT_FLOAT).raw_to_bv()
     else:
-        result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+        result = claripy.FPV(fp_arg0 / fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
 
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
@@ -91,21 +91,21 @@ def concretize_div64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     if fp_arg1 == 0:
-        result = state.solver.FPV(math.inf, claripy.FSORT_DOUBLE).raw_to_bv()
+        result = claripy.FPV(math.inf, claripy.FSORT_DOUBLE).raw_to_bv()
     else:
-        result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+        result = claripy.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
 
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
 def concretize_float32_to_float64(state, args):
     arg0 = state.solver.eval(args[0])
-    return state.solver.FPV(arg0, claripy.FSORT_DOUBLE)
+    return claripy.FPV(arg0, claripy.FSORT_DOUBLE)
 
 
 def concretize_float64_to_float32(state, args):
     arg = state.solver.eval(args[1])
-    return state.solver.FPV(arg, claripy.FSORT_FLOAT)
+    return claripy.FPV(arg, claripy.FSORT_FLOAT)
 
 
 def concretize_float64_to_int64s(state, args):
@@ -127,20 +127,20 @@ def concretize_int64s_to_float64(state, args):
 def concretize_mulf64(state, args):
     arg1 = state.solver.eval(args[1])
     arg2 = state.solver.eval(args[2])
-    return state.solver.FPV(arg1 / arg2, args[1].sort)
+    return claripy.FPV(arg1 / arg2, args[1].sort)
 
 
 def concretize_mul32f04(state, args):
     fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 * fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    result = claripy.FPV(fp_arg0 * fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
 def concretize_mul64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 * fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    result = claripy.FPV(fp_arg0 * fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
@@ -149,24 +149,24 @@ def concretize_fscale(state, args):
     arg_x = state.solver.eval(args[1])
     arg_y = math.floor(state.solver.eval(args[2]))
     if math.isnan(arg_x) or math.isnan(arg_y):
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs(arg_x) == math.inf and arg_y == -1 * math.inf:
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if arg_x == 0.0 and arg_y == math.inf:
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    return state.solver.FPV(arg_x * math.pow(2, arg_y), claripy.FSORT_DOUBLE)
+    return claripy.FPV(arg_x * math.pow(2, arg_y), claripy.FSORT_DOUBLE)
 
 
 def concretize_fsqrt(state, args):
     # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
     arg_1 = state.solver.eval(args[1])
     if arg_1 < 0 or math.isnan(arg_1):
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    return state.solver.FPV(math.sqrt(arg_1), claripy.FSORT_DOUBLE)
+    return claripy.FPV(math.sqrt(arg_1), claripy.FSORT_DOUBLE)
 
 
 def concretize_prem(state, args):
@@ -175,7 +175,7 @@ def concretize_prem(state, args):
     dividend = state.solver.eval(args[1])
     divisor = state.solver.eval(args[2])
     if math.isnan(dividend) or math.isnan(divisor) or abs(dividend) == math.inf or divisor == 0.0:
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs(divisor) == math.inf or dividend == 0.0:
         return args[1]
@@ -194,9 +194,9 @@ def concretize_prem(state, args):
 
     if result == 0.0 and math.copysign(1.0, dividend) < 0:
         # According to Intel manual, if result is 0, its sign should be same as that of dividend.
-        return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
+        return claripy.FPV(-0.0, claripy.FSORT_DOUBLE)
 
-    return state.solver.FPV(result, claripy.FSORT_DOUBLE)
+    return claripy.FPV(result, claripy.FSORT_DOUBLE)
 
 
 def concretize_prem_flags(state, args):
@@ -241,20 +241,20 @@ def concretize_prem_flags(state, args):
 
 
 def concretize_reinterp_float64_as_int64(state, args):
-    return state.solver.FPV(state.solver.eval(args[0]), args[0].sort).raw_to_bv()
+    return claripy.FPV(state.solver.eval(args[0]), args[0].sort).raw_to_bv()
 
 
 def concretize_sub32f04(state, args):
     fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 - fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    result = claripy.FPV(fp_arg0 - fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
 def concretize_sub64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 - fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    result = claripy.FPV(fp_arg0 - fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1) : result.size()], result)
 
 
@@ -265,18 +265,18 @@ def concretize_trig_cos(state, args):
     abs_arg_x = abs(arg_x)
 
     if math.isnan(abs_arg_x):
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x == math.inf:
         # Floating-point invalid-operation exception
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x > pow(2, 63):
         # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
         # exception: leave value changed
         return args[1]
 
-    return state.solver.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
+    return claripy.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
 
 
 def concretize_trig_sin(state, args):
@@ -286,18 +286,18 @@ def concretize_trig_sin(state, args):
     abs_arg_x = abs(arg_x)
 
     if math.isnan(abs_arg_x):
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x == math.inf:
         # Floating-point invalid-operation exception
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x > pow(2, 63):
         # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
         # exception: leave value changed
         return args[1]
 
-    return state.solver.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
+    return claripy.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
 
 
 def concretize_trig_tan(state, args):
@@ -307,18 +307,18 @@ def concretize_trig_tan(state, args):
     abs_arg_x = abs(arg_x)
 
     if math.isnan(abs_arg_x):
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x == math.inf:
         # Floating-point invalid-operation exception
-        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x > pow(2, 63):
         # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
         # exception: leave value changed
         return args[1]
 
-    return state.solver.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
+    return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
 
 
 def concretize_yl2x(state, args):
@@ -330,35 +330,35 @@ def concretize_yl2x(state, args):
     arg_y = state.solver.eval(args[1])
     if arg_x < 0:
         # TODO: Indicate floating-point invalid-operation exception
-        return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+        return claripy.FPV(arg_x, claripy.FSORT_DOUBLE)
 
     if arg_x == 0:
         if abs(arg_y) == math.inf:
-            return state.solver.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
+            return claripy.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
         if arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
-            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+            return claripy.FPV(arg_x, claripy.FSORT_DOUBLE)
         # TODO: Indicate floating-point zero-division exception
-        return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+        return claripy.FPV(arg_x, claripy.FSORT_DOUBLE)
 
     if arg_x == 1:
         if abs(arg_y) == math.inf:
             # TODO: Indicate floating-point invalid-operation exception
-            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+            return claripy.FPV(arg_x, claripy.FSORT_DOUBLE)
 
         # TODO: How to distinguish between +0 and -0?
-        return state.solver.FPV(0, claripy.FSORT_DOUBLE)
+        return claripy.FPV(0, claripy.FSORT_DOUBLE)
 
     if arg_x == math.inf:
         if arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
-            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+            return claripy.FPV(arg_x, claripy.FSORT_DOUBLE)
         if arg_y < 0:
-            return state.solver.FPV(-1 * math.inf, claripy.FSORT_DOUBLE)
+            return claripy.FPV(-1 * math.inf, claripy.FSORT_DOUBLE)
 
-        return state.solver.FPV(math.inf, claripy.FSORT_DOUBLE)
+        return claripy.FPV(math.inf, claripy.FSORT_DOUBLE)
 
-    return state.solver.FPV(arg_y * math.log2(arg_x), claripy.FSORT_DOUBLE)
+    return claripy.FPV(arg_y * math.log2(arg_x), claripy.FSORT_DOUBLE)
 
 
 concretizers = {
