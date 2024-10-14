@@ -56,6 +56,7 @@ from .slotted_memory import SlottedMemoryMixin
 from .smart_find_mixin import SmartFindMixin
 from .symbolic_merger_mixin import SymbolicMergerMixin
 from .top_merger_mixin import TopMergerMixin
+from .eval_top_merger_mixin import EvalTopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
@@ -147,7 +148,7 @@ class TopListPagesMemory(
     PrivilegedPagingMixin,
     ListPagesMixin,
     DefaultFillerMixin,
-    TopMergerMixin,
+    EvalTopMergerMixin,
     PagedMemoryMixin,
 ):
 
