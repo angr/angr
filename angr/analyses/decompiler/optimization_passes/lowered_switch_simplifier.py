@@ -396,7 +396,16 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             default_case_candidates = {}
             last_comp = None
             stack = [(head, 0, 0xFFFF_FFFF_FFFF_FFFF)]
-            while stack:
+
+            # cursed: there is an infinite loop in the following loop that
+            # occurs rarely. we need to keep track of the nodes we've seen
+            # to break out of the loop.
+            # See https://github.com/angr/angr/pull/4953
+            #
+            # FIXME: the root cause should be fixed and this workaround removed
+            seen = set()
+            while stack and tuple(stack) not in seen:
+                seen.add(tuple(stack))
                 comp, min_, max_ = stack.pop(0)
                 (
                     comp_type,
