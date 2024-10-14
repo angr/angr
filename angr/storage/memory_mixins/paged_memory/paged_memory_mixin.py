@@ -295,15 +295,35 @@ class PagedMemoryMixin[PageType: PageBase](
             page = self._get_page(page_no, True)
             other_pages = []
 
+            if hasattr(self.state, 'globals'):
+                if 'is_symbolizer' in self.state.globals and 'is_constant_propagation' in self.state.globals:
+                    if self.state.globals['is_symbolizer'] or self.state.globals['is_constant_propagation']:
+                        all_states = [self.state.globals['orig_state_copy']]
+
             for o in others:
                 if page_no in o._pages:
                     other_pages.append(o._get_page(page_no, False))
+                    if hasattr(self.state, 'globals'):
+                        if 'is_symbolizer' in self.state.globals and 'is_constant_propagation' in self.state.globals:
+                            if self.state.globals['is_symbolizer'] or self.state.globals['is_constant_propagation']:
+                                all_states.append(o.state.globals['orig_state_copy'])
+
 
             page_addr = page_no * self.page_size
             changed_offsets = changed_pages_and_offsets[page_no]
-            merged_offsets = page.merge(
-                other_pages, merge_conditions, page_addr=page_addr, memory=self, changed_offsets=changed_offsets
-            )
+            if hasattr(self.state, 'globals') and 'is_symbolizer' in self.state.globals and \
+                    'is_constant_propagation' in self.state.globals:
+                if self.state.globals['is_symbolizer'] or self.state.globals['is_constant_propagation']:
+                    merged_offsets = page.merge(
+                        other_pages, merge_conditions, page_addr=page_addr, memory=self,
+                        changed_offsets=changed_offsets,
+                        all_states=all_states
+                    )
+            else:
+                merged_offsets = page.merge(
+                    other_pages, merge_conditions, page_addr=page_addr, memory=self, changed_offsets=changed_offsets
+                )
+
             for off in merged_offsets:
                 merged_bytes.add(page_addr + off)
 
