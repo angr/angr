@@ -9,6 +9,7 @@ import ailment
 import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
+from claripy import ClaripyZ3Error
 from ..propagator.top_checker_mixin import TopCheckerMixin
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveU64, DataSensitiveU32
 from pyvex.expr import DataSensitiveRdTmp
@@ -40,7 +41,10 @@ l = logging.getLogger(name=__name__)
 def cur_time():
     return time.perf_counter_ns() / 1000000
 
-class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+# class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin,
+                               SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -56,7 +60,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         # if self.state.scratch.ins_addr == 0x1400d2186 and self.state.scratch.stmt_idx == 5 and self.state.globals['cur_block_id'].vm_vpc == 5368832359:
         #     import ipdb;ipdb.set_trace()
         result = super()._handle_vex_expr(expr)
-        simp_result = result[0]
+        simp_result = result
         code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
 
         cur_abstract_state = self.state.globals['abstract_state']()
@@ -69,50 +73,86 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         # if self.state.solver.symbolic(result[0]):
         #     self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
         # else:
-        if self.state.solver.symbolic(result[0]):
-            skip = False
-            for var in result[0].variables:
-                if var.startswith('precon_sp'):
-                    skip = True
-                    break
 
-            if skip:
-                # do additional simplification and verify that it's not the stack pointer
-                if self.state.globals['is_constant_propagation']:
-                    tmp_simp_result = self.state.solver.simplify(result[0])
-                    if not self.state.solver.symbolic(tmp_simp_result):
-                        simp_result = tmp_simp_result
+        if self.state.globals['constant_prop_level'] == 1:
+            # this tries to solve every expression with a solver that doesn't have anyh contraints
+            # only use this with Themida since the mba replacements don't get added here
+            if self.state.solver.symbolic(simp_result) and simp_result not in self.state.globals['no_one_soln_cache']:
+                try:
+                    # Only for Themida, for VMP we need to use the partial_sym solver because it has the replacements
+                    eval_result = self.state.globals['no_constraints_solver'].eval(simp_result, 2)
+                    if len(eval_result) == 1:
+                        simp_result = claripy.BVV(eval_result[0], simp_result.size())
+
+                        # store the evaluated value back into memory
+                        cur_stmt = self.state.scratch.irsb.statements[self.stmt_idx]
+                        if isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data,
+                                                                                 pyvex.expr.Load) and isinstance(expr,
+                                                                                                                 pyvex.expr.Load):
+                            if isinstance(cur_stmt.data.addr, pyvex.expr.RdTmp):
+                                if not self.state.solver.symbolic(self.state.scratch.temps[cur_stmt.data.addr.tmp]):
+                                    self.state.memory.store(self.state.scratch.temps[cur_stmt.data.addr.tmp], simp_result)
+                                else:
+                                    import ipdb;
+                                    ipdb.set_trace()
+                            elif isinstance(cur_stmt.data.addr, pyvex.expr.Const):
+                                self.state.memory.store(cur_stmt.data.addr.con.value, simp_result)
+                        elif isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data,
+                                                                                   pyvex.expr.Get) and isinstance(expr,
+                                                                                                                  pyvex.expr.Get):
+                            self.state.registers.store(cur_stmt.data.offset, simp_result)
                     else:
-                        simp_result = result[0]
+                        self.state.globals['no_one_soln_cache'][simp_result] = True
+                except:
+                    self.state.globals['no_one_soln_cache'][simp_result] = True
 
-                # additional check to see if the eval value is actually a stack pointer or not
-                # only for 1 bit results specifically in a condition check
-                # conditional jumps that aalways evaluate to the same jump, but somehow depend on sp
-                # also make sure thats there's more than one variable other than sp
-                if isinstance(self.state.scratch.irsb.statements[self.stmt_idx], pyvex.stmt.Exit) and \
-                        not len(list(simp_result.variables)) == 1:
+        elif self.state.globals['constant_prop_level'] == 0:
+            if self.state.solver.symbolic(result):
+                skip = False
+                for var in result.variables:
+                    if var.startswith('precon_sp'):
+                        skip = True
+                        break
+
+                if skip:
+                    # do additional simplification and verify that it's not the stack pointer
+                    if self.state.globals['is_constant_propagation']:
+                        tmp_simp_result = self.state.solver.simplify(result)
+                        if not self.state.solver.symbolic(tmp_simp_result):
+                            simp_result = tmp_simp_result
+                        else:
+                            simp_result = result
+
+                    # additional check to see if the eval value is actually a stack pointer or not
+                    # only for 1 bit results specifically in a condition check
+                    # conditional jumps that aalways evaluate to the same jump, but somehow depend on sp
+                    # also make sure thats there's more than one variable other than sp
+                    if isinstance(self.state.scratch.irsb.statements[self.stmt_idx], pyvex.stmt.Exit) and \
+                            not len(list(simp_result.variables)) == 1:
+                        try:
+                            # start = cur_time()
+                            eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                            # millisec = cur_time() - start
+                            # self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
+                            #                                             len(self.state.partial_symbolic_constraint_solver.constraints)))
+                            if eval_result in [0,1]:
+                                simp_result = claripy.BVV(eval_result, simp_result.size())
+                        except (SimValueError):
+                            pass
+
+
+                if not skip:
                     try:
                         # start = cur_time()
                         eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
                         # millisec = cur_time() - start
+                        # if millisec > 60000:
+                        #     import ipdb;ipdb.set_trace()
                         # self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
-                        #                                             len(self.state.partial_symbolic_constraint_solver.constraints)))
-                        if eval_result in [0,1]:
-                            simp_result = claripy.BVV(eval_result, simp_result.size())
-                    except SimValueError:
+                                                                    # len(self.state.partial_symbolic_constraint_solver.constraints)))
+                        simp_result = claripy.BVV(eval_result, simp_result.size())
+                    except (SimValueError):
                         pass
-
-
-            if not skip:
-                try:
-                    # start = cur_time()
-                    eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
-                    # millisec = cur_time() - start
-                    # self.project.symbolizer_solve_times.append((millisec, simp_result.depth, len(simp_result.variables),
-                                                                # len(self.state.partial_symbolic_constraint_solver.constraints)))
-                    simp_result = claripy.BVV(eval_result, simp_result.size())
-                except SimValueError:
-                    pass
 
         # ### Only save the constant if it is not touched by the stack
         # stack_touched = False
@@ -125,9 +165,25 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         #symbolize the previously(previous analysis) found non constants and return that
         if not self.state.solver.symbolic(simp_result) and self.project.prev_symbolic_expr_locations and \
                 (code_loc, expr) in self.project.prev_symbolic_expr_locations:
+            # this is not a nice way to do this, instead we should compare the state from previous analysis and
+            # replace values with TOP in the entire state
             sym_result = PropagatorState.top(simp_result.size())
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
-            return [sym_result, result[1]]
+            cur_stmt = self.state.scratch.irsb.statements[self.stmt_idx]
+            # store the symbolized value back in memory
+            if isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data, pyvex.expr.Load) and isinstance(expr, pyvex.expr.Load):
+                if isinstance(cur_stmt.data.addr, pyvex.expr.RdTmp):
+                    if not self.state.solver.symbolic(self.state.scratch.temps[cur_stmt.data.addr.tmp]):
+                        self.state.memory.store(self.state.scratch.temps[cur_stmt.data.addr.tmp], sym_result)
+                    else:
+                        addr = self.state.partial_symbolic_constraint_solver.eval_one(
+                            self.state.scratch.temps[cur_stmt.data.addr.tmp])
+                        self.state.memory.store(addr, sym_result)
+                elif isinstance(cur_stmt.data.addr, pyvex.expr.Const):
+                    self.state.memory.store(cur_stmt.data.addr.con.value, sym_result)
+            elif isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data, pyvex.expr.Get) and isinstance(expr, pyvex.expr.Get):
+                self.state.registers.store(cur_stmt.data.offset, sym_result)
+            return sym_result
 
         #symbolize the previously(previous analysis) found non constants and return that
         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
@@ -175,30 +231,45 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
 
         ## This case checks for TOP that result from state merging that merged two concrete values, which means that this values should be symbolized
-        elif PropagatorState.is_top(simp_result):
+        elif self.state.globals['constant_prop_level'] == 0 and PropagatorState.is_top(simp_result):# and simp_result.depth == 1:
+            cur_abstract_state._replacements[code_loc][expr] = "TOP"
+        elif self.state.globals['constant_prop_level'] == 1 and self.state.solver.symbolic(simp_result):
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
 
 
-        return [simp_result, result[1]]
+        return simp_result
 
+    def custom_simplify_ast(self, old_ast):
+        # this simplification is to deal with add operation with three arguments causes misses in the replacement cache
+        # mba clready present in cache is mba_whole => mba_part_a + mba_part_b
+        # (0x1000 + mba_part_a + mba_part_b) - 0x1000
+        # the above expression is missed in the cache because of the three argument expr
+        # we simplify the above to mba_part_a + mba_part_b
 
+        if old_ast.op == '__sub__':
+            if len(old_ast.args) == 2:
+                if old_ast.args[1].depth == 1:
+                    if old_ast.args[0].op == '__add__':
+                        if old_ast.args[0].args[0] is old_ast.args[1]:
+                            return old_ast.args[0].args[1] +  old_ast.args[0].args[2]
+        return old_ast
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
-        simplified_addr = addr[0]
-        if self.state.solver.symbolic(addr[0]):
+        simplified_addr = addr
+        if self.state.solver.symbolic(addr):
             try:
-                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
+                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr)
             except SimValueError:
                 pass
             except claripy.ClaripyError as e:
                 pass
-        result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
+        result = super()._perform_vex_expr_Load(simplified_addr, ty, endness, **kwargs)
 
 
 
         # Check if the addr is a stack address, if so skip it
         merged_stack_address = None
         var_dict ={}
-        for var in addr[0].variables:
+        for var in addr.variables:
             if var.startswith("state_merge"):
                 var_dict["state_merge"] = True
             elif var.startswith("precon_sp"):
@@ -218,19 +289,19 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         if self.state.solver.symbolic(simplified_addr):
             try:
-                conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
+                conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 3)
             except:
                 pass
 
         if conc_addrs:
             ast_addrs = []
             for con_addr in conc_addrs:
-                ast_addrs.append(claripy.BVV(con_addr, addr[0].size()))
+                ast_addrs.append(claripy.BVV(con_addr, addr.size()))
 
             conc_addrs = ast_addrs
 
-            if len(conc_addrs) < 5:
-                if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
+            if len(conc_addrs) <= 3:
+                if isinstance(result.args[0], str) and result.args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
                     if not self.state.solver.symbolic(simplified_addr):
                         return result
                     save = True
@@ -240,57 +311,139 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
 
         if save:
-            loaded_values = []
-            for conc_addr in conc_addrs:
-                loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
-                                                      endness=self.state.arch.memory_endness)
-                loaded_values.append(loaded_value)
+            if len(conc_addrs) > 2 and len(simplified_addr.variables) == 1 and list(simplified_addr.variables)[0].startswith('switch_case_table'):
+                # loading different vip values based on the switch case jump table
+                switch_case_var = None
+                for ast in simplified_addr.leaf_asts():
+                    if isinstance(ast.args[0], str) and ast.args[0].startswith('switch_case_table'):
+                        switch_case_var = ast
+                # conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 8)
+                solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval(
+                    [simplified_addr, switch_case_var], 8)
+                solns_dict = defaultdict(set)
+                for soln in solns:
+                    # we sort the conc addrs such that they are in the same order as the previous switch case condition
+                    solns_dict[soln[0]].add(soln[1])
 
-            if len(conc_addrs) == 1 or len(conc_addrs) > 2:
-                print("Hmmmm")
+                last_addr = None
+                conc_addrs_dict = {}
+                for k in solns_dict.keys():
+                    if len(solns_dict[k]) == 1:
+                        var_val = list(solns_dict[k])[0]
+                        conc_addrs_dict[var_val] = k
+                    else:
+                        last_addr = k
+
+                conc_addrs = []
+                for i in range(len(solns_dict) - 1):
+                    conc_addrs.append(conc_addrs_dict[i])
+
+                # conc_addrs sorted in the same order as the jump case conditional variable
+                conc_addrs.append(last_addr)
+
+                ast_addrs = []
+                for con_addr in conc_addrs:
+                    ast_addrs.append(claripy.BVV(con_addr, addr.size()))
+
+                conc_addrs = ast_addrs
+                loaded_values = []
+                for conc_addr in conc_addrs:
+                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+                                                          endness=self.state.arch.memory_endness)
+                    loaded_values.append(loaded_value)
+
+                final_cond = loaded_values[-1]
+                for idx, loaded_value in enumerate(loaded_values[:-1]):
+                    final_cond = claripy.If(switch_case_var == idx, loaded_value, final_cond)
+
                 import ipdb;
                 ipdb.set_trace()
-            else:
+
+                return final_cond
+
+            elif len(conc_addrs) > 2:
+                # jump table for switch case
+                sec = self.project.loader.main_object.find_section_containing(conc_addrs[0].args[0])
+                if not sec:
+                    return result
+                elif (sec.name.startswith('.rdata') or sec.name.startswith('.data')):
+                    return result
+
+                import ipdb;
+                ipdb.set_trace()
+
+                print("possibly a switch case jump table?")
+                conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 12)
+                ast_addrs = []
+                for con_addr in conc_addrs:
+                    ast_addrs.append(claripy.BVV(con_addr, addr.size()))
+
+                conc_addrs = ast_addrs
+
+                loaded_values = []
+
+                for conc_addr in conc_addrs:
+                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+                                                          endness=self.state.arch.memory_endness)
+                    if loaded_value.concrete and self.state.project.loader.main_object.contains_addr(
+                            loaded_value.concrete_value):
+                        loaded_values.append(loaded_value)
+
+                no_bits = len(bin(len(loaded_values))) - 2
+                indirect_jump_var = claripy.BVS('switch_case_table', no_bits)
+                final_cond = loaded_values[-1]
+                for idx, loaded_value in enumerate(loaded_values[:-1]):
+                    final_cond = claripy.If(indirect_jump_var == idx, loaded_value, final_cond)
+
+                return final_cond
+            elif len(conc_addrs) == 2:
+                import ipdb;ipdb.set_trace()
+                loaded_values = []
+                for conc_addr in conc_addrs:
+                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+                                                          endness=self.state.arch.memory_endness)
+                    loaded_values.append(loaded_value)
+
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
-                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], addr_mba)
+                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr, addr_mba)
                 to_return=claripy.If(state_split_cond, loaded_values[0], loaded_values[1])
-                self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], to_return)
+                self.state.partial_symbolic_constraint_solver._solver.add_replacement(result, to_return)
 
 
                 ## This to add addrs which are of the following form mba+offset, mba+4
-                if addr[0].op in ["__add__","__sub__"]:
-                    if len(addr[0].args) == 2:
-                        if addr[0].args[0].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1], claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[0], conc_addrs[1] - addr[0].args[0]))
-                            elif addr[0].op == "__sub__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1], claripy.If(state_split_cond, addr[0].args[0] - conc_addrs[0], addr[0].args[0] - conc_addrs[1]))
-                        elif addr[0].args[1].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[1], conc_addrs[1] - addr[0].args[1]))
-                            elif addr[0].op == "__sub__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr[0].args[1], conc_addrs[1] + addr[0].args[1]))
+                if addr.op in ["__add__","__sub__"]:
+                    if len(addr.args) == 2:
+                        if addr.args[0].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
+                            elif addr.op == "__sub__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
+                        elif addr.args[1].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
+                            elif addr.op == "__sub__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr.args[1], conc_addrs[1] + addr.args[1]))
 
-                    elif len(addr[0].args) == 3:
-                        if addr[0].args[0].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1] + addr[0].args[2], claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[0], conc_addrs[1] - addr[0].args[0]))
-                            elif addr[0].op == "__sub__":
+                    elif len(addr.args) == 3:
+                        if addr.args[0].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1] + addr.args[2], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
+                            elif addr.op == "__sub__":
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
-                        elif addr[0].args[1].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] + addr[0].args[2],claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[1], conc_addrs[1] - addr[0].args[1]))
-                            elif addr[0].op == "__sub__":
+                        elif addr.args[1].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[2],claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
+                            elif addr.op == "__sub__":
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
-                        elif addr[0].args[2].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] + addr[0].args[1],claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[2], conc_addrs[1] - addr[0].args[2]))
-                            elif addr[0].op == "__sub__":
+                        elif addr.args[2].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[1],claripy.If(state_split_cond, conc_addrs[0] - addr.args[2], conc_addrs[1] - addr.args[2]))
+                            elif addr.op == "__sub__":
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
@@ -299,9 +452,18 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 ## That should not be a problem since we try to evaluate every address above, so it should be resolved
                 for ind in range(len(self.state.scratch.temps)):
                     if self.state.scratch.temps[ind] is not None:
-                        self.state.scratch.temps[
-                            ind] = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                        new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
                             self.state.scratch.temps[ind])
+                        if new_val is not self.state.scratch.temps[ind]:
+                            self.state.scratch.temps[ind] = new_val
+                        else:
+                            # check for state_var depndent exprs
+                            to_replace, new_mba_expr = self.should_replace_with_mba_var(self.state.scratch.temps[ind],
+                                                                                        addr,
+                                                                                        addr_mba)
+                            if to_replace:
+                                self.state.scratch.temps[ind] = new_mba_expr
+
 
                 for reg in self.state.arch.registers.keys():
                     offset = self.state.arch.registers[reg][0]
@@ -310,10 +472,71 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                     new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val)
                     if old_val is not new_val:
                         self.state.registers.store(offset, new_val)
+                    else:
+                        # perform extra simplifications and check
+                        simp_ast = self.custom_simplify_ast(old_val)
+                        if simp_ast is not old_val:
+                            new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(simp_ast)
+                            if new_val is not simp_ast:
+                                self.state.registers.store(offset, new_val)
+                        elif old_val.op == "__add__" and len(old_val.args) == 3:
+                            new_val = old_val
+                            # deal with three argument adds, since they are not in the replacements
+                            if old_val.args[0].depth == 1:
+                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                                    old_val.args[1] + old_val.args[2]) + old_val.args[0]
+                            elif old_val.args[1].depth == 1:
+                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                                    old_val.args[0] + old_val.args[2]) + old_val.args[1]
+                            elif old_val.args[2].depth == 1:
+                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                                    old_val.args[0] + old_val.args[1]) + old_val.args[2]
 
-                return [to_return, result[1]]
+                            if new_val is not old_val:
+                                self.state.registers.store(offset, new_val)
+                        else:
+                            # check for state_var depndent exprs
+                            to_replace, new_mba_expr = self.should_replace_with_mba_var(old_val, addr, addr_mba)
+
+                            if to_replace:
+                                self.state.registers.store(offset, new_mba_expr)
+
+
+                return to_return
+            else:
+                print("Hmmm")
+                import ipdb;ipdb.set_trace()
 
         return result
+
+    def should_replace_with_mba_var(self, expr_to_check, orig_addr, mba_split_cond):
+        # heuristically trying to make sure one expr is the subset of another
+        # this is specifically for exprs which are dependent on the state_var
+        if expr_to_check.op == "If" and orig_addr.op == "If":
+            if expr_to_check.variables == orig_addr.variables:
+                # direct batch eval on orig_addr will cause issues due to the replacement thats already added
+                # so we check only one of the if else values
+                solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval([expr_to_check.args[1], orig_addr.args[1]], 3)
+                if len(solns) == 2:
+                    for val1, val2 in solns:
+                        sec = self.project.loader.main_object.find_section_containing(val1)
+                        if not sec:
+                            return False, None
+
+                assert solns[0][0] - solns[0][1] == solns[1][0] - solns[1][1]
+
+                diff = solns[0][0] - solns[0][1]
+
+                import ipdb;ipdb.set_trace()
+
+                if diff > 0:
+                    return True, mba_split_cond + diff
+                elif diff < 0:
+                    return True, mba_split_cond - abs(diff)
+                elif diff == 0:
+                    return True, mba_split_cond
+
+        return False, None
 
     def _handle_vex_defaultexit(self, expr, jumpkind):
         super()._handle_vex_defaultexit(expr, jumpkind)
@@ -534,7 +757,14 @@ class PropagatorVEXState(PropagatorState):
         merged = [ ]
         # if not isinstance(self.concrete_states, list):
         #     self.concrete_states = self.concrete_states.all_successors
+        # add a copy of the original state to globals, so that the order in which the plugins are merged doesn't impact the constraints when
+        # using the solver to evaluate values
+        state0.globals['orig_state_copy'] = state0.copy()
+        state1.globals['orig_state_copy'] = state1.copy()
         merged_stuff = state0.merge(state1, plugin_whitelist=['inspect', 'preconstrainer', 'globals', 'mem', 'heap', 'regs', 'solver', 'callstack', 'history', 'fs', 'scratch', 'memory', 'registers', 'libc', 'partial_symbolic_constraint_solver'])
+        state0.globals['orig_state_copy'] = None
+        state1.globals['orig_state_copy'] = None
+        merged_stuff[0].globals['orig_state_copy'] = None
         return merged_stuff[0]
 
     def add_replacement(self, codeloc, old, new):
@@ -746,7 +976,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         if PropagatorState.is_top(mo_self.object) and PropagatorState.is_top(mo_other.object):
             return True
 
-        return None
+        if not PropagatorState.is_top(mo_self.object) and not PropagatorState.is_top(mo_other.object):
+            # we do not need to actually compare here because, in top_merger_mixin, if the values are actually different
+            # they are merged to TOP, so if they are not both TOP, we can assume they both evaluate to same concrete value
+            return True
+
+        return False
 
     def _initial_abstract_state(self, node):
         if not node.input_state:
@@ -785,6 +1020,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
     def _run_on_node(self, node, abstract_state):
         l.debug(node)
+        print(node)
         # if str(node) == "<CFGENode 0x140061ee8 ()vm-vpc:5368833178 [2]>":
         #     import ipdb;ipdb.set_trace()
 
@@ -872,8 +1108,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             #     import ipdb;ipdb.set_trace()
             # profiler.disable()
             # stats = pstats.Stats(profiler).sort_stats('tottime')
-            #
-            # if stats.total_tt > 6:
+
+            # if stats.total_tt > (60*5):
             #     stats.print_stats()
             #     import ipdb;
             #     ipdb.set_trace()
@@ -984,6 +1220,9 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         for ast in repl_ip.leaf_asts():
                             if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
                                 state_var_ast.append(ast)
+                            elif isinstance(ast.args[0], str) and ast.args[0].startswith('switch_case_table') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
+                                state_var_ast.append(ast)
+                                import ipdb;ipdb.set_trace()
 
                         # if len(state_var_ast) != 1:
                         #     import ipdb;ipdb.set_trace()
@@ -997,6 +1236,9 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             try:
                                 # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
                                 solns = sim_successors.unconstrained_successors[0].partial_symbolic_constraint_solver._solver.batch_eval([sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5)
+                                # This batch eval for switch case variable needs work, right now it doesn't always give all
+                                # possible jump targets due to the way the switch case variable is constructed with the if-else-then.
+                                # the default case ends up in too many of the batch eval solns
                             except:
                                 import ipdb;ipdb.set_trace()
 
@@ -1030,8 +1272,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
-                            # import ipdb;
-                            # ipdb.set_trace()
+                            import ipdb;
+                            ipdb.set_trace()
                             new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                             new_sim_successors.artifacts = sim_successors.artifacts
                             new_sim_successors.engine = sim_successors.engine
@@ -1238,11 +1480,16 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
             elif len(states) == 2:
                 if states[0].solver.eval_one(states[0].regs.sp) == states[1].solver.eval_one(states[1].regs.sp):
+                    states[0].globals['orig_state_copy'] = states[0].copy()
+                    states[1].globals['orig_state_copy'] = states[1].copy()
                     merged_stuff = states[0].merge(states[1],
                                                 plugin_whitelist=['inspect', 'preconstrainer', 'globals', 'mem', 'heap',
                                                                   'regs', 'solver', 'callstack', 'history', 'fs', 'scratch',
                                                                   'memory', 'registers', 'libc',
                                                                   'partial_symbolic_constraint_solver'])
+                    states[0].globals['orig_state_copy'] = None
+                    states[1].globals['orig_state_copy'] = None
+                    merged_stuff[0].globals['orig_state_copy'] = None
                     merged_stuff[0].globals["same_sp_merged"] = True
 
                     merged_state_collection.append(merged_stuff[0])
@@ -1361,14 +1608,14 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     same = None
                     if self._mo_cmp is not None:
                         same = self._mo_cmp(cur_page.content[c], other.content[c], page_addr + c, 1)
-                    if same is None:
-                        # Try to see if the bytes are equal
-                        self_byte = cur_page.content[c].bytes_at(page_addr + c, 1)
-                        other_byte = other.content[c].bytes_at(page_addr + c, 1)
-                    #    same = self_byte is other_byte
-                    # Ashwin added this to remove the problem that arises from comparing same valued asts with different(only hash is different) annotations
-                        if not (self_byte == other_byte).is_true():
-                            differences.add(c)
+                    # if same is None:
+                    #     # Try to see if the bytes are equal
+                    #     self_byte = cur_page.content[c].bytes_at(page_addr + c, 1)
+                    #     other_byte = other.content[c].bytes_at(page_addr + c, 1)
+                    # #    same = self_byte is other_byte
+                    # # Ashwin added this to remove the problem that arises from comparing same valued asts with different(only hash is different) annotations
+                    #     if not (self_byte == other_byte).is_true():
+                    #         differences.add(c)
 
                     if same is False:
                         differences.add(c)
