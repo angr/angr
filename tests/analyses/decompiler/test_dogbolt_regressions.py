@@ -12,6 +12,10 @@ BIN_PATH = os.path.join(bin_location, "tests", "dogbolt")
 
 
 class TestDogboltRegressions(unittest.TestCase):
+    """
+    Tests to verify regressions do not occur on bugs found on dogbolt.
+    """
+
     def _run_dogbolt_test(self, binary_name: str):
         p = angr.Project(os.path.join(BIN_PATH, binary_name), auto_load_libs=False, load_debug_info=False)
 
