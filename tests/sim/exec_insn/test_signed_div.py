@@ -5,31 +5,19 @@ from __future__ import annotations
 __package__ = __package__ or "tests.sim.exec_insn"  # pylint:disable=redefined-builtin
 
 import os
-import subprocess
-import sys
-from unittest import main, skipUnless, TestCase
+from unittest import main, TestCase
 
 import angr
 
-from tests.common import bin_location
+from tests.common import bin_location, run_simple_unicorn_congruency_check
 
 
-test_location = os.path.join(bin_location, "tests")
-
-
-class TestSignedDiv(TestCase):
-    @skipUnless(sys.platform.startswith("linux"), "linux only")
+class TestSignedDiv(TestCase):  # pylint:disable=missing-class-docstring
     def test_signed_div(self):
-        test_bin = os.path.join(test_location, "x86_64", "test_signed_div")
+        test_bin = os.path.join(bin_location, "tests", "x86_64", "test_signed_div")
         b = angr.Project(test_bin, auto_load_libs=False)
 
-        pg = b.factory.simulation_manager()
-        pg.explore()
-        out_angr = pg.deadended[0].posix.dumps(1)
-        with subprocess.Popen(test_bin, stdout=subprocess.PIPE) as proc:
-            stdout_real, _ = proc.communicate()
-
-        assert out_angr == stdout_real
+        run_simple_unicorn_congruency_check(b)
 
 
 if __name__ == "__main__":

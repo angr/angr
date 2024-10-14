@@ -10,7 +10,7 @@ from tempfile import NamedTemporaryFile
 
 from unittest import skipIf, skipUnless, skip, SkipTest
 
-from angr import load_shellcode
+from angr import load_shellcode, Project
 from angr.analyses import CongruencyCheck
 import angr.sim_options as so
 
@@ -133,9 +133,12 @@ def has_32_bit_compiler_support() -> bool:
         return False
 
 
-def run_simple_unicorn_congruency_check(shellcode: bytes | str, arch: str = "AMD64", depth: int = 1):
-    base = 0x100000
-    p = load_shellcode(shellcode, arch, load_address=base, start_offset=base)
+def run_simple_unicorn_congruency_check(thing: Project | bytes | str, arch: str = "AMD64", depth: int = 1):
+    if isinstance(thing, Project):
+        p = thing
+    else:
+        base = 0x100000
+        p = load_shellcode(thing, arch, load_address=base, start_offset=base)
     ca = p.analyses[CongruencyCheck].prep()(throw=True)
     ca.set_state_options(
         left_add_options=so.unicorn,
