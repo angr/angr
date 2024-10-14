@@ -1,6 +1,8 @@
 import networkx
 from functools import wraps
 import time
+import objgraph
+import tracemalloc
 import angr
 import logging
 import pyvex
@@ -21,6 +23,14 @@ from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from angr.errors import SimMemoryMissingError
 from pyvex.expr import DataSensitiveRdTmp
 from pyvex.const import U64, U32
+
+from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
+from ...engines.unicorn import SimEngineUnicorn
+from ...engines.failure import SimEngineFailure
+from ...engines.syscall import SimEngineSyscall
+from ...engines.hook import HooksMixin
+from ...engines.soot import SootMixin
+from ...engines import HeavyVEXMixin
 
 from ..cfg.cfg_job_base import BlockID
 from ..reaching_definitions.dep_graph import DepGraph
@@ -110,7 +120,11 @@ class StatementGraph:
     def subgraph(self, nodes):
         return self._graph.subgraph(nodes)
 
-class InputConcretizeEngine(UberEngine):
+# class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin,
+#                                TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin,
+                            SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -123,27 +137,56 @@ class InputConcretizeEngine(UberEngine):
         ## Should we do at least _replacement() here so tht mbas will keep getting simplified, this will help if the mba is on stack and has not been replaced in _perform_vex_expr_Load
         ## But this slows down analyses so instead we just do replacement for all temps and registers in _perform_vex_expr_Load
         #new_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
-        new_result = result[0]
+        new_result = result
         code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
-        if self.project.prev_symbolic_expr_locations and not self.state.solver.symbolic(result[0]) and (code_loc, expr) in self.project.prev_symbolic_expr_locations:
-            sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(code_loc.block_addr)), result[0].size())
+        if self.project.prev_symbolic_expr_locations and not self.state.solver.symbolic(result) and (code_loc, expr) in self.project.prev_symbolic_expr_locations:
+            sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(code_loc.block_addr)), result.size())
             self.state.globals['expr_loc_map'][sym_result.args[0]] = (code_loc, expr)
             new_result = sym_result
 
-        return [new_result, result[1]]
+            cur_stmt = self.state.scratch.irsb.statements[self.stmt_idx]
+            # store the symbolized value back in memory
+            if isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data, pyvex.expr.Load) and isinstance(expr, pyvex.expr.Load):
+                if isinstance(cur_stmt.data.addr, pyvex.expr.RdTmp):
+                    if not self.state.solver.symbolic(self.state.scratch.temps[cur_stmt.data.addr.tmp]):
+                        self.state.memory.store(self.state.scratch.temps[cur_stmt.data.addr.tmp], sym_result)
+                    else:
+                        addr = self.state.partial_symbolic_constraint_solver.eval_one(self.state.scratch.temps[cur_stmt.data.addr.tmp])
+                        self.state.memory.store(addr, sym_result)
+                elif isinstance(cur_stmt.data.addr, pyvex.expr.Const):
+                    self.state.memory.store(cur_stmt.data.addr.con.value, sym_result)
+            elif isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data, pyvex.expr.Get) and isinstance(expr, pyvex.expr.Get):
+                self.state.registers.store(cur_stmt.data.offset, sym_result)
+
+        return new_result
 
     def _handle_vex_expr_Load(self, expr: pyvex.expr.Load):
         return self._perform_vex_expr_Load(self._analyze_vex_expr_Load_addr(expr.addr), expr.ty, expr.end, expr=expr)
 
+    def custom_simplify_ast(self, old_ast):
+        # this simplification is to deal with add operation with three arguments causes misses in the replacement cache
+        # mba clready present in cache is mba_whole => mba_part_a + mba_part_b
+        # (0x1000 + mba_part_a + mba_part_b) - 0x1000
+        # the above expression is missed in the cache because of the three argument expr
+        # we simplify the above to mba_part_a + mba_part_b
+
+        if old_ast.op == '__sub__':
+            if len(old_ast.args) == 2:
+                if old_ast.args[1].depth == 1:
+                    if old_ast.args[0].op == '__add__':
+                        if old_ast.args[0].args[0] is old_ast.args[1]:
+                            return old_ast.args[0].args[1] +  old_ast.args[0].args[2]
+        return old_ast
+
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
-        simplified_addr = addr[0]
-        if self.state.solver.symbolic(addr[0]):
+        simplified_addr = addr
+        if self.state.solver.symbolic(addr):
             try:
-                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
+                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr)
             except:
                 pass
 
-        result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
+        result = super()._perform_vex_expr_Load(simplified_addr, ty, endness, **kwargs)
 
         if not self.state.solver.symbolic(simplified_addr):
             return result
@@ -152,14 +195,14 @@ class InputConcretizeEngine(UberEngine):
         var_ast_list = []
 
         if self.state.solver.symbolic(simplified_addr):
-            conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 5)
+            conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 3)
             ast_addrs = []
             for con_addr in conc_addrs:
-                ast_addrs.append(claripy.BVV(con_addr, addr[0].size()))
+                ast_addrs.append(claripy.BVV(con_addr, addr.size()))
 
             conc_addrs = ast_addrs
 
-            if len(conc_addrs) < 5:
+            if len(conc_addrs) <= 3:
                 save = True
 
         if len(var_ast_list) > 1:
@@ -168,18 +211,94 @@ class InputConcretizeEngine(UberEngine):
 
 
         if save:
-            loaded_values = []
-            for conc_addr in conc_addrs:
-                loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
-                                                      endness=self.state.arch.memory_endness)
-                loaded_values.append(loaded_value)
+            if len(conc_addrs) > 2 and len(simplified_addr.variables) == 1 and list(simplified_addr.variables)[0].startswith('switch_case_table'):
+                # loading different vip values based on the switch case jump table
 
-            if len(conc_addrs) == 1 or len(conc_addrs) > 2:
-                import ipdb;ipdb.set_trace()
-                print("Hmmmm")
-                import ipdb;
-                ipdb.set_trace()
-            else:
+                switch_case_var = None
+                for ast in simplified_addr.leaf_asts():
+                    if isinstance(ast.args[0], str) and ast.args[0].startswith('switch_case_table'):
+                        switch_case_var = ast
+                #conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 8)
+                solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval([simplified_addr, switch_case_var], 8)
+                solns_dict = defaultdict(set)
+                for soln in solns:
+                    # we sort the conc addrs such that they are in the same order as the previous switch case condition
+                    solns_dict[soln[0]].add(soln[1])
+
+                last_addr = None
+                conc_addrs_dict = {}
+                for k in solns_dict.keys():
+                    if len(solns_dict[k]) == 1:
+                        var_val = list(solns_dict[k])[0]
+                        conc_addrs_dict[var_val] = k
+                    else:
+                        last_addr = k
+
+                conc_addrs = []
+                for i in range(len(solns_dict)-1):
+                    conc_addrs.append(conc_addrs_dict[i])
+
+                # conc_addrs sorted in the same order as the jump case conditional variable
+                conc_addrs.append(last_addr)
+
+
+                ast_addrs = []
+                for con_addr in conc_addrs:
+                    ast_addrs.append(claripy.BVV(con_addr, addr.size()))
+
+                conc_addrs = ast_addrs
+                loaded_values = []
+                for conc_addr in conc_addrs:
+                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+                                                          endness=self.state.arch.memory_endness)
+                    loaded_values.append(loaded_value)
+
+                final_cond = loaded_values[-1]
+                for idx, loaded_value in enumerate(loaded_values[:-1]):
+                    final_cond = claripy.If(switch_case_var == idx, loaded_value, final_cond)
+
+                return final_cond
+
+            elif len(conc_addrs) > 2:
+                # jump table for switch case
+                sec = self.project.loader.main_object.find_section_containing(conc_addrs[0].args[0])
+                if not sec:
+                    return result
+                elif (sec.name.startswith('.rdata') or sec.name.startswith('.data')):
+                    return result
+
+                print("possibly a switch case jump table?")
+                conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 12)
+                ast_addrs = []
+                for con_addr in conc_addrs:
+                    ast_addrs.append(claripy.BVV(con_addr, addr.size()))
+
+                conc_addrs = ast_addrs
+
+                loaded_values = []
+
+                for conc_addr in conc_addrs:
+                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+                                                          endness=self.state.arch.memory_endness)
+                    if loaded_value.concrete and self.state.project.loader.main_object.contains_addr(loaded_value.concrete_value):
+                        loaded_values.append(loaded_value)
+
+                no_bits = len(bin(len(loaded_values)))-2
+                indirect_jump_var = claripy.BVS('switch_case_table', no_bits)
+                final_cond = loaded_values[-1]
+                for idx, loaded_value in enumerate(loaded_values[:-1]):
+                    final_cond = claripy.If(indirect_jump_var == idx, loaded_value, final_cond)
+
+
+                return final_cond
+
+
+            elif len(conc_addrs) == 2:
+                loaded_values = []
+                for conc_addr in conc_addrs:
+                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+                                                          endness=self.state.arch.memory_endness)
+                    loaded_values.append(loaded_value)
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 ## IF OPTIMIZATION IS ZERO THEN WE HAVE TO STORE THIS IN THE REGISTER WHICH CREATED THIS TMP AS WELL,SINCE THE TEMP WILL NOT BE USED LATER WHEN THE REGISTER IS READ
                 ## OR WE CAN JUST DO _replacement on all regs and current temps....... but still possible it might be on stack
@@ -187,45 +306,45 @@ class InputConcretizeEngine(UberEngine):
                 ## this is used later in decompilation to simplify the branching
                 ## This gets filled with the corresponding jump address for the each of the load address.... used for decomp results regex
                 self.project.load_addr_mba_to_jump_addr_mapping[addr_mba] = []
-                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], addr_mba)
+                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr, addr_mba)
                 self.state.scratch.temps[kwargs["expr"].addr.tmp] = addr_mba
                 to_return=claripy.If(state_split_cond, loaded_values[0], loaded_values[1])
-                self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], to_return)
+                self.state.partial_symbolic_constraint_solver._solver.add_replacement(result, to_return)
                 ## This to add addrs which are of the following form mba+offset, mba+4
-                if addr[0].op in ["__add__","__sub__"]:
-                    if len(addr[0].args) == 2:
-                        if addr[0].args[0].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1], claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[0], conc_addrs[1] - addr[0].args[0]))
-                            elif addr[0].op == "__sub__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1], claripy.If(state_split_cond, addr[0].args[0] - conc_addrs[0], addr[0].args[0] - conc_addrs[1]))
-                        elif addr[0].args[1].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[1], conc_addrs[1] - addr[0].args[1]))
-                            elif addr[0].op == "__sub__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr[0].args[1], conc_addrs[1] + addr[0].args[1]))
+                if addr.op in ["__add__","__sub__"]:
+                    if len(addr.args) == 2:
+                        if addr.args[0].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
+                            elif addr.op == "__sub__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
+                        elif addr.args[1].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
+                            elif addr.op == "__sub__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr.args[1], conc_addrs[1] + addr.args[1]))
 
-                    elif len(addr[0].args) == 3:
-                        if addr[0].args[0].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1] + addr[0].args[2], claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[0], conc_addrs[1] - addr[0].args[0]))
-                            elif addr[0].op == "__sub__":
+                    elif len(addr.args) == 3:
+                        if addr.args[0].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1] + addr.args[2], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
+                            elif addr.op == "__sub__":
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
-                                #self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1], claripy.If(state_split_cond, addr[0].args[0] - conc_addrs[0], addr[0].args[0] - conc_addrs[1]))
-                        elif addr[0].args[1].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] + addr[0].args[2],claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[1], conc_addrs[1] - addr[0].args[1]))
-                            elif addr[0].op == "__sub__":
+                                #self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
+                        elif addr.args[1].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[2],claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
+                            elif addr.op == "__sub__":
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
-                                # self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr[0].args[1], conc_addrs[1] + addr[0].args[1]))
-                        elif addr[0].args[2].depth == 1:
-                            if addr[0].op == "__add__":
-                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] + addr[0].args[1],claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[2], conc_addrs[1] - addr[0].args[2]))
-                            elif addr[0].op == "__sub__":
+                                # self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr.args[1], conc_addrs[1] + addr.args[1]))
+                        elif addr.args[2].depth == 1:
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[1],claripy.If(state_split_cond, conc_addrs[0] - addr.args[2], conc_addrs[1] - addr.args[2]))
+                            elif addr.op == "__sub__":
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
@@ -243,8 +362,31 @@ class InputConcretizeEngine(UberEngine):
                     new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val)
                     if old_val is not new_val:
                         self.state.registers.store(offset, new_val)
+                    else:
+                        #perform extra simplifications and check
+                        simp_ast = self.custom_simplify_ast(old_val)
+                        if simp_ast is not old_val:
+                            new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(simp_ast)
+                            if new_val is not simp_ast:
+                                self.state.registers.store(offset, new_val)
+                        elif old_val.op == "__add__" and len(old_val.args) == 3:
+                            new_val = old_val
+                            # deal with three argument adds, since they are not in the replacements
+                            if old_val.args[0].depth == 1:
+                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val.args[1] + old_val.args[2]) + old_val.args[0]
+                            elif old_val.args[1].depth == 1:
+                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val.args[0] + old_val.args[2]) + old_val.args[1]
+                            elif old_val.args[2].depth == 1:
+                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val.args[0] + old_val.args[1]) + old_val.args[2]
 
-                return [to_return ,result[1]]
+                            if new_val is not old_val:
+                                self.state.registers.store(offset, new_val)
+
+                return to_return
+            else:
+                print("Hmmm")
+                import ipdb;ipdb.set_trace()
+
 
         return result
 
@@ -387,7 +529,7 @@ class VMDeobfuscation(Analysis):
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
-                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True):
+                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -480,6 +622,7 @@ class VMDeobfuscation(Analysis):
 
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
+            proj.merger_top_dict_debug = {}
             to_split_nodes = self.split_redundant_branch_themida(new_cfg)
             new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"after_all_split.svg"))
@@ -497,7 +640,8 @@ class VMDeobfuscation(Analysis):
                                                                   start_addr, None,
                                                                   start_state=None,
                                                                   prev_symbolic_expr_locations=all_symbolic_expr_locations,
-                                                                  prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+                                                                  prev_unroll_vm_addrs=prev_unroll_vm_addrs,
+                                                                  constant_prop_level=constant_prop_level)
 
             import pickle
             pickled_file_name = os.path.dirname(self.project.filename) + "/symbolizer_z3_time_prof_iter_" + str(symb_iter)
@@ -515,6 +659,8 @@ class VMDeobfuscation(Analysis):
                 node.input_state = None
                 node.final_states = None
 
+            # release the memory
+            new_cfg = None
             start_state_copy = start_state.copy()
             #here we discover new nodes based on the values to symbolize from the symbolizer
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
@@ -565,7 +711,8 @@ class VMDeobfuscation(Analysis):
         import gc
         gc.collect()
         ## This is constant propgation along with finding non-constants
-        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
+        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations=None,
+                                     prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
@@ -577,6 +724,8 @@ class VMDeobfuscation(Analysis):
         self.inst_count(new_cfg)
 
 
+        # important to perform this first before any other simplifiactions
+        new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
         import gc
         gc.collect()
         self.draw_graph(new_cfg, os.path.join(folder_name, "full_cp_result.svg"))
@@ -615,7 +764,7 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
 
-        pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
+        #pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
         # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
         #     pickle.dump(new_cfg, mid_way_cfg_pickle)
 
@@ -692,6 +841,8 @@ class VMDeobfuscation(Analysis):
         pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
+        # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
 
         if THEMIDA:
@@ -699,7 +850,7 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
 
-            for i in range(15):
+            for i in range(35):
                 new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
                 self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
 
@@ -726,7 +877,7 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
 
-            for i in range(15):
+            for i in range(35):
                 new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
 
                 new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
@@ -1269,6 +1420,7 @@ class VMDeobfuscation(Analysis):
 
         dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim)
 
+        # import ipdb;ipdb.set_trace()
         with open("last_decomp_result.c", "w") as f:
             f.write(dec.codegen.text)
 
@@ -1562,7 +1714,8 @@ class VMDeobfuscation(Analysis):
     @logtime
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
                              prev_symbolic_expr_locations=None, vm_vpc=None,
-                             return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
+                             return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None,
+                   do_replacements=False, constant_prop_level=0):
         self.project.prev_symbolic_expr_locations = prev_symbolic_expr_locations
         print("Doing constant propagation or symbolizing")
         # old_graph = cfg.graph
@@ -1615,12 +1768,20 @@ class VMDeobfuscation(Analysis):
             initial_input_state.globals['replaced_asts_str'] = {}
             initial_input_state.globals['existing_mba_split_constraints'] = []
             initial_input_state.globals['mba_locs'] = {}
+            initial_input_state.globals['constant_prop_level'] = constant_prop_level
             initial_input_state.globals['same_sp_merged'] = False
-            initial_input_state.globals['no_constraints_solver'] = claripy.solvers.SolverComposite()
+            initial_input_state.globals['no_one_soln_cache'] = {}
+            initial_input_state.globals['no_constraints_solver'] = claripy.solvers.SolverReplacement(claripy.Solver(timeout=500000),
+                                                                                      unsafe_replacement=True,
+                                                                                      auto_replace=False)
             if do_replacements:
                 initial_input_state.globals['is_constant_propagation'] = True
+                initial_input_state.globals['is_symbolizer'] = False
+
             else:
                 initial_input_state.globals['is_constant_propagation'] = False
+                initial_input_state.globals['is_symbolizer'] = True
+
 
 
 
@@ -1722,6 +1883,7 @@ class VMDeobfuscation(Analysis):
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations = None
+        self.release_memory(cfg, proj)
 
         return cfg, cfg.to_use_symbolic_exprs
 
@@ -2063,8 +2225,8 @@ class VMDeobfuscation(Analysis):
             # This is to check if the node was deleted or not
             if node in new_model.graph.nodes():
                 if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
-                    if node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
-                        continue
+                    # if node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
+                    #     continue
                     succ = list(new_model.graph.successors(node))[0]
                     if len(list(new_model.graph.predecessors(succ))) == 1 and not succ.is_simprocedure:
                         new_stmts = []
@@ -2212,7 +2374,7 @@ class VMDeobfuscation(Analysis):
                         if succ.block_id != branch_block_id:
                             block_id_for_next = succ.block_id
                 else:
-                    import ipdb;ipdb.set_trace()
+                    block_id_for_next = None
 
             if isinstance(node.irsb.next, pyvex.expr.RdTmp):
                 new_next = DataSensitiveRdTmp(node.irsb.next.tmp, block_id_for_next)
@@ -2620,7 +2782,8 @@ class VMDeobfuscation(Analysis):
                     isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
                     for use in uses:
-                        if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load) and \
+                        if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp) and \
+                                isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load) and \
                                 isinstance(node.irsb.statements[use.stmt_idx].data.addr, pyvex.expr.Const):
                             ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
                             if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
@@ -2693,7 +2856,7 @@ class VMDeobfuscation(Analysis):
         for node in list(dsa_new_model.graph.nodes()):
             if not node.is_simprocedure and len(list(dsa_new_model.graph.successors(node))) == 0:
                 leaf_nodes_list.append(('node', (node.addr, node.block_id), OP_AFTER))
-        self.project.breakpoint_flag = True
+
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
                                                        track_consts=False,
@@ -2885,6 +3048,10 @@ class VMDeobfuscation(Analysis):
 
                         elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                             stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                            if isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                                    str(node.irsb.statements[d.codeloc.stmt_idx]) == "STle(t464) = t120":
+                                import ipdb;
+                                ipdb.set_trace()
                             try:
                                 vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
                                                                                  endness=d.atom.endness)
@@ -3279,6 +3446,7 @@ class VMDeobfuscation(Analysis):
                             for arg in pred_stmt.data.args:
                                 if isinstance(arg, pyvex.expr.Const):
                                     pred_stmt_const_arg = arg.con.value
+                                    const_class = arg.con.__class__
                                 elif isinstance(arg, pyvex.expr.RdTmp):
                                     pred_stmt_tmp_arg = arg.tmp
 
@@ -3287,6 +3455,15 @@ class VMDeobfuscation(Analysis):
                                 if pred_stmt_const_arg == cur_stmt_const_arg:
                                     new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg))
                                     changed_stmt_idx.append(stmt_idx)
+                                else:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp,
+                                                                pyvex.expr.Binop("Iop_Xor" + stmt.data.op[-2:],
+                                                                                 [pyvex.expr.RdTmp(
+                                                                                     pred_stmt_tmp_arg),
+                                                                                  pyvex.expr.Const(
+                                                                                      const_class(pred_stmt_const_arg ^ cur_stmt_const_arg))]))
+                                    changed_stmt_idx.append(stmt_idx)
+
 
                     elif len(pred_defs) == 2:
                         # both args are temps
@@ -3877,6 +4054,17 @@ class VMDeobfuscation(Analysis):
     #     start_state.regs.sp = start_state.solver.BVS("precon_sp", 64)
     #     start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
     #     start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
+    def release_memory(self, cfg, proj):
+
+        # clear all references of the states to free memory, which is not released other wise
+        cfg._initial_state = None
+        cfg._symbolic_function_initial_state = None
+        cfg._function_input_states = None
+        cfg._job_map = None
+        proj.factory.default_engine.successors = None
+        proj.factory.default_engine.state = None
+        return
+
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
     @logtime
     def data_sensitive_graph(self, filename, start_addr, start_state, cfg_fast_graph, avoid_runs, remove_insts=None):
@@ -3912,6 +4100,7 @@ class VMDeobfuscation(Analysis):
                                         deobfuscation_end_addr=self.deobfuscation_end_addr,
                                         # enable_advanced_backward_slicing=True
                                         )
+        self.release_memory(cfg, proj)
         return cfg, proj
 
     ####### Constant Propagation
@@ -3924,7 +4113,7 @@ class VMDeobfuscation(Analysis):
         new_model = cfg
         new_cfg_graph = cfg.graph
 
-        ## Setting the input state for the first node(need to automate this)
+        ## Setting the input state for the first node(need to automNcfg_vmate this)
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
@@ -4264,7 +4453,24 @@ class VMDeobfuscation(Analysis):
         return new_cfg, changed
 
     ### Draw the graph with vex statements
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True):
+
+    def super_graph(self, cfg):
+        super_graph = cfg.graph.copy()
+        nodes_to_remove = []
+        edges_to_add = []
+        for node in super_graph.nodes():
+            if len(list(super_graph.successors(node))) == 1 and len(list(super_graph.predecessors(node))) == 1 and not node.is_simprocedure:
+                # edges_to_add.append((list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0]))
+                nodes_to_remove.append(node)
+
+        for node in nodes_to_remove:
+            super_graph.add_edge(list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0])
+            super_graph.remove_node(node)
+        # for edge in edges_to_add:
+        #     super_graph.add_edge(edge[0], edge[1])
+        return super_graph
+
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=True):
         if not self.draw_graph_flag:
             print("skip graph drawing")
             return
@@ -4292,6 +4498,18 @@ class VMDeobfuscation(Analysis):
 
             A = nx.nx_agraph.to_agraph(sub_graph)
 
+            for node in sub_graph.nodes():
+                stmt_str = str(node)
+                if not without_insts and node.irsb != None:
+                    for ind, stmt in enumerate(node.irsb.statements):
+                        stmt_str = stmt_str + "\l" + stmt.pp_str(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+
+                graphviz_node = A.get_node(str(node))
+                graphviz_node.attr["label"] = stmt_str
+                graphviz_node.attr["shape"] = "box"
+        elif super_graph_only:
+            sub_graph = self.super_graph(cfg)
+            A = nx.nx_agraph.to_agraph(sub_graph)
             for node in sub_graph.nodes():
                 stmt_str = str(node)
                 if not without_insts and node.irsb != None:
