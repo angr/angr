@@ -21,12 +21,10 @@ l = logging.getLogger(name=__name__)
 # http://www.cap-lore.com/code/TB/
 def ppcg_dirtyhelper_MFTB(state):  # pylint:disable=unused-argument
     # TODO: This is an incorrect implementation. Fix it later!
-    assert False
     return claripy.BVV(0x200, 64), []
 
 
 def ppc32g_dirtyhelper_MFSPR_287(state):  # pylint:disable=unused-argument
-    assert False
     return claripy.BVV(0x200, 32), []
 
 
