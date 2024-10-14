@@ -437,6 +437,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         initial_state.globals['existing_mba_split_constraints'] = []
         actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
         initial_state.globals['sp_start_value'] = actual_stack_end
+        initial_state.globals['cur_vm_reg'] = None
+        initial_state.globals['cur_vm_vpc'] = None
+        initial_state.globals['vm_graph_exploration'] = True
 
         for cons in initial_state.preconstrainer.preconstraints:
             for var in cons.variables:
@@ -1589,6 +1592,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         for ast in repl_ip.leaf_asts():
                             if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
                                 state_var_ast.append(ast)
+                            elif isinstance(ast.args[0], str) and ast.args[0].startswith('switch_case_table') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
+                                state_var_ast.append(ast)
+
 
                         # if len(state_var_ast) != 1:
                         #     import ipdb;ipdb.set_trace()
@@ -1605,8 +1611,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             except:
                                 import ipdb;ipdb.set_trace()
 
-                            if len(solns) > 2:
-                                import ipdb;ipdb.set_trace()
+                            # if len(solns) > 2:
+                            #     import ipdb;ipdb.set_trace()
                             for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
                                 if addr_mba.args[0] is state_var_ast:
                                     for soln in solns:
