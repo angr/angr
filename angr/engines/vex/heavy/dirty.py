@@ -19,12 +19,12 @@ l = logging.getLogger(name=__name__)
 # http://www-inteng.fnal.gov/Integrated_Eng/GoodwinDocs/pdf/Sys%20docs/PowerPC/PowerPC%20Elapsed%20Time.pdf
 # and
 # http://www.cap-lore.com/code/TB/
-def ppcg_dirtyhelper_MFTB(state):
+def ppcg_dirtyhelper_MFTB():
     # TODO: This is an incorrect implementation. Fix it later!
     return claripy.BVV(0x200, 64), []
 
 
-def ppc32g_dirtyhelper_MFSPR_287(state):
+def ppc32g_dirtyhelper_MFSPR_287():
     return claripy.BVV(0x200, 32), []
 
 
@@ -119,7 +119,7 @@ EmWarn_S390X_fpext_rounding = 10
 EmWarn_S390X_invalid_rounding = 11
 
 
-def amd64g_check_ldmxcsr(state, mxcsr):
+def amd64g_check_ldmxcsr(mxcsr):
     rmode = claripy.LShR(mxcsr, 13) & 3
 
     ew = claripy.If(
@@ -143,7 +143,7 @@ def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
         64,
     )
 
-    w64, _ = amd64g_check_ldmxcsr(state, w32)
+    w64, _ = amd64g_check_ldmxcsr(w32)
     warnXMM = w64 >> 32
     state.regs.sseround = w64 & 0xFFFFFFFF
 
