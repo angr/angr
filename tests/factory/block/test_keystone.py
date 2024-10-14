@@ -4,16 +4,13 @@ from __future__ import annotations
 __package__ = __package__ or "tests.factory.block"  # pylint:disable=redefined-builtin
 
 import os
-import logging
 import unittest
 
 import angr
 
 from tests.common import bin_location
 
-
-test_location = os.path.join(bin_location, "tests")
-l = logging.getLogger("angr.tests")
+# pylint: disable=missing-docstring,no-self-use
 
 
 class TestKeyStone(unittest.TestCase):
@@ -23,7 +20,7 @@ class TestKeyStone(unittest.TestCase):
         if arch == "armel_thumb":
             is_thumb = True
             proj_arch = "armel"
-        p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"), auto_load_libs=False)
+        p = angr.Project(os.path.join(bin_location, "tests", proj_arch, "fauxware"), auto_load_libs=False)
         addr = p.loader.main_object.get_symbol("authenticate").rebased_addr
 
         sm = p.factory.simulation_manager()
