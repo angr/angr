@@ -400,6 +400,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             # cursed: there is an infinite loop in the following loop that
             # occurs rarely. we need to keep track of the nodes we've seen
             # to break out of the loop.
+            # See https://github.com/angr/angr/pull/4953
+            #
             # FIXME: the root cause should be fixed and this workaround removed
             seen = set()
             while stack and tuple(stack) not in seen:
