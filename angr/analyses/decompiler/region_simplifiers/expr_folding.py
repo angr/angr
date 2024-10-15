@@ -395,6 +395,10 @@ class ExpressionReplacer(AILBlockWalker):
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         # override the base handler and make sure we do not replace .dst with a Call expression or an ITE expression
+
+        if is_phi_assignment(stmt):
+            return None
+
         changed = False
 
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
