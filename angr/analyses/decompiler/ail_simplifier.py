@@ -1425,9 +1425,17 @@ class AILSimplifier(Analysis):
                                 simplified = True
                                 continue
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                                # no one is using the returned virtual variable. replace this assignment statement with
-                                # a call statement
-                                stmt = stmt.src
+                                # no one is using the returned virtual variable.
+                                # now the things are a bit tricky here
+                                if isinstance(stmt.src, Call):
+                                    # replace this assignment statement with a call statement
+                                    stmt = stmt.src
+                                elif isinstance(stmt.src, Convert) and isinstance(stmt.src.operand, Call):
+                                    # the convert is useless now
+                                    stmt = stmt.src.operand
+                                else:
+                                    # we can't change this stmt at all because it has an expression with Calls inside
+                                    pass
                         else:
                             # no calls. remove it
                             simplified = True
