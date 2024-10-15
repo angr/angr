@@ -5,7 +5,7 @@ import logging
 
 from ailment import AILBlockWalkerBase, AILBlockWalker
 from ailment.statement import Assignment, Call
-from ailment.expression import VirtualVariable, Convert, BinaryOp
+from ailment.expression import VirtualVariable, Convert, BinaryOp, Phi
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
@@ -143,12 +143,42 @@ class ExpressionNarrower(AILBlockWalker):
         return super().walk(block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
-        new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        if new_src is None:
+
+        if isinstance(stmt.src, Phi):
             changed = False
-            new_src = stmt.src
+
+            src_and_vvars = []
+            for src, vvar in stmt.src.src_and_vvars:
+                if vvar is None:
+                    src_and_vvars.append((src, None))
+                    continue
+                if vvar.varid in self.new_vvar_sizes and self.new_vvar_sizes[vvar.varid] != vvar.size:
+                    self.narrowed_any = True
+                    changed = True
+                    new_var = VirtualVariable(
+                        vvar.idx,
+                        vvar.varid,
+                        self.new_vvar_sizes[vvar.varid] * self.project.arch.byte_width,
+                        category=vvar.category,
+                        oident=vvar.oident,
+                        **vvar.tags,
+                    )
+
+                    self.replacement_core_vvars[new_var.varid].append(new_var)
+                else:
+                    new_var = None
+
+                src_and_vvars.append((src, new_var))
+
+            new_src = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars, **stmt.src.tags)
+
         else:
-            changed = True
+            new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+            if new_src is None:
+                changed = False
+                new_src = stmt.src
+            else:
+                changed = True
 
         if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in self.new_vvar_sizes:
             changed = True
@@ -163,14 +193,17 @@ class ExpressionNarrower(AILBlockWalker):
 
             self.replacement_core_vvars[new_dst.varid].append(new_dst)
 
-            new_src = Convert(
-                None,
-                stmt.src.bits,
-                self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
-                False,
-                new_src,
-                **new_src.tags,
-            )
+            if isinstance(new_src, Phi):
+                new_src.bits = self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width
+            else:
+                new_src = Convert(
+                    None,
+                    stmt.src.bits,
+                    self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
+                    False,
+                    new_src,
+                    **new_src.tags,
+                )
         else:
             new_dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
             if new_dst is not None:
