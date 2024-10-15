@@ -240,7 +240,8 @@ class MultiValues:
 
                 slice_start = max(0, offset - obj_offset)
                 slice_end = min(obj_length, end - obj_offset)
-                sliced = bv_slice(value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
+                bv_value: claripy.ast.BV = claripy.fpToIEEEBV(value) if isinstance(value, claripy.ast.FP) else value
+                sliced = bv_slice(bv_value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
                 if len(sliced):
                     result.add_value(max(0, obj_offset - offset), sliced)
 
