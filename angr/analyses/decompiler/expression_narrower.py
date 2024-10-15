@@ -229,7 +229,7 @@ class ExpressionNarrower(AILBlockWalker):
 
             self.replacement_core_vvars[expr.varid].append(new_expr)
 
-            converted = Convert(
+            return Convert(
                 None,
                 new_expr.bits,
                 expr.bits,
@@ -237,7 +237,6 @@ class ExpressionNarrower(AILBlockWalker):
                 new_expr,
                 **new_expr.tags,
             )
-            return converted
         return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call | None:
