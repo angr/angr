@@ -406,6 +406,7 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
+    @slow_test
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
@@ -611,7 +612,6 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "Did not find statement 'puts(\"Empty title\");'"
 
-    @slow_test
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
@@ -1189,7 +1189,6 @@ class TestDecompiler(unittest.TestCase):
 
         assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
 
-    @slow_test
     @for_all_structuring_algos
     def test_decompiling_newburry_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
@@ -1662,7 +1661,6 @@ class TestDecompiler(unittest.TestCase):
         assert "b_ptr += 1;" in d.codegen.text
         assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
-    @slow_test
     @for_all_structuring_algos
     def test_call_return_variable_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
@@ -2508,7 +2506,6 @@ class TestDecompiler(unittest.TestCase):
         assert text.count("case -130:") == 1
         assert text.count("case -131:") == 1
 
-    @slow_test
     @structuring_algo("sailr")
     def test_eager_returns_simplifier_no_duplication_of_default_case(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
