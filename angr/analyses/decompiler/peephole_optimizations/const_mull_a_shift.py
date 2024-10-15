@@ -175,6 +175,8 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                         **expr0.operands[0].tags,
                     )
 
+        return None
+
     @staticmethod
     def _check_divisor(a, b, ndigits=6):
         divisor_1 = 1 + (a // b)
