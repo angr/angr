@@ -113,7 +113,10 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
         return None
 
     def _match_case_a(self, expr0: Expression, expr1: Convert) -> BinaryOp | None:
-        # ((((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) - Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>)))
+        # (
+        #   (((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) -
+        #   Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>))
+        # )
 
         expr1 = expr1.operand
 
