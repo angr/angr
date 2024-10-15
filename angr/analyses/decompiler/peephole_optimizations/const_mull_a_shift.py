@@ -1,7 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
-from ailment.expression import Convert, BinaryOp, Const
+from ailment.expression import Convert, BinaryOp, Const, Expression
 
 from .base import PeepholeOptimizationExprBase
 
@@ -56,47 +56,10 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
 
         elif isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
             expr0, expr1 = expr.operands
-            if (
-                isinstance(expr0, BinaryOp)
-                and expr0.op in {"Shr", "Sar"}
-                and isinstance(expr0.operands[1], Const)
-                and isinstance(expr1, BinaryOp)
-                and expr1.op in {"Shr", "Sar"}
-                and isinstance(expr1.operands[1], Const)
-            ):
-                if (
-                    isinstance(expr0.operands[0], BinaryOp)
-                    and expr0.operands[0].op in {"Mull", "Mul"}
-                    and isinstance(expr0.operands[0].operands[1], Const)
-                ):
-                    a0 = expr0.operands[0].operands[0]
-                    a1 = expr1.operands[0]
-                elif (
-                    isinstance(expr1.operands[0], BinaryOp)
-                    and expr1.operands[0].op in {"Mull", "Mul"}
-                    and isinstance(expr1.operands[0].operands[1], Const)
-                ):
-                    a1 = expr0.operands[0].operands[0]
-                    a0 = expr1.operands[0]
-                else:
-                    a0, a1 = None, None
-                if a0 is not None and a1 is not None and a0.likes(a1):
-                    # (a * x >> M1) +/- (a >> M2)  ==>  a / N
-                    C = expr0.operands[0].operands[1].value
-                    X = a0
-                    V = expr0.operands[1].value
-                    ndigits = 5 if V == 32 else 6
-                    divisor = self._check_divisor(pow(2, V), C, ndigits)
-                    if divisor is not None:
-                        new_const = Const(None, None, divisor, X.bits)
-                        # we cannot drop the convert in this case
-                        return BinaryOp(
-                            expr0.operands[0].idx,
-                            "Div",
-                            [X, new_const],
-                            expr0.operands[0].signed,
-                            **expr0.operands[0].tags,
-                        )
+            if isinstance(expr1, Convert) and expr1.from_bits == 32 and expr1.to_bits == 64:
+                r = self._match_case_a(expr0, expr1)
+                if r is not None:
+                    return r
 
             # with Convert in consideration
             if (
@@ -148,6 +111,69 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                         )
 
         return None
+
+    def _match_case_a(self, expr0: Expression, expr1: Convert) -> BinaryOp | None:
+        # ((((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) - Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>)))
+
+        expr1 = expr1.operand
+
+        if (
+            isinstance(expr0, BinaryOp)
+            and expr0.op == "And"
+            and isinstance(expr0.operands[1], Const)
+            and expr0.operands[1].value == 0xFFFFFFFF
+        ):
+            expr0 = expr0.operands[0]
+        else:
+            return None
+
+        if (
+            isinstance(expr0, BinaryOp)
+            and expr0.op in {"Shr", "Sar"}
+            and isinstance(expr0.operands[1], Const)
+            and isinstance(expr1, BinaryOp)
+            and expr1.op in {"Shr", "Sar"}
+            and isinstance(expr1.operands[1], Const)
+        ):
+            if (
+                isinstance(expr0.operands[0], BinaryOp)
+                and expr0.operands[0].op in {"Mull", "Mul"}
+                and isinstance(expr0.operands[0].operands[1], Const)
+            ):
+                a0 = expr0.operands[0].operands[0]
+                a1 = expr1.operands[0]
+            elif (
+                isinstance(expr1.operands[0], BinaryOp)
+                and expr1.operands[0].op in {"Mull", "Mul"}
+                and isinstance(expr1.operands[0].operands[1], Const)
+            ):
+                a1 = expr0.operands[0].operands[0]
+                a0 = expr1.operands[0]
+            else:
+                a0, a1 = None, None
+
+            # a0: Conv(32->64, vvar_44{reg 32})
+            # a1: vvar_44{reg 32}
+            if isinstance(a0, Convert) and a0.from_bits == a1.bits:
+                a0 = a0.operand
+
+            if a0 is not None and a1 is not None and a0.likes(a1):
+                # (a * x >> M1) +/- (a >> M2)  ==>  a / N
+                C = expr0.operands[0].operands[1].value
+                X = a0
+                V = expr0.operands[1].value
+                ndigits = 5 if V == 32 else 6
+                divisor = self._check_divisor(pow(2, V), C, ndigits)
+                if divisor is not None:
+                    new_const = Const(None, None, divisor, X.bits)
+                    # we cannot drop the convert in this case
+                    return BinaryOp(
+                        expr0.operands[0].idx,
+                        "Div",
+                        [X, new_const],
+                        expr0.operands[0].signed,
+                        **expr0.operands[0].tags,
+                    )
 
     @staticmethod
     def _check_divisor(a, b, ndigits=6):
