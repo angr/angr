@@ -122,7 +122,7 @@ class Decompiler(Analysis):
 
         # Load from cache
         try:
-            cache = self.kb.structured_code[(self.func.addr, self._flavor)]
+            cache = self.kb.decompilations[self.func.addr]
             old_codegen = cache.codegen
             old_clinic = cache.clinic
             ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
@@ -301,6 +301,8 @@ class Decompiler(Analysis):
         self.ail_graph = clinic.cc_graph
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
+
+        self.kb.decompilations[self.func.addr] = self.cache
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
