@@ -324,7 +324,7 @@ class Phi(Atom):
         self,
         idx,
         bits,
-        src_and_vvars: list[tuple[tuple[int, int], VirtualVariable]],
+        src_and_vvars: list[tuple[tuple[int, int], VirtualVariable | None]],
         **kwargs,
     ):
         super().__init__(idx, **kwargs)

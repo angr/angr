@@ -198,11 +198,17 @@ class AILBlockWalker(AILBlockWalkerBase):
 
     :ivar update_block: True if the block should be updated in place, False if a new block should be created and
                         returned as the result of walk().
+    :ivar replace_phi_stmt: True if you want _handle_Phi be called and vvars potentially replaced; False otherwise.
+                            Default to False because in the most majority cases you do not want vvars in a Phi
+                            variable be replaced.
     """
 
-    def __init__(self, stmt_handlers=None, expr_handlers=None, update_block: bool = True):
+    def __init__(
+        self, stmt_handlers=None, expr_handlers=None, update_block: bool = True, replace_phi_stmt: bool = False
+    ):
         super().__init__(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
         self._update_block = update_block
+        self._replace_phi_stmt = replace_phi_stmt
 
     def walk(self, block: Block) -> Block | None:
         """
@@ -536,6 +542,30 @@ class AILBlockWalker(AILBlockWalkerBase):
             new_expr.iffalse = iffalse
             return new_expr
         return None
+
+    def _handle_Phi(self, expr_id: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None) -> Phi | None:
+        if not self._replace_phi_stmt:
+            # fallback to the read-only version
+            return super()._handle_Phi(expr_id, expr, stmt_idx, stmt, block)
+
+        changed = False
+
+        src_and_vvars = None
+        for idx, (src, vvar) in enumerate(expr.src_and_vvars):
+            if vvar is None:
+                if src_and_vvars is not None:
+                    src_and_vvars.append((src, None))
+                continue
+            new_vvar = self._handle_expr(idx, vvar, stmt_idx, stmt, block)
+            if new_vvar is not None and new_vvar is not vvar:
+                changed = True
+                if src_and_vvars is None:
+                    src_and_vvars = expr.src_and_vvars[:idx]
+                src_and_vvars.append((src, new_vvar))
+            elif src_and_vvars is not None:
+                src_and_vvars.append((src, vvar))
+
+        return Phi(expr.idx, expr.bits, src_and_vvars, **expr.tags) if changed else None
 
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
