@@ -211,7 +211,11 @@ class ExpressionNarrower(AILBlockWalker):
             else:
                 new_dst = stmt.dst
 
-        return Assignment(stmt.idx, new_dst, new_src, **stmt.tags) if changed else None
+        if changed:
+            self.narrowed_any = True
+            return Assignment(stmt.idx, new_dst, new_src, **stmt.tags)
+
+        return None
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
@@ -272,4 +276,8 @@ class ExpressionNarrower(AILBlockWalker):
             self.replacement_core_vvars[new_ret_expr.varid].append(new_ret_expr)
             new_stmt.ret_expr = new_ret_expr
 
-        return new_stmt if changed else None
+        if changed:
+            self.narrowed_any = True
+            return new_stmt
+
+        return None
