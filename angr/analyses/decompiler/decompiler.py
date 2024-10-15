@@ -68,6 +68,7 @@ class Decompiler(Analysis):
         inline_functions=frozenset(),
         update_memory_data: bool = True,
         generate_code: bool = True,
+        use_cache: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -102,6 +103,7 @@ class Decompiler(Analysis):
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
         self._inline_functions = inline_functions
+        self._use_cache = use_cache
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: CStructuredCodeGenerator | None = None
@@ -120,18 +122,24 @@ class Decompiler(Analysis):
         if self.func.is_simprocedure:
             return
 
-        # Load from cache
-        try:
-            cache = self.kb.decompilations[self.func.addr]
+        cache = None
+
+        if self._use_cache:
+            try:
+                cache = self.kb.decompilations[self.func.addr]
+            except KeyError:
+                pass
+
+        if cache:
             old_codegen = cache.codegen
             old_clinic = cache.clinic
             ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
             binop_operators = cache.binop_operators if self._binop_operators is None else self._binop_operators
-        except KeyError:
-            ite_exprs = self._ite_exprs
-            binop_operators = self._binop_operators
+        else:
             old_codegen = None
             old_clinic = None
+            ite_exprs = self._ite_exprs
+            binop_operators = self._binop_operators
 
         self.options_by_class = defaultdict(list)
 
