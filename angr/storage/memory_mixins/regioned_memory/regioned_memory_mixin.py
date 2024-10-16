@@ -320,9 +320,9 @@ class RegionedMemoryMixin(MemoryMixin):
         self._regions[key].store(
             addr,
             data,
-            self.state.scratch.bbl_addr,
-            self.state.scratch.stmt_idx,
-            self.state.scratch.ins_addr,
+            bbl_addr=self.state.scratch.bbl_addr,
+            stmt_id=self.state.scratch.stmt_idx,
+            ins_addr=self.state.scratch.ins_addr,
             endness=endness,
             **kwargs,
         )
