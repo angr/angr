@@ -900,27 +900,6 @@ class TestMemory(unittest.TestCase):
         assert a is not None
         assert a is claripy.BVV(0x1337, 64)
 
-        # weak updates
-        state.memory.store(0x120, claripy.BVV(0x40, 64))
-        state.memory.store(0x120, claripy.BVV(0x85868788, 64), weak=True)
-        a = state.memory.load(0x120, size=8)
-        assert len(a.keys()) == 1
-        assert 0 in a
-        assert len(next(iter(a.values()))) == 2
-        assert {state.solver.eval_exact(item, 1)[0] for item in next(iter(a.values()))} == {0x40, 0x85868788}
-
-        # weak updates with symbolic values
-        A = claripy.BVS("a", 64)
-        state.memory.store(0x140, A, endness=state.arch.memory_endness)
-        state.memory.store(0x141, claripy.BVS("b", 64), endness=state.arch.memory_endness, weak=True)
-        a = state.memory.load(0x140, size=8)
-        assert len(a.keys()) == 2
-        assert 0 in a
-        assert 1 in a
-        assert len(next(iter(a.values()))) == 1
-        assert next(iter(a[0])) is A[7:0]
-        assert len(a[1]) == 2
-
     def test_conditional_concretization(self):
         class ZeroFillerMemory(UltraPageMemory):
             def _default_value(self, *args, size=None, **kwargs):  # pylint:disable=unused-argument

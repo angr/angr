@@ -21,10 +21,9 @@ class MVListPage(
     PageBase,
 ):
     """
-    MVListPage allows storing multiple values at the same location, thus allowing weak updates.
+    MVListPage allows storing multiple values at the same location.
 
-    Each store() may take a value or multiple values, and a "weak" parameter to specify if this store is a weak update
-    or not.
+    Each store() may take a value or multiple values.
     Each load() returns an iterator of all values stored at that location.
     """
 
@@ -105,8 +104,8 @@ class MVListPage(
             self.stored_offset.add(subaddr)
         result[-1] = (global_start_addr, new_item)
 
-    def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, weak=False, **kwargs):
-        super().store(addr, data, size=size, endness=endness, memory=memory, cooperate=cooperate, weak=weak, **kwargs)
+    def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, **kwargs):
+        super().store(addr, data, size=size, endness=endness, memory=memory, cooperate=cooperate, **kwargs)
 
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
@@ -118,22 +117,12 @@ class MVListPage(
             self.content = DynamicDictList(max_size=len(self.content))
             self.stored_offset = set()
         else:
-            if not weak:
-                if len(data) == 1:
-                    # unpack
-                    data: _MOTYPE = next(iter(data))
-                for subaddr in range(addr, addr + size):
-                    self.content[subaddr] = data
-                    self.stored_offset.add(subaddr)
-            else:
-                for subaddr in range(addr, addr + size):
-                    if self.content[subaddr] is None:
-                        self.content[subaddr] = data
-                    elif type(self.content[subaddr]) is set:
-                        self.content[subaddr] |= data
-                    else:
-                        self.content[subaddr] = {self.content[subaddr]} | data
-                    self.stored_offset.add(subaddr)
+            if len(data) == 1:
+                # unpack
+                data: _MOTYPE = next(iter(data))
+            for subaddr in range(addr, addr + size):
+                self.content[subaddr] = data
+                self.stored_offset.add(subaddr)
 
     def erase(self, addr, size=None, **kwargs) -> None:
         for off in range(size):
@@ -232,7 +221,7 @@ class MVListPage(
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
                 new_mos = {SimMemoryObject(v, mo_base, endness=the_endness) for v in merged_val}
-                self.store(b, new_mos, size=size, cooperate=True, weak=False)
+                self.store(b, new_mos, size=size, cooperate=True)
 
                 merged_offsets.add(b)
 
@@ -273,7 +262,7 @@ class MVListPage(
                     continue
 
                 new_mos = {SimMemoryObject(v, page_addr + b, endness="Iend_BE") for v in merged_val}
-                self.store(b, new_mos, size=min_size, cooperate=True, weak=False)
+                self.store(b, new_mos, size=min_size, cooperate=True)
                 merged_offsets.add(b)
 
         self.stored_offset |= merged_offsets
