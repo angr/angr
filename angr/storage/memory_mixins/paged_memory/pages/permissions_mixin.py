@@ -6,29 +6,31 @@ from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 class PermissionsMixin(MemoryMixin):
     """
-    This mixin adds a permissions field and properties for extracting the read/write/exec permissions. It does NOT add
-    permissions checking.
+    This mixin adds a permissions_bits field and properties for extracting the read/write/exec permissions. It does NOT
+    add permissions checking.
     """
 
-    def __init__(self, permissions=None, **kwargs):
+    def __init__(self, permissions: int | claripy.ast.BV | None = None, **kwargs):
         super().__init__(**kwargs)
-        if type(permissions) is int:
+        if permissions is None:
+            permissions = 7
+        if isinstance(permissions, int):
             permissions = claripy.BVV(permissions, 3)
-        self.permissions = permissions
+        self.permission_bits = permissions
 
     def copy(self, memo):
         o = super().copy(memo)
-        o.permissions = self.permissions
+        o.permission_bits = self.permission_bits
         return o
 
     @property
     def perm_read(self):
-        return self.permissions & 1
+        return self.permission_bits & 1
 
     @property
     def perm_write(self):
-        return self.permissions & 2
+        return self.permission_bits & 2
 
     @property
     def perm_exec(self):
-        return self.permissions & 4
+        return self.permission_bits & 4

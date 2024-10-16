@@ -26,7 +26,7 @@ class DataNormalizationMixin(MemoryMixin):
 
         super().store(addr, data_bv, size=size, **kwargs)
 
-    def load(self, addr, size=None, fallback=None, **kwargs):
+    def load(self, addr, size=None, *, fallback=None, **kwargs):
         fallback_bv = self._convert_to_ast(fallback, size, self.state.arch.byte_width) if fallback is not None else None
         return super().load(addr, size=size, fallback=fallback_bv, **kwargs)
 

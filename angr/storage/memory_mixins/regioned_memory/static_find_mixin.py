@@ -14,6 +14,7 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
         addr,
         data,
         max_search,
+        *,
         default=None,
         endness=None,
         chunk_size=None,

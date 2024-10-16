@@ -15,6 +15,7 @@ class SmartFindMixin(MemoryMixin):
         addr,
         data,
         max_search,
+        *,
         default=None,
         endness=None,
         chunk_size=None,

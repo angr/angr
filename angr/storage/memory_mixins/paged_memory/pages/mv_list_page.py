@@ -4,6 +4,7 @@ import logging
 from typing import Union, Any
 from collections.abc import Callable
 
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.dynamic_dictlist import DynamicDictList
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
@@ -143,8 +144,9 @@ class MVListPage(
         others: list[MVListPage],
         merge_conditions,
         common_ancestor=None,
-        page_addr: int | None = None,
-        memory=None,
+        *,
+        page_addr: int,
+        memory: MemoryMixin,
         changed_offsets: set[int] | None = None,
     ):
         if changed_offsets is None:

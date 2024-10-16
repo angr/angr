@@ -26,7 +26,7 @@ class PrivilegedPagingMixin(PagedMemoryMixin):
 
         return page
 
-    def _initialize_page(self, pageno: int, priv: bool = False, **kwargs):
+    def _initialize_page(self, pageno: int, *, priv: bool = False, **kwargs):
         if self.category == "mem" and not priv and o.STRICT_PAGE_ACCESS in self.state.options:
             raise SimSegfaultException(pageno * self.page_size, "unmapped")
 
