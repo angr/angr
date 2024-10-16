@@ -16,6 +16,17 @@ Addr = TypeVar("Addr")
 
 
 class MemoryMixin(Generic[InData, OutData, Addr], SimStatePlugin):
+    """
+    MemoryMixin is the base class for the memory model in angr. It provides a
+    set of methods that should be implemented by memory models. This is done
+    using mixins, where each mixin handles some specific feature of the memory
+    model, only overriding methods that it needs to implement its function. The
+    memory model class itself then combines a set of mixins using inheritence to
+    form the final memory model class.
+    """
+
+    # pylint: disable=no-self-use,unused-argument
+
     SUPPORTS_CONCRETE_LOAD: bool = False
 
     def __init__(self, memory_id: str | None = None, endness: str = "Iend_BE"):
