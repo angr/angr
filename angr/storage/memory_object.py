@@ -42,7 +42,7 @@ class SimMemoryObject:
             raise SimMemoryError("bytes can only be stored big-endian")
         self._byte_width = byte_width
         self.base = base
-        self.object = obj
+        self.object: claripy.ast.BV | claripy.ast.FP = obj
         self.length = obj_bit_size(obj) // self._byte_width if length is None else length
         self.endness = endness
         self._concrete_bytes: bytes | None = None
@@ -98,8 +98,9 @@ class SimMemoryObject:
             return o if allow_concrete else claripy.BVV(o)
 
         offset = addr - self.base
+        bv_obj = claripy.fpToIEEEBV(self.object) if isinstance(self.object, claripy.ast.FP) else self.object
         try:
-            thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
+            thing = bv_slice(bv_obj, offset, length, self.endness == "Iend_LE", self._byte_width)
         except claripy.ClaripyOperationError:
             # hacks to handle address space wrapping
             if offset >= 0:
@@ -110,7 +111,7 @@ class SimMemoryObject:
                 offset += 2**64
             else:
                 raise
-            thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
+            thing = bv_slice(bv_obj, offset, length, self.endness == "Iend_LE", self._byte_width)
 
         if self.endness != endness:
             thing = thing.reversed
