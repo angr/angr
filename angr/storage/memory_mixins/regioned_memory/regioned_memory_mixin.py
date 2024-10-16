@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from itertools import count
 from typing import Optional, TYPE_CHECKING
-from collections.abc import Generator, Iterable
+from collections.abc import Generator
 
 import claripy
 from claripy.annotation import RegionAnnotation
@@ -74,7 +74,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: RegionedMemoryMixin = super().copy(memo)
+        o = super().copy(memo)
         o._write_targets_limit = self._write_targets_limit
         o._read_targets_limit = self._read_targets_limit
         o._stack_size = self._stack_size
@@ -91,7 +91,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return o
 
-    def load(self, addr, size: BV | int | None = None, endness=None, condition: Bool | None = None, **kwargs):
+    def load(self, addr, size: BV | int | None = None, *, endness=None, condition: Bool | None = None, **kwargs):
         if isinstance(size, BV) and size.has_annotation_type(RegionAnnotation):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:
@@ -132,7 +132,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return val
 
-    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):  # pylint:disable=unused-argument
+    def store(self, addr, data, size: int | None = None, *, endness=None, **kwargs):  # pylint:disable=unused-argument
         regioned_addrs_desc = self._normalize_address(addr)
         if (
             regioned_addrs_desc.cardinality >= self._write_targets_limit
@@ -144,7 +144,7 @@ class RegionedMemoryMixin(MemoryMixin):
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
-    def merge(self, others: Iterable[RegionedMemoryMixin], merge_conditions, common_ancestor=None) -> bool:
+    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
         r = False
         for o in others:
             for region_id, region in o._regions.items():
@@ -300,7 +300,7 @@ class RegionedMemoryMixin(MemoryMixin):
                 ),
             )
 
-        return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr, **kwargs)
+        return self._regions[key].load(addr, size, bbl_addr=bbl_addr, stmt_idx=stmt_id, ins_addr=ins_addr, **kwargs)
 
     def _region_store(self, addr, data, key: str, endness, related_function_addr: int | None = None, **kwargs):
         if key not in self._regions:

@@ -343,13 +343,26 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         return merged_offsets
 
-    def concrete_load(self, addr, size, **kwargs):  # pylint: disable=arguments-differ
-        if type(self.concrete_data) is bytearray:
-            return (
-                memoryview(self.concrete_data)[addr : addr + size],
-                memoryview(self.symbolic_bitmap)[addr : addr + size],
-            )
-        return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
+    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):  # pylint: disable=arguments-differ
+        assert self.concrete_data is not None
+        assert self.symbolic_bitmap is not None
+        mv_data = (
+            self.concrete_data
+            if isinstance(self.concrete_data, (memoryview, NotMemoryview))
+            else memoryview(self.concrete_data)
+        )
+        mv_bitm = (
+            self.symbolic_bitmap
+            if isinstance(self.symbolic_bitmap, (memoryview, NotMemoryview))
+            else memoryview(self.symbolic_bitmap)
+        )
+        result = (
+            mv_data[addr : addr + size],
+            mv_bitm[addr : addr + size],
+        )
+        if with_bitmap:
+            return result
+        return result[0]
 
     def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
@@ -489,3 +502,6 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 self._update_mappings(b, old.object, new.object, memory=memory)
 
         return new
+
+
+from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview

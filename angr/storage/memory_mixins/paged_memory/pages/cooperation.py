@@ -1,26 +1,32 @@
 from __future__ import annotations
-from typing import Any
+from abc import abstractmethod
+from typing import Generic, TypeVar
+from collections.abc import Generator
 
 import claripy
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
 
+T = TypeVar("T")
 
-class CooperationBase:
+
+class CooperationBase(Generic[T]):
     """
     Any given subclass of this class which is not a subclass of MemoryMixin should have the property that any subclass
     it which *is* a subclass of MemoryMixin should all work with the same datatypes
     """
 
     @classmethod
-    def _compose_objects(cls, objects, size, endness, **kwargs):
+    @abstractmethod
+    def _compose_objects(cls, objects: list[list[tuple[int, T]]], size: str, endness: str, **kwargs) -> T:
         """
         Provide this a list of the result of several load calls, and it will compose them into a single result.
         """
 
     @classmethod
-    def _decompose_objects(cls, addr, data, endness, **kwargs) -> tuple[Any, int, int]:
+    @abstractmethod
+    def _decompose_objects(cls, addr, data, endness, **kwargs) -> Generator[tuple[T, int, int], int]:
         """
         A bidirectional generator. No idea if this is overengineered. Usage is that you send it a size to use
         and it yields a tuple of three elements: the object to store for the next n bytes, the base address of the
@@ -28,13 +34,14 @@ class CooperationBase:
         """
 
     @classmethod
-    def _zero_objects(cls, addr, size, **kwargs):
+    @abstractmethod
+    def _zero_objects(cls, addr, size, **kwargs) -> Generator[tuple[T, int, int], int]:
         """
         Like decompose objects, but with a size to zero-fill instead of explicit data
         """
 
     @classmethod
-    def _force_store_cooperation(cls, addr, data, size, endness, **kwargs):
+    def _force_store_cooperation(cls, addr: int, data: T, size: int, endness: str, **kwargs):
         if data is not None:
             sub_gen = cls._decompose_objects(addr, data, endness, **kwargs)
         else:
@@ -50,7 +57,7 @@ class CooperationBase:
         return cls._compose_objects([results], size, endness, **kwargs)
 
 
-class MemoryObjectMixin(CooperationBase):
+class MemoryObjectMixin(CooperationBase[SimMemoryObject]):
     """
     Uses SimMemoryObjects in region storage.
     With this, load will return a list of tuple (address, MO) and store will take a MO.
@@ -123,11 +130,12 @@ class MemoryObjectMixin(CooperationBase):
         else:
             memory_object = SimLabeledMemoryObject(data, cur_addr, endness, byte_width=byte_width, label=label)
 
+        next_elem_size_left = 0
+        next_elem_index = 0
         if data.symbolic and data.op == "Concat":
             next_elem_size_left = data.args[0].size() // 8
-            next_elem_index = 0
 
-        size = yield
+        size = yield NotImplemented, NotImplemented, NotImplemented
         max_size = kwargs.get("max_size", size)
         while True:
             if data.symbolic and data.op == "Concat" and data.size() > max_size:
@@ -235,6 +243,7 @@ class MemoryObjectSetMixin(CooperationBase):
             mv.add_value(start_offset, prev_value)
             prev_value = ...
 
+        assert next(mv.values(), None) is not None, "MultiValues may not be empty"
         return mv
 
     @classmethod

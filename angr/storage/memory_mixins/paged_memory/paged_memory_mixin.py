@@ -1,12 +1,13 @@
 from __future__ import annotations
 import cffi
-from typing import Any
+from typing import Any, Generic, Literal, overload
 from collections.abc import Iterable
 import logging
 from collections import defaultdict
 
 import claripy
 
+from angr.state_plugins.sim_action_object import SimActionObject
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
 from angr.errors import SimMemoryError
@@ -17,14 +18,17 @@ ffi = cffi.FFI()
 l = logging.getLogger(__name__)
 
 
-class PagedMemoryMixin(MemoryMixin):
+class PagedMemoryMixin(
+    Generic[PageType],
+    MemoryMixin[int | claripy.ast.BV | SimActionObject, claripy.ast.BV, int | claripy.ast.BV | SimActionObject],
+):
     """
     A bottom-level storage mechanism. Dispatches reads to individual pages, the type of which is the PAGE_TYPE class
     variable.
     """
 
     SUPPORTS_CONCRETE_LOAD = True
-    PAGE_TYPE: type[PageType] = None  # must be provided in subclass
+    PAGE_TYPE: type[PageType]  # must be provided in subclass
 
     def __init__(self, page_size=0x1000, default_permissions=3, permissions_map=None, page_kwargs=None, **kwargs):
         super().__init__(**kwargs)
@@ -84,7 +88,7 @@ class PagedMemoryMixin(MemoryMixin):
         kwargs["allow_default"] = True
         return PagedMemoryMixin._initialize_page(self, pageno, permissions=permissions, **kwargs)
 
-    def _initialize_page(self, pageno: int, permissions=None, allow_default=True, **kwargs) -> PageType:
+    def _initialize_page(self, pageno: int, permissions=None, *, allow_default=True, **kwargs) -> PageType:
         if not allow_default:
             raise SimMemoryError("I have been instructed not to create a default page")
 
@@ -110,7 +114,7 @@ class PagedMemoryMixin(MemoryMixin):
     def _divide_addr(self, addr: int) -> tuple[int, int]:
         return divmod(addr, self.page_size)
 
-    def load(self, addr: int, size: int | None = None, endness=None, **kwargs):
+    def load(self, addr: int, size: int | None = None, *, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
 
@@ -164,7 +168,7 @@ class PagedMemoryMixin(MemoryMixin):
         l.debug("%s.load(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
         return out
 
-    def store(self, addr: int, data, size: int | None = None, endness=None, **kwargs):
+    def store(self, addr: int, data, size: int | None = None, *, endness=None, **kwargs):
         if endness is None:
             endness = self.endness
 
@@ -253,7 +257,7 @@ class PagedMemoryMixin(MemoryMixin):
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
-    def merge(self, others: Iterable[PagedMemoryMixin], merge_conditions, common_ancestor=None) -> bool:
+    def merge(self, others, merge_conditions, common_ancestor=None):
         changed_pages_and_offsets: dict[int, set[int] | None] = {}
         for o in others:
             for changed_page, changed_offsets in self.changed_pages(o).items():
@@ -315,7 +319,7 @@ class PagedMemoryMixin(MemoryMixin):
         return True
 
     def permissions(self, addr, permissions=None, **kwargs):
-        if type(addr) is not int:
+        if not isinstance(addr, int):
             raise TypeError("addr must be an int in paged memory")
         pageno, _ = self._divide_addr(addr)
         try:
@@ -323,15 +327,15 @@ class PagedMemoryMixin(MemoryMixin):
         except SimMemoryError as e:
             raise SimMemoryError(f"{addr:#x} is not mapped") from e
 
-        if type(permissions) is int:
+        if isinstance(permissions, int):
             permissions = claripy.BVV(permissions, 3)
 
-        result = page.permissions
+        result = page.permission_bits
         if permissions is not None:
-            page.permissions = permissions
+            page.permission_bits = permissions
         return result
 
-    def map_region(self, addr, length, permissions, init_zero=False, **kwargs):
+    def map_region(self, addr, length, permissions, *, init_zero=False, **kwargs):
         if type(addr) is not int:
             raise TypeError("addr must be an int in paged memory")
         pageno, pageoff = self._divide_addr(addr)
@@ -398,6 +402,11 @@ class PagedMemoryMixin(MemoryMixin):
             return False
         else:
             return True
+
+    @overload
+    def _load_to_memoryview(self, addr, size, with_bitmap: Literal[True]) -> tuple[memoryview, memoryview]: ...
+    @overload
+    def _load_to_memoryview(self, addr, size, with_bitmap: Literal[False]) -> memoryview: ...
 
     def _load_to_memoryview(self, addr, size, with_bitmap):
         result = self.load(addr, size, endness="Iend_BE")
@@ -469,7 +478,7 @@ class PagedMemoryMixin(MemoryMixin):
             return memoryview(bytes(size)), memoryview(b"\x01" * size)
         return memoryview(b"")
 
-    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):
+    def concrete_load(self, addr, size, writing=False, *, with_bitmap: bool = False, **kwargs):
         pageno, offset = self._divide_addr(addr)
         subsize = min(size, self.page_size - offset)
         try:
@@ -481,9 +490,11 @@ class PagedMemoryMixin(MemoryMixin):
 
         if not page.SUPPORTS_CONCRETE_LOAD:
             # the page does not support concrete_load
-            return self._load_to_memoryview(addr, size, with_bitmap)
+            if with_bitmap:
+                return self._load_to_memoryview(addr, size, True)
+            return self._load_to_memoryview(addr, size, False)
 
-        data, bitmap = page.concrete_load(offset, subsize, **kwargs)
+        data, bitmap = page.concrete_load(offset, subsize, with_bitmap=True, **kwargs)
         if with_bitmap:
             return data, bitmap
 
@@ -513,7 +524,7 @@ class PagedMemoryMixin(MemoryMixin):
             except (SimMemoryError, AttributeError):
                 break
             else:
-                newdata, bitmap = concrete_load(offset, subsize, **kwargs)
+                newdata, bitmap = concrete_load(offset, subsize, with_bitmap=True, **kwargs)
                 for i, byte in enumerate(bitmap):
                     if byte != 0:
                         break
