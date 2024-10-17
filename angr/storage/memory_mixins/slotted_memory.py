@@ -81,7 +81,7 @@ class SlottedMemoryMixin(MemoryMixin):
         try:
             d = self.contents[addr]
         except KeyError:
-            d = self._default_value(addr, self.width, (*self.variable_key_prefix, addr), **kwargs)
+            d = self._default_value(addr, self.width, key=(*self.variable_key_prefix, addr), **kwargs)
             self.contents[addr] = d
 
         if offset == 0 and size == self.width:
@@ -107,7 +107,7 @@ class SlottedMemoryMixin(MemoryMixin):
             end = cur.get_bytes(offset + size, self.width - offset - size)
             self.contents[addr] = start.concat(data, end)
 
-    def load(self, addr, size=None, endness=None, **kwargs):
+    def load(self, addr, size=None, *, endness=None, **kwargs):
         accesses = self._resolve_access(addr, size)
 
         value = claripy.Concat(*(self._single_load(addr, offset, size) for addr, offset, size in accesses))
@@ -116,7 +116,7 @@ class SlottedMemoryMixin(MemoryMixin):
 
         return value
 
-    def store(self, addr, data, size=None, endness=None, **kwargs):
+    def store(self, addr, data, size=None, *, endness=None, **kwargs):
         if endness != self.endness:
             data = data.reversed
 

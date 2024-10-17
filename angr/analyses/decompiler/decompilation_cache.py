@@ -14,6 +14,7 @@ class DecompilationCache:
     """
 
     __slots__ = (
+        "parameters",
         "addr",
         "type_constraints",
         "func_typevar",
@@ -25,6 +26,7 @@ class DecompilationCache:
     )
 
     def __init__(self, addr):
+        self.parameters: dict[str, Any] = {}
         self.addr = addr
         self.type_constraints: set | None = None
         self.func_typevar = None

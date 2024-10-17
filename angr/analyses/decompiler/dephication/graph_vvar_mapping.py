@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 
 from ailment.block import Block
-from ailment.expression import Phi, VirtualVariable
+from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from ailment.statement import Assignment, Jump, ConditionalJump, Label
 
 from angr.analyses import Analysis
@@ -213,8 +213,16 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
                 the_block = self._blocks[(src_block_addr, src_block_idx)]
                 ins_addr = the_block.addr + the_block.original_size - 1
+                if vvar.category == VirtualVariableCategory.PARAMETER:
+                    # it's a parameter, so we copy the variable into a dummy register vvar
+                    # a parameter vvar should never be assigned to
+                    new_category = VirtualVariableCategory.REGISTER
+                    new_oident = 4096
+                else:
+                    new_category = vvar.category
+                    new_oident = vvar.oident
                 new_vvar = VirtualVariable(
-                    None, new_vvar_id, vvar.bits, vvar.category, oident=vvar.oident, ins_addr=ins_addr
+                    None, new_vvar_id, vvar.bits, new_category, oident=new_oident, ins_addr=ins_addr
                 )
                 assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr)
 

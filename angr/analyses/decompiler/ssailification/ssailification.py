@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import count
 from bisect import bisect_left
 
-from ailment.expression import Register, StackBaseOffset
+from ailment.expression import Register, StackBaseOffset, Tmp
 from ailment.statement import Store
 
 from angr.knowledge_plugins.functions import Function
@@ -33,6 +33,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         func_addr: int | None = None,
         ail_manager=None,
         ssa_stackvars: bool = False,
+        ssa_tmps: bool = False,
         vvar_id_start: int = 0,
     ):
         """
@@ -51,6 +52,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._func_addr = func_addr
         self._ail_manager = ail_manager
         self._ssa_stackvars = ssa_stackvars
+        self._ssa_tmps = ssa_tmps
         self._entry = (
             entry
             if entry is not None
@@ -68,6 +70,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             stack_pointer_tracker,
             bp_as_gpr,
             ssa_stackvars,
+            ssa_tmps,
         )
 
         # calculate virtual variables and phi nodes
@@ -86,6 +89,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._udef_to_phiid,
             self._phiid_to_loc,
             self._stackvar_locs,
+            self._ssa_tmps,
             self._ail_manager,
             vvar_id_start=vvar_id_start,
         )
@@ -144,6 +148,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                             break
                         udef_to_defs[("stack", off, stackvar_locs[off])].add(def_)
                         udef_to_blockkeys[("stack", off, stackvar_locs[off])].add((loc.block_addr, loc.block_idx))
+            elif isinstance(def_, Tmp):
+                # Tmps are local to each block and do not need phi nodes
+                pass
             else:
                 raise NotImplementedError
                 # other types are not supported yet

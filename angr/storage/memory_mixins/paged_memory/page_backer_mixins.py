@@ -7,8 +7,6 @@ import logging
 import claripy
 import cle
 
-from .paged_memory_mixin import PagedMemoryMixin
-
 l = logging.getLogger(__name__)
 
 BackerType = Union[bytes, bytearray, list[int]]
@@ -27,6 +25,9 @@ class NotMemoryview:
 
     def __setitem__(self, k, v):
         memoryview(self.obj)[self.offset : self.offset + self.size][k] = v
+
+
+from .paged_memory_mixin import PagedMemoryMixin
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
@@ -49,9 +50,9 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         o._cle_loader = self._cle_loader
         return o
 
-    def _initialize_page(self, pageno, force_default=False, **kwargs):
+    def _initialize_page(self, pageno, permissions=None, *, force_default=False, **kwargs):
         if self._clemory_backer is None or force_default:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         addr = pageno * self.page_size
 
@@ -59,10 +60,10 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             backer_iter: BackerIterType = self._clemory_backer.backers(addr)
             backer_start, backer = next(backer_iter)
         except StopIteration:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         if backer_start >= addr + self.page_size:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         # Load data from backere
         data = self._data_from_backer(addr, backer, backer_start, backer_iter)
@@ -184,9 +185,9 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
 
 class ConcreteBackerMixin(ClemoryBackerMixin):
-    def _initialize_page(self, pageno, force_default=False, **kwargs):
+    def _initialize_page(self, pageno, permissions=None, *, force_default=False, **kwargs):
         if self._clemory_backer is None or force_default:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         addr = pageno * self.page_size
 
@@ -194,10 +195,10 @@ class ConcreteBackerMixin(ClemoryBackerMixin):
             backer_iter = self._clemory_backer.backers(addr)
             backer_start, backer = next(backer_iter)
         except StopIteration:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         if backer_start >= addr + self.page_size:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         if self.state.project.concrete_target:
             l.debug("Fetching data from concrete target")
@@ -207,7 +208,7 @@ class ConcreteBackerMixin(ClemoryBackerMixin):
             )
         else:
             # the concrete backer only is here to support concrete loading, defer back to the CleMemoryBacker
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         permissions = self._cle_permissions_lookup(addr)
 
@@ -237,11 +238,11 @@ class DictBackerMixin(PagedMemoryMixin):
         o._dict_memory_backer = self._dict_memory_backer
         return o
 
-    def _initialize_page(self, pageno: int, force_default=False, **kwargs):
+    def _initialize_page(self, pageno: int, permissions=None, *, force_default=False, **kwargs):
         page_addr = pageno * self.page_size
 
         if self._dict_memory_backer is None or force_default:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         new_page = None
 
@@ -261,6 +262,6 @@ class DictBackerMixin(PagedMemoryMixin):
                 )
 
         if new_page is None:
-            return super()._initialize_page(pageno, **kwargs)
+            return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
         return new_page

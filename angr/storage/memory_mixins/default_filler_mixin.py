@@ -13,7 +13,7 @@ l = logging.getLogger(__name__)
 
 class DefaultFillerMixin(MemoryMixin):
     def _default_value(
-        self, addr, size, name=None, inspect=True, events=True, key=None, fill_missing: bool = True, **kwargs
+        self, addr, size, *, name=None, inspect=True, events=True, key=None, fill_missing: bool = True, **kwargs
     ):
         if self.state.project and self.state.project.concrete_target:
             mem = self.state.project.concrete_target.read_memory(addr, size)
@@ -115,7 +115,7 @@ class SpecialFillerMixin(MemoryMixin):
         super().__init__(**kwargs)
         self._special_memory_filler = special_memory_filler
 
-    def _default_value(self, addr, size, name=None, **kwargs):
+    def _default_value(self, addr, size, *, name=None, **kwargs):
         if (
             options.SPECIAL_MEMORY_FILL in self.state.options
             and self.state._special_memory_filler is not None
@@ -135,7 +135,7 @@ class ExplicitFillerMixin(MemoryMixin):
         super().__init__(**kwargs)
         self._uninitialized_read_handler = uninitialized_read_handler
 
-    def _default_value(self, addr, size, inspect=True, events=True, **kwargs):
+    def _default_value(self, addr, size, *, inspect=True, events=True, **kwargs):
         if self._uninitialized_read_handler is not None:
             return self._uninitialized_read_handler(addr, size, inspect=inspect, events=events)
         return super()._default_value(addr, size, inspect=inspect, events=events, **kwargs)

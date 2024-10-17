@@ -1313,6 +1313,7 @@ class Clinic(Analysis):
             ail_graph,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             ail_manager=self._ail_manager,
+            ssa_tmps=True,
             ssa_stackvars=True,
             vvar_id_start=self.vvar_id_start,
         )

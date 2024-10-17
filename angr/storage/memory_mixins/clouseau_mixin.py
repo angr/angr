@@ -4,7 +4,7 @@ from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class InspectMixinHigh(MemoryMixin):
-    def store(self, addr, data, size=None, condition=None, endness=None, inspect=True, **kwargs):
+    def store(self, addr, data, size=None, *, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
             super().store(addr, data, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
             return
@@ -63,7 +63,7 @@ class InspectMixinHigh(MemoryMixin):
                 mem_write_endness=endness,
             )
 
-    def load(self, addr, size=None, condition=None, endness=None, inspect=True, **kwargs):
+    def load(self, addr, size=None, *, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
             return super().load(addr, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
 
@@ -122,7 +122,7 @@ class InspectMixinHigh(MemoryMixin):
 
         return r
 
-    def _add_constraints(self, c, add_constraints=True, inspect=True, **kwargs):
+    def _add_constraints(self, c, *, add_constraints=True, inspect=True, **kwargs):
         if inspect and self.state.supports_inspect:
             # tracer uses address_concretization_add_constraints
             add_constraints = self.state._inspect_getattr("address_concretization_add_constraints", add_constraints)
