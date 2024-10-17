@@ -68,12 +68,13 @@ class Decompiler(Analysis):
         inline_functions=frozenset(),
         update_memory_data: bool = True,
         generate_code: bool = True,
+        use_cache: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
-        self._options = options
+        self._options = options or []
 
         if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
@@ -102,6 +103,25 @@ class Decompiler(Analysis):
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
         self._inline_functions = inline_functions
+        self._cache_parameters = (
+            {
+                "cfg": self._cfg,
+                "variable_kb": self._variable_kb,
+                "options": {(o, v) for o, v in self._options if o.category != "Display" and v != o.default_value},
+                "optimization_passes": self._optimization_passes,
+                "sp_tracker_track_memory": self._sp_tracker_track_memory,
+                "peephole_optimizations": self._peephole_optimizations,
+                "vars_must_struct": self._vars_must_struct,
+                "flavor": self._flavor,
+                "expr_comments": self._expr_comments,
+                "stmt_comments": self._stmt_comments,
+                "ite_exprs": self._ite_exprs,
+                "binop_operators": self._binop_operators,
+                "inline_functions": self._inline_functions,
+            }
+            if use_cache
+            else None
+        )
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: CStructuredCodeGenerator | None = None
@@ -115,23 +135,38 @@ class Decompiler(Analysis):
         if decompile:
             self._decompile()
 
+    def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
+        a, b = self._cache_parameters, cache.parameters
+        id_checks = {"cfg", "variable_kb"}
+        return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
+
     @timethis
     def _decompile(self):
         if self.func.is_simprocedure:
             return
 
-        # Load from cache
-        try:
-            cache = self.kb.structured_code[(self.func.addr, self._flavor)]
+        cache = None
+
+        if self._cache_parameters is not None:
+            try:
+                cache = self.kb.decompilations[self.func.addr]
+                if not self._can_use_decompilation_cache(cache):
+                    cache = None
+            except KeyError:
+                pass
+
+        if cache:
             old_codegen = cache.codegen
             old_clinic = cache.clinic
             ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
             binop_operators = cache.binop_operators if self._binop_operators is None else self._binop_operators
-        except KeyError:
-            ite_exprs = self._ite_exprs
-            binop_operators = self._binop_operators
+            l.debug("Decompilation cache hit")
+        else:
             old_codegen = None
             old_clinic = None
+            ite_exprs = self._ite_exprs
+            binop_operators = self._binop_operators
+            l.debug("Decompilation cache miss")
 
         self.options_by_class = defaultdict(list)
 
@@ -167,6 +202,7 @@ class Decompiler(Analysis):
             fold_callexprs_into_conditions = True
 
         cache = DecompilationCache(self.func.addr)
+        cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
 
@@ -301,6 +337,8 @@ class Decompiler(Analysis):
         self.ail_graph = clinic.cc_graph
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
+
+        self.kb.decompilations[self.func.addr] = self.cache
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
