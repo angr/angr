@@ -213,7 +213,8 @@ class VirtualVariableCategory(IntEnum):
     STACK = 1
     MEMORY = 2
     PARAMETER = 3
-    UNKNOWN = 4
+    TMP = 4
+    UNKNOWN = 5
 
 
 class VirtualVariable(Atom):
@@ -258,6 +259,10 @@ class VirtualVariable(Atom):
         return self.category == VirtualVariableCategory.PARAMETER
 
     @property
+    def was_tmp(self) -> bool:
+        return self.category == VirtualVariableCategory.TMP
+
+    @property
     def reg_offset(self) -> int | None:
         if self.was_reg:
             return self.oident
@@ -268,6 +273,10 @@ class VirtualVariable(Atom):
         if self.was_stack:
             return self.oident
         return None
+
+    @property
+    def tmp_idx(self) -> int | None:
+        return self.oident if self.was_tmp else None
 
     def likes(self, atom):
         return (
