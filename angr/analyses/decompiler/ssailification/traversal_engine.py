@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from ailment.statement import Assignment, Call, Store, ConditionalJump
-from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression
+from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression, Tmp
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 from angr.utils.ssa import get_reg_offset_base
@@ -21,7 +21,14 @@ class SimEngineSSATraversal(
     state: TraversalState
 
     def __init__(
-        self, arch, sp_tracker=None, bp_as_gpr: bool = False, def_to_loc=None, loc_to_defs=None, stackvars: bool = False
+        self,
+        arch,
+        sp_tracker=None,
+        bp_as_gpr: bool = False,
+        def_to_loc=None,
+        loc_to_defs=None,
+        stackvars: bool = False,
+        tmps: bool = False,
     ):
         super().__init__()
 
@@ -29,6 +36,7 @@ class SimEngineSSATraversal(
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
+        self.tmps = tmps
 
         self.def_to_loc = def_to_loc if def_to_loc is not None else OrderedDict()
         self.loc_to_defs = loc_to_defs if loc_to_defs is not None else OrderedDict()
@@ -90,6 +98,16 @@ class SimEngineSSATraversal(
             self.loc_to_defs[codeloc].add(expr)
 
             self.state.live_registers.add(base_offset)
+
+    def _handle_Tmp(self, expr: Tmp):
+        if self.tmps:
+            codeloc = self._codeloc()
+            self.def_to_loc[expr] = codeloc
+            if codeloc not in self.loc_to_defs:
+                self.loc_to_defs[codeloc] = OrderedSet()
+            self.loc_to_defs[codeloc].add(expr)
+
+            self.state.live_tmps.add(expr.tmp_idx)
 
     def _handle_Cmp(self, expr: BinaryOp):
         self._expr(expr.operands[0])

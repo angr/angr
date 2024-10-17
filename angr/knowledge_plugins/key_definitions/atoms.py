@@ -278,6 +278,10 @@ class VirtualVariable(Atom):
         return self.category == ailment.Expr.VirtualVariableCategory.PARAMETER
 
     @property
+    def was_tmp(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.TMP
+
+    @property
     def reg_offset(self) -> int | None:
         if self.was_reg:
             return self.oident
@@ -288,6 +292,10 @@ class VirtualVariable(Atom):
         if self.was_stack:
             return self.oident
         return None
+
+    @property
+    def tmp_idx(self) -> int | None:
+        return self.oident if self.was_tmp else None
 
 
 class MemoryLocation(Atom):
