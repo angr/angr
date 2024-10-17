@@ -51,11 +51,11 @@ class MipsElfGotResolver(IndirectJumpResolver):
             return False, []
         dynsym_addr = self._find_and_cache_section_addr(obj, ".dynsym")
         if dynsym_addr is None:
-            return None
+            return False, []
 
         dynstr_addr = self._find_and_cache_section_addr(obj, ".dynstr")
         if dynstr_addr is None:
-            return None
+            return False, []
 
         if block.size != 16:
             return False, []
