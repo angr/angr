@@ -284,6 +284,10 @@ def simplify_switch_clusters(
 
     for variable in var2switches:
         switch_regions = var2switches[variable]
+        if len(switch_regions) <= 1:
+            # nothing to simplify or merge if there is only one switch region
+            continue
+
         cond_regions = list(var2condnodes[variable])
 
         if not cond_regions:
@@ -449,10 +453,10 @@ def simplify_switch_clusters(
         # build the SwitchCase node and replace old nodes in the parent node
         cases_dict = OrderedDict(cases)
         new_switchcase = SwitchCaseNode(
-            switch_regions_default_nodes[0].node.switch_expr,
+            switch_regions[0].node.switch_expr,
             cases_dict,
             default_node,
-            addr=switch_regions_default_nodes[0].node.addr,
+            addr=switch_regions[0].node.addr,
         )
 
         # what are we trying to replace?
