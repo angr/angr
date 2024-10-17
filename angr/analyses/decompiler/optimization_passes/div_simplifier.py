@@ -18,7 +18,10 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
     An AIL pass for the div simplifier
     """
 
-    def _check_divisor(self, a, b, ndigits=6):  # pylint: disable=no-self-use
+    @staticmethod
+    def _check_divisor(a, b, ndigits=6):
+        if b == 0:
+            return None
         divisor_1 = 1 + (a // b)
         divisor_2 = int(round(a / float(b), ndigits))
         return divisor_1 if divisor_1 == divisor_2 else None
