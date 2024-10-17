@@ -18,6 +18,7 @@ from ailment.expression import (
     StackBaseOffset,
     VEXCCallExpression,
     ITE,
+    Tmp,
 )
 
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -51,6 +52,7 @@ class SimEngineSSARewriting(
         ail_manager=None,
         vvar_id_start: int = 0,
         bp_as_gpr: bool = False,
+        rewrite_tmps: bool = False,
     ):
         super().__init__()
 
@@ -62,6 +64,7 @@ class SimEngineSSARewriting(
         self.stackvar_locs = stackvar_locs
         self.udef_to_phiid = udef_to_phiid
         self.phiid_to_loc = phiid_to_loc
+        self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
 
         self._current_vvar_id = vvar_id_start
@@ -97,6 +100,8 @@ class SimEngineSSARewriting(
                 self.state.registers[stmt.dst.reg_offset][stmt.dst.size] = stmt.dst
             elif stmt.dst.category == VirtualVariableCategory.STACK:
                 self.state.stackvars[stmt.dst.stack_offset][stmt.dst.size] = stmt.dst
+            elif stmt.dst.category == VirtualVariableCategory.TMP:
+                self.state.tmps[stmt.dst.tmp_idx] = stmt.dst
             new_dst = None
         else:
             new_dst = self._replace_def_expr(stmt.dst)
@@ -134,6 +139,8 @@ class SimEngineSSARewriting(
                         **stmt.tags,
                     )
                     self.state.registers[base_offset][base_size] = base_reg_vvar
+            elif isinstance(stmt.dst, Tmp):
+                pass
             else:
                 raise NotImplementedError
 
@@ -189,7 +196,7 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_Call(self, stmt: Call) -> Call | None:
-        new_target = self._replace_use_reg(stmt.target) if isinstance(stmt.target, Register) else None
+        new_target = self._replace_use_expr(stmt.target)
         new_ret_expr = self._replace_def_expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._replace_def_expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
@@ -226,6 +233,9 @@ class SimEngineSSARewriting(
 
     def _handle_Register(self, expr: Register) -> VirtualVariable | None:
         return self._replace_use_reg(expr)
+
+    def _handle_Tmp(self, expr: Tmp) -> VirtualVariable | None:
+        return self._replace_use_tmp(expr) if self.rewrite_tmps else None
 
     def _handle_Load(self, expr: Load) -> Load | VirtualVariable | None:
         if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
@@ -425,6 +435,8 @@ class SimEngineSSARewriting(
             return self._replace_def_reg(thing)
         if isinstance(thing, Store):
             return self._replace_def_store(thing)
+        if isinstance(thing, Tmp) and self.rewrite_tmps:
+            return self._replace_def_tmp(thing)
         return None
 
     def _replace_def_reg(self, expr: Register) -> VirtualVariable:
@@ -482,6 +494,31 @@ class SimEngineSSARewriting(
             )
             self.state.stackvars[stmt.addr.offset][stmt.size] = vvar
             return vvar
+        return None
+
+    def _replace_def_tmp(self, expr: Tmp) -> VirtualVariable:
+        vvid = self.get_vvid_by_def(expr)
+        vvar = VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.TMP,
+            oident=expr.tmp_idx,
+            **expr.tags,
+        )
+        self.state.tmps[expr.tmp_idx] = vvar
+        return vvar
+
+    def _replace_use_expr(self, thing: Expression | Statement) -> VirtualVariable | None:
+        """
+        Return a new virtual variable for the given defined expression.
+        """
+        if isinstance(thing, Register):
+            return self._replace_use_reg(thing)
+        if isinstance(thing, Store):
+            raise NotImplementedError("Store expressions are not supported in _replace_use_expr.")
+        if isinstance(thing, Tmp) and self.rewrite_tmps:
+            return self._replace_use_tmp(thing)
         return None
 
     def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
@@ -578,6 +615,19 @@ class SimEngineSSARewriting(
                 **vvar.tags,
             )
         return None
+
+    def _replace_use_tmp(self, expr: Tmp) -> VirtualVariable:
+        vvar = self.state.tmps.get(expr.tmp_idx)
+        if vvar is None:
+            return self._replace_def_tmp(expr)
+        return VirtualVariable(
+            expr.idx,
+            vvar.varid,
+            vvar.bits,
+            VirtualVariableCategory.TMP,
+            oident=expr.tmp_idx,
+            **expr.tags,
+        )
 
     #
     # Utils

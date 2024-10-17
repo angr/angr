@@ -435,6 +435,8 @@ class SimEngineVRBase(SimEngineLight):
                     region=self.func_addr,
                 )
                 self.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
+            elif vvar.was_tmp:
+                pass
             else:
                 raise NotImplementedError
         else:
@@ -1071,6 +1073,9 @@ class SimEngineVRBase(SimEngineLight):
                     self.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
                 elif vvar.category == ailment.Expr.VirtualVariableCategory.PARAMETER:
                     raise KeyError(f"Missing virtual variable for parameter {vvar}")
+                elif vvar.category == ailment.Expr.VirtualVariableCategory.TMP:
+                    # we don't track variables for tmps
+                    pass
                 else:
                     raise NotImplementedError
 

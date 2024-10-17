@@ -32,6 +32,7 @@ class RewritingState:
         self.stackvars: defaultdict[int, dict[int, VirtualVariable]] = (
             stackvars if stackvars is not None else defaultdict(dict)
         )
+        self.tmps: dict[int, VirtualVariable] = {}
         self.original_block = original_block
         self.out_block = None
 

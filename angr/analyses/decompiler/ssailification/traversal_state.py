@@ -18,6 +18,7 @@ class TraversalState:
 
         self.live_registers: set[int] = set() if live_registers is None else live_registers
         self.live_stackvars: set[tuple[int, int]] = set() if live_stackvars is None else live_stackvars
+        self.live_tmps: set[int] = set()  # tmps are internal to a block only and never propagated from another state
 
     def copy(self) -> TraversalState:
         return TraversalState(

@@ -238,15 +238,22 @@ class SPropagatorAnalysis(Analysis):
 
                     if len(tmp_uses) <= 2:
                         tmp_used, tmp_use_stmtidx = next(iter(tmp_uses))
-                        if is_const_vvar_load_dirty_assignment(stmt) and not any(
-                            isinstance(stmt_, Store)
-                            for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
-                        ):
-                            # we can propagate this load because there is no store between its def and use
-                            replacements[
-                                CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
-                            ][tmp_used] = stmt.src
-                            continue
+                        if is_const_vvar_load_dirty_assignment(stmt):
+                            same_inst = (
+                                block.statements[tmp_def_stmtidx].ins_addr == block.statements[tmp_use_stmtidx].ins_addr
+                            )
+                            has_store = any(
+                                isinstance(stmt_, Store)
+                                for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
+                            )
+                            if same_inst or not has_store:
+                                # we can propagate this load because either we do not consider memory aliasing problem
+                                # within the same instruction (blocks must be originally lifted with
+                                # CROSS_INSN_OPT=False), or there is no store between its def and use.
+                                replacements[
+                                    CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                                ][tmp_used] = stmt.src
+                                continue
 
         self.model.replacements = replacements
 
