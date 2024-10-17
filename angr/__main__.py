@@ -68,22 +68,31 @@ def main(args=sys.argv[1:], out=sys.stdout):
         choices=DECOMPILATION_PRESETS,
         default="default",
     )
-
     args = parser.parse_args(args)
-    if args.command == COMMANDS.DECOMPILE:
-        decompilation = decompile_functions(
-            args.binary,
-            functions=args.functions,
-            structurer=args.structurer,
-            catch_errors=args.catch_exceptions,
-            show_casts=not args.no_casts,
-            base_address=args.base_addr,
-            preset=args.preset,
-        )
-        print(decompilation, file=out)
-    else:
-        parser.print_help(file=out)
+    if not os.path.isfile(args.binary):
+        print(f"Error: The specified binary '{args.binary}' does not exist.", file=sys.stderr)
+        sys.exit(1)
 
+    if args.command == COMMANDS.DECOMPILE and not args.functions:
+        print("Error: No functions specified for decompilation.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        if args.command == COMMANDS.DECOMPILE:
+            decompilation = decompile_functions(
+                args.binary,
+                functions=args.functions,
+                structurer=args.structurer,
+                catch_errors=args.catch_exceptions,
+                show_casts=not args.no_casts,
+                base_address=args.base_addr,
+                preset=args.preset,
+        )
+            print(decompilation, file=out)
+        else:
+            parser.print_help(file=out)
+    except Exception as e:
+        print(f"An error occurred during decompilation: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
