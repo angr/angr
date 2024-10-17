@@ -86,13 +86,14 @@ def main(args=sys.argv[1:], out=sys.stdout):
                 show_casts=not args.no_casts,
                 base_address=args.base_addr,
                 preset=args.preset,
-        )
+            )
             print(decompilation, file=out)
         else:
             parser.print_help(file=out)
     except Exception as e:
         print(f"An error occurred during decompilation: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
