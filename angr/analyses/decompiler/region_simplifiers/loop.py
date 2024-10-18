@@ -16,6 +16,7 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from angr.analyses.decompiler.utils import is_statement_terminating, has_nonlabel_nonphi_statements
+from angr.utils.ail import is_phi_assignment
 
 
 class LoopSimplifier(SequenceWalker):
@@ -104,14 +105,7 @@ class LoopSimplifier(SequenceWalker):
             )
             and (
                 all(has_nonlabel_nonphi_statements(block) for block in self.continue_preludes[node])
-                and all(
-                    not self._control_transferring_statement(block.statements[-1])
-                    for block in self.continue_preludes[node]
-                )
-                and all(
-                    block.statements[-1] == self.continue_preludes[node][0].statements[-1]
-                    for block in self.continue_preludes[node]
-                )
+                and all(not is_phi_assignment(block.statements[-1]) for block in self.continue_preludes[node])
             )
         ):
             node.sort = "for"
