@@ -33,13 +33,12 @@ def run_tracker(track_mem, use_bp):
     return sp_result
 
 
-def init_tracker(track_mem):
-    p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+def init_tracker(p, func_addr: str | int, track_mem, cross_insn_opt: bool = True):
     p.analyses.CFGFast()
-    main = p.kb.functions["main"]
+    main = p.kb.functions[func_addr]
     sp = p.arch.sp_offset
     regs = {sp}
-    sptracker = p.analyses.StackPointerTracker(main, regs, track_memory=track_mem)
+    sptracker = p.analyses.StackPointerTracker(main, regs, track_memory=track_mem, cross_insn_opt=cross_insn_opt)
     return sptracker, sp
 
 
@@ -59,7 +58,8 @@ class TestStackPointerTracker(unittest.TestCase):
         assert sp_result is None
 
     def test_stack_pointer_tracker_offset_block(self):
-        sptracker, sp = init_tracker(track_mem=False)
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        sptracker, sp = init_tracker(p, "main", track_mem=False)
         sp_result = sptracker.offset_after_block(0x40071D, sp)
         assert sp_result is not None
         sp_result = sptracker.offset_after_block(0x400700, sp)
@@ -68,6 +68,21 @@ class TestStackPointerTracker(unittest.TestCase):
         assert sp_result is not None
         sp_result = sptracker.offset_before_block(0x400700, sp)
         assert sp_result is None
+
+    def test_stack_pointer_tracker_offset_mask(self):
+        # SPTracker should treat 0xfffffff8 as a bitmask
+        proj = angr.Project(
+            os.path.join(
+                test_location, "i386", "windows", "39ca9900b5a1aaff6a218a56884f8c235263e3eb4e64c325b357fb028295f0a5"
+            ),
+            auto_load_libs=False,
+        )
+        sptracker, sp = init_tracker(proj, 0x401F3E, track_mem=False, cross_insn_opt=False)
+        off_0 = sptracker.offset_after(0x401F41, sp)
+        off_1 = sptracker.offset_before(0x401F47, sp)
+        assert off_0 is not None
+        print(off_1 - off_0)
+        assert off_1 - off_0 == -0xC
 
 
 if __name__ == "__main__":
