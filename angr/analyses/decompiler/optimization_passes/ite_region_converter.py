@@ -202,6 +202,7 @@ class ITERegionConverter(OptimizationPass):
         true_stmt_src = true_stmt.src if isinstance(true_stmt, Assignment) else true_stmt
         true_stmt_dst = true_stmt.dst if isinstance(true_stmt, Assignment) else true_stmt.ret_expr
         false_stmt_src = false_stmt.src if isinstance(false_stmt, Assignment) else false_stmt
+        false_stmt_dst = false_stmt.dst if isinstance(false_stmt, Assignment) else false_stmt.ret_expr
 
         addr_obj = true_stmt_src if "ins_addr" in true_stmt_src.tags else true_stmt
         ternary_expr = ITE(
@@ -261,12 +262,32 @@ class ITERegionConverter(OptimizationPass):
             if not is_phi_assignment(stmt):
                 stmts.append(stmt)
                 continue
+
+            # is this the statement that we are looking for?
+            found_true_src_vvar, found_false_src_vvar = False, False
+            for src, vvar in stmt.src.src_and_vvars:
+                if vvar is not None:
+                    if vvar.varid == true_stmt_dst.varid:
+                        found_true_src_vvar = True
+                    elif vvar.varid == false_stmt_dst.varid:
+                        found_false_src_vvar = True
+            # we should only update the vvars of this phi statement if we found both true and false source vvars
+            update_vars = found_true_src_vvar and found_false_src_vvar
+
             new_src_and_vvars = []
+            original_vvars = []
             for src, vvar in stmt.src.src_and_vvars:
                 if src not in region_tail_pred_srcs:
                     new_src_and_vvars.append((src, vvar))
+                else:
+                    original_vvars.append(vvar)
             new_vvar = new_assignment.dst.copy()
-            new_src_and_vvars.append(((region_head.addr, region_head.idx), new_vvar))
+            if update_vars:
+                new_src_and_vvars.append(((region_head.addr, region_head.idx), new_vvar))
+            else:
+                new_src_and_vvars.append(
+                    ((region_head.addr, region_head.idx), original_vvars[0] if original_vvars else None)
+                )
 
             new_phi = Phi(
                 stmt.src.idx,
