@@ -153,6 +153,11 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
     def _resolve_case_1(self, addr: int, block: pyvex.IRSB, func_addr: int, gp_value: int, cfg) -> int | None:
         # lift the block again with the correct setting
+
+        inital_regs = [(self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1], func_addr)]
+        if gp_value is not None:
+            inital_regs.append((self.project.arch.registers["gp"][0], self.project.arch.registers["gp"][1], gp_value))
+
         first_irsb = self.project.factory.block(
             addr,
             size=block.size,
@@ -160,10 +165,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             const_prop=True,
             cross_insn_opt=False,
             load_from_ro_regions=True,
-            initial_regs=[
-                (self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1], func_addr),
-                (self.project.arch.registers["gp"][0], self.project.arch.registers["gp"][1], gp_value),
-            ],
+            initial_regs=inital_regs,
         ).vex_nostmt
 
         if not isinstance(first_irsb.next, pyvex.IRExpr.RdTmp):
@@ -193,6 +195,10 @@ class MipsElfFastResolver(IndirectJumpResolver):
             # the register (t9) is set in this block - we can resolve the jump target using only the current block
             return Case2Result.RESUME, None
 
+        inital_regs = [(self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1], func_addr)]
+        if gp_value is not None:
+            inital_regs.append((self.project.arch.registers["gp"][0], self.project.arch.registers["gp"][1], gp_value))
+
         # lift the first block again with the correct setting
         first_irsb = self.project.factory.block(
             first_block_addr,
@@ -200,10 +206,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             collect_data_refs=False,
             const_prop=True,
             load_from_ro_regions=True,
-            initial_regs=[
-                (self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1], func_addr),
-                (self.project.arch.registers["gp"][0], self.project.arch.registers["gp"][1], gp_value),
-            ],
+            initial_regs=inital_regs,
         ).vex_nostmt
 
         last_reg_setting_tmp = self._get_last_reg_setting_tmp(first_irsb, jump_target_reg)
