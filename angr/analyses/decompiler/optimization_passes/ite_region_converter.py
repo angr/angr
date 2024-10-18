@@ -202,6 +202,7 @@ class ITERegionConverter(OptimizationPass):
         true_stmt_src = true_stmt.src if isinstance(true_stmt, Assignment) else true_stmt
         true_stmt_dst = true_stmt.dst if isinstance(true_stmt, Assignment) else true_stmt.ret_expr
         false_stmt_src = false_stmt.src if isinstance(false_stmt, Assignment) else false_stmt
+        false_stmt_dst = false_stmt.dst if isinstance(false_stmt, Assignment) else false_stmt.ret_expr
 
         addr_obj = true_stmt_src if "ins_addr" in true_stmt_src.tags else true_stmt
         ternary_expr = ITE(
@@ -261,6 +262,20 @@ class ITERegionConverter(OptimizationPass):
             if not is_phi_assignment(stmt):
                 stmts.append(stmt)
                 continue
+
+            # is this the statement that we are looking for?
+            found_true_src_vvar, found_false_src_vvar = False, False
+            for src, vvar in stmt.src.src_and_vvars:
+                if vvar is not None:
+                    if vvar.varid == true_stmt_dst.varid:
+                        found_true_src_vvar = True
+                    elif vvar.varid == false_stmt_dst.varid:
+                        found_false_src_vvar = True
+            if not found_true_src_vvar or not found_false_src_vvar:
+                # not the phi statement that we are looking for
+                stmts.append(stmt)
+                continue
+
             new_src_and_vvars = []
             for src, vvar in stmt.src.src_and_vvars:
                 if src not in region_tail_pred_srcs:
