@@ -1308,44 +1308,135 @@ class ITE(Expression):
 
 class DirtyExpression(Expression):
     __slots__ = (
-        "dirty_expr",
+        "callee",
+        "guard",
+        "operands",
+        "result_expr",
+        "mfx",
+        "maddr",
+        "msize",
         "bits",
     )
 
-    def __init__(self, idx, dirty_expr, bits=None, **kwargs):
+    def __init__(
+        self,
+        idx,
+        callee: str,
+        operands: list[Expression],
+        *,
+        guard: Expression | None = None,
+        result_expr: Expression | None = None,
+        mfx: str | None = None,
+        maddr: Expression | None = None,
+        msize: Expression | None = None,
+        # TODO: fxstate (guest state effects) is not modeled yet
+        bits=None,
+        **kwargs,
+    ):
         super().__init__(idx, 1, **kwargs)
-        self.dirty_expr = dirty_expr
+
+        self.callee = callee
+        self.guard = guard
+        self.operands = operands
+        self.result_expr = result_expr
+        self.mfx = mfx
+        self.maddr = maddr
+        self.msize = msize
         self.bits = bits
 
     def likes(self, other):
-        return type(other) is DirtyExpression and other.dirty_expr == self.dirty_expr
+        return (
+            type(other) is DirtyExpression
+            and other.callee == self.callee
+            and is_none_or_likeable(other.guard, self.guard)
+            and len(self.operands) == len(other.operands)
+            and all(op1.likes(op2) for op1, op2 in zip(self.operands, other.operands))
+            and is_none_or_likeable(other.result_expr, self.result_expr)
+            and other.mfx == self.mfx
+            and is_none_or_likeable(other.maddr, self.maddr)
+            and is_none_or_likeable(other.msize, self.msize)
+            and self.bits == other.bits
+        )
 
-    matches = likes
+    def matches(self, other):
+        return (
+            type(other) is DirtyExpression
+            and other.callee == self.callee
+            and is_none_or_matchable(other.guard, self.guard)
+            and len(self.operands) == len(other.operands)
+            and all(op1.matches(op2) for op1, op2 in zip(self.operands, other.operands))
+            and is_none_or_matchable(other.result_expr, self.result_expr)
+            and other.mfx == self.mfx
+            and is_none_or_matchable(other.maddr, self.maddr)
+            and is_none_or_matchable(other.msize, self.msize)
+            and self.bits == other.bits
+        )
+
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((DirtyExpression, self.dirty_expr))
+        return stable_hash(
+            (
+                DirtyExpression,
+                self.callee,
+                self.guard,
+                tuple(self.operands),
+                self.result_expr,
+                self.mfx,
+                self.maddr,
+                self.msize,
+                self.bits,
+            )
+        )
 
     def __repr__(self):
-        return "DirtyExpression (%s)" % type(self.dirty_expr)
+        return f"[D] {self.callee}({', '.join(repr(op) for op in self.operands)})"
 
     def __str__(self):
-        return "[D] %s" % str(self.dirty_expr)
+        return f"[D] {self.callee}({', '.join(repr(op) for op in self.operands)})"
 
     def copy(self) -> DirtyExpression:
-        return DirtyExpression(self.idx, self.dirty_expr, bits=self.bits, **self.tags)
+        return DirtyExpression(
+            self.idx,
+            self.callee,
+            self.operands,
+            guard=self.guard,
+            result_expr=self.result_expr,
+            mfx=self.mfx,
+            maddr=self.maddr,
+            msize=self.msize,
+            bits=self.bits,
+            **self.tags,
+        )
 
-    def replace(self, old_expr, new_expr):
-        if old_expr is self.dirty_expr:
-            return True, DirtyExpression(self.idx, new_expr, bits=self.bits, **self.tags)
+    def replace(self, old_expr: Expression, new_expr: Expression):
+        new_operands = []
+        replaced = False
+        for op in self.operands:
+            if old_expr == op:
+                replaced = True
+                new_operands.append(new_expr)
+            else:
+                r, new_op = op.replace(old_expr, new_expr)
+                if r:
+                    replaced = True
+                    new_operands.append(new_op)
+                else:
+                    new_operands.append(op)
 
-        if isinstance(self.dirty_expr, Expression):
-            replaced, new_dirty_expr = self.dirty_expr.replace(old_expr, new_expr)
-        else:
-            replaced = False
-            new_dirty_expr = None
         if replaced:
-            return True, DirtyExpression(self.idx, new_dirty_expr, bits=self.bits, **self.tags)
+            return True, DirtyExpression(
+                self.idx,
+                self.callee,
+                new_operands,
+                guard=self.guard,
+                result_expr=self.result_expr,
+                mfx=self.mfx,
+                maddr=self.maddr,
+                msize=self.msize,
+                bits=self.bits,
+                **self.tags,
+            )
         else:
             return False, self
 
@@ -1356,21 +1447,29 @@ class DirtyExpression(Expression):
 
 class VEXCCallExpression(Expression):
     __slots__ = (
-        "cee_name",
+        "callee",
         "operands",
         "bits",
     )
 
-    def __init__(self, idx, cee_name, operands, bits=None, **kwargs):
+    def __init__(self, idx, callee: str, operands: list[Expression], bits=None, **kwargs):
         super().__init__(idx, max(operand.depth for operand in operands), **kwargs)
-        self.cee_name = cee_name
+        self.callee = callee
         self.operands = operands
         self.bits = bits
+
+    @property
+    def op(self) -> str:
+        return self.callee
+
+    @property
+    def verbose_op(self) -> str:
+        return self.op
 
     def likes(self, other):
         return (
             type(other) is VEXCCallExpression
-            and other.cee_name == self.cee_name
+            and other.callee == self.callee
             and len(self.operands) == len(other.operands)
             and self.bits == other.bits
             and all(op1.likes(op2) for op1, op2 in zip(other.operands, self.operands))
@@ -1379,7 +1478,7 @@ class VEXCCallExpression(Expression):
     def matches(self, other):
         return (
             type(other) is VEXCCallExpression
-            and other.cee_name == self.cee_name
+            and other.callee == self.callee
             and len(self.operands) == len(other.operands)
             and self.bits == other.bits
             and all(op1.matches(op2) for op1, op2 in zip(other.operands, self.operands))
@@ -1388,17 +1487,17 @@ class VEXCCallExpression(Expression):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((VEXCCallExpression, self.cee_name, self.bits, tuple(self.operands)))
+        return stable_hash((VEXCCallExpression, self.callee, self.bits, tuple(self.operands)))
 
     def __repr__(self):
-        return f"VEXCCallExpression [{self.cee_name}]"
+        return f"VEXCCallExpression [{self.callee}({', '.join(repr(op) for op in self.operands)})]"
 
     def __str__(self):
         operands_str = ", ".join(repr(op) for op in self.operands)
-        return f"{self.cee_name}({operands_str})"
+        return f"{self.callee}({operands_str})"
 
     def copy(self) -> VEXCCallExpression:
-        return VEXCCallExpression(self.idx, self.cee_name, self.operands, bits=self.bits, **self.tags)
+        return VEXCCallExpression(self.idx, self.callee, self.operands, bits=self.bits, **self.tags)
 
     def replace(self, old_expr, new_expr):
         new_operands = []
@@ -1416,7 +1515,7 @@ class VEXCCallExpression(Expression):
                     new_operands.append(operand)
 
         if replaced:
-            return True, VEXCCallExpression(self.idx, self.cee_name, tuple(new_operands), bits=self.bits, **self.tags)
+            return True, VEXCCallExpression(self.idx, self.callee, list(new_operands), bits=self.bits, **self.tags)
         else:
             return False, self
 

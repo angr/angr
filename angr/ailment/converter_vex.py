@@ -44,6 +44,9 @@ class VEXExprConverter(Converter):
         :param expr:
         :return:
         """
+        if isinstance(expr, pyvex.const.IRConst):
+            return VEXExprConverter.const_n(expr, manager)
+
         func = EXPRESSION_MAPPINGS.get(type(expr))
         if func is not None:
             # When something goes wrong, return a DirtyExpression instead of crashing the program
@@ -51,33 +54,14 @@ class VEXExprConverter(Converter):
                 return func(expr, manager)
             except UnsupportedIROpError:
                 log.warning("VEXExprConverter: Unsupported IROp %s.", expr.op)
-                return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
-
-        if isinstance(expr, pyvex.const.IRConst):
-            return VEXExprConverter.const_n(expr, manager)
-
-        if isinstance(expr, pyvex.IRExpr.CCall):
-            operands = tuple(VEXExprConverter.convert(arg, manager) for arg in expr.args)
-            ccall = VEXCCallExpression(
-                manager.next_atom(),
-                expr.cee.name,
-                operands,
-                bits=expr.result_size(manager.tyenv),
-                ins_addr=manager.ins_addr,
-                vex_block_addr=manager.block_addr,
-                vex_stmt_idx=manager.vex_stmt_idx,
-            )
-            return DirtyExpression(
-                manager.next_atom(),
-                ccall,
-                bits=expr.result_size(manager.tyenv),
-                ins_addr=manager.ins_addr,
-                vex_block_addr=manager.block_addr,
-                vex_stmt_idx=manager.vex_stmt_idx,
-            )
+                return DirtyExpression(
+                    manager.next_atom(), f"unsupported_{expr.op}", [], bits=expr.result_size(manager.tyenv)
+                )
 
         log.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
-        return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
+        return DirtyExpression(
+            manager.next_atom(), f"unsupported_{str(type(expr))}", [], bits=expr.result_size(manager.tyenv)
+        )
 
     @staticmethod
     def convert_list(exprs, manager):
@@ -397,6 +381,19 @@ class VEXExprConverter(Converter):
             vex_stmt_idx=manager.vex_stmt_idx,
         )
 
+    @staticmethod
+    def CCall(expr: pyvex.IRExpr.CCall, manager):
+        operands = [VEXExprConverter.convert(arg, manager) for arg in expr.args]
+        return VEXCCallExpression(
+            manager.next_atom(),
+            expr.cee.name,
+            operands,
+            bits=expr.result_size(manager.tyenv),
+            ins_addr=manager.ins_addr,
+            vex_block_addr=manager.block_addr,
+            vex_stmt_idx=manager.vex_stmt_idx,
+        )
+
 
 EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.RdTmp: VEXExprConverter.RdTmp,
@@ -409,6 +406,7 @@ EXPRESSION_MAPPINGS = {
     pyvex.const.U64: VEXExprConverter.const_n,
     pyvex.IRExpr.Load: VEXExprConverter.Load,
     pyvex.IRExpr.ITE: VEXExprConverter.ITE,
+    pyvex.IRExpr.CCall: VEXExprConverter.CCall,
 }
 
 

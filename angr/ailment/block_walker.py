@@ -181,7 +181,12 @@ class AILBlockWalkerBase:
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
-        self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
+        for idx, operand in expr.operands:
+            self._handle_expr(idx, operand, stmt_idx, stmt, block)
+        if expr.guard is not None:
+            self._handle_expr(len(expr.operands) + 1, expr.guard, stmt_idx, stmt, block)
+        if expr.result_expr is not None:
+            self._handle_expr(len(expr.operands) + 2, expr.result_expr, stmt_idx, stmt, block)
 
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
@@ -570,11 +575,41 @@ class AILBlockWalker(AILBlockWalkerBase):
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
-        new_dirty_expr = self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
-        if new_dirty_expr is not None and new_dirty_expr is not expr.dirty_expr:
-            new_expr = expr.copy()
-            new_expr.dirty_expr = new_dirty_expr
-            return new_expr
+        changed = False
+        new_operands = []
+        for operand in expr.operands:
+            new_operand = self._handle_expr(0, operand, stmt_idx, stmt, block)
+            if new_operand is not None and new_operand is not operand:
+                changed = True
+                new_operands.append(new_operand)
+            else:
+                new_operands.append(operand)
+
+        new_result_expr = expr.result_expr
+        if expr.result_expr is not None:
+            new_result_expr = self._handle_expr(1, expr.result_expr, stmt_idx, stmt, block)
+            if new_result_expr is not None and new_result_expr is not expr.result_expr:
+                changed = True
+
+        new_guard = expr.guard
+        if expr.guard is not None:
+            new_guard = self._handle_expr(2, expr.guard, stmt_idx, stmt, block)
+            if new_guard is not None and new_guard is not expr.guard:
+                changed = True
+
+        if changed:
+            return DirtyExpression(
+                expr.idx,
+                expr.callee,
+                new_operands,
+                guard=new_guard,
+                result_expr=new_result_expr,
+                mfx=expr.mfx,
+                maddr=expr.maddr,
+                msize=expr.msize,
+                bits=expr.bits,
+                **expr.tags,
+            )
         return None
 
     def _handle_VEXCCallExpression(

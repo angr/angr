@@ -187,7 +187,7 @@ class PCodeIRSBConverter(Converter):
         in1 = self._get_value(self._current_op.inputs[0])
         if op is None:
             log.warning("p-code: Unsupported opcode of type %s", opcode.__name__)
-            out = DirtyExpression(self._manager.next_atom(), opcode.__name__, bits=self._current_op.output.size * 8)
+            out = DirtyExpression(self._manager.next_atom(), opcode.__name__, [], bits=self._current_op.output.size * 8)
         else:
             out = UnaryOp(self._manager.next_atom(), op, in1, ins_addr=self._manager.ins_addr)
 
