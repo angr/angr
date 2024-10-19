@@ -919,10 +919,16 @@ class Clinic(Analysis):
             "Ijk_Sys"
         ):
             # we don't support lifting this block. use a dummy block instead
+            dirty_expr = ailment.Expr.DirtyExpression(
+                self._ail_manager.next_atom,
+                f"Unsupported jumpkind {block.vex.jumpkind} at address {block_node.addr}",
+                [],
+                bits=0,
+            )
             statements = [
                 ailment.Stmt.DirtyStatement(
                     self._ail_manager.next_atom(),
-                    f"Unsupported jumpkind {block.vex.jumpkind} at address {block_node.addr}",
+                    dirty_expr,
                     ins_addr=block_node.addr,
                 )
             ]
@@ -1800,10 +1806,8 @@ class Clinic(Analysis):
         elif isinstance(expr, ailment.Expr.DirtyExpression):
             for operand in expr.operands:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, operand)
-            if expr.result_expr:
-                self._link_variables_on_expr(
-                    variable_manager, global_variables, block, stmt_idx, stmt, expr.result_expr
-                )
+            if expr.maddr:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.maddr)
             if expr.guard:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.guard)
 

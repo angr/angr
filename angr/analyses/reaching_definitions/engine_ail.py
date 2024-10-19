@@ -7,7 +7,6 @@ import logging
 import archinfo
 import claripy
 import ailment
-import pyvex
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
@@ -364,17 +363,7 @@ class SimEngineRDAIL(
         # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8))
 
     def _ail_handle_DirtyStatement(self, stmt: ailment.Stmt.DirtyStatement):
-        # TODO: The logic below is subject to change when ailment.Stmt.DirtyStatement is changed
-
-        if isinstance(stmt.dirty_stmt, pyvex.stmt.Dirty):
-            # TODO: We need dirty helpers for a more complete understanding of clobbered registers
-            tmp = stmt.dirty_stmt.tmp
-            if tmp in (-1, 0xFFFFFFFF):
-                return
-            size = 32  # FIXME: We don't know the size.
-            self.state.kill_and_add_definition(Tmp(tmp, size), MultiValues(self.state.top(size)))
-        else:
-            l.warning("Unexpected type of dirty statement %s.", type(stmt.dirty_stmt))
+        self._expr(stmt.dirty)
 
     #
     # AIL expression handlers

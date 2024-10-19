@@ -1408,7 +1408,7 @@ class CUnsupportedStatement(CStatement):
 class CDirtyStatement(CExpression):
     __slots__ = ("dirty",)
 
-    def __init__(self, dirty, **kwargs):
+    def __init__(self, dirty: CDirtyExpression, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
 
@@ -1420,7 +1420,7 @@ class CDirtyStatement(CExpression):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield str(self.dirty), None
+        yield from self.dirty.c_repr_chunks()
         yield "\n", None
 
 
@@ -3351,7 +3351,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return clabel
 
     def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
-        return CDirtyStatement(stmt, codegen=self)
+        dirty = self._handle(stmt.dirty)
+        return CDirtyStatement(dirty, codegen=self)
 
     #
     # AIL expression handlers
@@ -3556,7 +3557,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         operands = [self._handle(arg) for arg in expr.operands]
         return CVEXCCallExpression(expr.callee, operands, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_Dirty(self, expr, **kwargs):
+    def _handle_Expr_Dirty(self, expr: Expr.DirtyExpression, **kwargs):
         return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):

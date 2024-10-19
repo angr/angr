@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump
+from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement
 from ailment.expression import (
     Register,
     VirtualVariable,
@@ -145,6 +145,12 @@ class SimEngineDephiRewriting(
             )
         return None
 
+    def _handle_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
+        dirty = self._expr(stmt.dirty)
+        if dirty is None or dirty is stmt.dirty:
+            return None
+        return DirtyStatement(stmt.idx, dirty, **stmt.tags)
+
     def _handle_Register(self, expr: Register) -> None:
         return None
 
@@ -277,12 +283,6 @@ class SimEngineDephiRewriting(
             else:
                 new_operands.append(o)
 
-        new_result_expr = None
-        if expr.result_expr is not None:
-            new_result_expr = self._expr(expr.result_expr)
-            if new_result_expr is not None:
-                updated = True
-
         new_guard = None
         if expr.guard is not None:
             new_guard = self._expr(expr.guard)
@@ -295,7 +295,6 @@ class SimEngineDephiRewriting(
                 expr.callee,
                 new_operands,
                 guard=new_guard,
-                result_expr=new_result_expr,
                 mfx=expr.mfx,
                 maddr=expr.maddr,
                 msize=expr.msize,
