@@ -7,7 +7,6 @@ import logging
 import archinfo
 import claripy
 import ailment
-import pyvex
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
