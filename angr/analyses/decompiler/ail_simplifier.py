@@ -1316,18 +1316,7 @@ class AILSimplifier(Analysis):
                             continue
                     uses = rd.get_vvar_uses(def_.atom)
 
-                elif def_.atom.was_reg:
-                    uses = rd.get_vvar_uses(def_.atom)
-                    if (
-                        def_.atom.reg_offset in self.project.arch.artificial_registers_offsets
-                        and len(uses) == 1
-                        and next(iter(uses)) == def_.codeloc
-                    ):
-                        # TODO: Verify if we still need this hack after moving to SSA
-                        # cc_ndep = amd64g_calculate_condition(..., cc_ndep)
-                        uses = set()
-
-                elif def_.atom.was_parameter:
+                elif def_.atom.was_reg or def_.atom.was_parameter:
                     uses = rd.get_vvar_uses(def_.atom)
 
                 else:
@@ -1468,7 +1457,7 @@ class AILSimplifier(Analysis):
     def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel) -> set[int]:
         blocks_dict = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
-        # find dirty vvars
+        # find dirty vvars and vexccall vvars
         dirty_vvar_ids = set()
         for bb in self.func_graph:
             for stmt in bb.statements:
@@ -1476,7 +1465,7 @@ class AILSimplifier(Analysis):
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and stmt.dst.was_reg
-                    and isinstance(stmt.src, DirtyExpression)
+                    and isinstance(stmt.src, (DirtyExpression, VEXCCallExpression))
                 ):
                     dirty_vvar_ids.add(stmt.dst.varid)
 
@@ -1552,8 +1541,8 @@ class AILSimplifier(Analysis):
             v = False
 
         def _handle_expr(expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> Expression | None:
-            if isinstance(expr, DirtyExpression) and isinstance(expr.dirty_expr, VEXCCallExpression):
-                rewriter = rewriter_cls(expr.dirty_expr, self.project.arch)
+            if isinstance(expr, VEXCCallExpression):
+                rewriter = rewriter_cls(expr, self.project.arch)
                 if rewriter.result is not None:
                     _any_update.v = True
                     return rewriter.result

@@ -1793,6 +1793,20 @@ class Clinic(Analysis):
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
 
+        elif isinstance(expr, ailment.Expr.VEXCCallExpression):
+            for operand in expr.operands:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, operand)
+
+        elif isinstance(expr, ailment.Expr.DirtyExpression):
+            for operand in expr.operands:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, operand)
+            if expr.result_expr:
+                self._link_variables_on_expr(
+                    variable_manager, global_variables, block, stmt_idx, stmt, expr.result_expr
+                )
+            if expr.guard:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.guard)
+
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:
             blocks_by_addr_and_size = self._blocks_by_addr_and_size

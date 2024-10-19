@@ -223,6 +223,20 @@ class SimEngineVRAIL(
             for ret_expr in stmt.ret_exprs:
                 self._expr(ret_expr)
 
+    def _ail_handle_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> RichR:
+        for op in expr.operands:
+            self._expr(op)
+        if expr.guard:
+            self._expr(expr.guard)
+        if expr.result_expr:
+            self._expr(expr.result_expr)
+        return RichR(self.state.top(expr.bits))
+
+    def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> RichR:
+        for op in expr.operands:
+            self._expr(op)
+        return RichR(self.state.top(expr.bits))
+
     # Expression handlers
 
     def _expr(self, expr: ailment.Expr.Expression):

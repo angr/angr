@@ -771,7 +771,7 @@ class ConditionProcessor:
 
         if isinstance(
             condition,
-            (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
+            (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
         ):
             return _dummy_bvs(condition, self._condition_mapping)
         if isinstance(condition, ailment.Stmt.Call):

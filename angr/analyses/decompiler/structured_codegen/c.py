@@ -2303,6 +2303,38 @@ class CMultiStatementExpression(CExpression):
         yield ")", paren
 
 
+class CVEXCCallExpression(CExpression):
+    """
+    ccall_name(arg0, arg1, ...)
+    """
+
+    __slots__ = (
+        "callee",
+        "operands",
+        "tags",
+    )
+
+    def __init__(self, callee: str, operands: list[CExpression], tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.callee = callee
+        self.operands = operands
+        self.tags = tags
+
+    @property
+    def type(self):
+        return SimTypeInt().with_arch(self.codegen.project.arch)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        paren = CClosingObject("(")
+        yield f"{self.callee}", self
+        yield "(", paren
+        for idx, operand in enumerate(self.operands):
+            if idx != 0:
+                yield ", ", None
+            yield from operand.c_repr_chunks()
+        yield ")", paren
+
+
 class CDirtyExpression(CExpression):
     """
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
@@ -2424,6 +2456,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.BinaryOp: self._handle_Expr_BinaryOp,
             Expr.Convert: self._handle_Expr_Convert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
+            Expr.VEXCCallExpression: self._handle_Expr_VEXCCallExpression,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
@@ -3518,6 +3551,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_VEXCCallExpression(self, expr: Expr.VEXCCallExpression, **kwargs):
+        operands = [self._handle(arg) for arg in expr.operands]
+        return CVEXCCallExpression(expr.callee, operands, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Dirty(self, expr, **kwargs):
         return CDirtyExpression(expr, codegen=self)

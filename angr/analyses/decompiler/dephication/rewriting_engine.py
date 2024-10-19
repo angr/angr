@@ -14,6 +14,8 @@ from ailment.expression import (
     Convert,
     StackBaseOffset,
     ITE,
+    VEXCCallExpression,
+    DirtyExpression,
 )
 
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
@@ -239,6 +241,65 @@ class SimEngineDephiRewriting(
                 expr.cond if new_cond is None else new_cond,
                 expr.iftrue if new_iftrue is None else new_iftrue,
                 expr.iffalse if new_iffalse is None else new_iffalse,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
+        new_operands = []
+        updated = False
+        for o in expr.operands:
+            new_o = self._expr(o)
+            if new_o is not None:
+                updated = True
+                new_operands.append(new_o)
+            else:
+                new_operands.append(o)
+
+        if updated:
+            return VEXCCallExpression(
+                expr.idx,
+                expr.callee,
+                new_operands,
+                bits=expr.bits,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_DirtyExpression(self, expr: DirtyExpression) -> DirtyExpression | None:
+        new_operands = []
+        updated = False
+        for o in expr.operands:
+            new_o = self._expr(o)
+            if new_o is not None:
+                updated = True
+                new_operands.append(new_o)
+            else:
+                new_operands.append(o)
+
+        new_result_expr = None
+        if expr.result_expr is not None:
+            new_result_expr = self._expr(expr.result_expr)
+            if new_result_expr is not None:
+                updated = True
+
+        new_guard = None
+        if expr.guard is not None:
+            new_guard = self._expr(expr.guard)
+            if new_guard is not None:
+                updated = True
+
+        if updated:
+            return DirtyExpression(
+                expr.idx,
+                expr.callee,
+                new_operands,
+                guard=new_guard,
+                result_expr=new_result_expr,
+                mfx=expr.mfx,
+                maddr=expr.maddr,
+                msize=expr.msize,
+                bits=expr.bits,
                 **expr.tags,
             )
         return None

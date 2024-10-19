@@ -105,7 +105,11 @@ class NarrowingInfoExtractor(AILBlockWalkerBase):
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
     ):
-        return self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
+        r = False
+        if expr.operands:
+            for i, op in enumerate(expr.operands):
+                r |= self._handle_expr(i, op, stmt_idx, stmt, block)
+        return r
 
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None

@@ -20,7 +20,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
     __slots__ = ()
 
     def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        if ccall.cee_name == "amd64g_calculate_condition":
+        if ccall.callee == "amd64g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
             dep_1 = ccall.operands[2]
@@ -288,6 +288,28 @@ class AMD64CCallRewriter(CCallRewriterBase):
 
                         r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, dep_2), True, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        # dep_1 is the result, dep_2 is always zero
+                        # dep_1 <s 0
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_LOGICB"],
+                            AMD64_OpTypes["G_CC_OP_LOGICW"],
+                            AMD64_OpTypes["G_CC_OP_LOGICL"],
+                            ccall.tags,
+                        )
+                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, zero), True, **ccall.tags)
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+
                 elif cond_v == AMD64_CondTypes["CondNBE"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -390,7 +412,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
                     return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
-        elif ccall.cee_name == "amd64g_calculate_rflags_c":
+        elif ccall.callee == "amd64g_calculate_rflags_c":
             # calculate the carry flag
             op = ccall.operands[0]
             dep_1 = ccall.operands[1]
