@@ -957,6 +957,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _ail_handle_Return(self, stmt):
         pass
 
+    def _ail_handle_DirtyStatement(self, stmt):
+        self._expr(stmt.dirty)
+
     #
     # Expression handlers
     #
@@ -1007,6 +1010,15 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             b = struct.pack("<f", arg)
             return struct.unpack("<I", b)[0]
 
+        return expr
+
+    def _ail_handle_DirtyExpression(self, expr: ailment.Expr.DirtyExpression):
+        for operand in expr.operands:
+            self._expr(operand)
+        if expr.guard is not None:
+            self._expr(expr.guard)
+        if expr.maddr is not None:
+            self._expr(expr.maddr)
         return expr
 
     def _ail_handle_UnaryOp(self, expr):

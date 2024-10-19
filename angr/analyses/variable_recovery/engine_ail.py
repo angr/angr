@@ -228,8 +228,8 @@ class SimEngineVRAIL(
             self._expr(op)
         if expr.guard:
             self._expr(expr.guard)
-        if expr.result_expr:
-            self._expr(expr.result_expr)
+        if expr.maddr:
+            self._expr(expr.maddr)
         return RichR(self.state.top(expr.bits))
 
     def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> RichR:
