@@ -160,6 +160,8 @@ _ail2claripy_op_mapping = {
     "GetMSBs": lambda expr, _, m: _dummy_bvs(expr, m),
     "InterleaveLOV": lambda expr, _, m: _dummy_bvs(expr, m),
     "InterleaveHIV": lambda expr, _, m: _dummy_bvs(expr, m),
+    # catch-all
+    "_DUMMY_": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #
@@ -828,9 +830,14 @@ class ConditionProcessor:
             # fall back to op
             lambda_expr = _ail2claripy_op_mapping.get(condition.op, None)
         if lambda_expr is None:
-            raise NotImplementedError(
-                f"Unsupported AIL expression operation {condition.op} or {condition.verbose_op}. Consider implementing."
+            # fall back to the catch-all option
+            l.debug(
+                "Unsupported AIL expression operation %s (or verbose: %s). Fall back to the default catch-all dummy "
+                "option. Consider implementing.",
+                condition.op,
+                condition.verbose_op,
             )
+            lambda_expr = _ail2claripy_op_mapping["_DUMMY_"]
         r = lambda_expr(condition, self.claripy_ast_from_ail_condition, self._condition_mapping)
 
         if isinstance(r, claripy.ast.Bool) and nobool:
