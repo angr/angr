@@ -19,6 +19,7 @@ from ailment.expression import (
     VEXCCallExpression,
     ITE,
     Tmp,
+    DirtyExpression,
 )
 
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -351,13 +352,49 @@ class SimEngineSSARewriting(
                 new_operands.append(operand)
 
         if updated:
-            return VEXCCallExpression(expr.idx, expr.cee_name, new_operands, bits=expr.bits, **expr.tags)
+            return VEXCCallExpression(expr.idx, expr.callee, new_operands, bits=expr.bits, **expr.tags)
+        return None
+
+    def _handle_DirtyExpression(self, expr: DirtyExpression) -> DirtyExpression | None:
+        updated = False
+        new_operands = []
+        for operand in expr.operands:
+            new_operand = self._expr(operand)
+            if new_operand is not None:
+                updated = True
+                new_operands.append(new_operand)
+            else:
+                new_operands.append(operand)
+
+        new_result_expr = None
+        if expr.result_expr is not None:
+            new_result_expr = self._expr(expr.result_expr)
+            if new_result_expr is not None:
+                updated = True
+
+        new_guard = None
+        if expr.guard is not None:
+            new_guard = self._expr(expr.guard)
+            if new_guard is not None:
+                updated = True
+
+        if updated:
+            return DirtyExpression(
+                expr.idx,
+                expr.callee,
+                new_operands,
+                guard=new_guard,
+                result_expr=new_result_expr,
+                mfx=expr.mfx,
+                maddr=expr.maddr,
+                msize=expr.msize,
+                bits=expr.bits,
+                **expr.tags,
+            )
         return None
 
     def _handle_Dummy(self, expr) -> None:
         return None
-
-    _handle_DirtyExpression = _handle_Dummy
 
     #
     # Expression replacement

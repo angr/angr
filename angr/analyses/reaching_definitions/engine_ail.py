@@ -1125,12 +1125,18 @@ class SimEngineRDAIL(
         stack_addr = self.state.stack_address(expr.offset)
         return MultiValues(stack_addr)
 
+    def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> MultiValues:
+        for operand in expr.operands:
+            self._expr(operand)
+
+        top = self.state.top(expr.bits)
+        return MultiValues(top)
+
     def _ail_handle_DirtyExpression(
         self, expr: ailment.Expr.DirtyExpression
     ) -> MultiValues:  # pylint:disable=no-self-use
-        if isinstance(expr.dirty_expr, ailment.Expr.VEXCCallExpression):
-            for operand in expr.dirty_expr.operands:
-                self._expr(operand)
+        for operand in expr.operands:
+            self._expr(operand)
 
         top = self.state.top(expr.bits)
         return MultiValues(top)
