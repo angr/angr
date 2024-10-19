@@ -1316,10 +1316,7 @@ class AILSimplifier(Analysis):
                             continue
                     uses = rd.get_vvar_uses(def_.atom)
 
-                elif def_.atom.was_reg:
-                    uses = rd.get_vvar_uses(def_.atom)
-
-                elif def_.atom.was_parameter:
+                elif def_.atom.was_reg or def_.atom.was_parameter:
                     uses = rd.get_vvar_uses(def_.atom)
 
                 else:
