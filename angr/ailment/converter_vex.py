@@ -59,9 +59,12 @@ class VEXExprConverter(Converter):
                 )
 
         log.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
-        return DirtyExpression(
-            manager.next_atom(), f"unsupported_{str(type(expr))}", [], bits=expr.result_size(manager.tyenv)
-        )
+        try:
+            bits = expr.result_size(manager.tyenv)
+        except ValueError:
+            # e.g., "ValueError: Type Ity_INVALID does not have size"
+            bits = 0
+        return DirtyExpression(manager.next_atom(), f"unsupported_{str(type(expr))}", [], bits=bits)
 
     @staticmethod
     def convert_list(exprs, manager):
@@ -424,7 +427,8 @@ class VEXStmtConverter(Converter):
         try:
             func = STATEMENT_MAPPINGS[type(stmt)]
         except KeyError:
-            return DirtyStatement(idx, stmt, ins_addr=manager.ins_addr)
+            dirty = DirtyExpression(manager.next_atom(), str(stmt), [], bits=0)
+            return DirtyStatement(idx, dirty, ins_addr=manager.ins_addr)
 
         return func(idx, stmt, manager)
 
@@ -650,19 +654,31 @@ class VEXStmtConverter(Converter):
     def Dirty(idx, stmt: pyvex.IRStmt.Dirty, manager):
         # we translate it into tmp = DirtyExpression() if possible
 
+        operands = [VEXExprConverter.convert(op, manager) for op in stmt.args]
+        guard = VEXExprConverter.convert(stmt.guard, manager) if stmt.guard is not None else None
+        bits = manager.tyenv.sizeof(stmt.tmp) if stmt.tmp != 0xFFFFFFFF else 0
+        maddr = VEXExprConverter.convert(stmt.mAddr, manager) if stmt.mAddr is not None else None
+        dirty_expr = DirtyExpression(
+            manager.next_atom(),
+            stmt.cee.name,
+            operands,
+            guard=guard,
+            mfx=stmt.mFx,
+            maddr=maddr,
+            msize=stmt.mSize,
+            bits=bits,
+        )
+
         if stmt.tmp == 0xFFFFFFFF:
             return DirtyStatement(
                 idx,
-                stmt,
+                dirty_expr,
                 ins_addr=manager.ins_addr,
                 vex_block_addr=manager.block_addr,
                 vex_stmt_idx=manager.vex_stmt_idx,
             )
 
-        bits = manager.tyenv.sizeof(stmt.tmp)
         tmp = VEXExprConverter.tmp(stmt.tmp, bits, manager)
-        dirty_expr = DirtyExpression(manager.next_atom(), stmt, bits=bits)
-
         return Assignment(
             idx,
             tmp,
@@ -762,7 +778,8 @@ class VEXIRSBConverter(Converter):
             if irsb.jumpkind == "Ijk_Call":
                 target = VEXExprConverter.convert(irsb.next, manager)
             elif irsb.jumpkind.startswith("Ijk_Sys"):
-                target = DirtyExpression(manager.next_atom(), "syscall", manager.arch.bits)
+                # FIXME: This is a hack to make syscall work. We should have a better way to handle syscalls.
+                target = DirtyExpression(manager.next_atom(), "syscall", [], bits=manager.arch.bits)
             else:
                 raise NotImplementedError("Unsupported jumpkind")
 

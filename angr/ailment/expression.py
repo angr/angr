@@ -1311,7 +1311,6 @@ class DirtyExpression(Expression):
         "callee",
         "guard",
         "operands",
-        "result_expr",
         "mfx",
         "maddr",
         "msize",
@@ -1325,10 +1324,9 @@ class DirtyExpression(Expression):
         operands: list[Expression],
         *,
         guard: Expression | None = None,
-        result_expr: Expression | None = None,
         mfx: str | None = None,
         maddr: Expression | None = None,
-        msize: Expression | None = None,
+        msize: int | None = None,
         # TODO: fxstate (guest state effects) is not modeled yet
         bits=None,
         **kwargs,
@@ -1338,11 +1336,18 @@ class DirtyExpression(Expression):
         self.callee = callee
         self.guard = guard
         self.operands = operands
-        self.result_expr = result_expr
         self.mfx = mfx
         self.maddr = maddr
         self.msize = msize
         self.bits = bits
+
+    @property
+    def op(self) -> str:
+        return self.callee
+
+    @property
+    def verbose_op(self) -> str:
+        return self.op
 
     def likes(self, other):
         return (
@@ -1351,10 +1356,9 @@ class DirtyExpression(Expression):
             and is_none_or_likeable(other.guard, self.guard)
             and len(self.operands) == len(other.operands)
             and all(op1.likes(op2) for op1, op2 in zip(self.operands, other.operands))
-            and is_none_or_likeable(other.result_expr, self.result_expr)
             and other.mfx == self.mfx
             and is_none_or_likeable(other.maddr, self.maddr)
-            and is_none_or_likeable(other.msize, self.msize)
+            and other.msize == self.msize
             and self.bits == other.bits
         )
 
@@ -1365,10 +1369,9 @@ class DirtyExpression(Expression):
             and is_none_or_matchable(other.guard, self.guard)
             and len(self.operands) == len(other.operands)
             and all(op1.matches(op2) for op1, op2 in zip(self.operands, other.operands))
-            and is_none_or_matchable(other.result_expr, self.result_expr)
             and other.mfx == self.mfx
             and is_none_or_matchable(other.maddr, self.maddr)
-            and is_none_or_matchable(other.msize, self.msize)
+            and other.msize == self.msize
             and self.bits == other.bits
         )
 
@@ -1381,7 +1384,6 @@ class DirtyExpression(Expression):
                 self.callee,
                 self.guard,
                 tuple(self.operands),
-                self.result_expr,
                 self.mfx,
                 self.maddr,
                 self.msize,
@@ -1401,7 +1403,6 @@ class DirtyExpression(Expression):
             self.callee,
             self.operands,
             guard=self.guard,
-            result_expr=self.result_expr,
             mfx=self.mfx,
             maddr=self.maddr,
             msize=self.msize,
@@ -1430,7 +1431,6 @@ class DirtyExpression(Expression):
                 self.callee,
                 new_operands,
                 guard=self.guard,
-                result_expr=self.result_expr,
                 mfx=self.mfx,
                 maddr=self.maddr,
                 msize=self.msize,

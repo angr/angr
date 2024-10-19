@@ -8,7 +8,7 @@ except ImportError:
 
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
 from .tagged_object import TaggedObject
-from .expression import Expression
+from .expression import Expression, DirtyExpression
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
@@ -690,23 +690,31 @@ class DirtyStatement(Statement):
     Wrapper around the original statement, which is usually not convertible (temporarily).
     """
 
-    __slots__ = ("dirty_stmt",)
+    __slots__ = ("dirty",)
 
-    def __init__(self, idx, dirty_stmt, **kwargs):
+    def __init__(self, idx, dirty: DirtyExpression, **kwargs):
         super().__init__(idx, **kwargs)
-        self.dirty_stmt = dirty_stmt
+        self.dirty = dirty
 
     def _hash_core(self):
-        return stable_hash((DirtyStatement, self.dirty_stmt))
+        return stable_hash((DirtyStatement, self.dirty))
 
     def __repr__(self):
-        return "DirtyStatement (%s)" % (type(self.dirty_stmt))
+        return repr(self.dirty)
 
     def __str__(self):
-        return "[D] %s" % (str(self.dirty_stmt))
+        return str(self.dirty)
+
+    def replace(self, old_expr, new_expr):
+        if self.dirty == old_expr:
+            return True, DirtyStatement(self.idx, new_expr, **self.tags)
+        r, new_dirty = self.dirty.replace(old_expr, new_expr)
+        if r:
+            return True, DirtyStatement(self.idx, new_dirty, **self.tags)
+        return False, self
 
     def copy(self) -> "DirtyStatement":
-        return DirtyStatement(self.idx, self.dirty_stmt, **self.tags)
+        return DirtyStatement(self.idx, self.dirty, **self.tags)
 
 
 class Label(Statement):
