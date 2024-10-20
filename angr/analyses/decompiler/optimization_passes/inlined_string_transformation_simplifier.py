@@ -13,6 +13,7 @@ from ailment.expression import (
     BinaryOp,
     VirtualVariable,
     Phi,
+    UnaryOp,
     VirtualVariableCategory,
 )
 from ailment.statement import ConditionalJump, Jump, Assignment
@@ -236,6 +237,12 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         for src, vvar in expr.src_and_vvars:
             if src[0] == self.last_pc and vvar is not None:
                 return self.state.vvar_load(vvar)
+        return None
+
+    def _handle_Neg(self, expr: UnaryOp):
+        v = self._expr(expr.operand)
+        if isinstance(v, claripy.ast.Bits):
+            return ~v
         return None
 
     def _handle_Convert(self, expr: Convert):
