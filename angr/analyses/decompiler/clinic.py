@@ -1265,6 +1265,7 @@ class Clinic(Analysis):
                 ailment.Expr.VirtualVariableCategory.PARAMETER,
                 oident=arg.reg,
                 ins_addr=self.function.addr,
+                vex_block_addr=self.function.addr,
             )
             self.vvar_id_start += 1
             arg_vvars[arg_vvar.varid] = arg_vvar, arg
@@ -1278,6 +1279,7 @@ class Clinic(Analysis):
                     False,
                     arg_vvar,
                     ins_addr=self.function.addr,
+                    vex_block_addr=self.function.addr,
                 )
 
             fullreg_dst = ailment.Expr.Register(
@@ -1286,12 +1288,14 @@ class Clinic(Analysis):
                 basereg_offset,
                 basereg_size * self.project.arch.byte_width,
                 ins_addr=self.function.addr,
+                vex_block_addr=self.function.addr,
             )
             stmt = ailment.Stmt.Assignment(
                 self._ail_manager.next_atom(),
                 fullreg_dst,
                 arg_vvar,
                 ins_addr=self.function.addr,
+                vex_block_addr=self.function.addr,
             )
             new_stmts.append(stmt)
 
