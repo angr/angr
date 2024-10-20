@@ -11,9 +11,15 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert, **kwargs):
-        if isinstance(expr.operand, Convert):
+        if (
+            expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and isinstance(expr.operand, Convert)
+            and expr.operand.from_type == Convert.TYPE_INT
+            and expr.operand.to_type == Convert.TYPE_INT
+        ):
             inner = expr.operand
-            if inner.from_bits == expr.to_bits:
+            if inner.from_bits == expr.to_bits and inner.from_type == expr.to_type:
                 if inner.from_bits < inner.to_bits:
                     # extension -> truncation
                     return inner.operand
