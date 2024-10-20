@@ -163,6 +163,22 @@ class RegionIdentifier(Analysis):
                 raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
         raise AngrRuntimeError("Cannot find the start node from the graph!")
 
+    def _get_entry_node(self, graph: networkx.DiGraph):
+        if self.entry_node_addr is None:
+            return None
+        return next(
+            (
+                n
+                for n in graph.nodes()
+                if (
+                    (n.addr, n.idx) == self.entry_node_addr
+                    if isinstance(n, Block)
+                    else n.addr == self.entry_node_addr[0]
+                )
+            ),
+            None,
+        )
+
     def _test_reducibility(self):
         # make a copy of the graph
         graph = networkx.DiGraph(self._graph)
@@ -188,8 +204,19 @@ class RegionIdentifier(Analysis):
         return len(graph.nodes) == 1
 
     def _make_supergraph(self, graph: networkx.DiGraph):
+
+        entry_node = None
+        if self.entry_node_addr is not None:
+            entry_node = next(iter(nn for nn in graph if nn.addr == self.entry_node_addr[0]), None)
+
         while True:
             for src, dst, data in graph.edges(data=True):
+                if entry_node is not None and dst is entry_node:
+                    # the entry node must be kept instead of merged with its predecessor (which can happen in real
+                    # binaries! e.g., 444a401b900eb825f216e95111dcb6ef94b01a81fc7b88a48599867db8c50365, function
+                    # 0x1802BEA28, block 0x1802BEA05 and 0x1802BEA28)
+                    continue
+
                 type_ = data.get("type", None)
                 if type_ == "fake_return":
                     if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
@@ -452,6 +479,8 @@ class RegionIdentifier(Analysis):
     #
 
     def _make_cyclic_region(self, head, graph: networkx.DiGraph):
+        original_entry = self._get_entry_node(graph)
+
         l.debug("Found cyclic region at %#08x", head.addr)
         initial_loop_nodes = self._find_initial_loop_nodes(graph, head)
         l.debug("Initial loop nodes %s", self._dbg_block_list(initial_loop_nodes))
@@ -504,6 +533,13 @@ class RegionIdentifier(Analysis):
         if len(region.successors) > 1 and self._force_loop_single_exit:
             # multi-successor region. refinement is required
             self._refine_loop_successors(region, graph)
+
+        # if the head node is in the graph and it's not the head of the graph, we will need to update the head node
+        # address.
+        if original_entry is not None and original_entry in region.graph and region.head is not original_entry:
+            self.entry_node_addr = (head.addr, None)
+            # FIXME: the identified region will probably be incorrect. we may need to add a jump block that jumps to
+            #  original_entry.
 
         return region
 
