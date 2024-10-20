@@ -131,6 +131,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
         self.vvar_id_start = None
+        self._optimization_scratch: dict[str, Any] = {}
 
         if decompile:
             self._decompile()
@@ -225,6 +226,7 @@ class Decompiler(Analysis):
                 cache=cache,
                 progress_callback=progress_callback,
                 inline_functions=self._inline_functions,
+                optimization_scratch=self._optimization_scratch,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -393,6 +395,7 @@ class Decompiler(Analysis):
                 variable_kb=self._variable_kb,
                 reaching_definitions=reaching_definitions,
                 entry_node_addr=self.clinic.entry_node_addr,
+                scratch=self._optimization_scratch,
                 **kwargs,
             )
 
@@ -452,6 +455,7 @@ class Decompiler(Analysis):
                 reaching_definitions=reaching_definitions,
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.clinic.entry_node_addr,
+                scratch=self._optimization_scratch,
                 **kwargs,
             )
 
@@ -480,7 +484,7 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
-            a = pass_(self.func, seq=seq_node, **kwargs)
+            a = pass_(self.func, seq=seq_node, scratch=self._optimization_scratch, **kwargs)
             if a.out_seq:
                 seq_node = a.out_seq
 
