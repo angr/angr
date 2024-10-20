@@ -210,9 +210,7 @@ class ITERegionConverter(OptimizationPass):
             conditional_jump.condition,
             false_stmt_src,
             true_stmt_src,
-            ins_addr=addr_obj.ins_addr,
-            vex_block_addr=addr_obj.vex_block_addr,
-            vex_stmt_idx=addr_obj.vex_stmt_idx,
+            **addr_obj.tags,
         )
         dst = VirtualVariable(
             true_stmt_dst.idx,
