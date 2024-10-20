@@ -38,13 +38,13 @@ class SimEngineSSATraversal(
         self.stackvars = stackvars
         self.tmps = tmps
 
-        self.def_to_loc = def_to_loc if def_to_loc is not None else OrderedDict()
+        self.def_to_loc = def_to_loc if def_to_loc is not None else []
         self.loc_to_defs = loc_to_defs if loc_to_defs is not None else OrderedDict()
 
     def _handle_Assignment(self, stmt: Assignment):
         if isinstance(stmt.dst, Register):
             codeloc = self._codeloc()
-            self.def_to_loc[stmt.dst] = codeloc
+            self.def_to_loc.append((stmt.dst, codeloc))
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(stmt.dst)
@@ -60,7 +60,7 @@ class SimEngineSSATraversal(
 
         if self.stackvars and isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
             codeloc = self._codeloc()
-            self.def_to_loc[stmt] = codeloc
+            self.def_to_loc.append((stmt, codeloc))
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(stmt)
@@ -77,7 +77,7 @@ class SimEngineSSATraversal(
     def _handle_Call(self, stmt: Call):
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             codeloc = self._codeloc()
-            self.def_to_loc[stmt.ret_expr] = codeloc
+            self.def_to_loc.append((stmt.ret_expr, codeloc))
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(stmt.ret_expr)
@@ -94,7 +94,7 @@ class SimEngineSSATraversal(
 
         if base_offset not in self.state.live_registers:
             codeloc = self._codeloc()
-            self.def_to_loc[expr] = codeloc
+            self.def_to_loc.append((expr, codeloc))
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(expr)
@@ -104,7 +104,7 @@ class SimEngineSSATraversal(
     def _handle_Tmp(self, expr: Tmp):
         if self.tmps:
             codeloc = self._codeloc()
-            self.def_to_loc[expr] = codeloc
+            self.def_to_loc.append((expr, codeloc))
             if codeloc not in self.loc_to_defs:
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(expr)

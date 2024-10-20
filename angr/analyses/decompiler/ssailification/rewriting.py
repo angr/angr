@@ -9,7 +9,7 @@ import networkx
 import ailment
 from ailment import Block
 from ailment.expression import Expression, Phi, VirtualVariable, VirtualVariableCategory
-from ailment.statement import Assignment, Label
+from ailment.statement import Statement, Assignment, Label
 
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis
@@ -74,7 +74,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         self._analyze()
 
-        self.def_to_vvid: dict[Expression, int] = self._engine_ail.def_to_vvid
+        self.def_to_vvid: dict[tuple[int, int | None, int, Expression | Statement], int] = self._engine_ail.def_to_vvid
         self.out_graph = self._make_new_graph(ail_graph)
 
     @property
