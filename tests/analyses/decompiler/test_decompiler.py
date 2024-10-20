@@ -3873,6 +3873,20 @@ class TestDecompiler(unittest.TestCase):
         assert "𝜙" not in d.codegen.text
         assert "Phi" not in d.codegen.text
 
+    def test_decompiling_phoenix_natural_loop_region_head_in_body(self, decompiler_options=None):
+        # region head should not be the second node (or onwards) in the body (the sequence node) of a loop
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "059ef54d0a97345369d236aafb051917c50680020a1bc532236072f4d341d9e3"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True, data_references=True)
+        f = proj.kb.functions[0x442300]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        # we are good if decompiling this function does not raise any exception
+
 
 if __name__ == "__main__":
     unittest.main()
