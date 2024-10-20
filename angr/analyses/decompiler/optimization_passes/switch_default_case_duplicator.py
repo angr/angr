@@ -75,8 +75,12 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
         default_case_node_addrs = cache["default_case_node_addrs"]
 
         out_graph = None
+        duplicated_default_addrs: set[int] = set()
 
         for switch_head_addr, jump_node_addr, default_addr in default_case_node_addrs:
+            if default_addr in duplicated_default_addrs:
+                continue
+
             default_case_node = self._func.get_node(default_addr)
             unexpected_pred_addrs = {
                 pred.addr
@@ -91,6 +95,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                 jump_node_descedents = set()
                 for jump_node in jump_nodes:
                     jump_node_descedents |= networkx.descendants(self._graph, jump_node)
+
+                duplicated_default_addrs.add(default_addr)
 
                 # duplicate default_case_node for each unexpected predecessor
                 for unexpected_pred_addr in unexpected_pred_addrs:
