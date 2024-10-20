@@ -141,9 +141,12 @@ class SimEngineDephiRewriting(
                 args=stmt.args,
                 ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
+                bits=stmt.bits,
                 **stmt.tags,
             )
         return None
+
+    _handle_CallExpr = _handle_Call
 
     def _handle_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
         dirty = self._expr(stmt.dirty)
