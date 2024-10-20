@@ -566,6 +566,9 @@ class PhoenixStructurer(StructurerBase):
 
             if next_node is node:
                 break
+            if next_node is head:
+                # we don't want a loop with region head not as the first node of the body!
+                return False, None
             if next_node is not node and next_node in seen_nodes:
                 return False, None
 
