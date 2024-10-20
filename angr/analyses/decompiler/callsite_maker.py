@@ -143,7 +143,7 @@ class CallSiteMaker(Analysis):
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
-                    value_and_def = self._resolve_register_argument(call_stmt, arg_loc)
+                    value_and_def = self._resolve_register_argument(arg_loc)
                     if value_and_def is not None:
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
@@ -283,14 +283,15 @@ class CallSiteMaker(Analysis):
         l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
         return None
 
-    def _resolve_register_argument(self, call_stmt, arg_loc) -> tuple[int | None, Expr.VirtualVariable] | None:
+    def _resolve_register_argument(self, arg_loc) -> tuple[int | None, Expr.VirtualVariable] | None:
         offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:
             # Find its definition
-            ins_addr = call_stmt.tags["ins_addr"]
             view = SRDAView(self._reaching_definitions.model)
-            vvar = view.get_reg_vvar_by_insn(offset, ins_addr, OP_BEFORE, block_idx=self.block.idx)
+            vvar = view.get_reg_vvar_by_stmt(
+                offset, self.block.addr, self.block.idx, len(self.block.statements) - 1, OP_BEFORE
+            )
 
             if vvar is not None:
                 vvar_value = view.get_vvar_value(vvar)
@@ -318,8 +319,8 @@ class CallSiteMaker(Analysis):
             if self._reaching_definitions is not None:
                 # find its definition
                 view = SRDAView(self._reaching_definitions.model)
-                vvar = view.get_stack_vvar_by_insn(
-                    sp_offset, size, call_stmt.ins_addr, OP_BEFORE, block_idx=self.block.idx
+                vvar = view.get_stack_vvar_by_stmt(
+                    sp_offset, size, self.block.addr, self.block.idx, len(self.block.statements) - 1, OP_BEFORE
                 )
                 if vvar is not None:
                     value = view.get_vvar_value(vvar)
@@ -416,7 +417,7 @@ class CallSiteMaker(Analysis):
 
             value = None
             if isinstance(arg_loc, SimRegArg):
-                value_and_def = self._resolve_register_argument(call_stmt, arg_loc)
+                value_and_def = self._resolve_register_argument(arg_loc)
                 if value_and_def is not None:
                     value = value_and_def[0]
 

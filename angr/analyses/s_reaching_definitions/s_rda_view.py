@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-from ailment.statement import Assignment, Call, Label
+from ailment.statement import Statement, Assignment, Call, Label
 from ailment.expression import VirtualVariable, Expression
 
 from angr.utils.ail import is_phi_assignment
@@ -17,6 +17,76 @@ from .s_rda_model import SRDAModel
 log = logging.getLogger(__name__)
 
 
+class RegVVarPredicate:
+    """
+    Implements a predicate that is used in get_reg_vvar_by_stmt_idx and get_reg_vvar_by_insn.
+    """
+
+    def __init__(self, reg_offset: int, vvars: set[VirtualVariable], arch):
+        self.reg_offset = reg_offset
+        self.vvars = vvars
+        self.arch = arch
+
+    def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
+        cc = stmt.calling_convention
+        if cc is None:
+            # get the default calling convention
+            cc = default_cc(self.arch.name)  # TODO: platform and language
+        if cc is not None:
+            reg_list = cc.CALLER_SAVED_REGS
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                reg_list.append(cc.RETURN_VAL.reg_name)
+            return {self.arch.registers[reg_name][0] for reg_name in reg_list}
+        log.warning("Cannot determine registers that are clobbered by call statement %r.", stmt)
+        return set()
+
+    def predicate(self, stmt: Statement) -> bool:
+        if (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_reg
+            and stmt.dst.reg_offset == self.reg_offset
+        ):
+            self.vvars.add(stmt.dst)
+            return True
+        if isinstance(stmt, Call):
+            if (
+                isinstance(stmt.ret_expr, VirtualVariable)
+                and stmt.ret_expr.was_reg
+                and stmt.ret_expr.reg_offset == self.reg_offset
+            ):
+                self.vvars.add(stmt.ret_expr)
+                return True
+            # is it clobbered maybe?
+            clobbered_regs = self._get_call_clobbered_regs(stmt)
+            if self.reg_offset in clobbered_regs:
+                return True
+        return False
+
+
+class StackVVarPredicate:
+    """
+    Implements a predicate that is used in get_stack_vvar_by_stmt_idx and get_stack_vvar_by_insn.
+    """
+
+    def __init__(self, stack_offset: int, size: int, vvars: set[VirtualVariable]):
+        self.stack_offset = stack_offset
+        self.size = size
+        self.vvars = vvars
+
+    def predicate(self, stmt: Statement) -> bool:
+        if (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and stmt.dst.stack_offset == self.stack_offset
+            and stmt.dst.size == self.size
+        ):
+            self.vvars.add(stmt.dst)
+            return True
+        return False
+
+
 class SRDAView:
     """
     A view of SRDA model that provides various functionalities for querying the model.
@@ -25,18 +95,62 @@ class SRDAView:
     def __init__(self, model: SRDAModel):
         self.model = model
 
-    def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
-        cc = stmt.calling_convention
-        if cc is None:
-            # get the default calling convention
-            cc = default_cc(self.model.arch.name)  # TODO: platform and language
-        if cc is not None:
-            reg_list = cc.CALLER_SAVED_REGS
-            if isinstance(cc.RETURN_VAL, SimRegArg):
-                reg_list.append(cc.RETURN_VAL.reg_name)
-            return {self.model.arch.registers[reg_name][0] for reg_name in reg_list}
-        log.warning("Cannot determine registers that are clobbered by call statement %r.", stmt)
-        return set()
+    def _get_vvar_by_stmt(
+        self, block_addr: int, block_idx: int | None, stmt_idx: int, op_type: ObservationPointType, predicate
+    ):
+        # find the starting block
+        for block in self.model.func_graph:
+            if block.addr == block_addr and block.idx == block_idx:
+                the_block = block
+                break
+        else:
+            return
+
+        traversed = set()
+        queue = [(the_block, stmt_idx if op_type == ObservationPointType.OP_BEFORE else stmt_idx + 1)]
+        while queue:
+            block, start_stmt_idx = queue.pop(0)
+            traversed.add(block)
+
+            stmts = block.statements[:start_stmt_idx] if start_stmt_idx is not None else block.statements
+
+            for stmt in reversed(stmts):
+                should_break = predicate(stmt)
+                if should_break:
+                    break
+            else:
+                # not found
+                for pred in self.model.func_graph.predecessors(block):
+                    if pred not in traversed:
+                        traversed.add(pred)
+                        queue.append((pred, None))
+
+    def get_reg_vvar_by_stmt(
+        self, reg_offset: int, block_addr: int, block_idx: int | None, stmt_idx: int, op_type: ObservationPointType
+    ) -> VirtualVariable | None:
+        reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
+        vvars = set()
+        predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
+        self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
+
+        assert len(vvars) <= 1
+        return next(iter(vvars), None)
+
+    def get_stack_vvar_by_stmt(  # pylint: disable=too-many-positional-arguments
+        self,
+        stack_offset: int,
+        size: int,
+        block_addr: int,
+        block_idx: int | None,
+        stmt_idx: int,
+        op_type: ObservationPointType,
+    ) -> VirtualVariable | None:
+        vvars = set()
+        predicater = StackVVarPredicate(stack_offset, size, vvars)
+        self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
+
+        assert len(vvars) <= 1
+        return next(iter(vvars), None)
 
     def _get_vvar_by_insn(self, addr: int, op_type: ObservationPointType, predicate, block_idx: int | None = None):
         # find the starting block
@@ -47,6 +161,7 @@ class SRDAView:
         else:
             return
 
+        # determine the starting stmt_idx
         starting_stmt_idx = len(the_block.statements) if op_type == ObservationPointType.OP_AFTER else 0
         for stmt_idx, stmt in enumerate(the_block.statements):
             # skip all labels and phi assignments
@@ -65,55 +180,16 @@ class SRDAView:
                 starting_stmt_idx = stmt_idx
                 break
 
-        traversed = set()
-        queue = [(the_block, starting_stmt_idx)]
-        while queue:
-            block, start_stmt_idx = queue.pop(0)
-            traversed.add(block)
-
-            stmts = block.statements[:start_stmt_idx] if start_stmt_idx is not None else block.statements
-
-            for stmt in reversed(stmts):
-                should_break = predicate(stmt)
-                if should_break:
-                    break
-            else:
-                # not found
-                for pred in self.model.func_graph.predecessors(block):
-                    if pred not in traversed:
-                        traversed.add(pred)
-                        queue.append((pred, None))
+        self._get_vvar_by_stmt(the_block.addr, the_block.idx, starting_stmt_idx, op_type, predicate)
 
     def get_reg_vvar_by_insn(
         self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = set()
+        predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
 
-        def _predicate(stmt) -> bool:
-            if (
-                isinstance(stmt, Assignment)
-                and isinstance(stmt.dst, VirtualVariable)
-                and stmt.dst.was_reg
-                and stmt.dst.reg_offset == reg_offset
-            ):
-                vvars.add(stmt.dst)
-                return True
-            if isinstance(stmt, Call):
-                if (
-                    isinstance(stmt.ret_expr, VirtualVariable)
-                    and stmt.ret_expr.was_reg
-                    and stmt.ret_expr.reg_offset == reg_offset
-                ):
-                    vvars.add(stmt.ret_expr)
-                    return True
-                # is it clobbered maybe?
-                clobbered_regs = self._get_call_clobbered_regs(stmt)
-                if reg_offset in clobbered_regs:
-                    return True
-            return False
-
-        self._get_vvar_by_insn(addr, op_type, _predicate, block_idx=block_idx)
+        self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
         return next(iter(vvars), None)
@@ -122,20 +198,8 @@ class SRDAView:
         self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         vvars = set()
-
-        def _predicate(stmt) -> bool:
-            if (
-                isinstance(stmt, Assignment)
-                and isinstance(stmt.dst, VirtualVariable)
-                and stmt.dst.was_stack
-                and stmt.dst.stack_offset == stack_offset
-                and stmt.dst.size == size
-            ):
-                vvars.add(stmt.dst)
-                return True
-            return False
-
-        self._get_vvar_by_insn(addr, op_type, _predicate, block_idx=block_idx)
+        predicater = StackVVarPredicate(stack_offset, size, vvars)
+        self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
         return next(iter(vvars), None)
