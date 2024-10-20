@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Any
-from itertools import count
 import copy
 import logging
 
@@ -78,22 +77,26 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
-        node_idx_start: int = 0,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
         ri: RegionIdentifier | None = None,
         vvar_id_start: int | None = None,
-        **kwargs,
+        scratch: dict[str, Any] | None = None,
     ):
-        self.node_idx = count(start=node_idx_start)
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
         self._supergraph = None
 
         # this should also be set by the optimization passes initer
+        self.scratch = scratch if scratch is not None else {}
         self._func = func
         self._ri: RegionIdentifier | None = ri
         self.vvar_id_start = vvar_id_start
+
+    def next_node_idx(self) -> int:
+        node_idx = self.scratch.get("returndup_node_idx", 0) + 1
+        self.scratch["returndup_node_idx"] = node_idx
+        return node_idx
 
     #
     # must implement these methods
@@ -208,7 +211,7 @@ class ReturnDuplicatorBase:
                 else:
                     node_copy = copy.deepcopy(node)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
-                node_copy.idx = next(self.node_idx)
+                node_copy.idx = self.next_node_idx()
                 self._fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 

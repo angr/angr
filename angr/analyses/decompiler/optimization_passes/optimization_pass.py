@@ -1,7 +1,7 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
 import logging
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Generator
 from enum import Enum
 
@@ -117,6 +117,7 @@ class OptimizationPass(BaseOptimizationPass):
         reaching_definitions=None,
         vvar_id_start=None,
         entry_node_addr=None,
+        scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
         super().__init__(func)
@@ -127,6 +128,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
+        self._scratch = scratch if scratch is not None else {}
         self._new_block_addrs = set()
         self.vvar_id_start = vvar_id_start
         self.entry_node_addr: tuple[int, int | None] = (

@@ -110,6 +110,7 @@ class Clinic(Analysis):
         inlined_counts: dict[int, int] | None = None,
         inlining_parents: set[int] | None = None,
         vvar_id_start: int = 0,
+        optimization_scratch: dict[str, Any] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -124,6 +125,7 @@ class Clinic(Analysis):
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, int] = {}  # data address to instruction address
+        self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
 
         self._func_graph: networkx.DiGraph | None = None
         self._ail_manager = None
@@ -1225,6 +1227,7 @@ class Clinic(Analysis):
                 variable_kb=variable_kb,
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.entry_node_addr,
+                scratch=self.optimization_scratch,
                 **kwargs,
             )
             if a.out_graph:
