@@ -197,6 +197,8 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_Call(self, stmt: Call) -> Call | None:
+        changed = False
+
         new_target = self._replace_use_expr(stmt.target)
         new_ret_expr = self._replace_def_expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._replace_def_expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
@@ -219,18 +221,35 @@ class SimEngineSSARewriting(
             self._clear_aliasing_regs(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size)
             self.state.registers[stmt.fp_ret_expr.reg_offset][stmt.fp_ret_expr.size] = new_fp_ret_expr
 
+        new_args = None
+        if stmt.args is not None:
+            new_args = []
+            for arg in stmt.args:
+                new_arg = self._expr(arg)
+                if new_arg is not None:
+                    changed = True
+                    new_args.append(new_arg)
+                else:
+                    new_args.append(arg)
+
         if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
+            changed = True
+
+        if changed:
             return Call(
                 stmt.idx,
                 stmt.target if new_target is None else new_target,
                 calling_convention=stmt.calling_convention,
                 prototype=stmt.prototype,
-                args=stmt.args,
+                args=new_args,
                 ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
+                bits=stmt.bits,
                 **stmt.tags,
             )
         return None
+
+    _handle_CallExpr = _handle_Call
 
     def _handle_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
         dirty = self._expr(stmt.dirty)

@@ -87,6 +87,8 @@ class SimEngineSSATraversal(
 
         super()._ail_handle_Call(stmt)
 
+    _handle_CallExpr = _handle_Call
+
     def _handle_Register(self, expr: Register):
         base_offset = get_reg_offset_base(expr.reg_offset, self.arch)
 
