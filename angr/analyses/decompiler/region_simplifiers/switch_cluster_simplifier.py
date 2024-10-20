@@ -529,13 +529,15 @@ def simplify_lowered_switches_core(
 
     if outermost_node is None:
         return False
+    if not isinstance(outermost_node, ConditionNode):
+        return False
     if isinstance(outermost_node.condition, UnaryOp) and outermost_node.condition.op == "Not":
         # attempt to flip any simple negated comparison for normalized operations
         outermost_node.condition = negate(outermost_node.condition.operand)
 
     caseno_to_node = {}
     default_node_candidates: list[tuple[BaseNode, BaseNode]] = []  # parent to default node candidate
-    stack: list[(ConditionNode, int, int)] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
+    stack: list[tuple[BaseNode, int, int]] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
     while stack:
         node, min_, max_ = stack.pop(0)
         if node not in node_to_condnode:
