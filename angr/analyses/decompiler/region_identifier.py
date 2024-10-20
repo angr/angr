@@ -188,8 +188,19 @@ class RegionIdentifier(Analysis):
         return len(graph.nodes) == 1
 
     def _make_supergraph(self, graph: networkx.DiGraph):
+
+        entry_node = None
+        if self.entry_node_addr is not None:
+            entry_node = next(iter(nn for nn in graph if nn.addr == self.entry_node_addr[0]), None)
+
         while True:
             for src, dst, data in graph.edges(data=True):
+                if entry_node is not None and dst is entry_node:
+                    # the entry node must be kept instead of merged with its predecessor (which can happen in real
+                    # binaries! e.g., 444a401b900eb825f216e95111dcb6ef94b01a81fc7b88a48599867db8c50365, function
+                    # 0x1802BEA28, block 0x1802BEA05 and 0x1802BEA28)
+                    continue
+
                 type_ = data.get("type", None)
                 if type_ == "fake_return":
                     if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
