@@ -414,6 +414,7 @@ class Dominators:
         container_nodes = {}
 
         traversed_nodes = set()
+        endnode_encountered = False
         while queue:
             node = queue.pop()
 
@@ -433,9 +434,11 @@ class Dominators:
                 # may end with a loop.
                 if self._reverse:
                     # Add an edge between the start node and this node
+                    endnode_encountered = True
                     new_graph.add_edge(start_node, container_node)
                 else:
                     # Add an edge between our this node and end node
+                    endnode_encountered = True
                     new_graph.add_edge(container_node, end_node)
 
             for s in successors:
@@ -450,6 +453,18 @@ class Dominators:
                     new_graph.add_edge(container_node, container_s)  # Reversed
                 if container_s not in traversed_nodes:
                     queue.append(s)
+
+        if not endnode_encountered:
+            # the graph is a circle with no end node. we run it with DFS to identify an end node
+            nn = next((nn for nn in networkx.dfs_postorder_nodes(graph) if nn in container_nodes), None)
+            if nn is not None:
+                if self._reverse:
+                    new_graph.add_edge(start_node, container_nodes[nn])
+                else:
+                    new_graph.add_edge(container_nodes[nn], end_node)
+            else:
+                # the graph must be empty - totally unexpected!
+                raise RuntimeError("Cannot find any end node candidates in the graph. Is the graph empty?")
 
         if self._reverse:
             # Add the end node
