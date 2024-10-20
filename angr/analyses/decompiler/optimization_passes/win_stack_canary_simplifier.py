@@ -100,6 +100,8 @@ class WinStackCanarySimplifier(OptimizationPass):
         for pred_addr in pred_addr_to_endpoint_addrs:
             # the predecessor should call _security_check_cookie
             endpoint_preds = list(self._get_blocks(pred_addr))
+            if not endpoint_preds:
+                continue
             if self._find_stmt_calling_security_check_cookie(endpoint_preds[0]) is None:
                 _l.debug("The predecessor does not call _security_check_cookie().")
                 continue
