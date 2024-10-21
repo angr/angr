@@ -31,3 +31,15 @@ register_simos("windows", SimWindows)
 register_simos("cgc", SimCGC)
 register_simos("javavm", SimJavaVM)
 register_simos("snimmuc_nxp", SimSnimmucNxp)
+
+
+__all__ = (
+    "SimOS",
+    "SimUserland",
+    "SimLinux",
+    "SimCGC",
+    "SimWindows",
+    "SimJavaVM",
+    "SimSnimmucNxp",
+    "os_mapping",
+)

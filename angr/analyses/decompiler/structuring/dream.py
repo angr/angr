@@ -10,18 +10,18 @@ import claripy
 import ailment
 
 from angr.utils.graph import GraphUtils
-from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from ..graph_region import GraphRegion
-from ..empty_node_remover import EmptyNodeRemover
-from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
-from ..condition_processor import ConditionProcessor
-from ..region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
-from ..utils import (
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
+from angr.analyses.decompiler.utils import (
     extract_jump_targets,
     get_ast_subexprs,
     switch_extract_cmp_bounds,
     remove_last_statement,
-    first_nonlabel_node,
+    first_nonlabel_nonphi_node,
 )
 from .structurer_nodes import (
     SequenceNode,
@@ -238,7 +238,7 @@ class DreamStructurer(StructurerBase):
     def _refine_loop_while(loop_node):
         if loop_node.sort == "while" and loop_node.condition is None and loop_node.sequence_node.nodes:
             # it's an endless loop
-            first_node = first_nonlabel_node(loop_node.sequence_node)
+            first_node = first_nonlabel_nonphi_node(loop_node.sequence_node)
             inner_first_node = first_node.node if type(first_node) is CodeNode else first_node
             if type(inner_first_node) is ConditionalBreakNode:
                 while_cond = ConditionProcessor.simplify_condition(claripy.Not(inner_first_node.condition))
@@ -767,7 +767,7 @@ class DreamStructurer(StructurerBase):
                 if (
                     arg.op == "__eq__"
                     and arg.args[0] is jumptable_var
-                    and isinstance(arg.args[1], claripy.Bits)
+                    and isinstance(arg.args[1], claripy.ast.Bits)
                     and arg.args[1].concrete
                 ):
                     # found it
@@ -780,7 +780,7 @@ class DreamStructurer(StructurerBase):
                 # unsupported
                 return None
         elif cond.op == "__eq__":
-            if cond.args[0] is jumptable_var and isinstance(cond.args[1], claripy.Bits) and cond.args[1].concrete:
+            if cond.args[0] is jumptable_var and isinstance(cond.args[1], claripy.ast.Bits) and cond.args[1].concrete:
                 # found it
                 eq_condition = cond
                 true_node = cond_node.true_node
@@ -800,7 +800,8 @@ class DreamStructurer(StructurerBase):
             return None
 
         return CodeNode(
-            ConditionNode(cond_node.addr, claripy.true, remaining_cond, true_node, false_node=false_node), eq_condition
+            ConditionNode(cond_node.addr, claripy.true(), remaining_cond, true_node, false_node=false_node),
+            eq_condition,
         )
 
     def _switch_check_existence_of_jumptable_entries(
@@ -942,11 +943,11 @@ class DreamStructurer(StructurerBase):
                         )
                     ],
                 )
-                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true())])
                 converted_nodes[entry_addr] = case_node
                 continue
 
-            case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true)])
+            case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true())])
             to_remove.add(entry_node)
             entry_node_idx = seq.nodes.index(entry_node)
 
@@ -966,7 +967,7 @@ class DreamStructurer(StructurerBase):
                         )
                     ],
                 )
-                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true())])
                 converted_nodes[entry_addr] = case_node
                 continue
 
@@ -1097,7 +1098,7 @@ class DreamStructurer(StructurerBase):
     def _nodes_guarded_by_common_subexpr(seq, common_subexpr, starting_idx):
         candidates = []
 
-        if common_subexpr is claripy.true:
+        if common_subexpr is claripy.true():
             return []
         for j, node_1 in enumerate(seq.nodes[starting_idx:]):
             rcond_1 = getattr(node_1, "reaching_condition", None)
@@ -1204,4 +1205,4 @@ class DreamStructurer(StructurerBase):
 
 
 # delayed import
-from ..sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
+from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position

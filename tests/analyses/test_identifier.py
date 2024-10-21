@@ -11,7 +11,7 @@ import unittest
 
 import angr
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 @unittest.skipIf(sys.platform == "win32", "broken on windows")

@@ -3,7 +3,7 @@ import random
 from collections import UserDict
 
 from .plugin import KnowledgeBasePlugin
-from ..sim_type import ALL_TYPES, TypeRef
+from angr.sim_type import ALL_TYPES, TypeRef
 
 
 FRUITS = [

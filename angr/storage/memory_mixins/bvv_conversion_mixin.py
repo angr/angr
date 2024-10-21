@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import claripy
 
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class DataNormalizationMixin(MemoryMixin):
 
         super().store(addr, data_bv, size=size, **kwargs)
 
-    def load(self, addr, size=None, fallback=None, **kwargs):
+    def load(self, addr, size=None, *, fallback=None, **kwargs):
         fallback_bv = self._convert_to_ast(fallback, size, self.state.arch.byte_width) if fallback is not None else None
         return super().load(addr, size=size, fallback=fallback_bv, **kwargs)
 
@@ -70,4 +70,4 @@ class DataNormalizationMixin(MemoryMixin):
             return raw_to_bv()
 
 
-from ...errors import SimMemoryError
+from angr.errors import SimMemoryError

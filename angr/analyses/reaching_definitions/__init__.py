@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import Set, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from ...knowledge_plugins.key_definitions import LiveDefinitions
-from ...knowledge_plugins.key_definitions.constants import ObservationPointType
-from ...knowledge_plugins.key_definitions.atoms import (
+from angr.knowledge_plugins.key_definitions import LiveDefinitions
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+from angr.knowledge_plugins.key_definitions.atoms import (
     AtomKind,
     Atom,
     Register,
@@ -12,8 +12,8 @@ from ...knowledge_plugins.key_definitions.atoms import (
     GuardUse,
     ConstantSrc,
 )
-from ...knowledge_plugins.key_definitions.definition import Definition
-from .. import register_analysis
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.analyses import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
 from .function_handler import FunctionHandler, FunctionCallData
 from .rd_state import ReachingDefinitionsState

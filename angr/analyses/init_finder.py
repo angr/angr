@@ -7,7 +7,7 @@ import pyvex
 import claripy
 
 from angr.analyses import visitors, ForwardAnalysis
-from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
+from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
 from .propagator.vex_vars import VEXTmp

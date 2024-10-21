@@ -5,9 +5,9 @@ import pickle
 
 from collections import defaultdict
 
-from ...codenode import BlockNode, HookNode
-from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
-from ...protos import primitives_pb2, function_pb2
+from angr.codenode import BlockNode, HookNode
+from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
+from angr.protos import primitives_pb2, function_pb2
 
 l = logging.getLogger(name=__name__)
 

@@ -19,7 +19,7 @@ from angr.analyses.typehoon.typevars import (
 )
 from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

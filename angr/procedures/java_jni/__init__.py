@@ -7,10 +7,10 @@ import typing
 from archinfo import ArchSoot
 import claripy
 
-from ...calling_conventions import default_cc
-from ...sim_procedure import SimProcedure
-from ...sim_type import SimTypeFunction
-from ...state_plugins.sim_action_object import SimActionObject
+from angr.calling_conventions import default_cc
+from angr.sim_procedure import SimProcedure
+from angr.sim_type import SimTypeFunction
+from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.procedures.java_jni")
 
@@ -152,8 +152,18 @@ class JNISimProcedure(SimProcedure):
                             If not set, native memory is allocated.
         :return:            Native address of the string.
         """
+        # warn if string is symbolic
+        if self.state.solver.symbolic(string):
+            l.warning(
+                "Support for symbolic strings, passed to native code, is limited. "
+                "Length will be concretized immediately. String value will get "
+                "concretized after `ReleaseStringUTFChars` is called."
+            )
+
+        length = self.state.solver.eval(claripy.StrLen(string)) * 8
+
         if addr is None:
-            addr = self._allocate_native_memory(size=len(string) + 1)
+            addr = self._allocate_native_memory(size=length + 1)
         else:
             # check if addr is symbolic
             if self.state.solver.symbolic(addr):
@@ -163,21 +173,19 @@ class JNISimProcedure(SimProcedure):
                 )
             addr = self.state.solver.eval(addr)
 
-        # warn if string is symbolic
-        if self.state.solver.symbolic(string):
-            l.warning(
-                "Support for symbolic strings, passed to native code, is limited. "
-                "String will get concretized after `ReleaseStringUTFChars` is called."
-            )
-
         # store chars one by one
-        str_len = len(string) // 8
-        for idx in range(str_len):
-            str_byte = claripy.StrSubstr(idx, 1, string)
-            self.state.memory.store(addr + idx, str_byte)
+        if string.symbolic:
+            bvs = claripy.BVS(next(iter(string.variables)), length)
+            self.state.memory.store(addr, bvs)
+        else:
+            str_len = length // 8
+            for idx in range(str_len):
+                str_byte = claripy.StrSubstr(idx, 1, string)
+                as_bv = claripy.BVV(ord(self.state.solver.eval(str_byte)), 8)
+                self.state.memory.store(addr + idx, as_bv)
 
         # store terminating zero
-        self.state.memory.store(len(string), claripy.BVV(0, 8))
+        self.state.memory.store(length, claripy.BVV(0, 8))
 
         return addr
 

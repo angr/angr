@@ -22,8 +22,8 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
 
         # x + x = 2*x
         if (
-            type(operand_0) in [Expr.Convert, Expr.Register]
-            and isinstance(operand_1, (Expr.Convert, Expr.Register))
+            type(operand_0) in [Expr.Convert, Expr.VirtualVariable]
+            and isinstance(operand_1, (Expr.Convert, Expr.VirtualVariable))
             and operand_0 == operand_1
         ):
             count = Expr.Const(expr.idx, None, 2, operand_1.bits)
@@ -92,8 +92,8 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
 
         # x + x = 2*x
         if (
-            type(operand_0) in [Expr.Convert, Expr.Register]
-            and isinstance(operand_1, (Expr.Convert, Expr.Register))
+            type(operand_0) in [Expr.Convert, Expr.VirtualVariable]
+            and isinstance(operand_1, (Expr.Convert, Expr.VirtualVariable))
             and operand_0 == operand_1
         ):
             count = Expr.Const(expr.idx, None, 0, 8)

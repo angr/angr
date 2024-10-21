@@ -53,7 +53,7 @@ class SimAction(SimEvent):
             return None
         if isinstance(v, SimActionObject):
             return v
-        return SimActionObject(v, reg_deps=None, tmp_deps=None)
+        return SimActionObject(v)
 
     @staticmethod
     def _copy_object(v):

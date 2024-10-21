@@ -1,6 +1,7 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
-from angr.storage.memory_mixins import MemoryMixin
+
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class ISPOMixin(MemoryMixin):
@@ -13,7 +14,7 @@ class ISPOMixin(MemoryMixin):
     def set_state(self, state):
         raise Exception("Cannot set state on this stateless object")
 
-    def _default_value(self, *args, memory=None, **kwargs):
+    def _default_value(self, *args, memory, **kwargs):
         try:
             func = memory._default_value
         except AttributeError as e:
@@ -21,7 +22,7 @@ class ISPOMixin(MemoryMixin):
         else:
             return func(*args, **kwargs)
 
-    def _add_constraints(self, *args, memory=None, **kwargs):
+    def _add_constraints(self, *args, memory, **kwargs):
         try:
             func = memory._add_constraints
         except AttributeError as e:
@@ -29,7 +30,7 @@ class ISPOMixin(MemoryMixin):
         else:
             return func(*args, **kwargs)
 
-    def _merge_values(self, *args, memory=None, **kwargs):
+    def _merge_values(self, *args, memory, **kwargs):
         try:
             func = memory._merge_values
         except AttributeError as ex:
@@ -37,7 +38,7 @@ class ISPOMixin(MemoryMixin):
         else:
             return func(*args, **kwargs)
 
-    def _merge_labels(self, *args, memory=None, **kwargs):
+    def _merge_labels(self, *args, memory, **kwargs):
         try:
             func = memory._merge_labels
         except AttributeError as ex:
@@ -45,7 +46,7 @@ class ISPOMixin(MemoryMixin):
         else:
             return func(*args, **kwargs)
 
-    def _update_mappings(self, *args, memory=None, **kwargs):
+    def _update_mappings(self, *args, memory, **kwargs):
         try:
             func = memory._update_mappings
         except AttributeError as ex:

@@ -3,8 +3,8 @@ from typing import Any
 
 import networkx
 
-from ..utils import structured_node_is_simple_return
-from ....utils.graph import PostDominators, TemporaryNode
+from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.utils.graph import PostDominators, TemporaryNode
 from .phoenix import PhoenixStructurer
 
 

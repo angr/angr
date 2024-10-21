@@ -8,7 +8,7 @@ from sortedcontainers import SortedDict
 
 import claripy
 
-from .....errors import SimMemoryError
+from angr.errors import SimMemoryError
 from . import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
 
@@ -343,13 +343,26 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         return merged_offsets
 
-    def concrete_load(self, addr, size, **kwargs):  # pylint: disable=arguments-differ
-        if type(self.concrete_data) is bytearray:
-            return (
-                memoryview(self.concrete_data)[addr : addr + size],
-                memoryview(self.symbolic_bitmap)[addr : addr + size],
-            )
-        return self.concrete_data[addr : addr + size], memoryview(self.symbolic_bitmap)[addr : addr + size]
+    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):  # pylint: disable=arguments-differ
+        assert self.concrete_data is not None
+        assert self.symbolic_bitmap is not None
+        mv_data = (
+            self.concrete_data
+            if isinstance(self.concrete_data, (memoryview, NotMemoryview))
+            else memoryview(self.concrete_data)
+        )
+        mv_bitm = (
+            self.symbolic_bitmap
+            if isinstance(self.symbolic_bitmap, (memoryview, NotMemoryview))
+            else memoryview(self.symbolic_bitmap)
+        )
+        result = (
+            mv_data[addr : addr + size],
+            mv_bitm[addr : addr + size],
+        )
+        if with_bitmap:
+            return result
+        return result[0]
 
     def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
@@ -455,7 +468,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     replaced_object = replaced_objects_cache[mo.object]
 
             else:
-                replaced_object = mo.object.replace(old, new)
+                replaced_object = claripy.replace(mo.object, old, new)
                 replaced_objects_cache[mo.object] = replaced_object
                 if mo.object is replaced_object:
                     # The replace does not really occur
@@ -464,7 +477,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if replaced_object is not None:
                 self._replace_memory_object(mo, replaced_object, memory=memory)
 
-    def _replace_memory_object(self, old: SimMemoryObject, new_content: claripy.Bits, memory=None):
+    def _replace_memory_object(self, old: SimMemoryObject, new_content: claripy.ast.Bits, memory=None):
         """
         Replaces the memory object `old` with a new memory object containing `new_content`.
 
@@ -489,3 +502,6 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 self._update_mappings(b, old.object, new.object, memory=memory)
 
         return new
+
+
+from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview

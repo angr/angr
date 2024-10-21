@@ -6,10 +6,10 @@ import networkx
 import pyvex
 from . import Analysis
 
-from ..code_location import CodeLocation
-from ..annocfg import AnnotatedCFG
-from ..errors import AngrBackwardSlicingError
-from ..utils.constants import DEFAULT_STATEMENT
+from angr.code_location import CodeLocation
+from angr.annocfg import AnnotatedCFG
+from angr.errors import AngrBackwardSlicingError
+from angr.utils.constants import DEFAULT_STATEMENT
 
 
 l = logging.getLogger(name=__name__)

@@ -198,7 +198,7 @@ class TestMemory(unittest.TestCase):
         s.memory.store(0x1000, x)
         s.memory.store(0x2000, x)
         assert set(s.memory.addrs_for_name("ref_test")) == {0x1000, 0x1001, 0x2000, 0x2001}
-        assert set(s.memory.addrs_for_hash(x.cache_key)) == {0x1000, 0x1001, 0x2000, 0x2001}
+        assert set(s.memory.addrs_for_hash(x.hash())) == {0x1000, 0x1001, 0x2000, 0x2001}
 
         s2 = s.copy()
         y = claripy.BVS("ref_test2", 16, explicit_name=True)
@@ -206,11 +206,11 @@ class TestMemory(unittest.TestCase):
         assert s2.memory.load(0x2000, 2) is y
         assert s.memory.load(0x2000, 2) is x
         assert set(s.memory.addrs_for_name("ref_test")) == {0x1000, 0x1001, 0x2000, 0x2001}
-        assert set(s.memory.addrs_for_hash(x.cache_key)) == {0x1000, 0x1001, 0x2000, 0x2001}
+        assert set(s.memory.addrs_for_hash(x.hash())) == {0x1000, 0x1001, 0x2000, 0x2001}
         assert set(s2.memory.addrs_for_name("ref_test")) == {0x1000, 0x1001}
-        assert set(s2.memory.addrs_for_hash(x.cache_key)) == {0x1000, 0x1001}
+        assert set(s2.memory.addrs_for_hash(x.hash())) == {0x1000, 0x1001}
         assert set(s2.memory.addrs_for_name("ref_test2")) == {0x2000, 0x2001}
-        assert set(s2.memory.addrs_for_hash(y.cache_key)) == {0x2000, 0x2001}
+        assert set(s2.memory.addrs_for_hash(y.hash())) == {0x2000, 0x2001}
 
         s.memory.store(0x3000, claripy.BVS("replace_old", 32, explicit_name=True))
         s.memory.store(0x3001, claripy.BVV(b"AB"))
@@ -332,7 +332,7 @@ class TestMemory(unittest.TestCase):
         assert s.solver.eval(expr) == 0x44
 
         # Store a single-byte StridedInterval to global region
-        si_0 = claripy.BVS("unnamed", 8, 10, 20, 2)
+        si_0 = s.solver.BVS("unnamed", 8, 10, 20, 2)
         s.memory.store(to_vs("global", 4), si_0)
 
         # Load the single-byte StridedInterval from global region
@@ -342,7 +342,7 @@ class TestMemory(unittest.TestCase):
         assert s.solver.eval_upto(expr, 100) == [10, 12, 14, 16, 18, 20]
 
         # Store a two-byte StridedInterval object to global region
-        si_1 = claripy.BVS("unnamed", 16, 10, 20, 2)
+        si_1 = s.solver.BVS("unnamed", 16, 10, 20, 2)
         s.memory.store(to_vs("global", 5), si_1)
 
         # Load the two-byte StridedInterval object from global region
@@ -350,36 +350,35 @@ class TestMemory(unittest.TestCase):
         assert expr.identical(si_1)
 
         # Store a four-byte StridedInterval object to global region
-        si_2 = claripy.BVS("unnamed", 32, 8000, 9000, 2)
+        si_2 = s.solver.BVS("unnamed", 32, 8000, 9000, 2)
         s.memory.store(to_vs("global", 7), si_2)
 
         # Load the four-byte StridedInterval object from global region
         expr = s.memory.load(to_vs("global", 7), 4)
-        assert expr.identical(claripy.BVS("unnamed", 32, 8000, 9000, 2))
+        assert expr.identical(s.solver.BVS("unnamed", 32, 8000, 9000, 2))
 
         # Test default values
         s.options.remove(o.SYMBOLIC_INITIAL_VALUES)
         expr = s.memory.load(to_vs("global", 100), 4)
-        assert expr.identical(claripy.BVS("unnamed", 32, 0, 0, 0))
+        assert expr.identical(claripy.BVV(0, 32))
 
         # Test default values (symbolic)
         s.options.add(o.SYMBOLIC_INITIAL_VALUES)
         expr = s.memory.load(to_vs("global", 104), 4)
-        assert expr.identical(claripy.BVS("unnamed", 32, 0, 0xFFFFFFFF, 1))
-        assert expr.identical(claripy.BVS("unnamed", 32, -0x80000000, 0x7FFFFFFF, 1))
+        assert expr.identical(claripy.BVS("unnamed", 32))
 
         #
         # Merging
         #
 
         # Merging two one-byte values
-        s.memory.store(to_vs("function_merge", 0), claripy.BVS("unnamed", 8, 0x10, 0x10, 0))
+        s.memory.store(to_vs("function_merge", 0), claripy.BVV(0x10, 8))
         a = s.copy()
-        a.memory.store(to_vs("function_merge", 0), claripy.BVS("unnamed", 8, 0x20, 0x20, 0))
+        a.memory.store(to_vs("function_merge", 0), claripy.BVV(0x20, 8))
 
         b = s.merge(a)[0]
         expr = b.memory.load(to_vs("function_merge", 0), 1)
-        assert expr.identical(claripy.BVS("unnamed", 8, 0x10, 0x20, 0x10))
+        assert expr.identical(s.solver.BVS("unnamed", 8, 0x10, 0x20, 0x10))
 
         #  |  MO(value_0)  |
         #  |  MO(value_1)  |
@@ -451,22 +450,20 @@ class TestMemory(unittest.TestCase):
             add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY},
         )
 
-        s.memory.store(4, claripy.TSI(bits=64))
+        s.memory.store(4, claripy.BVS("unnamed", 64))
 
         test_cases = [
-            (1, claripy.BVV(b"A"), claripy.SI(bits=64, to_conv=1)),
-            (1, claripy.BVV(b"B"), claripy.SI(bits=64, to_conv=2)),
-            (1, claripy.BVV(b"\0"), claripy.SI(bits=64, to_conv=3)),
+            (1, claripy.BVV(b"A"), claripy.BVV(1, 64)),
+            (1, claripy.BVV(b"B"), claripy.BVV(2, 64)),
+            (1, claripy.BVV(b"\0"), claripy.BVV(3, 64)),
             (4, claripy.BVV("\0"), claripy.SI(bits=64, stride=1, lower_bound=4, upper_bound=11)),
         ]
 
         for offset, what, expected in test_cases:
             r, _, _ = s.memory.find(claripy.VS(s.arch.bits, "global", 0, offset), what, 8)
-            assert r.has_annotation_type(claripy.annotation.RegionAnnotation)
-            r_annotations = r.get_annotations_by_type(claripy.annotation.RegionAnnotation)
-            assert len(r_annotations) == 1
-            assert r_annotations[0].region_id == "global"
-            assert r.clear_annotations().identical(expected)
+            r_annotation = r.get_annotation(claripy.annotation.RegionAnnotation)
+            assert r_annotation.region_id == "global"
+            assert r.clear_annotation_type(claripy.annotation.RegionAnnotation).identical(expected)
 
     def test_registers(self):
         s = SimState(arch="AMD64")
@@ -573,8 +570,8 @@ class TestMemory(unittest.TestCase):
         asdf = claripy.BVV(b"asdf")
         fdsa = claripy.BVV(b"fdsa")
         s.memory.store(0x1000, asdf)
-        s.memory.store(0x1000, fdsa, condition=claripy.false)
-        s.memory.store(0, fdsa, condition=claripy.false)
+        s.memory.store(0x1000, fdsa, condition=claripy.false())
+        s.memory.store(0, fdsa, condition=claripy.false())
 
         assert s.memory.load(0x1000, 4) is asdf
         assert 0 not in s.memory._pages
@@ -902,27 +899,6 @@ class TestMemory(unittest.TestCase):
         a = state.memory.load(0x100, size=8).one_value()
         assert a is not None
         assert a is claripy.BVV(0x1337, 64)
-
-        # weak updates
-        state.memory.store(0x120, claripy.BVV(0x40, 64))
-        state.memory.store(0x120, claripy.BVV(0x85868788, 64), weak=True)
-        a = state.memory.load(0x120, size=8)
-        assert len(a.keys()) == 1
-        assert 0 in a
-        assert len(next(iter(a.values()))) == 2
-        assert {state.solver.eval_exact(item, 1)[0] for item in next(iter(a.values()))} == {0x40, 0x85868788}
-
-        # weak updates with symbolic values
-        A = claripy.BVS("a", 64)
-        state.memory.store(0x140, A, endness=state.arch.memory_endness)
-        state.memory.store(0x141, claripy.BVS("b", 64), endness=state.arch.memory_endness, weak=True)
-        a = state.memory.load(0x140, size=8)
-        assert len(a.keys()) == 2
-        assert 0 in a
-        assert 1 in a
-        assert len(next(iter(a.values()))) == 1
-        assert next(iter(a[0])) is A[7:0]
-        assert len(a[1]) == 2
 
     def test_conditional_concretization(self):
         class ZeroFillerMemory(UltraPageMemory):

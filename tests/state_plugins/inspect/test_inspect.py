@@ -15,7 +15,7 @@ import angr
 from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
 from angr.engines import ProcedureEngine, HeavyVEXMixin, SimInspectMixin
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

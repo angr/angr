@@ -10,26 +10,26 @@ from cle import SymbolType
 import ailment
 
 from angr.analyses.cfg import CFGFast
-from ...knowledge_plugins.functions.function import Function
-from ...knowledge_base import KnowledgeBase
-from ...sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
-from ...utils import timethis
-from .. import Analysis, AnalysesHub
+from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.utils import timethis
+from angr.analyses import Analysis, AnalysesHub
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
-from .optimization_passes import get_default_optimization_passes
 from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
 from .utils import remove_labels
 from .sequence_walker import SequenceWalker
+from .structuring.structurer_nodes import SequenceNode
+from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
-    from .structuring.structurer_nodes import SequenceNode
     from .structured_codegen.c import CStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
@@ -52,6 +52,7 @@ class Decompiler(Analysis):
         func: Function | str | int,
         cfg: CFGFast | CFGModel | None = None,
         options=None,
+        preset: str | DecompilationPreset | None = None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
         variable_kb=None,
@@ -67,17 +68,28 @@ class Decompiler(Analysis):
         inline_functions=frozenset(),
         update_memory_data: bool = True,
         generate_code: bool = True,
+        use_cache: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
-        self._options = options
-        if optimization_passes is None:
-            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
-            l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
-        else:
+        self._options = options or []
+
+        if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
+        else:
+            # we use the preset
+            if isinstance(preset, str):
+                if preset not in DECOMPILATION_PRESETS:
+                    raise KeyError(f"Decompilation preset {preset} is not found")
+                preset = DECOMPILATION_PRESETS[preset]
+            elif preset is None:
+                preset = DECOMPILATION_PRESETS["default"]
+            if not isinstance(preset, DecompilationPreset):
+                raise TypeError('"preset" must be a DecompilationPreset instance')
+            self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
+        l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
@@ -91,6 +103,25 @@ class Decompiler(Analysis):
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
         self._inline_functions = inline_functions
+        self._cache_parameters = (
+            {
+                "cfg": self._cfg,
+                "variable_kb": self._variable_kb,
+                "options": {(o, v) for o, v in self._options if o.category != "Display" and v != o.default_value},
+                "optimization_passes": self._optimization_passes,
+                "sp_tracker_track_memory": self._sp_tracker_track_memory,
+                "peephole_optimizations": self._peephole_optimizations,
+                "vars_must_struct": self._vars_must_struct,
+                "flavor": self._flavor,
+                "expr_comments": self._expr_comments,
+                "stmt_comments": self._stmt_comments,
+                "ite_exprs": self._ite_exprs,
+                "binop_operators": self._binop_operators,
+                "inline_functions": self._inline_functions,
+            }
+            if use_cache
+            else None
+        )
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen: CStructuredCodeGenerator | None = None
@@ -99,26 +130,44 @@ class Decompiler(Analysis):
         self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
+        self.vvar_id_start = None
+        self._optimization_scratch: dict[str, Any] = {}
 
         if decompile:
             self._decompile()
 
+    def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
+        a, b = self._cache_parameters, cache.parameters
+        id_checks = {"cfg", "variable_kb"}
+        return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
+
+    @timethis
     def _decompile(self):
         if self.func.is_simprocedure:
             return
 
-        # Load from cache
-        try:
-            cache = self.kb.structured_code[(self.func.addr, self._flavor)]
+        cache = None
+
+        if self._cache_parameters is not None:
+            try:
+                cache = self.kb.decompilations[self.func.addr]
+                if not self._can_use_decompilation_cache(cache):
+                    cache = None
+            except KeyError:
+                pass
+
+        if cache:
             old_codegen = cache.codegen
             old_clinic = cache.clinic
             ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
             binop_operators = cache.binop_operators if self._binop_operators is None else self._binop_operators
-        except KeyError:
-            ite_exprs = self._ite_exprs
-            binop_operators = self._binop_operators
+            l.debug("Decompilation cache hit")
+        else:
             old_codegen = None
             old_clinic = None
+            ite_exprs = self._ite_exprs
+            binop_operators = self._binop_operators
+            l.debug("Decompilation cache miss")
 
         self.options_by_class = defaultdict(list)
 
@@ -154,6 +203,7 @@ class Decompiler(Analysis):
             fold_callexprs_into_conditions = True
 
         cache = DecompilationCache(self.func.addr)
+        cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
 
@@ -176,6 +226,7 @@ class Decompiler(Analysis):
                 cache=cache,
                 progress_callback=progress_callback,
                 inline_functions=self._inline_functions,
+                optimization_scratch=self._optimization_scratch,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -188,6 +239,7 @@ class Decompiler(Analysis):
         self.cache = cache
         self._variable_kb = clinic.variable_kb
         self._update_progress(70.0, text="Identifying regions")
+        self.vvar_id_start = clinic.vvar_id_start
 
         if clinic.graph is None:
             # the function is empty
@@ -220,6 +272,10 @@ class Decompiler(Analysis):
             ite_exprs=ite_exprs,
         )
 
+        # Rewrite the graph to remove phi expressions
+        # this is probably optional if we do not pretty-print clinic.graph
+        clinic.graph = self._transform_graph_from_ssa(clinic.graph)
+
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = remove_labels(clinic.copy_graph())
 
@@ -251,6 +307,10 @@ class Decompiler(Analysis):
             seq_node = self._run_post_structuring_simplification_passes(
                 seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
             )
+
+            # rewrite the sequence node to remove phi expressions
+            seq_node = self._transform_seqnode_from_ssa(seq_node)
+
             # update memory data
             if self._cfg is not None and self._update_memory_data:
                 self.find_data_references_and_update_memory_data(seq_node)
@@ -280,6 +340,8 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
+        self.kb.decompilations[self.func.addr] = self.cache
+
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func,
@@ -288,6 +350,7 @@ class Decompiler(Analysis):
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             complete_successors=self._complete_successors,
+            entry_node_addr=self.clinic.entry_node_addr,
             **self.options_to_params(self.options_by_class["region_identifier"]),
         )
 
@@ -323,6 +386,7 @@ class Decompiler(Analysis):
                 )
                 continue
 
+            pass_ = timethis(pass_)
             a = pass_(
                 self.func,
                 blocks_by_addr=addr_to_blocks,
@@ -330,6 +394,8 @@ class Decompiler(Analysis):
                 graph=ail_graph,
                 variable_kb=self._variable_kb,
                 reaching_definitions=reaching_definitions,
+                entry_node_addr=self.clinic.entry_node_addr,
+                scratch=self._optimization_scratch,
                 **kwargs,
             )
 
@@ -378,6 +444,7 @@ class Decompiler(Analysis):
                 )
                 continue
 
+            pass_ = timethis(pass_)
             a = pass_(
                 self.func,
                 blocks_by_addr=addr_to_blocks,
@@ -386,6 +453,9 @@ class Decompiler(Analysis):
                 variable_kb=self._variable_kb,
                 region_identifier=ri,
                 reaching_definitions=reaching_definitions,
+                vvar_id_start=self.vvar_id_start,
+                entry_node_addr=self.clinic.entry_node_addr,
+                scratch=self._optimization_scratch,
                 **kwargs,
             )
 
@@ -403,6 +473,8 @@ class Decompiler(Analysis):
                 # always update RI on graph change
                 ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
 
+                self.vvar_id_start = a.vvar_id_start
+
         return ail_graph, self._recover_regions(ail_graph, ConditionProcessor(self.project.arch), update_graph=True)
 
     @timethis
@@ -411,7 +483,8 @@ class Decompiler(Analysis):
             if pass_.STAGE != OptimizationPassStage.AFTER_STRUCTURING:
                 continue
 
-            a = pass_(self.func, seq=seq_node, **kwargs)
+            pass_ = timethis(pass_)
+            a = pass_(self.func, seq=seq_node, scratch=self._optimization_scratch, **kwargs)
             if a.out_seq:
                 seq_node = a.out_seq
 
@@ -531,6 +604,14 @@ class Decompiler(Analysis):
         self._cfg.tidy_data_references(
             memory_data_addrs=added_memory_data_addrs,
         )
+
+    def _transform_graph_from_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        dephication = self.project.analyses.GraphDephication(self.func, ail_graph, rewrite=True)
+        return dephication.output
+
+    def _transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
+        dephication = self.project.analyses.SeqNodeDephication(self.func, seq_node, rewrite=True)
+        return dephication.output
 
     @staticmethod
     def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:

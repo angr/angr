@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from typing import cast
 
-import angr  # For type annotations; pylint: disable=unused-import
 import logging
 
-from ..misc.ux import once
+import angr
+from angr.misc.ux import once
 
 l = logging.getLogger(name=__name__)
 

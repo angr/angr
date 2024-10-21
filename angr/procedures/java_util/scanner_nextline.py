@@ -3,8 +3,8 @@ import logging
 
 from claripy import StringS
 
-from ...engines.soot.values import SimSootValue_StringRef
-from ..java import JavaSimProcedure
+from angr.engines.soot.values import SimSootValue_StringRef
+from angr.procedures.java import JavaSimProcedure
 
 l = logging.getLogger("angr.procedures.java.scanner.nextLine")
 
@@ -14,7 +14,7 @@ class ScannerNextLine(JavaSimProcedure):
 
     def run(self, this):  # pylint: disable=arguments-differ,unused-argument
         str_ref = SimSootValue_StringRef(self.state.memory.get_new_uuid())
-        self.state.memory.store(str_ref, StringS("scanner_return", 100))
+        self.state.memory.store(str_ref, StringS("scanner_return"))
         # save reference in global dict, so we can easily access it later
         try:
             self.state.globals["java.util.Scanner"].append(str_ref)

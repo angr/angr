@@ -1,23 +1,70 @@
 from __future__ import annotations
 from typing import Any
-from itertools import count
 import copy
 import logging
 
 import ailment.expression
 import networkx
 
-from ailment import Block
+from ailment import Block, AILBlockWalker
 from ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
-from ailment.expression import Const
+from ailment.expression import Const, Phi, VirtualVariable
 
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
-from ..graph_region import GraphRegion
-from ..utils import remove_labels, to_ail_supergraph, calls_in_graph
-from ..structuring.structurer_nodes import MultiNode, ConditionNode
-from ..region_identifier import RegionIdentifier
+from angr.utils.ail import is_phi_assignment
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, calls_in_graph
+from angr.analyses.decompiler.structuring.structurer_nodes import MultiNode, ConditionNode
+from angr.analyses.decompiler.region_identifier import RegionIdentifier
 
 _l = logging.getLogger(name=__name__)
+
+
+class FreshVirtualVariableRewriter(AILBlockWalker):
+    """
+    Helper class to rewrite virtual variables so that they will use fresh virtual variables.
+    """
+
+    def __init__(self, vvar_id_start: int, vvar_mapping: dict[int, int]):
+        super().__init__()
+        self.vvar_idx = vvar_id_start
+        self.vvar_mapping = vvar_mapping
+        self.new_block = None
+
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
+        new_stmt = super()._handle_Assignment(stmt_idx, stmt, block)
+        dst = new_stmt.dst if new_stmt is not None else stmt.dst
+        if isinstance(dst, VirtualVariable):
+            self.vvar_mapping[dst.varid] = self.vvar_idx
+            self.vvar_idx += 1
+
+            dst = VirtualVariable(dst.idx, self.vvar_mapping[dst.varid], dst.bits, dst.category, dst.oident, **dst.tags)
+
+            return Assignment(stmt.idx, dst, stmt.src, **stmt.tags)
+
+        return new_stmt
+
+    def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None):
+        if expr.varid in self.vvar_mapping:
+            return VirtualVariable(
+                expr.idx,
+                self.vvar_mapping[expr.varid],
+                expr.bits,
+                expr.category,
+                expr.oident,
+                variable=expr.variable,
+                variable_offset=expr.variable_offset,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_stmt(self, stmt_idx: int, stmt, block: Block):
+        r = super()._handle_stmt(stmt_idx, stmt, block)
+        if r is not None:
+            # replace the original statement
+            if self.new_block is None:
+                self.new_block = block.copy()
+            self.new_block.statements[stmt_idx] = r
 
 
 class ReturnDuplicatorBase:
@@ -30,20 +77,26 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
-        node_idx_start: int = 0,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
         ri: RegionIdentifier | None = None,
-        **kwargs,
+        vvar_id_start: int | None = None,
+        scratch: dict[str, Any] | None = None,
     ):
-        self.node_idx = count(start=node_idx_start)
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
         self._supergraph = None
 
         # this should also be set by the optimization passes initer
+        self.scratch = scratch if scratch is not None else {}
         self._func = func
         self._ri: RegionIdentifier | None = ri
+        self.vvar_id_start = vvar_id_start
+
+    def next_node_idx(self) -> int:
+        node_idx = self.scratch.get("returndup_node_idx", 0) + 1
+        self.scratch["returndup_node_idx"] = node_idx
+        return node_idx
 
     #
     # must implement these methods
@@ -145,15 +198,20 @@ class ReturnDuplicatorBase:
 
     def _copy_region(self, pred_nodes, region_head, region, graph):
         # copy the entire return region
-        copies = {}
+        copies: dict[Block, Block] = {}
         queue = [(pred_node, region_head) for pred_node in pred_nodes]
+        vvar_mapping: dict[int, int] = {}
         while queue:
             pred, node = queue.pop(0)
             if node in copies:
                 node_copy = copies[node]
             else:
-                node_copy = copy.deepcopy(node)
-                node_copy.idx = next(self.node_idx)
+                if node is region_head:
+                    node_copy = self._copy_node_and_update_phi_variables(node, pred)
+                else:
+                    node_copy = copy.deepcopy(node)
+                node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
+                node_copy.idx = self.next_node_idx()
                 self._fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 
@@ -178,6 +236,52 @@ class ReturnDuplicatorBase:
         for pred_node in pred_nodes:
             # delete the old edge to the return node
             graph.remove_edge(pred_node, region_head)
+            # update phi variables at the beginning of region_head
+            self._update_phi_variables_after_removing_predecessor(region_head, pred_node)
+
+    @staticmethod
+    def _copy_node_and_update_phi_variables(node: Block, pred: Block) -> Block:
+        stmts = []
+        for stmt in node.statements:
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
+                # pick the variable from the correct source
+                vvar_src = next(iter(vvar for src, vvar in stmt.src.src_and_vvars if src == (pred.addr, pred.idx)), ...)
+                if vvar_src is ...:
+                    _l.warning(
+                        "Cannot find the virtual variable in Phi expression %r that corresponds with node %#x-%s.",
+                        stmt.src,
+                        pred.addr,
+                        pred.idx,
+                    )
+                elif vvar_src is None:
+                    # not used in this branch. drop this statement
+                    continue
+                else:
+                    phi_var = Phi(stmt.src.idx, stmt.src.bits, [((pred.addr, pred.idx), vvar_src)], **stmt.src.tags)
+                    new_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
+                    stmts.append(new_stmt)
+                    continue
+            stmts.append(stmt)
+
+        return Block(node.addr, node.original_size, statements=stmts, idx=node.idx)
+
+    @staticmethod
+    def _update_phi_variables_after_removing_predecessor(node: Block, pred: Block) -> None:
+        for idx in range(len(node.statements)):  # pylint:disable=consider-using-enumerate
+            stmt = node.statements[idx]
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
+                # remove the variable from the specified source
+                new_src_and_vvars = [
+                    (src, vvar) for src, vvar in stmt.src.src_and_vvars if src != (pred.addr, pred.idx)
+                ]
+                new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
+                node.statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+
+    def _use_fresh_virtual_variables(self, node: Block, vvar_map: dict[int, int]) -> Block:
+        rewriter = FreshVirtualVariableRewriter(self.vvar_id_start, vvar_map)
+        rewriter.walk(node)
+        self.vvar_id_start = rewriter.vvar_idx + 1
+        return rewriter.new_block if rewriter.new_block is not None else node
 
     def _copy_connected_edge_components(
         self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
@@ -277,7 +381,7 @@ class ReturnDuplicatorBase:
                 return False
 
         # gather all assignments
-        assignments = [s for s in stmts if isinstance(s, Assignment)]
+        assignments = [s for s in stmts if isinstance(s, Assignment) and not is_phi_assignment(s)]
         has_assign = len(assignments) > 0
         if len(assignments) > max_assigns:
             return False
@@ -294,7 +398,11 @@ class ReturnDuplicatorBase:
         if ret_exprs and len(ret_exprs) > 1:
             return False
 
-        ret_expr = ret_exprs[0] if ret_exprs and len(ret_exprs) == 1 else None
+        ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0]) if ret_exprs and len(ret_exprs) == 1 else None
+        # check if ret_expr is a virtual variable or not
+        if not isinstance(ret_expr, (VirtualVariable, Const)):
+            return False
+
         # stop early if there are no assignments at all and just jumps and rets, or a const ret
         if not has_assign:
             return True
@@ -306,9 +414,11 @@ class ReturnDuplicatorBase:
         # assignments to registers from the stack are valid, since cases of these assignments
         # pop up across optimized binaries
         elif (
-            isinstance(assign.dst, ailment.expression.Register)
-            and isinstance(assign.src, ailment.expression.Load)
-            and isinstance(assign.src.addr, ailment.expression.StackBaseOffset)
+            isinstance(assign.dst, ailment.expression.VirtualVariable)
+            and assign.dst.was_reg
+            and isinstance(assign.src, ailment.expression.VirtualVariable)
+            and assign.src.was_stack
+            and isinstance(assign.src.stack_offset, int)
         ):
             valid_assignment = True
         else:
@@ -468,3 +578,7 @@ class ReturnDuplicatorBase:
                 new_name += f"__{block.idx}"
 
                 block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)
+
+    @staticmethod
+    def unwrap_conv(expr):
+        return ReturnDuplicatorBase.unwrap_conv(expr.operand) if isinstance(expr, ailment.expression.Convert) else expr

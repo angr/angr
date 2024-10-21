@@ -477,7 +477,7 @@ class SimProcedure:
         self._prepare_ret_state()
 
         self._exit_action(self.state, ret_addr)
-        self.successors.add_successor(self.state, ret_addr, claripy.true, "Ijk_Ret")
+        self.successors.add_successor(self.state, ret_addr, claripy.true(), "Ijk_Ret")
 
     def call(self, addr, args, continue_at, cc=None, prototype=None, jumpkind="Ijk_Call"):
         """
@@ -520,7 +520,7 @@ class SimProcedure:
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
-        self.successors.add_successor(call_state, addr, claripy.true, jumpkind)
+        self.successors.add_successor(call_state, addr, claripy.true(), jumpkind)
         if jumpkind != "Ijk_Call":
             call_state.callstack.call(
                 self.state.addr, addr, retn_target=ret_addr, stack_pointer=call_state.regs.sp.concrete_value
@@ -531,7 +531,7 @@ class SimProcedure:
             ret_state = self.state.copy()
             cc.setup_callsite(ret_state, ret_addr, args, prototype)
             ret_state.callstack.top.procedure_data = simcallstack_entry
-            guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else claripy.false
+            guard = claripy.true() if o.TRUE_RET_EMULATION_GUARD in ret_state.options else claripy.false()
             self.successors.add_successor(ret_state, ret_addr, guard, "Ijk_FakeRet")
 
     def jump(self, addr, jumpkind="Ijk_Boring"):
@@ -540,7 +540,7 @@ class SimProcedure:
         """
         self.inhibit_autoret = True
         self._exit_action(self.state, addr)
-        self.successors.add_successor(self.state, addr, claripy.true, jumpkind)
+        self.successors.add_successor(self.state, addr, claripy.true(), jumpkind)
 
     def exit(self, exit_code):
         """
@@ -553,7 +553,7 @@ class SimProcedure:
         if isinstance(exit_code, int):
             exit_code = claripy.BVV(exit_code, self.state.arch.bits)
         self.state.history.add_event("terminate", exit_code=exit_code)
-        self.successors.add_successor(self.state, self.state.regs.ip, claripy.true, "Ijk_Exit")
+        self.successors.add_successor(self.state, self.state.regs.ip, claripy.true(), "Ijk_Exit")
 
     @staticmethod
     def _exit_action(state, addr):

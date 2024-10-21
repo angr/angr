@@ -18,7 +18,10 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
     An AIL pass for the div simplifier
     """
 
-    def _check_divisor(self, a, b, ndigits=6):  # pylint: disable=no-self-use
+    @staticmethod
+    def _check_divisor(a, b, ndigits=6):
+        if b == 0:
+            return None
         divisor_1 = 1 + (a // b)
         divisor_2 = int(round(a / float(b), ndigits))
         return divisor_1 if divisor_1 == divisor_2 else None
@@ -205,7 +208,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
 
         if isinstance(operand_1, Expr.Const):
-            if isinstance(operand_0, Expr.Register):
+            if isinstance(operand_0, Expr.VirtualVariable) and operand_0.was_reg:
                 new_operand = Expr.Const(operand_1.idx, None, 2**operand_1.value, operand_0.bits)
                 return Expr.BinaryOp(expr.idx, "Div", [operand_0, new_operand], expr.signed)
             if (

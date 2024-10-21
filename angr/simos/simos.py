@@ -6,17 +6,13 @@ from archinfo import ArchMIPS32, ArchS390X
 import claripy
 
 import angr
-from ..errors import (
-    AngrCallableError,
-    AngrCallableMultistateError,
-    AngrSimOSError,
-)
-from ..sim_state import SimState
-from ..state_plugins import SimSystemPosix
-from ..calling_conventions import default_cc
-from ..procedures import SIM_PROCEDURES as P
-from .. import sim_options as o
-from ..storage.file import SimFileStream, SimFileBase
+from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrSimOSError
+from angr.sim_state import SimState
+from angr.state_plugins import SimSystemPosix
+from angr.calling_conventions import default_cc
+from angr.procedures import SIM_PROCEDURES as P
+from angr import sim_options as o
+from angr.storage.file import SimFileStream, SimFileBase
 
 
 _l = logging.getLogger(name=__name__)
@@ -112,20 +108,20 @@ class SimOS:
         Any additional arguments will be passed to the SimState constructor
         """
         # TODO: move ALL of this into the SimState constructor
-        if kwargs.get("mode", None) is None:
+        if kwargs.get("mode") is None:
             kwargs["mode"] = self.project._default_analysis_mode
         if permissions_backer is not None:
             kwargs["permissions_map"] = permissions_backer[1]
             kwargs["default_permissions"] = 7 if permissions_backer[0] else 3
-        if kwargs.get("cle_memory_backer", None) is None:
+        if kwargs.get("cle_memory_backer") is None:
             kwargs["cle_memory_backer"] = self.project.loader
-        if kwargs.get("os_name", None) is None:
+        if kwargs.get("os_name") is None:
             kwargs["os_name"] = self.name
         actual_stack_end = stack_end
         if stack_end is None:
             stack_end = self.arch.initial_sp
 
-        if kwargs.get("permissions_map", None) is None:
+        if kwargs.get("permissions_map") is None:
             # just a dict of address ranges to permission bits
             permission_map = {}
             for obj in self.project.loader.all_objects:
@@ -149,7 +145,7 @@ class SimOS:
             if type(stdin) is type:
                 stdin = stdin(name="stdin", has_end=False)
             else:
-                if isinstance(stdin, claripy.Bits):
+                if isinstance(stdin, claripy.ast.Bits):
                     num_bytes = len(stdin) // self.project.arch.byte_width
                 else:
                     num_bytes = len(stdin)

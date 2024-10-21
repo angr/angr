@@ -3,9 +3,9 @@ import logging
 
 import claripy
 
-from ..java import JavaSimProcedure
-from ...engines.soot.expressions import SimSootExpr_NewArray
-from ...engines.soot.values import SimSootValue_ArrayRef, SimSootValue_StringRef
+from angr.procedures.java import JavaSimProcedure
+from angr.engines.soot.expressions import SimSootExpr_NewArray
+from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_StringRef
 
 log = logging.getLogger(name=__name__)
 
@@ -65,7 +65,7 @@ class StringLength(JavaSimProcedure):
     def run(self, this_str):
         log.debug(f"Called SimProcedure java.lang.String.length with args: {this_str}")
 
-        return claripy.StrLen(self.state.memory.load(this_str), 32)
+        return claripy.StrLen(self.state.memory.load(this_str))
 
 
 class StringCharAt(JavaSimProcedure):

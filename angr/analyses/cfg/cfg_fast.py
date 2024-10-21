@@ -1049,15 +1049,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # no wide string is found
         return 0
 
-    def _scan_for_repeating_bytes(self, start_addr, repeating_byte, threshold=2):
+    def _scan_for_repeating_bytes(self, start_addr: int, repeating_byte: int, threshold: int = 2) -> int:
         """
         Scan from a given address and determine the occurrences of a given byte.
 
-        :param int start_addr:      The address in memory to start scanning.
-        :param int repeating_byte:  The repeating byte to scan for.
-        :param int threshold:  The minimum occurrences.
-        :return:                    The occurrences of a given byte.
-        :rtype:                     int
+        :param start_addr:      The address in memory to start scanning.
+        :param repeating_byte:  The repeating byte to scan for.
+        :param threshold:       The minimum occurrences.
+        :return:                The occurrences of a given byte.
         """
 
         addr = start_addr
@@ -1078,6 +1077,70 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             return repeating_length
         return 0
 
+    def _scan_for_consecutive_pointers(self, start_addr: int, threshold: int = 2) -> int:
+        """
+        Scan from a given address and determine if there are at least `threshold` of pointers.
+
+        This function will yield high numbers of false positives if the mapped memory regions are too low (for example,
+        <= 0x100000). It is recommended to set `threshold` to a higher value in such cases.
+
+        :param start_addr:  The address to start scanning from.
+        :param threshold:   The minimum number of pointers to be found.
+        :return:            The number of pointers found.
+        """
+
+        current_object = self.project.loader.find_object_containing(start_addr)
+        addr = start_addr
+        pointer_count = 0
+        pointer_size = self.project.arch.bytes
+
+        while self._inside_regions(addr):
+            val = self._fast_memory_load_pointer(addr)
+            if val is None:
+                break
+            obj = self.project.loader.find_object_containing(val)
+            if obj is not None and obj is current_object:
+                pointer_count += 1
+            else:
+                break
+            addr += pointer_size
+
+        if pointer_count >= threshold:
+            return pointer_count
+        return 0
+
+    def _scan_for_mixed_pointers(self, start_addr: int, threshold: int = 3, window: int = 6) -> int:
+        """
+        Scan from a given address and determine if there are at least `threshold` of pointers within a given window of pointers.
+
+        This function will yield high numbers of false positives if the mapped memory regions are too low (for example,
+        <= 0x100000). It is recommended to set `threshold` to a higher value in such cases.
+
+        :param start_addr:  The address to start scanning from.
+        :param threshold:   The minimum number of pointers to be found.
+        :return:            The number of pointers found.
+        """
+
+        current_object = self.project.loader.find_object_containing(start_addr)
+        addr = start_addr
+        ctr = 0
+        pointer_count = 0
+        pointer_size = self.project.arch.bytes
+
+        while self._inside_regions(addr) and ctr < window:
+            ctr += 1
+            val = self._fast_memory_load_pointer(addr)
+            if val is None:
+                break
+            obj = self.project.loader.find_object_containing(val)
+            if obj is not None and obj is current_object:
+                pointer_count += 1
+            addr += pointer_size
+
+        if pointer_count >= threshold:
+            return ctr
+        return 0
+
     def _next_code_addr_core(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
@@ -1091,35 +1154,83 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         start_addr = next_addr
 
         while True:
-            string_length = self._scan_for_printable_strings(start_addr)
-            if string_length == 0:
-                string_length = self._scan_for_printable_widestrings(start_addr)
+            pointer_length, string_length, cc_length = 0, 0, 0
+            matched_something = False
 
-            if string_length:
-                self._seg_list.occupy(start_addr, string_length, "string")
-                start_addr += string_length
+            if start_addr % self.project.arch.bytes == 0:
+                # find potential pointer array
+                threshold = 6 if start_addr <= 0x100000 else 1
+                pointer_count = self._scan_for_consecutive_pointers(start_addr, threshold=threshold)
+                pointer_length = pointer_count * self.project.arch.bytes
 
-            if self.project.arch.name in ("X86", "AMD64"):
+                if pointer_length:
+                    matched_something = True
+                    self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
+                    self.model.memory_data[start_addr] = MemoryData(
+                        start_addr, pointer_length, MemoryDataSort.PointerArray
+                    )
+                    start_addr += pointer_length
+
+                elif start_addr <= 0x100000:
+                    # for high addresses, all pointers have been found in _scan_for_consecutive_pointers() because we
+                    # set threshold there to 1
+                    threshold = 4
+                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=6)
+                    pointer_length = pointer_count * self.project.arch.bytes
+
+                    if pointer_length:
+                        matched_something = True
+                        self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
+                        self.model.memory_data[start_addr] = MemoryData(
+                            start_addr, pointer_length, MemoryDataSort.PointerArray
+                        )
+                        start_addr += pointer_length
+
+            if not matched_something:
+                # find strings
+                is_widestring = False
+                string_length = self._scan_for_printable_strings(start_addr)
+                if string_length == 0:
+                    is_widestring = True
+                    string_length = self._scan_for_printable_widestrings(start_addr)
+
+                if string_length:
+                    matched_something = True
+                    self._seg_list.occupy(start_addr, string_length, "string")
+                    md = MemoryData(
+                        start_addr,
+                        string_length,
+                        MemoryDataSort.String if not is_widestring else MemoryDataSort.UnicodeString,
+                    )
+                    md.fill_content(self.project.loader)
+                    self.model.memory_data[start_addr] = md
+                    start_addr += string_length
+
+            if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
                 cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
                 if cc_length:
+                    matched_something = True
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
+                    self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Alignment)
                     start_addr += cc_length
-            else:
-                cc_length = 0
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
+                matched_something = True
                 self._seg_list.occupy(start_addr, zeros_length, "alignment")
+                self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Alignment)
                 start_addr += zeros_length
 
-            if string_length == 0 and cc_length == 0 and zeros_length == 0:
+            if not matched_something:
                 # umm now it's probably code
                 break
 
         instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
             # occupy those few bytes
-            self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), "alignment")
+            size = instr_alignment - (start_addr % instr_alignment)
+            self._seg_list.occupy(start_addr, size, "alignment")
+            self.model.memory_data[start_addr] = MemoryData(start_addr, size, MemoryDataSort.Unknown)
             start_addr = start_addr - start_addr % instr_alignment + instr_alignment
             # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
             if not self._inside_regions(start_addr):
@@ -3339,7 +3450,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                 # next case - if b is directly from function prologue detection, or a basic block that is a successor of
                 # a wrongly identified basic block, we might be totally misdecoding b
-                if b.instruction_addrs[0] not in a.instruction_addrs and b in self.graph:
+                if (not b.instruction_addrs or b.instruction_addrs[0] not in a.instruction_addrs) and b in self.graph:
                     # use a, truncate b
 
                     new_b_addr = a.addr + a.size  # b starts right after a terminates
@@ -4020,7 +4131,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = []
             for segment in self.project.loader.main_object.segments:
-                if segment.is_readable and not segment.is_writable:
+                if segment.is_readable and segment.memsize >= 8:
+                    # the gp area is sometimes writable, so we can't test for (not segment.is_writable)
                     content = self.project.loader.memory.load(segment.vaddr, segment.memsize)
                     content_buf = pyvex.ffi.from_buffer(content)
                     self._ro_region_cdata_cache.append(content_buf)
@@ -4272,7 +4384,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
             irsb = None
-            irsb_string = None
             lifted_block = None
             try:
                 lifted_block = self._lift(
@@ -4283,10 +4394,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     load_from_ro_regions=True,
                     initial_regs=initial_regs,
                 )
-                irsb = lifted_block.vex_nostmt
-                irsb_string = lifted_block.bytes[: irsb.size]
+                irsb = lifted_block.vex_nostmt  # may raise SimTranslationError
             except SimTranslationError:
                 nodecode = True
+
+            irsb_string: bytes = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
 
             # special logic during the complete scanning phase
             if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING and is_arm_arch(self.project.arch):
@@ -4324,9 +4436,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             initial_regs=initial_regs,
                         )
                         irsb = lifted_block.vex_nostmt
-                        irsb_string = lifted_block.bytes[: irsb.size]
                     except SimTranslationError:
                         nodecode = True
+
+                    irsb_string: bytes = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
 
                     if not (nodecode or irsb.size == 0 or irsb.jumpkind == "Ijk_NoDecode"):
                         # it is decodeable
@@ -4397,7 +4510,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 nodecode_size = 1
 
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
-                if irsb_string[-2:] == b"\x0f\x0b" and self.project.arch.name == "AMD64":
+                if self.project.arch.name == "AMD64" and irsb_string[-2:] == b"\x0f\x0b":
                     # VEX supports ud2 and make it part of the block size, only in AMD64.
                     valid_ins = True
                     nodecode_size = 0

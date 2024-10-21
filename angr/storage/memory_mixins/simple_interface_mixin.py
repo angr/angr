@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 import claripy
 
-from . import MemoryMixin
-from ...errors import SimMemoryError
+from angr.errors import SimMemoryError
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class SimpleInterfaceMixin(MemoryMixin):
-    def load(self, addr, size=None, endness=None, condition=None, fallback=None, **kwargs):
+    def load(self, addr, size=None, *, endness=None, condition=None, fallback=None, **kwargs):
         tsize = self._translate_size(size, None)
         return super().load(
             self._translate_addr(addr),
@@ -17,7 +18,7 @@ class SimpleInterfaceMixin(MemoryMixin):
             **kwargs,
         )
 
-    def store(self, addr, data, size=None, endness=None, condition=None, **kwargs):
+    def store(self, addr, data, size=None, *, endness=None, condition=None, **kwargs):
         tsize = self._translate_size(size, data)
         super().store(
             self._translate_addr(addr),

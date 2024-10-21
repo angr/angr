@@ -3,10 +3,10 @@ import logging
 import claripy
 
 from . import ExplorationTechnique
-from ..misc.ux import once
-from ..misc.picklable_lock import PicklableLock
-from ..state_plugins.sim_action import SimActionConstraint
-from ..state_plugins.sim_action_object import SimActionObject
+from angr.misc.ux import once
+from angr.misc.picklable_lock import PicklableLock
+from angr.state_plugins.sim_action import SimActionConstraint
+from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(__name__)
 
@@ -20,12 +20,12 @@ def ast_weight(ast, memo=None):
     if memo is None:
         memo = {}
 
-    result = memo.get(ast.cache_key, None)
+    result = memo.get(ast.hash(), None)
     if result is not None:
         return result
 
     result = 1 + sum(ast_weight(arg, memo) for arg in ast.args)
-    memo[ast.cache_key] = result
+    memo[ast.hash()] = result
     return result
 
 

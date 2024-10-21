@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 from typing import cast
+from collections.abc import Iterable
 from collections import defaultdict
 
 import claripy
@@ -49,6 +50,7 @@ class AllocHelper:
         self.base = claripy.BVS("alloc_base", ptrsize)
         self.ptr = self.base
         self.stores = {}
+        self.store_asts = {}
 
     def alloc(self, size):
         out = self.ptr
@@ -58,7 +60,7 @@ class AllocHelper:
     def dump(self, val, state, loc=None):
         if loc is None:
             loc = self.stack_loc(val, state.arch)
-        self.stores[self.ptr.cache_key] = (val, loc)
+        self.stores[self.ptr] = (val, loc)
         return self.alloc(self.calc_size(val, state.arch))
 
     def translate(self, val, base):
@@ -66,8 +68,8 @@ class AllocHelper:
             return SimStructValue(
                 val.struct, {field: self.translate(subval, base) for field, subval in val._values.items()}
             )
-        if isinstance(val, claripy.Bits):
-            return val.replace(self.base, base)
+        if isinstance(val, claripy.ast.Bits):
+            return claripy.replace(val, self.base, base)
         if type(val) is list:
             return [self.translate(subval, base) for subval in val]
         raise TypeError(type(val))
@@ -75,7 +77,7 @@ class AllocHelper:
     def apply(self, state, base):
         for ptr, (val, loc) in self.stores.items():
             translated_val = self.translate(val, base)
-            translated_ptr = self.translate(ptr.ast, base)
+            translated_ptr = self.translate(ptr, base)
             loc.set_value(state, translated_val, stack_base=translated_ptr)
 
     def size(self):
@@ -87,7 +89,7 @@ class AllocHelper:
     def calc_size(cls, val, arch):
         if type(val) is SimStructValue:
             return val.struct.size // arch.byte_width
-        if isinstance(val, claripy.Bits):
+        if isinstance(val, claripy.ast.Bits):
             return len(val) // arch.byte_width
         if type(val) is list:
             # TODO real strides
@@ -98,7 +100,7 @@ class AllocHelper:
 
     @classmethod
     def stack_loc(cls, val, arch, offset=0):
-        if isinstance(val, claripy.Bits):
+        if isinstance(val, claripy.ast.Bits):
             return SimStackArg(offset, len(val) // arch.byte_width)
         if type(val) is list:
             # TODO real strides
@@ -264,7 +266,7 @@ class SimFunctionArgument:
     def refine(self, size, arch=None, offset=None, is_fp=None):
         raise NotImplementedError
 
-    def get_footprint(self) -> list[SimRegArg | SimStackArg]:
+    def get_footprint(self) -> Iterable[SimRegArg | SimStackArg]:
         """
         Return a list of SimRegArg and SimStackArgs that are the base components used for this location
         """
@@ -289,13 +291,18 @@ class SimRegArg(SimFunctionArgument):
         self.clear_entire_reg = clear_entire_reg
 
     def get_footprint(self):
-        yield self
+        return {self}
 
     def __repr__(self):
         return f"<{self.reg_name}>"
 
     def __eq__(self, other):
-        return type(other) is SimRegArg and self.reg_name == other.reg_name and self.reg_offset == other.reg_offset
+        return (
+            type(other) is SimRegArg
+            and self.reg_name == other.reg_name
+            and self.reg_offset == other.reg_offset
+            and self.size == other.size
+        )
 
     def __hash__(self):
         return hash((self.size, self.reg_name, self.reg_offset))
@@ -337,12 +344,12 @@ class SimStackArg(SimFunctionArgument):
     :ivar bool is_fp:  Whether loads from this location should return a floating point bitvector
     """
 
-    def __init__(self, stack_offset, size, is_fp=False):
+    def __init__(self, stack_offset: int, size: int, is_fp: bool = False):
         SimFunctionArgument.__init__(self, size, is_fp)
-        self.stack_offset = stack_offset
+        self.stack_offset: int = stack_offset
 
     def get_footprint(self):
-        yield self
+        return {self}
 
     def __repr__(self):
         return f"[{self.stack_offset:#x}]"
@@ -385,8 +392,7 @@ class SimComboArg(SimFunctionArgument):
         self.locations = locations
 
     def get_footprint(self):
-        for x in self.locations:
-            yield from x.get_footprint()
+        return {y for x in self.locations for y in x.get_footprint()}
 
     def __repr__(self):
         return f"SimComboArg({self.locations!r})"
@@ -423,8 +429,21 @@ class SimStructArg(SimFunctionArgument):
         self.locs = locs
 
     def get_footprint(self):
-        for x in self.locs.values():
-            yield from x.get_footprint()
+        regs: defaultdict[str, set[SimRegArg]] = defaultdict(set)
+        others: set[SimRegArg | SimStackArg] = set()
+        for loc in self.locs.values():
+            for footloc in loc.get_footprint():
+                if isinstance(footloc, SimRegArg):
+                    regs[footloc.reg_name].add(footloc)
+                else:
+                    others.add(footloc)
+
+        for reg, locset in regs.items():
+            min_offset = min(loc.reg_offset for loc in locset)
+            max_offset = max(loc.reg_offset + loc.size for loc in locset)
+            others.add(SimRegArg(reg, max_offset - min_offset, min_offset))
+
+        return others
 
     def get_value(self, state, **kwargs):
         return SimStructValue(
@@ -442,8 +461,7 @@ class SimArrayArg(SimFunctionArgument):
         self.locs = locs
 
     def get_footprint(self):
-        for x in self.locs:
-            yield from x.get_footprint()
+        return {y for x in self.locs for y in x.get_footprint()}
 
     def get_value(self, state, **kwargs):
         return [getter.get_value(state, **kwargs) for getter in self.locs]
@@ -470,7 +488,7 @@ class SimReferenceArgument(SimFunctionArgument):
         self.main_loc = main_loc
 
     def get_footprint(self):
-        yield from self.ptr_loc.get_footprint()
+        return self.main_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -946,7 +964,7 @@ class SimCC:
                 raise TypeError(f"Type mismatch: expected {ty}, got pointer-wrapper")
 
             if arg.buffer:
-                if isinstance(arg.value, claripy.Bits):
+                if isinstance(arg.value, claripy.ast.Bits):
                     real_value = arg.value.chop(state.arch.byte_width)
                 elif type(arg.value) in (bytes, str):
                     real_value = claripy.BVV(arg.value).chop(8)
@@ -1069,15 +1087,21 @@ class SimCC:
         if sp_delta != cls.STACKARG_SP_DIFF:
             return False
 
+        def _arg_ident(a: SimRegArg | SimStackArg) -> int | str:
+            if isinstance(a, SimRegArg):
+                return a.reg_name
+            return a.stack_offset
+
         sample_inst = cls(arch)
-        all_fp_args = list(sample_inst.fp_args)
-        all_int_args = list(sample_inst.int_args)
+        all_fp_args: set[int | str] = {_arg_ident(a) for a in sample_inst.fp_args}
+        all_int_args: set[int | str] = {_arg_ident(a) for a in sample_inst.int_args}
         both_iter = sample_inst.memory_args
-        some_both_args = [next(both_iter) for _ in range(len(args))]
+        some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(len(args))}
 
         new_args = []
         for arg in args:
-            if arg not in all_fp_args and arg not in all_int_args and arg not in some_both_args:
+            arg_ident = _arg_ident(arg)
+            if arg_ident not in all_fp_args and arg_ident not in all_int_args and arg_ident not in some_both_args:
                 if isinstance(arg, SimRegArg) and arg.reg_name in sample_inst.CALLER_SAVED_REGS:
                     continue
                 return False
@@ -1188,7 +1212,7 @@ class SimCCCdecl(SimCC):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         locs_size = 0
-        byte_size = arg_type.size // self.arch.byte_width
+        byte_size = arg_type.size // self.arch.byte_width if arg_type.size is not None else self.arch.bytes
         locs = []
         while locs_size < byte_size:
             locs.append(next(session.both_iter))
@@ -1258,6 +1282,8 @@ class SimCCMicrosoftAMD64(SimCC):
 
     ArgSession = MicrosoftAMD64ArgSession
 
+    STRUCT_RETURN_THRESHOLD = 64
+
     def next_arg(self, session, arg_type):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
@@ -1267,7 +1293,7 @@ class SimCCMicrosoftAMD64(SimCC):
         except StopIteration:
             int_loc = fp_loc = next(session.both_iter)
 
-        byte_size = arg_type.size // self.arch.byte_width
+        byte_size = arg_type.size // self.arch.byte_width if arg_type.size is not None else self.arch.bytes
 
         if isinstance(arg_type, SimTypeFloat):
             return fp_loc.refine(size=byte_size, is_fp=True, arch=self.arch)
@@ -1282,7 +1308,26 @@ class SimCCMicrosoftAMD64(SimCC):
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, SimTypeBottom):
             return False
-        return not isinstance(ty, SimTypeFloat) and ty.size > 64
+        return not isinstance(ty, SimTypeFloat) and ty.size > self.STRUCT_RETURN_THRESHOLD
+
+    def return_val(self, ty, perspective_returned=False):
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        if not isinstance(ty, SimStruct):
+            return super().return_val(ty, perspective_returned)
+
+        if ty.size > self.STRUCT_RETURN_THRESHOLD:
+            # TODO this code is duplicated a ton of places. how should it be a function?
+            byte_size = ty.size // self.arch.byte_width
+            referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+            referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
+            if perspective_returned:
+                ptr_loc = self.RETURN_VAL
+            else:
+                ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+            return SimReferenceArgument(ptr_loc, referenced_loc)
+
+        return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
 
 
 class SimCCSyscall(SimCC):

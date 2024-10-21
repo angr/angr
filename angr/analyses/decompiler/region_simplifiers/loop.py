@@ -4,9 +4,9 @@ from collections import defaultdict
 
 import ailment
 
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     MultiNode,
@@ -15,7 +15,8 @@ from ..structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
-from ..utils import is_statement_terminating
+from angr.analyses.decompiler.utils import is_statement_terminating, has_nonlabel_nonphi_statements
+from angr.utils.ail import is_phi_assignment
 
 
 class LoopSimplifier(SequenceWalker):
@@ -83,20 +84,28 @@ class LoopSimplifier(SequenceWalker):
 
         # find for-loop iterators
         if (
-            node.sort == "while"
-            and self.continue_preludes[node]
+            (
+                node.sort == "while"
+                and self.continue_preludes[node]
+                and (
+                    (node.condition is not None and not isinstance(node.condition, ailment.Expr.Const))
+                    or len(self.continue_preludes[node]) > 1
+                )
+            )
             and (
-                (node.condition is not None and not isinstance(node.condition, ailment.Expr.Const))
-                or len(self.continue_preludes[node]) > 1
+                all(block.statements for block in self.continue_preludes[node])
+                and all(
+                    not self._control_transferring_statement(block.statements[-1])
+                    for block in self.continue_preludes[node]
+                )
+                and all(
+                    block.statements[-1] == self.continue_preludes[node][0].statements[-1]
+                    for block in self.continue_preludes[node]
+                )
             )
-        ) and (
-            all(block.statements for block in self.continue_preludes[node])
-            and all(
-                not self._control_transferring_statement(block.statements[-1]) for block in self.continue_preludes[node]
-            )
-            and all(
-                block.statements[-1] == self.continue_preludes[node][0].statements[-1]
-                for block in self.continue_preludes[node]
+            and (
+                all(has_nonlabel_nonphi_statements(block) for block in self.continue_preludes[node])
+                and all(not is_phi_assignment(block.statements[-1]) for block in self.continue_preludes[node])
             )
         ):
             node.sort = "for"

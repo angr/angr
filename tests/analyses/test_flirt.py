@@ -9,7 +9,7 @@ import unittest
 
 import angr
 
-from ..common import bin_location, slow_test
+from tests.common import bin_location, slow_test
 
 
 class TestFlirt(unittest.TestCase):

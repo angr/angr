@@ -7,9 +7,9 @@ import logging
 import nampa
 from archinfo.arch_arm import is_arm_arch
 
-from ..analyses import AnalysesHub
-from ..errors import AngrRuntimeError
-from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
+from angr.analyses import AnalysesHub
+from angr.errors import AngrRuntimeError
+from angr.flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
 import contextlib
 

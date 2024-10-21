@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from angr.analyses.reaching_definitions import FunctionCallData
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 TESTS_LOCATION = os.path.join(bin_location, "tests")

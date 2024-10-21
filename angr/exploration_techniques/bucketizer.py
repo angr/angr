@@ -3,20 +3,16 @@ import math
 from collections import defaultdict
 import logging
 
-from ..engines.successors import SimSuccessors
+from angr.engines.successors import SimSuccessors
 from . import ExplorationTechnique
 
 _l = logging.getLogger(__name__)
-_l.setLevel(logging.DEBUG)
 
 
 class Bucketizer(ExplorationTechnique):
     """
     Loop bucketization: Pick log(n) paths out of n possible paths, and stash (or drop) everything else.
     """
-
-    def __init__(self):
-        super().__init__()
 
     def successors(self, simgr, state, **kwargs):
         # step first
@@ -50,7 +46,8 @@ class Bucketizer(ExplorationTechnique):
         successors.successors = new_successors
         return successors
 
-    def _get_transition_dict(self, state):
+    @staticmethod
+    def _get_transition_dict(state):
         """
 
         :param SimState state:
@@ -64,7 +61,8 @@ class Bucketizer(ExplorationTechnique):
             state.globals["transition"] = t
         return t
 
-    def _record_transition(self, state, transition):
+    @staticmethod
+    def _record_transition(state, transition):
         """
 
         :param SimState state:
@@ -72,12 +70,13 @@ class Bucketizer(ExplorationTechnique):
         :return:
         """
 
-        t = self._get_transition_dict(state).copy()
+        t = Bucketizer._get_transition_dict(state).copy()
         t[transition] += 1
 
         state.globals["transition"] = t
 
-    def _accept_transition(self, state, transition):
+    @staticmethod
+    def _accept_transition(state, transition):
         """
 
         :param SimState state:
@@ -85,7 +84,7 @@ class Bucketizer(ExplorationTechnique):
         :return:
         """
 
-        t = self._get_transition_dict(state)
+        t = Bucketizer._get_transition_dict(state)
 
         if t[transition] == 0:
             _l.error("Impossible: Transition %s has 0 occurrences.", transition)

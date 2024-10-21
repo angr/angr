@@ -1,10 +1,11 @@
 from __future__ import annotations
-from ..plugin import SimStatePlugin
-
-from ...errors import SimMemoryError
-from .. import sim_options as opts
 
 import logging
+
+import angr.sim_options as opts
+from angr.state_plugins.plugin import SimStatePlugin
+from angr.errors import SimMemoryError
+
 
 l = logging.getLogger("angr.state_plugins.heap.heap_base")
 

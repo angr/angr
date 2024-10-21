@@ -15,21 +15,21 @@ import claripy
 from angr.block import Block
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
-from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
-from ...serializable import Serializable
-from ...errors import AngrValueError, SimEngineError, SimMemoryError
-from ...procedures import SIM_LIBRARIES
-from ...procedures.definitions import SimSyscallLibrary
-from ...protos import function_pb2
-from ...calling_conventions import DEFAULT_CC, default_cc
-from ...misc.ux import deprecated
+from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
+from angr.serializable import Serializable
+from angr.errors import AngrValueError, SimEngineError, SimMemoryError
+from angr.procedures import SIM_LIBRARIES
+from angr.procedures.definitions import SimSyscallLibrary
+from angr.protos import function_pb2
+from angr.calling_conventions import DEFAULT_CC, default_cc
+from angr.misc.ux import deprecated
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
 
-from ...sim_type import SimTypeFunction, parse_defns
-from ...calling_conventions import SimCC
-from ...project import Project
+from angr.sim_type import SimTypeFunction, parse_defns
+from angr.calling_conventions import SimCC
+from angr.project import Project
 import contextlib
 
 
@@ -1398,7 +1398,7 @@ class Function(Serializable):
                 original_successors = list(graph.out_edges([n], data=True))
 
                 for _, d, data in original_successors:
-                    ins_addr = data.get("ins_addr", data.get("pseudo_ins_addr", None))
+                    ins_addr = data.get("ins_addr", None)
                     if ins_addr is not None and ins_addr < d.addr:
                         continue
                     if d not in graph[smallest_node]:
@@ -1432,15 +1432,20 @@ class Function(Serializable):
                 new_successors = [i for i in all_nodes if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
+                    new_ins_addrs = self.project.factory.block(new_node.addr, size=new_node.size).instruction_addrs
+                    if self.project.arch.branch_delay_slot and len(new_ins_addrs) >= 2:
+                        new_ins_addr = new_ins_addrs[-2]
+                    elif len(new_ins_addrs) >= 1:
+                        new_ins_addr = new_ins_addrs[-1]
+                    else:
+                        # the new node is somehow not decode-able
+                        new_ins_addr = new_node.addr + new_node.size - 1
                     graph.add_edge(
                         new_node,
                         new_successor,
                         type="transition",
                         outside=is_outside_node,
-                        # it's named "pseudo_ins_addr" because we have no way to know what the actual last
-                        # instruction is at this moment (without re-lifting the block, which would be a
-                        # waste of time).
-                        pseudo_ins_addr=new_node.addr + new_node.size - 1,
+                        ins_addr=new_ins_addr,
                     )
                 else:
                     # We gotta create a new one

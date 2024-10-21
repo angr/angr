@@ -11,27 +11,27 @@ import pyvex
 import claripy
 from archinfo.arch_arm import is_arm_arch
 
-from .... import sim_options as o
-from .... import BP, BP_BEFORE, BP_AFTER
-from ....misc.ux import once
-from ....code_location import CodeLocation
-from ....concretization_strategies import SimConcretizationStrategyAny
-from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from ....engines.vex.claripy import ccall
-from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
-from ....errors import AngrError, SimError
-from ....blade import Blade
-from ....annocfg import AnnotatedCFG
-from ....exploration_techniques.slicecutor import Slicecutor
-from ....exploration_techniques.local_loop_seer import LocalLoopSeer
-from ....exploration_techniques.explorer import Explorer
-from ....utils.constants import DEFAULT_STATEMENT
-from ...propagator.vex_vars import VEXReg
+from angr import sim_options as o
+from angr import BP, BP_BEFORE, BP_AFTER
+from angr.misc.ux import once
+from angr.code_location import CodeLocation
+from angr.concretization_strategies import SimConcretizationStrategyAny
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.engines.vex.claripy import ccall
+from angr.engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
+from angr.errors import AngrError, SimError
+from angr.blade import Blade
+from angr.annocfg import AnnotatedCFG
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.exploration_techniques.local_loop_seer import LocalLoopSeer
+from angr.exploration_techniques.explorer import Explorer
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.analyses.propagator.vex_vars import VEXReg
 from .resolver import IndirectJumpResolver
 from .propagator_utils import PropagatorLoadCallback
 
 try:
-    from ....engines import pcode
+    from angr.engines import pcode
 except ImportError:
     pcode = None
 
@@ -1723,18 +1723,25 @@ class JumpTableResolver(IndirectJumpResolver):
         all_targets = []
         jump_table = []
 
-        jumptable_si = claripy.SI(bits=project.arch.bits, to_conv=jumptable_addr)
+        if jumptable_addr.op == "BVV":
+            stride = 0
+        else:
+            try:
+                jumptable_si = claripy.backends.vsa.simplify(jumptable_addr)
+                si_annotation = jumptable_si.get_annotation(claripy.annotation.StridedIntervalAnnotation)
+                stride = si_annotation.stride if si_annotation is not None else 0
+            except claripy.errors.BackendError:
+                return None
 
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
-        if jumptable_si.args[3] < load_size:  # stride < load_size
+        if stride < load_size:
             stride = load_size
             total_cases = jumptable_addr.cardinality // load_size
             sort = "vtable"  # it's probably a vtable!
         else:
-            stride = jumptable_si.args[3]
             total_cases = jumptable_addr.cardinality
             sort = "jumptable"
 

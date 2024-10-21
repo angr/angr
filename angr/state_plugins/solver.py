@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import functools
 import time
 import logging
@@ -10,8 +11,10 @@ import claripy
 from angr import sim_options as o
 from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
 from angr.sim_state import SimState
+from .inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
+from .sim_action import SimActionConstraint
 
 l = logging.getLogger(name=__name__)
 
@@ -95,7 +98,7 @@ def error_converter(f):
             return f(*args, **kwargs)
         except claripy.UnsatError as e:
             raise SimUnsatError("Got an unsat result") from e
-        except claripy.ClaripyFrontendError as e:
+        except claripy.ClaripyError as e:
             raise SimSolverModeError("Claripy threw an error") from e
 
     return wrapped_f
@@ -118,12 +121,7 @@ def _concrete_value(e):
     # shortcuts for speed improvement
     if isinstance(e, (int, float, bool)):
         return e
-    if (
-        isinstance(e, claripy.ast.Base)
-        and e.op in claripy.operations.leaf_operations_concrete
-        or isinstance(e, SimActionObject)
-        and e.op in claripy.operations.leaf_operations_concrete
-    ):
+    if isinstance(e, claripy.ast.Base | SimActionObject) and e.is_leaf() and not e.symbolic:
         return e.args[0]
     return None
 
@@ -351,23 +349,19 @@ class SimSolver(SimStatePlugin):
         """
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
-            if o.ABSTRACT_MEMORY in self.state.options:
-                l.debug("Creating new top StridedInterval")
-                r = claripy.TSI(bits=bits, name=name, uninitialized=uninitialized, **kwargs)
-            else:
-                l.debug("Creating new unconstrained BV named %s", name)
-                r = self.BVS(
-                    name,
-                    bits,
-                    uninitialized=uninitialized,
-                    key=key,
-                    eternal=eternal,
-                    inspect=inspect,
-                    events=events,
-                    **kwargs,
-                )
-                if uc_alloc_depth is not None:
-                    self.state.uc_manager.set_alloc_depth(r, uc_alloc_depth)
+            l.debug("Creating new unconstrained BV named %s", name)
+            r = self.BVS(
+                name,
+                bits,
+                uninitialized=uninitialized,
+                key=key,
+                eternal=eternal,
+                inspect=inspect,
+                events=events,
+                **kwargs,
+            )
+            if uc_alloc_depth is not None:
+                self.state.uc_manager.set_alloc_depth(r, uc_alloc_depth)
 
             return r
         # Return a default value, aka. 0
@@ -416,26 +410,18 @@ class SimSolver(SimStatePlugin):
         if key is not None and eternal and key in self.eternal_tracked_variables:
             r = self.eternal_tracked_variables[key]
             # pylint: disable=too-many-boolean-expressions
-            if (
-                size != r.length
-                or min != r.args[1]
-                or max != r.args[2]
-                or stride != r.args[3]
-                or uninitialized != r.args[4]
-                or bool(explicit_name) ^ (r.args[0] == name)
-            ):
+            if size != r.length or uninitialized != r.uninitialized or bool(explicit_name) ^ (r.args[0] == name):
                 l.warning("Variable %s being retrieved with different settings than it was tracked with", name)
         else:
             r = claripy.BVS(
                 name,
                 size,
-                min=min,
-                max=max,
-                stride=stride,
                 uninitialized=uninitialized,
                 explicit_name=explicit_name,
                 **kwargs,
             )
+            if any(x is not None for x in (min, max, stride)):
+                r = r.annotate(claripy.annotation.StridedIntervalAnnotation(stride, min, max))
             if key is not None:
                 self.register_variable(r, key, eternal)
 
@@ -701,6 +687,9 @@ class SimSolver(SimStatePlugin):
 
         :return:                    True if sat, otherwise false
         """
+        if o.ABSTRACT_SOLVER in self.state.options or o.SYMBOLIC not in self.state.options:
+            return all(not self.is_false(e) for e in extra_constraints)
+
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
             ar = self._solver.satisfiable(
@@ -720,8 +709,69 @@ class SimSolver(SimStatePlugin):
 
         :param constraints:     Pass any constraints that you want to add (ASTs) as varargs.
         """
-        cc = self._adjust_constraint_list(constraints)
-        return self._solver.add(cc)
+        if len(constraints) > 0 and isinstance(constraints[0], (list, tuple)):
+            raise Exception("Tuple or list passed to add!")
+
+        if o.TRACK_CONSTRAINTS in self.state.options and len(constraints) > 0:
+            constraints = (
+                [self.simplify(a) for a in constraints] if o.SIMPLIFY_CONSTRAINTS in self.state.options else constraints
+            )
+
+            self.state._inspect("constraints", BP_BEFORE, added_constraints=constraints)
+            constraints = self.state._inspect_getattr("added_constraints", constraints)
+            cc = self._adjust_constraint_list(constraints)
+            added = self._solver.add(cc)
+            self.state._inspect("constraints", BP_AFTER)
+
+            # add actions for the added constraints
+            if o.TRACK_CONSTRAINT_ACTIONS in self.state.options:
+                for c in added:
+                    sac = SimActionConstraint(self.state, c)
+                    self.state.history.add_action(sac)
+
+        if o.ABSTRACT_SOLVER in self.state.options and len(constraints) > 0:
+            for arg in constraints:
+                if self.is_false(arg):
+                    return
+
+                if self.is_true(arg):
+                    continue
+
+                # It's neither True or False. Let's try to apply the condition
+
+                # We take the argument, extract a list of constrained SIs out of
+                # it (if we could, of course), and then replace each original SI
+                # the intersection of original SI and the constrained one.
+
+                _, converted = claripy.constraint_to_si(arg)
+
+                for original_expr, constrained_si in converted:
+                    if not original_expr.variables:
+                        l.error(
+                            "Incorrect original_expression to replace in add(). "
+                            "This is due to defects in VSA logics inside claripy. "
+                            "Please report to Fish and he will fix it if he's free."
+                        )
+                        continue
+
+                    new_expr = constrained_si
+                    self.state.registers.replace_all(original_expr, new_expr)
+                    self.state.memory.replace_all(original_expr, new_expr)
+                    # tmps
+                    temps = self.state.scratch.temps
+                    for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
+                        t = temps[idx]
+                        if t is None:
+                            continue
+                        if t.variables.intersection(original_expr.variables):
+                            # replace
+                            temps[idx] = claripy.replace(t, original_expr, new_expr)
+
+                    l.debug("SimSolver.add: Applied to final state.")
+        elif o.SYMBOLIC not in self.state.options and len(constraints) > 0:
+            for arg in constraints:
+                if self.is_false(arg):
+                    return
 
     #
     # And some convenience stuff
@@ -1052,13 +1102,9 @@ class SimSolver(SimStatePlugin):
             return self._solver.simplify()
         if (
             isinstance(e, (int, float, bool))
-            or isinstance(e, claripy.ast.Base)
-            and e.op in claripy.operations.leaf_operations_concrete
+            or (isinstance(e, claripy.ast.Base | SimActionObject) and e.is_leaf() and not e.symbolic)
+            or (not isinstance(e, claripy.ast.Base | SimActionObject))
         ):
-            return e
-        if isinstance(e, SimActionObject) and e.op in claripy.operations.leaf_operations_concrete:
-            return e.ast
-        if not isinstance(e, (SimActionObject, claripy.ast.Base)):
             return e
         return self._claripy_simplify(e)
 
@@ -1076,5 +1122,3 @@ class SimSolver(SimStatePlugin):
 
 
 SimState.register_default("solver", SimSolver)
-
-from .inspect import BP_AFTER

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import ailment
 
-from ..sequence_walker import SequenceWalker
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 
 class NodeAddressFinder(SequenceWalker):

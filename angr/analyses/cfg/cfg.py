@@ -61,7 +61,7 @@ class CFG(CFGFast):  # pylint: disable=abstract-method
         # Sanity check to make sure the user only wants to use CFGFast
 
         for p in cfgemulated_params:
-            if kwargs.get(p, None) is not None:
+            if kwargs.get(p) is not None:
                 sys.stderr.write(outdated_message + "\n")
                 raise OutdatedError(outdated_exception)
 

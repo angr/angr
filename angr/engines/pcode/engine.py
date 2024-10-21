@@ -7,9 +7,9 @@ import logging
 from angr.calling_conventions import DEFAULT_CC, default_cc, SimRegArg
 from angr.engines.engine import SuccessorsMixin, SimSuccessors
 from angr.misc.ux import once
-from ...utils.constants import DEFAULT_STATEMENT
-from ... import sim_options as o
-from ... import errors
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr import sim_options as o
+from angr import errors
 from .lifter import PcodeLifterEngineMixin, IRSB
 from .emulate import PcodeEmulatorMixin
 
@@ -85,7 +85,7 @@ class HeavyPcodeMixin(
         successors.sort = "IRSB"
         successors.description = "IRSB"
         self.state.history.recent_block_count = 1
-        self.state.scratch.guard = claripy.true
+        self.state.scratch.guard = claripy.true()
         self.state.scratch.sim_procedure = None
         addr = successors.addr
         self.state.scratch.bbl_addr = addr
@@ -240,7 +240,7 @@ class HeavyPcodeMixin(
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                guard = claripy.true() if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false()
                 ret_target = claripy.BVV(successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith("Ijk_Sys"):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes

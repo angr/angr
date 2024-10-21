@@ -4,12 +4,12 @@ import claripy
 import pyvex
 
 from angr.engines.engine import SuccessorsMixin
-from ..light import VEXMixin
-from ..lifter import VEXLifter
-from ..claripy.datalayer import ClaripyDataMixin, symbol
-from ....utils.constants import DEFAULT_STATEMENT
-from .... import sim_options as o
-from .... import errors
+from angr.engines.vex.light import VEXMixin
+from angr.engines.vex.lifter import VEXLifter
+from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr import sim_options as o
+from angr import errors
 from . import dirty
 
 l = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         successors.sort = "IRSB"
         successors.description = "IRSB"
         self.state.history.recent_block_count = 1
-        self.state.scratch.guard = claripy.true
+        self.state.scratch.guard = claripy.true()
         self.state.scratch.sim_procedure = None
         addr = successors.addr
         self.state.scratch.bbl_addr = addr
@@ -216,7 +216,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                guard = claripy.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false
+                guard = claripy.true() if o.TRUE_RET_EMULATION_GUARD in self.state.options else claripy.false()
                 ret_target = claripy.BVV(successors.addr + irsb.size, ret_state.arch.bits)
                 ret_state.registers.store(
                     ret_state.arch.ret_offset, ret_state.solver.Unconstrained("fake_ret_value", ret_state.arch.bits)
@@ -251,7 +251,13 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
         # Raise an exception if we're suddenly in self-modifying code
         if (self.project is None or self.project.selfmodifying_code) and self.state.scratch.dirty_addrs:
-            for subaddr in range(stmt.len):
+            instruction_len = stmt.len
+            if instruction_len == 0:
+                # We don't know how long this instruction is.
+                # Conservatively assume it is the maximum instruction
+                # length for the purpose of dirty checks.
+                instruction_len = self.project.arch.max_inst_bytes
+            for subaddr in range(instruction_len):
                 if subaddr + stmt.addr in self.state.scratch.dirty_addrs:
                     raise errors.SimReliftException(self.state)
 

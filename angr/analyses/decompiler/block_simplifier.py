@@ -8,15 +8,11 @@ from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Tmp, Load, Const, Register, Convert
 from ailment import AILBlockWalkerBase
 
-from angr.code_location import ExternalCodeLocation
+from angr.code_location import ExternalCodeLocation, CodeLocation
 
-from ...engines.light.data import SpOffset
-from ...knowledge_plugins.key_definitions.constants import OP_AFTER
-from ...knowledge_plugins.key_definitions import atoms
-from ...analyses.propagator import PropagatorAnalysis
-from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
-from ...errors import SimMemoryMissingError
-from .. import Analysis, register_analysis
+from angr.analyses.s_propagator import SPropagatorAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
+from angr.analyses import Analysis, register_analysis
 from .peephole_optimizations import (
     MULTI_STMT_OPTS,
     STMT_OPTS,
@@ -28,8 +24,7 @@ from .peephole_optimizations import (
 from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
 
 if TYPE_CHECKING:
-    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
+    from angr.knowledge_plugins.key_definitions.live_definitions import Definition
     from ailment.block import Block
 
 
@@ -68,7 +63,6 @@ class BlockSimplifier(Analysis):
         peephole_optimizations: None | (
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,
-        stack_arg_offsets: set[tuple[int, int]] | None = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
     ):
@@ -81,7 +75,6 @@ class BlockSimplifier(Analysis):
         self.func_addr = func_addr
 
         self._remove_dead_memdefs = remove_dead_memdefs
-        self._stack_arg_offsets = stack_arg_offsets
         self._stack_pointer_tracker = stack_pointer_tracker
 
         if peephole_optimizations is None:
@@ -148,27 +141,21 @@ class BlockSimplifier(Analysis):
 
     def _compute_propagation(self, block):
         if self._propagator is None:
-            self._propagator = self.project.analyses[PropagatorAnalysis].prep()(
-                block=block,
+            self._propagator = self.project.analyses[SPropagatorAnalysis].prep()(
+                subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
-                reaching_definitions=self._compute_reaching_definitions(block),
             )
         return self._propagator
 
-    def _compute_reaching_definitions(self, block):
-        def observe_callback(ob_type, addr=None, op_type=None, **kwargs) -> bool:  # pylint:disable=unused-argument
-            return ob_type == "node" and addr == block.addr and op_type == OP_AFTER
-
+    def _compute_reaching_definitions(self, block) -> SRDAModel:
         if self._reaching_definitions is None:
             self._reaching_definitions = (
-                self.project.analyses[ReachingDefinitionsAnalysis]
+                self.project.analyses[SReachingDefinitionsAnalysis]
                 .prep()(
                     subject=block,
                     track_tmps=True,
                     stack_pointer_tracker=self._stack_pointer_tracker,
-                    observe_all=False,
-                    observe_callback=observe_callback,
                     func_addr=self.func_addr,
                 )
                 .model
@@ -197,9 +184,8 @@ class BlockSimplifier(Analysis):
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             propagator = self._compute_propagation(block)
             new_block = block
-            if propagator.model.states:
-                prop_state = next(iter(propagator.model.states.values()))
-                replacements = prop_state._replacements
+            if propagator.model is not None:
+                replacements = propagator.model.replacements
                 if replacements:
                     _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
                     new_block = self._eliminate_self_assignments(new_block)
@@ -318,65 +304,26 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        live_defs: LiveDefinitions = rd.observed_results[("node", block.addr, OP_AFTER)]
+        block_loc = CodeLocation(block.addr, None, block_idx=block.idx)
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
-        all_defs: Iterable[Definition] = rd.all_definitions
-        mask = (1 << self.project.arch.bits) - 1
-        stackarg_offsets = (
-            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
-        )
+        all_defs: Iterable[Definition] = rd.get_all_tmp_definitions(block_loc)
         for d in all_defs:
-            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
-                continue
-            if isinstance(d.atom, atoms.MemoryLocation) and not self._remove_dead_memdefs:
-                # we always remove definitions for stack arguments
-                if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
-                    if (d.atom.addr.offset & mask) not in stackarg_offsets:
-                        continue
-                else:
-                    continue
+            assert not isinstance(d.codeloc, ExternalCodeLocation)
+            assert not d.dummy
 
-            if isinstance(d.atom, atoms.Tmp):
-                uses = live_defs.tmp_uses[d.atom.tmp_idx]
-                if not uses:
-                    dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-            else:
-                uses = rd.all_uses.get_uses(d)
-                if not uses:
-                    # it's entirely possible that at the end of the block, a register definition is not used.
-                    # however, it might be used in future blocks.
-                    # so we only remove a definition if the definition is not alive anymore at the end of the block
-                    defs_ = set()
-                    if isinstance(d.atom, atoms.Register):
-                        try:
-                            vs: MultiValues = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
-                        except SimMemoryMissingError:
-                            vs = None
-                    elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                        stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-                        try:
-                            vs: MultiValues = live_defs.stack.load(stack_addr, size=d.atom.size, endness=d.atom.endness)
-                        except SimMemoryMissingError:
-                            vs = None
-                    else:
-                        continue
-                    if vs is not None:
-                        for values in vs.values():
-                            for value in values:
-                                defs_.update(live_defs.extract_defs(value))
+            uses = rd.get_tmp_uses(d.atom, block_loc)
+            if not uses:
+                dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
-                    if d not in defs_:
-                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-
-        used_tmps = set()
+        used_tmps: set[int] = set()
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
-        for tmp, used_locs in live_defs.tmp_uses.items():
-            used_at = {loc.stmt_idx for loc in used_locs}
+        for tmp, used_locs in rd.all_tmp_uses[block_loc].items():
+            used_at = {stmt_idx for _, stmt_idx in used_locs}
             if used_at.issubset(dead_defs_stmt_idx):
                 continue
-            used_tmps.add(tmp)
+            used_tmps.add(tmp.tmp_idx)
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):

@@ -14,8 +14,8 @@ import ailment
 
 from angr.code_location import ExternalCodeLocation
 
-from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc
-from ..sim_type import (
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc
+from angr.sim_type import (
     SimTypeInt,
     SimTypeFunction,
     SimType,
@@ -26,22 +26,22 @@ from ..sim_type import (
     SimTypeFloat,
     SimTypeDouble,
 )
-from ..sim_variable import SimStackVariable, SimRegisterVariable
-from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
-from ..knowledge_plugins.key_definitions.tag import ReturnValueTag
-from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
-from ..knowledge_plugins.variables.variable_access import VariableAccessSort
-from ..knowledge_plugins.functions import Function
-from ..utils.constants import DEFAULT_STATEMENT
-from .. import SIM_PROCEDURES
+from angr.sim_variable import SimStackVariable, SimRegisterVariable
+from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
+from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
+from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
+from angr.knowledge_plugins.functions import Function
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr import SIM_PROCEDURES
 from .reaching_definitions import get_all_definitions
 from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 
 if TYPE_CHECKING:
-    from ..knowledge_plugins.cfg import CFGModel
-    from ..knowledge_plugins.key_definitions.uses import Uses
-    from ..knowledge_plugins.key_definitions.definition import Definition
+    from angr.knowledge_plugins.cfg import CFGModel
+    from angr.knowledge_plugins.key_definitions.uses import Uses
+    from angr.knowledge_plugins.key_definitions.definition import Definition
 
 l = logging.getLogger(name=__name__)
 
@@ -356,9 +356,12 @@ class CallingConventionAnalysis(Analysis):
         caller_block_addr: int,
         call_insn_addr: int,
         include_preds: bool = False,
-    ) -> CallSiteFact:
+    ) -> CallSiteFact | None:
         func = self.kb.functions[caller_addr]
         subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
+        if subgraph is None:
+            # failed to generate a subgraph when the caller block cannot be found in the function graph
+            return None
 
         observation_points: list = [("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)]
 
@@ -440,6 +443,8 @@ class CallingConventionAnalysis(Analysis):
                     call_insn_addr,
                     include_preds=include_callsite_preds,
                 )
+                if fact is None:
+                    continue
                 facts.append(fact)
 
                 ctr += 1
@@ -557,7 +562,13 @@ class CallingConventionAnalysis(Analysis):
         fact: CallSiteFact,
     ) -> None:
         # determine if potential register and stack arguments are set
-        state = rda.observed_results[("insn", call_insn_addr, OP_BEFORE)]
+        observation_key = "insn", call_insn_addr, OP_BEFORE
+        state = rda.observed_results.get(observation_key)
+        if state is None:
+            # the observation state is not found. it can happen if call_insn_addr is incorrect, which may happen (but
+            # rarely) on incorrect CFGs.
+            return
+
         defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
         all_reg_defs: set[Definition] = get_all_definitions(state.registers)
         all_stack_defs: set[Definition] = get_all_definitions(state.stack)

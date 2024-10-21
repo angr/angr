@@ -10,8 +10,8 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
-from ....procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
-from ....sim_type import (
+from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
+from angr.sim_type import (
     SimTypeLongLong,
     SimTypeInt,
     SimTypeShort,
@@ -31,18 +31,20 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
     dereference_simtype,
+    SimTypeInt128,
+    SimTypeInt256,
 )
-from ....knowledge_plugins.functions import Function
-from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
-from ....utils.constants import is_alignment_mask
-from ....utils.library import get_cpp_function_name
-from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
-from ..utils import structured_node_is_simple_return
-from ....errors import UnsupportedNodeTypeError, AngrRuntimeError
-from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from ... import Analysis, register_analysis
-from ..region_identifier import MultiNode
-from ..structuring.structurer_nodes import (
+from angr.knowledge_plugins.functions import Function
+from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
+from angr.utils.constants import is_alignment_mask
+from angr.utils.library import get_cpp_function_name
+from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
+from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.analyses import Analysis, register_analysis
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     ConditionNode,
@@ -1406,7 +1408,7 @@ class CUnsupportedStatement(CStatement):
 class CDirtyStatement(CExpression):
     __slots__ = ("dirty",)
 
-    def __init__(self, dirty, **kwargs):
+    def __init__(self, dirty: CDirtyExpression, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
 
@@ -1418,7 +1420,7 @@ class CDirtyStatement(CExpression):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield str(self.dirty), None
+        yield from self.dirty.c_repr_chunks()
         yield "\n", None
 
 
@@ -2301,6 +2303,38 @@ class CMultiStatementExpression(CExpression):
         yield ")", paren
 
 
+class CVEXCCallExpression(CExpression):
+    """
+    ccall_name(arg0, arg1, ...)
+    """
+
+    __slots__ = (
+        "callee",
+        "operands",
+        "tags",
+    )
+
+    def __init__(self, callee: str, operands: list[CExpression], tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.callee = callee
+        self.operands = operands
+        self.tags = tags
+
+    @property
+    def type(self):
+        return SimTypeInt().with_arch(self.codegen.project.arch)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        paren = CClosingObject("(")
+        yield f"{self.callee}", self
+        yield "(", paren
+        for idx, operand in enumerate(self.operands):
+            if idx != 0:
+                yield ", ", None
+            yield from operand.c_repr_chunks()
+        yield ")", paren
+
+
 class CDirtyExpression(CExpression):
     """
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
@@ -2422,10 +2456,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.BinaryOp: self._handle_Expr_BinaryOp,
             Expr.Convert: self._handle_Expr_Convert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
+            Expr.VEXCCallExpression: self._handle_Expr_VEXCCallExpression,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
+            Expr.VirtualVariable: self._handle_VirtualVariable,
         }
 
         self._func = func
@@ -3193,8 +3229,35 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
-        cdst = self._handle(stmt.dst, lvalue=True)
         csrc = self._handle(stmt.src, lvalue=False)
+        cdst = None
+
+        if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
+
+            def negotiate(old_ty, proposed_ty):
+                # transfer casts from the dst to the src if possible
+                # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
+                nonlocal csrc
+                if old_ty != proposed_ty and qualifies_for_simple_cast(old_ty, proposed_ty):
+                    csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
+                    return proposed_ty
+                return old_ty
+
+            if stmt.dst.variable is not None:
+                if "struct_member_info" in stmt.dst.tags:
+                    offset, var, _ = stmt.dst.struct_member_info
+                    cvar = self._variable(var, stmt.dst.size)
+                else:
+                    cvar = self._variable(stmt.dst.variable, stmt.dst.size)
+                    offset = stmt.dst.variable_offset or 0
+                assert type(offset) is int  # I refuse to deal with the alternative
+
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cvar), offset, csrc.type, True, negotiate
+                )
+
+        if cdst is None:
+            cdst = self._handle(stmt.dst, lvalue=True)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
@@ -3288,7 +3351,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return clabel
 
     def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
-        return CDirtyStatement(stmt, codegen=self)
+        dirty = self._handle(stmt.dirty)
+        return CDirtyStatement(dirty, codegen=self)
 
     #
     # AIL expression handlers
@@ -3451,8 +3515,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
-        if 64 >= expr.to_bits > 32:
-            dst_type: SimTypeInt | SimTypeChar = SimTypeLongLong()
+        dst_type: SimTypeInt | SimTypeChar
+        if 258 >= expr.to_bits > 128:
+            dst_type = SimTypeInt256()
+        elif 128 >= expr.to_bits > 64:
+            dst_type = SimTypeInt128()
+        elif 64 >= expr.to_bits > 32:
+            dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
             dst_type = SimTypeInt()
         elif 16 >= expr.to_bits > 8:
@@ -3484,7 +3553,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_Dirty(self, expr, **kwargs):
+    def _handle_Expr_VEXCCallExpression(self, expr: Expr.VEXCCallExpression, **kwargs):
+        operands = [self._handle(arg) for arg in expr.operands]
+        return CVEXCCallExpression(expr.callee, operands, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Dirty(self, expr: Expr.DirtyExpression, **kwargs):
         return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
@@ -3520,6 +3593,28 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
         cexpr = self._handle(expr.expr)
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
+
+    def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
+        if expr.variable:
+            cvar = self._variable(expr.variable, None)
+            if expr.variable.size != expr.size:
+                l.warning(
+                    "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
+                    expr.size,
+                    expr.variable.size,
+                )
+                src_type = cvar.type
+                dst_type = {
+                    64: SimTypeLongLong(signed=False),
+                    32: SimTypeInt(signed=False),
+                    16: SimTypeShort(signed=False),
+                    8: SimTypeChar(signed=False),
+                }.get(expr.bits, None)
+                if dst_type is not None:
+                    dst_type = dst_type.with_arch(self.project.arch)
+                    return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
+            return cvar
+        return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         if expr.variable is not None:

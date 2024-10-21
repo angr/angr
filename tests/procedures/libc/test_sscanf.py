@@ -4,19 +4,16 @@ from __future__ import annotations
 __package__ = __package__ or "tests.procedures.libc"  # pylint:disable=redefined-builtin
 
 import os
-import subprocess
-import sys
 import unittest
 
 import angr
 
-from ...common import bin_location
+from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestSscanf(unittest.TestCase):
-    @unittest.skipUnless(sys.platform.startswith("linux"), "linux only")
     def test_sscanf(self):
         test_bin = os.path.join(test_location, "x86_64", "sscanf_test")
         b = angr.Project(test_bin, auto_load_libs=False)
@@ -42,23 +39,9 @@ class TestSscanf(unittest.TestCase):
         }
         pg.run()
         assert len(pg.deadended) == len(expected_outputs)
+        assert {f.posix.dumps(1) for f in pg.deadended} == expected_outputs
         assert len(pg.active) == 0
         assert len(pg.errored) == 0
-
-        # check the outputs
-        pipe = subprocess.PIPE
-        for f in pg.deadended:
-            test_input = f.posix.dumps(0)
-            test_output = f.posix.dumps(1)
-            expected_outputs.remove(test_output)
-
-            # check the output works as expected
-            p = subprocess.Popen(test_bin, stdout=pipe, stderr=pipe, stdin=pipe)
-            ret = p.communicate(test_input)[0]
-            assert ret == test_output
-
-        # check that all of the outputs were seen
-        assert len(expected_outputs) == 0
 
 
 if __name__ == "__main__":

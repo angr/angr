@@ -22,13 +22,13 @@ from .utils import (
     correct_jump_targets,
     deepcopy_ail_anyjump,
 )
-from ..optimization_pass import StructuringOptimizationPass
-from ...block_io_finder import BlockIOFinder
-from ...block_similarity import is_similar, index_of_similar_stmts, longest_ail_subseq
-from ...utils import to_ail_supergraph, remove_labels
-from ...counters.boolean_counter import BooleanCounter
-from .....knowledge_plugins.key_definitions.atoms import MemoryLocation
-from .....utils.graph import dominates
+from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
+from angr.analyses.decompiler.block_io_finder import BlockIOFinder
+from angr.analyses.decompiler.block_similarity import is_similar, index_of_similar_stmts, longest_ail_subseq
+from angr.analyses.decompiler.utils import to_ail_supergraph, remove_labels
+from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
+from angr.utils.graph import dominates
 
 _l = logging.getLogger(name=__name__)
 
@@ -51,7 +51,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             strictly_less_gotos=False,
             recover_structure_fails=True,
             must_improve_rel_quality=True,
-            max_opt_iters=30,
+            max_opt_iters=5,
             simplify_ail=True,
             require_gotos=True,
             readd_labels=True,
@@ -146,7 +146,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         candidates = sorted(candidates, key=len)
         _l.debug("Located %d candidates for merging: %s", len(candidates), candidates)
 
-        candidate = sorted(candidates.pop(), key=lambda x: x.addr)
+        candidate = sorted(candidates[0], key=lambda x: x.addr)
         _l.debug("Selecting the candidate: %s", candidate)
         return candidate[0], candidate[1]
 
@@ -679,6 +679,10 @@ class DuplicationReverter(StructuringOptimizationPass):
         ail_merge_graph = AILMergeGraph(original_graph=graph)
         # some blocks in originals may update during this time (if-statements can change)
         update_blocks = ail_merge_graph.create_conditionless_graph(blocks, graph_lcs)
+        if update_blocks is None:
+            # failed to create the condition-less graph
+            self.candidate_blacklist.add(tuple(blocks))
+            raise SAILRSemanticError("Failed to create a condition-less graph, this analysis must skip it")
 
         #
         # SPECIAL CASE: the merged graph contains only 1 node and no splits
@@ -1170,9 +1174,9 @@ class DuplicationReverter(StructuringOptimizationPass):
             entry_blocks = [node for node in graph.nodes if graph.in_degree(node) == 0]
             entry_block = None if len(entry_blocks) != 1 else entry_blocks[0]
 
-            self._entry_node_cache[graph] = entry_block
             if entry_block is None:
                 return None
+            self._entry_node_cache[graph] = entry_block
 
         entry_blk = self._entry_node_cache[graph]
 

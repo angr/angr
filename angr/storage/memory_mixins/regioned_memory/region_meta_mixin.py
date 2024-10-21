@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from .. import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class Segment:
@@ -148,7 +148,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        r: MemoryRegionMetaMixin = super().copy(memo)
+        r = super().copy(memo)
         r.alocs = copy.deepcopy(self.alocs)
         r._related_function_addr = self._related_function_addr
         r._is_stack = self._is_stack
@@ -187,7 +187,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
 
         return ret
 
-    def store(self, addr, data, bbl_addr=None, stmt_id=None, ins_addr=None, endness=None, **kwargs):
+    def store(self, addr, data, size=None, *, bbl_addr=None, stmt_id=None, ins_addr=None, endness=None, **kwargs):
         # It comes from a SimProcedure. We'll use bbl_addr as the aloc_id
         aloc_id = ins_addr if ins_addr is not None else bbl_addr
 
@@ -195,13 +195,13 @@ class MemoryRegionMetaMixin(MemoryMixin):
             self.alocs[aloc_id] = AbstractLocation(
                 bbl_addr, stmt_id, self.id, region_offset=addr, size=len(data) // self.state.arch.byte_width
             )
-            return super().store(addr, data, endness=endness, **kwargs)
+            return super().store(addr, data, size=size, endness=endness, **kwargs)
         if self.alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
-            return super().store(addr, data, endness=endness, **kwargs)
-        return super().store(addr, data, endness=endness, **kwargs)
+            return super().store(addr, data, size=size, endness=endness, **kwargs)
+        return super().store(addr, data, size=size, endness=endness, **kwargs)
 
     def load(
-        self, addr, size=None, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs
+        self, addr, size=None, *, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs
     ):  # pylint:disable=unused-argument
         # if bbl_addr is not None and stmt_id is not None:
         return super().load(addr, size=size, **kwargs)
@@ -228,9 +228,11 @@ class MemoryRegionMetaMixin(MemoryMixin):
         return r
 
     def widen(self, others):
+        result = False
         for other_region in others:
             self._merge_alocs(other_region)
-            super().widen([other_region.memory])
+            result |= super().widen([other_region.memory])
+        return result
 
     def dbg_print(self, indent=0):
         """

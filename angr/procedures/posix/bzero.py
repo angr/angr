@@ -1,7 +1,7 @@
 from __future__ import annotations
 import claripy
 
-from ..libc import memset
+from angr.procedures.libc import memset
 
 
 class bzero(memset.memset):

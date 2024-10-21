@@ -14,8 +14,8 @@ import claripy
 
 from angr.utils.graph import GraphUtils
 from angr.simos import SimWindows
-from ..utils.mp import mp_context, Initializer
-from ..knowledge_plugins.cfg import CFGModel
+from angr.utils.mp import mp_context, Initializer
+from angr.knowledge_plugins.cfg import CFGModel
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 if TYPE_CHECKING:
@@ -185,7 +185,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if self._cc_callback is not None:
                     self._cc_callback(func_addr)
 
-                percentage = idx + 1 / total_funcs * 100.0
+                percentage = (idx + 1) / total_funcs * 100.0
                 self._update_progress(percentage, text=f"{idx + 1}/{total_funcs} - {func.demangled_name}")
                 if self._low_priority:
                     self._release_gil(idx + 1, 10, 0.000001)

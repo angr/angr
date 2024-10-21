@@ -289,6 +289,7 @@ class AngrObjectFactory:
         collect_data_refs=False,
         cross_insn_opt=True,
         load_from_ro_regions=False,
+        const_prop=False,
         initial_regs=None,
         skip_stmts=False,
     ) -> Block: ...
@@ -312,6 +313,8 @@ class AngrObjectFactory:
         insn_text=None,  # backward compatibility
         strict_block_end=None,
         collect_data_refs=False,
+        load_from_ro_regions=False,
+        const_prop=False,
         cross_insn_opt=True,
         skip_stmts=False,
     ) -> SootBlock: ...
@@ -335,6 +338,7 @@ class AngrObjectFactory:
         collect_data_refs=False,
         cross_insn_opt=True,
         load_from_ro_regions=False,
+        const_prop=False,
         initial_regs=None,
         skip_stmts=False,
     ):
@@ -372,6 +376,7 @@ class AngrObjectFactory:
             collect_data_refs=collect_data_refs,
             cross_insn_opt=cross_insn_opt,
             load_from_ro_regions=load_from_ro_regions,
+            const_prop=const_prop,
             initial_regs=initial_regs,
             skip_stmts=skip_stmts,
         )

@@ -14,7 +14,7 @@ from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeI
 from angr.errors import AngrCallableMultistateError
 
 
-from ..common import bin_location, slow_test
+from tests.common import bin_location, slow_test
 
 
 test_location = os.path.join(bin_location, "tests")

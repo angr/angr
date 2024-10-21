@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from ailment.expression import Load, BinaryOp, Register, Const
+from ailment.expression import Load, BinaryOp, VirtualVariable, Const
 
 from .base import PeepholeOptimizationExprBase
 
@@ -28,7 +28,8 @@ class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
             and isinstance(expr.addr, BinaryOp)
             and expr.addr.op in {"Add", "Sub"}
             and len(expr.addr.operands) == 2
-            and isinstance(expr.addr.operands[0], Register)
+            and isinstance(expr.addr.operands[0], VirtualVariable)
+            and expr.addr.operands[0].was_reg
             and expr.addr.operands[0].reg_offset == gp_offset
             and isinstance(expr.addr.operands[1], Const)
         ):

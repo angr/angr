@@ -12,7 +12,7 @@ import claripy
 from angr.exploration_techniques.spiller import Spiller
 import angr
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

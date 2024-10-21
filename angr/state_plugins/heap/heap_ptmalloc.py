@@ -3,28 +3,16 @@ import logging
 
 import claripy
 
-from ..plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin
 from .heap_freelist import SimHeapFreelist, Chunk
 from .utils import concretize
-from ...errors import SimHeapError, SimMergeError, SimSolverError
+from angr.errors import SimHeapError, SimMergeError, SimSolverError
 
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
-sml = logging.getLogger("angr.state_plugins.symbolic_memory")
 
 CHUNK_FLAGS_MASK = 0x07
 CHUNK_P_MASK = 0x01
-
-
-# These are included as sometimes the heap will touch uninitialized locations, which normally causes a warning
-def silence_logger():
-    level = sml.getEffectiveLevel()
-    sml.setLevel("ERROR")
-    return level
-
-
-def unsilence_logger(level):
-    sml.setLevel(level)
 
 
 class PTChunk(Chunk):
@@ -60,11 +48,9 @@ class PTChunk(Chunk):
         return chunk_size - 2 * self._chunk_size_t_size
 
     def _set_leading_size(self, size):
-        level = silence_logger()
         chunk_flags = (
             self.state.memory.load(self.base + self._chunk_size_t_size, self._chunk_size_t_size) & CHUNK_FLAGS_MASK
         )
-        unsilence_logger(level)
         self.state.memory.store(self.base + self._chunk_size_t_size, size | chunk_flags, size=self.state.arch.bytes)
 
     def _set_trailing_size(self, size):
@@ -98,9 +84,7 @@ class PTChunk(Chunk):
 
         :param is_free: if True, sets the previous chunk to be free; if False, sets it to be allocated
         """
-        level = silence_logger()
         size_field = self.state.memory.load(self.base + self._chunk_size_t_size, self._chunk_size_t_size)
-        unsilence_logger(level)
         if is_free:
             self.state.memory.store(
                 self.base + self._chunk_size_t_size, size_field & ~CHUNK_P_MASK, size=self.state.arch.bytes
@@ -550,9 +534,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
                 return 0
             # Copy the old data over
             old_data_ptr = chunk.data_ptr()
-            level = silence_logger()
             old_data = self.state.memory.load(old_data_ptr, size=old_size - 2 * self._chunk_size_t_size)
-            unsilence_logger(level)
             self.state.memory.store(new_data_ptr, old_data)
             self.free(old_data_ptr)  # Free the old chunk
             return new_data_ptr

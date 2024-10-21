@@ -4,9 +4,15 @@ from __future__ import annotations
 import abc
 import logging
 import threading
-import angr
 
 from archinfo.arch_soot import SootAddressDescriptor
+
+import angr
+from angr import sim_options as o
+from angr.errors import SimException
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
+from .successors import SimSuccessors
 
 l = logging.getLogger(name=__name__)
 
@@ -31,12 +37,6 @@ class SimEngineBase:
     def __setstate__(self, state):
         self.project = state[0]
         self.state = None
-
-    def _is_true(self, v):
-        return v is True
-
-    def _is_false(self, v):
-        return v is False
 
 
 class SimEngine(SimEngineBase, metaclass=abc.ABCMeta):
@@ -183,7 +183,7 @@ class SuccessorsMixin(SimEngine):
 
         return self.successors
 
-    def process_successors(self, successors, **kwargs):
+    def process_successors(self, successors, **kwargs):  # pylint:disable=unused-argument
         """
         Implement this function to fill out the SimSuccessors object with the results of stepping state.
 
@@ -201,10 +201,3 @@ class SuccessorsMixin(SimEngine):
         :param kwargs:          Any extra arguments. Do not fail if you are passed unexpected arguments.
         """
         successors.processed = False  # mark failure
-
-
-# pylint:disable=wrong-import-position
-from .. import sim_options as o
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from .successors import SimSuccessors
-from ..errors import SimException

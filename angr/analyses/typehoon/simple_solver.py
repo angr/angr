@@ -379,8 +379,13 @@ class SimpleSolver:
             if self._constraints[typevar]:
                 self._constraints[typevar] |= self._eq_constraints_from_add(typevar)
                 self._constraints[typevar] = self._handle_equivalence(typevar)
-        equ_classes, sketches, _ = self.solve()
+
         self.solution = {}
+        for tv, sol in self._equivalence.items():
+            if isinstance(tv, TypeVariable) and isinstance(sol, TypeConstant):
+                self.solution[tv] = sol
+
+        equ_classes, sketches, _ = self.solve()
         self._solution_cache = {}
         self.determine(equ_classes, sketches, self.solution)
         for typevar in list(self._constraints):
@@ -397,7 +402,16 @@ class SimpleSolver:
         - Apply constraints to derive the lower and upper bounds
         """
 
-        typevars = set(self._constraints) | self._typevars
+        prem_typevars = set(self._constraints) | self._typevars
+        typevars = set()
+        for tv in prem_typevars:
+            if tv not in self._equivalence:
+                typevars.add(tv)
+            else:
+                repl = self._equivalence[tv]
+                if isinstance(repl, TypeVariable):
+                    typevars.add(repl)
+
         constraints = set()
         for tv in typevars:
             if tv in self._constraints:

@@ -4,8 +4,8 @@ import claripy
 
 from . import ExplorationTechnique
 from .common import condition_to_lambda
-from .. import sim_options
-from ..state_plugins.sim_event import resource_event
+from angr import sim_options
+from angr.state_plugins.sim_event import resource_event
 
 l = logging.getLogger(name=__name__)
 
@@ -48,7 +48,7 @@ class Explorer(ExplorationTechnique):
         self._warned_unicorn = False
 
         # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
-        from .. import analyses  # pylint: disable=import-outside-toplevel
+        from angr import analyses  # pylint: disable=import-outside-toplevel
 
         if isinstance(cfg, analyses.CFGFast):
             l.error("CFGFast is currently inappropriate for use with Explorer.")

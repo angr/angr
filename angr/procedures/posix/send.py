@@ -2,7 +2,7 @@ from __future__ import annotations
 import claripy
 
 import angr
-from ...sim_options import ALLOW_SEND_FAILURES
+from angr.sim_options import ALLOW_SEND_FAILURES
 
 
 class send(angr.SimProcedure):

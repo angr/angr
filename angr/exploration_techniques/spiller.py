@@ -279,4 +279,4 @@ class Spiller(ExplorationTechnique):
         return id(state)
 
 
-from .. import vaults
+from angr import vaults

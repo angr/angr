@@ -26,7 +26,7 @@ try:
 except ModuleNotFoundError:
     pysoot = None
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 class TestJava(unittest.TestCase):

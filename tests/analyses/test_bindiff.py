@@ -9,7 +9,7 @@ import unittest
 
 import angr
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 l = logging.getLogger("angr.tests.test_bindiff")

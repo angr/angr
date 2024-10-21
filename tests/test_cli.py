@@ -4,27 +4,25 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
 
+import io
 import os
-import subprocess
 import re
 import unittest
 
 import angr
+from angr.__main__ import main
 from angr.analyses.decompiler.utils import decompile_functions
-from angr.misc.testing import is_testing
 
 from .common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")
-WORKER = is_testing or bool(
-    os.environ.get("WORKER", False)
-)  # this variable controls whether we print the decompilation code or not
 
 
 def run_cli(*args):
-    proc = subprocess.run(["python3", "-m", "angr", *args], text=True, check=True, capture_output=True)
-    return proc.stdout
+    output = io.StringIO()
+    main(args, output)
+    return output.getvalue()
 
 
 class TestCommandLineInterface(unittest.TestCase):
@@ -57,11 +55,13 @@ class TestCommandLineInterface(unittest.TestCase):
         f1_offset = f1_default_addr - default_base_addr
 
         # function resolving is based on symbol
-        sym_based_dec = run_cli("decompile", bin_path, "--functions", f1)
+        sym_based_dec = run_cli("decompile", bin_path, "--functions", f1, "--preset", "full")
         # function resolving is based on the address (with default angr loading)
-        base_addr_dec = run_cli("decompile", bin_path, "--functions", hex(f1_default_addr))
+        base_addr_dec = run_cli("decompile", bin_path, "--functions", hex(f1_default_addr), "--preset", "full")
         # function resolving is based on the address (with base address specified)
-        offset_dec = run_cli("decompile", bin_path, "--functions", hex(f1_offset), "--base-addr", hex(0))
+        offset_dec = run_cli(
+            "decompile", bin_path, "--functions", hex(f1_offset), "--base-addr", hex(0), "--preset", "full"
+        )
 
         # since the externs can be unpredictable, we only check the function name down
         sym_based_dec = re.sub(r"extern .*;", "", sym_based_dec).lstrip("\n")

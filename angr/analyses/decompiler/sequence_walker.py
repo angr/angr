@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 import ailment
 
-from ...errors import UnsupportedNodeTypeError
+from angr.errors import UnsupportedNodeTypeError
 from .structuring.structurer_nodes import (
     MultiNode,
     CodeNode,
@@ -181,22 +181,21 @@ class SequenceWalker:
         return None
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
-        if node.initializer is not None:
-            self._handle(node.initializer)
-        if node.iterator is not None:
-            self._handle(node.iterator)
-        if node.condition is not None:
-            self._handle(node.condition, parent=node, label="condition")
+        new_initializer = self._handle(node.initializer) if node.initializer is not None else None
+        new_iterator = self._handle(node.iterator) if node.iterator is not None else None
+        new_condition = (
+            self._handle(node.condition, parent=node, label="condition") if node.condition is not None else None
+        )
         seq_node = self._handle(node.sequence_node, parent=node, label="body", index=0)
-        if seq_node is not None:
+        if seq_node is not None or new_initializer is not None or new_iterator is not None or new_condition is not None:
             return LoopNode(
                 node.sort,
-                node.condition,
-                seq_node,
+                new_condition if new_condition is not None else node.condition,
+                seq_node if seq_node is not None else node.sequence_node,
                 addr=node.addr,
                 continue_addr=node.continue_addr,
-                initializer=node.initializer,
-                iterator=node.iterator,
+                initializer=new_initializer if new_initializer is not None else node.initializer,
+                iterator=new_iterator if new_iterator is not None else node.iterator,
             )
         return None
 
@@ -217,11 +216,27 @@ class SequenceWalker:
         )
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
-        for index, (_, child_node) in enumerate(node.condition_and_nodes):
-            self._handle(child_node, parent=node, index=index)
+        cond_nodes_changed = False
+        new_condition_and_nodes = []
+        for index, (cond, child_node) in enumerate(node.condition_and_nodes):
+            new_child = self._handle(child_node, parent=node, index=index)
+            if new_child is not None:
+                cond_nodes_changed = True
+                new_condition_and_nodes.append((cond, new_child))
+            else:
+                new_condition_and_nodes.append((cond, child_node))
+
+        new_else = None
         if node.else_node is not None:
-            self._handle(node.else_node, parent=node, index=-1)
-        return
+            new_else = self._handle(node.else_node, parent=node, index=-1)
+
+        if cond_nodes_changed or new_else is not None:
+            return CascadingConditionNode(
+                node.addr,
+                new_condition_and_nodes if cond_nodes_changed else node.condition_and_nodes,
+                else_node=new_else if new_else is not None else node.else_node,
+            )
+        return None
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):  # pylint:disable=no-self-use
         return None

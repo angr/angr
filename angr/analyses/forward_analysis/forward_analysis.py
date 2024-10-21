@@ -6,10 +6,10 @@ from collections.abc import Callable
 import networkx
 
 from .visitors.graph import NodeType
-from ...sim_state import SimState
-from ...errors import AngrForwardAnalysisError
-from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
-from ...utils.algo import binary_insert
+from angr.sim_state import SimState
+from angr.errors import AngrForwardAnalysisError
+from angr.errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
+from angr.utils.algo import binary_insert
 from .job_info import JobInfo, JobType, JobKey
 
 if TYPE_CHECKING:
@@ -364,8 +364,10 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         all_input_states = self._input_states.get(self._node_key(node))
         if len(all_input_states) == 1:
             return all_input_states[0]
-        merged_state, _ = self._merge_states(node, *all_input_states)
-        return merged_state
+        if self._allow_merging:
+            merged_state, _ = self._merge_states(node, *all_input_states)
+            return merged_state
+        return all_input_states[0]
 
     def _analysis_core_baremetal(self) -> None:
         if not self._job_info_queue:

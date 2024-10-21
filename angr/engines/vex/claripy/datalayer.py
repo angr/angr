@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 import pyvex
 
-from . import irop
-from . import ccall
-from ..light import VEXMixin
-from .... import errors
-from .... import sim_options as o
+from angr import errors
+from angr import sim_options as o
+from angr.engines.vex.light import VEXMixin
+
+from . import ccall, irop
 
 l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
@@ -39,13 +40,8 @@ class ClaripyDataMixin(VEXMixin):
 
     # util methods
 
-    def _is_true(self, v):
-        return claripy.is_true(v)
-
-    def _is_false(self, v):
-        return claripy.is_false(v)
-
-    def _optimize_guarded_addr(self, addr, guard):
+    @staticmethod
+    def _optimize_guarded_addr(addr, guard):
         # optimization: is the guard the same as the condition inside the address? if so, unpack the address and remove
         # the guarding condition.
         if (
@@ -65,6 +61,7 @@ class ClaripyDataMixin(VEXMixin):
 
     # statements
 
+    # pylint: disable=too-many-positional-arguments
     def _perform_vex_stmt_LoadG(self, addr, alt, guard, dst, cvt, end):
         addr = self._optimize_guarded_addr(addr, guard)
         super()._perform_vex_stmt_LoadG(addr, alt, guard, dst, cvt, end)

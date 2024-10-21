@@ -20,13 +20,13 @@ from cachetools import LRUCache
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 
 from .behavior import BehaviorFactory
-from ..engine import SimEngineBase
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ...sim_state import SimState
-from ...misc.ux import once
-from ...errors import SimEngineError, SimTranslationError, SimError
-from ... import sim_options as o
-from ...block import DisassemblerBlock, DisassemblerInsn
+from angr.engines.engine import SimEngineBase
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.sim_state import SimState
+from angr.misc.ux import once
+from angr.errors import SimEngineError, SimTranslationError, SimError
+from angr import sim_options as o
+from angr.block import DisassemblerBlock, DisassemblerInsn
 
 
 try:
@@ -122,6 +122,7 @@ class IRSB:
         "arch",
         "behaviors",
         "data_refs",
+        "const_vals",
         "default_exit_target",
         "jumpkind",
         "next",
@@ -138,6 +139,7 @@ class IRSB:
     arch: archinfo.Arch
     behaviors: BehaviorFactory | None
     data_refs: Sequence  # Note: currently unused
+    const_vals: Sequence  # Note: currently unused
     default_exit_target: Optional  # Note: currently used
     jumpkind: str | None
     next: int | None
@@ -204,6 +206,7 @@ class IRSB:
         self.arch = arch
         self.behaviors = None
         self.data_refs = ()
+        self.const_vals = ()
         self.default_exit_target = None
         self.jumpkind = None
         self.next = None
@@ -1043,6 +1046,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         collect_data_refs: bool = False,
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
+        const_prop: bool | None = None,
     ):
         """
         Temporary compatibility interface for integration with block code.
@@ -1064,6 +1068,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
             collect_data_refs,
             load_from_ro_regions,
             cross_insn_opt,
+            const_prop,
         )
 
     def lift_pcode(
@@ -1084,6 +1089,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         collect_data_refs: bool = False,
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
+        const_prop: bool | None = None,
     ):
         """
         Lift an IRSB.
@@ -1111,6 +1117,8 @@ class PcodeLifterEngineMixin(SimEngineBase):
         """
         if cross_insn_opt:
             l.debug("cross_insn_opt is ignored for p-code lifter")
+        if const_prop:
+            l.debug("const_prop is ignored for p-code lifter")
         if load_from_ro_regions:
             l.debug("load_from_ro_regions is ignored for p-code lifter")
 

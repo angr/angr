@@ -4,8 +4,19 @@ from typing import Any
 from collections import defaultdict
 
 from archinfo import Endness
-from ailment.expression import Const, Register, Load, StackBaseOffset, Convert, BinaryOp
-from ailment.statement import Store, ConditionalJump, Jump
+from ailment.expression import (
+    Const,
+    Register,
+    Load,
+    StackBaseOffset,
+    Convert,
+    BinaryOp,
+    VirtualVariable,
+    Phi,
+    UnaryOp,
+    VirtualVariableCategory,
+)
+from ailment.statement import ConditionalJump, Jump, Assignment
 import claripy
 
 from angr.engines.light import SimEngineLightAILMixin
@@ -42,6 +53,7 @@ class InlinedStringTransformationState:
 
         self.registers = FasterMemory(memory_id="reg")
         self.memory = FasterMemory(memory_id="mem")
+        self.virtual_variables = {}
 
         self.registers.set_state(self)
         self.memory.set_state(self)
@@ -49,12 +61,12 @@ class InlinedStringTransformationState:
     def _get_weakref(self):
         return self
 
-    def reg_store(self, reg: Register, value: claripy.Bits) -> None:
+    def reg_store(self, reg: Register, value: claripy.ast.Bits) -> None:
         self.registers.store(
             reg.reg_offset, value, size=value.size() // self.arch.byte_width, endness=str(self.arch.register_endness)
         )
 
-    def reg_load(self, reg: Register) -> claripy.Bits | None:
+    def reg_load(self, reg: Register) -> claripy.ast.Bits | None:
         try:
             return self.registers.load(
                 reg.reg_offset, size=reg.size, endness=self.arch.register_endness, fill_missing=False
@@ -62,14 +74,22 @@ class InlinedStringTransformationState:
         except SimMemoryMissingError:
             return None
 
-    def mem_store(self, addr: int, value: claripy.Bits, endness: str) -> None:
+    def mem_store(self, addr: int, value: claripy.ast.Bits, endness: str) -> None:
         self.memory.store(addr, value, size=value.size() // self.arch.byte_width, endness=endness)
 
-    def mem_load(self, addr: int, size: int, endness) -> claripy.Bits | None:
+    def mem_load(self, addr: int, size: int, endness) -> claripy.ast.Bits | None:
         try:
             return self.memory.load(addr, size=size, endness=str(endness), fill_missing=False)
         except SimMemoryMissingError:
             return None
+
+    def vvar_store(self, vvar: VirtualVariable, value: claripy.ast.Bits | None) -> None:
+        self.virtual_variables[vvar.varid] = value
+
+    def vvar_load(self, vvar: VirtualVariable) -> claripy.ast.Bits | None:
+        if vvar.varid in self.virtual_variables:
+            return self.virtual_variables[vvar.varid]
+        return None
 
 
 class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
@@ -90,10 +110,11 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
         self.MASK = 0xFFFF_FFFF if self.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
         state = InlinedStringTransformationState(project)
-        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.Bits]]] = defaultdict(list)
+        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.ast.Bits]]] = defaultdict(list)
         self.finished: bool = False
 
         i = 0
+        self.last_pc = None
         self.pc = self.start
         while i < self.step_limit:
             if self.pc not in self.nodes:
@@ -120,15 +141,27 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
             if v0_and_type is not None:
                 v0 = v0_and_type[0]
                 v1 = self._expr(addr.operands[1])
-                if isinstance(v1, claripy.Bits) and v1.concrete:
+                if isinstance(v1, claripy.ast.Bits) and v1.concrete:
                     return (v0 + v1.concrete_value) & self.MASK, "stack"
         return None
 
     def _handle_Assignment(self, stmt):
-        if isinstance(stmt.dst, Register):
-            val = self._expr(stmt.src)
-            if isinstance(val, claripy.Bits):
-                self.state.reg_store(stmt.dst, val)
+        if isinstance(stmt.dst, VirtualVariable):
+            if stmt.dst.was_reg:
+                val = self._expr(stmt.src)
+                if isinstance(val, claripy.ast.Bits):
+                    self.state.vvar_store(stmt.dst, val)
+            elif stmt.dst.was_stack:
+                addr = (stmt.dst.stack_offset + self.STACK_BASE) & self.MASK
+                val = self._expr(stmt.src)
+                if isinstance(val, claripy.ast.BV):
+                    self.state.mem_store(addr, val, self.arch.memory_endness)
+                    # log it
+                    for i in range(val.size() // self.arch.byte_width):
+                        byte_off = i
+                        if self.arch.memory_endness == Endness.LE:
+                            byte_off = val.size() // self.arch.byte_width - i - 1
+                        self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
     def _handle_Store(self, stmt):
         addr_and_type = self._process_address(stmt.addr)
@@ -146,19 +179,21 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
                         self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
     def _handle_Jump(self, stmt):
+        self.last_pc = self.pc
         if isinstance(stmt.target, Const):
             self.pc = stmt.target.value
         else:
             self.pc = None
 
     def _handle_ConditionalJump(self, stmt):
+        self.last_pc = self.pc
         self.pc = None
         if isinstance(stmt.true_target, Const) and isinstance(stmt.false_target, Const):
             cond = self._expr(stmt.condition)
             if cond is not None:
-                if isinstance(cond, claripy.Bits) and cond.concrete_value == 1:
+                if isinstance(cond, claripy.ast.Bits) and cond.concrete_value == 1:
                     self.pc = stmt.true_target.value
-                elif isinstance(cond, claripy.Bits) and cond.concrete_value == 0:
+                elif isinstance(cond, claripy.ast.Bits) and cond.concrete_value == 0:
                     self.pc = stmt.false_target.value
 
     def _handle_Const(self, expr):
@@ -182,9 +217,37 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     def _handle_Register(self, expr: Register):
         return self.state.reg_load(expr)
 
+    def _handle_VirtualVariable(self, expr: VirtualVariable):
+        if expr.was_stack:
+            addr = (expr.stack_offset + self.STACK_BASE) & self.MASK
+            v = self.state.mem_load(addr, expr.size, self.arch.memory_endness)
+            if isinstance(v, claripy.ast.Bits):
+                # log it
+                for i in range(expr.size):
+                    byte_off = i
+                    if self.arch.memory_endness == Endness.LE:
+                        byte_off = expr.size - i - 1
+                    self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
+            return v
+        if expr.was_reg:
+            return self.state.vvar_load(expr)
+        return None
+
+    def _handle_Phi(self, expr: Phi):
+        for src, vvar in expr.src_and_vvars:
+            if src[0] == self.last_pc and vvar is not None:
+                return self.state.vvar_load(vvar)
+        return None
+
+    def _handle_Neg(self, expr: UnaryOp):
+        v = self._expr(expr.operand)
+        if isinstance(v, claripy.ast.Bits):
+            return ~v
+        return None
+
     def _handle_Convert(self, expr: Convert):
         v = self._expr(expr.operand)
-        if isinstance(v, claripy.Bits):
+        if isinstance(v, claripy.ast.Bits):
             if expr.to_bits > expr.from_bits:
                 if not expr.is_signed:
                     return claripy.ZeroExt(expr.to_bits - expr.from_bits, v)
@@ -196,37 +259,37 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
 
     def _handle_CmpEQ(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value == op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpNE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value != op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpLT(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value < op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpLE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value <= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpGT(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value > op1.concrete_value else claripy.BVV(0, 1)
         return None
 
     def _handle_CmpGE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
-        if isinstance(op0, claripy.Bits) and isinstance(op1, claripy.Bits) and op0.concrete and op1.concrete:
+        if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value >= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
@@ -291,17 +354,22 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             store_statements = []
             for off, stack_accesses in enumerate(desc.stack_accesses):
                 # the last element is the final storing statement
-                stack_addr = StackBaseOffset(None, self.project.arch.bits, desc.beginning_stack_offset + off)
                 new_value_ast = stack_accesses[-1][2]
                 new_value = Const(None, None, new_value_ast.concrete_value, self.project.arch.byte_width)
-                stmt = Store(
+                stmt = Assignment(
                     None,
-                    stack_addr,
+                    VirtualVariable(
+                        None,
+                        self.vvar_id_start,
+                        self.project.arch.bits,
+                        category=VirtualVariableCategory.STACK,
+                        oident=desc.beginning_stack_offset + off,
+                        ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
+                    ),
                     new_value,
-                    1,
-                    "Iend_LE",
                     ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
                 )
+                self.vvar_id_start += 1
                 store_statements.append(stmt)
             if new_statements and isinstance(new_statements[-1], (ConditionalJump, Jump)):
                 new_statements = new_statements[:-1] + store_statements + new_statements[-1:]

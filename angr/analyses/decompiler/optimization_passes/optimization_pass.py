@@ -1,7 +1,7 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
 import logging
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Generator
 from enum import Enum
 
@@ -17,6 +17,7 @@ from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+
 
 _l = logging.getLogger(__name__)
 
@@ -42,13 +43,14 @@ class OptimizationPassStage(Enum):
     """
 
     AFTER_AIL_GRAPH_CREATION = 0
-    AFTER_SINGLE_BLOCK_SIMPLIFICATION = 1
-    AFTER_MAKING_CALLSITES = 2
-    AFTER_GLOBAL_SIMPLIFICATION = 3
-    AFTER_VARIABLE_RECOVERY = 4
-    BEFORE_REGION_IDENTIFICATION = 5
-    DURING_REGION_IDENTIFICATION = 6
-    AFTER_STRUCTURING = 7
+    BEFORE_SSA_LEVEL0_TRANSFORMATION = 1
+    AFTER_SINGLE_BLOCK_SIMPLIFICATION = 2
+    AFTER_MAKING_CALLSITES = 3
+    AFTER_GLOBAL_SIMPLIFICATION = 4
+    AFTER_VARIABLE_RECOVERY = 5
+    BEFORE_REGION_IDENTIFICATION = 6
+    DURING_REGION_IDENTIFICATION = 7
+    AFTER_STRUCTURING = 8
 
 
 class BaseOptimizationPass:
@@ -98,26 +100,6 @@ class BaseOptimizationPass:
         """
         raise NotImplementedError
 
-    def _simplify_graph(self, graph):
-        simp = self.project.analyses.AILSimplifier(
-            self._func,
-            func_graph=graph,
-            use_callee_saved_regs_at_return=False,
-            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
-        )
-        return simp.func_graph if simp.simplified else graph
-
-    def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
-        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
-            self._func,
-            graph=graph,
-            cond_proc=condition_processor or ConditionProcessor(self.project.arch),
-            update_graph=update_graph,
-            # TODO: find a way to pass Phoenix/DREAM options here (see decompiler.py for correct use)
-            force_loop_single_exit=True,
-            complete_successors=False,
-        )
-
 
 class OptimizationPass(BaseOptimizationPass):
     """
@@ -133,6 +115,9 @@ class OptimizationPass(BaseOptimizationPass):
         variable_kb=None,
         region_identifier=None,
         reaching_definitions=None,
+        vvar_id_start=None,
+        entry_node_addr=None,
+        scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
         super().__init__(func)
@@ -143,7 +128,12 @@ class OptimizationPass(BaseOptimizationPass):
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
+        self._scratch = scratch if scratch is not None else {}
         self._new_block_addrs = set()
+        self.vvar_id_start = vvar_id_start
+        self.entry_node_addr: tuple[int, int | None] = (
+            entry_node_addr if entry_node_addr is not None else (func.addr, None)
+        )
 
         # output
         self.out_graph: networkx.DiGraph | None = None
@@ -241,6 +231,35 @@ class OptimizationPass(BaseOptimizationPass):
     @staticmethod
     def _is_sub(expr):
         return isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Sub"
+
+    def _simplify_graph(self, graph):
+        MAX_SIMP_ITERATION = 8
+        for _ in range(MAX_SIMP_ITERATION):
+            simp = self.project.analyses.AILSimplifier(
+                self._func,
+                func_graph=graph,
+                use_callee_saved_regs_at_return=False,
+                gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+            )
+            if simp.simplified:
+                graph = simp.func_graph
+            else:
+                break
+        else:
+            _l.warning("Failed to reach fixed point after %s simplification iterations.", MAX_SIMP_ITERATION)
+        return graph
+
+    def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
+        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+            self._func,
+            graph=graph,
+            cond_proc=condition_processor or ConditionProcessor(self.project.arch),
+            update_graph=update_graph,
+            # TODO: find a way to pass Phoenix/DREAM options here (see decompiler.py for correct use)
+            force_loop_single_exit=True,
+            complete_successors=False,
+            entry_node_addr=self.entry_node_addr,
+        )
 
 
 class SequenceOptimizationPass(BaseOptimizationPass):
@@ -412,6 +431,7 @@ class StructuringOptimizationPass(OptimizationPass):
             cond_proc=self._ri.cond_proc,
             force_loop_single_exit=False,
             complete_successors=True,
+            entry_node_addr=self.entry_node_addr,
         )
         if self._ri is None:
             return False

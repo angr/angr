@@ -1,8 +1,8 @@
 # Microsoft Visual C/C++ Runtime
 from __future__ import annotations
 from . import SimLibrary
-from .. import SIM_PROCEDURES as P
-from ...calling_conventions import SimCCMicrosoftAMD64
+from angr.procedures import SIM_PROCEDURES as P
+from angr.calling_conventions import SimCCMicrosoftAMD64
 
 libc = SimLibrary()
 libc.set_library_names('msvcrt.dll', 'msvcr71.dll', 'msvcr100.dll', 'msvcr110.dll', 'msvcrt20.dll', 'msvcrt40.dll',

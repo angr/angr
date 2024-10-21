@@ -9,8 +9,9 @@ from ailment import Expression, Block, AILBlockWalker
 from ailment.expression import ITE
 from ailment.statement import Statement, Assignment, Call
 
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.utils.ail import is_phi_assignment
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     ConditionNode,
     ConditionalBreakNode,
     LoopNode,
@@ -182,7 +183,7 @@ class ExpressionUseFinder(AILBlockWalker):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, ailment.Register) and expr.variable is not None:
+        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.variable is not None:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
                 if block is not None:
                     self.uses[expr.variable].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
@@ -228,28 +229,32 @@ class ExpressionCounter(SequenceWalker):
         return self._variable_manager.unified_variable(v)
 
     def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
-        if (
-            isinstance(stmt, ailment.Stmt.Assignment)
-            and isinstance(stmt.dst, ailment.Expr.Register)
-            and stmt.dst.variable is not None
-        ):
-            u = self._u(stmt.dst.variable)
-            if u is not None:
-                # dependency
-                dependency_finder = ExpressionUseFinder()
-                dependency_finder.walk_expression(stmt.src)
-                dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                self.assignments[u].add(
-                    (
-                        stmt.src,
-                        dependencies,
-                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
-                        dependency_finder.has_load,
+        if isinstance(stmt, ailment.Stmt.Assignment):
+            if is_phi_assignment(stmt):
+                return
+            if (
+                isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.variable is not None
+            ):
+                u = self._u(stmt.dst.variable)
+                if u is not None:
+                    # dependency
+                    dependency_finder = ExpressionUseFinder()
+                    dependency_finder.walk_expression(stmt.src)
+                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
+                    self.assignments[u].add(
+                        (
+                            stmt.src,
+                            dependencies,
+                            StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                            dependency_finder.has_load,
+                        )
                     )
-                )
         if (
             isinstance(stmt, ailment.Stmt.Call)
-            and isinstance(stmt.ret_expr, ailment.Expr.Register)
+            and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
+            and stmt.ret_expr.was_reg
             and stmt.ret_expr.variable is not None
         ):
             u = self._u(stmt.ret_expr.variable)
@@ -354,7 +359,8 @@ class ExpressionReplacer(AILBlockWalker):
         for idx, stmt_ in enumerate(expr.stmts):
             if (
                 isinstance(stmt_, Assignment)
-                and isinstance(stmt_.dst, ailment.Expr.Register)
+                and isinstance(stmt_.dst, ailment.Expr.VirtualVariable)
+                and stmt_.dst.was_reg
                 and stmt_.dst.variable is not None
             ) and stmt_.dst.variable in self._assignments:
                 # remove this statement
@@ -389,6 +395,10 @@ class ExpressionReplacer(AILBlockWalker):
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         # override the base handler and make sure we do not replace .dst with a Call expression or an ITE expression
+
+        if is_phi_assignment(stmt):
+            return None
+
         changed = False
 
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
@@ -414,7 +424,7 @@ class ExpressionReplacer(AILBlockWalker):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, ailment.Register) and expr.variable is not None:
+        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.variable is not None:
             unified_var = self._u(expr.variable)
             if unified_var in self._uses:
                 replace_with, _ = self._assignments[unified_var]
@@ -449,7 +459,8 @@ class ExpressionFolder(SequenceWalker):
         for stmt in node.statements:
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
-                and isinstance(stmt.dst, ailment.Expr.Register)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
                 and stmt.dst.variable is not None
             ):
                 unified_var = self._u(stmt.dst.variable)
@@ -458,7 +469,8 @@ class ExpressionFolder(SequenceWalker):
                     continue
             if (
                 isinstance(stmt, ailment.Stmt.Call)
-                and isinstance(stmt.ret_expr, ailment.Expr.Register)
+                and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
+                and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None
             ):
                 unified_var = self._u(stmt.ret_expr.variable)

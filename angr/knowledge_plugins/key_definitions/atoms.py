@@ -5,8 +5,8 @@ import claripy
 import ailment
 from archinfo import Arch, RegisterOffset
 
-from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
-from ...engines.light import SpOffset
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
+from angr.engines.light import SpOffset
 from .heap_address import HeapAddress
 
 
@@ -237,6 +237,65 @@ class Register(Atom):
         return (
             str(self.reg_offset) if self.arch is None else self.arch.translate_register_name(self.reg_offset, self.size)
         )
+
+
+class VirtualVariable(Atom):
+    """
+    Represents a virtual variable.
+    """
+
+    __slots__ = (
+        "varid",
+        "category",
+        "oident",
+    )
+
+    def __init__(
+        self, varid: int, size: int, category: ailment.Expr.VirtualVariableCategory, oident: str | int | None = None
+    ):
+        super().__init__(size)
+
+        self.varid = varid
+        self.category = category
+        self.oident = oident
+
+    def __repr__(self):
+        return "<VVar %d<%d>>" % (self.varid, self.size)
+
+    def _identity(self):
+        return self.varid, self.size
+
+    @property
+    def was_reg(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.REGISTER
+
+    @property
+    def was_stack(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.STACK
+
+    @property
+    def was_parameter(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.PARAMETER
+
+    @property
+    def was_tmp(self) -> bool:
+        return self.category == ailment.Expr.VirtualVariableCategory.TMP
+
+    @property
+    def reg_offset(self) -> int | None:
+        if self.was_reg:
+            return self.oident
+        return None
+
+    @property
+    def stack_offset(self) -> int | None:
+        if self.was_stack:
+            return self.oident
+        return None
+
+    @property
+    def tmp_idx(self) -> int | None:
+        return self.oident if self.was_tmp else None
 
 
 class MemoryLocation(Atom):

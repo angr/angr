@@ -1,8 +1,8 @@
 from __future__ import annotations
 import claripy
 
-from . import MemoryMixin
-from ...errors import SimSegfaultException
+from angr.errors import SimSegfaultException
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class SmartFindMixin(MemoryMixin):
@@ -15,6 +15,7 @@ class SmartFindMixin(MemoryMixin):
         addr,
         data,
         max_search,
+        *,
         default=None,
         endness=None,
         chunk_size=None,
@@ -99,7 +100,7 @@ class SmartFindMixin(MemoryMixin):
         able to handle wide characters
         """
         if condition is None:
-            condition = claripy.true
+            condition = claripy.true()
         chunk = None
         chunk_progress = chunk_size
 
@@ -139,7 +140,7 @@ class SmartFindMixin(MemoryMixin):
 
     def _find_condition(self, target_addr):  # pylint:disable=unused-argument,no-self-use
         # TODO: fill this in in order to make each load have the correct condition associated with it
-        return claripy.true
+        return claripy.true()
 
     def _find_compare(self, element, target):
         comparison = element == target

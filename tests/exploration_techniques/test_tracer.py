@@ -12,7 +12,7 @@ import unittest
 
 import angr
 
-from ..common import broken, bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
+from tests.common import broken, bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
 
 
 def tracer_cgc(

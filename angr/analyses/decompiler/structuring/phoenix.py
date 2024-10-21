@@ -12,19 +12,21 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
-from ....knowledge_plugins.cfg import IndirectJumpType
-from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, to_acyclic_graph, dfs_back_edges, GraphUtils
-from ..sequence_walker import SequenceWalker
-from ..utils import (
+from angr.utils.graph import GraphUtils
+from angr.utils.ail import is_phi_assignment
+from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
+from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.utils import (
     remove_last_statement,
     extract_jump_targets,
     switch_extract_cmp_bounds,
     is_empty_or_label_only_node,
-    has_nonlabel_statements,
-    first_nonlabel_statement,
+    has_nonlabel_nonphi_statements,
+    first_nonlabel_nonphi_statement,
 )
-from ..counters.call_counter import AILCallCounter
+from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,
@@ -299,10 +301,10 @@ class PhoenixStructurer(StructurerBase):
                     and head_block.nodes
                     and isinstance(head_block.nodes[0], Block)
                     and head_block.nodes[0].statements
-                    and isinstance(first_nonlabel_statement(head_block.nodes[0]), ConditionalJump)
+                    and isinstance(first_nonlabel_nonphi_statement(head_block.nodes[0]), ConditionalJump)
                     or isinstance(head_block, Block)
                     and head_block.statements
-                    and isinstance(first_nonlabel_statement(head_block), ConditionalJump)
+                    and isinstance(first_nonlabel_nonphi_statement(head_block), ConditionalJump)
                 ):
                     # it's a while loop if the conditional jump (or the head block) is at the beginning of node
                     loop_type = "while" if head_block_idx == 0 else "do-while"
@@ -366,7 +368,7 @@ class PhoenixStructurer(StructurerBase):
                         jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
                         cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
                         new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
-                        loop_node = LoopNode("while", claripy.true, new_node, addr=node.addr)
+                        loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
                         # on the original graph
                         self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -390,7 +392,7 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_last_statement_if_jump(head_block)
                             cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
                             new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
-                            loop_node = LoopNode("while", claripy.true, new_node, addr=node.addr)
+                            loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -421,6 +423,9 @@ class PhoenixStructurer(StructurerBase):
             isinstance(node, SequenceNode)
             and node.nodes
             and isinstance(node.nodes[-1], ConditionNode)
+            # must ensure the nodes before the condition node are empty. otherwise the condition may use variables that
+            # are updated in these nodes leading up to the condition node.
+            and all(not self.has_nonlabel_nonphi_statements(nn) for nn in node.nodes[:-1])
             and node.nodes[-1].true_node is not None
             and node.nodes[-1].false_node is not None
         ):
@@ -561,13 +566,16 @@ class PhoenixStructurer(StructurerBase):
 
             if next_node is node:
                 break
+            if next_node is head:
+                # we don't want a loop with region head not as the first node of the body!
+                return False, None
             if next_node is not node and next_node in seen_nodes:
                 return False, None
 
             seen_nodes.add(next_node)
             seq_node.nodes.append(next_node)
 
-        loop_node = LoopNode("while", claripy.true, seq_node, addr=node.addr)
+        loop_node = LoopNode("while", claripy.true(), seq_node, addr=node.addr)
 
         # on the original graph
         for node_ in seq_node.nodes:
@@ -820,7 +828,7 @@ class PhoenixStructurer(StructurerBase):
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
                     if src.addr not in self.kb.cfgs["CFGFast"].jump_tables:
-                        l.warning(
+                        l.debug(
                             "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r. "
                             "Remove the edge anyway.",
                             src,
@@ -1485,8 +1493,6 @@ class PhoenixStructurer(StructurerBase):
                         )
                         jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
                         case_node.nodes.append(jump_node)
-                    graph.add_edge(scnode, head)
-                    full_graph.add_edge(scnode, head)
 
             out_edges = [edge for edge in out_edges if edge[1] is not head]
             if out_edges:
@@ -2307,7 +2313,7 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_Block(block: Block, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.statements:
-                first_stmt = first_nonlabel_statement(block)
+                first_stmt = first_nonlabel_nonphi_statement(block)
                 if first_stmt is not None:
                     # this block has content. increment the block ID counter
                     walker.block_id += 1
@@ -2324,7 +2330,7 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.nodes and isinstance(block.nodes[-1], Block) and block.nodes[-1].statements:
-                first_stmt = first_nonlabel_statement(block)
+                first_stmt = first_nonlabel_nonphi_statement(block)
                 if first_stmt is not None:
                     # this block has content. increment the block ID counter
                     walker.block_id += 1
@@ -2401,7 +2407,7 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _count_statements(node: BaseNode | Block) -> int:
         if isinstance(node, Block):
-            return sum(1 for stmt in node.statements if not isinstance(stmt, Label))
+            return sum(1 for stmt in node.statements if not isinstance(stmt, Label) and not is_phi_assignment(stmt))
         if isinstance(node, (MultiNode, SequenceNode)):
             return sum(PhoenixStructurer._count_statements(nn) for nn in node.nodes)
         return 1
@@ -2460,6 +2466,8 @@ class PhoenixStructurer(StructurerBase):
             for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Label):
                     continue
+                if is_phi_assignment(stmt):
+                    continue
                 if isinstance(stmt, ConditionalJump):
                     if idx == len(block.statements) - 1:
                         continue
@@ -2482,7 +2490,7 @@ class PhoenixStructurer(StructurerBase):
             if node.statements:
                 idx = 0
                 first_stmt = node.statements[idx]
-                while isinstance(first_stmt, Label):
+                while isinstance(first_stmt, Label) or is_phi_assignment(first_stmt):
                     idx += 1
                     if idx >= len(node.statements):
                         first_stmt = None
@@ -2499,7 +2507,7 @@ class PhoenixStructurer(StructurerBase):
         if isinstance(node, MultiNode):
             for nn in node.nodes:
                 if isinstance(nn, Block):
-                    if not has_nonlabel_statements(nn):
+                    if not has_nonlabel_nonphi_statements(nn):
                         continue
                     return PhoenixStructurer._remove_first_statement_if_jump(nn)
                 break

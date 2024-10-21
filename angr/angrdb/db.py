@@ -7,8 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError
 
-from ..errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
-from ..project import Project
+from angr.errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
+from angr.project import Project
 from .models import Base, DbInformation
 from .serializers import LoaderSerializer, KnowledgeBaseSerializer
 
@@ -43,7 +43,7 @@ class AngrDB:
         except DatabaseError as ex:
             raise AngrCorruptDBError("The target file may not be an angr database or it is corrupted.") from ex
         except Exception as ex:
-            raise AngrDBError(str(ex)) from ex
+            raise AngrDBError from ex
 
     @staticmethod
     @contextmanager

@@ -3,7 +3,7 @@ import logging
 
 import claripy
 
-from ..java import JavaSimProcedure
+from angr.procedures.java import JavaSimProcedure
 
 log = logging.getLogger(name=__name__)
 
@@ -21,4 +21,4 @@ class ParseDouble(JavaSimProcedure):
             double_val = float(str_value)
             return claripy.FPV(double_val, claripy.FSORT_DOUBLE)
 
-        return claripy.StrToInt(str_, self.arch.bits)
+        return claripy.StrToInt(str_)

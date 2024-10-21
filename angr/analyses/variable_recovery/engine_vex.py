@@ -6,13 +6,13 @@ import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from ...errors import SimMemoryMissingError
-from ...calling_conventions import SimRegArg, SimStackArg, default_cc
-from ...engines.vex.claripy.datalayer import value as claripy_value
-from ...engines.light import SimEngineLightVEXMixin
-from ...knowledge_plugins import Function
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ..typehoon import typevars, typeconsts
+from angr.errors import SimMemoryMissingError
+from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.engines.light import SimEngineLightVEXMixin
+from angr.knowledge_plugins import Function
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.analyses.typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
 from .irsb_scanner import VEXIRSBScanner
 
@@ -42,8 +42,8 @@ class SimEngineVRVEX(
     def _is_top(self, expr: RichR) -> bool:
         return self.state.is_top(expr)
 
-    def _top(self, size: int):
-        return self.state.top(size)
+    def _top(self, size: int) -> RichR:
+        return RichR(self.state.top(size))
 
     def _process_Stmt(self, whitelist=None):
         scanner = VEXIRSBScanner(logger=self.l)
@@ -254,10 +254,13 @@ class SimEngineVRVEX(
             typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data.concrete_value))
 
         sum_ = r0.data + r1.data
+        tc = set()
+        if r0.typevar is not None and r1.typevar is not None:
+            tc.add(typevars.Subtype(r0.typevar, r1.typevar))
         return RichR(
             sum_,
             typevar=typevar,
-            type_constraints={typevars.Subtype(r0.typevar, r1.typevar)},
+            type_constraints=tc,
         )
 
     def _handle_Sub(self, expr):
@@ -501,6 +504,9 @@ class SimEngineVRVEX(
     def _handle_Clz(self, expr):
         return RichR(self.state.top(expr.result_size(self.tyenv)))
 
+    def _handle_Ctz(self, expr):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
     def _handle_Mull(self, expr):
         return RichR(self.state.top(expr.result_size(self.tyenv)))
 
@@ -552,15 +558,6 @@ class SimEngineVRVEX(
     def _handle_ExpCmpNE64(self, expr):
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         return RichR(self.state.top(expr.result_size(self.tyenv)))
-
-    def _handle_Clz(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        if self.state.is_top(expr_0.data):
-            return RichR(self.state.top(expr_0.data.size()))
-        return RichR(self.state.top(expr_0.data.size()))
 
     _handle_CmpEQ_v = _handle_Cmp_v
     _handle_CmpNE_v = _handle_Cmp_v

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ..sim_type import (
+from angr.sim_type import (
     parse_file,
     parse_cpp_file,
     normalize_cpp_function_name,
@@ -12,7 +12,7 @@ from ..sim_type import (
 )
 
 if TYPE_CHECKING:
-    from ..sim_type import SimTypeFunction
+    from angr.sim_type import SimTypeFunction
 
 
 def get_function_name(s):

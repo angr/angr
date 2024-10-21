@@ -12,11 +12,11 @@ import claripy
 from claripy.ast.bv import BV
 from .dep_nodes import DepNodeTypes, ConstantDepNode, MemDepNode, VarDepNode, RegDepNode, TmpDepNode
 from .sim_act_location import SimActLocation, DEFAULT_LOCATION, ParsedInstruction
-from .. import Analysis
-from ...analyses import AnalysesHub
-from ...errors import AngrDDGError, AngrAnalysisError, SimValueError
-from ...state_plugins import SimActionData
-from ...storage import DefaultMemory
+from angr.analyses import Analysis
+from angr.analyses import AnalysesHub
+from angr.errors import AngrDDGError, AngrAnalysisError, SimValueError
+from angr.state_plugins import SimActionData
+from angr.storage import DefaultMemory
 
 if TYPE_CHECKING:
     from .dep_nodes import BaseDepNode

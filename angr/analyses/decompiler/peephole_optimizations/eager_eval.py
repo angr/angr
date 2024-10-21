@@ -117,8 +117,14 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
                 return Const(expr.idx, None, 0, expr.bits, **expr.tags)
 
-        elif expr.op == "Mul" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
-            return expr.operands[0]
+        elif expr.op == "Mul":
+            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
+                return expr.operands[0]
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                mask = (1 << expr.bits) - 1
+                return Const(
+                    expr.idx, None, (expr.operands[0].value * expr.operands[1].value) & mask, expr.bits, **expr.tags
+                )
 
         elif (
             expr.op == "Div"
@@ -214,4 +220,13 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             mask = (1 << expr.to_bits) - 1
             v = expr.operand.value & mask
             return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
+        if (
+            isinstance(expr.operand, Const)
+            and expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and expr.from_bits <= expr.to_bits
+            and expr.is_signed is False
+        ):
+            # unsigned extension
+            return Const(expr.idx, expr.operand.variable, expr.operand.value, expr.to_bits, **expr.operand.tags)
         return None

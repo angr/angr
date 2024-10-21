@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 l = logging.getLogger("angr.engines.soot.expressions")
@@ -55,3 +56,35 @@ from .thisref import SimSootExpr_ThisRef
 from .paramref import SimSootExpr_ParamRef
 from .unsupported import SimSootExpr_Unsupported
 from .instanceOf import SimSootExpr_InstanceOf
+
+
+__all__ = (
+    "translate_expr",
+    "SimSootExpr_ArrayRef",
+    "SimSootExpr_Binop",
+    "SimSootExpr_Cast",
+    "SimSootExpr_Condition",
+    "SimSootExpr_IntConstant",
+    "SimSootExpr_LongConstant",
+    "SimSootExpr_FloatConstant",
+    "SimSootExpr_DoubleConstant",
+    "SimSootExpr_StringConstant",
+    "SimSootExpr_ClassConstant",
+    "SimSootExpr_NullConstant",
+    "SimSootExpr_InstanceFieldRef",
+    "SimSootExpr_SpecialInvoke",
+    "SimSootExpr_StaticInvoke",
+    "SimSootExpr_VirtualInvoke",
+    "SimSootExpr_InterfaceInvoke",
+    "SimSootExpr_Length",
+    "SimSootExpr_Local",
+    "SimSootExpr_New",
+    "SimSootExpr_NewArray",
+    "SimSootExpr_NewMultiArray",
+    "SimSootExpr_Phi",
+    "SimSootExpr_StaticFieldRef",
+    "SimSootExpr_ThisRef",
+    "SimSootExpr_ParamRef",
+    "SimSootExpr_Unsupported",
+    "SimSootExpr_InstanceOf",
+)

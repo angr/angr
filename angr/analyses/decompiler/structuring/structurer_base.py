@@ -9,10 +9,15 @@ import networkx
 import ailment
 import claripy
 
-from ... import Analysis
-from ..condition_processor import ConditionProcessor
-from ..sequence_walker import SequenceWalker
-from ..utils import extract_jump_targets, insert_node, remove_last_statement
+from angr.analyses import Analysis
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.utils import (
+    extract_jump_targets,
+    insert_node,
+    remove_last_statement,
+    has_nonlabel_nonphi_statements,
+)
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -941,4 +946,14 @@ class StructurerBase(Analysis):
         elif isinstance(stmt, ailment.Stmt.Jump):
             if isinstance(stmt.target, ailment.Expr.Const) and stmt.target.value == addr:
                 return True
+        return False
+
+    @staticmethod
+    def has_nonlabel_nonphi_statements(node: BaseNode) -> bool:
+        if isinstance(node, ailment.Block):
+            return has_nonlabel_nonphi_statements(node)
+        if isinstance(node, MultiNode):
+            return any(has_nonlabel_nonphi_statements(b) for b in node.nodes)
+        if isinstance(node, SequenceNode):
+            return any(StructurerBase.has_nonlabel_nonphi_statements(nn) for nn in node.nodes)
         return False

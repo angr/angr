@@ -1,8 +1,11 @@
 from __future__ import annotations
+
+import claripy
+
 import angr
-from ..posix.read import read
-from ..posix.write import write
-from ...sim_type import register_types, parse_types
+from angr.procedures.posix.read import read
+from angr.procedures.posix.write import write
+from angr.sim_type import register_types, parse_types
 
 register_types(
     parse_types(
@@ -24,7 +27,7 @@ class readv(angr.SimProcedure):
         res = 0
         for element in self.state.mem[iovec].struct.iovec.array(iovcnt).resolved:
             tmpres = self.inline_call(read, fd, element.iov_base, element.iov_len).ret_expr
-            if self.state.solver.is_true(self.state.solver.SLT(tmpres, 0)):
+            if self.state.solver.is_true(claripy.SLT(tmpres, 0)):
                 return tmpres
 
         return res
@@ -38,7 +41,7 @@ class writev(angr.SimProcedure):
         res = 0
         for element in self.state.mem[iovec].struct.iovec.array(iovcnt).resolved:
             tmpres = self.inline_call(write, fd, element.iov_base, element.iov_len).ret_expr
-            if self.state.solver.is_true(self.state.solver.SLT(tmpres, 0)):
+            if self.state.solver.is_true(claripy.SLT(tmpres, 0)):
                 return tmpres
 
         return res

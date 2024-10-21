@@ -66,10 +66,6 @@ class AngrBackwardSlicingError(AngrError):
     pass
 
 
-class AngrGirlScoutError(AngrError):
-    pass
-
-
 class AngrCallableError(AngrSurveyorError):
     pass
 
@@ -603,6 +599,10 @@ class SimConcreteBreakpointError(AngrError):
 #
 # Decompiler errors
 #
+
+
+class AngrDecompilationError(AngrError):
+    pass
 
 
 class UnsupportedNodeTypeError(AngrError, NotImplementedError):

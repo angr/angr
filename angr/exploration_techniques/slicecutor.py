@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ..errors import AngrExitError
+from angr.errors import AngrExitError
 from . import ExplorationTechnique
 
 import logging

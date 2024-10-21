@@ -16,7 +16,7 @@ from angr.analyses.reaching_definitions.subject import SubjectType
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.code_location import CodeLocation
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 TESTS_LOCATION = os.path.join(bin_location, "tests")

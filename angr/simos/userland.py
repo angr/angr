@@ -1,9 +1,9 @@
 from __future__ import annotations
 import logging
 
-from ..calling_conventions import SYSCALL_CC, SimCCSyscall
-from ..errors import AngrUnsupportedSyscallError, SimSolverError
-from ..procedures import SIM_PROCEDURES as P
+from angr.calling_conventions import SYSCALL_CC, SimCCSyscall
+from angr.errors import AngrUnsupportedSyscallError, SimSolverError
+from angr.procedures import SIM_PROCEDURES as P
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)

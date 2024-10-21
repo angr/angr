@@ -14,15 +14,15 @@ from archinfo import ArchARM
 from angr.analyses import ForwardAnalysis
 from angr.utils.graph import GraphUtils
 from angr.analyses import AnalysesHub
-from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
-from ... import options as o
-from ...codenode import BlockNode
-from ...engines.procedure import ProcedureEngine
-from ...exploration_techniques.loop_seer import LoopSeer
-from ...exploration_techniques.slicecutor import Slicecutor
-from ...exploration_techniques.explorer import Explorer
-from ...exploration_techniques.lengthlimiter import LengthLimiter
-from ...errors import (
+from angr import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
+from angr import options as o
+from angr.codenode import BlockNode
+from angr.engines.procedure import ProcedureEngine
+from angr.exploration_techniques.loop_seer import LoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.lengthlimiter import LengthLimiter
+from angr.errors import (
     AngrCFGError,
     AngrError,
     AngrSkipJobNotice,
@@ -34,15 +34,15 @@ from ...errors import (
     AngrExitError,
     SimEmptyCallStackError,
 )
-from ...sim_state import SimState
-from ...state_plugins.callstack import CallStack
-from ...state_plugins.sim_action import SimActionData
-from ...knowledge_plugins.cfg import CFGENode, IndirectJump
-from ...utils.constants import DEFAULT_STATEMENT
-from ..cdg import CDG
-from ..ddg import DDG
-from ..backward_slice import BackwardSlice
-from ..loopfinder import LoopFinder, Loop
+from angr.sim_state import SimState
+from angr.state_plugins.callstack import CallStack
+from angr.state_plugins.sim_action import SimActionData
+from angr.knowledge_plugins.cfg import CFGENode, IndirectJump
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.analyses.cdg import CDG
+from angr.analyses.ddg import DDG
+from angr.analyses.backward_slice import BackwardSlice
+from angr.analyses.loopfinder import LoopFinder, Loop
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 import contextlib

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ...sim_type import (
+from angr.sim_type import (
     SimType,
     SimTypeChar,
     SimTypeShort,

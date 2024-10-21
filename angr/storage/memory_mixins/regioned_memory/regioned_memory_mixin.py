@@ -2,26 +2,21 @@ from __future__ import annotations
 import logging
 from itertools import count
 from typing import Optional, TYPE_CHECKING
-from collections.abc import Generator, Iterable
+from collections.abc import Generator
 
 import claripy
 from claripy.annotation import RegionAnnotation
 from claripy.ast import Bool, Bits, BV
 
-from ....sim_options import (
-    AVOID_MULTIVALUED_READS,
-    CONSERVATIVE_READ_STRATEGY,
-    KEEP_MEMORY_READS_DISCRETE,
-    CONSERVATIVE_WRITE_STRATEGY,
-)
-from ....state_plugins.sim_action_object import _raw_ast
-from ....errors import SimMemoryError, SimAbstractMemoryError
-from .. import MemoryMixin
+from angr.sim_options import AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY
+from angr.state_plugins.sim_action_object import _raw_ast
+from angr.errors import SimMemoryError, SimAbstractMemoryError
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from .region_data import AddressWrapper, RegionMap
 from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
-    from ....sim_state import SimState
+    from angr.sim_state import SimState
 
 
 _l = logging.getLogger(name=__name__)
@@ -59,7 +54,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         if regioned_memory_cls is None:
             # delayed import
-            from .. import RegionedMemory  # pylint:disable=import-outside-toplevel
+            from angr.storage.memory_mixins import RegionedMemory  # pylint:disable=import-outside-toplevel
 
             regioned_memory_cls = RegionedMemory
 
@@ -79,7 +74,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: RegionedMemoryMixin = super().copy(memo)
+        o = super().copy(memo)
         o._write_targets_limit = self._write_targets_limit
         o._read_targets_limit = self._read_targets_limit
         o._stack_size = self._stack_size
@@ -96,7 +91,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return o
 
-    def load(self, addr, size: BV | int | None = None, endness=None, condition: Bool | None = None, **kwargs):
+    def load(self, addr, size: BV | int | None = None, *, endness=None, condition: Bool | None = None, **kwargs):
         if isinstance(size, BV) and size.has_annotation_type(RegionAnnotation):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:
@@ -126,13 +121,7 @@ class RegionedMemoryMixin(MemoryMixin):
                 **kwargs,
             )
 
-            if val is None:
-                if KEEP_MEMORY_READS_DISCRETE in self.state.options:
-                    val = self.state.solver.DSIS(to_conv=new_val, max_card=100000)
-                else:
-                    val = new_val
-            else:
-                val = val.union(new_val)
+            val = new_val if val is None else val.union(new_val)
 
         if val is None:
             # address_wrappers is empty - we cannot concretize the address in static mode.
@@ -143,7 +132,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         return val
 
-    def store(self, addr, data, size: int | None = None, endness=None, **kwargs):  # pylint:disable=unused-argument
+    def store(self, addr, data, size: int | None = None, *, endness=None, **kwargs):  # pylint:disable=unused-argument
         regioned_addrs_desc = self._normalize_address(addr)
         if (
             regioned_addrs_desc.cardinality >= self._write_targets_limit
@@ -155,7 +144,7 @@ class RegionedMemoryMixin(MemoryMixin):
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
-    def merge(self, others: Iterable[RegionedMemoryMixin], merge_conditions, common_ancestor=None) -> bool:
+    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
         r = False
         for o in others:
             for region_id, region in o._regions.items():
@@ -311,7 +300,7 @@ class RegionedMemoryMixin(MemoryMixin):
                 ),
             )
 
-        return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr, **kwargs)
+        return self._regions[key].load(addr, size, bbl_addr=bbl_addr, stmt_idx=stmt_id, ins_addr=ins_addr, **kwargs)
 
     def _region_store(self, addr, data, key: str, endness, related_function_addr: int | None = None, **kwargs):
         if key not in self._regions:
@@ -331,9 +320,9 @@ class RegionedMemoryMixin(MemoryMixin):
         self._regions[key].store(
             addr,
             data,
-            self.state.scratch.bbl_addr,
-            self.state.scratch.stmt_idx,
-            self.state.scratch.ins_addr,
+            bbl_addr=self.state.scratch.bbl_addr,
+            stmt_id=self.state.scratch.stmt_idx,
+            ins_addr=self.state.scratch.ins_addr,
             endness=endness,
             **kwargs,
         )
@@ -358,7 +347,6 @@ class RegionedMemoryMixin(MemoryMixin):
 
         :param addr:
         :param is_write:
-        :param convert_to_valueset:
         :param target_region:
         :return:
         """
@@ -426,7 +414,7 @@ class RegionedMemoryMixin(MemoryMixin):
     def _apply_condition_to_symbolic_addr(addr, condition):
         _, converted = claripy.constraint_to_si(condition)
         for original_expr, constrained_expr in converted:
-            addr = addr.replace(original_expr, constrained_expr)
+            addr = claripy.replace(addr, original_expr, constrained_expr)
         return addr
 
     @staticmethod

@@ -1,7 +1,7 @@
 # pylint:disable=no-member
 from __future__ import annotations
-from ...protos import cfg_pb2
-from ...serializable import Serializable
+from angr.protos import cfg_pb2
+from angr.serializable import Serializable
 
 
 class MemoryDataSort:
@@ -16,6 +16,7 @@ class MemoryDataSort:
     GOTPLTEntry = "GOT PLT Entry"
     ELFHeader = "elf-header"
     FloatingPoint = "fp"  # the size is determined by the MemoryData itself
+    Alignment = "alignment"
 
 
 _SORT_TO_IDX = {
@@ -30,6 +31,7 @@ _SORT_TO_IDX = {
     MemoryDataSort.GOTPLTEntry: cfg_pb2.MemoryData.GOTPLTEntry,
     MemoryDataSort.ELFHeader: cfg_pb2.MemoryData.ELFHeader,
     MemoryDataSort.FloatingPoint: cfg_pb2.MemoryData.FloatingPoint,
+    MemoryDataSort.Alignment: cfg_pb2.MemoryData.Alignment,
 }
 
 _IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}

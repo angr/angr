@@ -10,16 +10,11 @@ import claripy
 from archinfo import ArchX86, ArchAMD64
 import cle.backends
 
-from ..errors import (
-    AngrSimOSError,
-    SimSegfaultException,
-    SimUnsupportedError,
-    SimZeroDivisionException,
-)
-from .. import sim_options as o
-from ..tablespecs import StringTableSpec
-from ..procedures import SIM_LIBRARIES as L
-from ..procedures.definitions import load_win32api_definitions
+from angr.errors import AngrSimOSError, SimSegfaultException, SimUnsupportedError, SimZeroDivisionException
+from angr import sim_options as o
+from angr.tablespecs import StringTableSpec
+from angr.procedures import SIM_LIBRARIES as L
+from angr.procedures.definitions import load_win32api_definitions
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)
@@ -422,7 +417,7 @@ class SimWindows(SimOS):
 
         # let's go let's go!
         # we want to use a true guard here. if it's not true, then it's already been added in windup.
-        successors.add_successor(exc_state, self._exception_handler, claripy.true, "Ijk_Exception")
+        successors.add_successor(exc_state, self._exception_handler, claripy.true(), "Ijk_Exception")
         successors.processed = True
 
     # these two methods load and store register state from a struct CONTEXT

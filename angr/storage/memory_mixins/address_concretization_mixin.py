@@ -1,13 +1,13 @@
 from __future__ import annotations
 import claripy
 
-from . import MemoryMixin
-from ... import sim_options as options
-from ... import concretization_strategies
-from ...sim_state_options import SimStateOptions
-from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
-from ...storage import DUMMY_SYMBOLIC_READ_VALUE
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+from angr import sim_options as options
+from angr import concretization_strategies
+from angr.sim_state_options import SimStateOptions
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
+from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 
 class MultiwriteAnnotation(claripy.Annotation):
@@ -230,7 +230,7 @@ class AddressConcretizationMixin(MemoryMixin):
         """
         Take a list of integers and return a new list of integers where front and back integers interleave.
         """
-        lst = [None] * len(addrs)
+        lst = [0xFACE] * len(addrs)
         front, back = 0, len(addrs) - 1
         i = 0
         while front <= back:
@@ -257,7 +257,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return sub_value
         return claripy.If(addr == concrete_addr, sub_value, read_value)
 
-    def load(self, addr, size=None, condition=None, **kwargs):
+    def load(self, addr, size=None, *, condition=None, **kwargs):
         if type(size) is not int:
             raise TypeError("Size must have been specified as an int before reaching address concretization")
 
@@ -309,7 +309,7 @@ class AddressConcretizationMixin(MemoryMixin):
                 sub_condition = condition & sub_condition
         super().store(concrete_addr, data, size=size, condition=sub_condition, **kwargs)
 
-    def store(self, addr, data, size=None, condition=None, **kwargs):
+    def store(self, addr, data, size=None, *, condition=None, **kwargs):
         # Fast path
         if type(addr) is int:
             self._store_one_addr(addr, data, True, addr, condition, size, **kwargs)
@@ -374,11 +374,11 @@ class AddressConcretizationMixin(MemoryMixin):
             raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")
         return super().unmap_region(addr, length, **kwargs)
 
-    def concrete_load(self, addr, size, *args, **kwargs):
+    def concrete_load(self, addr, size, writing=False, **kwargs):
         if type(addr) is int:
             pass
         elif getattr(addr, "op", None) == "BVV":
             addr = addr.args[0]
         else:
             raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")
-        return super().concrete_load(addr, size, *args, **kwargs)
+        return super().concrete_load(addr, size, writing=writing, **kwargs)

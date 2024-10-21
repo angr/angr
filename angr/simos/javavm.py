@@ -1,25 +1,27 @@
 from __future__ import annotations
+
 import logging
 
-from angr import SIM_PROCEDURES, options
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootArgument, SootNullConstant
 from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
 from claripy.ast.fp import FP, fpToIEEEBV
 from claripy.ast.bv import BV
 
-from ..calling_conventions import default_cc, SimCCSoot
-from ..engines.soot import SootMixin
-from ..engines.soot.expressions import SimSootExpr_NewArray  # , SimSootExpr_NewMultiArray
-from ..engines.soot.values import (
+from angr import SIM_PROCEDURES, options
+
+from angr.calling_conventions import default_cc, SimCCSoot
+from angr.engines.soot import SootMixin
+from angr.engines.soot.expressions import SimSootExpr_NewArray
+from angr.engines.soot.values import (
     SimSootValue_ArrayRef,
     SimSootValue_StringRef,
     SimSootValue_ThisRef,
     SimSootValue_StaticFieldRef,
 )
-from ..errors import AngrSimOSError
-from ..procedures.java_jni import jni_functions
-from ..sim_state import SimState
-from ..sim_type import SimTypeFunction, SimTypeNum
+from angr.errors import AngrSimOSError
+from angr.procedures.java_jni import jni_functions
+from angr.sim_state import SimState
+from angr.sim_type import SimTypeFunction, SimTypeNum
 from .simos import SimOS
 
 l = logging.getLogger("angr.simos.JavaVM")
@@ -100,16 +102,12 @@ class SimJavaVM(SimOS):
     #
 
     def state_blank(self, addr=None, **kwargs):  # pylint: disable=arguments-differ
-        if not kwargs.get("mode", None):
+        if not kwargs.get("mode"):
             kwargs["mode"] = self.project._default_analysis_mode
-        if not kwargs.get("arch", None):
+        if not kwargs.get("arch"):
             kwargs["arch"] = self.arch
-        if not kwargs.get("os_name", None):
+        if not kwargs.get("os_name"):
             kwargs["os_name"] = self.name
-        # enable support for string analysis
-        add_options = kwargs.get("add_options", set())
-        add_options.add(options.COMPOSITE_SOLVER)
-        kwargs["add_options"] = add_options
 
         if self.is_javavm_with_jni_support:
             # If the JNI support is enabled (i.e. JNI libs are loaded), the SimState
@@ -163,7 +161,7 @@ class SimJavaVM(SimOS):
 
         # initialize class containing the current method
         state.javavm_classloader.get_class(
-            state.addr.method.class_name, init_class=True, step_func=kwargs.get("step_function", None)
+            state.addr.method.class_name, init_class=True, step_func=kwargs.get("step_function")
         )
 
         # initialize the Java environment
@@ -194,13 +192,13 @@ class SimJavaVM(SimOS):
         return state
 
     @staticmethod
-    def generate_symbolic_cmd_line_arg(state, max_length=1000):
+    def generate_symbolic_cmd_line_arg(state):
         """
         Generates a new symbolic cmd line argument string.
         :return: The string reference.
         """
         str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
-        str_sym = StringS("cmd_line_arg", max_length)
+        str_sym = StringS("cmd_line_arg")
         state.solver.add(str_sym != StringV(""))
         state.memory.store(str_ref, str_sym)
         return str_ref
@@ -312,7 +310,7 @@ class SimJavaVM(SimOS):
         if type_ == "double":
             return FPS(f"default_value_{type_}", FSORT_DOUBLE)
         if type_ == "java.lang.String":
-            return SimSootValue_StringRef.new_string(state, StringS(f"default_value_{type_}", 1000))
+            return SimSootValue_StringRef.new_string(state, StringS(f"default_value_{type_}"))
         if type_.endswith("[][]"):
             raise NotImplementedError
         if type_.endswith("[]"):
@@ -434,9 +432,6 @@ class SimJavaVM(SimOS):
         # if it's not a primitive type, we treat it as a reference
         jni_type_size = ArchSoot.sizeof.get(java_type, self.native_simos.arch.bits)
         return SimTypeNum(size=jni_type_size)
-
-    def get_method_native_type(self, method):
-        return SimTypeFunction
 
     @property
     def native_arch(self):

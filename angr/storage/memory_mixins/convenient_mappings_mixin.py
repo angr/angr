@@ -5,9 +5,9 @@ import logging
 import claripy
 
 from angr import sim_options as options
-from ...utils.cowdict import ChainMapCOW
-from ...errors import SimMemoryError, SimMemoryMissingError
-from . import MemoryMixin
+from angr.utils.cowdict import ChainMapCOW
+from angr.errors import SimMemoryError, SimMemoryMissingError
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(name=__name__)
 
@@ -63,7 +63,7 @@ class ConvenientMappingsMixin(MemoryMixin):
                         self._updated_mappings.remove((v, id(self._name_mapping)))
 
                 if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                    h = old_obj.cache_key
+                    h = old_obj.hash()
                     self._mark_updated_mapping(self._hash_mapping, h)
                     self._hash_mapping[h].difference_update(range(addr, addr + size))
                     if len(self._hash_mapping[h]) == 0:
@@ -82,7 +82,7 @@ class ConvenientMappingsMixin(MemoryMixin):
 
         if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
             # add the new variables to the hash->addrs mapping
-            h = data.cache_key
+            h = data.hash()
             self._mark_updated_mapping(self._hash_mapping, h)
             if h not in self._hash_mapping:
                 self._hash_mapping[h] = set()
@@ -148,7 +148,7 @@ class ConvenientMappingsMixin(MemoryMixin):
                         self._name_mapping.pop(v, None)
 
             if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                h = hash(old_obj)
+                h = old_obj.hash()
                 self._mark_updated_mapping(self._hash_mapping, h)
                 self._hash_mapping[h].discard(actual_addr)
                 if len(self._hash_mapping[h]) == 0:
@@ -166,7 +166,7 @@ class ConvenientMappingsMixin(MemoryMixin):
 
         if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
             # add the new variables to the hash->addrs mapping
-            h = hash(new_obj)
+            h = new_obj.hash()
             self._mark_updated_mapping(self._hash_mapping, h)
             if h not in self._hash_mapping:
                 self._hash_mapping[h] = set()
@@ -208,10 +208,8 @@ class ConvenientMappingsMixin(MemoryMixin):
         for e in self._hash_mapping[h]:
             try:
                 present = self.load(e, size=1)
-                if h == present.cache_key or (
-                    present.op == "Extract"
-                    and present.args[0] - present.args[1] == 7
-                    and h == present.args[2].cache_key
+                if h == present.hash() or (
+                    present.op == "Extract" and present.args[0] - present.args[1] == 7 and h == present.args[2].hash()
                 ):
                     yield e
                 else:

@@ -8,11 +8,18 @@ import ailment
 from ailment import UnaryOp
 from ailment.expression import negate
 
-from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode, BaseNode, BreakNode
-from ..sequence_walker import SequenceWalker
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
-from ..utils import is_statement_terminating
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    SwitchCaseNode,
+    ConditionNode,
+    SequenceNode,
+    MultiNode,
+    BaseNode,
+    BreakNode,
+)
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.utils import is_statement_terminating
 
 
 class CmpOp(enum.Enum):
@@ -123,9 +130,7 @@ class SwitchClusterFinder(SequenceWalker):
             variable = None
             if isinstance(cond.operands[1], ailment.Expr.Const):
                 v = cond.operands[1].value
-            if isinstance(cond.operands[0], (ailment.Expr.Register, ailment.Expr.Load)) and hasattr(
-                cond.operands[0], "variable"
-            ):
+            if isinstance(cond.operands[0], ailment.Expr.VirtualVariable) and hasattr(cond.operands[0], "variable"):
                 # there we go
                 variable = cond.operands[0].variable
 
@@ -279,6 +284,10 @@ def simplify_switch_clusters(
 
     for variable in var2switches:
         switch_regions = var2switches[variable]
+        if len(switch_regions) <= 1:
+            # nothing to simplify or merge if there is only one switch region
+            continue
+
         cond_regions = list(var2condnodes[variable])
 
         if not cond_regions:
@@ -444,10 +453,10 @@ def simplify_switch_clusters(
         # build the SwitchCase node and replace old nodes in the parent node
         cases_dict = OrderedDict(cases)
         new_switchcase = SwitchCaseNode(
-            switch_regions_default_nodes[0].node.switch_expr,
+            switch_regions[0].node.switch_expr,
             cases_dict,
             default_node,
-            addr=switch_regions_default_nodes[0].node.addr,
+            addr=switch_regions[0].node.addr,
         )
 
         # what are we trying to replace?
@@ -520,13 +529,15 @@ def simplify_lowered_switches_core(
 
     if outermost_node is None:
         return False
+    if not isinstance(outermost_node, ConditionNode):
+        return False
     if isinstance(outermost_node.condition, UnaryOp) and outermost_node.condition.op == "Not":
         # attempt to flip any simple negated comparison for normalized operations
         outermost_node.condition = negate(outermost_node.condition.operand)
 
     caseno_to_node = {}
     default_node_candidates: list[tuple[BaseNode, BaseNode]] = []  # parent to default node candidate
-    stack: list[(ConditionNode, int, int)] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
+    stack: list[tuple[BaseNode, int, int]] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
     while stack:
         node, min_, max_ = stack.pop(0)
         if node not in node_to_condnode:

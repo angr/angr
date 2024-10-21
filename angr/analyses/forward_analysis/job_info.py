@@ -20,7 +20,7 @@ class JobInfo(Generic[JobType, JobKey]):
         return hash((self.key, *tuple(self.jobs)))
 
     def __eq__(self, o):
-        return type(self) == type(o) and self.key == o.key and self.job == o.job
+        return type(self) is type(o) and self.key == o.key and self.job == o.job
 
     def __repr__(self):
         return f"<JobInfo {self.key!s}>"

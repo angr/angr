@@ -2,9 +2,9 @@ from __future__ import annotations
 import claripy
 
 from . import JavaSimProcedure
-from ...engines.soot.values import SimSootValue_ThisRef, SimSootValue_StringRef
-from ...engines.soot.expressions import SimSootExpr_NewArray
-from ... import sim_options as options
+from angr.engines.soot.values import SimSootValue_ThisRef, SimSootValue_StringRef
+from angr.engines.soot.expressions import SimSootExpr_NewArray
+from angr import sim_options as options
 
 
 class UnconstrainedMethod(JavaSimProcedure):
@@ -33,7 +33,7 @@ class UnconstrainedMethod(JavaSimProcedure):
             ret_value = claripy.FPS(f"unc_double_{method_descriptor.name}", claripy.FSORT_DOUBLE)
         elif method_descriptor.ret == "java.lang.String":
             str_ref = SimSootValue_StringRef.new_string(
-                self.state, claripy.StringS(f"unc_string_{method_descriptor.name}", 1000)
+                self.state, claripy.StringS(f"unc_string_{method_descriptor.name}")
             )
             ret_value = str_ref
         elif method_descriptor.ret.endswith("[][]"):

@@ -320,7 +320,7 @@ class SimSuccessors:
                 skip_max_targets_warning = False
                 if o.NO_IP_CONCRETIZATION in state.options:
                     # Don't try to concretize the IP
-                    cond_and_targets = [(claripy.true, target)]
+                    cond_and_targets = [(claripy.true(), target)]
                     max_targets = 0
                     skip_max_targets_warning = True  # don't warn
                 elif o.KEEP_IP_SYMBOLIC in state.options:
@@ -356,7 +356,7 @@ class SimSuccessors:
                         if o.KEEP_IP_SYMBOLIC in split_state.options:
                             split_state.regs.ip = target
                         else:
-                            split_state.add_constraints(cond, action=True)
+                            split_state.add_constraints(cond)
                             split_state.regs.ip = a
                         if split_state.supports_inspect:
                             split_state.inspect.downsize()
@@ -504,7 +504,7 @@ class SimSuccessors:
                 fallback = True
                 break
 
-            cond_and_targets.append((cond, target if not outer_reverse else state.solver.Reverse(target)))
+            cond_and_targets.append((cond, target if not outer_reverse else claripy.Reverse(target)))
 
         if reached_sentinel is False:
             # huh?
@@ -532,10 +532,10 @@ class SimSuccessors:
 
 
 # pylint: disable=wrong-import-position
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
-from ..calling_conventions import SYSCALL_CC
-from ..state_plugins.sim_action_object import _raw_ast
-from ..state_plugins.callstack import CallStack
-from ..storage import DUMMY_SYMBOLIC_READ_VALUE
-from .. import sim_options as o
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
+from angr.calling_conventions import SYSCALL_CC
+from angr.state_plugins.sim_action_object import _raw_ast
+from angr.state_plugins.callstack import CallStack
+from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
+from angr import sim_options as o

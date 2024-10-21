@@ -17,10 +17,10 @@ import pyvex
 from angr.engines.vex.claripy import ccall
 from angr.sim_state import SimState
 
-from .. import sim_options as options
-from ..engines.vex.claripy.irop import operations as irop_ops
-from ..errors import SimMemoryError, SimSegfaultError, SimUnicornError, SimUnicornUnsupport, SimValueError
-from ..misc.testing import is_testing
+from angr import sim_options as options
+from angr.engines.vex.claripy.irop import operations as irop_ops
+from angr.errors import SimMemoryError, SimSegfaultError, SimUnicornError, SimUnicornUnsupport, SimValueError
+from angr.misc.testing import is_testing
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)

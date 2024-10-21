@@ -1,7 +1,7 @@
 from __future__ import annotations
 import claripy
 
-from ...engines.light.engine import SimEngineLightMixin
+from angr.engines.light.engine import SimEngineLightMixin
 
 
 class TopCheckerMixin(SimEngineLightMixin):

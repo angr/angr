@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
     from angr.knowledge_plugins.functions import Function, FunctionManager
 
-from ...common import bin_location
+from tests.common import bin_location
 
 
 log = logging.getLogger(__name__)

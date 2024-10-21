@@ -6,7 +6,7 @@ import claripy
 import ailment
 
 if TYPE_CHECKING:
-    from ...code_location import CodeLocation
+    from angr.code_location import CodeLocation
 
 
 class Detail:

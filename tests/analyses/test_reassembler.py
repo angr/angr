@@ -14,7 +14,7 @@ import unittest
 
 import angr
 
-from ..common import bin_location, has_32_bit_compiler_support
+from tests.common import bin_location, has_32_bit_compiler_support
 
 
 test_location = os.path.join(bin_location, "tests")

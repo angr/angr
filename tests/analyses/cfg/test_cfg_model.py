@@ -11,7 +11,7 @@ import logging
 import angr
 from angr.analyses import CFGFast
 
-from ...common import bin_location
+from tests.common import bin_location
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)

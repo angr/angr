@@ -1,37 +1,28 @@
-# pylint:disable=abstract-method,line-too-long,missing-class-docstring,wrong-import-position
-from __future__ import annotations
+# pylint:disable=abstract-method,line-too-long,missing-class-docstring,wrong-import-position,too-many-positional-arguments
 from __future__ import annotations
 
 import contextlib
-from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
-from typing import Literal, Optional, Any, Union, TYPE_CHECKING, cast, overload
-from collections.abc import Iterable
 import logging
-
-try:
-    import CppHeaderParser
-except ImportError:
-    CppHeaderParser = None
+from collections import OrderedDict, defaultdict, ChainMap
+from collections.abc import Iterable
+from typing import Literal, Any, TYPE_CHECKING, cast, overload
 
 from archinfo import Endness, Arch
 import claripy
+import CppHeaderParser
+import pycparser
 
 from angr.errors import AngrMissingTypeError, AngrTypeError
+from angr.sim_state import SimState
 from .misc.ux import deprecated
 
 if TYPE_CHECKING:
-    import pycparser
     from angr.procedures.definitions import SimTypeCollection
     from angr.storage.memory_mixins import _Coerce
 
-    StoreType = Union[_Coerce, claripy.ast.BV]
-else:
-    try:
-        import pycparser
-    except ImportError:
-        pycparser = None
+    StoreType = _Coerce
 
 
 l = logging.getLogger(name=__name__)
@@ -69,7 +60,7 @@ class SimType:
         return self_type.__eq__(other, avoid=avoid)  # pylint:disable=unnecessary-dunder-call
 
     def __eq__(self, other, avoid=None):
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
 
         for attr in self._fields:
@@ -128,7 +119,8 @@ class SimType:
         if self._arch is None:
             raise ValueError("Can't tell my alignment without an arch!")
         if self.size is None:
-            raise AngrTypeError("Cannot compute the alignment of a type with no size")
+            l.debug("The size of the type %r is unknown; assuming word size of the arch.", self)
+            return self._arch.bytes
         return self.size // self._arch.byte_width
 
     def with_arch(self, arch: Arch | None):
@@ -222,7 +214,9 @@ class TypeRef(SimType):
         self.type = self.type.with_arch(arch)
         return self
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if not full:
             if name is not None:
                 return f"{self.name} {name}"
@@ -273,7 +267,9 @@ class SimTypeBottom(SimType):
     def __repr__(self):
         return self.label or "BOT"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if name is None:
             return "int"
         return f'{"int" if self.label is None else self.label} {name}'
@@ -416,7 +412,9 @@ class SimTypeInt(SimTypeReg):
         super().__init__(None, label=label)
         self.signed = signed
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         out = self._base_name
         if not self.signed:
             out = "unsigned " + out
@@ -493,6 +491,48 @@ class SimTypeLong(SimTypeInt):
 
 class SimTypeLongLong(SimTypeInt):
     _base_name = "long long"
+
+
+class SimTypeFixedSizeInt(SimTypeInt):
+    """
+    The base class for all fixed-size (i.e., the size stays the same on all platforms) integer types. Do not
+    instantiate this class directly.
+    """
+
+    _base_name: str = "int"
+    _fixed_size: int = 32
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0):
+        out = self._base_name
+        if not self.signed:
+            out = "u" + out
+        if name is None:
+            return out
+        return f"{out} {name}"
+
+    def __repr__(self) -> str:
+        name = self._base_name
+        if not self.signed:
+            name = "u" + name
+
+        try:
+            return name + " (%d bits)" % self.size
+        except ValueError:
+            return name
+
+    @property
+    def size(self) -> int:
+        return self._fixed_size
+
+
+class SimTypeInt128(SimTypeFixedSizeInt):
+    _base_name = "int128_t"
+    _fixed_size = 128
+
+
+class SimTypeInt256(SimTypeFixedSizeInt):
+    _base_name = "int256_t"
+    _fixed_size = 256
 
 
 class SimTypeChar(SimTypeReg):
@@ -702,7 +742,9 @@ class SimTypePointer(SimTypeReg):
     def __repr__(self):
         return f"{self.pts_to}*"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         # if pts_to is SimTypeBottom, we return a void*
         if isinstance(self.pts_to, SimTypeBottom):
             out = "void*"
@@ -769,7 +811,9 @@ class SimTypeReference(SimTypeReg):
     def __repr__(self):
         return f"{self.refs}&"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         name = "&" if name is None else f"&{name}"
         return self.refs.c_repr(name, full, memo, indent)
 
@@ -835,7 +879,9 @@ class SimTypeArray(SimType):
     def __repr__(self):
         return "{}[{}]".format(self.elem_type, "" if self.length is None else self.length)
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
@@ -924,7 +970,9 @@ class SimTypeString(NamedTypeMixin, SimType):
     def __repr__(self):
         return "string_t"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
@@ -1000,7 +1048,9 @@ class SimTypeWString(NamedTypeMixin, SimType):
     def __repr__(self):
         return "wstring_t"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
@@ -1305,14 +1355,26 @@ class SimTypeDouble(SimTypeFloat):
 
 
 class SimStruct(NamedTypeMixin, SimType):
-    _fields = ("name", "fields")
+    _fields = ("name", "fields", "anonymous")
 
-    def __init__(self, fields: dict[str, SimType] | OrderedDict[str, SimType], name=None, pack=False, align=None):
+    def __init__(
+        self,
+        fields: dict[str, SimType] | OrderedDict[str, SimType],
+        name=None,
+        pack=False,
+        align=None,
+        anonymous: bool = False,
+    ):
         super().__init__(None, name="<anon>" if name is None else name)
 
         self._pack = pack
         self._align = align
+        self.anonymous = anonymous
         self.fields: OrderedDict[str, SimType] = OrderedDict(fields)
+
+        # FIXME: Hack for supporting win32 struct definitions
+        if self.name == "_Anonymous_e__Struct":
+            self.anonymous = True
 
         self._arch_memo = {}
 
@@ -1329,7 +1391,7 @@ class SimStruct(NamedTypeMixin, SimType):
         offset_so_far = 0
         for name, ty in self.fields.items():
             if ty.size is None:
-                l.warning(
+                l.debug(
                     "Found a bottom field in struct %s. Ignore and increment the offset using the default "
                     "element size.",
                     self.name,
@@ -1384,7 +1446,9 @@ class SimStruct(NamedTypeMixin, SimType):
     def __repr__(self):
         return f"struct {self.name}"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             return super().c_repr(name, full, memo, indent)
 
@@ -1565,7 +1629,9 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def size(self):
-        return max(ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom))
+        member_sizes = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
+        # fall back to word size in case all members are SimTypeBottom
+        return max(member_sizes) if member_sizes else self._arch.bytes
 
     @property
     def alignment(self):
@@ -1598,7 +1664,9 @@ class SimUnion(NamedTypeMixin, SimType):
             self.name, "\n\t".join(f"{name} {ty!s};" for name, ty in self.members.items())
         )
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             return super().c_repr(name, full, memo, indent)
 
@@ -1841,7 +1909,9 @@ class SimTypeRef(SimType):
     def set_size(self, v: int):
         self._size = v
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0) -> str:
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
         if self.original_type is SimStruct:
             prefix = "struct"
@@ -3457,7 +3527,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     func_decls: dict[str, SimTypeCppFunction] = {}
     for the_func in h.functions:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto = cast(Optional[SimTypeCppFunction], _cpp_decl_to_type(the_func, {}, opaque_classes=True))
+        proto = cast(SimTypeCppFunction | None, _cpp_decl_to_type(the_func, {}, opaque_classes=True))
         if proto is not None and the_func["class"]:
             func_name = cast(str, the_func["class"] + "::" + the_func["name"])
             proto.args = (
@@ -3503,7 +3573,8 @@ def dereference_simtype(
             return memo[t.name]
 
         real_type = t.copy()
-        memo[t.name] = real_type
+        if not t.anonymous:
+            memo[t.name] = real_type
         fields = OrderedDict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.fields.items())
         real_type.fields = fields
     elif isinstance(t, SimTypePointer):
@@ -3557,4 +3628,3 @@ struct timeval {
     )
 
 from .state_plugins.view import SimMemView
-from .state_plugins import SimState

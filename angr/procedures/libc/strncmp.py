@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+from functools import reduce
 
 import claripy
 
@@ -152,10 +154,13 @@ class strncmp(angr.SimProcedure):
             return claripy.BVV(0, 32)
 
         if self.state.mode == "static":
-            ret_expr = claripy.ESI(8)
-            for expr in return_values:
-                ret_expr = ret_expr.union(expr)
-
+            match len(return_values):
+                case 0:
+                    ret_expr = claripy.BVS("unnamed", self.state.arch.bits - 24)
+                case 1:
+                    ret_expr = return_values[0]
+                case _:
+                    ret_expr = reduce(claripy.union, return_values)
             ret_expr = ret_expr.sign_extend(24)
 
         else:

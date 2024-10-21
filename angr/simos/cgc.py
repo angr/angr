@@ -4,9 +4,9 @@ import logging
 import claripy
 from cle import BackedCGC
 
-from ..procedures import SIM_LIBRARIES as L
-from ..state_plugins import SimActionData
-from .. import sim_options as o
+from angr.procedures import SIM_LIBRARIES as L
+from angr.state_plugins import SimActionData
+from angr import sim_options as o
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)
@@ -27,9 +27,9 @@ class SimCGC(SimUserland):
         :param allocate_stack_page_count:   Number of pages to pre-allocate for stack
         """
         # default stack as specified in the cgc abi
-        if kwargs.get("stack_end", None) is None:
+        if kwargs.get("stack_end") is None:
             kwargs["stack_end"] = 0xBAAAB000
-        if kwargs.get("stack_size", None) is None:
+        if kwargs.get("stack_size") is None:
             kwargs["stack_size"] = 1024 * 1024 * 8
 
         s = super().state_blank(**kwargs)  # pylint:disable=invalid-name

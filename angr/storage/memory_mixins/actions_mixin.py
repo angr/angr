@@ -1,13 +1,13 @@
 from __future__ import annotations
 import claripy
 
-from ...state_plugins.sim_action import SimActionData, SimActionObject
-from ... import sim_options as o
-from . import MemoryMixin
+from angr.state_plugins.sim_action import SimActionData, SimActionObject
+from angr import sim_options as o
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class ActionsMixinHigh(MemoryMixin):
-    def load(self, addr, size=None, condition=None, fallback=None, disable_actions=False, action=None, **kwargs):
+    def load(self, addr, size=None, *, condition=None, fallback=None, disable_actions=False, action=None, **kwargs):
         if not disable_actions and o.AUTO_REFS in self.state.options and action is None:
             action = self.__make_action("read", addr, size, None, condition, fallback)
 
@@ -28,7 +28,7 @@ class ActionsMixinHigh(MemoryMixin):
 
         return r
 
-    def store(self, addr, data, size=None, disable_actions=False, action=None, condition=None, **kwargs):
+    def store(self, addr, data, size=None, *, disable_actions=False, action=None, condition=None, **kwargs):
         if not disable_actions and o.AUTO_REFS in self.state.options and action is None:
             action = self.__make_action("write", addr, size, data, condition, None)
 
@@ -46,27 +46,27 @@ class ActionsMixinHigh(MemoryMixin):
             self.state, region_type, kind, addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback
         )
 
-        action.added_constraints = claripy.true
+        action.added_constraints = claripy.true()
         return action
 
-    def _add_constraints(self, c, action=None, **kwargs):
+    def _add_constraints(self, c, *, action=None, **kwargs):
         if action is not None:
             action.added_constraints = claripy.And(action.added_constraints, c)
         return super()._add_constraints(c, action=action, **kwargs)
 
 
 class ActionsMixinLow(MemoryMixin):
-    def load(self, addr, action=None, **kwargs):
+    def load(self, addr, size=None, *, action=None, **kwargs):
         if action is not None:
             if action.actual_addrs is None:
                 action.actual_addrs = []
             action.actual_addrs.append(addr)
-        return super().load(addr, action=action, **kwargs)
+        return super().load(addr, size, action=action, **kwargs)
 
-    def store(self, addr, data, action: SimActionData | None = None, **kwargs):
+    def store(self, addr, data, size=None, *, action: SimActionData | None = None, **kwargs):
         if action is not None:
             if action.actual_addrs is None:
                 action.actual_addrs = []
             action.actual_addrs.append(addr)
             action.actual_value = action._make_object(data)
-        return super().store(addr, data, action=action, **kwargs)
+        return super().store(addr, data, size, action=action, **kwargs)

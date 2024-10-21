@@ -12,10 +12,10 @@ import networkx
 from angr.utils.graph import GraphUtils
 from angr.analyses import ForwardAnalysis
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
-from .. import sim_options
-from ..engines.procedure import ProcedureEngine
-from ..engines import SimSuccessors
-from ..errors import (
+from angr import sim_options
+from angr.engines.procedure import ProcedureEngine
+from angr.engines import SimSuccessors
+from angr.errors import (
     AngrDelayJobNotice,
     AngrSkipJobNotice,
     AngrVFGError,
@@ -26,14 +26,14 @@ from ..errors import (
     SimIRSBError,
     SimError,
 )
-from ..procedures import SIM_PROCEDURES
-from ..state_plugins.callstack import CallStack
-from ..analyses import AnalysesHub
-from ..sim_state import SimState
+from angr.procedures import SIM_PROCEDURES
+from angr.state_plugins.callstack import CallStack
+from angr.analyses import AnalysesHub
+from angr.sim_state import SimState
 from . import Analysis, CFGEmulated
 
 if TYPE_CHECKING:
-    from ..knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 l = logging.getLogger(name=__name__)
 
@@ -249,8 +249,8 @@ class VFGNode:
 
     def __eq__(self, o):
         return (
-            type(self) == type(o)
-            and self.key == o.key  # pylint:disable=unidiomatic-typecheck
+            type(self) is type(o)
+            and self.key == o.key
             and self.addr == o.addr
             and self.state == o.state
             and self.actions == o.actions
@@ -1508,7 +1508,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 successor_state.registers.store(arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
-                top_si = claripy.TSI(arch.bits)
+                top_si = claripy.BVS("unnamed", arch.bits)
                 successor_state.registers.store(arch.ret_offset, top_si)
 
             if job.call_skipped:
@@ -1686,7 +1686,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
 
         reg_sp_val = successor_state.solver.min(reg_sp_expr)
-        reg_sp_si = claripy.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
+        reg_sp_si = claripy.BVV(reg_sp_val, successor_state.arch.bits)
 
         reg_sp_val = reg_sp_val - arch.bytes  # TODO: Is it OK?
         new_stack_region_id = successor_state.memory.stack_id(successor_ip)

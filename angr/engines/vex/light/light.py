@@ -3,8 +3,8 @@ import logging
 
 import pyvex
 
-from ...engine import SimEngineBase
-from ....utils.constants import DEFAULT_STATEMENT
+from angr.engines.engine import SimEngineBase
+from angr.utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
 
@@ -394,7 +394,7 @@ class VEXMixin(SimEngineBase):
         # guarded address). This way we get rid of the redundant load that should have existed in the first place.
 
         ty, cvt_op = cvt_properties[cvt]
-        if self._is_false(guard):
+        if self.state.solver.is_true(guard[0] == 0):
             self._perform_vex_stmt_LoadG_wrtmp(dst, alt)
             return
         load_result = self._perform_vex_stmt_LoadG_load(
@@ -436,7 +436,7 @@ class VEXMixin(SimEngineBase):
 
     def _perform_vex_stmt_StoreG(self, addr, data, guard, ty, endness, **kwargs):
         # perform the same optimization as in _perform_vex_stmt_LoadG
-        if self._is_false(guard):
+        if self.state.solver.is_true(guard[0] == 0):
             return
         self._perform_vex_stmt_StoreG_store(
             addr, data, endness, condition=self._perform_vex_stmt_StoreG_guard_condition(guard), **kwargs

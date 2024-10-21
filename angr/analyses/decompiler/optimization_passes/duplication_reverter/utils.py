@@ -9,7 +9,7 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump
 
 from .errors import UnsupportedAILNodeError
-from ...structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from angr.analyses.decompiler.structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
 
 
 _l = logging.getLogger(name=__name__)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import claripy
 
-from ..java import JavaSimProcedure
+from angr.procedures.java import JavaSimProcedure
 
 
 class NextInt(JavaSimProcedure):

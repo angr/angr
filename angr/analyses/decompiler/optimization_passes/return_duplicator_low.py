@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import inspect
+from typing import Any
 
 import networkx
 
@@ -46,25 +47,35 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
     def __init__(
         self,
         func,
-        # internal parameters that should be used by Clinic
-        node_idx_start: int = 0,
         # settings
         max_opt_iters: int = 4,
         max_calls_in_regions: int = 2,
         prevent_new_gotos: bool = True,
         minimize_copies_for_regions: bool = True,
+        region_identifier=None,
+        vvar_id_start: int | None = None,
+        scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
+        StructuringOptimizationPass.__init__(
+            self,
+            func,
+            max_opt_iters=max_opt_iters,
+            prevent_new_gotos=prevent_new_gotos,
+            require_gotos=True,
+            vvar_id_start=vvar_id_start,
+            scratch=scratch,
+            region_identifier=region_identifier,
+            **kwargs,
+        )
         ReturnDuplicatorBase.__init__(
             self,
             func,
-            node_idx_start=node_idx_start,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
-            **kwargs,
-        )
-        StructuringOptimizationPass.__init__(
-            self, func, max_opt_iters=max_opt_iters, prevent_new_gotos=prevent_new_gotos, require_gotos=True, **kwargs
+            ri=region_identifier,
+            vvar_id_start=vvar_id_start,
+            scratch=scratch,
         )
         self.analyze()
 

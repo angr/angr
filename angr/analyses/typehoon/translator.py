@@ -1,18 +1,23 @@
+# pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
 from itertools import count
 
-from ... import sim_type
-from ...sim_type import SimType
+from angr import sim_type
+from angr.sim_type import SimType
 from . import typeconsts
 from .typeconsts import TypeConstant
 
 
 class SimTypeTempRef(sim_type.SimType):
+    """
+    Represents a temporary reference to another type. TypeVariableReference is translated to SimTypeTempRef.
+    """
+
     def __init__(self, typevar):
         super().__init__()
         self.typevar = typevar
 
-    def c_repr(self):
+    def c_repr(self, **kwargs):
         return "<SimTypeTempRef>"
 
 
@@ -141,7 +146,10 @@ class TypeTranslator:
         return sim_type.SimTypeLongLong(signed=False).with_arch(self.arch)
 
     def _translate_Int128(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeNum(128, signed=False).with_arch(self.arch)
+        return sim_type.SimTypeInt128(signed=False).with_arch(self.arch)
+
+    def _translate_Int256(self, tc):  # pylint:disable=unused-argument
+        return sim_type.SimTypeInt256(signed=False).with_arch(self.arch)
 
     def _translate_TypeVariableReference(self, tc):
         if tc.typevar in self.translated:
@@ -175,6 +183,12 @@ class TypeTranslator:
     #
     # SimType handlers
     #
+
+    def _translate_SimTypeInt128(self, st: sim_type.SimTypeChar) -> typeconsts.Int128:
+        return typeconsts.Int128()
+
+    def _translate_SimTypeInt256(self, st: sim_type.SimTypeChar) -> typeconsts.Int256:
+        return typeconsts.Int256()
 
     def _translate_SimTypeInt(self, st: sim_type.SimTypeInt) -> typeconsts.Int32:
         return typeconsts.Int32()
@@ -220,6 +234,7 @@ TypeConstHandlers = {
     typeconsts.Int32: TypeTranslator._translate_Int32,
     typeconsts.Int64: TypeTranslator._translate_Int64,
     typeconsts.Int128: TypeTranslator._translate_Int128,
+    typeconsts.Int256: TypeTranslator._translate_Int256,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
 }
 
@@ -230,6 +245,8 @@ SimTypeHandlers = {
     sim_type.SimTypeLong: TypeTranslator._translate_SimTypeLong,
     sim_type.SimTypeLongLong: TypeTranslator._translate_SimTypeLongLong,
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
+    sim_type.SimTypeInt128: TypeTranslator._translate_SimTypeInt128,
+    sim_type.SimTypeInt256: TypeTranslator._translate_SimTypeInt256,
     sim_type.SimStruct: TypeTranslator._translate_SimStruct,
     sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
 }

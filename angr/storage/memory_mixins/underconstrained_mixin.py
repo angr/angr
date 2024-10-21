@@ -1,9 +1,11 @@
 from __future__ import annotations
-import claripy
+
 import logging
 
-from . import MemoryMixin
-from ... import sim_options as o
+import claripy
+
+from angr import sim_options as o
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)
 
@@ -20,15 +22,15 @@ class UnderconstrainedMixin(MemoryMixin):
         out._unconstrained_range = self._unconstrained_range
         return out
 
-    def load(self, addr, **kwargs):
+    def load(self, addr, size=None, **kwargs):
         self._constrain_underconstrained_index(addr)
-        return super().load(addr, **kwargs)
+        return super().load(addr, size, **kwargs)
 
-    def store(self, addr, data, **kwargs):
+    def store(self, addr, data, size=None, **kwargs):
         self._constrain_underconstrained_index(addr)
-        super().store(addr, data, **kwargs)
+        super().store(addr, data, size, **kwargs)
 
-    def _default_value(self, addr, size, name=None, key=None, inspect=True, events=True, **kwargs):
+    def _default_value(self, addr, size, *, name=None, key=None, inspect=True, events=True, **kwargs):
         if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and type(addr) is int:
             if self.category == "mem":
                 alloc_depth = self.state.uc_manager.get_alloc_depth(addr)

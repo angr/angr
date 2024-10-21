@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ..light import VEXMixin
-from ....state_plugins import BP_BEFORE, BP_AFTER, NO_OVERRIDE
+from angr.engines.vex.light import VEXMixin
+from angr.state_plugins import BP_BEFORE, BP_AFTER, NO_OVERRIDE
 
 
 class SimInspectMixin(VEXMixin):

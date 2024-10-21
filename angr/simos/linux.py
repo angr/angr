@@ -11,11 +11,11 @@ from cle.address_translator import AT
 from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
-from ..tablespecs import StringTableSpec
-from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
-from ..state_plugins import SimFilesystem, SimHostFilesystem
-from ..storage.file import SimFile, SimFileBase
-from ..errors import AngrSyscallError
+from angr.tablespecs import StringTableSpec
+from angr.procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
+from angr.state_plugins import SimFilesystem, SimHostFilesystem
+from angr.storage.file import SimFile, SimFileBase
+from angr.errors import AngrSyscallError
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)
@@ -238,7 +238,7 @@ class SimLinux(SimUserland):
                 fs[name] = fs[name].encode("utf-8")
             if type(fs[name]) is bytes:
                 fs[name] = claripy.BVV(fs[name])
-            if isinstance(fs[name], claripy.Bits):
+            if isinstance(fs[name], claripy.ast.Bits):
                 fs[name] = SimFile(name, content=fs[name])
             if not isinstance(fs[name], SimFileBase):
                 raise TypeError(f"Provided fs initializer with unusable type {type(fs[name])!r}")

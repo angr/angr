@@ -1,5 +1,6 @@
 from __future__ import annotations
-from collections import defaultdict
+from typing import Any
+from collections import defaultdict, OrderedDict
 import logging
 
 import networkx
@@ -413,6 +414,7 @@ class Dominators:
         container_nodes = {}
 
         traversed_nodes = set()
+        endnode_encountered = False
         while queue:
             node = queue.pop()
 
@@ -432,9 +434,11 @@ class Dominators:
                 # may end with a loop.
                 if self._reverse:
                     # Add an edge between the start node and this node
+                    endnode_encountered = True
                     new_graph.add_edge(start_node, container_node)
                 else:
                     # Add an edge between our this node and end node
+                    endnode_encountered = True
                     new_graph.add_edge(container_node, end_node)
 
             for s in successors:
@@ -449,6 +453,18 @@ class Dominators:
                     new_graph.add_edge(container_node, container_s)  # Reversed
                 if container_s not in traversed_nodes:
                     queue.append(s)
+
+        if not endnode_encountered:
+            # the graph is a circle with no end node. we run it with DFS to identify an end node
+            nn = next((nn for nn in networkx.dfs_postorder_nodes(graph) if nn in container_nodes), None)
+            if nn is not None:
+                if self._reverse:
+                    new_graph.add_edge(start_node, container_nodes[nn])
+                else:
+                    new_graph.add_edge(container_nodes[nn], end_node)
+            else:
+                # the graph must be empty - totally unexpected!
+                raise RuntimeError("Cannot find any end node candidates in the graph. Is the graph empty?")
 
         if self._reverse:
             # Add the end node
@@ -813,3 +829,42 @@ class GraphUtils:
                                 break
 
         ordered_nodes.extend(GraphUtils.quasi_topological_sort_nodes(subgraph))
+
+    @staticmethod
+    def loop_nesting_forest(graph: networkx.DiGraph, start_node) -> OrderedDict[Any, networkx.DiGraph]:
+        """
+        Generates the loop-nesting forest for the provided directional graph. This is *not* the algorithm proposed by
+        Ramalingam.
+
+        :param graph:       the graph to generate the loop-nesting forest for.
+        :param start_node:  the node to start traversing the graph from.
+        :return:            An ordered dict of loop heads to their corresponding loop nodes.
+        """
+
+        # TODO: Should we replace this function using dfs_back_edges()?
+
+        loop_head_to_loop_nodes = OrderedDict()
+
+        graph_copy = networkx.DiGraph(graph)
+
+        while True:
+            cycles_iter = networkx.simple_cycles(graph_copy)
+            try:
+                cycle = next(cycles_iter)
+            except StopIteration:
+                break
+
+            loop_backedge = (None, None)
+
+            for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
+                if n in cycle:
+                    idx = cycle.index(n)
+                    loop_backedge = (cycle[-1], cycle[idx]) if idx == 0 else (cycle[idx - 1], cycle[idx])
+                    break
+
+            loop_head = loop_backedge[1]
+            loop_head_to_loop_nodes[loop_head] = networkx.DiGraph(graph_copy.subgraph(cycle))
+
+            graph_copy.remove_edge(*loop_backedge)
+
+        return loop_head_to_loop_nodes

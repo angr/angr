@@ -6,14 +6,14 @@ import logging
 import archinfo
 import claripy
 
-from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
+from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
 from .vex.heavy.heavy import VEXEarlyExit
-from .. import sim_options as o
-from ..misc.ux import once
-from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
-from ..utils.constants import DEFAULT_STATEMENT
+from angr import sim_options as o
+from angr.misc.ux import once
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
+from angr.utils.constants import DEFAULT_STATEMENT
 
 # pylint: disable=arguments-differ
 
@@ -184,7 +184,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         self._instr_mem_write_addrs = set()  # pylint:disable=attribute-defined-outside-init
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
-            self.state.scratch.guard = claripy.true
+            self.state.scratch.guard = claripy.true()
             try:
                 if self.state.os_name == "CGC" and block_details["block_addr"] in {
                     self.state.unicorn.cgc_random_addr,
@@ -394,9 +394,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         if not self.__check(**kwargs):
             return super().process_successors(successors, **kwargs)
 
-        extra_stop_points = kwargs.get("extra_stop_points", None)
-        last_block_details = kwargs.get("last_block_details", None)
-        step = kwargs.get("step", None)
+        extra_stop_points = kwargs.get("extra_stop_points")
+        last_block_details = kwargs.get("last_block_details")
+        step = kwargs.get("step")
         if extra_stop_points is None:
             extra_stop_points = set(self.project._sim_procedures)
         else:
@@ -425,8 +425,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # initialize unicorn plugin
         try:
-            syscall_data = kwargs.get("syscall_data", None)
-            fd_bytes = kwargs.get("fd_bytes", None)
+            syscall_data = kwargs.get("syscall_data")
+            fd_bytes = kwargs.get("fd_bytes")
             state.unicorn.setup(syscall_data=syscall_data, fd_bytes=fd_bytes)
         except SimValueError:
             # it's trying to set a symbolic register somehow
@@ -481,7 +481,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         if state.unicorn.jumpkind.startswith("Ijk_Sys"):
             state.ip = state.unicorn._syscall_pc
-        successors.add_successor(state, state.ip, claripy.true, state.unicorn.jumpkind)
+        successors.add_successor(state, state.ip, claripy.true(), state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True

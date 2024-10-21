@@ -7,17 +7,16 @@ import logging
 import archinfo
 import claripy
 import ailment
-import pyvex
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
-from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
-from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import default_cc, SimRegArg, SimTypeBottom
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from ...code_location import CodeLocation, ExternalCodeLocation
+from angr.engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
+from angr.errors import SimEngineError, SimMemoryMissingError
+from angr.calling_conventions import default_cc, SimRegArg, SimTypeBottom
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from .subject import SubjectType
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler, FunctionCallData
@@ -364,17 +363,7 @@ class SimEngineRDAIL(
         # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8))
 
     def _ail_handle_DirtyStatement(self, stmt: ailment.Stmt.DirtyStatement):
-        # TODO: The logic below is subject to change when ailment.Stmt.DirtyStatement is changed
-
-        if isinstance(stmt.dirty_stmt, pyvex.stmt.Dirty):
-            # TODO: We need dirty helpers for a more complete understanding of clobbered registers
-            tmp = stmt.dirty_stmt.tmp
-            if tmp in (-1, 0xFFFFFFFF):
-                return
-            size = 32  # FIXME: We don't know the size.
-            self.state.kill_and_add_definition(Tmp(tmp, size), MultiValues(self.state.top(size)))
-        else:
-            l.warning("Unexpected type of dirty statement %s.", type(stmt.dirty_stmt))
+        self._expr(stmt.dirty)
 
     #
     # AIL expression handlers
@@ -1125,12 +1114,18 @@ class SimEngineRDAIL(
         stack_addr = self.state.stack_address(expr.offset)
         return MultiValues(stack_addr)
 
+    def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> MultiValues:
+        for operand in expr.operands:
+            self._expr(operand)
+
+        top = self.state.top(expr.bits)
+        return MultiValues(top)
+
     def _ail_handle_DirtyExpression(
         self, expr: ailment.Expr.DirtyExpression
     ) -> MultiValues:  # pylint:disable=no-self-use
-        if isinstance(expr.dirty_expr, ailment.Expr.VEXCCallExpression):
-            for operand in expr.dirty_expr.operands:
-                self._expr(operand)
+        for operand in expr.operands:
+            self._expr(operand)
 
         top = self.state.top(expr.bits)
         return MultiValues(top)

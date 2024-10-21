@@ -3,9 +3,9 @@ from enum import Enum
 
 import ailment
 
-from ...block import Block
-from ...knowledge_plugins.functions.function_manager import Function
-from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.block import Block
+from angr.knowledge_plugins.functions.function_manager import Function
+from angr.analyses.forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
 
 
 class SubjectType(Enum):

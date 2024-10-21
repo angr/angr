@@ -1,11 +1,12 @@
 from __future__ import annotations
 import logging
+from typing import Any
 
 import networkx
 
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-from ..structuring import SAILRStructurer, DreamStructurer
+from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 
 _l = logging.getLogger(name=__name__)
 
@@ -26,22 +27,26 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
     def __init__(
         self,
         func,
-        # internal parameters that should be used by Clinic
-        node_idx_start: int = 0,
         # settings
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
+        region_identifier=None,
+        vvar_id_start: int | None = None,
+        scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
+        OptimizationPass.__init__(
+            self, func, vvar_id_start=vvar_id_start, scratch=scratch, region_identifier=region_identifier, **kwargs
+        )
         ReturnDuplicatorBase.__init__(
             self,
             func,
-            node_idx_start=node_idx_start,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
-            **kwargs,
+            ri=region_identifier,
+            vvar_id_start=vvar_id_start,
+            scratch=scratch,
         )
-        OptimizationPass.__init__(self, func, **kwargs)
         # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
         self._ri = self._recover_regions(self._graph)
 

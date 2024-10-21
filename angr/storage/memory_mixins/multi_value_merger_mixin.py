@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from collections.abc import Iterable, Callable
 
-from . import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class MultiValueMergerMixin(MemoryMixin):
@@ -41,16 +41,16 @@ class MultiValueMergerMixin(MemoryMixin):
                 ret_val = self._top_func(merged_size * self.state.arch.byte_width)
             else:
                 # strip annotations from each value and see how many raw values there are in total
-                # We have to use cache_key to determine uniqueness here, because if __hash__ collides,
+                # We have to use hash manually to determine uniqueness here, because if __hash__ collides,
                 # python implicitly calls __eq__ to determine if the two objects are actually the same
                 # and that just results in a new AST for a BV. Python then tries to convert that AST to a bool
                 # which fails with the safeguard in claripy.ast.bool.Bool.__bool__.
-                stripped_values_set = {v.clear_annotations().cache_key for v in values_set}
-                if len(stripped_values_set) > 1:
+                stripped_values_dict = {v.hash(): v for v in values_set}
+                if len(stripped_values_dict) > 1:
                     ret_val = self._top_func(merged_size * self.state.arch.byte_width)
                 else:
-                    # Get the AST back from the cache_key
-                    ret_val = next(iter(stripped_values_set)).ast
+                    # Get the AST back from the hash dict
+                    ret_val = stripped_values_dict[next(iter(stripped_values_dict))]
 
             # migrate annotations
             annotations = []

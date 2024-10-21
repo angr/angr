@@ -23,6 +23,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeTop,
     SimTypeString,
+    dereference_simtype,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
@@ -310,6 +311,24 @@ class TestTypes(unittest.TestCase):
             (12, 3),
             (1, 7),
         ]
+
+    def test_dereference_type_anonymous_struct(self):
+        angr.procedures.definitions.load_win32_type_collections()
+        variant_type = angr.SIM_TYPE_COLLECTIONS["win32"].get("VARIANT")
+        assert isinstance(variant_type, SimStruct)
+        assert isinstance(variant_type.fields["Anonymous"], SimUnion)
+        assert variant_type.fields["Anonymous"].members["Anonymous"].anonymous is True
+        t = dereference_simtype(variant_type, [angr.SIM_TYPE_COLLECTIONS["win32"]]).with_arch(archinfo.ArchX86())
+        assert t.size > 0  # an exception is raised if anonymous structs are not handled correctly
+
+    def test_simunion_size_bottom_types(self):
+        union_type = SimUnion(
+            {"filterType": SimTypeBottom(label="Guid"), "calloutKey": SimTypeBottom(label="Guid")},
+            name="<anon>",
+            label="None",
+        )
+        union_type = union_type.with_arch(archinfo.ArchAMD64())
+        assert union_type.size == 8  # fall back to architecture word size
 
 
 class TestSimTypeFunction(unittest.TestCase):

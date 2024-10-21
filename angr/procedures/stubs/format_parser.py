@@ -6,9 +6,9 @@ import math
 import claripy
 
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
-from ... import sim_type
-from ...sim_procedure import SimProcedure
-from ...storage.file import SimPackets
+from angr import sim_type
+from angr.sim_procedure import SimProcedure
+from angr.storage.file import SimPackets
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
@@ -130,7 +130,7 @@ class FormatString:
                 if type(component) is bytes:
                     sdata, _ = simfd.read_data(len(component), short_reads=False)
                     self.state.add_constraints(sdata == component)
-                elif isinstance(component, claripy.Bits):
+                elif isinstance(component, claripy.ast.Bits):
                     sdata, _ = simfd.read_data(len(component) // 8, short_reads=False)
                     self.state.add_constraints(sdata == component)
                 elif component.spec_type == b"s":
@@ -556,7 +556,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
+        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
 
         strtol = SIM_PROCEDURES["libc"]["strtol"]
 
@@ -567,7 +567,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
+        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
 
         strlen = SIM_PROCEDURES["libc"]["strlen"]
 

@@ -4,7 +4,7 @@ import logging
 import claripy
 
 import angr
-from ...storage.file import SimFileDescriptor
+from angr.storage.file import SimFileDescriptor
 
 
 l = logging.getLogger(name=__name__)

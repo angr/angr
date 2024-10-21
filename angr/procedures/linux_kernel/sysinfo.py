@@ -2,7 +2,7 @@
 from __future__ import annotations
 import angr
 
-from ...sim_type import SimStruct, SimTypeLong, SimTypeFixedSizeArray, SimTypeShort, SimTypeInt
+from angr.sim_type import SimStruct, SimTypeLong, SimTypeFixedSizeArray, SimTypeShort, SimTypeInt
 
 # struct sysinfo {
 #    long uptime;             /* Seconds since boot */

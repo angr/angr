@@ -8,11 +8,11 @@ import cle
 from archinfo import ArchARM
 import claripy
 
-from ..engine import SimEngineBase
-from ...state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
-from ...misc.ux import once
-from ...errors import SimEngineError, SimTranslationError, SimError
-from ... import sim_options as o
+from angr.engines.engine import SimEngineBase
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from angr.misc.ux import once
+from angr.errors import SimEngineError, SimTranslationError, SimError
+from angr import sim_options as o
 
 l = logging.getLogger(__name__)
 
@@ -93,6 +93,7 @@ class VEXLifter(SimEngineBase):
         collect_data_refs=False,
         cross_insn_opt=None,
         load_from_ro_regions=False,
+        const_prop=False,
     ):
         """
         Lift an IRSB.
@@ -170,7 +171,7 @@ class VEXLifter(SimEngineBase):
         have_patches = self.project and self.project.kb.patches.items()
 
         # FIXME: cache ignores provided state
-        use_cache = self._use_cache and not (skip_stmts or collect_data_refs or have_patches)
+        use_cache = self._use_cache and not (skip_stmts or collect_data_refs or have_patches or const_prop)
 
         # phase 2: thumb normalization
         thumb = int(thumb)
@@ -261,6 +262,7 @@ class VEXLifter(SimEngineBase):
                     collect_data_refs=collect_data_refs,
                     load_from_ro_regions=load_from_ro_regions,
                     cross_insn_opt=cross_insn_opt,
+                    const_prop=const_prop,
                 )
 
                 if subphase == 0 and irsb.statements is not None:

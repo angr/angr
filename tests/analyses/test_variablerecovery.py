@@ -11,7 +11,7 @@ import angr
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.variables import VariableType
 
-from ..common import bin_location
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")

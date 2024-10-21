@@ -7,7 +7,6 @@ from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
 from angr import errors
 
 l = logging.getLogger(name=__name__)
-# l.setLevel(logging.DEBUG)
 
 # pylint: disable=R0911
 # pylint: disable=W0613
@@ -44,7 +43,7 @@ def boolean_extend(O, a, b, size):
 def op_concretize(op):
     if type(op) is int:
         return op
-    op_e = op.ite_excavated
+    op_e = claripy.excavate_ite(op)
     if op_e.op == "If":
         cases = list(claripy.reverse_ite_cases(op_e))
         if all(c.op == "BVV" for _, c in cases):
@@ -57,7 +56,7 @@ def op_concretize(op):
 
 
 def strip_simaction(val):
-    if type(val) == SimActionObject:
+    if isinstance(val, SimActionObject):
         return _raw_ast(val)
     return val
 

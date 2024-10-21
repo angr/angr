@@ -1,8 +1,8 @@
 from __future__ import annotations
 import string
 
-from ...errors import SimValueError
-from . import MemoryMixin
+from angr.errors import SimValueError
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 import contextlib
 
 

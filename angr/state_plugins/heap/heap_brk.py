@@ -4,7 +4,7 @@ import logging
 import claripy
 
 from angr.errors import SimSolverError
-from ..plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin
 from . import SimHeapBase
 
 l = logging.getLogger(__name__)

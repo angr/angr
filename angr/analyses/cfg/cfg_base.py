@@ -748,7 +748,8 @@ class CFGBase(Analysis):
                     # Get all executable sections
                     for section in b.sections:
                         if section.is_executable:
-                            tpl = (section.min_addr, section.max_addr + 1)
+                            max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                            tpl = (section.min_addr, max_mapped_addr)
                             sections.append(tpl)
                     memory_regions += sections
 
@@ -756,7 +757,8 @@ class CFGBase(Analysis):
                 # Get all executable segments
                 for segment in b.segments:
                     if segment.is_executable:
-                        tpl = (segment.min_addr, segment.max_addr + 1)
+                        max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
+                        tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
                 if sections and segments:
                     # are there executable segments with no sections inside?
@@ -770,7 +772,8 @@ class CFGBase(Analysis):
             elif isinstance(b, (Coff, PE)):
                 for section in b.sections:
                     if section.is_executable:
-                        tpl = (section.min_addr, section.max_addr + 1)
+                        max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                        tpl = (section.min_addr, max_mapped_addr)
                         memory_regions.append(tpl)
 
             elif isinstance(b, XBE):
@@ -781,7 +784,7 @@ class CFGBase(Analysis):
                         and not section.is_writable
                         and section.name not in {".data", ".rdata", ".rodata"}
                     ):
-                        tpl = (section.min_addr, section.max_addr + 1)
+                        tpl = (section.min_addr, section.max_addr)
                         memory_regions.append(tpl)
 
             elif isinstance(b, MachO):
@@ -791,7 +794,8 @@ class CFGBase(Analysis):
                         if seg.is_executable:
                             # Take all sections from this segment (MachO style)
                             for section in seg.sections:
-                                tpl = (section.min_addr, section.max_addr + 1)
+                                max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                                tpl = (section.min_addr, max_mapped_addr)
                                 memory_regions.append(tpl)
 
             elif isinstance(b, (Hex, SRec)):
@@ -1313,6 +1317,23 @@ class CFGBase(Analysis):
 
             if new_node is None:
                 # Create a new one
+
+                instruction_addrs = []
+                for ins_addr in n.instruction_addrs:
+                    if n.addr <= ins_addr < n.addr + new_size:
+                        instruction_addrs.append(ins_addr)
+                    elif ins_addr == n.addr + new_size:
+                        break
+                    elif ins_addr > n.addr + new_size:
+                        # the immediate next instruction does not start right after the new node. this means we break
+                        # an existing instruction in the middle! we need to drop the last instruction address from
+                        # instruction_addrs.
+                        instruction_addrs.pop()
+                        break
+                    else:
+                        # should not happen if the instruction_addrs list is normal...
+                        break
+
                 if self.tag == "CFGFast":
                     new_node = CFGNode(
                         n.addr,
@@ -1320,7 +1341,7 @@ class CFGBase(Analysis):
                         self.model,
                         function_address=n.function_address,
                         block_id=n.block_id,
-                        instruction_addrs=[i for i in n.instruction_addrs if n.addr <= i <= n.addr + new_size],
+                        instruction_addrs=instruction_addrs,
                         thumb=n.thumb,
                     )
                 elif self.tag == "CFGEmulated":
@@ -1331,16 +1352,12 @@ class CFGBase(Analysis):
                         callstack_key=callstack_key,
                         function_address=n.function_address,
                         block_id=n.block_id,
-                        instruction_addrs=[i for i in n.instruction_addrs if n.addr <= i <= n.addr + new_size],
+                        instruction_addrs=instruction_addrs,
                         thumb=n.thumb,
                     )
                 else:
                     raise ValueError(f"Unknown tag {self.tag}.")
 
-                # Copy instruction addresses
-                new_node.instruction_addrs = [
-                    ins_addr for ins_addr in n.instruction_addrs if ins_addr < n.addr + new_size
-                ]
                 # Put the new node into end_addresses list
                 if key in smallest_nodes:
                     end_addresses_to_nodes[key].add(smallest_nodes[key])
