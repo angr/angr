@@ -311,7 +311,7 @@ class VaultShelf(VaultDict):
 
     def __init__(self, path=None):
         self._path = tempfile.mktemp() if path is None else path
-        s = shelve.open(self._path, protocol=-1)
+        s = shelve.open(self._path, protocol=-1)  # noqa: SIM115
         super().__init__(s)
 
     def close(self):
@@ -334,7 +334,7 @@ class VaultDirShelf(VaultDict):
     @contextlib.contextmanager
     def _locked_shelve(self, shelve_path):
         with self._lock:
-            self._dict = shelve.open(shelve_path, protocol=-1)
+            self._dict = shelve.open(shelve_path, protocol=-1)  # noqa: SIM115
             yield
             self._dict.close()
             self._dict = None
