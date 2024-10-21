@@ -99,9 +99,9 @@ def compile_c(c_code: str, cflags: Sequence[str] | None, silent: bool = False) -
     """
     dst = None
     try:
-        dst = NamedTemporaryFile(delete=False)
+        dst = NamedTemporaryFile(delete=False)  # noqa: SIM115
         dst.close()
-        src = NamedTemporaryFile(mode="x", delete=False, suffix=".c")
+        src = NamedTemporaryFile(mode="x", delete=False, suffix=".c")  # noqa: SIM115
         src.write(c_code)
         src.close()
 

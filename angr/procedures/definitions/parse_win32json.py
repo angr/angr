@@ -162,7 +162,8 @@ def do_it(in_dir, out_file):
 
     for file in files:
         logging.info("Found file %s", file)
-        api_namespaces[file.stem] = json.load(codecs.open(file, "r", "utf-8-sig"))
+        with codecs.open(file, "r", "utf-8-sig") as f:
+            api_namespaces[file.stem] = json.load(f)
 
     logging.info("Making a bunch of types...")
     missing_types_last_round = set()
