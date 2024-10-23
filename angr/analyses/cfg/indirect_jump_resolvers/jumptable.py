@@ -385,6 +385,8 @@ class JumpTableProcessor(
     def _handle_stmt_WrTmp(self, stmt):
         self._tsrc = set()
 
+        self.tmps[stmt.tmp] = self._expr(stmt.data)
+
         if self._tsrc:
             self.state._tmpvar_source[stmt.tmp] = self._tsrc
 

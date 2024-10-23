@@ -23,7 +23,7 @@ l = logging.getLogger(name=__name__)
 
 StateType = TypeVar("StateType")
 ResultType = TypeVar("ResultType")
-DataType = TypeVar("DataType", covariant=True, infer_variance=False)
+DataType = TypeVar("DataType", covariant=True)
 HeavyState = SimState[int | SootAddressDescriptor, claripy.ast.BV | SootAddressDescriptor]
 
 
