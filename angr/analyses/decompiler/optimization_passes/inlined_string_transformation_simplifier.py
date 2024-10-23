@@ -242,6 +242,12 @@ class InlinedStringTransformationAILEngine(SimEngineLightAILMixin):
     def _handle_Neg(self, expr: UnaryOp):
         v = self._expr(expr.operand)
         if isinstance(v, claripy.ast.Bits):
+            return -v
+        return None
+
+    def _handle_BitwiseNeg(self, expr: UnaryOp):
+        v = self._expr(expr.operand)
+        if isinstance(v, claripy.ast.Bits):
             return ~v
         return None
 
