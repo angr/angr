@@ -1053,3 +1053,9 @@ class SimEngineRDAIL(
                 self._expr(operand)
 
         return MultiValues(self.state.top(expr.bits))
+
+    def _handle_expr_BasePointerOffset(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_MultiStatementExpression(self, expr):
+        return self._top(expr.bits)
