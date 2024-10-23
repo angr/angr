@@ -280,14 +280,12 @@ class RegOffsetAnnotation(claripy.Annotation):
         return False
 
 
-binop_handler = SimEngineNostmtVEX[
-    JumpTableProcessorState, claripy.ast.BV | None, JumpTableProcessorState
-].binop_handler
+binop_handler = SimEngineNostmtVEX[JumpTableProcessorState, claripy.ast.BV, JumpTableProcessorState].binop_handler
 
 
 class JumpTableProcessor(
-    SimEngineNostmtVEX[JumpTableProcessorState, claripy.ast.BV | None, JumpTableProcessorState],
-    ClaripyDataVEXEngineMixin[JumpTableProcessorState, claripy.ast.BV | None, JumpTableProcessorState, None],
+    SimEngineNostmtVEX[JumpTableProcessorState, claripy.ast.BV, JumpTableProcessorState],
+    ClaripyDataVEXEngineMixin[JumpTableProcessorState, claripy.ast.BV, JumpTableProcessorState, None],
 ):  # pylint:disable=abstract-method
     """
     Implements a simple and stupid data dependency tracking for stack and register variables.
@@ -318,12 +316,6 @@ class JumpTableProcessor(
 
         self._SPOFFSET_BASE = claripy.BVS("SpOffset", self.project.arch.bits, explicit_name=True)
         self._REGOFFSET_BASE: dict[int, claripy.ast.BV] = {}
-
-    def _top(self, bits: int):
-        return None
-
-    def _is_top(self, expr) -> bool:
-        return expr is None
 
     def _process_block_end(self, stmt_result, whitelist):
         return self.state
@@ -388,7 +380,6 @@ class JumpTableProcessor(
         self._tsrc = set()
 
         self.tmps[stmt.tmp] = self._expr(stmt.data)
-
         if self._tsrc:
             self.state._tmpvar_source[stmt.tmp] = self._tsrc
 
@@ -414,7 +405,7 @@ class JumpTableProcessor(
         try:
             v = self.tmps[expr.tmp]
         except KeyError:
-            v = self._top(pyvex.get_type_size(self.tyenv.lookup(expr.tmp)))
+            v = self._top(expr.result_size(self.tyenv))
         if expr.tmp in self.state._tmpvar_source:
             self._tsrc |= set(self.state._tmpvar_source[expr.tmp])
         return v
@@ -457,19 +448,22 @@ class JumpTableProcessor(
         size = expr.result_size(self.tyenv) // 8
         return self._do_load(addr, size)
 
-    def _handle_stmt_LoadG(self, stmt):
-        guard = self._expr(stmt.guard)
-        if guard is True:
-            return self._do_load(stmt.addr, stmt.addr.result_size(self.tyenv) // 8)
-        if guard is False:
-            return self._do_load(stmt.alt, stmt.alt.result_size(self.tyenv) // 8)
-        return None
+    def _handle_stmt_LoadG(self, stmt: pyvex.stmt.LoadG):
+        self._tsrc = set()
+
+        guard = self._expr(stmt.guard) != 0
+        iftrue = self._do_load(self._expr(stmt.addr), stmt.addr.result_size(self.tyenv) // 8)
+        iffalse = self._expr(stmt.alt)
+        result = claripy.If(guard, iftrue, iffalse)
+        self.tmps[stmt.dst] = result
+        if self._tsrc:
+            self.state._tmpvar_source[stmt.dst] = self._tsrc
 
     def _handle_expr_Const(self, expr):
         v = value(expr.con.type, expr.con.value)
         self._tsrc.add("const")
         if not isinstance(v, claripy.ast.BV):
-            return None
+            return self._top(expr.result_size(self.tyenv))
         return v
 
     @binop_handler
@@ -486,42 +480,40 @@ class JumpTableProcessor(
 
     @binop_handler
     def _handle_binop_CmpGT(self, expr):
-        self._handle_Comparison(*expr.args)
+        return self._handle_Comparison(*expr.args)
 
     def _handle_expr_CCall(self, expr):
-        if not isinstance(expr.args[0], pyvex.IRExpr.Const):
-            return
-        cond_type_enum = expr.args[0].con.value
+        if isinstance(expr.args[0], pyvex.IRExpr.Const):
+            cond_type_enum = expr.args[0].con.value
 
-        if self.arch.name in {"X86", "AMD64", "AARCH64"}:
-            if cond_type_enum in EXPECTED_COND_TYPES[self.arch.name]:
+            if self.arch.name in {"X86", "AMD64", "AARCH64"}:
+                if cond_type_enum in EXPECTED_COND_TYPES[self.arch.name]:
+                    self._handle_Comparison(expr.args[2], expr.args[3])
+            elif is_arm_arch(self.arch):
+                if cond_type_enum in EXPECTED_COND_TYPES["ARM"]:
+                    self._handle_Comparison(expr.args[2], expr.args[3])
+            else:
+                # other architectures
+                l.warning("Please fill in EXPECTED_COND_TYPES for %s.", self.arch.name)
                 self._handle_Comparison(expr.args[2], expr.args[3])
-        elif is_arm_arch(self.arch):
-            if cond_type_enum in EXPECTED_COND_TYPES["ARM"]:
-                self._handle_Comparison(expr.args[2], expr.args[3])
-        else:
-            # other architectures
-            l.warning("Please fill in EXPECTED_COND_TYPES for %s.", self.arch.name)
-            self._handle_Comparison(expr.args[2], expr.args[3])
+
+        return self._top(expr.result_size(self.tyenv))
 
     def _handle_expr_VECRET(self, expr):
-        return None
+        return self._top(expr.result_size(self.tyenv))
 
     def _handle_expr_GSPTR(self, expr):
-        return None
+        return self._top(expr.result_size(self.tyenv))
 
     def _handle_expr_GetI(self, expr):
-        return None
+        return self._top(expr.result_size(self.tyenv))
 
     def _handle_expr_ITE(self, expr):
-        return None
+        return self._top(expr.result_size(self.tyenv))
 
-    def _handle_conversion(self, from_size, to_size, signed, operand):
-        return None
-
-    def _handle_Comparison(self, arg0: pyvex.expr.IRExpr, arg1: pyvex.expr.IRExpr) -> claripy.ast.BV | None:
+    def _handle_Comparison(self, arg0: pyvex.expr.IRExpr, arg1: pyvex.expr.IRExpr) -> claripy.ast.BV:
         if self.block.addr not in self._indirect_jump_node_pred_addrs:
-            return
+            return self._top(1)
 
         # found the comparison
         arg0_src, arg1_src = None, None
@@ -542,10 +534,10 @@ class JumpTableProcessor(
         if arg0_src == "const" and arg1_src == "const":
             # comparison of two consts... there is nothing we can do
             self.state.is_jumptable = True
-            return
+            return self._top(1)
         if arg0_src not in {"const", None} and arg1_src not in {"const", None}:
             # this is probably not a jump table
-            return
+            return self._top(1)
         if arg1_src == "const":
             # make sure arg0_src is const
             arg0_src, arg1_src = arg1_src, arg0_src
@@ -555,7 +547,7 @@ class JumpTableProcessor(
         if arg0_src != "const":
             # we failed during dependency tracking so arg0_src couldn't be determined
             # but we will still try to resolve it as a jump table as a fall back
-            return
+            return self._top(1)
 
         if isinstance(arg1_src, tuple):
             arg1_src_stmt = self.project.factory.block(arg1_src[0], cross_insn_opt=True).vex.statements[arg1_src[1]]
@@ -603,23 +595,17 @@ class JumpTableProcessor(
                 #
                 self.state.stmts_to_instrument.append(("reg_write", *arg1_src))
 
-    def _do_load(self, addr, size):
+        return self._top(1)
+
+    def _do_load(self, addr: claripy.ast.BV, size: int) -> claripy.ast.BV:
         src = (self.block.addr, self.stmt_idx)
         self._tsrc = {src}
-        if addr is None:
-            return None
 
         if self._is_spoffset(addr):
             spoffset = self._extract_spoffset_from_expr(addr)
             if spoffset is not None and spoffset.offset in self.state._stack:
                 self._tsrc = {self.state._stack[spoffset.offset][0]}
                 return self.state._stack[spoffset.offset][1]
-        elif isinstance(addr, int):
-            # Load data from memory if it is mapped
-            try:
-                return self.project.loader.memory.unpack_word(addr, size=size)
-            except KeyError:
-                return None
         elif self._is_registeroffset(addr):
             # Load data from a register, but this register hasn't been initialized at this point
             # We will need to initialize this register during slice execution later
@@ -638,9 +624,7 @@ class JumpTableProcessor(
                     # function call sub_375c04. Since we do not analyze sub_375c04, we treat r0@11e918 as a constant 0.
                     pass
 
-            return None
-
-        return None
+        return self._top(size)
 
 
 #
