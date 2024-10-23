@@ -909,12 +909,15 @@ class Clinic(Analysis):
         Convert a VEX block to an AIL block.
 
         :param block_node:  A BlockNode instance.
-        :return:            An converted AIL block.
+        :return:            A converted AIL block.
         :rtype:             ailment.Block
         """
 
         if type(block_node) is not BlockNode:
             return block_node
+
+        if block_node.size == 0:
+            return ailment.Block(block_node.addr, 0, statements=[])
 
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
         if block.vex.jumpkind not in {"Ijk_Call", "Ijk_Boring", "Ijk_Ret"} and not block.vex.jumpkind.startswith(
