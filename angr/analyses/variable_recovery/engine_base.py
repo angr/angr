@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-RichRT = TypeVar("RichRT", bound=claripy.ast.Bits, covariant=True, infer_variance=False)
+RichRT = TypeVar("RichRT", bound=claripy.ast.Bits, covariant=True)
 
 
 class RichR(Generic[RichRT]):
