@@ -7,6 +7,7 @@ import logging
 import functools
 from collections import defaultdict, OrderedDict
 
+from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
 from angr.engines.vex.claripy.datalayer import value
 import pyvex
 import claripy
@@ -286,6 +287,7 @@ binop_handler = SimEngineNostmtVEX[
 
 class JumpTableProcessor(
     SimEngineNostmtVEX[JumpTableProcessorState, claripy.ast.BV | None, JumpTableProcessorState],
+    ClaripyDataVEXEngineMixin[JumpTableProcessorState, claripy.ast.BV | None, JumpTableProcessorState, None],
 ):  # pylint:disable=abstract-method
     """
     Implements a simple and stupid data dependency tracking for stack and register variables.
