@@ -457,6 +457,13 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :return: The Function instance, or None if the function is not found and create is False.
         :rtype: Function or None
         """
+        if name is not None and name.startswith("sub_"):
+            try:
+                addr = int(name.split("_")[-1], 16)
+                name = None
+            except ValueError:
+                pass
+
         if addr is not None:
             try:
                 f = self._function_map.get(addr)
