@@ -103,5 +103,6 @@ class TestPickle(unittest.TestCase):
         p1 = pickle.loads(pickle.dumps(p, -1))
         assert p1.get_kb("other").functions["asdf"].addr == func_main.addr
 
+
 if __name__ == "__main__":
     unittest.main()

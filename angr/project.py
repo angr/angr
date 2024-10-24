@@ -236,9 +236,7 @@ class Project:
         self._initialize_analyses_hub()
 
         # Step 5.3: ...etc
-        self._knowledge_bases = {
-            "default": KnowledgeBase(self, name="global")
-        }
+        self._knowledge_bases = {"default": KnowledgeBase(self, name="global")}
 
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
