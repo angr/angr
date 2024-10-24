@@ -21,6 +21,7 @@ class TraceActions(IntFlag):
     """
     Describe memory access actions.
     """
+
     WRITE = auto()
     EXECUTE = auto()
 
