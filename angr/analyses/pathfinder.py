@@ -1,7 +1,7 @@
-from typing import Dict, Optional, Tuple, List
+from __future__ import annotations
+from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass
-from functools import lru_cache
 from weakref import ref
 from collections import defaultdict
 
@@ -21,16 +21,16 @@ class Unreachable(Exception):
 @dataclass(eq=False)
 class SimStateMarker:
     addr: int
-    parent: Optional["SimStateMarker"] = None
+    parent: Optional[SimStateMarker] = None
     banned: bool = False
     misses: int = 0
 
     def __repr__(self):
         if self.parent is None:
-            inner_repr = 'None'
+            inner_repr = "None"
         else:
-            #inner_repr = f"SimStateMarker(addr={self.parent.addr:#x}, parent=..., banned={self.parent.banned})"
-            inner_repr = '...'
+            # inner_repr = f"SimStateMarker(addr={self.parent.addr:#x}, parent=..., banned={self.parent.banned})"
+            inner_repr = "..."
         return f"SimStateMarker(addr={self.addr:#x}, parent={inner_repr}, banned={self.banned}, misses={self.misses})"
 
 
@@ -42,7 +42,7 @@ class SuccessorsKind(Enum):
 
 @dataclass
 class TestPathReport:
-    path_markers: Dict[int, SimStateMarker]
+    path_markers: dict[int, SimStateMarker]
     termination: SuccessorsKind
 
 
@@ -54,7 +54,7 @@ class Pathfinder(Analysis):
     def __init__(self, start_state: SimState, goal_addr: int, cfg: CFGModel, cache_size=10000):
         self.start_state = start_state
         self.goal_addr = goal_addr
-        self.goal_state: Optional[SimState] = None
+        self.goal_state: SimState | None = None
         self.cfg = cfg
         self.cache_size = cache_size
 
@@ -64,19 +64,19 @@ class Pathfinder(Analysis):
             if node.is_syscall:
                 for pred in self.cfg.graph.pred[node]:
                     for succ, data in self.cfg.graph.succ[pred].items():
-                        if data['jumpkind'] == 'Ijk_FakeRet':
+                        if data["jumpkind"] == "Ijk_FakeRet":
                             extra_edges.append((node, succ))
         for node, succ in extra_edges:
-            self.cfg.graph.add_edge(node, succ, jumpkind='Ijk_Ret')
+            self.cfg.graph.add_edge(node, succ, jumpkind="Ijk_Ret")
 
         goal_node = self.cfg.get_any_node(goal_addr)
         if goal_node is None:
             raise ValueError(f"Node {goal_addr:#x} is not in graph")
 
         self.start_marker = SimStateMarker(start_state.addr)
-        self.transition_cache: "DiGraph[SimStateMarker]" = DiGraph()
+        self.transition_cache: DiGraph[SimStateMarker] = DiGraph()
         self.transition_cache.add_node(self.start_marker, state=ref(start_state))
-        self.base_heuristic: Dict[int, int] = {
+        self.base_heuristic: dict[int, int] = {
             node.addr: dist for node, dist in single_target_shortest_path_length(cfg.graph, goal_node)
         }
         self.state_cache = {}
@@ -84,7 +84,7 @@ class Pathfinder(Analysis):
         self.extra_weight = defaultdict(int)
 
         self._search_frontier_marker = self.start_marker
-        self._search_path: List[Tuple[int, str]] = [(self.start_marker.addr, 'Ijk_Boring')]
+        self._search_path: list[tuple[int, str]] = [(self.start_marker.addr, "Ijk_Boring")]
         self._search_stack = []
         self._search_backtrack_to = {self.start_marker}
         self._search_address_backtrack_points = {self.start_marker.addr: self.start_marker}
@@ -94,7 +94,7 @@ class Pathfinder(Analysis):
         if len(self.state_cache) > self.cache_size:
             self.state_cache.pop(next(iter(self.state_cache)))
 
-    def marker_to_state(self, marker: SimStateMarker) -> Optional[SimState]:
+    def marker_to_state(self, marker: SimStateMarker) -> SimState | None:
         return self.transition_cache.nodes[marker]["state"]()
 
     def analyze(self) -> bool:
@@ -104,12 +104,11 @@ class Pathfinder(Analysis):
             if result.termination == SuccessorsKind.SAT:
                 self.goal_state = self.marker_to_state(result.path_markers[len(search_path) - 1])
                 return True
-            else:
-                marker = result.path_markers[max(result.path_markers)]
-                marker.banned = True
-                self._search_backtrack_to.add(marker)
-                if result.termination == SuccessorsKind.UNSAT:
-                    self.unsat_markers.add(marker)
+            marker = result.path_markers[max(result.path_markers)]
+            marker.banned = True
+            self._search_backtrack_to.add(marker)
+            if result.termination == SuccessorsKind.UNSAT:
+                self.unsat_markers.add(marker)
 
     def _search_backtrack(self):
         if self._search_address_backtrack_points[self._search_frontier_marker.addr] is self._search_frontier_marker:
@@ -117,20 +116,19 @@ class Pathfinder(Analysis):
 
         self._search_frontier_marker = self._search_frontier_marker.parent
         if self._search_frontier_marker is None:
-            raise Unreachable()
+            raise Unreachable
 
         addr, jumpkind = self._search_path.pop()
-        if jumpkind == 'Ijk_Ret':
+        if jumpkind == "Ijk_Ret":
             self._search_stack.append(addr)
-        elif jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
+        elif jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
             self._search_stack.pop()
 
-
-    def find_best_hypothesis_path(self) -> Tuple[int, ...]:
+    def find_best_hypothesis_path(self) -> tuple[int, ...]:
         assert self._search_backtrack_to, "Uhh every iteration should set at least one backtrack point"
         if self.start_marker in self._search_backtrack_to:
             self._search_frontier_marker = self.start_marker
-            self._search_path: List[Tuple[int, str]] = [(self.start_marker.addr, 'Ijk_Boring')]
+            self._search_path: list[tuple[int, str]] = [(self.start_marker.addr, "Ijk_Boring")]
             self._search_stack = []
             self._search_backtrack_to = set()
         else:
@@ -139,18 +137,20 @@ class Pathfinder(Analysis):
                 try:
                     self._search_backtrack()
                 except Unreachable as e:
-                    raise Exception('oops') from e
+                    raise Exception("oops") from e
 
         while self._search_path[-1][0] != self.goal_addr:
-            banned = {marker.addr for marker in self.transition_cache.succ[self._search_frontier_marker] if marker.banned}
+            banned = {
+                marker.addr for marker in self.transition_cache.succ[self._search_frontier_marker] if marker.banned
+            }
             current_node = self.cfg.get_any_node(self._search_path[-1][0])
             options = [
-                (node, data['jumpkind'], self.base_heuristic[node.addr] + self.extra_weight[node.addr])
+                (node, data["jumpkind"], self.base_heuristic[node.addr] + self.extra_weight[node.addr])
                 for node, data in self.cfg.graph.succ[current_node].items()
                 if data["jumpkind"] != "Ijk_FakeRet"
                 and node.addr not in banned
                 and node.addr in self.base_heuristic
-                and (data['jumpkind'] != 'Ijk_Ret' or node.addr == self._search_stack[-1])
+                and (data["jumpkind"] != "Ijk_Ret" or node.addr == self._search_stack[-1])
             ]
             if not options:
                 # backtrack
@@ -169,13 +169,26 @@ class Pathfinder(Analysis):
             self.extra_weight[best_node.addr] += 1
             self._search_path.append((best_node.addr, best_jumpkind))
 
-            if best_jumpkind == 'Ijk_Call' or best_jumpkind.startswith('Ijk_Sys'):
-                self._search_stack.append(next(iter(node.addr for node, data in self.cfg.graph.succ[current_node].items() if data['jumpkind'] == 'Ijk_FakeRet'), None))
-            elif best_jumpkind == 'Ijk_Ret':
+            if best_jumpkind == "Ijk_Call" or best_jumpkind.startswith("Ijk_Sys"):
+                self._search_stack.append(
+                    next(
+                        iter(
+                            node.addr
+                            for node, data in self.cfg.graph.succ[current_node].items()
+                            if data["jumpkind"] == "Ijk_FakeRet"
+                        ),
+                        None,
+                    )
+                )
+            elif best_jumpkind == "Ijk_Ret":
                 self._search_stack.pop()
 
             frontier_marker_nullable = next(
-                (marker for marker in self.transition_cache.succ[self._search_frontier_marker] if marker.addr == best_node.addr),
+                (
+                    marker
+                    for marker in self.transition_cache.succ[self._search_frontier_marker]
+                    if marker.addr == best_node.addr
+                ),
                 None,
             )
             if frontier_marker_nullable is None:
@@ -189,7 +202,6 @@ class Pathfinder(Analysis):
             if self._search_frontier_marker.addr not in self._search_address_backtrack_points:
                 self._search_address_backtrack_points[self._search_frontier_marker.addr] = self._search_frontier_marker
 
-
             # TODO does this go above the above stanza?
             if sum(weight == best_weight for _, _, weight in options) != 1:
                 self._search_backtrack_to.add(self._search_address_backtrack_points[self._search_frontier_marker.addr])
@@ -199,7 +211,7 @@ class Pathfinder(Analysis):
     def diagnose_unsat(self, state: SimState):
         pass
 
-    def test_path(self, bbl_addr_trace: Tuple[int, ...]) -> TestPathReport:
+    def test_path(self, bbl_addr_trace: tuple[int, ...]) -> TestPathReport:
         assert bbl_addr_trace[0] == self.start_marker.addr, "Paths must begin with the start state"
 
         known_markers = [self.start_marker]
@@ -243,21 +255,18 @@ class Pathfinder(Analysis):
                 marker = succ_marker
                 i += 1
                 continue
-            elif kind == SuccessorsKind.UNSAT:
+            if kind == SuccessorsKind.UNSAT:
                 assert succ is not None
                 return TestPathReport(
                     path_markers={i: marker, i + 1: succ_marker},
                     termination=SuccessorsKind.UNSAT,
                 )
-            else:
-                return TestPathReport(
-                    path_markers={i: marker, i + 1: succ_marker}, termination=SuccessorsKind.MISSING
-                )
+            return TestPathReport(path_markers={i: marker, i + 1: succ_marker}, termination=SuccessorsKind.MISSING)
 
         return TestPathReport(path_markers={i: marker}, termination=SuccessorsKind.SAT)
 
 
-def find_successor(successors: SimSuccessors, target_addr: int) -> Tuple[Optional[SimState], SuccessorsKind]:
+def find_successor(successors: SimSuccessors, target_addr: int) -> tuple[SimState | None, SuccessorsKind]:
     for succ in successors.flat_successors:
         if succ.addr == target_addr:
             return succ, SuccessorsKind.SAT
