@@ -15,12 +15,18 @@ log = logging.getLogger(__name__)
 
 
 class CodeCaveClassification(Enum):
+    """
+    Type of code caves.
+    """
     ALIGNMENT = auto()
     UNREACHABLE = auto()
 
 
 @dataclass
 class CodeCave:
+    """
+    Describes a code cave in a binary.
+    """
     func: Function | None
     addr: int
     size: int
@@ -39,10 +45,9 @@ class CodeCaveAnalysis(Analysis):
     def __init__(self):
         self.codecaves = []
 
-        if len(self.project.kb.functions) == 0:
-            if self.project.kb.cfgs.get_most_accurate() == None:
-                log.warning("Please run CFGFast analysis first, to identify functions")
-                return
+        if len(self.project.kb.functions) == 0 and self.project.kb.cfgs.get_most_accurate() is None:
+            log.warning("Please run CFGFast analysis first, to identify functions")
+            return
 
         # Alignment functions
         for func in self.project.kb.functions.values():
