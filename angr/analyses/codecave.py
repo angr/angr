@@ -18,6 +18,7 @@ class CodeCaveClassification(Enum):
     """
     Type of code caves.
     """
+
     ALIGNMENT = auto()
     UNREACHABLE = auto()
 
@@ -27,6 +28,7 @@ class CodeCave:
     """
     Describes a code cave in a binary.
     """
+
     func: Function | None
     addr: int
     size: int
