@@ -90,6 +90,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         num_inst=None,
         extra_stop_points=None,
         opt_level=None,
+        strict_block_end=None,
         **kwargs,
     ):
         if not pyvex.lifting.lifters[self.state.arch.name] or type(successors.addr) is not int:
@@ -144,6 +145,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     num_inst=num_inst,
                     extra_stop_points=extra_stop_points,
                     opt_level=opt_level,
+                    strict_block_end=strict_block_end,
                 )
 
             if (
