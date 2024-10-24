@@ -15,7 +15,6 @@ from angr.misc.ux import once
 from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from angr.code_location import CodeLocation
 from angr.project import Project
-from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.engine import DataType, SimEngine, StateType
 from angr.block import Block
 
@@ -297,23 +296,6 @@ class SimEngineLightVEX(
 
             result.append(self._stmt(stmt))
 
-        # handle calls to another function
-        # Note that without global information, we cannot handle cases where we *jump* to another function (jumpkind ==
-        # "Ijk_Boring"). Users are supposed to overwrite this method, detect these cases with the help of global
-        # information (such as CFG or symbol addresses), and handle them accordingly.
-        if self.block.vex.jumpkind == "Ijk_Call":
-            self.stmt_idx = DEFAULT_STATEMENT
-            handler = "_handle_function"
-            if hasattr(self, handler):
-                func_addr = (
-                    self.block.vex.next if isinstance(self.block.vex.next, int) else self._expr(self.block.vex.next)
-                )
-                if func_addr is None and self.l is not None:
-                    self.l.debug("Cannot determine the callee address at %#x.", self.block.addr)
-                getattr(self, handler)(func_addr)
-            else:
-                if self.l is not None:
-                    self.l.warning("Function handler not implemented.")
         return self._process_block_end(result, whitelist)
 
     def _stmt(self, stmt: pyvex.stmt.IRStmt) -> StmtDataType:
