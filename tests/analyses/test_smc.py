@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use
 from __future__ import annotations
 import os
 import subprocess
@@ -13,18 +14,18 @@ def nasm(asm: str) -> bytes:
     """
     Use NASM to assemble `asm` and return the machine code.
     """
-    f_in = tempfile.NamedTemporaryFile(suffix=".nasm", delete=False)
-    path_out = f_in.name + ".bin"
-    try:
-        f_in.write(asm.encode("utf-8"))
-        f_in.close()
+    with tempfile.NamedTemporaryFile(suffix=".nasm", delete=False) as f_in:
+        path_out = f_in.name + ".bin"
+        try:
+            f_in.write(asm.encode("utf-8"))
+            f_in.close()
 
-        subprocess.check_call(["nasm", "-fbin", "-o" + path_out, f_in.name])
-        with open(path_out, "rb") as f_out:
-            data = f_out.read()
-        os.unlink(path_out)
-    finally:
-        os.unlink(f_in.name)
+            subprocess.check_call(["nasm", "-fbin", "-o" + path_out, f_in.name])
+            with open(path_out, "rb") as f_out:
+                data = f_out.read()
+            os.unlink(path_out)
+        finally:
+            os.unlink(f_in.name)
     return data
 
 
@@ -32,16 +33,16 @@ def gcc(c: str) -> str:
     """
     Use GCC compile `c` and return path to the binary.
     """
-    f_in = tempfile.NamedTemporaryFile(suffix=".c", delete=False)
-    path_out = f_in.name + ".bin"
-    try:
-        f_in.write(c.encode("utf-8"))
-        f_in.close()
+    with tempfile.NamedTemporaryFile(suffix=".c", delete=False) as f_in:
+        path_out = f_in.name + ".bin"
+        try:
+            f_in.write(c.encode("utf-8"))
+            f_in.close()
 
-        subprocess.check_call(["gcc", "-o", path_out, f_in.name])
-        return path_out
-    finally:
-        os.unlink(f_in.name)
+            subprocess.check_call(["gcc", "-o", path_out, f_in.name])
+            return path_out
+        finally:
+            os.unlink(f_in.name)
 
 
 class TestTraceClassifier(unittest.TestCase):

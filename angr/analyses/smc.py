@@ -18,11 +18,18 @@ log.setLevel(logging.INFO)
 
 
 class TraceActions(IntFlag):
+    """
+    Describe memory access actions.
+    """
     WRITE = auto()
     EXECUTE = auto()
 
 
 class TraceClassifier:
+    """
+    Classify traces.
+    """
+
     def __init__(self, state: SimState | None = None):
         self.map = TaggedIntervalMap()
         if state:
@@ -101,7 +108,7 @@ class SelfModifyingCodeAnalysis(Analysis):
 
         if subject is None:
             subject = self.project.entry
-        elif isinstance(subject, str):
+        if isinstance(subject, str):
             try:
                 addr = self.project.kb.labels.lookup(subject)
             except KeyError:
@@ -114,15 +121,15 @@ class SelfModifyingCodeAnalysis(Analysis):
             raise ValueError("Not a supported subject")
 
         if state is None:
-            state = self.project.factory.call_state(addr)
+            init_state = self.project.factory.call_state(addr)
         else:
-            state = state.copy()
-            state.regs.pc = addr
+            init_state = state.copy()
+            init_state.regs.pc = addr
 
-        state.options -= angr.sim_options.simplification
+        init_state.options -= angr.sim_options.simplification
 
-        self._trace_classifier = TraceClassifier(state)
-        simgr = self.project.factory.simgr(state)
+        self._trace_classifier = TraceClassifier(init_state)
+        simgr = self.project.factory.simgr(init_state)
 
         kwargs = {}
         if max_bytes:
@@ -141,8 +148,8 @@ class SelfModifyingCodeAnalysis(Analysis):
             simgr.split(from_stash="active", to_stash=simgr.DROP, limit=10)
 
         # Classify any out of bound entrypoints
-        for state in simgr.stashes["oob"]:
-            self._trace_classifier.act_instruction(state)
+        for state_ in simgr.stashes["oob"]:
+            self._trace_classifier.act_instruction(state_)
 
         self.regions = list(self._trace_classifier.get_smc_address_and_lengths())
         self.result = len(self.regions) > 0
