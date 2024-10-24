@@ -1,6 +1,6 @@
 # pylint:disable=unused-argumentengine_vex
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast
+from typing import cast, TYPE_CHECKING
 
 import claripy
 import pyvex
@@ -57,6 +57,9 @@ class SimEngineVRVEX(
 
         return super()._process_block(whitelist=whitelist)
 
+    def _handle_stmt_WrTmp(self, stmt):
+        self.tmps[stmt.tmp] = self._expr(stmt.data)
+
     def _handle_stmt_Put(self, stmt):
         offset = stmt.offset
         r = self._expr(stmt.data)
@@ -65,9 +68,6 @@ class SimEngineVRVEX(
         if offset == self.arch.ip_offset:
             return
         self._assign_to_register(offset, r, size)
-
-    def _handle_stmt_PutI(self, stmt):
-        pass
 
     def _handle_stmt_Store(self, stmt):
         addr_r = self._expr_bv(stmt.addr)
@@ -115,24 +115,7 @@ class SimEngineVRVEX(
             result_size = self.tyenv.sizeof(stmt.result)
             self.tmps[stmt.result] = RichR(claripy.BVV(1, result_size))
 
-    def _handle_stmt_NoOp(self, stmt):
-        pass
-
     # Expression handlers
-
-    def _expr(self, expr):
-        """
-
-        :param expr:
-        :return:
-        :rtype: RichR
-        """
-
-        r = super()._expr(expr)
-        if r is None:
-            bits = expr.result_size(self.tyenv)
-            return RichR(self.state.top(bits))
-        return r
 
     def _expr_bv(self, expr) -> RichR[claripy.ast.BV]:
         result = self._expr(expr)
