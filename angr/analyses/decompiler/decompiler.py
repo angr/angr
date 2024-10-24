@@ -66,6 +66,7 @@ class Decompiler(Analysis):
         decompile=True,
         regen_clinic=True,
         inline_functions=frozenset(),
+        desired_variables=frozenset(),
         update_memory_data: bool = True,
         generate_code: bool = True,
         use_cache: bool = True,
@@ -103,6 +104,7 @@ class Decompiler(Analysis):
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
         self._inline_functions = inline_functions
+        self._desired_variables = desired_variables
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
@@ -118,6 +120,7 @@ class Decompiler(Analysis):
                 "ite_exprs": self._ite_exprs,
                 "binop_operators": self._binop_operators,
                 "inline_functions": self._inline_functions,
+                "desired_variables": self._desired_variables,
             }
             if use_cache
             else None
@@ -226,6 +229,7 @@ class Decompiler(Analysis):
                 cache=cache,
                 progress_callback=progress_callback,
                 inline_functions=self._inline_functions,
+                desired_variables=self._desired_variables,
                 optimization_scratch=self._optimization_scratch,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
