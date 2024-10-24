@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from dataclasses import dataclass
 
 from angr.analyses import Analysis, AnalysesHub
@@ -21,7 +21,7 @@ class CodeCaveClassification(Enum):
 
 @dataclass
 class CodeCave:
-    func: Optional[Function]
+    func: Function | None
     addr: int
     size: int
     classification: CodeCaveClassification

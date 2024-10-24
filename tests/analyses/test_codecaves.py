@@ -1,3 +1,4 @@
+from __future__ import annotations
 from unittest import main, TestCase
 import os.path
 
@@ -27,11 +28,11 @@ class TestCodeCaveAnalysis(TestCase):
                 call func_1
                 pop rbp
                 ret
-        
+
             func_0:
                 xor rax, rax
                 ret
-        
+
             func_1:
                 mov rax, 1
                 ret
