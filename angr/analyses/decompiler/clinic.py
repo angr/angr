@@ -42,6 +42,7 @@ from .optimization_passes import (
     OptimizationPassStage,
     RegisterSaveAreaSimplifier,
     StackCanarySimplifier,
+    TagSlicer,
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
@@ -111,6 +112,7 @@ class Clinic(Analysis):
         inlining_parents: set[int] | None = None,
         vvar_id_start: int = 0,
         optimization_scratch: dict[str, Any] | None = None,
+        desired_variables: set[str] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -154,6 +156,7 @@ class Clinic(Analysis):
         self._inline_functions = inline_functions
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
         self._inlining_parents = inlining_parents or ()
+        self._desired_variables = desired_variables
 
         self._register_save_areas_removed: bool = False
 
@@ -220,6 +223,9 @@ class Clinic(Analysis):
             ail_graph = self._inline_child_functions(ail_graph)
 
         ail_graph = self._decompilation_simplifications(ail_graph)
+
+        if self._desired_variables:
+            ail_graph = self._slice_variables(ail_graph)
         self.graph = ail_graph
 
     def _decompilation_graph_recovery(self):
@@ -277,6 +283,27 @@ class Clinic(Analysis):
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
             self._recover_calling_conventions(func_graph=ail_graph)
 
+        return ail_graph
+
+    def _slice_variables(self, ail_graph):
+        nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
+
+        vfm = self.variable_kb.variables.function_managers[self.function.addr]
+        for v_name in self._desired_variables:
+            v = next(iter(vv for vv in vfm._unified_variables if vv.name == v_name))
+            for va in vfm.get_variable_accesses(v):
+                nodes_index[(va.location.block_addr, va.location.block_idx)].statements[va.location.stmt_idx].tags[
+                    "keep_in_slice"
+                ] = True
+
+        a = TagSlicer(
+            self.function,
+            graph=ail_graph,
+            variable_kb=self.variable_kb,
+        )
+        if a.out_graph:
+            # use the new graph
+            ail_graph = a.out_graph
         return ail_graph
 
     def _inline_child_functions(self, ail_graph):

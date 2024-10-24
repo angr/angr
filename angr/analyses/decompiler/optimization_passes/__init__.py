@@ -26,6 +26,7 @@ from .cross_jump_reverter import CrossJumpReverter
 from .code_motion import CodeMotionOptimization
 from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
 from .deadblock_remover import DeadblockRemover
+from .tag_slicer import TagSlicer
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .const_prop_reverter import ConstPropOptReverter
 from .call_stmt_rewriter import CallStatementRewriter
@@ -59,6 +60,7 @@ ALL_OPTIMIZATION_PASSES = [
     FlipBooleanCmp,
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
+    TagSlicer,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -118,6 +120,7 @@ __all__ = (
     "ConstPropOptReverter",
     "CallStatementRewriter",
     "DuplicationReverter",
+    "TagSlicer",
     "ALL_OPTIMIZATION_PASSES",
     "DUPLICATING_OPTS",
     "CONDENSING_OPTS",
