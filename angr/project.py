@@ -236,7 +236,7 @@ class Project:
         self._initialize_analyses_hub()
 
         # Step 5.3: ...etc
-        self.kb = KnowledgeBase(self, name="global")
+        self._knowledge_bases = {"default": KnowledgeBase(self, name="global")}
 
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
@@ -256,6 +256,22 @@ class Project:
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
+
+    @property
+    def kb(self):
+        return self._knowledge_bases["default"]
+
+    @kb.setter
+    def kb(self, kb):
+        self._knowledge_bases["default"] = kb
+
+    def get_kb(self, name):
+        try:
+            return self._knowledge_bases[name]
+        except KeyError:
+            kb = KnowledgeBase(self, name)
+            self._knowledge_bases[name] = kb
+            return kb
 
     @property
     def analyses(self) -> AnalysesHubWithDefault:
