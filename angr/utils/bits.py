@@ -10,3 +10,7 @@ def truncate_bits(value: int, nbits: int) -> int:
     if nbits < 0:
         raise ValueError("nbits must not be negative")
     return value & (2**nbits - 1)
+
+
+def ffs(x: int) -> int:
+    return (x & -x).bit_length() - 1
