@@ -107,6 +107,15 @@ class TestFunctionManager(unittest.TestCase):
         for edge in edges:
             assert edge in main_g_edges
 
+        # test function renaming
+        rejected.name = "renamed_rejected"
+        assert self.project.kb.functions.function(name="rejected") is None
+        assert self.project.kb.functions.function(name="rejected", check_previous_names=True) is rejected
+        assert self.project.kb.functions.function(name="rejected", check_previous_names=True).name == "renamed_rejected"
+        assert self.project.kb.functions.function(name="rejected", check_previous_names=True).previous_names == [
+            "rejected"
+        ]
+
         # These tests fail for reasons of fastpath, probably
         # assert main.bp_on_stack
         # assert main.name == 'main'
