@@ -51,6 +51,7 @@ from .s_reaching_definitions import SReachingDefinitionsAnalysis
 from .s_liveness import SLivenessAnalysis
 from .codecave import CodeCaveAnalysis
 from .patchfinder import PatchFinderAnalysis
+from .pathfinder import Pathfinder
 
 
 __all__ = (
@@ -105,4 +106,5 @@ __all__ = (
     "SLivenessAnalysis",
     "CodeCaveAnalysis",
     "PatchFinderAnalysis",
+    "Pathfinder",
 )
