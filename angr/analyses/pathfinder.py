@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from __future__ import annotations
 from typing import Optional
 from enum import Enum, auto
@@ -8,10 +9,10 @@ from collections import defaultdict
 from networkx import DiGraph
 from networkx.algorithms.shortest_paths import single_target_shortest_path_length
 
-from .analysis import Analysis, AnalysesHub
 from angr.sim_state import SimState
 from angr.engines.successors import SimSuccessors
 from angr.knowledge_plugins.cfg import CFGModel, CFGNode
+from .analysis import Analysis, AnalysesHub
 
 
 class Unreachable(Exception):
@@ -26,11 +27,7 @@ class SimStateMarker:
     misses: int = 0
 
     def __repr__(self):
-        if self.parent is None:
-            inner_repr = "None"
-        else:
-            # inner_repr = f"SimStateMarker(addr={self.parent.addr:#x}, parent=..., banned={self.parent.banned})"
-            inner_repr = "..."
+        inner_repr = "None" if self.parent is None else "..."
         return f"SimStateMarker(addr={self.addr:#x}, parent={inner_repr}, banned={self.banned}, misses={self.misses})"
 
 
@@ -137,7 +134,7 @@ class Pathfinder(Analysis):
                 try:
                     self._search_backtrack()
                 except Unreachable as e:
-                    raise Exception("oops") from e
+                    raise RuntimeError("oops") from e
 
         while self._search_path[-1][0] != self.goal_addr:
             banned = {
@@ -223,9 +220,11 @@ class Pathfinder(Analysis):
                 break
             known_markers.append(succ)
 
-        for ri, marker in enumerate(reversed(known_markers)):
+        marker = None
+        for ri, marker_ in enumerate(reversed(known_markers)):
             i = len(known_markers) - 1 - ri
-            state: SimState = self.transition_cache.nodes[marker]["state"]()
+            state: SimState = self.transition_cache.nodes[marker_]["state"]()
+            marker = marker_
             if state is not None:
                 break
         else:
