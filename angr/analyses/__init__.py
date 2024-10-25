@@ -52,6 +52,7 @@ from .s_liveness import SLivenessAnalysis
 from .codecave import CodeCaveAnalysis
 from .patchfinder import PatchFinderAnalysis
 from .pathfinder import Pathfinder
+from .smc import SelfModifyingCodeAnalysis
 
 
 __all__ = (
@@ -107,4 +108,5 @@ __all__ = (
     "CodeCaveAnalysis",
     "PatchFinderAnalysis",
     "Pathfinder",
+    "SelfModifyingCodeAnalysis",
 )
