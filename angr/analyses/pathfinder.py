@@ -1,6 +1,5 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass
 from weakref import ref
@@ -22,7 +21,7 @@ class Unreachable(Exception):
 @dataclass(eq=False)
 class SimStateMarker:
     addr: int
-    parent: Optional[SimStateMarker] = None
+    parent: SimStateMarker | None = None
     banned: bool = False
     misses: int = 0
 
