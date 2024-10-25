@@ -126,7 +126,7 @@ class TestTraceClassifier(unittest.TestCase):
 
 
 def main():
-     unittest.main()
+    unittest.main()
 
 
 if __name__ == "__main__":
