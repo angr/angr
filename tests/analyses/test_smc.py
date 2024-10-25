@@ -106,7 +106,9 @@ class TestTraceClassifier(unittest.TestCase):
 			size_t page_size = sysconf(_SC_PAGE_SIZE);
 			assert(page_size != -1);
 			size_t buf_size = ALIGN_UP({code_len}, page_size);
-			void *buf = memalign(page_size, buf_size);
+			// we can't symbolically execute through memalign in native glibc yet
+			// void *buf = memalign(page_size, buf_size);
+			void *buf = malloc(buf_size);
 			assert(buf);
 			memcpy(buf, \"{code_as_hex}\", {code_len});
 			int status = mprotect(buf, buf_size, PROT_EXEC | PROT_READ);
@@ -118,13 +120,13 @@ class TestTraceClassifier(unittest.TestCase):
 		"""
 
         path = gcc(c_src)
-        p = angr.Project(path, selfmodifying_code=True)
+        p = angr.Project(path, selfmodifying_code=True, auto_load_libs=False)
         is_smc = p.analyses.SMC("main").result
         assert is_smc
 
 
 def main():
-    unittest.main()
+     unittest.main()
 
 
 if __name__ == "__main__":
