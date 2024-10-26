@@ -108,6 +108,8 @@ class VEXIRSBScanner(SimEngineLightVEX[None, None, None, None]):
         if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.result_size(self.tyenv) == 64:
             self.tmp_with_reg_as_value[stmt.tmp] = stmt.data.offset
 
+        self.tmps[stmt.tmp] = self._expr(stmt.data)
+
     def _handle_expr_Get(self, expr):
         self.reg_read_stmt_id[expr.offset] = self.stmt_idx
         if expr.offset in self.reg_with_reg_as_value:
