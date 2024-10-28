@@ -34,6 +34,7 @@ class SootFunction(Function):
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = defaultdict(set)
+        self.previous_names = []
 
         self._call_sites = {}
         self.addr = addr

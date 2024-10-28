@@ -1,4 +1,4 @@
-# pylint:disable=wrong-import-position
+# " pylint:disable=wrong-import-position
 from __future__ import annotations
 
 from .analysis import Analysis, AnalysesHub
@@ -49,6 +49,10 @@ from .flirt import FlirtAnalysis
 from .s_propagator import SPropagatorAnalysis
 from .s_reaching_definitions import SReachingDefinitionsAnalysis
 from .s_liveness import SLivenessAnalysis
+from .codecave import CodeCaveAnalysis
+from .patchfinder import PatchFinderAnalysis
+from .pathfinder import Pathfinder
+from .smc import SelfModifyingCodeAnalysis
 
 
 __all__ = (
@@ -101,4 +105,8 @@ __all__ = (
     "SPropagatorAnalysis",
     "SReachingDefinitionsAnalysis",
     "SLivenessAnalysis",
+    "CodeCaveAnalysis",
+    "PatchFinderAnalysis",
+    "Pathfinder",
+    "SelfModifyingCodeAnalysis",
 )

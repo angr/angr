@@ -33,7 +33,7 @@ class FunctionParser:
         obj.is_syscall = function.is_syscall
         obj.is_simprocedure = function.is_simprocedure
         obj.returning = function.returning
-        obj.alignment = function.alignment
+        obj.alignment = function.is_alignment
         obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
 
