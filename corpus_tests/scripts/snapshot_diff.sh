@@ -177,9 +177,9 @@ if [[ "${#FILEPATH[@]}" -eq 0 ]]; then
       --json baseRefName \
       --json headRefName \
       --json files \
-      --jq '.[] | select(.baseRefName == "main" and
-                         .headRefName == "decompiler-corpus-test")
-                | .files[].path'
+      --jq ".[] | select(.baseRefName == \"main\" and
+                         .headRefName == \"$REF_HEAD\")
+                | .files[].path"
   )
   printf "Selected changed files from PR: %s\n" "${#FILEPATH[@]}" >&2
 fi
@@ -239,6 +239,7 @@ done
 wait
 echo ", done." >&2
 
+# XXX: This was indulgent. Revisit performance here.
 {
   for index in "${!FILEPATH[@]}"; do
     SNAPSHOT1="${SNAPSHOT_DIR}/${REF_BASE}/${FILEPATH[$index]}"
