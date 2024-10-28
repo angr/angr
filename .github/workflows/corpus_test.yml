@@ -103,17 +103,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Fetch the list of binaries from the binaries repository using the GitHub API
-          fetch_files_from_tree() {
-            local sha=$1
-            local prefix=$2
-            local response
-            response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${CORPUS_GITHUB_OWNER}/${CORPUS_GITHUB_REPO}/git/trees/${sha}?recursive=1")
-
-            echo "$response" | jq -r --arg prefix "$prefix" '.tree[] | select(.type == "blob") | $prefix + "/" + .path'
-          }
-
           # Gather the individual paths from the CORPUS_GITHUB_PATH.
           corpus_path="${{ inputs.corpus_github_path }}"
           if [[ -z "$corpus_path" ]]; then
@@ -123,44 +112,18 @@ jobs:
           echo "Semicolon-delimited path list: '${corpus_path}'"
           all_paths=()
           while read -r path; do
-            all_paths+=("$path")
+            all_paths+=("-p $path")
           done < <(echo "${corpus_path}" | tr ';' '\n')
 
           echo "Number of separate paths: ${#all_paths[@]}"
 
-          all_files=()
-
-          # Initial path to start fetching files
-          for ((i=0; i<${#all_paths[@]}; i++)); do
-            initial_path="${all_paths[i]}"
-            echo "Fetching corpus files from path '${initial_path}'."
-
-            # Fetch the top-level SHAs and paths
-            owner_repo="${CORPUS_GITHUB_OWNER}/${CORPUS_GITHUB_REPO}"
-            this_url="https://api.github.com/repos/${owner_repo}/contents/${initial_path}?ref=${CORPUS_GITHUB_BRANCH}"
-            top_level_response="$(curl -s -H "Authorization: token $GITHUB_TOKEN" "$this_url")"
-
-            # Collect all SHAs and their corresponding paths
-            sha_path_pairs=$(echo "$top_level_response" | jq -r '.[] | select(.type == "dir") | .sha + " " + .path')
-            top_level_files=$(echo "$top_level_response" | jq -r '.[] | select(.type == "file") | .path')
-
-            # NB: If we follow SC2206, we will be adding a single entry to the
-            #     array. Instead, we wish to provide a raw output that can be
-            #     interpreted as adding several files to the all_files array.
-            # shellcheck disable=SC2206
-            all_files+=($top_level_files)
-
-            # Fetch files for each SHA and combine the results
-            if [ -n "$sha_path_pairs" ]; then
-              while IFS= read -r sha_path; do
-                sha="$(echo "$sha_path" | awk '{print $1}')"
-                path="$(echo "$sha_path" | awk '{print $2}')"
-                files=$(fetch_files_from_tree "$sha" "$path")
-                # shellcheck disable=SC2206
-                all_files+=($files)
-              done <<< "$sha_path_pairs"
-            fi
-          done
+          declare -a all_files
+          mapfile -t all_files < <(
+            ./corpus_tests/scripts/gh_ls.sh \
+              -R "${CORPUS_GITHUB_OWNER}/${CORPUS_GITHUB_REPO}" \
+              -b "${CORPUS_GITHUB_BRANCH}" \
+              ${all_paths[@]} -t "${GITHUB_TOKEN}"
+          )
 
           # Count the number of files
           files_count="${#all_files[@]}"
