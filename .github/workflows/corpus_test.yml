@@ -85,6 +85,9 @@ jobs:
       chunks: ${{ steps.fetch_metadata_for_binaries.outputs.chunks }}
 
     steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
       - name: Install apt packages (when testing locally in act)
         if: ${{ env.ACT }}
         run: |
@@ -348,7 +351,7 @@ jobs:
         if: ${{ env.ACT }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl jq wget
+          sudo apt-get install -y bsdextrautils curl jq wget
 
           sudo mkdir -p -m 755 /etc/apt/keyrings \
           && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
@@ -374,8 +377,11 @@ jobs:
             -f title="${title}"
           success="$?"
 
+          # XXX: Does the api pre-sort responses descending by order?
           url="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
-                 jq --arg title "$title" '.[] | select(.title == $title) | .html_url')"
+                 jq --arg title "$title" '.[] | select(.title == $title) | .html_url') | head -n 1"
+          number="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
+                    jq --arg title "$title" '.[] | select(.title == $title) | .number') | head -n 1"
           if [[ -z "$url" ]]; then
             echo "Error: failed to create pull request in snapshots repository."
             exit 1
@@ -384,12 +390,25 @@ jobs:
           else
             echo "Updating existing snapshot pull request."
           fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Comment snapshot_url to Pull Request
+      - name: Comment snapshot_diff summary to Snapshot Pull Request
+        env:
+          ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          ./corpus_tests/scripts/snapshot_diff.sh \
+            -H "${ANGR_BRANCH}" \
+            -t "${GH_TOKEN}" | \
+          gh pr comment "${number}" \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
+            --body-file -
+
+      - name: Comment snapshot_url to Angr Pull Request
         if: ${{ ! inputs.nightly }}
         env:
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
             -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
