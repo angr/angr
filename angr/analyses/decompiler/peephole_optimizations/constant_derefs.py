@@ -1,6 +1,6 @@
 from __future__ import annotations
 from ailment.expression import Load, Const
-from cle.backends import Blob
+from cle.backends import Blob, Hex
 
 from .base import PeepholeOptimizationExprBase
 
@@ -32,7 +32,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
 
             # is it loading from a blob?
             obj = self.project.loader.find_object_containing(expr.addr.value)
-            if obj is not None and isinstance(obj, Blob):
+            if obj is not None and isinstance(obj, (Blob, Hex)):
                 # do we know the value that it's reading?
                 try:
                     val = self.project.loader.memory.unpack_word(expr.addr.value, size=self.project.arch.bytes)
