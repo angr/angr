@@ -30,7 +30,7 @@ Snapshot Data Store: https://github.com/project-purcellville/snapshots-0000
 Create a GitHub Actions event (https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows) file to simulate the desired workflow.
 In this case, a run of the test suite against a pull request.
 
-```
+```json
 # pr.event
 {
   "inputs": {
@@ -56,7 +56,7 @@ This kicks off a local GitHub Actions run that will build the specified version
 of `angr`, and run it in parallel jobs against a selection of files from the
 test file corpus.
 
-```
+```shell
 sudo $(which act) \
   -W .github/workflows/corpus_test.yml \
   --eventpath pr.event \
@@ -70,7 +70,7 @@ already exist, commit the snapshots, and comment a change summary.
 
 The change summary can be reproduced locally with:
 
-```
+```shell
 ./corpus_tests/scripts/snapshot_diff.sh \
   -H snapshot-diff-cli-utility \
   -t $(gh auth token)
