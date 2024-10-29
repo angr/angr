@@ -1044,6 +1044,9 @@ class SimIROp:
         exp_threshold = (2 ** (exp_bits - 1) - 1) + mantissa_bits
         return claripy.If(exp_bv >= exp_threshold, args[1].raw_to_fp(), rounded_fp)
 
+    def _op_fgeneric_RSqrtEst(self, arg):
+        return claripy.BVS("RSqrtEst", arg.size())
+
     def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
         """
         Generic pack with saturation.
