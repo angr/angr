@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any
 from enum import IntEnum
@@ -155,7 +156,7 @@ class APIObfuscationFinder(Analysis):
         valid_apiname_charset = {ord(ch) for ch in (string.ascii_letters + string.digits + "._")}
 
         # decompile the function to get a prototype with types
-        dec = self.project.analyses.Decompiler(func, cfg=cfg)
+        _ = self.project.analyses.Decompiler(func, cfg=cfg)
 
         char_ptr_args = [
             idx
@@ -168,7 +169,7 @@ class APIObfuscationFinder(Analysis):
         libname_arg_idx = None
         funcname_arg_idx = None
         # who's calling it?
-        caller_addrs = sorted({caller_addr for caller_addr in self.kb.functions.callgraph.predecessors(func.addr)})
+        caller_addrs = sorted(set(self.kb.functions.callgraph.predecessors(func.addr)))
         for caller_addr in caller_addrs:
             # what arguments are used to call this function with?
             callsite_nodes = [
@@ -251,12 +252,12 @@ class APIObfuscationFinder(Analysis):
         assignments: dict[int, tuple[str, str]] = {}
 
         # get all call sites
-        caller_addrs = sorted({caller_addr for caller_addr in self.kb.functions.callgraph.predecessors(func_addr)})
+        caller_addrs = sorted(set(self.kb.functions.callgraph.predecessors(func_addr)))
         for caller_addr in caller_addrs:
             # decompile the function and get all assignments of the return value of the func at func_addr
             try:
                 dec = self.project.analyses.Decompiler(self.kb.functions.get_by_addr(caller_addr), cfg=cfg)
-            except Exception:
+            except Exception:  # pylint:disable=broad-exception-caught
                 continue
             if dec.codegen is None:
                 continue
@@ -269,7 +270,7 @@ class APIObfuscationFinder(Analysis):
                 # duplicate entries
                 _l.warning(
                     "Observed duplicate assignments at the following addresses: %s.",
-                    str(map(hex, sorted(duplicate_addrs))),
+                    str(map(hex, sorted(duplicate_addrs))),  # pylint:disable=bad-builtin
                 )
 
             assignments.update(finder.assignments)
@@ -301,15 +302,12 @@ class APIObfuscationFinder(Analysis):
         if name in SIM_LIBRARIES:
             return True
         if "." not in name:
-            return (name + ".dll") in SIM_LIBRARIES or (name + ".exe") in SIM_LIBRARIES
+            return name + ".dll" in SIM_LIBRARIES or name + ".exe" in SIM_LIBRARIES
         return False
 
     @staticmethod
     def is_apiname(name: str) -> bool:
-        for lib in SIM_LIBRARIES.values():
-            if not isinstance(lib, SimSyscallLibrary) and lib.has_prototype(name):
-                return True
-        return False
+        return any(not isinstance(lib, SimSyscallLibrary) and lib.has_prototype(name) for lib in SIM_LIBRARIES.values())
 
 
 AnalysesHub.register_default("APIObfuscationFinder", APIObfuscationFinder)

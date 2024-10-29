@@ -3,9 +3,9 @@ from typing import TYPE_CHECKING
 import math
 import logging
 
+from angr.knowledge_plugins.cfg import CFGModel
 from ..analysis import Analysis, AnalysesHub
 
-from angr.knowledge_plugins.cfg import CFGModel
 
 if TYPE_CHECKING:
     from cle import Section
@@ -111,8 +111,7 @@ class PackingDetector(Analysis):
                         if region_start - last_end > self.region_size_threshold:
                             uncovered_regions.append((last_end, region_start))
                     i += 1
-                    if region_end >= last_end:
-                        last_end = region_end
+                    last_end = max(last_end, region_end)
                 idx = i
 
         return uncovered_regions

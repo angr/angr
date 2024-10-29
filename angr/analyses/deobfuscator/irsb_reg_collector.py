@@ -1,4 +1,4 @@
-# pylint:disable=no-self-use,unused-argument
+# pylint:disable=no-self-use,unused-argument,attribute-defined-outside-init
 from __future__ import annotations
 
 import pyvex
@@ -43,9 +43,6 @@ class IRSBRegisterCollector(SimEngineLightVEXMixin):
 
     def _handle_StoreG(self, stmt):
         pass
-
-    def _handle_WrTmp(self, stmt):
-        super()._handle_WrTmp(stmt)
 
     def _handle_Get(self, expr: pyvex.IRExpr.Get):
         self.reg_reads.add((expr.offset, expr.result_size(self.tyenv)))

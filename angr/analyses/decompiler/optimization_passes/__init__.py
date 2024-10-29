@@ -34,7 +34,7 @@ from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
 
 if TYPE_CHECKING:
-    from ..presets import DecompilationPreset
+    from angr.analyses.decompiler.presets import DecompilationPreset
 
 
 # order matters!

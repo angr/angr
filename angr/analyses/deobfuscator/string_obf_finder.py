@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any
 import string
@@ -103,9 +104,9 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # find its callsites and arguments
-            callers = list(
+            callers = [
                 pred for pred in self.project.kb.functions.callgraph.predecessors(func.addr) if pred != func.addr
-            )
+            ]
 
             if not callers:
                 continue
@@ -120,11 +121,10 @@ class StringObfuscationFinder(Analysis):
             # decompile this function and see if it "looks like" a deobfuscation function
             try:
                 dec = self.project.analyses.Decompiler(func, cfg=cfg)
-            except Exception:
+            except Exception:  # pylint:disable=broad-exception-caught
                 continue
-            if dec.codegen is not None:
-                if not self._like_type1_deobfuscation_function(dec.codegen.text):
-                    continue
+            if dec.codegen is None or not self._like_type1_deobfuscation_function(dec.codegen.text):
+                continue
 
             args_list = []
             for caller in callers:
@@ -184,7 +184,7 @@ class StringObfuscationFinder(Analysis):
             desc = StringDeobFuncDescriptor()
             # now that we have good arguments, let's test the function!
             for args in args_list:
-                callable = self.project.factory.callable(
+                func_call = self.project.factory.callable(
                     func.addr, concrete_only=True, cc=func.calling_convention, prototype=func.prototype
                 )
 
@@ -198,15 +198,15 @@ class StringObfuscationFinder(Analysis):
                             values.append((arg_idx, v, self.project.loader.memory.load(v, 100)))
 
                 try:
-                    callable(*[arg for _, arg in args])
+                    func_call(*[arg for _, arg in args])
                 except (AngrCallableMultistateError, AngrCallableError):
                     continue
 
                 # let's see what this amazing function has done
                 # TODO: Support cases where input and output are using different function arguments
                 for arg_idx, addr, old_value in values:
-                    out = callable.result_state.solver.eval(
-                        callable.result_state.memory.load(addr, size=len(old_value)), cast_to=bytes
+                    out = func_call.result_state.solver.eval(
+                        func_call.result_state.memory.load(addr, size=len(old_value)), cast_to=bytes
                     )
                     if out == old_value:
                         continue
@@ -310,9 +310,8 @@ class StringObfuscationFinder(Analysis):
                 callable.result_state.memory.load(output_addr, size=length),
                 cast_to=bytes,
             )
-            if desc.string_null_terminating:
-                if b"\x00" in output_str:
-                    output_str = output_str[: output_str.index(b"\x00")]
+            if desc.string_null_terminating and b"\x00" in output_str:
+                output_str = output_str[: output_str.index(b"\x00")]
             deobfuscated_strings[output_addr.concrete_value] = output_str
 
         # for each deobfuscated string, we find its string loader function
@@ -356,9 +355,9 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # find its callsites and arguments
-            callers = list(
+            callers = [
                 pred for pred in self.project.kb.functions.callgraph.predecessors(func.addr) if pred != func.addr
-            )
+            ]
 
             if not callers:
                 continue
@@ -373,11 +372,10 @@ class StringObfuscationFinder(Analysis):
             # decompile this function and see if it "looks like" a deobfuscation function
             try:
                 dec = self.project.analyses.Decompiler(func, cfg=cfg, expr_collapse_depth=64)
-            except Exception:
+            except Exception:  # pylint:disable=broad-exception-caught
                 continue
-            if dec.codegen is not None:
-                if not self._like_type2_deobfuscation_function(dec.codegen.text):
-                    continue
+            if dec.codegen is None or not self._like_type2_deobfuscation_function(dec.codegen.text):
+                continue
 
             desc = StringDeobFuncDescriptor()
             # now that we have good arguments, let's test the function!
@@ -519,7 +517,7 @@ class StringObfuscationFinder(Analysis):
         type3_functions = []
 
         for func in function_candidates:
-            if not (8 <= len(func.block_addrs_set) < 14):
+            if not 8 <= len(func.block_addrs_set) < 14:
                 continue
 
             # if it has a prototype recovered, it must have four arguments
@@ -620,9 +618,7 @@ class StringObfuscationFinder(Analysis):
 
     @staticmethod
     def _like_type1_deobfuscation_function(code: str) -> bool:
-        if "^" in code or ">>" in code or "<<" in code:
-            return True
-        return False
+        return bool("^" in code or ">>" in code or "<<" in code)
 
     #
     # Type 2 helpers
@@ -630,9 +626,9 @@ class StringObfuscationFinder(Analysis):
 
     @staticmethod
     def _like_type2_deobfuscation_function(code: str) -> bool:
-        if ("^" in code or ">>" in code or "<<" in code) and ("do" in code or "while" in code or "for" in code):
-            return True
-        return False
+        return bool(
+            ("^" in code or ">>" in code or "<<" in code) and ("do" in code or "while" in code or "for" in code)
+        )
 
     #
     # Type 3 helpers
@@ -640,11 +636,10 @@ class StringObfuscationFinder(Analysis):
 
     @staticmethod
     def _like_type3_deobfuscation_function(code: str) -> bool:
-        if ("^" in code or ">>" in code or "<<" in code or "~" in code) and (
-            "do" in code or "while" in code or "for" in code
-        ):
-            return True
-        return False
+        return bool(
+            ("^" in code or ">>" in code or "<<" in code or "~" in code)
+            and ("do" in code or "while" in code or "for" in code)
+        )
 
     def _type3_prepare_and_execute(self, func_addr: int, call_site_addr: int, call_site_func_addr: int, cfg):
         blocks_at_callsite = [call_site_addr]
@@ -692,7 +687,7 @@ class StringObfuscationFinder(Analysis):
         # setup sp and bp, just in case
         state.regs._sp = 0x7FFF0000
         bp_set = False
-        prop_state = prop.model.input_states[call_site_addr] if call_site_addr in prop.model.input_states else None
+        prop_state = prop.model.input_states.get(call_site_addr, None)
         if prop_state is not None:
             for reg_offset, reg_width in reg_reads:
                 if reg_offset == state.arch.sp_offset:

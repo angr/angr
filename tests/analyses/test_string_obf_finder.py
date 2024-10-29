@@ -1,9 +1,9 @@
+# pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 from unittest import TestCase, main
+import os
 
 from tests.common import slow_test
-
-import os
 
 import angr
 from angr.sim_type import parse_signature

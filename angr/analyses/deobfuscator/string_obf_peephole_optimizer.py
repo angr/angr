@@ -28,11 +28,11 @@ class StringObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
             if expr.args and all(isinstance(arg, Const) for arg in expr.args):
                 # execute the function with the given argument
                 func = self.kb.functions[expr.target.value]
-                callable = self.project.factory.callable(
+                func_call = self.project.factory.callable(
                     expr.target.value, concrete_only=True, cc=func.calling_convention, prototype=func.prototype
                 )
                 try:
-                    out = callable(*[claripy.BVV(arg.value, arg.bits) for arg in expr.args])
+                    out = func_call(*[claripy.BVV(arg.value, arg.bits) for arg in expr.args])
                 except AngrCallableMultistateError:
                     return None
 

@@ -25,7 +25,7 @@ class APIObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
         ):
             # this is actually a function calling a known API
             # replace it with the actual API and the actual arguments
-            libname, funcname = self.kb.obfuscations.type1_deobfuscated_apis[expr.addr.value]
+            _, funcname = self.kb.obfuscations.type1_deobfuscated_apis[expr.addr.value]
             if funcname not in self.kb.functions:
                 # assign a new function on-demand
                 symbol = self.project.loader.extern_object.make_extern(funcname)

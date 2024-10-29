@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
 import archinfo

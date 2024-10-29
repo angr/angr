@@ -1,10 +1,10 @@
 from __future__ import annotations
-import networkx
 import logging
 
-from ..analysis import Analysis, AnalysesHub
+import networkx
 
 from angr.knowledge_plugins.cfg import CFGModel
+from ..analysis import Analysis, AnalysesHub
 
 _l = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class ObfuscationDetector(Analysis):
         high_scc_node_edge_ratio = False
         high_pushf = False
         high_popf = False
-        high_clc = False
+        high_clc = False  # pylint:disable=unused-variable
 
         if self.project.arch.name == "AMD64":
             cg = self.kb.functions.callgraph

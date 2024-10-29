@@ -112,4 +112,5 @@ __all__ = (
     "Pathfinder",
     "SelfModifyingCodeAnalysis",
     "PackingDetector",
+    "deobfuscator",
 )
