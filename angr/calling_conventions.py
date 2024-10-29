@@ -1061,7 +1061,9 @@ class SimCC:
         if isinstance(arg, claripy.ast.BV):
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
                 if len(arg) != ty.size:
-                    raise TypeError("Type mismatch: expected %s, got %d bits" % (ty, len(arg)))
+                    if arg.concrete:
+                        return claripy.BVV(arg.concrete_value, ty.size)
+                    raise TypeError("Type mismatch of symbolic data: expected %s, got %d bits" % (ty, len(arg)))
                 return arg
             if isinstance(ty, (SimTypeFloat)):
                 raise TypeError(
