@@ -23,6 +23,7 @@ class DecompilationCache:
         "clinic",
         "ite_exprs",
         "binop_operators",
+        "errors",
     )
 
     def __init__(self, addr):
@@ -35,7 +36,10 @@ class DecompilationCache:
         self.clinic: Clinic | None = None
         self.ite_exprs: set[tuple[int, Any]] | None = None
         self.binop_operators: dict[OpDescriptor, str] | None = None
+        self.errors: list[str] = []
 
     @property
     def local_types(self):
+        if self.clinic is None or self.clinic.variable_kb is None:
+            return None
         return self.clinic.variable_kb.variables[self.addr].types

@@ -139,7 +139,13 @@ class Decompiler(Analysis):
         self.expr_collapse_depth = expr_collapse_depth
 
         if decompile:
-            self._decompile()
+            with self._resilience():
+                self._decompile()
+            if self.errors:
+                if self.func.addr not in self.kb.decompilations:
+                    self.kb.decompilations[self.func.addr] = DecompilationCache(self.func.addr)
+                for error in self.errors:
+                    self.kb.decompilations[self.func.addr].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         a, b = self._cache_parameters, cache.parameters
