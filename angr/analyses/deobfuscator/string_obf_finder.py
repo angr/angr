@@ -379,7 +379,7 @@ class StringObfuscationFinder(Analysis):
 
             desc = StringDeobFuncDescriptor()
             # now that we have good arguments, let's test the function!
-            callable = self.project.factory.callable(
+            func_call = self.project.factory.callable(
                 func.addr,
                 concrete_only=True,
                 cc=func.calling_convention,
@@ -388,14 +388,14 @@ class StringObfuscationFinder(Analysis):
             )
 
             try:
-                callable()
+                func_call()
             except (AngrCallableMultistateError, AngrCallableError):
                 continue
 
             # where are the reads and writes?
             all_global_reads = []
             all_global_writes = []
-            for action in callable.result_state.history.actions:
+            for action in func_call.result_state.history.actions:
                 if not isinstance(action, SimActionData):
                     continue
                 if not action.actual_addrs:
@@ -441,8 +441,8 @@ class StringObfuscationFinder(Analysis):
                     section = self.project.loader.find_section_containing(starting_offset)
                     if section is not None:
                         initial_data = self.project.loader.memory.load(starting_offset, stride)
-                        end_data = callable.result_state.solver.eval(
-                            callable.result_state.memory.load(starting_offset, stride), cast_to=bytes
+                        end_data = func_call.result_state.solver.eval(
+                            func_call.result_state.memory.load(starting_offset, stride), cast_to=bytes
                         )
                         if initial_data != end_data and self._is_string_reasonable(end_data):
                             region_candidates.append((starting_offset, stride, end_data))
@@ -456,8 +456,8 @@ class StringObfuscationFinder(Analysis):
         return type2_candidates
 
     def _analyze_type2(
-        self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]
-    ) -> set:  # pylint:disable=unused-argument
+        self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]  # pylint:disable=unused-argument
+    ) -> set:
         """
         Analyze Type 2 string deobfuscation functions, determine the following information:
 
@@ -586,8 +586,8 @@ class StringObfuscationFinder(Analysis):
         return type3_functions
 
     def _analyze_type3(
-        self, func_addr: int, desc: StringDeobFuncDescriptor
-    ) -> dict[int, bytes]:  # pylint:disable=unused-argument
+        self, func_addr: int, desc: StringDeobFuncDescriptor  # pylint:disable=unused-argument
+    ) -> dict[int, bytes]:
         """
         Analyze Type 3 string deobfuscation functions, determine the following information:
 

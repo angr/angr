@@ -26,7 +26,7 @@ class TestAPIObfFinder(TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
 
-        proj.analyses.CompleteCallingConventions(recover_variables=True, workers=4)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
 
         # it will update kb.obfuscations
         finder = proj.analyses.APIObfuscationFinder()
