@@ -762,6 +762,9 @@ class VEXIRSBConverter(Converter):
                 ret_reg_offset,
                 manager.arch.bits,
                 reg_name=manager.arch.translate_register_name(ret_reg_offset, size=manager.arch.bits),
+                ins_addr=manager.ins_addr,
+                vex_block_addr=manager.block_addr,
+                vex_stmt_idx=DEFAULT_STATEMENT,
             )
             fp_ret_reg_offset = manager.arch.fp_ret_offset
             if fp_ret_reg_offset is not None and fp_ret_reg_offset != ret_expr:
@@ -771,6 +774,9 @@ class VEXIRSBConverter(Converter):
                     fp_ret_reg_offset,
                     manager.arch.bits,
                     reg_name=manager.arch.translate_register_name(fp_ret_reg_offset, size=manager.arch.bits),
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=DEFAULT_STATEMENT,
                 )
             else:
                 fp_ret_expr = None
