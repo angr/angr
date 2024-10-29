@@ -2,6 +2,7 @@
 This module contains symbolic implementations of VEX operations.
 """
 
+# pylint:disable=no-member
 from __future__ import annotations
 
 from functools import partial
@@ -10,13 +11,16 @@ import itertools
 import operator
 import math
 import re
-
 import logging
-
-l = logging.getLogger(name=__name__)
 
 import pyvex
 import claripy
+
+from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
+
+
+l = logging.getLogger(name=__name__)
+
 
 #
 # The more sane approach
@@ -1044,7 +1048,7 @@ class SimIROp:
         exp_threshold = (2 ** (exp_bits - 1) - 1) + mantissa_bits
         return claripy.If(exp_bv >= exp_threshold, args[1].raw_to_fp(), rounded_fp)
 
-    def _op_fgeneric_RSqrtEst(self, arg):
+    def _op_fgeneric_RSqrtEst(self, arg):  # pylint:disable=no-self-use
         return claripy.BVS("RSqrtEst", arg.size())
 
     def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
@@ -1257,7 +1261,5 @@ def vexop_to_simop(op, extended=True, fp=True):
         raise UnsupportedIROpError("Floating point support disabled")
     return res
 
-
-from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
 
 make_operations()
