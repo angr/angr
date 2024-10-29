@@ -451,7 +451,7 @@ class Decompiler(Analysis):
 
             if self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES:
                 self._update_progress(85.0, text="Generating code")
-                codegen = self.project.analyses[self.codegen_cls].prep(kb=self.kb, fail_fast=self._fail_fast)(
+                codegen = self.project.analyses[self._codegen_cls].prep(kb=self.kb, fail_fast=self._fail_fast)(
                     self.func,
                     seq_node,
                     cfg=self._cfg,
