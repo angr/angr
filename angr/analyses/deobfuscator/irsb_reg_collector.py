@@ -77,3 +77,12 @@ class IRSBRegisterCollector(SimEngineLightVEXMixin):
 
     def _handle_function(self, func_addr):
         pass
+
+    def _handle_Unop(self, expr):
+        pass
+
+    def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
+        pass
+
+    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
+        pass

@@ -43,18 +43,29 @@ class StringObfuscationFinder(Analysis):
         self.analyze()
 
     def analyze(self):
+        _l.debug("Finding type 1 candidates.")
         self.type1_candidates = self._find_type1()
+        _l.debug("Got %d type 1 candidates.", len(self.type1_candidates))
+
+        _l.debug("Finding type 2 candidates.")
         self.type2_candidates = self._find_type2()
+        _l.debug("Got %d type 2 candidates.", len(self.type2_candidates))
+
+        _l.debug("Finding type 3 candidates.")
         self.type3_candidates = self._find_type3()
+        _l.debug("Got %d type 3 candidates.", len(self.type3_candidates))
+        _l.debug("Done.")
 
         if self.type1_candidates:
             for type1_func_addr, desc in self.type1_candidates:
+                _l.debug("Analyzing type 1 candidates.")
                 type1_deobfuscated, type1_string_loader_candidates = self._analyze_type1(type1_func_addr, desc)
                 self.kb.obfuscations.type1_deobfuscated_strings.update(type1_deobfuscated)
                 self.kb.obfuscations.type1_string_loader_candidates |= type1_string_loader_candidates
 
         if self.type2_candidates:
             for type2_func_addr, desc, string_candidates in self.type2_candidates:
+                _l.debug("Analyzing type 2 candidates.")
                 type2_string_loader_candidates = self._analyze_type2(
                     type2_func_addr, desc, {addr for addr, _, _ in string_candidates}
                 )
@@ -64,6 +75,7 @@ class StringObfuscationFinder(Analysis):
 
         if self.type3_candidates:
             for type3_func_addr, desc in self.type3_candidates:
+                _l.debug("Analyzing type 3 candidates.")
                 type3_strings = self._analyze_type3(type3_func_addr, desc)
                 self.kb.obfuscations.type3_deobfuscated_strings.update(type3_strings)
 
@@ -360,7 +372,7 @@ class StringObfuscationFinder(Analysis):
 
             # decompile this function and see if it "looks like" a deobfuscation function
             try:
-                dec = self.project.analyses.Decompiler(func, cfg=cfg)
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, expr_collapse_depth=64)
             except Exception:
                 continue
             if dec.codegen is not None:
@@ -593,7 +605,8 @@ class StringObfuscationFinder(Analysis):
 
         call_sites = cfg.get_predecessors(cfg.get_any_node(func_addr))
         callinsn2content = {}
-        for call_site in call_sites:
+        for idx, call_site in enumerate(call_sites):
+            _l.debug("Analyzing type 3 candidate call site %#x (%d/%d)...", call_site.addr, idx + 1, len(call_sites))
             data = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address, cfg)
             if data:
                 callinsn2content[call_site.instruction_addrs[-1]] = data

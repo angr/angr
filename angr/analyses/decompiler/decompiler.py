@@ -70,6 +70,7 @@ class Decompiler(Analysis):
         update_memory_data: bool = True,
         generate_code: bool = True,
         use_cache: bool = True,
+        expr_collapse_depth: int = 16,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -135,6 +136,7 @@ class Decompiler(Analysis):
         self.ail_graph: networkx.DiGraph | None = None
         self.vvar_id_start = None
         self._optimization_scratch: dict[str, Any] = {}
+        self.expr_collapse_depth = expr_collapse_depth
 
         if decompile:
             self._decompile()
@@ -333,6 +335,7 @@ class Decompiler(Analysis):
                 stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                 const_formats=old_codegen.const_formats if old_codegen is not None else None,
                 externs=clinic.externs,
+                binop_depth_cutoff=self.expr_collapse_depth,
                 **self.options_to_params(self.options_by_class["codegen"]),
             )
 
