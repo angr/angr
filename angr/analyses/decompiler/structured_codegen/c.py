@@ -2148,6 +2148,12 @@ class CConstant(CExpression):
                 elif isinstance(v, Function):
                     yield get_cpp_function_name(v.demangled_name, specialized=False, qualified=True), self
                     return
+                elif isinstance(v, str):
+                    yield CConstant.str_to_c_str(v), self
+                    return
+                elif isinstance(v, bytes):
+                    yield CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8")), self
+                    return
 
         if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
             if isinstance(self._type, SimTypeInt):
@@ -3415,7 +3421,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
-            if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
+            if expr.value in self.kb.obfuscations.type1_deobfuscated_strings:
+                reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type1_deobfuscated_strings[
+                    expr.value
+                ]
+                inline_string = True
+            elif expr.value in self.kb.obfuscations.type2_deobfuscated_strings:
+                reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type2_deobfuscated_strings[
+                    expr.value
+                ]
+                inline_string = True
+            elif isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
                 # char*
                 # Try to get a string
                 if (
@@ -3433,7 +3449,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
             # (BOT*) instead of a char*.
 
-            if isinstance(expr.value, int):
+            if not reference_values and isinstance(expr.value, int):
                 if expr.value in self.project.kb.functions:
                     # It's a function pointer
                     # We don't care about the actual prototype here
