@@ -20,8 +20,8 @@ binaries_base = os.path.join(
 
 class TestStringObfFinder(TestCase):
     def test_netfilter_b64(self):
-        # type 1 string obfuscation: deobfuscator at 0x140001A90
-        # type 2 string obfuscation: deobfuscator at 0x140001A18
+        # - type 1 string obfuscation: deobfuscator at 0x140001A90
+        # - type 2 string obfuscation: deobfuscator at 0x140001A18
 
         bin_path = os.path.join(binaries_base, "x86_64", "netfilter_b64.sys")
 
@@ -80,7 +80,7 @@ class TestStringObfFinder(TestCase):
 
     @slow_test
     def test_find_obfuscated_strings_28ce9d(self):
-        # type 3 string obfuscation
+        # - type 3 string obfuscation
         bin_path = os.path.join(
             binaries_base, "x86_64", "windows", "28ce9dfc983d8489242743635c792d3fc53a45c96316b5854301f6fa514df55e.sys"
         )
@@ -98,7 +98,7 @@ class TestStringObfFinder(TestCase):
 
     @slow_test
     def test_find_obfuscated_strings_dd5640(self):
-        # type 3 string obfuscation
+        # - type 3 string obfuscation
         bin_path = os.path.join(
             binaries_base, "x86_64", "windows", "dd56403d14ffe220a645a964a19f8b488e200b84ae5a414b0c020b561ae40880.sys"
         )

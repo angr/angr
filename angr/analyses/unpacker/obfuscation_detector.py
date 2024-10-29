@@ -1,4 +1,3 @@
-# noqa: F841
 from __future__ import annotations
 import logging
 
@@ -94,7 +93,7 @@ class ObfuscationDetector(Analysis):
         if popf_ctr > cfg_node_count * 0.002:
             high_popf = True
         if not is_x86 or clc_ctr > cfg_node_count * 0.002:
-            high_clc = True
+            high_clc = True  # noqa: F841
 
         if high_scc_node_edge_ratio and high_pushf and high_popf:
             return "vmprotect"
