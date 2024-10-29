@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict, OrderedDict
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 from collections.abc import Generator
 import operator
 import logging
