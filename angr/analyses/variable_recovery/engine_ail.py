@@ -109,7 +109,7 @@ class SimEngineVRAIL(
             return self._top(expr.bits)
 
     def _handle_expr_VEXCCallExpression(self, expr):
-        for arg in expr.args:
+        for arg in expr.operands:
             self._expr(arg)
         return self._top(expr.bits)
 
@@ -351,7 +351,7 @@ class SimEngineVRAIL(
                     else typeconsts.Pointer32(typeconsts.TopType())
                 )
             else:
-                ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
+                ty = typeconsts.int_type(expr.bits)
             v = claripy.BVV(expr.value, expr.bits)
         r = RichR(v, typevar=ty)
         codeloc = self._codeloc()
