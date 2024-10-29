@@ -285,11 +285,11 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # call the function
-            callable = self.project.factory.callable(
+            func_call = self.project.factory.callable(
                 func.addr, concrete_only=True, cc=func.calling_convention, prototype=func.prototype
             )
             try:
-                callable(*args)
+                func_call(*args)
             except AngrCallableMultistateError:
                 _l.debug(
                     "State branching encountered during string deobfuscation. Skip the call at %#x.",
@@ -306,8 +306,8 @@ class StringObfuscationFinder(Analysis):
             # dump the decrypted string!
             output_addr = args[desc.string_output_arg_idx]
             length = args[desc.string_length_arg_idx].concrete_value if desc.string_length_arg_idx is not None else 256
-            output_str = callable.result_state.solver.eval(
-                callable.result_state.memory.load(output_addr, size=length),
+            output_str = func_call.result_state.solver.eval(
+                func_call.result_state.memory.load(output_addr, size=length),
                 cast_to=bytes,
             )
             if desc.string_null_terminating and b"\x00" in output_str:
@@ -455,7 +455,9 @@ class StringObfuscationFinder(Analysis):
 
         return type2_candidates
 
-    def _analyze_type2(self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]) -> set:
+    def _analyze_type2(
+        self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]
+    ) -> set:  # pylint:disable=unused-argument
         """
         Analyze Type 2 string deobfuscation functions, determine the following information:
 
@@ -549,7 +551,8 @@ class StringObfuscationFinder(Analysis):
             # take a look at the content
             try:
                 dec = self.project.analyses.Decompiler(func, cfg=cfg)
-            except Exception:  # catch all exceptions
+            except Exception:  # pylint:disable=broad-exception-caught
+                # catch all exceptions
                 continue
             if dec.codegen is None:
                 continue
@@ -582,7 +585,9 @@ class StringObfuscationFinder(Analysis):
 
         return type3_functions
 
-    def _analyze_type3(self, func_addr: int, desc: StringDeobFuncDescriptor) -> dict[int, bytes]:
+    def _analyze_type3(
+        self, func_addr: int, desc: StringDeobFuncDescriptor
+    ) -> dict[int, bytes]:  # pylint:disable=unused-argument
         """
         Analyze Type 3 string deobfuscation functions, determine the following information:
 
