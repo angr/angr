@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict, OrderedDict
-from typing import Any
+from typing import Any, Callable
 from collections.abc import Generator
 import operator
 import logging
@@ -80,17 +80,17 @@ _INVERSE_OPERATIONS = {
 #
 
 
-def _op_with_unified_size(op, conv, operand0, operand1):
+def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int):
     # ensure operand1 is of the same size as operand0
     if isinstance(operand1, ailment.Expr.Const):
         # amazing - we do the easy thing here
-        return op(conv(operand0, nobool=True), operand1.value)
+        return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
     if operand1.bits == operand0.bits:
-        return op(conv(operand0, nobool=True), conv(operand1))
+        return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, ins_addr=ins_addr))
     # extension is required
     assert operand1.bits < operand0.bits
     operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
-    return op(conv(operand0, nobool=True), conv(operand1, nobool=True))
+    return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
 
 
 def _dummy_bvs(condition, condition_mapping, name_suffix=""):
@@ -106,62 +106,94 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
 
 
 _ail2claripy_op_mapping = {
-    "LogicalAnd": lambda expr, conv, _: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
-    "LogicalOr": lambda expr, conv, _: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CmpEQ": lambda expr, conv, _: conv(expr.operands[0]) == conv(expr.operands[1]),
-    "CmpNE": lambda expr, conv, _: conv(expr.operands[0]) != conv(expr.operands[1]),
-    "CmpLE": lambda expr, conv, _: conv(expr.operands[0]) <= conv(expr.operands[1]),
-    "CmpLEs": lambda expr, conv, _: claripy.SLE(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CmpLT": lambda expr, conv, _: conv(expr.operands[0]) < conv(expr.operands[1]),
-    "CmpLTs": lambda expr, conv, _: claripy.SLT(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CmpGE": lambda expr, conv, _: conv(expr.operands[0]) >= conv(expr.operands[1]),
-    "CmpGEs": lambda expr, conv, _: claripy.SGE(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CmpGT": lambda expr, conv, _: conv(expr.operands[0]) > conv(expr.operands[1]),
-    "CmpGTs": lambda expr, conv, _: claripy.SGT(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CasCmpEQ": lambda expr, conv, _: conv(expr.operands[0]) == conv(expr.operands[1]),
-    "CasCmpNE": lambda expr, conv, _: conv(expr.operands[0]) != conv(expr.operands[1]),
-    "CasCmpLE": lambda expr, conv, _: conv(expr.operands[0]) <= conv(expr.operands[1]),
-    "CasCmpLEs": lambda expr, conv, _: claripy.SLE(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CasCmpLT": lambda expr, conv, _: conv(expr.operands[0]) < conv(expr.operands[1]),
-    "CasCmpLTs": lambda expr, conv, _: claripy.SLT(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CasCmpGE": lambda expr, conv, _: conv(expr.operands[0]) >= conv(expr.operands[1]),
-    "CasCmpGEs": lambda expr, conv, _: claripy.SGE(conv(expr.operands[0]), conv(expr.operands[1])),
-    "CasCmpGT": lambda expr, conv, _: conv(expr.operands[0]) > conv(expr.operands[1]),
-    "CasCmpGTs": lambda expr, conv, _: claripy.SGT(conv(expr.operands[0]), conv(expr.operands[1])),
-    "Add": lambda expr, conv, _: conv(expr.operands[0], nobool=True) + conv(expr.operands[1], nobool=True),
-    "Sub": lambda expr, conv, _: conv(expr.operands[0], nobool=True) - conv(expr.operands[1], nobool=True),
-    "Mul": lambda expr, conv, _: conv(expr.operands[0], nobool=True) * conv(expr.operands[1], nobool=True),
-    "Div": lambda expr, conv, _: conv(expr.operands[0], nobool=True) / conv(expr.operands[1], nobool=True),
-    "Mod": lambda expr, conv, _: conv(expr.operands[0], nobool=True) % conv(expr.operands[1], nobool=True),
-    "Not": lambda expr, conv, _: claripy.Not(conv(expr.operand)),
-    "Neg": lambda expr, conv, _: -conv(expr.operand),
-    "BitwiseNeg": lambda expr, conv, _: ~conv(expr.operand),
-    "Xor": lambda expr, conv, _: conv(expr.operands[0], nobool=True) ^ conv(expr.operands[1], nobool=True),
-    "And": lambda expr, conv, _: conv(expr.operands[0], nobool=True) & conv(expr.operands[1], nobool=True),
-    "Or": lambda expr, conv, _: conv(expr.operands[0], nobool=True) | conv(expr.operands[1], nobool=True),
-    "Shr": lambda expr, conv, _: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
-    "Shl": lambda expr, conv, _: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
-    "Sar": lambda expr, conv, _: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
-    "Concat": lambda expr, conv, _: claripy.Concat(*[conv(operand) for operand in expr.operands]),
+    "LogicalAnd": lambda expr, conv, _, ia: claripy.And(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "LogicalOr": lambda expr, conv, _, ia: claripy.Or(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) == conv(expr.operands[1], ins_addr=ia),
+    "CmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) != conv(expr.operands[1], ins_addr=ia),
+    "CmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) <= conv(expr.operands[1], ins_addr=ia),
+    "CmpLEs": lambda expr, conv, _, ia: claripy.SLE(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) < conv(expr.operands[1], ins_addr=ia),
+    "CmpLTs": lambda expr, conv, _, ia: claripy.SLT(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) >= conv(expr.operands[1], ins_addr=ia),
+    "CmpGEs": lambda expr, conv, _, ia: claripy.SGE(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) > conv(expr.operands[1], ins_addr=ia),
+    "CmpGTs": lambda expr, conv, _, ia: claripy.SGT(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CasCmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) == conv(expr.operands[1], ins_addr=ia),
+    "CasCmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) != conv(expr.operands[1], ins_addr=ia),
+    "CasCmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) <= conv(expr.operands[1], ins_addr=ia),
+    "CasCmpLEs": lambda expr, conv, _, ia: claripy.SLE(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CasCmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) < conv(expr.operands[1], ins_addr=ia),
+    "CasCmpLTs": lambda expr, conv, _, ia: claripy.SLT(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CasCmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) >= conv(expr.operands[1], ins_addr=ia),
+    "CasCmpGEs": lambda expr, conv, _, ia: claripy.SGE(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "CasCmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) > conv(expr.operands[1], ins_addr=ia),
+    "CasCmpGTs": lambda expr, conv, _, ia: claripy.SGT(
+        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+    ),
+    "Add": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    + conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Sub": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    - conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Mul": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    * conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Div": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    / conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Mod": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    % conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Not": lambda expr, conv, _, ia: claripy.Not(conv(expr.operand, ins_addr=ia)),
+    "Neg": lambda expr, conv, _, ia: -conv(expr.operand, ins_addr=ia),
+    "BitwiseNeg": lambda expr, conv, _, ia: ~conv(expr.operand, ins_addr=ia),
+    "Xor": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    ^ conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "And": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    & conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Or": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    | conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "Shr": lambda expr, conv, _, ia: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1], ia),
+    "Shl": lambda expr, conv, _, ia: _op_with_unified_size(
+        operator.lshift, conv, expr.operands[0], expr.operands[1], ia
+    ),
+    "Sar": lambda expr, conv, _, ia: _op_with_unified_size(
+        operator.rshift, conv, expr.operands[0], expr.operands[1], ia
+    ),
+    "Concat": lambda expr, conv, _, ia: claripy.Concat(*[conv(operand, ins_addr=ia) for operand in expr.operands]),
     # There are no corresponding claripy operations for the following operations
-    "DivMod": lambda expr, _, m: _dummy_bvs(expr, m),
-    "CmpF": lambda expr, _, m: _dummy_bvs(expr, m),
-    "Mull": lambda expr, _, m: _dummy_bvs(expr, m),
-    "Mulls": lambda expr, _, m: _dummy_bvs(expr, m),
-    "Reinterpret": lambda expr, _, m: _dummy_bvs(expr, m),
-    "Rol": lambda expr, _, m: _dummy_bvs(expr, m),
-    "Ror": lambda expr, _, m: _dummy_bvs(expr, m),
-    "LogicalXor": lambda expr, _, m: _dummy_bvs(expr, m),
-    "Carry": lambda expr, _, m: _dummy_bvs(expr, m),
-    "SCarry": lambda expr, _, m: _dummy_bvs(expr, m),
-    "SBorrow": lambda expr, _, m: _dummy_bvs(expr, m),
-    "ExpCmpNE": lambda expr, _, m: _dummy_bools(expr, m),
-    "CmpORD": lambda expr, _, m: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
-    "GetMSBs": lambda expr, _, m: _dummy_bvs(expr, m),
-    "InterleaveLOV": lambda expr, _, m: _dummy_bvs(expr, m),
-    "InterleaveHIV": lambda expr, _, m: _dummy_bvs(expr, m),
+    "DivMod": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "CmpF": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Mull": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Mulls": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Reinterpret": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Rol": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Ror": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "LogicalXor": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Carry": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "SCarry": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "SBorrow": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "ExpCmpNE": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "CmpORD": lambda expr, _, m, *args: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
+    "GetMSBs": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "InterleaveLOV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "InterleaveHIV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     # catch-all
-    "_DUMMY_": lambda expr, _, m: _dummy_bvs(expr, m),
+    "_DUMMY_": lambda expr, _, m, *args: _dummy_bvs(expr, m),
 }
 
 #
@@ -610,6 +642,7 @@ class ConditionProcessor:
                     ),
                     False,
                 ),
+                ins_addr=dst_block.addr,
             )
 
         if type(src_block) is ConditionalBreakNode:
@@ -638,10 +671,10 @@ class ConditionProcessor:
             if isinstance(last_stmt.target, ailment.Expr.Const):
                 return claripy.true()
             # indirect jump
-            target_ast = self.claripy_ast_from_ail_condition(last_stmt.target)
+            target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.ins_addr)
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
-            bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition)
+            bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition, ins_addr=last_stmt.ins_addr)
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             return claripy.Not(bool_var)
@@ -766,7 +799,7 @@ class ConditionProcessor:
             f"Condition variable {cond} has an unsupported operator {cond.op}. Consider implementing."
         )
 
-    def claripy_ast_from_ail_condition(self, condition, nobool: bool = False) -> claripy.ast.Bool:
+    def claripy_ast_from_ail_condition(self, condition, nobool: bool = False, *, ins_addr: int = 0) -> claripy.ast.Bool:
         # Unpack a condition all the way to the leaves
         if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
@@ -782,22 +815,24 @@ class ConditionProcessor:
             # does it have a variable associated?
             if condition.variable is not None:
                 var = claripy.BVS(
-                    f"ailexpr_{condition!r}-{condition.variable.ident}-{condition.ins_addr:x}",
+                    f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
                     condition.bits,
                     explicit_name=True,
                 )
             else:
-                var = claripy.BVS(f"ailexpr_{condition!r}-{condition.idx}", condition.bits, explicit_name=True)
+                var = claripy.BVS(
+                    f"ailexpr_{condition!r}-{condition.idx}-{ins_addr:x}", condition.bits, explicit_name=True
+                )
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.Convert):
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
             if condition.to_bits == 1:
-                var_ = self.claripy_ast_from_ail_condition(condition.operands[0])
+                var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
                 name = "ailcond_Conv(%d->%d, %d)" % (condition.from_bits, condition.to_bits, hash(var_))
                 var = claripy.BoolS(name, explicit_name=True)
             else:
-                var_ = self.claripy_ast_from_ail_condition(condition.operands[0])
+                var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
                 name = "ailexpr_Conv(%d->%d, %d)" % (condition.from_bits, condition.to_bits, hash(var_))
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
@@ -840,7 +875,7 @@ class ConditionProcessor:
                 condition.verbose_op,
             )
             lambda_expr = _ail2claripy_op_mapping["_DUMMY_"]
-        r = lambda_expr(condition, self.claripy_ast_from_ail_condition, self._condition_mapping)
+        r = lambda_expr(condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr)
 
         if isinstance(r, claripy.ast.Bool) and nobool:
             r = claripy.BVS(f"ailexpr_from_bool_{r!r}", 1, explicit_name=True)
