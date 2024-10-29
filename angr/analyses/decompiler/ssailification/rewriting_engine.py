@@ -525,7 +525,7 @@ class SimEngineSSARewriting(
             **expr.tags,
         )
 
-    def _get_full_reg_vvar(self, reg_offset: int, size: int) -> VirtualVariable:
+    def _get_full_reg_vvar(self, reg_offset: int, size: int, ins_addr: int | None = None) -> VirtualVariable:
         base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch, size=size)
         if (
             base_off not in self.state.registers
@@ -534,13 +534,16 @@ class SimEngineSSARewriting(
         ):
             # somehow it's never defined before...
             _l.debug("Creating a new virtual variable for an undefined register (%d [%d]).", base_off, base_size)
+            tags = {}
+            if ins_addr is not None:
+                tags["ins_addr"] = ins_addr
             vvar = VirtualVariable(
                 self.ail_manager.next_atom(),
                 self.next_vvar_id(),
                 base_size * self.arch.byte_width,
                 category=VirtualVariableCategory.REGISTER,
                 oident=base_off,
-                # FIXME: tags
+                **tags,
             )
             self.state.registers[base_off][base_size] = vvar
             return vvar
@@ -628,7 +631,11 @@ class SimEngineSSARewriting(
 
         # no good size available
         # get the full register, then extract from there
-        vvar = self._get_full_reg_vvar(reg_expr.reg_offset, reg_expr.size)
+        vvar = self._get_full_reg_vvar(
+            reg_expr.reg_offset,
+            reg_expr.size,
+            ins_addr=reg_expr.ins_addr,
+        )
         # extract
         shift_amount = Const(
             self.ail_manager.next_atom(),

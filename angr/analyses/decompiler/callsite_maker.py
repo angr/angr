@@ -157,7 +157,15 @@ class CallSiteMaker(Analysis):
                         )
                         args.append(vvar_use)
                     else:
-                        args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
+                        reg = Expr.Register(
+                            self._atom_idx(),
+                            None,
+                            offset,
+                            size * 8,
+                            reg_name=arg_loc.reg_name,
+                            ins_addr=last_stmt.ins_addr,
+                        )
+                        args.append(reg)
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
                     _, the_arg = self._resolve_stack_argument(call_stmt, arg_loc)

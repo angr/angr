@@ -3887,6 +3887,17 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         # we are good if decompiling this function does not raise any exception
 
+    def test_conflicting_load_exprs_causing_unsat_blocks(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions[0x1400035A0]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("wcscat(") == 6
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,6 +48,7 @@ class ReturnMaker(AILGraphWalker):
                         reg[0],
                         ret_val.size * self.arch.byte_width,
                         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
+                        ins_addr=stmt.ins_addr,
                     )
                 )
             else:

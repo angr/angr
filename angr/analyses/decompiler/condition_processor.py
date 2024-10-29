@@ -782,7 +782,9 @@ class ConditionProcessor:
             # does it have a variable associated?
             if condition.variable is not None:
                 var = claripy.BVS(
-                    f"ailexpr_{condition!r}-{condition.variable.ident}", condition.bits, explicit_name=True
+                    f"ailexpr_{condition!r}-{condition.variable.ident}-{condition.ins_addr:x}",
+                    condition.bits,
+                    explicit_name=True,
                 )
             else:
                 var = claripy.BVS(f"ailexpr_{condition!r}-{condition.idx}", condition.bits, explicit_name=True)
