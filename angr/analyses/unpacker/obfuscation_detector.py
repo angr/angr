@@ -1,10 +1,11 @@
+# noqa: F841
 from __future__ import annotations
 import logging
 
 import networkx
 
+from angr.analyses.analysis import Analysis, AnalysesHub
 from angr.knowledge_plugins.cfg import CFGModel
-from ..analysis import Analysis, AnalysesHub
 
 _l = logging.getLogger(__name__)
 

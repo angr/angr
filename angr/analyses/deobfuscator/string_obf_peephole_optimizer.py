@@ -19,7 +19,7 @@ class StringObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
     expr_classes = (Call,)
 
     def optimize(self, expr: Call, **kwargs):
-        if isinstance(expr.target, Const) and (
+        if isinstance(expr.target, Const) and (  # noqa: SIM102
             expr.target.value in self.kb.obfuscations.type1_string_loader_candidates
             or expr.target.value in self.kb.obfuscations.type2_string_loader_candidates
         ):

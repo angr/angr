@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 import math
 import logging
 
+from angr.analyses.analysis import Analysis, AnalysesHub
 from angr.knowledge_plugins.cfg import CFGModel
-from ..analysis import Analysis, AnalysesHub
 
 
 if TYPE_CHECKING:
@@ -46,9 +46,8 @@ class PackingDetector(Analysis):
         last_known_section: Section | None = None
         for node in sorted(self._cfg.nodes(), key=lambda n: n.addr):
             section = None
-            if last_known_section is not None:
-                if last_known_section.contains_addr(node.addr):
-                    section = last_known_section
+            if last_known_section is not None and last_known_section.contains_addr(node.addr):
+                section = last_known_section
             if section is None:
                 section = self.project.loader.find_section_containing(node.addr)
                 if section is None:
@@ -107,9 +106,8 @@ class PackingDetector(Analysis):
                     if region_end >= section.vaddr + section.memsize:
                         # move on to the next section
                         break
-                    if last_end < region_start:
-                        if region_start - last_end > self.region_size_threshold:
-                            uncovered_regions.append((last_end, region_start))
+                    if last_end < region_start and region_start - last_end > self.region_size_threshold:
+                        uncovered_regions.append((last_end, region_start))
                     i += 1
                     last_end = max(last_end, region_end)
                 idx = i

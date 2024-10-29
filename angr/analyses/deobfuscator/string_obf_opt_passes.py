@@ -123,14 +123,11 @@ class StringObfType3Rewriter(OptimizationPass):
             statements = [stmt for stmt in statements if not self._stmt_sets_win64_reg_arg(stmt)]
 
         # return the new block
-        new_block = block.copy(statements=statements)
-        return new_block
+        return block.copy(statements=statements)
 
     @staticmethod
     def _stmt_sets_win64_reg_arg(stmt) -> bool:
-        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register) and stmt.dst.reg_offset in WIN64_REG_ARGS:
-            return True
-        return False
+        return isinstance(stmt, Assignment) and isinstance(stmt.dst, Register) and stmt.dst.reg_offset in WIN64_REG_ARGS
 
 
 register_optimization_pass(StringObfType3Rewriter, presets=["fast", "full"])

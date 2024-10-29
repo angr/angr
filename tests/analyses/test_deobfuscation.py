@@ -10,7 +10,7 @@ import os.path
 
 import angr
 
-from ..common import bin_location, skip
+from tests.common import bin_location, skip
 
 
 class TestDeobfuscation(TestCase):
