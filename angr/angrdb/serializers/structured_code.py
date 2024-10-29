@@ -60,6 +60,7 @@ class StructuredCodeManagerSerializer:
                 stmt_comments=stmt_comments,
                 const_formats=const_formats,
                 ite_exprs=ite_exprs,
+                errors="\n\n\n".join(cache.errors),
                 # configuration=configuration,
             )
             session.add(db_code)
@@ -118,6 +119,7 @@ class StructuredCodeManagerSerializer:
             cache = DecompilationCache(db_code.func_addr)
             cache.codegen = dummy_codegen
             cache.ite_exprs = ite_exprs
+            cache.errors = db_code.errors.split("\n\n\n")
             manager[(db_code.func_addr, db_code.flavor)] = cache
 
         return manager

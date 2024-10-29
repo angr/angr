@@ -42,6 +42,7 @@ class KnowledgeBase:
     types: TypesStore
     propagations: PropagationManager
     xrefs: XRefManager
+    decompilations: StructuredCodeManager
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
