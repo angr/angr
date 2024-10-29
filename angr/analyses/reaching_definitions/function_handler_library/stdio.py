@@ -197,6 +197,11 @@ def handle_printf(
             buf_data = state.get_values(buf_atoms)
             if buf_data is not None:
                 buf_data = buf_data.extract(0, len(buf_data) // 8 - 1, archinfo.Endness.BE)
+            else:
+                top_val = state.top(state.arch.bits)
+                for defn in state.get_definitions(atom):
+                    top_val = state.annotate_with_def(top_val, defn)
+                buf_data = MultiValues(top_val)
         elif fmt == "%u":
             buf_atoms = atom
             buf_data = state.get_concrete_value(buf_atoms)
@@ -217,7 +222,9 @@ def handle_printf(
         else:
             _l.warning("Unimplemented printf format string %s", fmt)
             buf_atoms = set()
-            buf_data = None
+            top_val = state.top(state.arch.bits)
+            buf_data = MultiValues(top_val)
+
         if result is not None and buf_data is not None:
             result = result.concat(buf_data)
         source_atoms.update(buf_atoms)
