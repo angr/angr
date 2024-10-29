@@ -51,5 +51,4 @@ class TestAPIObfFinder(TestCase):
 
 
 if __name__ == "__main__":
-    # main()
-    TestAPIObfFinder().test_smoketest()
+    main()
