@@ -5,7 +5,7 @@ from ailment.expression import VirtualVariable
 from ailment.statement import Assignment
 
 from angr.analyses import Analysis, register_analysis
-from angr.utils.ssa import is_phi_assignment, VVarUsesCollector
+from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
 
 
 class SLivenessModel:
@@ -85,8 +85,8 @@ class SLivenessAnalysis(Analysis):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     live.discard(stmt.dst.varid)
 
-                r, phi_expr = is_phi_assignment(stmt)
-                if r:
+                phi_expr = phi_assignment_get_src(stmt)
+                if phi_expr is not None:
                     for src, vvar in phi_expr.src_and_vvars:
                         if src not in live_in_by_pred:
                             live_in_by_pred[src] = live.copy()

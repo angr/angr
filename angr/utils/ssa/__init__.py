@@ -178,10 +178,14 @@ def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
     return False
 
 
-def is_phi_assignment(stmt: Statement) -> tuple[bool, Phi | None]:
+def is_phi_assignment(stmt: Statement) -> bool:
+    return isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
+
+
+def phi_assignment_get_src(stmt: Statement) -> Phi | None:
     if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
-        return True, stmt.src
-    return False, None
+        return stmt.src
+    return None
 
 
 __all__ = (
@@ -190,6 +194,7 @@ __all__ = (
     "get_vvar_uselocs",
     "is_const_assignment",
     "is_phi_assignment",
+    "phi_assignment_get_src",
     "is_const_and_vvar_assignment",
     "is_const_vvar_load_assignment",
     "is_const_vvar_load_dirty_assignment",
