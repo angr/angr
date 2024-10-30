@@ -1654,7 +1654,7 @@ class SimCCAMD64WindowsSyscall(SimCCSyscall):
 class SimCCARM(SimCC):
     ARG_REGS = ["r0", "r1", "r2", "r3"]
     FP_ARG_REGS = []  # regular arg regs are used as fp arg regs
-    CALLER_SAVED_REGS = []
+    CALLER_SAVED_REGS = ["r0", "r1", "r2", "r3"]
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r0", 4)
     OVERFLOW_RETURN_VAL = SimRegArg("r1", 4)

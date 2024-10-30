@@ -1043,6 +1043,7 @@ class Clinic(Analysis):
                                 reg_name=self.project.arch.translate_register_name(
                                     ret_reg_offset, size=self.project.arch.bits
                                 ),
+                                **target.tags,
                             )
                             call_stmt = ailment.Stmt.Call(
                                 None,

@@ -4,7 +4,7 @@ import contextlib
 from collections import defaultdict
 
 from ailment.block import Block
-from ailment.expression import Const, VirtualVariable, VirtualVariableCategory, StackBaseOffset
+from ailment.expression import Const, VirtualVariable, VirtualVariableCategory, StackBaseOffset, Load, Convert
 from ailment.statement import Assignment, Store, Return, Jump
 
 from angr.knowledge_plugins.functions import Function
@@ -21,6 +21,7 @@ from angr.utils.ssa import (
     is_const_vvar_tmp_assignment,
     get_tmp_uselocs,
     get_tmp_deflocs,
+    phi_assignment_get_src,
 )
 
 
@@ -129,8 +130,8 @@ class SPropagatorAnalysis(Analysis):
                     replacements[useloc][vvar_at_use] = v
                 continue
 
-            r, v = is_phi_assignment(stmt)
-            if r:
+            v = phi_assignment_get_src(stmt)
+            if v is not None:
                 src_varids = {vvar.varid if vvar is not None else None for _, vvar in v.src_and_vvars}
                 if None not in src_varids and all(varid in const_vvars for varid in src_varids):
                     src_values = {
@@ -182,6 +183,31 @@ class SPropagatorAnalysis(Analysis):
                         # this vvar is used once if we exclude its uses at ret sites or jump sites. we can propagate it
                         for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                             replacements[vvar_useloc][vvar_used] = stmt.src
+                        continue
+
+                # special logic for global variables: if it's used once or multiple times, and the variable is never
+                # updated before it's used, we will propagate the load
+                if isinstance(stmt, Assignment):
+                    stmt_src = stmt.src
+                    # unpack conversions
+                    while isinstance(stmt_src, Convert):
+                        stmt_src = stmt_src.operand
+                    if isinstance(stmt_src, Load) and isinstance(stmt_src.addr, Const):
+                        gv_updated = False
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                            gv_updated |= self.is_global_variable_updated(
+                                self.func_graph,
+                                blocks,
+                                vvar.varid,
+                                stmt_src.addr.value,
+                                stmt_src.size,
+                                defloc,
+                                vvar_useloc,
+                            )
+                        if not gv_updated:
+                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                replacements[vvar_useloc][vvar_used] = stmt.src
+                            continue
 
         for vvar_id, uselocs in vvar_uselocs.items():
             vvar = next(iter(uselocs))[0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
@@ -256,6 +282,51 @@ class SPropagatorAnalysis(Analysis):
                                 continue
 
         self.model.replacements = replacements
+
+    @staticmethod
+    def is_global_variable_updated(
+        func_graph, block_dict, varid: int, gv_addr: int, gv_size: int, defloc: CodeLocation, useloc: CodeLocation
+    ) -> bool:
+        defblock = block_dict[(defloc.block_addr, defloc.block_idx)]
+        useblock = block_dict[(useloc.block_addr, useloc.block_idx)]
+
+        # traverse a graph slice from the def block to the use block and check if the global variable is updated
+        seen = {defblock}
+        queue = [defblock]
+        while queue:
+            block = queue.pop(0)
+
+            start_stmt_idx = defloc.stmt_idx if block is defblock else 0  # inclusive
+            end_stmt_idx = useloc.stmt_idx if block is useblock else len(block.statements)  # exclusive
+
+            for idx in range(start_stmt_idx, end_stmt_idx):
+                stmt = block.statements[idx]
+                if isinstance(stmt, Store) and isinstance(stmt.addr, Const):
+                    store_addr = stmt.addr.value
+                    store_size = stmt.size
+                    if gv_addr <= store_addr < gv_addr + gv_size or store_addr <= gv_addr < store_addr + store_size:
+                        return True
+
+            if block is useblock:
+                continue
+
+            for succ in func_graph.successors(block):
+                if succ not in seen:
+                    abort_path = False
+                    for stmt in succ.statements:
+                        if is_phi_assignment(stmt) and any(
+                            vvar.varid == varid for _, vvar in stmt.src.src_and_vvars if vvar is not None
+                        ):
+                            # the virtual variable is no longer live after this point
+                            abort_path = True
+                            break
+                    if abort_path:
+                        continue
+
+                    seen.add(succ)
+                    queue.append(succ)
+
+        return False
 
 
 register_analysis(SPropagatorAnalysis, "SPropagator")
