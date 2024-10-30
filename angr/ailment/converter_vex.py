@@ -767,7 +767,7 @@ class VEXIRSBConverter(Converter):
                 vex_stmt_idx=DEFAULT_STATEMENT,
             )
             fp_ret_reg_offset = manager.arch.fp_ret_offset
-            if fp_ret_reg_offset is not None and fp_ret_reg_offset != ret_expr:
+            if fp_ret_reg_offset is not None and fp_ret_reg_offset != ret_reg_offset:
                 fp_ret_expr = Register(
                     manager.next_atom(),
                     None,
