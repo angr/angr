@@ -2012,7 +2012,7 @@ class TestDecompiler(unittest.TestCase):
         m = re.search(r"[*(]*v(\d+)\)*=[^=;]*input_seek_errno[^=;]*;", condensed)
         assert m is not None
         v_input_seed_errno = m.group(1)
-        assert re.search(r"v" + v_input_seed_errno + "=__errno_location\(\);", condensed)
+        assert re.search(r"v" + v_input_seed_errno + r"=__errno_location\(\);", condensed)
 
     @structuring_algo("sailr")
     def test_decompiling_dd_iwrite(self, decompiler_options=None):
