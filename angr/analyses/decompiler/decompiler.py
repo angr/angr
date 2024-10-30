@@ -146,6 +146,15 @@ class Decompiler(Analysis):
                     self.kb.decompilations[self.func.addr] = DecompilationCache(self.func.addr)
                 for error in self.errors:
                     self.kb.decompilations[self.func.addr].errors.append(error.format())
+                with self._resilience():
+                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.")
+                    if preset != DECOMPILATION_PRESETS["basic"]:
+                        self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
+                            self.project.arch, self.project.simos.name
+                        )
+                        self._decompile()
+                        for error in self.errors:
+                            self.kb.decompilations[self.func.addr].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         a, b = self._cache_parameters, cache.parameters
