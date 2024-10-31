@@ -95,6 +95,20 @@ class SimplifierAILEngine(
         return ailment.statement.Jump(stmt.idx, target, **stmt.tags)
 
     def _handle_stmt_ConditionalJump(self, stmt):  # pylint: disable=no-self-use
+        condition = self._expr(stmt.condition)
+        iftrue = self._expr(stmt.true_target)
+        iffalse = self._expr(stmt.false_target)
+
+        if (condition, iftrue, iffalse) != (stmt.condition, stmt.true_target, stmt.false_target):
+            return ailment.statement.ConditionalJump(
+                stmt.idx,
+                condition,
+                iftrue,
+                iffalse,
+                true_target_idx=stmt.true_target_idx,
+                false_target_idx=stmt.false_target_idx,
+                **stmt.tags,
+            )
         return stmt
 
     def _handle_stmt_Call(self, stmt):
@@ -134,6 +148,9 @@ class SimplifierAILEngine(
         return stmt
 
     def _handle_stmt_DirtyStatement(self, stmt):
+        expr = self._expr(stmt.dirty)
+        if expr != stmt.dirty:
+            return ailment.statement.DirtyStatement(stmt.idx, expr, **stmt.tags)
         return stmt
 
     def _handle_stmt_Label(self, stmt):
@@ -304,116 +321,102 @@ class SimplifierAILEngine(
     def _handle_expr_BasePointerOffset(self, expr):
         return expr
 
-    def _handle_unop_Not(self, expr):
+    def _handle_unop_Default(self, expr):
+        operand = self._expr(expr.operand)
+        if operand != expr.operand:
+            return ailment.expression.UnaryOp(
+                expr.idx, expr.op, operand, variable=expr.variable, variable_offset=expr.variable_offset, **expr.tags
+            )
         return expr
 
-    def _handle_unop_Neg(self, expr):
+    _handle_unop_Not = _handle_unop_Default
+    _handle_unop_Neg = _handle_unop_Default
+    _handle_unop_BitwiseNeg = _handle_unop_Default
+    _handle_unop_Reference = _handle_unop_Default
+    _handle_unop_Dereference = _handle_unop_Default
+
+    def _handle_binop_Default(self, expr):
+        lhs = self._expr(expr.operands[0])
+        rhs = self._expr(expr.operands[1])
+        if (lhs, rhs) != tuple(expr.operands):
+            return ailment.expression.BinaryOp(
+                expr.idx,
+                expr.op,
+                (lhs, rhs),
+                expr.signed,
+                variable=expr.variable,
+                variable_offset=expr.variable_offset,
+                bits=expr.bits,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                vector_count=expr.vector_count,
+                vector_size=expr.vector_size,
+                **expr.tags,
+            )
         return expr
 
-    def _handle_unop_BitwiseNeg(self, expr):
-        return expr
+    _handle_binop_Add = _handle_binop_Default
 
-    def _handle_unop_Reference(self, expr):
-        return expr
+    _handle_binop_AddF = _handle_binop_Default
 
-    def _handle_unop_Dereference(self, expr):
-        return expr
+    _handle_binop_AddV = _handle_binop_Default
 
-    def _handle_binop_Add(self, expr):
-        return expr
+    _handle_binop_Sub = _handle_binop_Default
 
-    def _handle_binop_AddF(self, expr):
-        return expr
+    _handle_binop_SubF = _handle_binop_Default
 
-    def _handle_binop_AddV(self, expr):
-        return expr
+    _handle_binop_MulF = _handle_binop_Default
 
-    def _handle_binop_Sub(self, expr):
-        return expr
+    _handle_binop_MulV = _handle_binop_Default
 
-    def _handle_binop_SubF(self, expr):
-        return expr
+    _handle_binop_Div = _handle_binop_Default
 
-    def _handle_binop_MulF(self, expr):
-        return expr
+    _handle_binop_DivF = _handle_binop_Default
 
-    def _handle_binop_MulV(self, expr):
-        return expr
+    _handle_binop_Mod = _handle_binop_Default
 
-    def _handle_binop_Div(self, expr):
-        return expr
+    _handle_binop_Xor = _handle_binop_Default
 
-    def _handle_binop_DivF(self, expr):
-        return expr
+    _handle_binop_And = _handle_binop_Default
 
-    def _handle_binop_Mod(self, expr):
-        return expr
+    _handle_binop_Or = _handle_binop_Default
 
-    def _handle_binop_Xor(self, expr):
-        return expr
+    _handle_binop_LogicalAnd = _handle_binop_Default
 
-    def _handle_binop_And(self, expr):
-        return expr
+    _handle_binop_LogicalOr = _handle_binop_Default
 
-    def _handle_binop_Or(self, expr):
-        return expr
+    _handle_binop_Shl = _handle_binop_Default
 
-    def _handle_binop_LogicalAnd(self, expr):
-        return expr
+    _handle_binop_Shr = _handle_binop_Default
 
-    def _handle_binop_LogicalOr(self, expr):
-        return expr
+    _handle_binop_Sar = _handle_binop_Default
 
-    def _handle_binop_Shl(self, expr):
-        return expr
+    _handle_binop_CmpF = _handle_binop_Default
 
-    def _handle_binop_Shr(self, expr):
-        return expr
+    _handle_binop_CmpEQ = _handle_binop_Default
 
-    def _handle_binop_Sar(self, expr):
-        return expr
+    _handle_binop_CmpNE = _handle_binop_Default
 
-    def _handle_binop_CmpF(self, expr):
-        return expr
+    _handle_binop_CmpLT = _handle_binop_Default
 
-    def _handle_binop_CmpEQ(self, expr):
-        return expr
+    _handle_binop_CmpLE = _handle_binop_Default
 
-    def _handle_binop_CmpNE(self, expr):
-        return expr
+    _handle_binop_CmpGT = _handle_binop_Default
 
-    def _handle_binop_CmpLT(self, expr):
-        return expr
+    _handle_binop_CmpGE = _handle_binop_Default
 
-    def _handle_binop_CmpLE(self, expr):
-        return expr
+    _handle_binop_Concat = _handle_binop_Default
 
-    def _handle_binop_CmpGT(self, expr):
-        return expr
+    _handle_binop_Ror = _handle_binop_Default
 
-    def _handle_binop_CmpGE(self, expr):
-        return expr
+    _handle_binop_Rol = _handle_binop_Default
 
-    def _handle_binop_Concat(self, expr):
-        return expr
+    _handle_binop_Carry = _handle_binop_Default
 
-    def _handle_binop_Ror(self, expr):
-        return expr
+    _handle_binop_SCarry = _handle_binop_Default
 
-    def _handle_binop_Rol(self, expr):
-        return expr
+    _handle_binop_SBorrow = _handle_binop_Default
 
-    def _handle_binop_Carry(self, expr):
-        return expr
+    _handle_binop_InterleaveLOV = _handle_binop_Default
 
-    def _handle_binop_SCarry(self, expr):
-        return expr
-
-    def _handle_binop_SBorrow(self, expr):
-        return expr
-
-    def _handle_binop_InterleaveLOV(self, expr):
-        return expr
-
-    def _handle_binop_InterleaveHIV(self, expr):
-        return expr
+    _handle_binop_InterleaveHIV = _handle_binop_Default

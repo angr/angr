@@ -26,14 +26,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
         def_to_loc=None,
         loc_to_defs=None,
         stackvars: bool = False,
-        tmps: bool = False,
+        use_tmps: bool = False,
     ):
         super().__init__(project)
         self.simos = simos
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
-        self.tmps = tmps
+        self.use_tmps = use_tmps
 
         self.def_to_loc = def_to_loc if def_to_loc is not None else []
         self.loc_to_defs = loc_to_defs if loc_to_defs is not None else OrderedDict()
@@ -108,10 +108,17 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     def _handle_stmt_Dummy(self, stmt):
         pass
 
-    _handle_stmt_DirtyStatement = _handle_stmt_Dummy
-    _handle_stmt_Jump = _handle_stmt_Dummy
+    def _handle_stmt_DirtyStatement(self, stmt):
+        self._expr(stmt.dirty)
+
+    def _handle_stmt_Jump(self, stmt):
+        self._expr(stmt.target)
+
     _handle_stmt_Label = _handle_stmt_Dummy
-    _handle_stmt_Return = _handle_stmt_Dummy
+
+    def _handle_stmt_Return(self, stmt):
+        for expr in stmt.ret_exprs:
+            self._expr(expr)
 
     def _handle_expr_Register(self, expr: Register):
         base_offset = get_reg_offset_base(expr.reg_offset, self.arch)
@@ -125,8 +132,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
 
             self.state.live_registers.add(base_offset)
 
-    def _handle_Tmp(self, expr: Tmp):
-        if self.tmps:
+    def _handle_expr_Tmp(self, expr: Tmp):
+        if self.use_tmps:
             codeloc = self._codeloc()
             self.def_to_loc.append((expr, codeloc))
             if codeloc not in self.loc_to_defs:
@@ -221,4 +228,3 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_expr_StackBaseOffset = _handle_Dummy
     _handle_expr_BasePointerOffset = _handle_Dummy
     _handle_expr_Call = _handle_Dummy
-    _handle_expr_Tmp = _handle_Dummy

@@ -1,11 +1,9 @@
 from __future__ import annotations
-from typing import Any
 import logging
 
 import ailment
 
 from angr.analyses import ForwardAnalysis
-from angr.analyses.forward_analysis.visitors.graph import NodeType
 from angr.analyses.forward_analysis import FunctionGraphVisitor
 from .traversal_engine import SimEngineSSATraversal
 from .traversal_state import TraversalState
@@ -14,7 +12,7 @@ from .traversal_state import TraversalState
 l = logging.getLogger(__name__)
 
 
-class TraversalAnalysis(ForwardAnalysis[None, NodeType, object, object]):
+class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, tuple[int, int]]):
     """
     TraversalAnalysis traverses the AIL graph and collects definitions.
     """
@@ -36,10 +34,10 @@ class TraversalAnalysis(ForwardAnalysis[None, NodeType, object, object]):
             sp_tracker=sp_tracker,
             bp_as_gpr=bp_as_gpr,
             stackvars=self._stackvars,
-            tmps=self._tmps,
+            use_tmps=self._tmps,
         )
 
-        self._visited_blocks: set[Any] = set()
+        self._visited_blocks: set[tuple[int, int]] = set()
 
         self._analyze()
 

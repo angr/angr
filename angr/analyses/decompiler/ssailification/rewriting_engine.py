@@ -272,7 +272,7 @@ class SimEngineSSARewriting(
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | None:
         return self._replace_use_reg(expr)
 
-    def _handle_Tmp(self, expr: Tmp) -> VirtualVariable | None:
+    def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         return (
             self._replace_use_tmp(self.block.addr, self.block.idx, self.stmt_idx, expr) if self.rewrite_tmps else None
         )
@@ -433,9 +433,6 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
-        return None
-
-    def _handle_expr_Tmp(self, expr):
         return None
 
     def _handle_expr_VirtualVariable(self, expr):
