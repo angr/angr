@@ -404,7 +404,7 @@ class SimEngineLightVEX(
         except (UnsupportedIROpError, SimOperationError):
             simop = None
 
-        if simop is not None and simop.op_attrs.get("conversion", None):
+        if simop is not None and "Reinterp" not in expr.op and simop.op_attrs.get("conversion", None):
             return self._handle_conversion(simop._from_size, simop._to_size, simop.is_signed, expr.args[0])
 
         if once(expr.op) and self.l is not None:

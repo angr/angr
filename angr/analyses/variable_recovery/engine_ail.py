@@ -359,14 +359,6 @@ class SimEngineVRAIL(
         self._reference(r, codeloc)
         return r
 
-    def _handle_expr_BinaryOp(self, expr):
-        r = super()._handle_expr_BinaryOp(expr)
-        if self._is_top(r):
-            # make sure we descend
-            self._expr(expr.operands[0])
-            self._expr(expr.operands[1])
-        return r
-
     def _handle_expr_Convert(self, expr: ailment.Expr.Convert):
         r = self._expr(expr.operand)
         typevar = None
@@ -477,12 +469,12 @@ class SimEngineVRAIL(
     def _handle_binop_Mul(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1)
-        compute = r0.data + r1.data  # type: ignore
 
         result_size = arg0.bits
         if r0.data.concrete or r1.data.concrete:
             # constants
             result_size = arg0.bits
+            compute = r0.data * r1.data  # type: ignore
             return RichR(compute, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
         r = self.state.top(expr.bits)

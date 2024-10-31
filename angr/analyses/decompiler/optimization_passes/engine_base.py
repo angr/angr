@@ -96,8 +96,8 @@ class SimplifierAILEngine(
 
     def _handle_stmt_ConditionalJump(self, stmt):  # pylint: disable=no-self-use
         condition = self._expr(stmt.condition)
-        iftrue = self._expr(stmt.true_target)
-        iffalse = self._expr(stmt.false_target)
+        iftrue = self._expr(stmt.true_target) if stmt.true_target is not None else None
+        iffalse = self._expr(stmt.false_target) if stmt.false_target is not None else None
 
         if (condition, iftrue, iffalse) != (stmt.condition, stmt.true_target, stmt.false_target):
             return ailment.statement.ConditionalJump(
