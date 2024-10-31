@@ -35,7 +35,6 @@ class KnowledgeBase:
 
     functions: FunctionManager
     variables: VariableManager
-    structured_code: StructuredCodeManager
     defs: KeyDefinitionManager
     cfgs: CFGManager
     _project: Project

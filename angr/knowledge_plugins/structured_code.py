@@ -60,4 +60,4 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         raise NotImplementedError
 
 
-KnowledgeBasePlugin.register_default("structured_code", StructuredCodeManager)
+KnowledgeBasePlugin.register_default("decompilations", StructuredCodeManager)

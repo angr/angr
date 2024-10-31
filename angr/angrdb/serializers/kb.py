@@ -16,7 +16,7 @@ class KnowledgeBaseSerializer:
     """
 
     @staticmethod
-    def dump(session, kb):
+    def dump(session, kb: KnowledgeBase):
         """
 
         :param session:             The database session object.
@@ -40,7 +40,7 @@ class KnowledgeBaseSerializer:
         CommentsSerializer.dump(session, db_kb, kb.comments)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
-        StructuredCodeManagerSerializer.dump(session, db_kb, kb.structured_code)
+        StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
 
     @staticmethod
     def load(session, project, name):
@@ -89,7 +89,7 @@ class KnowledgeBaseSerializer:
         # Load structured code
         structured_code = StructuredCodeManagerSerializer.load(session, db_kb, kb)
         if structured_code is not None:
-            kb.structured_code = structured_code
+            kb.decompilations = structured_code
 
         if cfg_model is not None:
             # CFG may not exist for all knowledge bases
