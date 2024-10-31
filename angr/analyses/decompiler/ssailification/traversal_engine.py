@@ -90,6 +90,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
             if stmt.calling_convention is None
             else stmt.calling_convention
         )
+        assert cc is not None
         for reg_name in cc.CALLER_SAVED_REGS:
             reg_offset = self.arch.registers[reg_name][0]
             base_off = get_reg_offset_base(reg_offset, self.arch)

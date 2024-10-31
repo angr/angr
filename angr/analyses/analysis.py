@@ -257,7 +257,7 @@ class AnalysisFactory(Generic[A]):
         return wrapper  # type: ignore
 
     def __call__(self, *args, **kwargs) -> A:
-        fail_fast = kwargs.pop("fail_fast", False)
+        fail_fast = kwargs.pop("fail_fast", is_testing)
         kb = kwargs.pop("kb", self._project.kb)
         progress_callback = kwargs.pop("progress_callback", None)
         show_progressbar = kwargs.pop("show_progressbar", False)

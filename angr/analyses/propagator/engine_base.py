@@ -8,6 +8,7 @@ from angr.engines.light.engine import BlockType, DataType, StateType
 from angr.engines.light import SimEngineLight
 from angr.errors import SimEngineError
 from angr.project import Project
+from angr.misc.testing import is_testing
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
@@ -52,7 +53,7 @@ class SimEnginePropagatorBaseMixin(
         try:
             result_state = super().process(state, block=block, **kwargs)
         except SimEngineError as ex:
-            if kwargs.pop("fail_fast", False) is True:
+            if kwargs.pop("fail_fast", is_testing) is True:
                 raise ex
             l.error(ex, exc_info=True)
             result_state = state
