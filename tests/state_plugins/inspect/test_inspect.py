@@ -2,6 +2,8 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
 from __future__ import annotations
 
+from angr.project import load_shellcode
+
 __package__ = __package__ or "tests.state_plugins.inspect"  # pylint:disable=redefined-builtin
 
 import os
@@ -74,7 +76,8 @@ class TestInspect(unittest.TestCase):
         #   def act_constraints(state): #pylint:disable=unused-argument
         #       counts.constraints += 1
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        p = load_shellcode(b"\xc3", arch="AMD64")
+        s = SimState(project=p, mode="symbolic")
 
         s.inspect.b("mem_write", when=BP_AFTER, action=act_mem_write)
         assert counts.mem_write == 0
@@ -111,7 +114,7 @@ class TestInspect(unittest.TestCase):
         s.inspect.b("instruction", when=BP_AFTER, action=act_instruction, instruction=1000)
         irsb = pyvex.IRSB(b"\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
         irsb.pp()
-        InspectEngine(None).process(s, irsb=irsb)
+        InspectEngine(p).process(s, irsb=irsb)
         assert counts.reg_write == 7
         assert counts.reg_read == 2
         assert counts.tmp_write == 1
@@ -123,7 +126,7 @@ class TestInspect(unittest.TestCase):
         assert counts.mem_write == 1
         assert counts.mem_read == 4
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=p, mode="symbolic")
         s.inspect.b("symbolic_variable", when=BP_AFTER, action=act_variables)
         s.memory.load(0, 10)
         assert counts.variables == 1
@@ -145,7 +148,8 @@ class TestInspect(unittest.TestCase):
         def handle_exit_after(state):  # pylint:disable=unused-argument
             counts.exit_after += 1
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        p = load_shellcode(b"\xc3", arch="AMD64")
+        s = SimState(project=p, mode="symbolic")
         irsb = pyvex.IRSB(b"\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
 
         # break on exit
@@ -153,7 +157,7 @@ class TestInspect(unittest.TestCase):
         s.inspect.b("exit", BP_AFTER, action=handle_exit_after)
 
         # step it
-        succ = HeavyVEXMixin(None).process(s, irsb=irsb).flat_successors
+        succ = HeavyVEXMixin(p).process(s, irsb=irsb).flat_successors
 
         # check
         assert succ[0].solver.eval(succ[0].ip) == 0x41414141
@@ -175,7 +179,8 @@ class TestInspect(unittest.TestCase):
             syscall_name = state.inspect.syscall_name
             assert syscall_name == "close"
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        p = load_shellcode(b"\xc3", arch="AMD64")
+        s = SimState(project=p, mode="symbolic")
         # set up to call so syscall close
         s.regs.rax = 3
         s.regs.rdi = 2
@@ -186,7 +191,7 @@ class TestInspect(unittest.TestCase):
 
         # step it
         proc = SIM_PROCEDURES["posix"]["close"](is_syscall=True)
-        ProcedureEngine(None).process(s, procedure=proc, ret_to=s.ip)
+        ProcedureEngine(p).process(s, procedure=proc, ret_to=s.ip)
 
         # check counts
         assert counts.exit_before == 1

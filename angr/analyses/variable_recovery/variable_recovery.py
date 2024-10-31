@@ -8,6 +8,7 @@ import claripy
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses import AnalysesHub
 from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.functions.function import Function
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr import BP, BP_AFTER
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
@@ -32,13 +33,19 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         block_addr: int,
         analysis,
         arch: archinfo.Arch,
-        func,
+        func: Function,
         concrete_states,
         stack_region=None,
         register_region=None,
     ):
         super().__init__(
-            project, block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region
+            project=project,
+            block_addr=block_addr,
+            analysis=analysis,
+            arch=arch,
+            func=func,
+            stack_region=stack_region,
+            register_region=register_region,
         )
 
         self._concrete_states = concrete_states
@@ -64,7 +71,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         """
 
         for s in self.concrete_states:
-            if s.ip.concrete_value == addr:
+            if s.addr == addr:
                 return s
 
         return None

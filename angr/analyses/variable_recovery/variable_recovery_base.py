@@ -5,11 +5,13 @@ from collections.abc import Generator, Iterable
 import logging
 from collections import defaultdict
 
+import archinfo
 import claripy
 from claripy.annotation import Annotation
 from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
+from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
 from angr.utils.cowdict import DefaultChainMapCOW
 from angr.sim_variable import SimVariable
@@ -154,10 +156,10 @@ class VariableRecoveryStateBase:
 
     def __init__(
         self,
-        block_addr,
-        analysis,
-        arch,
-        func,
+        block_addr: int,
+        analysis: VariableRecoveryBase,
+        arch: archinfo.Arch,
+        func: Function,
         project: Project,
         stack_region=None,
         register_region=None,

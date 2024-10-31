@@ -14,7 +14,7 @@ from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from angr.knowledge_plugins.key_definitions.definition import A
 from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, MultiValues
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.knowledge_plugins.key_definitions import LiveDefinitions, DerefSize, Definition
 from angr.knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, ConstantSrc
@@ -421,7 +421,6 @@ class ReachingDefinitionsState:
                                 self._dep_graph.add_edge(used, def_)
 
                         cfg = self.analysis.project.kb.cfgs.get_most_accurate()
-                        assert cfg is not None
                         self._dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,
