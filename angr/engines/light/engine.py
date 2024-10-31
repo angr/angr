@@ -559,6 +559,8 @@ class SimEngineLightAIL(
             "BitwiseNeg": self._handle_unop_BitwiseNeg,
             "Reference": self._handle_unop_Reference,
             "Dereference": self._handle_unop_Dereference,
+            "Clz": self._handle_unop_Clz,
+            "Ctz": self._handle_unop_Ctz,
         }
         self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType]] = {
             "Add": self._handle_binop_Add,
@@ -567,6 +569,7 @@ class SimEngineLightAIL(
             "Sub": self._handle_binop_Sub,
             "SubF": self._handle_binop_SubF,
             "Mul": self._handle_binop_Mul,
+            "Mull": self._handle_binop_Mull,
             "MulF": self._handle_binop_MulF,
             "MulV": self._handle_binop_MulV,
             "Div": self._handle_binop_Div,
@@ -787,6 +790,9 @@ class SimEngineLightAIL(
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType: ...
 
     @abstractmethod
+    def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
     def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
 
     @abstractmethod
@@ -869,6 +875,12 @@ class SimEngineLightAIL(
 
     @abstractmethod
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+
+    @abstractmethod
+    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType: ...
 
 
 class SimEngineNostmtAIL(
@@ -987,6 +999,9 @@ class SimEngineNoexprAIL(
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType | None:
         pass
 
+    def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
     def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
         pass
 
@@ -1069,4 +1084,10 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+        pass
+
+    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType | None:
         pass

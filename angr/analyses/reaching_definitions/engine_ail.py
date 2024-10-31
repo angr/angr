@@ -555,11 +555,13 @@ class SimEngineRDAIL(
 
         return MultiValues(reinterpreted)
 
-    def _handle_unop_Reference(self, expr):
+    def _handle_unop_Default(self, expr):
         return self._top(expr.bits)
 
-    def _handle_unop_Dereference(self, expr):
-        return self._top(expr.bits)
+    _handle_unop_Reference = _handle_unop_Default
+    _handle_unop_Clz = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_Dereference = _handle_unop_Default
 
     def _handle_expr_ITE(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         _: MultiValues = self._expr(expr.cond)
@@ -696,6 +698,25 @@ class SimEngineRDAIL(
 
         if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
             r = MultiValues(offset_to_values={0: {expr0_v * expr1_v}})  # type: ignore
+        else:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _handle_binop_Mul(self, expr):
+        expr0 = self._expr(expr.operands[0])
+        expr1 = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
+            xt = expr.bits // 2
+            if expr.signed:
+                r = MultiValues(offset_to_values={0: {expr0_v.sign_extend(xt) * expr1_v.sign_extend(xt)}})  # type: ignore
+            else:
+                r = MultiValues(offset_to_values={0: {expr0_v.zero_extend(xt) * expr1_v.zero_extend(xt)}})  # type: ignore
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 

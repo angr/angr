@@ -669,7 +669,7 @@ class StringObfuscationFinder(Analysis):
         # take a look at the call-site block to see what registers are used
         reg_reads = set()
         for block_addr in blocks_at_callsite:
-            reg_collector = IRSBRegisterCollector()
+            reg_collector = IRSBRegisterCollector(self.project)
             reg_collector.process(state=None, block=self.project.factory.block(block_addr))
             reg_reads |= set(reg_collector.reg_reads)
 

@@ -390,6 +390,34 @@ class SimEngineVRVEX(
         return RichR(r)
 
     @binop_handler
+    def _handle_binop_MullS(self, expr):
+        r0, r1 = self._expr_pair(expr.args[0], expr.args[1])
+
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            xt = r0.data.size()
+            mul = r0.data.sign_extend(xt) * r1.data.sign_extend(xt)  # type: ignore
+            return RichR(mul)
+
+        result_size = expr.result_size(self.tyenv)
+        r = self.state.top(result_size)
+        return RichR(r)
+
+    @binop_handler
+    def _handle_binop_MullU(self, expr):
+        r0, r1 = self._expr_pair(expr.args[0], expr.args[1])
+
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            xt = r0.data.size()
+            mul = r0.data.zero_extend(xt) * r1.data.zero_extend(xt)  # type: ignore
+            return RichR(mul)
+
+        result_size = expr.result_size(self.tyenv)
+        r = self.state.top(result_size)
+        return RichR(r)
+
+    @binop_handler
     def _handle_binop_DivMod(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr_bv(arg0)

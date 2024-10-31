@@ -166,6 +166,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_binop_LogicalOr = _handle_binop_Default
     _handle_binop_Mod = _handle_binop_Default
     _handle_binop_Mul = _handle_binop_Default
+    _handle_binop_Mull = _handle_binop_Default
     _handle_binop_MulF = _handle_binop_Default
     _handle_binop_MulV = _handle_binop_Default
     _handle_binop_Or = _handle_binop_Default
@@ -190,6 +191,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_unop_Neg = _handle_unop_Default
     _handle_unop_Not = _handle_unop_Default
     _handle_unop_Reference = _handle_unop_Default
+    _handle_unop_Clz = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
 
     def _handle_expr_UnaryOp(self, expr):
         self._expr(expr.operand)

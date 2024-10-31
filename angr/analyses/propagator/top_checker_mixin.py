@@ -144,7 +144,8 @@ class ClaripyDataVEXEngineMixin(
     _handle_binop_Add = _vex_make_operation(lambda a, b: a + b)
     _handle_binop_Sub = _vex_make_operation(lambda a, b: a - b)
     _handle_binop_Mul = _vex_make_operation(lambda a, b: a * b)
-    _handle_binop_Div = _vex_make_operation(lambda a, b: a / b)
+    _handle_binop_MullS = _vex_make_operation(lambda a, b: a.sign_extend(a.size()) * b.sign_extend(b.size()))
+    _handle_binop_MullU = _vex_make_operation(lambda a, b: a.zero_extend(a.size()) * b.zero_extend(b.size()))
     _handle_binop_And = _vex_make_operation(lambda a, b: a & b)
     _handle_binop_Or = _vex_make_operation(lambda a, b: a | b)
     _handle_binop_Xor = _vex_make_operation(lambda a, b: a ^ b)
@@ -153,9 +154,25 @@ class ClaripyDataVEXEngineMixin(
     _handle_binop_Shr = _vex_make_shift_operation(claripy.LShR)
 
     @SimEngineLightVEX.binop_handler
+    def _handle_binop_Div(self, expr):
+        a, b = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
+        if self._is_top(a) or self._is_top(b) or (b == 0).is_true():
+            fullsize = get_type_size(get_op_retty(expr.op))
+            return self._top(fullsize)
+        return a // b
+
+    @SimEngineLightVEX.binop_handler
+    def _handle_binop_Mod(self, expr):
+        a, b = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
+        if self._is_top(a) or self._is_top(b) or (b == 0).is_true():
+            fullsize = get_type_size(get_op_retty(expr.op))
+            return self._top(fullsize)
+        return a % b
+
+    @SimEngineLightVEX.binop_handler
     def _handle_binop_DivMod(self, expr):
         a, b = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
-        if self._is_top(a) or self._is_top(b):
+        if self._is_top(a) or self._is_top(b) or (b == 0).is_true():
             fullsize = get_type_size(get_op_retty(expr.op))
             return self._top(fullsize)
 

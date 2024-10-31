@@ -313,9 +313,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
     def _handle_binop_Add(self, expr):
-        if len(expr.operands) != 2:
-            return super()._handle_binop_Add(expr)
-
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
 

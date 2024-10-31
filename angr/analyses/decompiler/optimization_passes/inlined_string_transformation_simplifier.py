@@ -1,6 +1,7 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use
 from __future__ import annotations
 from typing import Any
+from collections.abc import Callable
 from collections import defaultdict
 
 from archinfo import Endness
@@ -19,7 +20,7 @@ from ailment.expression import (
 from ailment.statement import ConditionalJump, Jump, Assignment
 import claripy
 
-from angr.engines.light import SimEngineNostmtAIL, SimEngineNoexprAIL
+from angr.engines.light import SimEngineNostmtAIL
 from angr.storage.memory_mixins import (
     SimpleInterfaceMixin,
     DefaultFillerMixin,
@@ -29,6 +30,19 @@ from angr.storage.memory_mixins import (
 from angr.code_location import CodeLocation
 from angr.errors import SimMemoryMissingError
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+
+def _make_binop(compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]):
+    def inner(self, expr: BinaryOp) -> claripy.ast.BV | None:
+        a, b = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if a is None or b is None:
+            return None
+        try:
+            return compute(a, b)
+        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
+            return None
+
+    return inner
 
 
 class FasterMemory(
@@ -61,12 +75,12 @@ class InlinedStringTransformationState:
     def _get_weakref(self):
         return self
 
-    def reg_store(self, reg: Register, value: claripy.ast.Bits) -> None:
+    def reg_store(self, reg: Register, value: claripy.ast.BV) -> None:
         self.registers.store(
             reg.reg_offset, value, size=value.size() // self.arch.byte_width, endness=str(self.arch.register_endness)
         )
 
-    def reg_load(self, reg: Register) -> claripy.ast.Bits | None:
+    def reg_load(self, reg: Register) -> claripy.ast.BV | None:
         try:
             return self.registers.load(
                 reg.reg_offset, size=reg.size, endness=self.arch.register_endness, fill_missing=False
@@ -94,7 +108,6 @@ class InlinedStringTransformationState:
 
 class InlinedStringTransformationAILEngine(
     SimEngineNostmtAIL[InlinedStringTransformationState, claripy.ast.BV | None, None, None],
-    SimEngineNoexprAIL[InlinedStringTransformationState, claripy.ast.BV, None, None],
 ):
     """
     A simple AIL execution engine
@@ -252,17 +265,31 @@ class InlinedStringTransformationAILEngine(
                 return self.state.vvar_load(vvar)
         return None
 
-    def _handle_Neg(self, expr: UnaryOp):
+    def _handle_unop_Neg(self, expr: UnaryOp):
         v = self._expr(expr.operand)
         if isinstance(v, claripy.ast.Bits):
             return -v
         return None
 
-    def _handle_BitwiseNeg(self, expr: UnaryOp):
+    def _handle_unop_Not(self, expr: UnaryOp):
         v = self._expr(expr.operand)
         if isinstance(v, claripy.ast.Bits):
             return ~v
         return None
+
+    def _handle_unop_BitwiseNeg(self, expr: UnaryOp):
+        v = self._expr(expr.operand)
+        if isinstance(v, claripy.ast.Bits):
+            return ~v
+        return None
+
+    def _handle_unop_Default(self, expr: UnaryOp):
+        return None
+
+    _handle_unop_Clz = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_Dereference = _handle_unop_Default
+    _handle_unop_Reference = _handle_unop_Default
 
     def _handle_expr_Convert(self, expr: Convert):
         v = self._expr(expr.operand)
@@ -317,6 +344,74 @@ class InlinedStringTransformationAILEngine(
 
     def _handle_expr_Call(self, expr):
         pass
+
+    def _handle_expr_BasePointerOffset(self, expr):
+        return None
+
+    def _handle_expr_DirtyExpression(self, expr):
+        return None
+
+    def _handle_expr_ITE(self, expr):
+        return None
+
+    def _handle_expr_MultiStatementExpression(self, expr):
+        return None
+
+    def _handle_expr_Reinterpret(self, expr):
+        return None
+
+    def _handle_expr_StackBaseOffset(self, expr):
+        return None
+
+    def _handle_expr_Tmp(self, expr):
+        return None
+
+    def _handle_expr_VEXCCallExpression(self, expr):
+        return None
+
+    def _handle_binop_Default(self, expr):
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+        return
+
+    _handle_binop_Add = _make_binop(lambda a, b: a + b)
+    _handle_binop_And = _make_binop(lambda a, b: a & b)
+    _handle_binop_Concat = _make_binop(lambda a, b: a.concat(b))
+    _handle_binop_Div = _make_binop(lambda a, b: a // b)
+    _handle_binop_LogicalAnd = _make_binop(lambda a, b: a & b)
+    _handle_binop_LogicalOr = _make_binop(lambda a, b: a | b)
+    _handle_binop_Mod = _make_binop(lambda a, b: a % b)
+    _handle_binop_Mul = _make_binop(lambda a, b: a * b)
+    _handle_binop_Or = _make_binop(lambda a, b: a | b)
+    _handle_binop_Rol = _make_binop(lambda a, b: claripy.RotateLeft(a, b))
+    _handle_binop_Ror = _make_binop(lambda a, b: claripy.RotateRight(a, b))
+    _handle_binop_Sar = _make_binop(lambda a, b: a >> b)
+    _handle_binop_Shl = _make_binop(lambda a, b: a << b)
+    _handle_binop_Shr = _make_binop(lambda a, b: a.LShR(b))
+    _handle_binop_Sub = _make_binop(lambda a, b: a - b)
+    _handle_binop_Xor = _make_binop(lambda a, b: a ^ b)
+
+    def _handle_binop_Mull(self, expr):
+        a, b = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if a is None or b is None:
+            return None
+        xt = a.size()
+        if expr.signed:
+            return a.sign_extend(xt) * b.sign_extend(xt)
+        return a.zero_extend(xt) * b.zero_extend(xt)
+
+    _handle_binop_AddF = _handle_binop_Default
+    _handle_binop_AddV = _handle_binop_Default
+    _handle_binop_Carry = _handle_binop_Default
+    _handle_binop_CmpF = _handle_binop_Default
+    _handle_binop_DivF = _handle_binop_Default
+    _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_InterleaveLOV = _handle_binop_Default
+    _handle_binop_MulF = _handle_binop_Default
+    _handle_binop_MulV = _handle_binop_Default
+    _handle_binop_SBorrow = _handle_binop_Default
+    _handle_binop_SCarry = _handle_binop_Default
+    _handle_binop_SubF = _handle_binop_Default
 
 
 class InlineStringTransformationDescriptor:

@@ -196,6 +196,14 @@ class SimplifierAILEngine(
             return ailment.expression.BinaryOp(expr.idx, "Mul", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
+    def _handle_binop_Mull(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
+            return ailment.expression.BinaryOp(expr.idx, "Mull", [operand_0, operand_1], expr.signed, **expr.tags)
+        return expr
+
     def _handle_expr_Convert(self, expr):
         operand_expr = self._expr(expr.operand)
 
@@ -334,6 +342,8 @@ class SimplifierAILEngine(
     _handle_unop_BitwiseNeg = _handle_unop_Default
     _handle_unop_Reference = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
+    _handle_unop_Clz = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
 
     def _handle_binop_Default(self, expr):
         lhs = self._expr(expr.operands[0])

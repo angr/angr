@@ -769,6 +769,7 @@ class SimEngineSSARewriting(
     _handle_binop_LogicalOr = _unreachable
     _handle_binop_Mod = _unreachable
     _handle_binop_Mul = _unreachable
+    _handle_binop_Mull = _unreachable
     _handle_binop_MulF = _unreachable
     _handle_binop_MulV = _unreachable
     _handle_binop_Or = _unreachable
@@ -789,3 +790,5 @@ class SimEngineSSARewriting(
     _handle_unop_Neg = _unreachable
     _handle_unop_Not = _unreachable
     _handle_unop_Reference = _unreachable
+    _handle_unop_Clz = _unreachable
+    _handle_unop_Ctz = _unreachable

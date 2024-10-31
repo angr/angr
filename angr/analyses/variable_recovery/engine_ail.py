@@ -819,3 +819,5 @@ class SimEngineVRAIL(
 
     _handle_unop_Reference = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
+    _handle_unop_Clz = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
