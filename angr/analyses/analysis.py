@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, TypeVar, Generic, cast
 from collections.abc import Callable
 from types import NoneType
 from itertools import chain
+from traceback import format_exception
 
 import logging
 import time
@@ -74,6 +75,11 @@ class AnalysisLogEntry:
             self.exc_traceback = None
 
         self.message = message
+
+    def format(self) -> str:
+        if self.exc_traceback is None:
+            return self.message
+        return "\n".join((*format_exception(self.exc_type, self.exc_value, self.exc_traceback), "", self.message))
 
     def __getstate__(self):
         return (
@@ -281,8 +287,8 @@ class Analysis:
     kb: KnowledgeBase
     _fail_fast: bool
     _name: str
-    errors = []
-    named_errors = defaultdict(list)
+    errors: list[AnalysisLogEntry] = []
+    named_errors: defaultdict[str, list[AnalysisLogEntry]] = defaultdict(list)
     _progress_callback = None
     _show_progressbar = False
     _progressbar = None

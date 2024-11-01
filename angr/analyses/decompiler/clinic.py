@@ -1043,6 +1043,7 @@ class Clinic(Analysis):
                                 reg_name=self.project.arch.translate_register_name(
                                     ret_reg_offset, size=self.project.arch.bits
                                 ),
+                                **target.tags,
                             )
                             call_stmt = ailment.Stmt.Call(
                                 None,
@@ -1812,7 +1813,7 @@ class Clinic(Analysis):
                 s = self.kb.custom_strings[expr.value]
                 expr.tags["reference_values"] = {
                     SimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(self.project.arch): s.decode(
-                        "ascii"
+                        "latin-1"
                     ),
                 }
             else:

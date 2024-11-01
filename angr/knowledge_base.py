@@ -35,13 +35,13 @@ class KnowledgeBase:
 
     functions: FunctionManager
     variables: VariableManager
-    structured_code: StructuredCodeManager
     defs: KeyDefinitionManager
     cfgs: CFGManager
     _project: Project
     types: TypesStore
     propagations: PropagationManager
     xrefs: XRefManager
+    decompilations: StructuredCodeManager
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:

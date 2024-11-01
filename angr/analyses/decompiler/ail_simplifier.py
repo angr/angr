@@ -872,6 +872,7 @@ class AILSimplifier(Analysis):
                         Const(None, None, eq.atom0.addr, self.project.arch.bits),
                         eq.atom0.size,
                         endness=self.project.arch.memory_endness,
+                        **eq.atom1.tags,
                     )
                 elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
                     if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:

@@ -7,6 +7,7 @@ from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCal
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 from angr.utils.ssa import get_reg_offset_base
 from angr.utils.orderedset import OrderedSet
+from angr.calling_conventions import default_cc
 from .traversal_state import TraversalState
 
 
@@ -23,6 +24,7 @@ class SimEngineSSATraversal(
     def __init__(
         self,
         arch,
+        simos,
         sp_tracker=None,
         bp_as_gpr: bool = False,
         def_to_loc=None,
@@ -33,6 +35,7 @@ class SimEngineSSATraversal(
         super().__init__()
 
         self.arch = arch
+        self.simos = simos
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
@@ -75,6 +78,18 @@ class SimEngineSSATraversal(
             self._expr(stmt.false_target)
 
     def _handle_Call(self, stmt: Call):
+
+        # kill caller-saved registers
+        cc = (
+            default_cc(self.arch.name, platform=self.simos.name if self.simos is not None else None)
+            if stmt.calling_convention is None
+            else stmt.calling_convention
+        )
+        for reg_name in cc.CALLER_SAVED_REGS:
+            reg_offset = self.arch.registers[reg_name][0]
+            base_off = get_reg_offset_base(reg_offset, self.arch)
+            self.state.live_registers.discard(base_off)
+
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             codeloc = self._codeloc()
             self.def_to_loc.append((stmt.ret_expr, codeloc))

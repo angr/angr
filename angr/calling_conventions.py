@@ -1061,7 +1061,9 @@ class SimCC:
         if isinstance(arg, claripy.ast.BV):
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
                 if len(arg) != ty.size:
-                    raise TypeError("Type mismatch: expected %s, got %d bits" % (ty, len(arg)))
+                    if arg.concrete:
+                        return claripy.BVV(arg.concrete_value, ty.size)
+                    raise TypeError("Type mismatch of symbolic data: expected %s, got %d bits" % (ty, len(arg)))
                 return arg
             if isinstance(ty, (SimTypeFloat)):
                 raise TypeError(
@@ -1652,7 +1654,7 @@ class SimCCAMD64WindowsSyscall(SimCCSyscall):
 class SimCCARM(SimCC):
     ARG_REGS = ["r0", "r1", "r2", "r3"]
     FP_ARG_REGS = []  # regular arg regs are used as fp arg regs
-    CALLER_SAVED_REGS = []
+    CALLER_SAVED_REGS = ["r0", "r1", "r2", "r3"]
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r0", 4)
     OVERFLOW_RETURN_VAL = SimRegArg("r1", 4)

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from sqlalchemy import Column, Integer, String, Boolean, BLOB, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, BLOB, TEXT, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -127,6 +127,7 @@ class DbStructuredCode(Base):
     configuration = Column(BLOB, nullable=True)
     const_formats = Column(BLOB, nullable=True)
     ite_exprs = Column(BLOB, nullable=True)
+    errors = Column(TEXT, nullable=True)
 
 
 class DbXRefs(Base):

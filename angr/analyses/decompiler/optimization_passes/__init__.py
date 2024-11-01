@@ -1,5 +1,6 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from archinfo import Arch
 
@@ -31,6 +32,10 @@ from .inlined_string_transformation_simplifier import InlinedStringTransformatio
 from .const_prop_reverter import ConstPropOptReverter
 from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.presets import DecompilationPreset
+
 
 # order matters!
 ALL_OPTIMIZATION_PASSES = [
@@ -88,8 +93,17 @@ def get_optimization_passes(arch, platform):
     return passes
 
 
-def register_optimization_pass(opt_pass):
+def register_optimization_pass(opt_pass, *, presets: list[str | DecompilationPreset] | None = None):
     ALL_OPTIMIZATION_PASSES.append(opt_pass)
+
+    if presets:
+        from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+
+        for preset in presets:
+            if isinstance(preset, str):
+                preset = DECOMPILATION_PRESETS[preset]  # intentionally raise a KeyError if the preset is not found
+            if opt_pass not in preset.opt_passes:
+                preset.opt_passes.append(opt_pass)
 
 
 __all__ = (

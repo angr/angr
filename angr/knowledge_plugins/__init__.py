@@ -17,7 +17,7 @@ from .structured_code import StructuredCodeManager
 from .types import TypesStore
 from .callsite_prototypes import CallsitePrototypes
 from .custom_strings import CustomStrings
-from .decompilation import DecompilationManager
+from .obfuscations import Obfuscations
 
 
 __all__ = (
@@ -39,5 +39,5 @@ __all__ = (
     "TypesStore",
     "CallsitePrototypes",
     "CustomStrings",
-    "DecompilationManager",
+    "Obfuscations",
 )

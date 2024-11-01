@@ -119,6 +119,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         self._ail_manager.next_atom(),
                         reg_bits,
                         src_and_vvars=[],  # back patch later
+                        ins_addr=node.addr,
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
@@ -126,6 +127,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         reg_bits,
                         VirtualVariableCategory.REGISTER,
                         oident=reg_offset,
+                        ins_addr=node.addr,
                     )
 
                 case "stack":
@@ -135,6 +137,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         self._ail_manager.next_atom(),
                         stack_size * self.project.arch.byte_width,
                         src_and_vvars=[],  # back patch later
+                        ins_addr=node.addr,
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
@@ -142,6 +145,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                         stack_size * self.project.arch.byte_width,
                         VirtualVariableCategory.STACK,
                         oident=stack_offset,
+                        ins_addr=node.addr,
                     )
                 case _:
                     raise NotImplementedError

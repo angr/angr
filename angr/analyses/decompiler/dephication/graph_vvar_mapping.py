@@ -290,8 +290,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         for stmt in dst_block.statements:
             if isinstance(stmt, Label):
                 continue
-            r, _ = is_phi_assignment(stmt)
-            if r:
+            if is_phi_assignment(stmt):
                 for src_, vvar in stmt.src.src_and_vvars:
                     if src_ == src and vvar is not None and vvar.varid == vvar_id:
                         return True

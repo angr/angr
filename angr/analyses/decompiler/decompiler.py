@@ -70,6 +70,7 @@ class Decompiler(Analysis):
         update_memory_data: bool = True,
         generate_code: bool = True,
         use_cache: bool = True,
+        expr_collapse_depth: int = 16,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -135,9 +136,25 @@ class Decompiler(Analysis):
         self.ail_graph: networkx.DiGraph | None = None
         self.vvar_id_start = None
         self._optimization_scratch: dict[str, Any] = {}
+        self.expr_collapse_depth = expr_collapse_depth
 
         if decompile:
-            self._decompile()
+            with self._resilience():
+                self._decompile()
+            if self.errors:
+                if (self.func.addr, self._flavor) not in self.kb.decompilations:
+                    self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
+                for error in self.errors:
+                    self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+                with self._resilience():
+                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.")
+                    if preset != DECOMPILATION_PRESETS["basic"]:
+                        self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
+                            self.project.arch, self.project.simos.name
+                        )
+                        self._decompile()
+                        for error in self.errors:
+                            self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         a, b = self._cache_parameters, cache.parameters
@@ -153,7 +170,7 @@ class Decompiler(Analysis):
 
         if self._cache_parameters is not None:
             try:
-                cache = self.kb.decompilations[self.func.addr]
+                cache = self.kb.decompilations[(self.func.addr, self._flavor)]
                 if not self._can_use_decompilation_cache(cache):
                     cache = None
             except KeyError:
@@ -333,6 +350,7 @@ class Decompiler(Analysis):
                 stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                 const_formats=old_codegen.const_formats if old_codegen is not None else None,
                 externs=clinic.externs,
+                binop_depth_cutoff=self.expr_collapse_depth,
                 **self.options_to_params(self.options_by_class["codegen"]),
             )
 
@@ -344,7 +362,7 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
-        self.kb.decompilations[self.func.addr] = self.cache
+        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(

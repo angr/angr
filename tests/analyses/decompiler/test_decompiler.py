@@ -990,7 +990,7 @@ class TestDecompiler(unittest.TestCase):
         )
         # kill the cache since variables to statements won't match any more - variables are re-discovered with the new
         # option.
-        p.kb.structured_code.cached.clear()
+        p.kb.decompilations.cached.clear()
         options = [(opt, True)] if not decompiler_options else [(opt, True), *decompiler_options]
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
@@ -2005,15 +2005,14 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
-        #         v1 = *((int *)&input_seek_errno);
-        #         if (v1 == 29)
+        #         if (*((int *)&input_seek_errno) == 29)
         #             return 1;
-        #         v2 = __errno_location();
-        #         *(v2) = v1;
-        m = re.search(r"v(\d+)=[^=;]*input_seek_errno[^=;]*;", condensed)
+        #         v1 = __errno_location();
+        #         *(v1) = *((int *)&input_seek_errno);
+        m = re.search(r"[*(]*v(\d+)\)*=[^=;]*input_seek_errno[^=;]*;", condensed)
         assert m is not None
         v_input_seed_errno = m.group(1)
-        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=v" + v_input_seed_errno + r";", condensed)
+        assert re.search(r"v" + v_input_seed_errno + r"=__errno_location\(\);", condensed)
 
     @structuring_algo("sailr")
     def test_decompiling_dd_iwrite(self, decompiler_options=None):
@@ -2999,9 +2998,16 @@ class TestDecompiler(unittest.TestCase):
             f, cfg=cfg.model, options=decompiler_options_0, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
+        # do
+        # {
+        #     v3 = fgetc(v2);
+        #     *(a0) = v3;
+        # } while (v3 == -1 && (v2 = *(&in_stream),
+        #                       v1 &= check_and_close(*(__errno_location())) & open_next_file(),
+        #                       *(&in_stream)));
         assert (
             re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*v\d+\)",
+                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ &= [^\n]*check_and_close\(\*\(__errno_location\(\)\)\)[^\n]+open_next_file\(\)",
                 dec.codegen.text,
             )
             is not None
@@ -3886,6 +3892,17 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         # we are good if decompiling this function does not raise any exception
+
+    def test_conflicting_load_exprs_causing_unsat_blocks(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions[0x1400035A0]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("wcscat(") == 6
 
 
 if __name__ == "__main__":
