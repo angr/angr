@@ -990,7 +990,7 @@ class TestDecompiler(unittest.TestCase):
         )
         # kill the cache since variables to statements won't match any more - variables are re-discovered with the new
         # option.
-        p.kb.structured_code.cached.clear()
+        p.kb.decompilations.cached.clear()
         options = [(opt, True)] if not decompiler_options else [(opt, True), *decompiler_options]
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."

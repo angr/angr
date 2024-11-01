@@ -5,6 +5,7 @@ import logging
 from sortedcontainers import SortedList
 
 from angr.analyses import Analysis, register_analysis
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 from angr.knowledge_plugins.functions.function import Function
 
@@ -30,7 +31,9 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         self.regenerate_text()
 
         if flavor is not None and self.text:
-            self.kb.structured_code[(function.addr, flavor)] = self
+            if (function.addr, flavor) not in self.kb.decompilations:
+                self.kb.decompilations[(function.addr, flavor)] = DecompilationCache(function.addr)
+            self.kb.decompilations[(function.addr, flavor)].codegen = self
 
     def regenerate_text(self):
         cache = {}

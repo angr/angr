@@ -142,10 +142,10 @@ class Decompiler(Analysis):
             with self._resilience():
                 self._decompile()
             if self.errors:
-                if self.func.addr not in self.kb.decompilations:
-                    self.kb.decompilations[self.func.addr] = DecompilationCache(self.func.addr)
+                if (self.func.addr, self._flavor) not in self.kb.decompilations:
+                    self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
                 for error in self.errors:
-                    self.kb.decompilations[self.func.addr].errors.append(error.format())
+                    self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
                 with self._resilience():
                     l.info("Decompilation failed for %s. Switching to basic preset and trying again.")
                     if preset != DECOMPILATION_PRESETS["basic"]:
@@ -154,7 +154,7 @@ class Decompiler(Analysis):
                         )
                         self._decompile()
                         for error in self.errors:
-                            self.kb.decompilations[self.func.addr].errors.append(error.format())
+                            self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         a, b = self._cache_parameters, cache.parameters
@@ -170,7 +170,7 @@ class Decompiler(Analysis):
 
         if self._cache_parameters is not None:
             try:
-                cache = self.kb.decompilations[self.func.addr]
+                cache = self.kb.decompilations[(self.func.addr, self._flavor)]
                 if not self._can_use_decompilation_cache(cache):
                     cache = None
             except KeyError:
@@ -362,7 +362,7 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
-        self.kb.decompilations[self.func.addr] = self.cache
+        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(

@@ -37,15 +37,15 @@ class StructuredCodeManagerSerializer:
             # TODO: Cache types
 
             expr_comments = None
-            if cache.codegen.expr_comments:
+            if cache.codegen is not None and cache.codegen.expr_comments:
                 expr_comments = json.dumps(cache.codegen.expr_comments).encode("utf-8")
 
             stmt_comments = None
-            if cache.codegen.stmt_comments:
+            if cache.codegen is not None and cache.codegen.stmt_comments:
                 stmt_comments = json.dumps(cache.codegen.stmt_comments).encode("utf-8")
 
             const_formats = None
-            if cache.codegen.const_formats:
+            if cache.codegen is not None and cache.codegen.const_formats:
                 const_formats = pickle.dumps(cache.codegen.const_formats)
 
             ite_exprs = None
