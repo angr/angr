@@ -993,7 +993,7 @@ class TestCfgfast(unittest.TestCase):
         func = cfg.kb.functions["_start"]
         assert len(func.block_addrs_set) == 2
         assert len(func.endpoints) == 1
-        assert func.endpoints[0].addr == 0x40400a
+        assert func.endpoints[0].addr == 0x40400A
 
 
 class TestCfgfastDataReferences(unittest.TestCase):
