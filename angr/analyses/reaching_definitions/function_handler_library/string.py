@@ -46,8 +46,8 @@ class LibcStringHandlers(FunctionHandler):
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_strncpy(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
-        n = state.get_concrete_value(data.args_atoms[1])
-        src_atom = state.deref(data.args_atoms[2], DerefSize.NULL_TERMINATE if n is None else n)
+        n = state.get_concrete_value(data.args_atoms[2])
+        src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE if n is None else n)
         src_str = state.get_values(src_atom)
         if src_str is not None:
             dst_atom = state.deref(data.args_atoms[0], len(src_str) // 8)
