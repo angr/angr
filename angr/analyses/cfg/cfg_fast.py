@@ -3309,7 +3309,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         # this is not a no-op block. Determine where nop instructions terminate.
                         insns = block.capstone.insns
                         if insns:
-                            nop_length = self._get_nop_length(insns)
+                            if (
+                                self.project.simos is not None
+                                and self.project.simos.name == "Win32"
+                                and insns[0].mnemonic == "mov"
+                            ):
+                                op0, op1 = insns[0].operands
+                                if op0.type == 1 and op1.type == 1 and op0.reg == op1.reg:
+                                    # hot-patch points on Windows DLLs
+                                    # https://devblogs.microsoft.com/oldnewthing/20110921-00/?p=9583
+                                    nop_length = None
+                            else:
+                                nop_length = self._get_nop_length(insns)
 
                     if nop_length is None or nop_length <= 0:
                         continue

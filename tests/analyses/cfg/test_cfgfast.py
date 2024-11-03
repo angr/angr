@@ -983,6 +983,18 @@ class TestCfgfast(unittest.TestCase):
         for block in cfg.kb.functions[0x42CDD0].blocks:
             assert block.addr < 0x42CE00
 
+    def test_windows_x86_driver_entry_hotpatch_points(self):
+        # a hot-patch instruction at the beginning of a function of a Windows x86 driver should be considered as part
+        # of the function instead of creating more functions.
+        path = os.path.join(test_location, "x86", "windows", "CorsairLLAccess32.sys")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        # make sure it is merged properly
+        func = cfg.kb.functions["_start"]
+        assert len(func.block_addrs_set) == 2
+        assert len(func.endpoints) == 1
+        assert func.endpoints[0].addr == 0x40400a
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
