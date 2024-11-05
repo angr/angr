@@ -174,11 +174,9 @@ if [[ "${#FILEPATH[@]}" -eq 0 ]]; then
   mapfile -t FILEPATH < <(
     gh pr list \
       -R "${REPO}" \
-      --json baseRefName \
       --json headRefName \
       --json files \
-      --jq ".[] | select(.baseRefName == \"main\" and
-                         .headRefName == \"$REF_HEAD\")
+      --jq ".[] | select(.headRefName == \"$REF_HEAD\")
                 | .files[].path"
   )
   printf "Selected changed files from PR: %s\n" "${#FILEPATH[@]}" >&2

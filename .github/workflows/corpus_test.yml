@@ -28,8 +28,48 @@ env:
   SNAPSHOT_GITHUB_REPO: "snapshots-0000"
 
 jobs:
+  precondition:
+    name: "Check that the dependent repositories exist and are operable."
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Install apt packages (when testing locally in act)
+        if: ${{ env.ACT }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bsdextrautils curl jq wget
+
+          sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name:
+        env:
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          # Check that the corpus repo is available.
+          gh repo list \
+            --json 'name' \
+            -q ".[] | select(.name == \"${CORPUS_GITHUB_REPO}\")" \
+            "${CORPUS_GITHUB_OWNER}"
+          # Check that the snapshot repo is available.
+          gh repo list \
+            --json 'name' \
+            -q ".[] | select(.name == \"${SNAPSHOT_GITHUB_REPO}\")" \
+            "${SNAPSHOT_GITHUB_OWNER}"
+          gh pr list \
+            --limit 1 \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
+
   build:
     name: "Download dependencies to a cached virtual environment."
+    needs: [precondition]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current repository
@@ -379,9 +419,9 @@ jobs:
 
           # XXX: Does the api pre-sort responses descending by order?
           url="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
-                 jq --arg title "$title" '.[] | select(.title == $title) | .html_url') | head -n 1"
+                 jq --arg title "$title" '.[] | select(.title == $title) | .html_url' | head -n 1)"
           number="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
-                    jq --arg title "$title" '.[] | select(.title == $title) | .number') | head -n 1"
+                    jq --arg title "$title" '.[] | select(.title == $title) | .number' | head -n 1)"
           if [[ -z "$url" ]]; then
             echo "Error: failed to create pull request in snapshots repository."
             exit 1
@@ -412,3 +452,13 @@ jobs:
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
             -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
+
+      - name: Merge the Snapshot Pull Request
+        if: github.event.pull_request.merged == true
+        env:
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          if [ -n "${number}" ]; then
+            gh pr merge --squash "${number}" \
+              -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
+          fi
