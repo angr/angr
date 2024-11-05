@@ -1113,17 +1113,15 @@ class ConditionProcessor:
         r1_with: claripy.ast.Bool,
     ) -> claripy.ast.Bool:
         if ast.op == "And":
-            return ast.make_like(
-                "And", (ConditionProcessor._replace_term_in_ast(arg, r0, r0_with, r1, r1_with) for arg in ast.args)
+            return claripy.And(
+                *(ConditionProcessor._replace_term_in_ast(arg, r0, r0_with, r1, r1_with) for arg in ast.args)
             )
         if ast.op == "Or":
-            return ast.make_like(
-                "Or", (ConditionProcessor._replace_term_in_ast(arg, r0, r0_with, r1, r1_with) for arg in ast.args)
+            return claripy.Or(
+                *(ConditionProcessor._replace_term_in_ast(arg, r0, r0_with, r1, r1_with) for arg in ast.args)
             )
         if ast.op == "Not":
-            return ast.make_like(
-                "Not", (ConditionProcessor._replace_term_in_ast(ast.args[0], r0, r0_with, r1, r1_with),)
-            )
+            return claripy.Not(ConditionProcessor._replace_term_in_ast(ast.args[0], r0, r0_with, r1, r1_with))
         if ast is r0:
             return r0_with
         if ast is r1:
