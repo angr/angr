@@ -1,8 +1,8 @@
+from __future__ import annotations
 import angr
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 import json
 import logging
-import os
 import re
 
 """
@@ -11,7 +11,7 @@ Invoke this test script with the `pytest --insta` switch to enable the snapshot 
 
 logging.basicConfig(level=logging.CRITICAL, force=True)
 
-SNAPSHOTS_REPO_BASE_URL = 'https://github.com/project-purcellville/snapshots-0000/'
+SNAPSHOTS_REPO_BASE_URL = "https://github.com/project-purcellville/snapshots-0000/"
 
 
 def analyze_binary(binary_path: str) -> dict:
@@ -47,8 +47,9 @@ def analyze_binary(binary_path: str) -> dict:
                 ],
             )
         except Exception as ex:
-            print(f'Exception decompiling "{func_key}()" in "{binary_path}":'
-                  f'\n{ex}\nContinuing with other functions.')
+            print(
+                f'Exception decompiling "{func_key}()" in "{binary_path}":' f"\n{ex}\nContinuing with other functions."
+            )
 
         if decomp.codegen:
             decompilation[func_key] = decomp.codegen.text
@@ -58,7 +59,7 @@ def analyze_binary(binary_path: str) -> dict:
     return decompilation
 
 
-def create_diffable_decompilation(decompiler_output: dict) -> str|None:
+def create_diffable_decompilation(decompiler_output: dict) -> str | None:
     """
     Convert the decompiler output `dict` into JSON, but also modify it to
     allow easy diffing (appending actual newlines '\n' to escaped newlines
@@ -66,9 +67,9 @@ def create_diffable_decompilation(decompiler_output: dict) -> str|None:
     """
     try:
         decompiler_json = json.dumps(decompiler_output)
-        decompiler_json_newlined = re.sub('\\\\n', '\\\\n\n', decompiler_json)
+        decompiler_json_newlined = re.sub("\\\\n", "\\\\n\n", decompiler_json)
     except Exception as ex:
-        print(f'Exception converting decompiler output to newlined-JSON:\n{ex}')
+        print(f"Exception converting decompiler output to newlined-JSON:\n{ex}")
         return None
     return decompiler_json_newlined
 
@@ -80,7 +81,7 @@ def pytest_insta_snapshot_name(binary: str) -> str:
     will *not* contain the decorations that `pytest-insta` uses, like its
     `"<test-name>__<case-name>__"` prefix and `"__<#>.<ext>"` suffix.
     """
-    return re.sub('/', '_', re.sub('^binaries/', '', binary)) + ".json.txt"
+    return re.sub("/", "_", re.sub("^binaries/", "", binary)) + ".json.txt"
 
 
 def test_decompilation(binary, snapshot):
@@ -106,7 +107,7 @@ def test_decompilation(binary, snapshot):
     decompilation = analyze_binary(binary)
     if not decompilation:
         # Message already emitted.
-        return False
+        return
 
     # Adds newlines after each newline literal '\\n'.
     diffable_decompilation = create_diffable_decompilation(decompilation)

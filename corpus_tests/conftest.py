@@ -1,7 +1,10 @@
+from __future__ import annotations
 import pytest
+
 
 def pytest_addoption(parser):
     parser.addoption("--binary", action="store", default="")
+
 
 @pytest.fixture
 def binary(request):
