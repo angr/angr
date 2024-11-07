@@ -1,4 +1,5 @@
 import ailment
+from ailment.expression import Op
 from ailment.tagged_object import TaggedObject
 from ailment.utils import stable_hash
 
@@ -114,3 +115,29 @@ class Struct(ailment.Expression):
 
     def likes(self, other):
         return type(self) is type(other) and self.type == other.type and (self.fields == other.fields)
+
+
+class Let(Op):
+    __slots__ = ("variant", "defs", "src", "bits")
+
+    def __init__(self, idx, variant, defs, src, **kwargs):
+        super().__init__(idx, depth=src.depth + 1, op="let", **kwargs)
+        self.variant = variant
+        self.defs = defs
+        self.src = src
+
+        self.bits = src.bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f"let {self.variant.name}(_) = {self.src}"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((self.variant, self.src))
+
+    def likes(self, other):
+        return type(self) is type(other) and self.variant == other.variant and self.src == other.src

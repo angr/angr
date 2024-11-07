@@ -17,6 +17,10 @@ from ..sim_type import (
 )
 
 
+def is_struct_or_enum_type(ty):
+    return isinstance(ty, RustSimStruct) or isinstance(ty, RustSimEnum)
+
+
 class RustSimType:
     def repr(self, name=None, full=0, memo=None, indent=0):
         raise NotImplementedError()
@@ -240,6 +244,12 @@ class RustSimStruct(RustSimType, SimStruct):
     def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
         SimStruct.__init__(self, fields, name, pack, align)
 
+    @property
+    def size(self):
+        if not self.fields:
+            return 0
+        return super().size
+
     def _with_arch(self, arch):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
@@ -418,26 +428,112 @@ class RustSimTypeBottom(RustSimType, SimTypeBottom):
     pass
 
 
-class RustSimEnum(RustSimStruct):
-    def __init__(self, variants, overlapping_discriminant=False):
-        assert len(variants) > 0
-        largest_struct = list(sorted(variants, key=lambda variant: variant.size, reverse=True))[0]
-        super().__init__(fields=largest_struct.fields, name=f"Enum")
+class EnumVariant:
+    def __init__(self, name, discriminant, associated_data):
+        self.name = name
+        self.discriminant = discriminant
+        self.associated_data: OrderedDict[SimType, str] = associated_data
+        self._type = None
 
+    @staticmethod
+    def from_no_data(name, discriminant):
+        return EnumVariant(name, discriminant, OrderedDict())
+
+    @staticmethod
+    def from_single_struct(name, discriminant, struct_type):
+        associated_data = OrderedDict([(struct_type, None)])
+        return EnumVariant(name, discriminant, associated_data)
+
+    @property
+    def has_associated_data(self):
+        return len(self.associated_data) > 0
+
+    @property
+    def size(self):
+        return sum(ty.size for ty in self.associated_data.keys()) if len(self.associated_data) else 0
+
+    @property
+    def type(self):
+        if not self._type:
+            offset = 0
+            fields = {}
+            for ty in self.associated_data.keys():
+                fields[f"field_{offset}"] = ty
+                offset += ty.size
+            self._type = RustSimStruct(fields, pack=True)
+        return self._type
+
+    def with_arch(self, arch):
+        new_associated_data = OrderedDict([(ty.with_arch(arch), name) for ty, name in self.associated_data])
+        return EnumVariant(self.name, self.discriminant, new_associated_data)
+
+    def __eq__(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.discriminant == other.discriminant
+            and self.associated_data == other.associated_data
+        )
+
+    def __hash__(self):
+        return hash((self.name, self.discriminant, tuple(self.associated_data)))
+
+
+class RustSimEnum(RustSimType, SimType):
+    def __init__(self, variants: List[EnumVariant], overlapping_discriminant=True):
+        super().__init__()
+        assert len(variants) > 0
         self.variants = variants
         self.overlapping_discriminant = overlapping_discriminant
+
+        self._size = max(variant.size for variant in self.variants)
 
     def copy(self):
         return RustSimEnum(self.variants, self.overlapping_discriminant).with_arch(self._arch)
 
     def _with_arch(self, arch):
-        if arch.name in self._arch_memo:
-            return self._arch_memo[arch.name]
-
-        out = RustSimEnum(self.variants, self.overlapping_discriminant)
-        out._arch = arch
-        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
-
-        self._arch_memo[arch.name] = out
-
+        out = RustSimEnum([variant.with_arch(arch) for variant in self.variants], self.overlapping_discriminant)
         return out
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        return "Enum"
+
+    def get_variant(self, discriminant) -> Optional[EnumVariant]:
+        for variant in self.variants:
+            if variant.discriminant == discriminant:
+                return variant
+        return None
+
+    def num_variants(self):
+        return len(self.variants)
+
+
+class RustSimTypeOption(RustSimEnum):
+    def __init__(self, data_type, none_discriminant, some_discriminant=None, overlapping_discriminant=True):
+        self.data_type = data_type
+        self.none_discriminant = none_discriminant
+        self.some_discriminant = some_discriminant
+        self.overlapping_discriminant = overlapping_discriminant
+
+        variants = [
+            EnumVariant.from_no_data("None", none_discriminant),
+            EnumVariant.from_single_struct("Some", some_discriminant, data_type),
+        ]
+        super().__init__(variants)
+
+    def copy(self):
+        return RustSimTypeOption(
+            self.data_type, self.none_discriminant, self.some_discriminant, self.overlapping_discriminant
+        ).with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        out = RustSimTypeOption(
+            self.data_type.with_arch(arch),
+            self.none_discriminant,
+            self.some_discriminant,
+            self.overlapping_discriminant,
+        )
+        return out
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        return f"Option<{self.data_type}>"

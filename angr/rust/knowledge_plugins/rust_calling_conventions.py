@@ -9,9 +9,11 @@ class RustCallingConventionModel:
         self.memory_writes = defaultdict(dict)
         self.callsite_memory_writes = defaultdict(dict)
         self.memory_reads = defaultdict(dict)
+        self.none_discriminant = None
         self.inferred_prototype = None
         self.clinic = None
         self.callsite_block = None
+        self.post_callsite_block = None
 
     def __str__(self):
         return pformat({"Inferred prototype: ": self.inferred_prototype}, indent=2)

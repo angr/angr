@@ -66,7 +66,7 @@ from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
 from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from ...rust.ailment.expression import Struct, Array
+from ...rust.ailment.expression import Struct, Array, Let
 from ...rust.typehoon.typehoon import RustTypehoon
 from .semantic_naming import SemanticNamingOrchestrator
 from ...rust.sim_type import RustSimTypeInt
@@ -2497,6 +2497,7 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.maddr)
             if expr.guard:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.guard)
+
         elif isinstance(expr, Struct):
             for field in expr.fields.values():
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, field)
@@ -2509,6 +2510,9 @@ class Clinic(Analysis):
             for _, vvar in expr.src_and_vvars:
                 if vvar is not None:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, vvar)
+
+        elif isinstance(expr, Let):
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.src)
 
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:

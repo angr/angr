@@ -2,11 +2,11 @@ import logging
 import traceback
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset, VirtualVariable, Phi, Tmp
-from ailment.statement import Store, Call, Statement
+from ailment.expression import BasePointerOffset, VirtualVariable, Phi, Tmp, Load
+from ailment.statement import Store, Call, Statement, ConditionalJump
 import networkx as nx
 
-from ..sim_type import RustSimEnum
+from ..sim_type import RustSimEnum, RustSimTypeOption
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from ..utils.ail_util import get_terminal_call
@@ -127,12 +127,49 @@ class FactsCollector(AILBlockWalker):
                         self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, vvar)
                         cur_offset += vvar.size
 
+    def collect_post_callsite_facts(self):
+        callsite_block = self.model.callsite_block
+        call = get_terminal_call(callsite_block)
+        post_callsite_block = self.model.post_callsite_block
+        if call.args and len(call.args):
+            arg0 = call.args[0]
+            if (
+                isinstance(arg0, BasePointerOffset)
+                and post_callsite_block.statements
+                and isinstance(post_callsite_block.statements[-1], ConditionalJump)
+            ):
+                jump = post_callsite_block.statements[-1]
+                cond = jump.condition
+                if (
+                    isinstance(cond, BinaryOp)
+                    and cond.op == "CmpEQ"
+                    and isinstance(cond.operands[0], Load)
+                    and isinstance(cond.operands[0].addr, BasePointerOffset)
+                    and cond.operands[0].addr.likes(arg0)
+                    and isinstance(cond.operands[1], Const)
+                ):
+                    self.model.none_discriminant = cond.operands[1].value
+
 
 class RustCallingConventionAnalysis(Analysis):
-    def __init__(self, func, callsite_block=None, depth=0, max_depth=1):
+    """
+    This analysis infer function prototype including struct return type and struct argument types
+    Function prototype is inferred based on collected facts from the callee function body and the caller function body
+
+    Facts collected from callee:
+    1. Memory writes to the first argument
+    2. Memory reads to all arguments
+
+    Facts collected from caller:
+    1. Initialization of function arguments at callsite (memory writes at callsite)
+    2. Uses of return value after callee is called
+    """
+
+    def __init__(self, func, callsite_block=None, post_callsite_block=None, depth=0, max_depth=1):
         self.func: Function = func
         self.model = RustCallingConventionModel()
         self.model.callsite_block = callsite_block
+        self.model.post_callsite_block = post_callsite_block
 
         self.depth = depth
         self.max_depth = max_depth
@@ -144,18 +181,21 @@ class RustCallingConventionAnalysis(Analysis):
                 l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
                 l.debug("".join(traceback.format_exception(e)))
 
-    def _merge_struct_types(self, struct_types) -> RustSimStruct | None:
-        """
-        Merge a list of struct types
-        If the types have different sizes, merge them into one enum type
-        """
+    def _decide_final_type(self, struct_types) -> RustSimStruct | RustSimEnum | None:
         if len(struct_types) == 0:
             return None
+
         sizes = {ty.size for ty in struct_types}
+
+        # Check if it's a struct
         if len(sizes) == 1:
             return next(iter(struct_types))
-        # TODO: Return an enum type
-        # return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))
+
+        # Check if it's an Option<T>
+        if self.model.none_discriminant is not None and len(sizes) == 2 and self.project.arch.bits in sizes:
+            struct_type = next(filter(lambda ty: ty.size != self.project.arch.bits, struct_types))
+            return RustSimTypeOption(struct_type, self.model.none_discriminant)
+
         return RustSimEnum(struct_types, False)
 
     def _infer_arg_type(self, arg_idx):
@@ -177,7 +217,7 @@ class RustCallingConventionAnalysis(Analysis):
                 ).with_arch(self.project.arch)
             )
 
-        final_ty = self._merge_struct_types(struct_types)
+        final_ty = self._decide_final_type(struct_types)
         if final_ty:
             final_ty = RustSimTypeReference(final_ty).with_arch(self.project.arch)
 
@@ -193,7 +233,7 @@ class RustCallingConventionAnalysis(Analysis):
             if (
                 arg_idx == 0
                 and isinstance(arg_type, RustSimTypeReference)
-                and isinstance(arg_type.pts_to, RustSimStruct)
+                and (isinstance(arg_type.pts_to, RustSimStruct) or isinstance(arg_type.pts_to, RustSimEnum))
             ):
                 is_arg0_ret_buf = True
             args.append(arg_type)
@@ -239,6 +279,7 @@ class RustCallingConventionAnalysis(Analysis):
         for block in self.clinic.graph.nodes:
             walker.walk(block)
         walker.collect_callsite_facts()
+        walker.collect_post_callsite_facts()
 
         prototype = self._infer_prototype()
 

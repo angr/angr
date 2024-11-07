@@ -3,8 +3,16 @@ from typing import Optional, List
 
 import archinfo
 from ailment import Block, Const
-from ailment.expression import Convert, VirtualVariable, Phi
-from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
+from ailment.expression import (
+    Convert,
+    VirtualVariable,
+    Phi,
+    Load,
+    BasePointerOffset,
+    StackBaseOffset,
+    VirtualVariableCategory,
+)
+from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment, Label
 from networkx import NetworkXError
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
@@ -38,6 +46,107 @@ class SRDAHelper:
             else:
                 return value
         return None
+
+
+class SSAVariableHelper:
+    def __init__(self, context: OptimizationPass):
+        self.context = context
+
+    def new_stack_vvar(self, dst_offset, bits, tags):
+        vvar_id = self.context.vvar_id_start
+        self.context.vvar_id_start += 1
+        vvar_bits = bits
+        vvar = VirtualVariable(
+            None,
+            vvar_id,
+            vvar_bits,
+            VirtualVariableCategory.STACK,
+            oident=dst_offset,
+            **tags,
+        )
+        return vvar
+
+
+class DFAHelper:
+    """
+    Data Flow Analysis Helper
+    """
+
+    def __init__(self):
+        pass
+
+    def extract_stack_data_flow(self, stmt):
+        dst_offset = None
+        src_offset = None
+        size = None
+        if isinstance(stmt, Assignment):
+            if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+                dst_offset = stmt.dst.stack_offset
+            if isinstance(stmt.src, VirtualVariable) and stmt.src.was_stack:
+                src_offset = stmt.src.stack_offset
+            elif isinstance(stmt.src, Load) and isinstance(stmt.src.addr, BasePointerOffset):
+                src_offset = stmt.src.addr.offset
+            size = stmt.src.size
+        return dst_offset, src_offset, size
+
+    def find_stack_data_flow(self, block, src_offset, size):
+        cur_size = 0
+        flows = []
+        stmts = []
+        distance = set()
+        for stmt in block.statements:
+            stmt_dst_offset, stmt_src_offset, stmt_size = self.extract_stack_data_flow(stmt)
+            if stmt_dst_offset is not None and stmt_src_offset is not None and stmt_size is not None:
+                if src_offset + size > stmt_src_offset >= src_offset:
+                    cur_size += stmt_size
+                    flows.append((stmt_dst_offset, stmt_src_offset, stmt_size))
+                    stmts.append(stmt)
+                    distance.add(stmt_dst_offset - stmt_src_offset)
+                    if cur_size >= size:
+                        break
+            else:
+                cur_size = 0
+                flows = []
+                stmts = []
+                distance = set()
+        if cur_size == size and len(distance) == 1:
+            dst_offset = src_offset + next(iter(distance))
+            return stmts, dst_offset
+        return None, None
+
+
+class CFGHelper:
+    def __init__(self, graph):
+        self._graph = graph
+
+    def num_predecessors(self, block):
+        return len(list(self._graph.predecessors(block)))
+
+    def get_one_predecessor(self, block) -> Block:
+        return next(self._graph.predecessors(block))
+
+    def num_successors(self, block):
+        return len(list(self._graph.successors(block)))
+
+    def get_one_successor(self, block) -> Block:
+        return next(self._graph.successors(block))
+
+    def first_non_label_stmt(self, block) -> Optional[Statement]:
+        for stmt in block.statements:
+            if not isinstance(stmt, Label):
+                return stmt
+        return None
+
+    def last_stmt(self, block) -> Optional[Statement]:
+        if block.statements:
+            return block.statements[-1]
+        return None
+
+    def replace_stmt(self, block, stmts, replacement):
+        idx = max(block.statements.index(stmt) for stmt in stmts)
+        block.statements.insert(idx, replacement)
+        for stmt in stmts:
+            block.statements.remove(stmt)
 
 
 class TransformationPass(OptimizationPass):
