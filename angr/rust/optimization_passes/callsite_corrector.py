@@ -4,7 +4,13 @@ from ailment.statement import Call, Statement, Assignment
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from angr.rust.optimization_passes.base import TransformationPass
-from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference, RustSimStruct
+from angr.rust.sim_type import (
+    RustSimTypeFunction,
+    RustSimTypeReference,
+    RustSimStruct,
+    RustSimEnum,
+    is_struct_or_enum_type,
+)
 
 
 class CallsiteCorrector(TransformationPass):
@@ -31,7 +37,7 @@ class CallsiteCorrector(TransformationPass):
             and call.args
             and len(call.args) >= 1
             and isinstance(prototype.args[0], RustSimTypeReference)
-            and isinstance(prototype.args[0].pts_to, RustSimStruct)
+            and is_struct_or_enum_type(prototype.args[0].pts_to)
         ):
             struct_ty = prototype.args[0].pts_to
             first_arg = call.args[0]

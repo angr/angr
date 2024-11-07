@@ -6,7 +6,7 @@ from ailment.expression import BinaryOp, Load, Expression, Const, VirtualVariabl
 from ailment.statement import Call, ConditionalJump, Assignment
 
 from .base import TransformationPass
-from ..definitions.structs import Option
+from ..sim_type import RustSimTypeOption
 from ..utils.library import normalize
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
@@ -134,7 +134,7 @@ class UnwrapSimplifier(TransformationPass):
                 if (
                     isinstance(vvar_value, Call)
                     and vvar_value.prototype
-                    and isinstance(vvar_value.prototype.returnty, Option)
+                    and isinstance(vvar_value.prototype.returnty, RustSimTypeOption)
                 ):
                     option_ty = vvar_value.prototype.returnty
                     if isinstance(jump.true_target, Const) and isinstance(jump.false_target, Const):
@@ -157,11 +157,11 @@ class UnwrapSimplifier(TransformationPass):
                                 **jump.tags,
                             )
                             call.tags["receiver"] = vvar
-                            call.bits = option_ty.T.size
-                            call.prototype.returnty = option_ty.T
+                            call.bits = option_ty.data_type.size
+                            call.prototype.returnty = option_ty.data_type
                             vvar_id = self.vvar_id_start
                             self.vvar_id_start += 1
-                            vvar_bits = option_ty.T.size
+                            vvar_bits = option_ty.data_type.size
                             dst_vvar = VirtualVariable(
                                 None,
                                 vvar_id,

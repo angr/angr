@@ -17,7 +17,7 @@ from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
 from ...rust.sim_type import RustSimTypeStr, RustSimTypeString, RustSimTypeFunction
-from ...rust.ailment.expression import String, Struct, Array
+from ...rust.ailment.expression import String, Struct, Array, Let
 from ...rust.sim_type import RustSimTypeFunction, RustSimStruct, RustSimTypeStr, RustSimTypeReference
 from ...rust.typehoon.lifter import RustTypeLifter
 from .engine_base import SimEngineVRBase, RichR
@@ -601,6 +601,9 @@ class SimEngineVRAIL(
     def _handle_expr_Array(self, expr: Array):
         for ele in expr.elements:
             self._expr(ele)
+
+    def _handle_expr_Let(self, expr: Let):
+        self._expr(expr.src)
 
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
         return self._get_const(expr.value, expr.bits, expr=expr)

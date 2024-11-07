@@ -60,7 +60,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, Vec, Struct, Array
+from ....rust.ailment.expression import String, Vec, Struct, Array, Let
 
 if TYPE_CHECKING:
     import archinfo
@@ -1135,6 +1135,9 @@ class RustAssignment(RustStatement):
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if "hidden" in self.tags and self.tags["hidden"]:
+            return
+
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
@@ -1530,6 +1533,50 @@ class RustArray(RustExpression):
                 yield ", ", self
             yield from RustExpression._try_c_repr_chunks(self.codegen._handle(ele))
         yield "]", bracket
+
+
+class RustLet(RustExpression):
+    __slots__ = ("let_expr", "tags")
+
+    def __init__(self, let_expr: Let, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.let_expr = let_expr
+
+    @property
+    def type(self):
+        return self.let_expr.variant.type
+
+    def _get_rust_variable(self, def_):
+        expr = None
+        var = None
+        if isinstance(def_, ailment.Stmt.Store):
+            expr = def_.addr
+            var = def_.variable
+        if expr and var is not None:
+            var_thing = self.codegen._variable(var, expr.size)
+            var_thing.tags = dict(expr.tags)
+            if "def_at" in var_thing.tags and "ins_addr" not in var_thing.tags:
+                var_thing.tags["ins_addr"] = var_thing.tags["def_at"].ins_addr
+            return var_thing
+        return None
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield "let ", self
+        yield self.let_expr.variant.name, self
+        paren = RustClosingObject("(")
+        if self.let_expr.variant.has_associated_data:
+            yield "(", paren
+            for idx, def_ in enumerate(self.let_expr.defs):
+                if var := self._get_rust_variable(def_):
+                    yield from RustExpression._try_c_repr_chunks(var)
+                else:
+                    yield "<ERROR>", self
+                if idx != len(self.let_expr.defs) - 1:
+                    yield ", ", self
+            yield ")", paren
+        yield " = ", self
+        yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.let_expr.src))
 
 
 class RustFakeVariable(RustExpression):
@@ -2484,6 +2531,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Vec: self._handle_Expr_Vec,
             Struct: self._handle_Expr_Struct,
             Array: self._handle_Expr_Array,
+            Let: self._handle_Expr_Let,
         }
 
         self._func = func
@@ -3554,6 +3602,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Array(self, expr: Array, **kwargs):
         return RustArray(expr.elements, expr.length, expr.type, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Let(self, expr: Let, **kwargs):
+        return RustLet(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):
         return RustUnaryOp(
