@@ -3536,6 +3536,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                             inline_string = True
                         except UnicodeDecodeError:
                             pass
+                    # If we failed to extract UTF-8 characters, it might be an empty string
+                    if not inline_string and isinstance(type_, StrReference):
+                        decoded_str = ""
+                        reference_values[type_] = decoded_str
+                        inline_string = True
 
                 # pure guessing: is it possible that it's a string?
                 elif (
