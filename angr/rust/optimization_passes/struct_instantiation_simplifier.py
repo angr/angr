@@ -96,6 +96,7 @@ class StructBuilder:
                 for i in range(len_expr.value):
                     ele_expr = ptr_expr.copy()
                     ele_expr.value = ptr_expr.value + ele_ty.size // 8 * i
+                    ele_expr.tags["type"] = ele_ty
                     elements.append(ele_expr)
             elif isinstance(ptr_expr, BasePointerOffset):
                 for i in range(len_expr.value):
