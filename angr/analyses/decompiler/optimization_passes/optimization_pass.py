@@ -118,6 +118,8 @@ class OptimizationPass(BaseOptimizationPass):
         vvar_id_start=None,
         entry_node_addr=None,
         scratch: dict[str, Any] | None = None,
+        force_loop_single_exit: bool = True,
+        complete_successors: bool = False,
         **kwargs,
     ):
         super().__init__(func)
@@ -134,6 +136,8 @@ class OptimizationPass(BaseOptimizationPass):
         self.entry_node_addr: tuple[int, int | None] = (
             entry_node_addr if entry_node_addr is not None else (func.addr, None)
         )
+        self._force_loop_single_exit = force_loop_single_exit
+        self._complete_successors = complete_successors
 
         # output
         self.out_graph: networkx.DiGraph | None = None
@@ -255,9 +259,8 @@ class OptimizationPass(BaseOptimizationPass):
             graph=graph,
             cond_proc=condition_processor or ConditionProcessor(self.project.arch),
             update_graph=update_graph,
-            # TODO: find a way to pass Phoenix/DREAM options here (see decompiler.py for correct use)
-            force_loop_single_exit=True,
-            complete_successors=False,
+            force_loop_single_exit=self._force_loop_single_exit,
+            complete_successors=self._complete_successors,
             entry_node_addr=self.entry_node_addr,
         )
 

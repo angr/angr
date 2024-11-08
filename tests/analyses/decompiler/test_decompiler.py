@@ -3904,6 +3904,24 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         assert d.codegen.text.count("wcscat(") == 6
 
+    def test_decompiling_reused_entries_between_switch_cases(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "064e1d62c8542d658d83f7e231cc3b935a1f18153b8aea809dcccfd446a91c93"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(
+            force_smart_scan=True,
+            normalize=True,
+            regions=[(0x40D760, 0x40DD50), (0x451C3F, 0x452E0F)],
+            start_at_entry=False,
+        )
+        f = proj.kb.functions[0x40D760]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("switch") == 6
+
 
 if __name__ == "__main__":
     unittest.main()

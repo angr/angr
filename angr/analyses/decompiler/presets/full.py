@@ -26,6 +26,7 @@ from angr.analyses.decompiler.optimization_passes import (
     FlipBooleanCmp,
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
+    SwitchReusedEntryRewriter,
 )
 
 
@@ -57,6 +58,7 @@ preset_full = DecompilationPreset(
         FlipBooleanCmp,
         InlinedStringTransformationSimplifier,
         CallStatementRewriter,
+        SwitchReusedEntryRewriter,
     ],
 )
 

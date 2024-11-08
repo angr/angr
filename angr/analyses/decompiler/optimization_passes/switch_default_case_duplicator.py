@@ -29,7 +29,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION
+    STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
     NAME = "Duplicate default-case nodes to undo default-case node reuse caused by compiler code deduplication"
     DESCRIPTION = __doc__.strip()
 

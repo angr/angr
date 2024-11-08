@@ -113,6 +113,8 @@ class Clinic(Analysis):
         vvar_id_start: int = 0,
         optimization_scratch: dict[str, Any] | None = None,
         desired_variables: set[str] | None = None,
+        force_loop_single_exit: bool = True,
+        complete_successors: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -157,6 +159,8 @@ class Clinic(Analysis):
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
         self._inlining_parents = inlining_parents or ()
         self._desired_variables = desired_variables
+        self._force_loop_single_exit = force_loop_single_exit
+        self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
 
@@ -1265,6 +1269,8 @@ class Clinic(Analysis):
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.entry_node_addr,
                 scratch=self.optimization_scratch,
+                force_loop_single_exit=self._force_loop_single_exit,
+                complete_successors=self._complete_successors,
                 **kwargs,
             )
             if a.out_graph:
