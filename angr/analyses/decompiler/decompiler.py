@@ -235,6 +235,7 @@ class Decompiler(Analysis):
             clinic = self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
+                fail_fast=self._fail_fast,
                 variable_kb=variable_kb,
                 reset_variable_names=reset_variable_names,
                 optimization_passes=self._optimization_passes,
@@ -308,7 +309,7 @@ class Decompiler(Analysis):
             self._update_progress(75.0, text="Structuring code")
 
             # structure it
-            rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
+            rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb, fail_fast=self._fail_fast)(
                 ri.region,
                 cond_proc=cond_proc,
                 func=self.func,
@@ -321,6 +322,7 @@ class Decompiler(Analysis):
                 self.func,
                 rs.result,
                 kb=self.kb,
+                fail_fast=self._fail_fast,
                 variable_kb=clinic.variable_kb,
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
@@ -345,6 +347,7 @@ class Decompiler(Analysis):
                 flavor=self._flavor,
                 func_args=clinic.arg_list,
                 kb=self.kb,
+                fail_fast=self._fail_fast,
                 variable_kb=clinic.variable_kb,
                 expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                 stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
@@ -365,7 +368,7 @@ class Decompiler(Analysis):
         self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
-        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+        return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(
             self.func,
             graph=graph,
             cond_proc=condition_processor,
@@ -561,6 +564,7 @@ class Decompiler(Analysis):
                 type_constraints,
                 func_typevar,
                 kb=var_kb,
+                fail_fast=self._fail_fast,
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
@@ -628,11 +632,15 @@ class Decompiler(Analysis):
         )
 
     def _transform_graph_from_ssa(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        dephication = self.project.analyses.GraphDephication(self.func, ail_graph, rewrite=True)
+        dephication = self.project.analyses.GraphDephication(
+            self.func, ail_graph, rewrite=True, kb=self.kb, fail_fast=self._fail_fast
+        )
         return dephication.output
 
     def _transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
-        dephication = self.project.analyses.SeqNodeDephication(self.func, seq_node, rewrite=True)
+        dephication = self.project.analyses.SeqNodeDephication(
+            self.func, seq_node, rewrite=True, kb=self.kb, fail_fast=self._fail_fast
+        )
         return dephication.output
 
     @staticmethod
