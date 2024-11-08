@@ -83,7 +83,9 @@ class RecursiveStructurer(Analysis):
                 # Get the parent region
                 parent_region = parent_map.get(current_region)
                 # structure this region
-                st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
+                st: StructurerBase = self.project.analyses[self.structurer_cls].prep(
+                    kb=self.kb, fail_fast=self._fail_fast
+                )(
                     current_region.copy(),
                     parent_map=parent_map,
                     condition_processor=self.cond_proc,
