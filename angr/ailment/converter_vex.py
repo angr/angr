@@ -801,9 +801,9 @@ class VEXIRSBConverter(Converter):
                 )
             )
         elif irsb.jumpkind == "Ijk_Boring":
-            if len(conditional_jumps) == 1:
+            if conditional_jumps:
                 # fill in the false target
-                cond_jump = conditional_jumps[0]
+                cond_jump = conditional_jumps[-1]
                 cond_jump.false_target = VEXExprConverter.convert(irsb.next, manager)
 
             else:
