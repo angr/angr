@@ -559,7 +559,7 @@ class PhoenixStructurer(StructurerBase):
         seq_node = SequenceNode(node.addr, nodes=[node])
         seen_nodes = set()
         while True:
-            succs = list(full_graph.successors(next_node))
+            succs = list(graph.successors(next_node))
             if len(succs) != 1:
                 return False, None
             next_node = succs[0]
@@ -1186,8 +1186,10 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node_a, graph, cmp_lb, jump_table)
+
         cases, node_default, to_remove = self._switch_build_cases(
-            {cmp_lb + i: entry_addr for (i, entry_addr) in enumerate(jump_table.jumptable_entries)},
+            case_and_entry_addrs,
             node,
             node_a,
             node_b_addr,
@@ -1253,8 +1255,10 @@ class PhoenixStructurer(StructurerBase):
         else:
             return False
 
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
+
         cases, node_default, to_remove = self._switch_build_cases(
-            {cmp_lb + i: entry_addr for (i, entry_addr) in enumerate(jump_table.jumptable_entries)},
+            case_and_entry_addrs,
             node,
             node,
             default_addr,
@@ -1322,14 +1326,9 @@ class PhoenixStructurer(StructurerBase):
         # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
         # successor to node_a
         default_node_candidates = [nn for nn in graph.nodes if nn.addr == node_b_addr]
-        if len(default_node_candidates) == 0:
-            node_default: BaseNode | None = None
-        elif len(default_node_candidates) == 1:
-            node_default: BaseNode | None = default_node_candidates[0]
-        else:
-            node_default: BaseNode | None = next(
-                iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
-            )
+        node_default: BaseNode | None = next(
+            iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
+        )
 
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
@@ -1462,6 +1461,8 @@ class PhoenixStructurer(StructurerBase):
 
         if node_default is not None:
             # the head no longer goes to the default case
+            if graph.has_edge(head, node_default):
+                pass
             graph.remove_edge(head, node_default)
             full_graph.remove_edge(head, node_default)
         else:
@@ -1513,6 +1514,24 @@ class PhoenixStructurer(StructurerBase):
             remove_last_statement(node_a)
 
         return True
+
+    def _find_case_and_entry_addrs(
+        self, jump_head, graph, cmp_lb: int, jump_table
+    ) -> dict[int, int | tuple[int, int | None]]:
+        case_and_entry_addrs = {}
+
+        addr_to_entry_nodes = defaultdict(list)
+        for succ in graph.successors(jump_head):
+            addr_to_entry_nodes[succ.addr].append(succ)
+
+        for i, entry_addr in enumerate(jump_table.jumptable_entries):
+            case_no = cmp_lb + i
+            if entry_addr in addr_to_entry_nodes and isinstance(addr_to_entry_nodes[entry_addr][0], (MultiNode, Block)):
+                case_and_entry_addrs[case_no] = entry_addr, addr_to_entry_nodes[entry_addr][0].idx
+            else:
+                case_and_entry_addrs[case_no] = entry_addr
+
+        return case_and_entry_addrs
 
     # other acyclic schemas
 

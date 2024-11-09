@@ -52,15 +52,14 @@ class SwitchReusedEntryRewriter(OptimizationPass):
                 for entry_node in entry_nodes:
                     preds = list(self._graph.predecessors(entry_node))
                     if len(preds) > 1:
-                        reused_entries[entry_node] = set(preds)
-                        # non_current_jumptable_preds = [pred for pred in preds if pred.addr != jumptable.addr]
-                        # if any(p.addr in switch_jump_block_addrs for p in non_current_jumptable_preds):
-                        #    reused_entries[entry_node] = {
-                        #        pred for pred in preds if pred.addr in switch_jump_block_addrs
-                        #    }
+                        non_current_jumptable_preds = [pred for pred in preds if pred.addr != jumptable.addr]
+                        if any(p.addr in switch_jump_block_addrs for p in non_current_jumptable_preds):
+                            reused_entries[entry_node] = {
+                                pred for pred in preds if pred.addr in switch_jump_block_addrs
+                            }
 
         if not reused_entries:
-            return False
+            return False, None
         cache = {"reused_entries": reused_entries}
         return True, cache
 
@@ -78,7 +77,7 @@ class SwitchReusedEntryRewriter(OptimizationPass):
                 # create the new goto node
                 goto_stmt = Jump(
                     None,
-                    Const(None, None, head_node.addr, self.project.arch.bits, ins_addr=entry_node.addr),
+                    Const(None, None, entry_node.addr, self.project.arch.bits, ins_addr=entry_node.addr),
                     target_idx=entry_node.idx,
                     ins_addr=entry_node.addr,
                 )
