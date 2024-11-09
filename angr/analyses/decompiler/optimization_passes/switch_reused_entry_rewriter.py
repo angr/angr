@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+from itertools import count
 import logging
 
 from ailment.block import Block
@@ -30,7 +31,11 @@ class SwitchReusedEntryRewriter(OptimizationPass):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
 
+        self.node_idx = count(start=self._scratch.get("node_idx", 0))
+
         self.analyze()
+
+        self._scratch["node_idx"] = next(self.node_idx)
 
     def _check(self):
         jumptables = self.kb.cfgs.get_most_accurate().jump_tables
@@ -47,7 +52,7 @@ class SwitchReusedEntryRewriter(OptimizationPass):
         # ensure each jump table entry node has only one predecessor
         reused_entries: dict[Block, set[Block]] = {}
         for jumptable in jumptables.values():
-            for entry_addr in jumptable.jumptable_entries:
+            for entry_addr in sorted(set(jumptable.jumptable_entries)):
                 entry_nodes = self._get_blocks(entry_addr)
                 for entry_node in entry_nodes:
                     preds = list(self._graph.predecessors(entry_node))
@@ -85,12 +90,13 @@ class SwitchReusedEntryRewriter(OptimizationPass):
                     entry_node.addr,
                     0,
                     statements=[goto_stmt],
-                    idx=idx + 1 if entry_node.idx is None else entry_node.idx + idx + 1,
+                    idx=next(self.node_idx),
                 )
 
                 if out_graph is None:
                     out_graph = self._graph
                 out_graph.remove_edge(head_node, entry_node)
                 out_graph.add_edge(head_node, goto_node)
+                # we are virtualizing these edges, so we don't need to add the edge from goto_node to the entry_node
 
         self.out_graph = out_graph

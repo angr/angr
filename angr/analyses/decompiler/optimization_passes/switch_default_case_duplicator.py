@@ -1,9 +1,14 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from itertools import count
+from collections import defaultdict
 import logging
 
 import networkx
+
+from ailment.block import Block
+from ailment.statement import Jump
+from ailment.expression import Const
 
 from angr.knowledge_plugins.cfg import IndirectJumpType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -36,9 +41,11 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
 
-        self.node_idx = count(start=0)
+        self.node_idx = count(start=self._scratch.get("node_idx", 0))
 
         self.analyze()
+
+        self._scratch["node_idx"] = next(self.node_idx)
 
     def _check(self):
         jumptables = self.kb.cfgs.get_most_accurate().jump_tables
@@ -77,8 +84,39 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
         out_graph = None
         duplicated_default_addrs: set[int] = set()
 
+        default_addr_count = defaultdict(int)
+        goto_rewritten_default_addrs = set()
+        for _, _, default_addr in default_case_node_addrs:
+            default_addr_count[default_addr] += 1
+        for default_addr, cnt in default_addr_count.items():
+            if cnt > 1:
+                # rewrite all of them into gotos
+                default_node = self._get_block(default_addr)
+                for switch_head_addr in sorted((sa for sa, _, da in default_case_node_addrs if da == default_addr)):
+                    switch_head_node = self._get_block(switch_head_addr)
+                    goto_stmt = Jump(
+                        None,
+                        Const(None, None, default_addr, self.project.arch.bits, ins_addr=default_addr),
+                        target_idx=None,  # I'm assuming the ID of the default node is None here
+                        ins_addr=default_addr,
+                    )
+                    goto_node = Block(
+                        default_addr,
+                        0,
+                        statements=[goto_stmt],
+                        idx=next(self.node_idx),
+                    )
+
+                    if out_graph is None:
+                        out_graph = self._graph
+                    out_graph.remove_edge(switch_head_node, default_node)
+                    out_graph.add_edge(switch_head_node, goto_node)
+                    out_graph.add_edge(goto_node, default_node)
+
+                goto_rewritten_default_addrs.add(default_addr)
+
         for switch_head_addr, jump_node_addr, default_addr in default_case_node_addrs:
-            if default_addr in duplicated_default_addrs:
+            if default_addr in duplicated_default_addrs or default_addr in goto_rewritten_default_addrs:
                 continue
 
             default_case_node = self._func.get_node(default_addr)

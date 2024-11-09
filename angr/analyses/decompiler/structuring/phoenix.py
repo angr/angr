@@ -127,6 +127,8 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _assert_graph_ok(g, msg: str) -> None:
         if _DEBUG:
+            if g is None:
+                return
             assert (
                 len(list(networkx.connected_components(networkx.Graph(g)))) <= 1
             ), f"{msg}: More than one connected component. Please report this."
@@ -138,6 +140,7 @@ class PhoenixStructurer(StructurerBase):
         # iterate until there is only one node in the region
 
         self._assert_graph_ok(self._region.graph, "Incorrect region graph")
+        self._assert_graph_ok(self._region.graph_with_successors, "Incorrect region full graph")
 
         has_cycle = self._has_cycle()
 
@@ -197,6 +200,7 @@ class PhoenixStructurer(StructurerBase):
                     ),
                 )
                 self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
+                self._assert_graph_ok(self._region.graph_with_successors, "Last resort refinement went wrong")
                 if not removed_edge:
                     # cannot make any progress in this region. return the subgraph directly
                     break
@@ -230,6 +234,7 @@ class PhoenixStructurer(StructurerBase):
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
             self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
+            self._assert_graph_ok(self._region.graph_with_successors, "Removed incorrect edges")
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
@@ -600,6 +605,8 @@ class PhoenixStructurer(StructurerBase):
             refined = self._refine_cyclic_core(head)
             l.debug("... refined: %s", refined)
             if refined:
+                self._assert_graph_ok(self._region.graph, "Refinement went wrong")
+                self._assert_graph_ok(self._region.graph_with_successors, "Refinement went wrong")
                 return True
         return False
 
@@ -690,6 +697,12 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     successor = next(iter(successor_and_edgecounts.keys()))
 
+            # determine which edge we will leave untouched in the full graph
+            break_src_candidates = sorted(
+                (src for src, dst in outgoing_edges if dst is successor), key=lambda x: x.addr
+            )
+            break_src = break_src_candidates[0] if break_src_candidates else None
+
             for src, dst in outgoing_edges:
                 if dst is successor:
                     # keep in mind that at this point, src might have been structured already. this means the last
@@ -704,11 +717,13 @@ class PhoenixStructurer(StructurerBase):
                             dst.addr,
                         )
                         # remove the edge anyway
-                        fullgraph.remove_edge(src, dst)
+                        if src is not break_src:
+                            fullgraph.remove_edge(src, dst)
                     elif not isinstance(src_block, (Block, MultiNode)):
                         # it has probably been structured into BreakNode or ConditionalBreakNode
                         # just remove the edge
-                        fullgraph.remove_edge(src, dst)
+                        if src is not break_src:
+                            fullgraph.remove_edge(src, dst)
                     else:
                         has_continue = False
                         # at the same time, examine if there is an edge that goes from src to the continue node. if so,
@@ -780,7 +795,8 @@ class PhoenixStructurer(StructurerBase):
                                 pass
 
                         self._remove_last_statement_if_jump(src_block)
-                        fullgraph.remove_edge(src, dst)
+                        if src is not break_src:
+                            fullgraph.remove_edge(src, dst)
                         if src_parent is not None:
                             # replace the node in its parent node
                             self.replace_node_in_node(src_parent, src_block, new_node)
@@ -1020,7 +1036,10 @@ class PhoenixStructurer(StructurerBase):
                 any_matches |= matched
                 if matched:
                     break
-            self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
+
+        self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
+        self._assert_graph_ok(self._region.graph_with_successors, "Removed incorrect edges")
+
         return any_matches
 
     # switch cases
@@ -1094,7 +1113,7 @@ class PhoenixStructurer(StructurerBase):
             to_remove,
             graph,
             full_graph,
-            can_bail=True,
+            bail_on_nonhead_outedges=True,
         )
         if not r:
             return False
@@ -1205,7 +1224,7 @@ class PhoenixStructurer(StructurerBase):
             to_remove.add(node_default)
 
         to_remove.add(node_a)  # add node_a
-        self._make_switch_cases_core(
+        r = self._make_switch_cases_core(
             node,
             cmp_expr,
             cases,
@@ -1217,6 +1236,8 @@ class PhoenixStructurer(StructurerBase):
             full_graph,
             node_a=node_a,
         )
+        if not r:
+            return False
 
         self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
@@ -1269,9 +1290,11 @@ class PhoenixStructurer(StructurerBase):
             # there must be a default case
             return False
 
-        self._make_switch_cases_core(
+        r = self._make_switch_cases_core(
             node, cmp_expr, cases, default_addr, node_default, node.addr, to_remove, graph, full_graph
         )
+        if not r:
+            return False
 
         return True
 
@@ -1431,7 +1454,7 @@ class PhoenixStructurer(StructurerBase):
         graph: networkx.DiGraph,
         full_graph: networkx.DiGraph,
         node_a=None,
-        can_bail=False,
+        bail_on_nonhead_outedges: bool = False,
     ) -> bool:
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
 
@@ -1453,11 +1476,19 @@ class PhoenixStructurer(StructurerBase):
                 if dst not in to_remove:
                     out_edges.append((nn, dst))
 
-        if can_bail:
+        if bail_on_nonhead_outedges:
             nonhead_out_nodes = {edge[1] for edge in out_edges if edge[1] is not head}
             if len(nonhead_out_nodes) > 1:
                 # not ready to be structured yet - do it later
                 return False
+
+        # check if structuring will create any dangling nodes
+        for case_node in to_remove:
+            if case_node is not node_default and case_node is not node_a and case_node is not head:
+                for succ in graph.successors(case_node):
+                    if succ is not case_node and succ is not head and graph.in_degree[succ] == 1:
+                        # succ will be dangling - not ready to be structured yet - do it later
+                        return False
 
         if node_default is not None:
             # the head no longer goes to the default case
@@ -1505,6 +1536,14 @@ class PhoenixStructurer(StructurerBase):
                 full_graph.add_edge(scnode, out_dst)
                 if full_graph.has_edge(head, out_dst):
                     full_graph.remove_edge(head, out_dst)
+
+                # fix full_graph if needed: remove successors that are no longer needed
+                for out_src, out_dst in out_edges[1:]:
+                    if out_dst in full_graph and out_dst not in graph:
+                        if full_graph.in_degree[out_dst] == 0:
+                            full_graph.remove_node(out_dst)
+                            if out_dst in self._region.successors:
+                                self._region.successors.remove(out_dst)
 
         # remove the last statement (conditional jump) in the head node
         remove_last_statement(head)
