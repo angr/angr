@@ -1290,10 +1290,9 @@ class PhoenixStructurer(StructurerBase):
             # there must be a default case
             return False
 
-        r = self._make_switch_cases_core(
+        return self._make_switch_cases_core(
             node, cmp_expr, cases, default_addr, node_default, node.addr, to_remove, graph, full_graph
         )
-        return r
 
     def _match_acyclic_incomplete_switch_cases(
         self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: dict

@@ -1,6 +1,5 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
-from typing import DefaultDict
 from collections import defaultdict
 
 import ailment
@@ -15,7 +14,7 @@ class LabelCollector:
 
     def __init__(self, node):
         self.root = node
-        self.labels: DefaultDict[str, list[tuple[int, int | None]]] = defaultdict(list)
+        self.labels: defaultdict[str, list[tuple[int, int | None]]] = defaultdict(list)
 
         handlers = {
             ailment.Block: self._handle_Block,
