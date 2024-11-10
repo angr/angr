@@ -11,6 +11,7 @@ from ailment.expression import (
     BasePointerOffset,
     StackBaseOffset,
     VirtualVariableCategory,
+    Expression,
 )
 from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment, Label
 from networkx import NetworkXError
@@ -28,10 +29,18 @@ class SRDAHelper:
         self.srda = context.project.analyses.SReachingDefinitions(subject=context._func, func_graph=context._graph)
         self.srda_view = SRDAView(self.srda.model)
 
+    def get_vvar_value(self, vvar: VirtualVariable) -> Expression | None:
+        # Fix the vvar value not found issue caused by unmatched expr idx
+        for key in self.srda.model.all_vvar_definitions:
+            if key.likes(vvar):
+                vvar = key
+                break
+        return self.srda_view.get_vvar_value(vvar)
+
     def get_real_vvar_value(self, vvar):
         visited = set()
         value = vvar
-        while (value := self.srda_view.get_vvar_value(value)) and value not in visited:
+        while (value := self.get_vvar_value(value)) and value not in visited:
             visited.add(value)
             if isinstance(value, VirtualVariable):
                 continue
