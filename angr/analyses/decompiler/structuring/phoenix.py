@@ -244,6 +244,8 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
+            # reconnect the loop node to its successor node if necessary
+            self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
             return True
 
         matched, loop_node, successor_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
@@ -252,6 +254,8 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node, loop_node=loop_node)
+            # reconnect the loop node to its successor node if necessary
+            self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
             return True
 
         if self._improve_algorithm:
@@ -263,6 +267,8 @@ class PhoenixStructurer(StructurerBase):
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
                 # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
                 self._rewrite_jumps_to_continues(loop_node.sequence_node)
+                # reconnect the loop node to its successor node if necessary
+                self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
                 return True
 
         matched, loop_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
@@ -274,6 +280,8 @@ class PhoenixStructurer(StructurerBase):
                 )
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
+            # reconnect the loop node to its successor node if necessary
+            self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
         return matched
 
     def _match_cyclic_while(self, node, head, graph, full_graph) -> tuple[bool, LoopNode | None, BaseNode | None]:
@@ -606,7 +614,8 @@ class PhoenixStructurer(StructurerBase):
             l.debug("... refined: %s", refined)
             if refined:
                 self._assert_graph_ok(self._region.graph, "Refinement went wrong")
-                self._assert_graph_ok(self._region.graph_with_successors, "Refinement went wrong")
+                # cyclic refinement may create dangling nodes in the full graph. it will be handled after loop matching
+                # by _reconnect_loop_to_successor().
                 return True
         return False
 
@@ -697,12 +706,6 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     successor = next(iter(successor_and_edgecounts.keys()))
 
-            # determine which edge we will leave untouched in the full graph
-            break_src_candidates = sorted(
-                (src for src, dst in outgoing_edges if dst is successor), key=lambda x: x.addr
-            )
-            break_src = break_src_candidates[0] if break_src_candidates else None
-
             for src, dst in outgoing_edges:
                 if dst is successor:
                     # keep in mind that at this point, src might have been structured already. this means the last
@@ -717,13 +720,11 @@ class PhoenixStructurer(StructurerBase):
                             dst.addr,
                         )
                         # remove the edge anyway
-                        if src is not break_src:
-                            fullgraph.remove_edge(src, dst)
+                        fullgraph.remove_edge(src, dst)
                     elif not isinstance(src_block, (Block, MultiNode)):
                         # it has probably been structured into BreakNode or ConditionalBreakNode
                         # just remove the edge
-                        if src is not break_src:
-                            fullgraph.remove_edge(src, dst)
+                        fullgraph.remove_edge(src, dst)
                     else:
                         has_continue = False
                         # at the same time, examine if there is an edge that goes from src to the continue node. if so,
@@ -795,8 +796,7 @@ class PhoenixStructurer(StructurerBase):
                                 pass
 
                         self._remove_last_statement_if_jump(src_block)
-                        if src is not break_src:
-                            fullgraph.remove_edge(src, dst)
+                        fullgraph.remove_edge(src, dst)
                         if src_parent is not None:
                             # replace the node in its parent node
                             self.replace_node_in_node(src_parent, src_block, new_node)
@@ -2621,3 +2621,15 @@ class PhoenixStructurer(StructurerBase):
             graph_with_str.add_edge(f'"{src!r}"', f'"{dst!r}"')
 
         networkx.drawing.nx_pydot.write_dot(graph_with_str, path)
+
+    @staticmethod
+    def _reconnect_loop_to_successor(loop_node: LoopNode, graph: networkx.DiGraph, successors: set) -> None:
+        if len(successors) == 1:
+            succ = next(iter(successors))
+            if (
+                succ in graph
+                and loop_node in graph
+                and graph.in_degree[succ] == 0
+                and not graph.has_edge(loop_node, succ)
+            ):
+                graph.add_edge(loop_node, succ)
