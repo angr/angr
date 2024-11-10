@@ -249,6 +249,8 @@ class Decompiler(Analysis):
                 inline_functions=self._inline_functions,
                 desired_variables=self._desired_variables,
                 optimization_scratch=self._optimization_scratch,
+                force_loop_single_exit=self._force_loop_single_exit,
+                complete_successors=self._complete_successors,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -421,6 +423,8 @@ class Decompiler(Analysis):
                 reaching_definitions=reaching_definitions,
                 entry_node_addr=self.clinic.entry_node_addr,
                 scratch=self._optimization_scratch,
+                force_loop_single_exit=self._force_loop_single_exit,
+                complete_successors=self._complete_successors,
                 **kwargs,
             )
 
@@ -481,6 +485,8 @@ class Decompiler(Analysis):
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.clinic.entry_node_addr,
                 scratch=self._optimization_scratch,
+                force_loop_single_exit=self._force_loop_single_exit,
+                complete_successors=self._complete_successors,
                 **kwargs,
             )
 

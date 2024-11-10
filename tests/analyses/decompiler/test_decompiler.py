@@ -134,7 +134,7 @@ class TestDecompiler(unittest.TestCase):
             if f.is_simprocedure or f.is_plt or f.is_syscall or f.is_alignment:
                 l.debug("Skipping SimProcedure %s.", repr(f))
                 continue
-            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+            dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
             if dec.codegen is not None and f.name not in {
                 "deregister_tm_clones",
@@ -158,7 +158,7 @@ class TestDecompiler(unittest.TestCase):
                 continue
             if f.addr not in (0x8048A71, 0x8048C6B):
                 continue
-            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+            dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
             assert dec.codegen is not None, f"Failed to decompile function {f!r}."
             self._print_decompilation_result(dec)
 
@@ -169,7 +169,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
         f = cfg.functions["loop"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
         # it should be properly structured to a while loop with conditional breaks.
@@ -183,7 +183,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -199,7 +199,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -211,7 +211,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(collect_data_references=True, normalize=True)
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -223,7 +223,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
         f = cfg.functions["sum"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -235,7 +235,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True)
 
         f = cfg.functions["free_ent"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -248,7 +248,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True)
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -260,7 +260,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True)
 
         f = cfg.functions["emit_ancillary_info"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -272,7 +272,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
@@ -300,7 +300,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -330,7 +330,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -365,7 +365,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = cfg.functions[0x4048C0]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -387,7 +387,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = cfg.functions[0x404DC0]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -445,7 +445,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = cfg.functions[0x404410]
 
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f,
             cfg=cfg.model,
             options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
@@ -493,7 +493,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes("MIPS64", "linux")
 
         f = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -522,7 +522,7 @@ class TestDecompiler(unittest.TestCase):
         cca = p.analyses[CallingConventionAnalysis].prep()(f)
         f.calling_convention = cca.cc
         f.prototype = cca.prototype
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
 
@@ -563,7 +563,7 @@ class TestDecompiler(unittest.TestCase):
         optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             p.arch, p.simos.name, additional_opts=DUPLICATING_OPTS
         )
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=optimization_passes
         )
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -620,7 +620,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         func = cfg.functions[0x41D000]
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
 
@@ -634,7 +634,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         self._print_decompilation_result(dec)
@@ -666,7 +666,7 @@ class TestDecompiler(unittest.TestCase):
         func.calling_convention = cca.cc
         func.prototype = cca.prototype
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
 
@@ -688,7 +688,7 @@ class TestDecompiler(unittest.TestCase):
         func.calling_convention = cca.cc
         func.prototype = cca.prototype
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
 
@@ -710,7 +710,7 @@ class TestDecompiler(unittest.TestCase):
         cca = p.analyses[CallingConventionAnalysis].prep()(func_strlen, cfg=cfg.model)
         func_strlen.calling_convention = cca.cc
         func_strlen.prototype = cca.prototype
-        p.analyses[Decompiler].prep()(func_strlen, cfg=cfg.model, options=decompiler_options)
+        p.analyses[Decompiler].prep(fail_fast=True)(func_strlen, cfg=cfg.model, options=decompiler_options)
 
         func = cfg.functions["local_strcat"]
 
@@ -719,7 +719,7 @@ class TestDecompiler(unittest.TestCase):
         func.calling_convention = cca.cc
         func.prototype = cca.prototype
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
 
@@ -743,7 +743,7 @@ class TestDecompiler(unittest.TestCase):
         )
         opt_selection = [(opt, True)]
         options = opt_selection if not decompiler_options else opt_selection + decompiler_options
-        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func_0, cfg=cfg.model, options=options)
         assert dec.codegen is not None, f"Failed to decompile function {func_0!r}."
         self._print_decompilation_result(dec)
 
@@ -756,13 +756,13 @@ class TestDecompiler(unittest.TestCase):
         assert m.group(1) != m.group(2)
 
         func_1 = cfg.functions["strlen_should_not_fold"]
-        dec = p.analyses[Decompiler].prep()(func_1, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func_1, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
         func_2 = cfg.functions["strlen_should_not_fold_into_loop"]
-        dec = p.analyses[Decompiler].prep()(func_2, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func_2, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
@@ -776,7 +776,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         func_0 = cfg.functions["version_etc"]
-        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func_0, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func_0!r}."
         l.debug("Decompiled function %s\n%s", repr(func_0), dec.codegen.text)
 
@@ -795,7 +795,7 @@ class TestDecompiler(unittest.TestCase):
         p.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model, recover_variables=True)
 
         func_0 = cfg.functions["main"]
-        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func_0, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func_0!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -821,7 +821,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["find_bind_mount"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         m = re.search(
@@ -847,7 +847,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -869,7 +869,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier], disable_opts=DUPLICATING_OPTS
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -894,7 +894,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -913,7 +913,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions[0x100003890]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -931,7 +931,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions[0x100003890]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
 
@@ -948,7 +948,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         func = cfg.functions["build_date"]
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -967,7 +967,7 @@ class TestDecompiler(unittest.TestCase):
         func = cfg.functions["build_date"]
 
         # no dead memdef removal
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -992,7 +992,7 @@ class TestDecompiler(unittest.TestCase):
         # option.
         p.kb.decompilations.cached.clear()
         options = [(opt, True)] if not decompiler_options else [(opt, True), *decompiler_options]
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1017,7 +1017,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1039,7 +1039,7 @@ class TestDecompiler(unittest.TestCase):
         func = cfg.functions["main"]
 
         binop_operators = {OpDescriptor(0x400A1D, 0, 0x400A27, "CmpGT"): "CmpLE"}
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             func, cfg=cfg.model, options=decompiler_options, binop_operators=binop_operators
         )
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
@@ -1071,7 +1071,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1094,7 +1094,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1111,7 +1111,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1130,7 +1130,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             func,
             cfg=cfg.model,
             options=decompiler_options,
@@ -1161,7 +1161,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions["my_message_callback"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1182,7 +1182,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions.function(name="handle__suback", plt=False)
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1215,7 +1215,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1301,7 +1301,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = p.kb.functions["func_1"]
-        d = p.analyses[Decompiler].prep()(
+        d = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert d.codegen is not None, f"Failed to decompile function {f!r}."
@@ -1322,7 +1322,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = p.kb.functions["func_2"]
-        d = p.analyses[Decompiler].prep()(
+        d = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         assert d.codegen is not None, f"Failed to decompile function {f!r}."
@@ -1496,7 +1496,7 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # ensure the default case node is not duplicated
@@ -1531,7 +1531,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["x2nrealloc"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "__CFADD__" in d.codegen.text
@@ -1574,7 +1574,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["quotearg_n_options"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
     @for_all_structuring_algos
@@ -1707,7 +1707,7 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f,
             cfg=cfg.model,
             options=decompiler_options,
@@ -1740,7 +1740,7 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -1754,7 +1754,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["last_component"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("for (") == 2  # two loops
@@ -1768,13 +1768,13 @@ class TestDecompiler(unittest.TestCase):
 
         # argmatch_die
         f = proj.kb.functions["__argmatch_die"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         assert "usage(" in d.codegen.text
 
         # setlocale_null_androidfix
         f = proj.kb.functions["setlocale_null_androidfix"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         assert "setlocale(" in d.codegen.text
         assert "NULL);" in d.codegen.text, "The arguments for setlocale() are missing"
@@ -1788,7 +1788,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["di_set_alloc"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # addresses in function pointers should be correctly resolved into function pointers
@@ -1803,7 +1803,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["humblock"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert (
@@ -1822,7 +1822,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["c_isupper"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert f.prototype.returnty is not None and f.prototype.returnty.size == 8
@@ -1837,7 +1837,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["base_len"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         spaceless_text = d.codegen.text.replace(" ", "").replace("\n", "")
@@ -1857,7 +1857,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["argmatch_to_argument"]
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f,
             cfg=cfg.model,
             options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
@@ -1887,7 +1887,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["argmatch_to_argument"]
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
         )
         self._print_decompilation_result(d)
@@ -1923,7 +1923,7 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -1962,7 +1962,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["lines_split"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("goto ") == 1
@@ -1978,7 +1978,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["fix_output_parameters"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert len(list(re.findall(r"LABEL_[^;:]+:", d.codegen.text))) in {1, 2}
@@ -2001,7 +2001,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["advance_input_after_read_error"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
@@ -2023,7 +2023,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x401820]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "amd64g_calculate_condition" not in d.codegen.text  # we should rewrite the ccall to expr == 0
@@ -2038,7 +2038,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["main"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # the ternary expression should not be propagated. however, we fail to narrow the ebx expression at 0x400c4f,
@@ -2055,7 +2055,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["screen_columns"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         assert proj.kb.functions["xstrtol"].prototype is not None
         assert proj.kb.functions["xstrtol"].prototype.args is not None
@@ -2074,7 +2074,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2094,7 +2094,7 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["do_decode"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "finish_and_exit(" in d.codegen.text
@@ -2107,7 +2107,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["specify_nmerge"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "goto" not in d.codegen.text
@@ -2121,7 +2121,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["print_many_per_line"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # it should make somewhat sense
@@ -2146,7 +2146,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["scan_entries"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, preset=DECOMPILATION_PRESETS["full"]
         )
         self._print_decompilation_result(d)
@@ -2169,7 +2169,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=[DuplicationReverter]
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2193,7 +2193,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=[CrossJumpReverter, ReturnDuplicatorLow]
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2208,7 +2208,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["split_3"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "return " in d.codegen.text
@@ -2223,7 +2223,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes("AMD64", "linux")
         f = proj.kb.functions["card_of_complement"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2238,7 +2238,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         assert "goto " not in d.codegen.text
 
@@ -2252,7 +2252,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         f = proj.kb.functions["cgc_recv_haiku"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         cgc_allocate_call = re.search(r"cgc_allocate\(([^\n]+)\)", d.codegen.text)
@@ -2274,7 +2274,7 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["print_filename"]
         # force the return type to void to avoid an over-aggressive region-to-ITE conversion
         f.prototype.returnty = SimTypeBottom("void")
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2304,7 +2304,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2324,7 +2324,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = proj.kb.functions["filename_unescape"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2353,7 +2353,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2376,7 +2376,7 @@ class TestDecompiler(unittest.TestCase):
         )
 
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2404,7 +2404,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "goto" not in d.codegen.text
@@ -2422,7 +2422,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f,
             cfg=cfg.model,
             options=decompiler_options,
@@ -2453,7 +2453,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2474,7 +2474,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["touch"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2493,7 +2493,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -2511,7 +2511,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert "default:" in d.codegen.text
@@ -2527,7 +2527,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions[0x400EA0]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # ITE expressions should not exist. we convert them to if-then-else properly.
@@ -2541,7 +2541,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
         )
         self._print_decompilation_result(d)
@@ -2720,7 +2720,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
 
@@ -2778,7 +2778,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
 
@@ -2951,7 +2951,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         f = cfg.functions["authenticate"]
 
-        codegen = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options).codegen
+        codegen = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options).codegen
 
         assert len(codegen.cfunc.arg_list) == 2
         elements = {n.obj for _, n in codegen.map_pos_to_node.items()}
@@ -2971,7 +2971,7 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = proto.with_arch(p.arch)
         f.is_prototype_guessed = False
 
-        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert cproto in d.codegen.text
 
     @structuring_algo("sailr")
@@ -2994,7 +2994,7 @@ class TestDecompiler(unittest.TestCase):
             (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.ALWAYS),
             (PARAM_TO_OPTION["show_casts"], False),
         ]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options_0, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
@@ -3019,7 +3019,7 @@ class TestDecompiler(unittest.TestCase):
             (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.NEVER),
             (PARAM_TO_OPTION["show_casts"], False),
         ]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options_1, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
@@ -3038,7 +3038,7 @@ class TestDecompiler(unittest.TestCase):
             (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.MAX_ONE_CALL),
             (PARAM_TO_OPTION["show_casts"], False),
         ]
-        dec = p.analyses[Decompiler].prep()(
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options_2, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
@@ -3069,7 +3069,7 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["main"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # incorrect region replacement was causing the while loop be duplicated, so we would end up with four while
@@ -3085,7 +3085,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x140002918]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # each line as at most one __ROL__ or __ROR__
@@ -3114,7 +3114,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x1A590]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert 'L"\\\\Registry\\\\Machine\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\WinApi"' in d.codegen.text
@@ -3306,7 +3306,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["binop"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         text = d.codegen.text
 
         assert "{\n}" not in text
@@ -3320,7 +3320,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["tail_bytes"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         text = d.codegen.text
 
         assert "{\n}" not in text
@@ -3333,7 +3333,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["iread"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         text = d.codegen.text
 
         assert "{\n}" not in text
@@ -3347,7 +3347,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["recover_mode"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3405,7 +3405,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3424,7 +3424,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["science_process"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         text = d.codegen.text
         text = text.replace("4294967295", "-1")
@@ -3439,7 +3439,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         assert d.codegen is not None
         assert "while (true)" in d.codegen.text
@@ -3454,7 +3454,9 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["recover_mode"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options, generate_code=False)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f, cfg=cfg.model, options=decompiler_options, generate_code=False
+        )
 
         # we should have skipped generating code
         assert d.codegen is None
@@ -3486,7 +3488,7 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", disable_opts={InlinedStringTransformationSimplifier}
         )
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
 
@@ -3515,7 +3517,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["science_process"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         text = d.codegen.text
         text = text.replace("4294967295", "-1")
@@ -3529,7 +3531,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions[0x140005980]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         text = d.codegen.text
         # should not crash!
@@ -3542,7 +3544,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         assert d.codegen is not None
 
@@ -3552,7 +3554,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
         f = proj.kb.functions[0x40D450]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         text = d.codegen.text
         # should not simplify away the bitwise-or operation
@@ -3564,7 +3566,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions[0x140005234]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert d.codegen is not None
@@ -3588,7 +3590,7 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", disable_opts={ReturnDuplicatorLow, ReturnDuplicatorHigh}
         )
 
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
@@ -3602,7 +3604,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["authenticate"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # the ITE expression should not be propagated into the dst of an assignment
@@ -3615,7 +3617,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f,
             cfg=cfg.model,
             inline_functions={proj.kb.functions["mylloc"], proj.kb.functions["five"]},
@@ -3636,7 +3638,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep()(
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f,
             cfg=cfg.model,
             inline_functions=f.functions_reachable(),
@@ -3799,7 +3801,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["split_3"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3836,7 +3838,7 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["build_spec_list"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("goto ") == 0
@@ -3854,7 +3856,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions[0x4011DE]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # basic check to ensure the output is not nothing
@@ -3871,7 +3873,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions[0x401000]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         # basic check to ensure the output is not nothing; crashes didn't happen during decompilation
@@ -3889,7 +3891,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True, data_references=True)
         f = proj.kb.functions[0x442300]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         # we are good if decompiling this function does not raise any exception
 
@@ -3900,9 +3902,28 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x1400035A0]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         assert d.codegen.text.count("wcscat(") == 6
+
+    def test_decompiling_reused_entries_between_switch_cases(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "064e1d62c8542d658d83f7e231cc3b935a1f18153b8aea809dcccfd446a91c93"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(
+            force_smart_scan=True,
+            normalize=True,
+            regions=[(0x40D760, 0x40DD50), (0x451C3F, 0x452E0F)],
+            start_at_entry=False,
+        )
+        assert len(cfg.jump_tables) == 7  # there are 7 jump tables in the function
+        f = proj.kb.functions[0x40D760]
+
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("switch") == 7
 
 
 if __name__ == "__main__":

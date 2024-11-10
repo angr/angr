@@ -32,6 +32,7 @@ from .inlined_string_transformation_simplifier import InlinedStringTransformatio
 from .const_prop_reverter import ConstPropOptReverter
 from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
+from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -55,6 +56,7 @@ ALL_OPTIMIZATION_PASSES = [
     ReturnDuplicatorHigh,
     DeadblockRemover,
     SwitchDefaultCaseDuplicator,
+    SwitchReusedEntryRewriter,
     ConstPropOptReverter,
     DuplicationReverter,
     LoweredSwitchSimplifier,
@@ -129,6 +131,7 @@ __all__ = (
     "CrossJumpReverter",
     "CodeMotionOptimization",
     "SwitchDefaultCaseDuplicator",
+    "SwitchReusedEntryRewriter",
     "DeadblockRemover",
     "InlinedStringTransformationSimplifier",
     "ConstPropOptReverter",

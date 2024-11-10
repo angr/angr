@@ -532,7 +532,7 @@ class RegionIdentifier(Analysis):
         )
         if len(region.successors) > 1 and self._force_loop_single_exit:
             # multi-successor region. refinement is required
-            self._refine_loop_successors(region, graph)
+            self._refine_loop_successors_to_guarded_successors(region, graph)
 
         # if the head node is in the graph and it's not the head of the graph, we will need to update the head node
         # address.
@@ -543,10 +543,10 @@ class RegionIdentifier(Analysis):
 
         return region
 
-    def _refine_loop_successors(self, region, graph: networkx.DiGraph):
+    def _refine_loop_successors_to_guarded_successors(self, region, graph: networkx.DiGraph):
         """
-        If there are multiple successors of a loop, convert them into conditional gotos. Eventually there should be
-        only one loop successor.
+        If there are multiple successors of a loop, convert them into guarded successors. Eventually there should be
+        only one loop successor. This is used in the DREAM structuring algorithm.
 
         :param GraphRegion region:      The cyclic region to refine.
         :param networkx.DiGraph graph:  The current graph that is being structured.
@@ -565,11 +565,11 @@ class RegionIdentifier(Analysis):
         cond = ConditionNode(
             condnode_addr,
             None,
-            self.cond_proc.reaching_conditions[successors[0]],
-            successors[0],
-            false_node=None,
+            self.cond_proc.reaching_conditions[successors[1]],
+            successors[1],
+            false_node=successors[0],
         )
-        for succ in successors[1:]:
+        for succ in successors[2:]:
             cond = ConditionNode(
                 condnode_addr,
                 None,
