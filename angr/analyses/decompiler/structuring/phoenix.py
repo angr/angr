@@ -140,7 +140,6 @@ class PhoenixStructurer(StructurerBase):
         # iterate until there is only one node in the region
 
         self._assert_graph_ok(self._region.graph, "Incorrect region graph")
-        self._assert_graph_ok(self._region.graph_with_successors, "Incorrect region full graph")
 
         has_cycle = self._has_cycle()
 
@@ -200,7 +199,6 @@ class PhoenixStructurer(StructurerBase):
                     ),
                 )
                 self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
-                self._assert_graph_ok(self._region.graph_with_successors, "Last resort refinement went wrong")
                 if not removed_edge:
                     # cannot make any progress in this region. return the subgraph directly
                     break
@@ -233,8 +231,8 @@ class PhoenixStructurer(StructurerBase):
             )
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
-            self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
-            self._assert_graph_ok(self._region.graph_with_successors, "Removed incorrect edges")
+            if matched:
+                self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
@@ -574,6 +572,9 @@ class PhoenixStructurer(StructurerBase):
         while True:
             succs = list(graph.successors(next_node))
             if len(succs) != 1:
+                return False, None
+            if full_graph.out_degree[next_node] > 1:
+                # all successors in the full graph should have been refined away at this point
                 return False, None
             next_node = succs[0]
 
@@ -1038,7 +1039,6 @@ class PhoenixStructurer(StructurerBase):
                     break
 
         self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
-        self._assert_graph_ok(self._region.graph_with_successors, "Removed incorrect edges")
 
         return any_matches
 
@@ -2040,6 +2040,11 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[right] == 1:
                 left, right = right, left
+
+            # ensure left and right nodes are not the head of a switch-case construct
+            if left in self.switch_case_known_heads or right in self.switch_case_known_heads:
+                return None
+
             if (
                 self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
@@ -2082,6 +2087,11 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
                 left, right = right, left
+
+            # ensure left and right nodes are not the head of a switch-case construct
+            if left in self.switch_case_known_heads or right in self.switch_case_known_heads:
+                return None
+
             if (
                 self._is_sequential_statement_block(right)
                 and full_graph.in_degree[left] == 2
@@ -2118,6 +2128,11 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[successor] == 1:
                 left, successor = successor, left
+
+            # ensure left and successor nodes are not the head of a switch-case construct
+            if left in self.switch_case_known_heads or successor in self.switch_case_known_heads:
+                return None
+
             if (
                 self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
@@ -2161,6 +2176,11 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[else_node] == 1:
                 left, else_node = else_node, left
+
+            # ensure left and else nodes are not the head of a switch-case construct
+            if left in self.switch_case_known_heads or else_node in self.switch_case_known_heads:
+                return None
+
             if (
                 self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1

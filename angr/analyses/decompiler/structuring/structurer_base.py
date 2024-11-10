@@ -18,6 +18,7 @@ from angr.analyses.decompiler.utils import (
     remove_last_statement,
     has_nonlabel_nonphi_statements,
 )
+from angr.analyses.decompiler.label_collector import LabelCollector
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -800,9 +801,17 @@ class StructurerBase(Analysis):
                 starting_case_ids.append(idx)
                 continue
 
+        # we can't just collect addresses and block IDs of switch-case entry nodes because SequenceNode does not keep
+        # track of block IDs.
+        case_label_addrs = set()
+        for case_node in cases.values():
+            lc = LabelCollector(case_node)
+            for lst in lc.labels.values():
+                case_label_addrs |= set(lst)
+
         for idx in starting_case_ids:
             new_cases[idx] = cases[idx]
-            self._remove_last_statement_if_jump(new_cases[idx])
+            self._remove_last_statement_if_jump_to_addr(new_cases[idx], case_label_addrs)
             succs = networkx.dfs_successors(graph, idx)
             idx_ = idx
             while idx_ in succs:
@@ -812,6 +821,29 @@ class StructurerBase(Analysis):
         assert len(new_cases) == len(cases)
 
         return new_cases
+
+    @staticmethod
+    def _remove_last_statement_if_jump_to_addr(
+        node: BaseNode | ailment.Block, addr_and_ids: set[tuple[int, int | None]]
+    ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None:
+        try:
+            last_stmts = ConditionProcessor.get_last_statements(node)
+        except EmptyBlockNotice:
+            return None
+
+        if len(last_stmts) == 1 and isinstance(last_stmts[0], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+            last_stmt = last_stmts[0]
+            jump_targets = []
+            if isinstance(last_stmt, ailment.Stmt.Jump) and isinstance(last_stmt.target, ailment.Expr.Const):
+                jump_targets = [(last_stmt.target.value, last_stmt.target_idx)]
+            elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                if isinstance(last_stmt.true_target, ailment.Expr.Const):
+                    jump_targets.append((last_stmt.true_target.value, last_stmt.true_target_idx))
+                if isinstance(last_stmt.false_target, ailment.Expr.Const):
+                    jump_targets.append((last_stmt.false_target.value, last_stmt.false_target_idx))
+            if any(tpl in addr_and_ids for tpl in jump_targets):
+                return remove_last_statement(node)
+        return None
 
     @staticmethod
     def _remove_last_statement_if_jump(
