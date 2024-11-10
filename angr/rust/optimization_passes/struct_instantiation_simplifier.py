@@ -102,9 +102,11 @@ class StructBuilder:
                 for i in range(len_expr.value):
                     ele_expr = ptr_expr.copy()
                     ele_expr.offset += ele_ty.size // 8 * i
-                    # Looking for nested struct references
+                    # Looking for nested structs or struct references
                     if isinstance(ele_ty, RustSimTypeReference) and isinstance(ele_ty.pts_to, RustSimStruct):
                         self.pending_potential_structs.append((ele_expr, ele_ty.pts_to))
+                    elif isinstance(ele_ty, RustSimStruct):
+                        self.pending_potential_structs.append((ele_expr, ele_ty))
                     elements.append(ele_expr)
             else:
                 return None

@@ -4,7 +4,7 @@ from ailment.tagged_object import TaggedObject
 from ailment.utils import stable_hash
 
 from angr.rust.definitions.structs import ArrayReference
-from angr.rust.sim_type import RustSimType, RustSimStruct
+from angr.rust.sim_type import RustSimStruct
 
 
 class String(ailment.Const):
@@ -90,9 +90,17 @@ class Struct(ailment.Expression):
         super().__init__(idx, (max(field.depth for field in fields.values()) if len(fields) else 0) + 1, **kwargs)
         self.fields = fields
         self.field_names = {}
+        self.field_offsets = {}
         for name, offset in struct_type.offsets.items():
             self.field_names[offset] = name
+            self.field_offsets[name] = offset
         self.type = struct_type
+
+    def get_field(self, name):
+        if name in self.field_offsets:
+            offset = self.field_offsets[name]
+            return self.fields.get(offset, None)
+        return None
 
     @property
     def size(self):
