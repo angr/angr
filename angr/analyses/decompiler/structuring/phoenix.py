@@ -242,8 +242,6 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
-            # reconnect the loop node to its successor node if necessary
-            self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
             return True
 
         matched, loop_node, successor_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
@@ -252,8 +250,6 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node, loop_node=loop_node)
-            # reconnect the loop node to its successor node if necessary
-            self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
             return True
 
         if self._improve_algorithm:
@@ -265,8 +261,6 @@ class PhoenixStructurer(StructurerBase):
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
                 # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
                 self._rewrite_jumps_to_continues(loop_node.sequence_node)
-                # reconnect the loop node to its successor node if necessary
-                self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
                 return True
 
         matched, loop_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
@@ -278,8 +272,6 @@ class PhoenixStructurer(StructurerBase):
                 )
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
-            # reconnect the loop node to its successor node if necessary
-            self._reconnect_loop_to_successor(loop_node, full_graph, self._region.successors)
         return matched
 
     def _match_cyclic_while(self, node, head, graph, full_graph) -> tuple[bool, LoopNode | None, BaseNode | None]:
@@ -615,8 +607,7 @@ class PhoenixStructurer(StructurerBase):
             l.debug("... refined: %s", refined)
             if refined:
                 self._assert_graph_ok(self._region.graph, "Refinement went wrong")
-                # cyclic refinement may create dangling nodes in the full graph. it will be handled after loop matching
-                # by _reconnect_loop_to_successor().
+                # cyclic refinement may create dangling nodes in the full graph
                 return True
         return False
 
@@ -1190,9 +1181,6 @@ class PhoenixStructurer(StructurerBase):
         if len(case_node_successors) > 1:
             return False
 
-        # we will definitely be able to structure this into a full switch-case. remove node from switch_case_known_heads
-        self.switch_case_known_heads.remove(node)
-
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
             _, new_seq_node = self._unpack_sequencenode_head(graph, node_a)
@@ -1239,6 +1227,8 @@ class PhoenixStructurer(StructurerBase):
         if not r:
             return False
 
+        # fully structured into a switch-case. remove node from switch_case_known_heads
+        self.switch_case_known_heads.remove(node)
         self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         return True
@@ -2637,15 +2627,3 @@ class PhoenixStructurer(StructurerBase):
             graph_with_str.add_edge(f'"{src!r}"', f'"{dst!r}"')
 
         networkx.drawing.nx_pydot.write_dot(graph_with_str, path)
-
-    @staticmethod
-    def _reconnect_loop_to_successor(loop_node: LoopNode, graph: networkx.DiGraph, successors: set) -> None:
-        if len(successors) == 1:
-            succ = next(iter(successors))
-            if (
-                succ in graph
-                and loop_node in graph
-                and graph.in_degree[succ] == 0
-                and not graph.has_edge(loop_node, succ)
-            ):
-                graph.add_edge(loop_node, succ)
