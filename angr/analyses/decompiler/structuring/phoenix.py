@@ -1171,14 +1171,17 @@ class PhoenixStructurer(StructurerBase):
             node_pred = next(iter(graph.predecessors(node)))
 
         case_nodes = list(graph.successors(node_a))
-        case_node_successors = set()
-        for case_node in case_nodes:
-            if case_node is node_pred:
-                continue
-            if case_node.addr in jump_table.jumptable_entries:
-                succs = set(graph.successors(case_node))
-                case_node_successors |= {succ for succ in succs if succ.addr not in jump_table.jumptable_entries}
-        if len(case_node_successors) > 1:
+
+        # case 1: the common successor happens to be directly reachable from node_a (usually as a result of compiler
+        # optimization)
+        # example: touch_touch_no_switch.o:main
+        r = self.switch_case_entry_node_has_common_successor_case_1(graph, jump_table, case_nodes, node_pred)
+
+        # case 2: the common successor is not directly reachable from node_a. this is a more common case.
+        if not r:
+            r |= self.switch_case_entry_node_has_common_successor_case_2(graph, jump_table, case_nodes, node_pred)
+
+        if not r:
             return False
 
         # un-structure IncompleteSwitchCaseNode
@@ -2627,3 +2630,36 @@ class PhoenixStructurer(StructurerBase):
             graph_with_str.add_edge(f'"{src!r}"', f'"{dst!r}"')
 
         networkx.drawing.nx_pydot.write_dot(graph_with_str, path)
+
+    @staticmethod
+    def switch_case_entry_node_has_common_successor_case_1(graph, jump_table, case_nodes, node_pred) -> bool:
+        all_succs = set()
+        for case_node in case_nodes:
+            if case_node is node_pred:
+                continue
+            if case_node.addr in jump_table.jumptable_entries:
+                all_succs |= set(graph.successors(case_node))
+
+        case_node_successors = set()
+        for case_node in case_nodes:
+            if case_node is node_pred:
+                continue
+            if case_node in all_succs:
+                continue
+            if case_node.addr in jump_table.jumptable_entries:
+                succs = set(graph.successors(case_node))
+                case_node_successors |= {succ for succ in succs if succ.addr not in jump_table.jumptable_entries}
+
+        return len(case_node_successors) <= 1
+
+    @staticmethod
+    def switch_case_entry_node_has_common_successor_case_2(graph, jump_table, case_nodes, node_pred) -> bool:
+        case_node_successors = set()
+        for case_node in case_nodes:
+            if case_node is node_pred:
+                continue
+            if case_node.addr in jump_table.jumptable_entries:
+                succs = set(graph.successors(case_node))
+                case_node_successors |= {succ for succ in succs if succ.addr not in jump_table.jumptable_entries}
+
+        return len(case_node_successors) <= 1
