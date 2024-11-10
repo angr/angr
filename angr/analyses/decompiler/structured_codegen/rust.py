@@ -8,6 +8,7 @@ import ailment
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 
+from ....rust.ailment.statement import FunctionLikeMacro
 from ....rust.definitions.structs import StrReference, Option
 from ....sim_type import (
     SimTypeLongLong,
@@ -35,7 +36,6 @@ from ....rust.sim_type import (
     RustSimTypeString,
     RustSimTypeVec,
     RustSimStruct,
-    RustSimTypeBottom,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -1182,28 +1182,27 @@ class RustAssignment(RustStatement):
             yield "\n", self
 
 
-class RustVecInitialization(RustStatement):
-    def __init__(self, dst, init_values, tags=None, **kwargs):
+class RustFunctionLikeMacro(RustStatement, RustExpression):
+    def __init__(self, name, args, delimiter, tags=None, **kwargs):
         super().__init__(**kwargs)
-        self.dst = dst
-        self.init_values = init_values
+        self.name = name
+        self.args = args
+        self.delimiter = delimiter
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0, asexpr: bool = False):
-        """
-
-        :param indent:  Number of whitespace indentation characters.
-        :param asexpr:  True if this call is used as an expression (which means we will skip the generation of
-                        semicolons and newlines at the end of the call).
-        """
+    def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         yield indent_str, None
 
-        yield from RustExpression._try_c_repr_chunks(self.dst)
-        yield " = ", None
-        yield "vec!", None
-        yield str(self.init_values), None
-        yield ";", None
+        yield self.name, None
+        yield "!", None
+        yield self.delimiter[0], None
+        if self.args:
+            yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.args[0]))
+            for ele in self.args[1:]:
+                yield ", ", None
+                yield from RustExpression._try_c_repr_chunks(self.codegen._handle(ele))
+        yield self.delimiter[1], None
         yield "\n", None
 
 
@@ -2512,6 +2511,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
+            FunctionLikeMacro: self._handle_Stmt_FunctionLikeMacro,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -3435,6 +3435,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         clabel = RustLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
+
+    def _handle_Stmt_FunctionLikeMacro(self, stmt: FunctionLikeMacro, **kwargs):
+        return RustFunctionLikeMacro(stmt.name, stmt.args, stmt.delimiter, tags=stmt.tags, codegen=self)
 
     #
     # AIL expression handlers

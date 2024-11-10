@@ -5,6 +5,7 @@ from .cleanup_code_remover import CleanupCodeRemover
 from .enum_pattern_match_simplifier import EnumPatternMatchSimplifier
 from .error_handling_simplifier import ErrorHandlingSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
+from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .ret_site_simplifier import RetSiteSimplifier
 from .unwrap_simplifier import UnwrapSimplifier
 from .lib_function_identifier import LibFunctionIdentifier
@@ -27,6 +28,7 @@ def get_rust_optimization_passes():
         EnumPatternMatchSimplifier,
         OwnershipSimplifier,
         StructInstantiationSimplifier,
+        PrintMacroSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
     ]
