@@ -1293,10 +1293,7 @@ class PhoenixStructurer(StructurerBase):
         r = self._make_switch_cases_core(
             node, cmp_expr, cases, default_addr, node_default, node.addr, to_remove, graph, full_graph
         )
-        if not r:
-            return False
-
-        return True
+        return r
 
     def _match_acyclic_incomplete_switch_cases(
         self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: dict
@@ -1539,11 +1536,10 @@ class PhoenixStructurer(StructurerBase):
 
                 # fix full_graph if needed: remove successors that are no longer needed
                 for out_src, out_dst in out_edges[1:]:
-                    if out_dst in full_graph and out_dst not in graph:
-                        if full_graph.in_degree[out_dst] == 0:
-                            full_graph.remove_node(out_dst)
-                            if out_dst in self._region.successors:
-                                self._region.successors.remove(out_dst)
+                    if out_dst in full_graph and out_dst not in graph and full_graph.in_degree[out_dst] == 0:
+                        full_graph.remove_node(out_dst)
+                        if out_dst in self._region.successors:
+                            self._region.successors.remove(out_dst)
 
         # remove the last statement (conditional jump) in the head node
         remove_last_statement(head)
@@ -1554,8 +1550,9 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
+    @staticmethod
     def _find_case_and_entry_addrs(
-        self, jump_head, graph, cmp_lb: int, jump_table
+        jump_head, graph, cmp_lb: int, jump_table
     ) -> dict[int, int | tuple[int, int | None]]:
         case_and_entry_addrs = {}
 

@@ -77,7 +77,7 @@ class SwitchReusedEntryRewriter(OptimizationPass):
             # we assign the entry node to the predecessor with the lowest address
             sorted_pred_nodes = sorted(pred_nodes, key=lambda x: (x.addr, x.idx))
 
-            for idx, head_node in enumerate(sorted_pred_nodes[1:]):
+            for head_node in sorted_pred_nodes[1:]:
 
                 # create the new goto node
                 goto_stmt = Jump(
