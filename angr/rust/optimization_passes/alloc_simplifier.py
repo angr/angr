@@ -1,10 +1,12 @@
 from typing import Dict, Optional
 
+import archinfo
 from ailment import Const
 from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory, StackBaseOffset
 from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump
 
 from .base import TransformationPass, SRDAHelper, SSAVariableHelper
+from ..ailment.statement import FunctionLikeMacro
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ..ailment.expression import String
@@ -18,6 +20,7 @@ class SimplificationState:
 
         self.alloc_size = None
         self.alloc_align = None
+        self.vec_length = None
         args = self.alloc_call.args
         if len(args) >= 1:
             self.alloc_size = args[0]
@@ -58,6 +61,34 @@ class SimplificationState:
         return None
 
     def _try_outline_vec(self):
+        if isinstance(self.alloc_size, Const) and isinstance(self.vec_length, Const):
+            vec_length = self.vec_length.value
+            alloc_size = self.alloc_size.value
+            if alloc_size % vec_length != 0:
+                return None
+            ele_size = alloc_size // vec_length
+            if all(isinstance(stmt, Store) and isinstance(stmt.data, Const) for stmt in self.init_stmts):
+                init_bytes = bytearray(b"\x00" * alloc_size)
+                for stmt in self.init_stmts:
+                    if isinstance(stmt, Store):
+                        vvar, offset = self.context.extract_vvar_and_offset(stmt.addr)
+                        data = stmt.data.value.to_bytes(stmt.data.size, self.context.endian)
+                        init_bytes[offset : offset + stmt.data.size] = data
+                elements = []
+                for i in range(vec_length):
+                    endian = "big" if (self.context.project.arch.memory_endness == archinfo.Endness.BE) else "little"
+                    element = int.from_bytes(init_bytes[i * ele_size : (i + 1) * ele_size], byteorder=endian)
+                    element = Const(None, None, element, ele_size * self.context.project.arch.byte_width)
+                    elements.append(element)
+                macro = FunctionLikeMacro(
+                    None,
+                    "vec",
+                    elements,
+                    bits=alloc_size * self.context.project.arch.byte_width,
+                    delimiter="[]",
+                    **self.construct_stmts[-1].tags,
+                )
+                return macro
         return None
 
     def outline(self):
@@ -74,9 +105,11 @@ class SimplificationState:
             category = "Assignment"
 
         outline_result = self._try_outline_string()
+        if not outline_result:
+            outline_result = self._try_outline_vec()
 
         replacement = None
-        if isinstance(outline_result, Call):
+        if isinstance(outline_result, Call) or isinstance(outline_result, FunctionLikeMacro):
             if category == "Store":
                 replacement = Store(
                     None,
@@ -164,7 +197,7 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
 
     def _check_construct_stmts(self, stmts, store_alloc_ptr_idx):
         if any(stmt in self._used_construct_stmts for stmt in stmts):
-            return False
+            return None
         if all(isinstance(stmt, Store) for stmt in stmts):
             vvars_and_offsets = [self.extract_vvar_and_offset(stmt.addr) for stmt in stmts]
             vvars = set(vvar for vvar, offset in vvars_and_offsets)
@@ -177,8 +210,9 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
                 and offsets[2] - offsets[0] == self.project.arch.bytes * 2
                 and offsets[2] - offsets[1] == self.project.arch.bytes
                 and len(data) == 2
+                and data[0].likes(data[1])
             ):
-                return data[0].likes(data[1])
+                return data[0]
         elif all(isinstance(stmt, Assignment) for stmt in stmts):
             vvars = [stmt.dst for stmt in stmts]
             if all(isinstance(vvar, VirtualVariable) and vvar.was_stack for vvar in vvars):
@@ -191,8 +225,8 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
                     and offsets[2] - offsets[1] == self.project.arch.bytes
                     and data[0].likes(data[1])
                 ):
-                    return True
-        return False
+                    return data[0]
+        return None
 
     def _find_construct_stmts(self, block):
         for idx, stmt in enumerate(block.statements):
@@ -212,14 +246,15 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
                     state = self.states[value]
                     store_alloc_ptr = stmt
                     construct_stmts = None
-                    if self._check_construct_stmts([stmt_ahead_ahead, stmt_ahead, store_alloc_ptr], 2):
+                    if vec_length := self._check_construct_stmts([stmt_ahead_ahead, stmt_ahead, store_alloc_ptr], 2):
                         construct_stmts = [stmt_ahead_ahead, stmt_ahead, store_alloc_ptr]
-                    elif self._check_construct_stmts([stmt_ahead, store_alloc_ptr, stmt_back], 1):
+                    elif vec_length := self._check_construct_stmts([stmt_ahead, store_alloc_ptr, stmt_back], 1):
                         construct_stmts = [stmt_ahead, store_alloc_ptr, stmt_back]
-                    elif self._check_construct_stmts([store_alloc_ptr, stmt_back, stmt_back_back], 0):
+                    elif vec_length := self._check_construct_stmts([store_alloc_ptr, stmt_back, stmt_back_back], 0):
                         construct_stmts = [store_alloc_ptr, stmt_back, stmt_back_back]
                     if construct_stmts:
                         state.construct_stmts = construct_stmts
+                        state.vec_length = vec_length
                         self._used_construct_stmts = self._used_construct_stmts.union(construct_stmts)
 
     def _get_real_jump_target(self, target, target_idx):

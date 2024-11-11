@@ -12,9 +12,10 @@ class Macro(Expression, Statement):
 
 
 class FunctionLikeMacro(Macro):
-    def __init__(self, idx, name, args, delimiter="()", **kwargs):
+    def __init__(self, idx, name, args, bits=None, delimiter="()", **kwargs):
         super().__init__(idx, name, delimiter, **kwargs)
         self.args = args
+        self.bits = bits
 
     __hash__ = TaggedObject.__hash__
 
