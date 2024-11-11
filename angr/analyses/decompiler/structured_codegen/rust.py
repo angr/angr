@@ -1183,11 +1183,12 @@ class RustAssignment(RustStatement):
 
 
 class RustFunctionLikeMacro(RustStatement, RustExpression):
-    def __init__(self, name, args, delimiter, tags=None, **kwargs):
+    def __init__(self, name, args, delimiter, is_expr, tags=None, **kwargs):
         super().__init__(**kwargs)
         self.name = name
         self.args = args
         self.delimiter = delimiter
+        self.is_expr = is_expr
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -1203,7 +1204,8 @@ class RustFunctionLikeMacro(RustStatement, RustExpression):
                 yield ", ", None
                 yield from RustExpression._try_c_repr_chunks(self.codegen._handle(ele))
         yield self.delimiter[1], None
-        yield "\n", None
+        if not self.is_expr:
+            yield ";\n", None
 
 
 class RustFunctionCall(RustStatement, RustExpression):
@@ -3437,7 +3439,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return clabel
 
     def _handle_Stmt_FunctionLikeMacro(self, stmt: FunctionLikeMacro, **kwargs):
-        return RustFunctionLikeMacro(stmt.name, stmt.args, stmt.delimiter, tags=stmt.tags, codegen=self)
+        return RustFunctionLikeMacro(
+            stmt.name, stmt.args, stmt.delimiter, is_expr=stmt.bits is not None, tags=stmt.tags, codegen=self
+        )
 
     #
     # AIL expression handlers
