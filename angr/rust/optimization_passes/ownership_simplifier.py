@@ -7,7 +7,7 @@ from ailment.statement import Assignment, Call, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from angr.rust.ailment.expression import Struct
-from angr.rust.sim_type import RustSimStruct, RustSimTypeFunction, RustSimTypeReference, is_struct_or_enum_type
+from angr.rust.sim_type import RustSimStruct, RustSimTypeFunction, RustSimTypeReference, is_composite_type
 from angr.rust.utils.ail_util import get_terminal_call
 from angr.rust.utils.srda_util import SRDAUtil
 
@@ -80,7 +80,7 @@ class OwnershipSimplifier(OptimizationPass):
                             if (
                                 isinstance(arg, BasePointerOffset)
                                 and isinstance(arg_ty, RustSimTypeReference)
-                                and is_struct_or_enum_type(arg_ty.pts_to)
+                                and is_composite_type(arg_ty.pts_to)
                                 and arg.offset == dst_offset
                             ):
                                 struct_ty = arg_ty.pts_to
@@ -89,11 +89,7 @@ class OwnershipSimplifier(OptimizationPass):
                     if not struct_ty:
                         vvar = self.srda_util.get_stack_vvar_by_insn(src_offset, stmt.ins_addr, block.idx)
                         value = self.srda_util.srda_view.get_vvar_value(vvar) if vvar else None
-                        if (
-                            isinstance(value, Call)
-                            and value.prototype
-                            and is_struct_or_enum_type(value.prototype.returnty)
-                        ):
+                        if isinstance(value, Call) and value.prototype and is_composite_type(value.prototype.returnty):
                             struct_ty = value.prototype.returnty
                         elif isinstance(value, Assignment) and isinstance(value.src, Struct):
                             struct_ty = value.src.type

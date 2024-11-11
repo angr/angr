@@ -1,10 +1,10 @@
 from typing import Dict, Optional
 
 from ailment import Const
-from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory
+from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory, StackBaseOffset
 from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump
 
-from .base import TransformationPass, SRDAHelper
+from .base import TransformationPass, SRDAHelper, SSAVariableHelper
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ..ailment.expression import String
@@ -44,9 +44,9 @@ class SimplificationState:
                     call = Call(
                         idx=None,
                         target="String::from",
-                        prototype=self.context.librust.get_prototype("String::from").with_arch(
-                            self.context.project.arch
-                        ),
+                        prototype=self.context.librust.get_prototype("String::from")
+                        .with_arch(self.context.project.arch)
+                        .normalize(),
                         args=[data],
                         ret_expr=None,
                         **self.construct_stmts[0].tags,
@@ -76,7 +76,7 @@ class SimplificationState:
         outline_result = self._try_outline_string()
 
         replacement = None
-        if outline_result:
+        if isinstance(outline_result, Call):
             if category == "Store":
                 replacement = Store(
                     None,
@@ -87,16 +87,8 @@ class SimplificationState:
                     **self.construct_stmts[0].tags,
                 )
             elif category == "Assignment":
-                vvar_id = self.context.vvar_id_start
-                self.context.vvar_id_start += 1
-                vvar_bits = self.context.project.arch.bits * 3
-                dst_vvar = VirtualVariable(
-                    None,
-                    vvar_id,
-                    vvar_bits,
-                    VirtualVariableCategory.STACK,
-                    oident=dst.stack_offset,
-                    **self.construct_stmts[0].tags,
+                dst_vvar = self.context.new_stack_vvar(
+                    dst.stack_offset, self.context.project.arch.bits * 3, self.construct_stmts[0].tags
                 )
                 replacement = Assignment(idx=None, dst=dst_vvar, src=outline_result, **dst_vvar.tags)
 
@@ -113,7 +105,7 @@ RUST_ALLOC_FUNCTIONS = ["__rust_alloc"]
 RUST_ALLOC_ERROR_HANDLING_FUNCTIONS = ["alloc::raw_vec::handle_error", "alloc::alloc::handle_alloc_error"]
 
 
-class AllocSimplifier(TransformationPass, SRDAHelper):
+class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -122,6 +114,7 @@ class AllocSimplifier(TransformationPass, SRDAHelper):
     def __init__(self, func, **kwargs):
         TransformationPass.__init__(self, func, **kwargs)
         SRDAHelper.__init__(self, self)
+        SSAVariableHelper.__init__(self, self)
 
         self.states: Dict[Call, SimplificationState] = {}
         self.librust = SIM_LIBRARIES["librust"]
