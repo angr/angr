@@ -1,7 +1,5 @@
-from typing import Optional, Dict, Any, Tuple, List, Union
+from typing import Optional, Dict, List, Union
 from collections import OrderedDict
-
-import claripy
 
 from ..analyses.typehoon.translator import SimTypeTempRef
 from ..sim_type import (
@@ -17,7 +15,7 @@ from ..sim_type import (
 )
 
 
-def is_struct_or_enum_type(ty):
+def is_composite_type(ty):
     return isinstance(ty, RustSimStruct) or isinstance(ty, RustSimEnum)
 
 
@@ -88,7 +86,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(args, returnty, label, arg_names, variadic)
-        self.is_returnty_struct = is_returnty_struct
+        self.is_arg0_retbuf = is_returnty_struct
         self.is_class_member_function = is_class_member_function
 
     def __repr__(self):
@@ -96,7 +94,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         if self.variadic:
             argstrs.append("...")
         returnty = self.returnty
-        if self.is_returnty_struct:
+        if self.is_arg0_retbuf:
             returnty = self.args[0]
             if isinstance(returnty, RustSimTypeReference):
                 returnty = returnty.pts_to
@@ -124,7 +122,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
-            is_returnty_struct=self.is_returnty_struct,
+            is_returnty_struct=self.is_arg0_retbuf,
             is_class_member_function=self.is_class_member_function,
         )
         out._arch = arch
@@ -146,6 +144,20 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             ", variadic=True" if self.variadic else "",
         )
 
+    def normalize(self) -> Optional["RustSimTypeFunction"]:
+        if (
+            self.is_arg0_retbuf
+            and self.args
+            and isinstance(self.args[0], RustSimTypeReference)
+            and is_composite_type(self.args[0].pts_to)
+        ):
+            prototype = self.copy()
+            prototype.returnty = self.args[0].pts_to
+            prototype.args = self.args[1:]
+            prototype.is_arg0_retbuf = False
+            return prototype
+        return None
+
     def copy(self):
         return RustSimTypeFunction(
             self.args,
@@ -153,7 +165,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
-            is_returnty_struct=self.is_returnty_struct,
+            is_returnty_struct=self.is_arg0_retbuf,
             is_class_member_function=self.is_class_member_function,
         )
 

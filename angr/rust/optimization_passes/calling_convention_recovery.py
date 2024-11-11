@@ -74,7 +74,7 @@ class CallingConventionRecovery(OptimizationPass):
                     arg_names=prototype.arg_names,
                     variadic=prototype.variadic,
                 )
-                new_prototype.is_returnty_struct = True
+                new_prototype.is_arg0_retbuf = True
                 func.prototype = new_prototype
 
     def _analyze(self, cache=None):

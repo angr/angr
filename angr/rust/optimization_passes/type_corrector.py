@@ -2,7 +2,7 @@ import ailment
 from ailment.expression import VirtualVariable
 from ailment.statement import Call, Store, Assignment
 
-from ..sim_type import RustSimStruct, RustSimEnum, is_struct_or_enum_type
+from ..sim_type import RustSimStruct, RustSimEnum, is_composite_type
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..ailment.expression import Struct
 from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
@@ -75,7 +75,7 @@ class TypeCorrector(OptimizationPass):
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.src, Call)
                     and stmt.src.prototype
-                    and is_struct_or_enum_type(stmt.src.prototype.returnty)
+                    and is_composite_type(stmt.src.prototype.returnty)
                 ):
                     # self.force_new_variable(stmt.dst.variable)
                     self._set_variable_type(stmt.dst.variable, stmt.src.prototype.returnty)
@@ -85,5 +85,5 @@ class TypeCorrector(OptimizationPass):
                     and isinstance(stmt.src, VirtualVariable)
                 ):
                     struct_ty = unpack_typeref(self.variable_manager.get_variable_type(stmt.src.variable))
-                    if is_struct_or_enum_type(struct_ty):
+                    if is_composite_type(struct_ty):
                         self._set_variable_type(stmt.dst.variable, struct_ty)
