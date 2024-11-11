@@ -8,5 +8,3 @@ Extending angr
    state_plugins
    environment
    analysis_writing
-   angr_management
-
