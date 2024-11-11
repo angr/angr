@@ -1,7 +1,7 @@
 Installing angr
 ===============
 
-angr is a library for Python 3.8+, and must be installed into a Python
+angr is a library for Python 3.10+, and must be installed into a Python
 environment before it can be used.
 
 Installing from PyPI
