@@ -28,7 +28,7 @@ you see a path from problem to solution, take it.
 
 Of course, it's very difficult to become well-acquainted with such a huge piece
 of technology as angr. To this end you can absolutely lean on the community
-(through the `angr slack <https://angr.io/invite>`_ is the best option) to
-discuss angr and solving problems with it.
+(through the `angr Discord server <http://discord.angr.io>`_ is the best option)
+to discuss angr and solving problems with it.
 
 Good luck!
