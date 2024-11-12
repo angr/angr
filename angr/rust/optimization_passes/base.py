@@ -1,60 +1,21 @@
 import logging
-from typing import Optional, List
+from typing import Optional
 
 import archinfo
 from ailment import Block, Const
 from ailment.expression import (
     Convert,
     VirtualVariable,
-    Phi,
-    Load,
-    BasePointerOffset,
-    StackBaseOffset,
     VirtualVariableCategory,
-    Expression,
 )
-from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment, Label
+from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
 from networkx import NetworkXError
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ...analyses.s_reaching_definitions import SRDAView
 from ...rust.utils.library import normalize
 
 
 l = logging.getLogger(name=__name__)
-
-
-class SRDAHelper:
-    def __init__(self, context: OptimizationPass):
-        self.srda = context.project.analyses.SReachingDefinitions(subject=context._func, func_graph=context._graph)
-        self.srda_view = SRDAView(self.srda.model)
-
-    def get_vvar_value(self, vvar: VirtualVariable) -> Expression | None:
-        # Fix the vvar value not found issue caused by unmatched expr idx
-        for key in self.srda.model.all_vvar_definitions:
-            if key.likes(vvar):
-                vvar = key
-                break
-        return self.srda_view.get_vvar_value(vvar)
-
-    def get_real_vvar_value(self, vvar):
-        visited = set()
-        value = vvar
-        while (value := self.get_vvar_value(value)) and value not in visited:
-            visited.add(value)
-            if isinstance(value, VirtualVariable):
-                continue
-            elif isinstance(value, Phi):
-                result = set()
-                for _, phi_vvar in value.src_and_vvars:
-                    result.add(self.get_real_vvar_value(phi_vvar))
-                if len(result) == 1:
-                    return next(iter(result))
-                else:
-                    return value
-            else:
-                return value
-        return None
 
 
 class SSAVariableHelper:
@@ -74,112 +35,6 @@ class SSAVariableHelper:
             **tags,
         )
         return vvar
-
-
-class DFAHelper:
-    """
-    Data Flow Analysis Helper
-    """
-
-    def __init__(self):
-        pass
-
-    def extract_stack_data_flow(self, stmt):
-        dst_offset = None
-        src_offset = None
-        size = None
-        if isinstance(stmt, Assignment):
-            if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
-                dst_offset = stmt.dst.stack_offset
-            if isinstance(stmt.src, VirtualVariable) and stmt.src.was_stack:
-                src_offset = stmt.src.stack_offset
-            elif isinstance(stmt.src, Load) and isinstance(stmt.src.addr, BasePointerOffset):
-                src_offset = stmt.src.addr.offset
-            size = stmt.src.size
-        return dst_offset, src_offset, size
-
-    def find_stack_data_flow(self, block, src_offset, size):
-        cur_size = 0
-        flows = []
-        stmts = []
-        distance = set()
-        for stmt in block.statements:
-            stmt_dst_offset, stmt_src_offset, stmt_size = self.extract_stack_data_flow(stmt)
-            if stmt_dst_offset is not None and stmt_src_offset is not None and stmt_size is not None:
-                if src_offset + size > stmt_src_offset >= src_offset:
-                    cur_size += stmt_size
-                    flows.append((stmt_dst_offset, stmt_src_offset, stmt_size))
-                    stmts.append(stmt)
-                    distance.add(stmt_dst_offset - stmt_src_offset)
-                    if cur_size >= size:
-                        break
-            else:
-                cur_size = 0
-                flows = []
-                stmts = []
-                distance = set()
-        if cur_size == size and len(distance) == 1:
-            dst_offset = src_offset + next(iter(distance))
-            return stmts, dst_offset
-        return None, None
-
-
-class CFGHelper:
-    def __init__(self, graph, project=None):
-        self._graph = graph
-        self._project = project
-
-    def num_predecessors(self, block):
-        return len(list(self._graph.predecessors(block)))
-
-    def get_one_predecessor(self, block) -> Block:
-        return next(self._graph.predecessors(block))
-
-    def num_successors(self, block):
-        return len(list(self._graph.successors(block)))
-
-    def get_one_successor(self, block) -> Block:
-        return next(self._graph.successors(block))
-
-    def first_non_label_stmt(self, block) -> Optional[Statement]:
-        for stmt in block.statements:
-            if not isinstance(stmt, Label):
-                return stmt
-        return None
-
-    def last_stmt(self, block) -> Optional[Statement]:
-        if block.statements:
-            return block.statements[-1]
-        return None
-
-    def replace_stmt(self, block, stmts, replacement):
-        idx = max(block.statements.index(stmt) for stmt in stmts)
-        block.statements.insert(idx, replacement)
-        for stmt in stmts:
-            block.statements.remove(stmt)
-
-    def terminal_call(self, block) -> Optional[Call]:
-        stmt = self.last_stmt(block)
-        if isinstance(stmt, Return) and stmt.ret_exprs:
-            stmt = stmt.ret_exprs[0]
-            if isinstance(stmt, Convert):
-                stmt = stmt.operand
-        elif isinstance(stmt, Assignment):
-            stmt = stmt.src
-        return stmt if isinstance(stmt, Call) else None
-
-    def match_call(self, block_or_stmt, expected):
-        stmt = self.terminal_call(block_or_stmt) if isinstance(block_or_stmt, Block) else block_or_stmt
-        if isinstance(stmt, Call):
-            name = None
-            if isinstance(stmt.target, str):
-                name = normalize(stmt.target, monopolize=True, use_trait_name=True)
-            elif isinstance(stmt.target, Const) and stmt.target.value in self._project.kb.functions:
-                func = self._project.kb.functions[stmt.target.value]
-                name = normalize(func.name, monopolize=True, use_trait_name=True)
-            if name in expected:
-                return name
-        return None
 
 
 class TransformationPass(OptimizationPass):

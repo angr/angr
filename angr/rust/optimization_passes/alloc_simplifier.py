@@ -5,7 +5,8 @@ from ailment import Const
 from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory, StackBaseOffset
 from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump
 
-from .base import TransformationPass, SRDAHelper, SSAVariableHelper
+from .base import TransformationPass, SSAVariableHelper
+from ..mixins.srda_mixin import SRDAMixin
 from ..ailment.statement import FunctionLikeMacro
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
@@ -138,7 +139,7 @@ RUST_ALLOC_FUNCTIONS = ["__rust_alloc"]
 RUST_ALLOC_ERROR_HANDLING_FUNCTIONS = ["alloc::raw_vec::handle_error", "alloc::alloc::handle_alloc_error"]
 
 
-class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
+class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -146,7 +147,7 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
 
     def __init__(self, func, **kwargs):
         TransformationPass.__init__(self, func, **kwargs)
-        SRDAHelper.__init__(self, self)
+        SRDAMixin.__init__(self, func, self._graph, self.project)
         SSAVariableHelper.__init__(self, self)
 
         self.states: Dict[Call, SimplificationState] = {}
@@ -190,7 +191,7 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
         for stmt in block.statements:
             if isinstance(stmt, Store):
                 vvar, offset = self.extract_vvar_and_offset(stmt.addr)
-                value = self.get_real_vvar_value(vvar)
+                value = self.get_terminal_vvar_value(vvar)
                 if value in self.states:
                     state = self.states[value]
                     state.init_stmts.append(stmt)
@@ -241,7 +242,7 @@ class AllocSimplifier(TransformationPass, SRDAHelper, SSAVariableHelper):
                 stmt_back_back = block.statements[idx + 2]
             if isinstance(stmt, Store) or isinstance(stmt, Assignment):
                 vvar = stmt.data if isinstance(stmt, Store) else stmt.src
-                value = self.get_real_vvar_value(vvar)
+                value = self.get_terminal_vvar_value(vvar)
                 if value in self.states:
                     state = self.states[value]
                     store_alloc_ptr = stmt
