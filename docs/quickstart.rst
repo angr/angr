@@ -34,10 +34,10 @@ your goals.
 Getting Support
 ---------------
 
-To get help with angr, you can ask via:
+To get help with angr, you can:
 
-* `angr Discord server <http://discord.angr.io>`_
-* opening an issue on the appropriate github repository
+* Chat with us on the `angr Discord server <http://discord.angr.io>`_
+* Open an issue on the appropriate GitHub repository
 
 Citing angr
 -----------
@@ -67,8 +67,8 @@ If you use angr in an academic work, please cite the papers for which it was dev
      year={2015}
    }
 
-Going further:
---------------
+Going further
+-------------
 
 You can read this `paper
 <https://www.cs.ucsb.edu/~vigna/publications/2016_SP_angrSoK.pdf>`_,
