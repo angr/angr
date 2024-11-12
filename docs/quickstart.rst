@@ -36,9 +36,7 @@ Getting Support
 
 To get help with angr, you can ask via:
 
-
-* the slack channel: `angr.slack.com <https://angr.slack.com>`_, for which you
-  can get an account `here <https://angr.io/invite/>`_.
+* `angr Discord server <http://discord.angr.io>`_
 * opening an issue on the appropriate github repository
 
 Citing angr
