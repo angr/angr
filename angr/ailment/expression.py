@@ -333,7 +333,7 @@ class Phi(Atom):
         self,
         idx,
         bits,
-        src_and_vvars: list[tuple[tuple[int, int], VirtualVariable | None]],
+        src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]],
         **kwargs,
     ):
         super().__init__(idx, **kwargs)
@@ -390,7 +390,7 @@ class Phi(Atom):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars))))
+        return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars, key=self._src_and_vvar_filter))))
 
     def copy(self) -> Phi:
         return Phi(
@@ -422,6 +422,16 @@ class Phi(Atom):
                 **self.tags,
             )
         return False, self
+
+    @staticmethod
+    def _src_and_vvar_filter(
+        src_and_vvar: tuple[tuple[int, int | None], VirtualVariable | None]
+    ) -> tuple[tuple[int, int], int]:
+        src, vvar = src_and_vvar
+        if src[1] is None:
+            src = src[0], -1
+        vvar_id = vvar.varid if vvar is not None else -1
+        return src, vvar_id
 
 
 class Op(Expression):
