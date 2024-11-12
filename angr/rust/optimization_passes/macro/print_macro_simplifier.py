@@ -6,12 +6,12 @@ from ailment.statement import Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.ailment.expression import Struct, Array, String
 from angr.rust.ailment.statement import FunctionLikeMacro
-from angr.rust.optimization_passes.base import CFGHelper
+from angr.rust.mixins.cfa_mixin import CFAMixin
 
 PRINT_FUNCTIONS = ("std::io::stdio::_print", "std::io::stdio::_eprint")
 
 
-class PrintMacroSimplifier(OptimizationPass, CFGHelper):
+class PrintMacroSimplifier(OptimizationPass, CFAMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -19,7 +19,7 @@ class PrintMacroSimplifier(OptimizationPass, CFGHelper):
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
-        CFGHelper.__init__(self, self._graph, self.project)
+        CFAMixin.__init__(self, self._graph, self.project)
         self.analyze()
 
     def _check(self):

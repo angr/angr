@@ -6,12 +6,14 @@ from ailment.statement import ConditionalJump, Call, Store
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.ailment.expression import Let
-from angr.rust.optimization_passes.base import CFGHelper, DFAHelper, SSAVariableHelper
+from angr.rust.optimization_passes.base import SSAVariableHelper
+from angr.rust.mixins.dfa_mixin import DFAHelper
+from angr.rust.mixins.cfa_mixin import CFAMixin
 from angr.rust.sim_type import RustSimEnum, EnumVariant
 from angr.rust.utils.srda_util import SRDAUtil
 
 
-class EnumPatternMatchSimplifier(OptimizationPass, CFGHelper, DFAHelper, SSAVariableHelper):
+class EnumPatternMatchSimplifier(OptimizationPass, CFAMixin, DFAHelper, SSAVariableHelper):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -19,7 +21,7 @@ class EnumPatternMatchSimplifier(OptimizationPass, CFGHelper, DFAHelper, SSAVari
 
     def __init__(self, func, **kwargs):
         OptimizationPass.__init__(self, func, **kwargs)
-        CFGHelper.__init__(self, self._graph)
+        CFAMixin.__init__(self, self._graph)
         DFAHelper.__init__(self)
         SSAVariableHelper.__init__(self, self)
         self.analyze()

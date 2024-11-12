@@ -21,26 +21,28 @@ class CallsiteCorrector(OptimizationPass, SSAVariableHelper):
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
+        SSAVariableHelper.__init__(self, self)
         self.analyze()
 
     def _check(self):
         return self.project.is_rust_binary, None
 
     def _correct_call(self, call: Call, is_expr):
-        prototype = call.prototype.normalize()
-        if prototype and call.args:
-            struct_ty = prototype.returnty
-            first_arg = call.args[0]
-            if isinstance(first_arg, BasePointerOffset):
-                call = call.copy()
-                call.args = call.args[1:]
-                call.bits = struct_ty.size
-                call.prototype = prototype
-                if is_expr:
-                    return call
-                vvar = self.new_stack_vvar(first_arg.offset, struct_ty.size, call.tags)
-                assignment = Assignment(idx=None, dst=vvar, src=call, **call.tags)
-                return assignment
+        if isinstance(call.prototype, RustSimTypeFunction) and call.args:
+            prototype = call.prototype.normalize()
+            if prototype:
+                struct_ty = prototype.returnty
+                first_arg = call.args[0]
+                if isinstance(first_arg, BasePointerOffset):
+                    call = call.copy()
+                    call.args = call.args[1:]
+                    call.bits = struct_ty.size
+                    call.prototype = prototype
+                    if is_expr:
+                        return call
+                    vvar = self.new_stack_vvar(first_arg.offset, struct_ty.size, call.tags)
+                    assignment = Assignment(idx=None, dst=vvar, src=call, **call.tags)
+                    return assignment
         return None
 
     def _analyze(self, cache=None):
