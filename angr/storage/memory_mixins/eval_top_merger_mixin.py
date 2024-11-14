@@ -28,14 +28,6 @@ class EvalTopMergerMixin(MemoryMixin):
         conc_addr0 = None
         conc_addr1 = None
 
-        # this is for themida only to skip lots of calls to solver, specially huffman
-        if self.state.globals['constant_prop_level'] == 0 and (self.state.solver.symbolic(value1) or self.state.solver.symbolic(value0)):
-            merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-            for tm, fv in values:
-                merged_val = self.state.solver.If(fv, tm, merged_val)
-            # should we add state constraint as well?
-            return merged_val
-
 
         try:
             conc_addr0 = state0.partial_symbolic_constraint_solver.eval_one(value0)
@@ -64,12 +56,12 @@ class EvalTopMergerMixin(MemoryMixin):
             # this causes load address which should only resolve to one address to resolve to multiple addresses
             # and create another mba_split_cond variable
             # So if both the values evaluate to the same concrete value
-            #return value0
-            merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-            for tm, fv in values:
-                merged_val = self.state.solver.If(fv, tm, merged_val)
-            # should we add state constraint as well?
-            return merged_val
+            return value0
+            # merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
+            # for tm, fv in values:
+            #     merged_val = self.state.solver.If(fv, tm, merged_val)
+            # # should we add state constraint as well?
+            # return merged_val
 
         # if value0.symbolic and value1.symbolic:
         #     is_sp_addr1 = False
@@ -123,7 +115,6 @@ class EvalTopMergerMixin(MemoryMixin):
 
 
                     if possible_vip_split:
-                        import ipdb;ipdb.set_trace()
                         merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
                         for tm, fv in values:
                             merged_val = self.state.solver.If(fv, tm, merged_val)
@@ -145,8 +136,6 @@ class EvalTopMergerMixin(MemoryMixin):
                             break
 
                     if possible_vip_split:
-                        import ipdb;
-                        ipdb.set_trace()
                         merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
                         for tm, fv in values:
                             merged_val = self.state.solver.If(fv, tm, merged_val)
@@ -157,7 +146,7 @@ class EvalTopMergerMixin(MemoryMixin):
             except:
                 pass
         else:
-            #keep both symbolic values
+            #keep both symbolic values, we could replace this with TOP to make things faster
             merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
             for tm, fv in values:
                 merged_val = self.state.solver.If(fv, tm, merged_val)
