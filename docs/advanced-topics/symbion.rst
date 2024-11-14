@@ -132,5 +132,5 @@ Example
 
 You can find more information about this technique and a complete example in our
 blog post: https://angr.io/blog/angr_symbion/. For more technical details a
-public paper will be available soon, or, ping @degrigis on our ``angr`` Slack
-channel.
+public paper will be available soon, or, ping @degrigis on our angr Discord
+server.

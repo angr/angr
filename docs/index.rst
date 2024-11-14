@@ -14,6 +14,7 @@ These libraries are:
 * `cle <https://api.angr.io/projects/cle/en/latest/>`_ - Many-platform binary loader
 * `claripy <https://api.angr.io/projects/claripy/en/latest/>`_ - Solver abstraction layer
 
+angr also has a GUI! Check out `angr-management <https://github.com/angr/angr-management/>`_.
 
 
 .. toctree::
