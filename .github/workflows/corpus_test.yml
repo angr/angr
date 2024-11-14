@@ -335,40 +335,23 @@ jobs:
           SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         if: ${{ ! inputs.nightly }}
         run: |
-          source .venv/bin/activate
-          cd corpus_tests
-
           snapshot_branch="${ANGR_BRANCH}"
-          ghapi=./ghapi.py
-          tries=3
-
           echo "Creating snapshots branch '${snapshot_branch}'."
-          n=0
-          while ! python3 $ghapi \
-              --auth-token "$SNAPSHOT_TOKEN" \
-              --owner "$SNAPSHOT_GITHUB_OWNER" \
-              --repo "$SNAPSHOT_GITHUB_REPO" \
-              --branch "${SNAPSHOT_GITHUB_BRANCH}" \
-              create_branch "${snapshot_branch}" --allow-existing-branch; do
-            n=$((n+1))
-            if [ $n -ge $tries ]; then
-              break
-            fi
-            wait_time="$(printf '%u.%03u' $((RANDOM % 4)) $((RANDOM % 1000)))"
-            echo "Branch creation failed; waiting ${wait_time}s to try again."
-            sleep "${wait_time}"
-          done
+          ./corpus_tests/scripts/gh_create_branch.sh \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
+            -H "${SNAPSHOT_GITHUB_BRANCH}" \
+            -t "${SNAPSHOT_TOKEN}"
 
           echo "Pushing all .json.txt files up to the branch."
           for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
             # Second arg is the file path in the snapshots repo.
             n=0
-            while ! python3 $ghapi \
-                --auth-token "$SNAPSHOT_TOKEN" \
-                --owner "$SNAPSHOT_GITHUB_OWNER" \
-                --repo "$SNAPSHOT_GITHUB_REPO" \
-                --branch "${snapshot_branch}" \
-                push_file "${file}" "${file}"; do
+            while ! ./corpus_tests/scripts/gh_push_file.sh \
+                -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
+                -H "${SNAPSHOT_GITHUB_BRANCH}" \
+                -t "${SNAPSHOT_TOKEN}" \
+                "${file}" \
+                "${file}"; do
               n=$((n+1))
               if [ $n -ge $tries ]; then
                 break

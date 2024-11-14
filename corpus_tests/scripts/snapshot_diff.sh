@@ -23,10 +23,6 @@ Options:
 
       Show this help message and exit
 
-  -j, --json
-
-      Set the output format to JSON.
-
   -p <path>, --path <path>
 
       The file path of the snapshot to compare.
@@ -60,7 +56,6 @@ ANGR
 }
 
 declare -a FILEPATH
-OUTPUT_FORMAT="text"
 REF_BASE="HEAD"
 REPO="project-purcellville/snapshots-0000"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -84,10 +79,6 @@ parse_args() {
       -H|--head-ref)
         REF_HEAD="$2"
         shift 2
-        ;;
-      -j|--json)
-        OUTPUT_FORMAT="json"
-        shift 1
         ;;
       -p|--path)
         FILEPATH+=("$2")

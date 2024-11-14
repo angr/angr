@@ -36,6 +36,10 @@ Options:
       The optional SHA of the tree to fetch files from.
       Repeat to enumerate multiple trees.
 
+  --with-sha
+
+      Return the list of remote files with their git SHA values.
+
 GitHub Options:
 
   -b <branch>, --branch <branch>
@@ -57,6 +61,7 @@ ANGR
 declare -a FILEPATH
 declare -a STARTPATTERN
 declare -a SHA
+WITH_SHA=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -83,6 +88,10 @@ parse_args() {
       -t|--token)
         GITHUB_TOKEN="$2"
         shift 2
+        ;;
+      --with-sha)
+        WITH_SHA="1"
+        shift
         ;;
       *)
         echo "Unknown option: $1"
@@ -143,9 +152,16 @@ fetch_tree_by_sha() {
     exit 1
   fi
 
+  # shellcheck disable=SC2016
+  if [[ -n "${WITH_SHA}" ]]; then
+    jq_program='.tree[] | select(.type == "blob") | $prefix + "/" + .path + "," + .sha'
+  else
+    jq_program='.tree[] | select(.type == "blob") | $prefix + "/" + .path'
+  fi
+
   while read -r item; do
     FILEPATH+=("${item}")
-  done < <(echo "${response}" | jq -r --arg prefix "${prefix}" '.tree[] | select(.type == "blob") | $prefix + "/" + .path')
+  done < <(echo "${response}" | jq -r --arg prefix "${prefix}" "${jq_program}")
 }
 
 # If SHAs are not provided, get them from the repo.

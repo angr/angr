@@ -1,3 +1,8 @@
+"""
+Configures pytest to include binary paths for use with pytest-insta.
+"""
+
+# pylint: disable=import-error,missing-function-docstring
 from __future__ import annotations
 import pytest
 
