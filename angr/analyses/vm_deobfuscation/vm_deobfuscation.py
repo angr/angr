@@ -139,7 +139,31 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
         #new_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
         new_result = result
         code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
-        if self.project.prev_symbolic_expr_locations and not self.state.solver.symbolic(result) and (code_loc, expr) in self.project.prev_symbolic_expr_locations:
+
+        symbolify = False
+
+        if (code_loc, expr) in self.project.merged_tops:
+            if not (result.depth == 1 and self.state.solver.symbolic(result) and result.args[0].startswith('symbolified_expr')):
+                # import ipdb;ipdb.set_trace()
+                symbolify = True
+
+        # if isinstance(expr, pyvex.expr.Load) and self.state.solver.symbolic(result) and self.project.prev_symbolic_expr_locations and (code_loc, expr) in self.project.prev_symbolic_expr_locations:
+        #     skip = False
+        #     #make sure that we are only testing exprs with all variables that are the mba_state_split_cond
+        #     for var in result.variables:
+        #         if var.startswith('precon_sp'):
+        #             skip = True
+        #             break
+        #
+        #     if not skip:
+        #         try:
+        #             #we need to check for constants that need to be symbolized
+        #             tmp = self.state.partial_symbolic_constraint_solver.eval_one(result)
+        #             symbolify = True
+        #         except:
+        #             pass
+
+        if symbolify or (self.project.prev_symbolic_expr_locations and not self.state.solver.symbolic(result) and (code_loc, expr) in self.project.prev_symbolic_expr_locations):
             sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(code_loc.block_addr)), result.size())
             self.state.globals['expr_loc_map'][sym_result.args[0]] = (code_loc, expr)
             new_result = sym_result
@@ -529,7 +553,7 @@ class VMDeobfuscation(Analysis):
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
-                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0):
+                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -586,6 +610,8 @@ class VMDeobfuscation(Analysis):
         elif vpc_mem_loc:
             start_state.inspect.add_breakpoint('mem_write',
                                            BP(BP_AFTER, mem_write_address=vpc_mem_loc, action=save_vpc_at_mem_loc))
+        elif use_vip_finder:
+            start_state.globals['use_vip_finder'] = True
 
 
         proj=self.project
@@ -916,7 +942,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"), without_insts=False)
+        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"), without_insts=False, super_graph_only=False)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
@@ -3167,6 +3193,9 @@ class VMDeobfuscation(Analysis):
                                     pred.irsb.statements[-1].dst = node.irsb.next.con
                                 else:
                                     pred.irsb.next = node.irsb.next
+                                if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
+                                    # remove the redundant if cond, if both targets become same
+                                    pred.irsb.statements = pred.irsb.statements[:-1]
                             else:
                                 pred.irsb.next = node.irsb.next
                             to_remove = True
@@ -3437,7 +3466,7 @@ class VMDeobfuscation(Analysis):
                             if isinstance(arg, pyvex.expr.Const):
                                 cur_stmt_const_arg = arg.con.value
 
-                        if isinstance(pred_stmt, pyvex.stmt.WrTmp) and isinstance(pred_stmt.data, pyvex.expr.Binop) and \
+                        if cur_stmt_const_arg and isinstance(pred_stmt, pyvex.stmt.WrTmp) and isinstance(pred_stmt.data, pyvex.expr.Binop) and \
                             pred_stmt.data.op.startswith(stmt.data.op):
                             #check if the pred stmt is also XOR
 
@@ -3457,13 +3486,17 @@ class VMDeobfuscation(Analysis):
                                     changed_stmt_idx.append(stmt_idx)
                                 else:
                                     new_stmt = pyvex.stmt.WrTmp(stmt.tmp,
-                                                                pyvex.expr.Binop("Iop_Xor" + stmt.data.op[-2:],
+                                                                pyvex.expr.Binop(stmt.data.op,
                                                                                  [pyvex.expr.RdTmp(
                                                                                      pred_stmt_tmp_arg),
                                                                                   pyvex.expr.Const(
                                                                                       const_class(pred_stmt_const_arg ^ cur_stmt_const_arg))]))
                                     changed_stmt_idx.append(stmt_idx)
-
+                        elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and isinstance(stmt.data.args[1], pyvex.expr.RdTmp) and stmt.data.args[0].tmp == stmt.data.args[1].tmp:
+                            # t89 = Xor32(t355,t355)
+                            const_class = pyvex.const.ty_to_const_class(node.irsb.tyenv.lookup(stmt.tmp))
+                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(0)))
+                            changed_stmt_idx.append(stmt_idx)
 
                     elif len(pred_defs) == 2:
                         # both args are temps
@@ -3510,7 +3543,7 @@ class VMDeobfuscation(Analysis):
                                     new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[0]).con)
                                     changed_stmt_idx.append(stmt_idx)
 
-                        elif isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_2.data, pyvex.expr.Binop) and \
+                        if stmt_idx not in changed_stmt_idx and isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_2.data, pyvex.expr.Binop) and \
                             pred_stmt_2.data.op.startswith(stmt.data.op):
                             #make sure its a XOR
                             if isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
@@ -3536,6 +3569,84 @@ class VMDeobfuscation(Analysis):
                                 if pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
                                     new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[0]).con)
                                     changed_stmt_idx.append(stmt_idx)
+
+                        if stmt_idx not in changed_stmt_idx:
+                            if isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1.data,
+                                                                                        pyvex.expr.Binop) and \
+                                    pred_stmt_1.data.op.startswith(stmt.data.op) and isinstance(pred_stmt_2,
+                                                                                                pyvex.stmt.WrTmp) and \
+                                    isinstance(pred_stmt_2.data, pyvex.expr.Binop) and pred_stmt_2.data.op.startswith(
+                                stmt.data.op) and \
+                                    isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and isinstance(
+                                pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                    pred_stmt_1.data.args[0].tmp == pred_stmt_2.data.args[0].tmp and isinstance(
+                                pred_stmt_1.data.args[1], pyvex.expr.Const) and \
+                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const):
+                                # t445 = Xor32(t423,0x00cb8c6a)
+                                # t447 = Xor32(t423,0x00cb8c03)
+                                # t1105 = Xor32(t447,t445)
+                                const_class = pred_stmt_1.data.args[1].con.__class__
+                                new_const = pred_stmt_2.data.args[1].con.value ^ pred_stmt_1.data.args[1].con.value
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(new_const)))
+                                changed_stmt_idx.append(stmt_idx)
+
+
+                    if stmt_idx not in changed_stmt_idx:
+                        if isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
+                            #t135 = Xor8(t138, 0x00)
+                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                            changed_stmt_idx.append(stmt_idx)
+                        elif isinstance(stmt.data.args[0], pyvex.expr.Const) and stmt.data.args[0].con.value == 0:
+                            #t135 = Xor8(0x00, t138)
+                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
+                            changed_stmt_idx.append(stmt_idx)
+
+
+                # elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Or"):
+                #     cur_stmt_defs = dep_graph.find_definitions(tmp_idx=stmt.tmp)
+                #     assert len(cur_stmt_defs) == 1
+                #     pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
+                #     if len(pred_defs) == 2:
+                #         # t518 = Not32(t147)
+                #         # ------ IMark(0x454b26, 2, 0) ------
+                #         # t528 = Not32(t147)
+                #         # ------ IMark(0x454b2d, 2, 0) ------
+                #         # t33 = Or32(t518,t528)
+                #         #
+                #         pred_def_1 = pred_defs[0]
+                #         pred_def_2 = pred_defs[1]
+                #
+                #         pred_stmt_1_idx = pred_def_1.codeloc.stmt_idx
+                #         pred_stmt_2_idx = pred_def_2.codeloc.stmt_idx
+                #
+                #         pred_stmt_1 = node.irsb.statements[pred_stmt_1_idx]
+                #         pred_stmt_2 = node.irsb.statements[pred_stmt_2_idx]
+                #
+                #
+                #         if pred_stmt_1_idx in changed_stmt_idx or pred_stmt_2_idx in changed_stmt_idx:
+                #             # if the pred_stmt has been modified already then skip
+                #             new_stmts.append(new_stmt)
+                #             continue
+                #
+                #         if isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and \
+                #             pred_stmt_2.data == pred_stmt_1.data:
+                #             new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
+                #             changed_stmt_idx.append(stmt_idx)
+                #
+                #     elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and isinstance(stmt.data.args[1], pyvex.expr.RdTmp) and \
+                #             stmt.data.args[0] == stmt.data.args[1]:
+                #         # t33 = Or32(t518,t518)
+                #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
+                #         changed_stmt_idx.append(stmt_idx)
+                #     elif isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
+                #         #t135 = Or8(t138, 0x00)
+                #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                #         changed_stmt_idx.append(stmt_idx)
+                # elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Shl"):
+                #     if isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
+                #         # t160 = Shl32(t161,0x00)
+                #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                #         changed_stmt_idx.append(stmt_idx)
 
                 new_stmts.append(new_stmt)
 
