@@ -93,8 +93,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                 if not self.state.solver.symbolic(self.state.scratch.temps[cur_stmt.data.addr.tmp]):
                                     self.state.memory.store(self.state.scratch.temps[cur_stmt.data.addr.tmp], simp_result)
                                 else:
-                                    import ipdb;
-                                    ipdb.set_trace()
+                                    addr = self.state.partial_symbolic_constraint_solver.eval_one(self.state.scratch.temps[cur_stmt.data.addr.tmp])
+                                    self.state.memory.store(addr, simp_result)
                             elif isinstance(cur_stmt.data.addr, pyvex.expr.Const):
                                 self.state.memory.store(cur_stmt.data.addr.con.value, simp_result)
                         elif isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data,
@@ -117,6 +117,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 if skip:
                     # do additional simplification and verify that it's not the stack pointer
                     if self.state.globals['is_constant_propagation']:
+                    # we use simplifier for vm protect because there are, mba replacements in the replacement solver, so we cannot use
+                    # a solver without those.
                         tmp_simp_result = self.state.solver.simplify(result)
                         if not self.state.solver.symbolic(tmp_simp_result):
                             simp_result = tmp_simp_result
@@ -141,7 +143,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                             pass
 
 
-                if not skip:
+                if (not skip) or (expr in cur_abstract_state._replacements[code_loc] and not (cur_abstract_state._replacements[code_loc][expr] == "TOP")):
+                    # if it's already been added to constants once, it means precon_sp was not in that old expression, so we try to solve it again
                     try:
                         # start = cur_time()
                         eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
@@ -208,6 +211,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 cur_abstract_state._replacements[code_loc][expr].con.value != simp_result.args[0]:
 
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
+            import ipdb;ipdb.set_trace()
 
         elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
                 and not(isinstance(expr, pyvex.expr.Const)):
@@ -228,11 +232,14 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         elif self.state.solver.symbolic(simp_result) and expr in cur_abstract_state._replacements[code_loc] and not (cur_abstract_state._replacements[code_loc][expr] == "TOP"):
             #del cur_abstract_state._replacements[code_loc][expr]
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
+            if PropagatorState.is_top(simp_result) and simp_result.depth == 1:
+                self.project.merged_tops[(code_loc, expr)] = "merged_top"
             # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
 
         ## This case checks for TOP that result from state merging that merged two concrete values, which means that this values should be symbolized
-        elif self.state.globals['constant_prop_level'] == 0 and PropagatorState.is_top(simp_result):# and simp_result.depth == 1:
+        elif self.state.globals['constant_prop_level'] == 0 and PropagatorState.is_top(simp_result) and simp_result.depth == 1:
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
+            self.project.merged_tops[(code_loc, expr)] = "merged_top"
         elif self.state.globals['constant_prop_level'] == 1 and self.state.solver.symbolic(simp_result):
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
 
@@ -397,7 +404,6 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
                 return final_cond
             elif len(conc_addrs) == 2:
-                import ipdb;ipdb.set_trace()
                 loaded_values = []
                 for conc_addr in conc_addrs:
                     loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
@@ -712,7 +718,8 @@ class PropagatorVEXState(PropagatorState):
 
         #group states based on same stack pointer value
         for cur_conc_state in conc_states_to_merge:
-            states_on_same_sp[cur_conc_state.solver.eval_one(cur_conc_state.regs.sp)].append(cur_conc_state)
+            #states_on_same_sp[cur_conc_state.solver.eval_one(cur_conc_state.regs.sp)].append(cur_conc_state)
+            states_on_same_sp[cur_conc_state.partial_symbolic_constraint_solver.eval_one(cur_conc_state.regs.sp)].append(cur_conc_state)
         # We have states which don't have matching stack pointer, so we should not be merging now
 
         ## make sure they have the same stack pointer exactly other merging will result in TOP
@@ -1108,7 +1115,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             #     import ipdb;ipdb.set_trace()
             # profiler.disable()
             # stats = pstats.Stats(profiler).sort_stats('tottime')
-
+            #
             # if stats.total_tt > (60*5):
             #     stats.print_stats()
             #     import ipdb;
