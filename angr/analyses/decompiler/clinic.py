@@ -113,6 +113,8 @@ class Clinic(Analysis):
         vvar_id_start: int = 0,
         optimization_scratch: dict[str, Any] | None = None,
         desired_variables: set[str] | None = None,
+        force_loop_single_exit: bool = True,
+        complete_successors: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -157,6 +159,8 @@ class Clinic(Analysis):
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
         self._inlining_parents = inlining_parents or ()
         self._desired_variables = desired_variables
+        self._force_loop_single_exit = force_loop_single_exit
+        self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
 
@@ -333,6 +337,7 @@ class Clinic(Analysis):
             optimization_passes=[StackCanarySimplifier],
             sp_shift=self._max_stack_depth,
             vvar_id_start=self.vvar_id_start,
+            fail_fast=self._fail_fast,
         )
         self.vvar_id_start = callee_clinic.vvar_id_start + 1
         self._max_stack_depth = callee_clinic._max_stack_depth
@@ -787,7 +792,7 @@ class Clinic(Analysis):
 
             # case 2: the callee is a SimProcedure
             if target_func.is_simprocedure:
-                cc = self.project.analyses.CallingConvention(target_func)
+                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
@@ -795,7 +800,7 @@ class Clinic(Analysis):
 
             # case 3: the callee is a PLT function
             if target_func.is_plt:
-                cc = self.project.analyses.CallingConvention(target_func)
+                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
@@ -834,6 +839,7 @@ class Clinic(Analysis):
                     callsite_block_addr=callsite.addr,
                     callsite_insn_addr=callsite_ins_addr,
                     func_graph=func_graph,
+                    fail_fast=self._fail_fast,
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
@@ -864,6 +870,7 @@ class Clinic(Analysis):
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
             self.project.analyses.CompleteCallingConventions(
+                fail_fast=self._fail_fast,
                 recover_variables=True,
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
@@ -896,6 +903,7 @@ class Clinic(Analysis):
         spt = self.project.analyses.StackPointerTracker(
             self.function,
             regs,
+            fail_fast=self._fail_fast,
             track_memory=self._sp_tracker_track_memory,
             cross_insn_opt=False,
             initial_reg_values=initial_reg_values,
@@ -1130,6 +1138,7 @@ class Clinic(Analysis):
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
             self.function.addr,
+            fail_fast=self._fail_fast,
             remove_dead_memdefs=remove_dead_memdefs,
             stack_pointer_tracker=stack_pointer_tracker,
             peephole_optimizations=self.peephole_optimizations,
@@ -1201,6 +1210,7 @@ class Clinic(Analysis):
 
         simp = self.project.analyses.AILSimplifier(
             self.function,
+            fail_fast=self._fail_fast,
             func_graph=ail_graph,
             remove_dead_memdefs=remove_dead_memdefs,
             unify_variables=unify_variables,
@@ -1259,6 +1269,8 @@ class Clinic(Analysis):
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.entry_node_addr,
                 scratch=self.optimization_scratch,
+                force_loop_single_exit=self._force_loop_single_exit,
+                complete_successors=self._complete_successors,
                 **kwargs,
             )
             if a.out_graph:
@@ -1342,6 +1354,7 @@ class Clinic(Analysis):
         ssailification = self.project.analyses.Ssailification(
             self.function,
             ail_graph,
+            fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
@@ -1355,6 +1368,7 @@ class Clinic(Analysis):
         ssailification = self.project.analyses.Ssailification(
             self.function,
             ail_graph,
+            fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_tmps=True,
@@ -1369,6 +1383,7 @@ class Clinic(Analysis):
         dephication = self.project.analyses.GraphDephicationVVarMapping(
             self.function,
             ail_graph,
+            fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             vvar_id_start=self.vvar_id_start,
         )
@@ -1421,6 +1436,7 @@ class Clinic(Analysis):
         rd = self.project.analyses.SReachingDefinitions(
             subject=self.function,
             func_graph=ail_graph,
+            fail_fast=self._fail_fast,
             # use_callee_saved_regs_at_return=not self._register_save_areas_removed,  FIXME
         )
 
@@ -1431,6 +1447,7 @@ class Clinic(Analysis):
         def _handler(block):
             csm = self.project.analyses.AILCallSiteMaker(
                 block,
+                fail_fast=self._fail_fast,
                 reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
@@ -1444,6 +1461,7 @@ class Clinic(Analysis):
                 simp = self.project.analyses.AILBlockSimplifier(
                     ail_block,
                     self.function.addr,
+                    fail_fast=self._fail_fast,
                     stack_pointer_tracker=stack_pointer_tracker,
                     peephole_optimizations=self.peephole_optimizations,
                 )
@@ -1527,6 +1545,7 @@ class Clinic(Analysis):
         tmp_kb.functions = self.kb.functions
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
+            fail_fast=self._fail_fast,
             func_graph=ail_graph,
             kb=tmp_kb,
             track_sp=False,
@@ -1559,6 +1578,7 @@ class Clinic(Analysis):
                 vr.type_constraints,
                 vr.func_typevar,
                 kb=tmp_kb,
+                fail_fast=self._fail_fast,
                 var_mapping=vr.var_to_typevars,
                 must_struct=must_struct,
                 ground_truth=groundtruth,

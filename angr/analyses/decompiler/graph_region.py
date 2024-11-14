@@ -382,12 +382,9 @@ class GraphRegion:
                         if src in graph:
                             graph.add_edge(src, dst)
                 else:
-                    # it may happen that the dst node does not exist in sub_graph
-                    # fallback
-                    l.info("Node dst is not found in sub_graph. Enter the fall back logic.")
-                    for src in sub_graph.nodes:
-                        if sub_graph.out_degree[src] == 0:
-                            graph.add_edge(src, dst)
+                    # it may happen that the dst node no longer exists in sub_graph or its successors
+                    # this is because we have deemed that the dst node is no longer a valid successor for sub_graph
+                    pass
 
         graph.add_nodes_from(sub_graph_nodes)
         graph.add_edges_from(sub_graph_edges)

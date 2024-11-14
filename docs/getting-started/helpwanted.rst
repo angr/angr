@@ -94,19 +94,9 @@ We have several projects in mind that primarily require development effort.
 angr-management
 ^^^^^^^^^^^^^^^
 
-The angr GUI, `angr-management <https://github.com/angr/angr-management>`_ needs
-a *lot* of work. Here is a non-exhaustive list of what is currently missing in
-angr-management:
-
-
-* A navigator toolbar showing content in a program's memory space, just like IDA
-  Pro's navigator toolbar.
-* A text-based disassembly view of the program.
-* Better view showing details in program states during path exploration,
-  including modifiable register view, memory view, file descriptor view, etc.
-* A GUI for cross referencing.
-
-Exposing angr's capabilities in a usable way, graphically, would be really useful!
+The angr GUI, `angr-management <https://github.com/angr/angr-management>`_,
+could use your improvements! Exposing more of angr's capabilities in a usable
+way, graphically, would be really useful!
 
 IDA Plugins
 ^^^^^^^^^^^
