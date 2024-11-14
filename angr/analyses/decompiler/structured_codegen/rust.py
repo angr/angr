@@ -2575,9 +2575,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._analyze()
 
-        if flavor is not None:
-            self.kb.structured_code[(func.addr, flavor)] = self
-
     def reapply_options(self, options):
         for option, value in options:
             if option.param == "braces_on_own_lines":

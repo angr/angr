@@ -66,8 +66,7 @@ from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
 from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from ...rust.ailment.expression import Struct, Array, Let
-from ...rust.ailment.statement import FunctionLikeMacro
+from ...rust.ailment.expression import Struct, Array
 from ...rust.typehoon.typehoon import RustTypehoon
 from .semantic_naming import SemanticNamingOrchestrator
 from ...rust.sim_type import RustSimTypeInt
@@ -2299,9 +2298,6 @@ class Clinic(Analysis):
                 assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
 
-            elif stmt_type is FunctionLikeMacro:
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt)
-
     def _link_variables_on_return(
         self, variable_manager, global_variables, block: ailment.Block, stmt_idx: int, stmt: ailment.Stmt.Return
     ):
@@ -2501,7 +2497,6 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.maddr)
             if expr.guard:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.guard)
-
         elif isinstance(expr, Struct):
             for field in expr.fields.values():
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, field)

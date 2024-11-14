@@ -109,6 +109,3 @@ class EnumPatternMatchSimplifier(OptimizationPass, CFAMixin, DFAHelper, SSAVaria
                                 defs = self._find_associated_data_definitions(last_stmt, variant, vvar)
                                 let_expr = Let(None, variant, defs, vvar)
                                 last_stmt.condition = let_expr
-                                import ipdb
-
-                                ipdb.set_trace()
