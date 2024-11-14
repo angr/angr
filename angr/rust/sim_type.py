@@ -441,24 +441,33 @@ class RustSimTypeBottom(RustSimType, SimTypeBottom):
 
 
 class EnumVariant:
-    def __init__(self, name, discriminant, associated_data):
+    def __init__(self, name, discriminant, associated_data, discriminant_size):
         self.name = name
         self.discriminant = discriminant
         self.associated_data: OrderedDict[SimType, str] = associated_data
+        self.discriminant_size = discriminant_size
         self._type = None
 
     @staticmethod
     def from_no_data(name, discriminant):
-        return EnumVariant(name, discriminant, OrderedDict())
+        return EnumVariant(name, discriminant, OrderedDict(), 0)
 
     @staticmethod
-    def from_single_struct(name, discriminant, struct_type):
+    def from_single_struct(name, discriminant, struct_type, discriminant_size):
         associated_data = OrderedDict([(struct_type, None)])
-        return EnumVariant(name, discriminant, associated_data)
+        return EnumVariant(name, discriminant, associated_data, discriminant_size)
 
     @property
     def has_associated_data(self):
         return len(self.associated_data) > 0
+
+    @property
+    def data_offset(self):
+        if self.has_associated_data:
+            first_type = list(self.associated_data.items())[0][0]
+            if self.discriminant_size:
+                return max(self.discriminant_size, first_type.alignment)
+        return 0
 
     @property
     def size(self):
@@ -492,19 +501,19 @@ class EnumVariant:
 
 
 class RustSimEnum(RustSimType, SimType):
-    def __init__(self, variants: List[EnumVariant], overlapping_discriminant=True):
+    def __init__(self, variants: List[EnumVariant], discriminant_size=0):
         super().__init__()
         assert len(variants) > 0
         self.variants = variants
-        self.overlapping_discriminant = overlapping_discriminant
+        self.discriminant_size = discriminant_size
 
         self._size = max(variant.size for variant in self.variants)
 
     def copy(self):
-        return RustSimEnum(self.variants, self.overlapping_discriminant).with_arch(self._arch)
+        return RustSimEnum(self.variants, self.discriminant_size).with_arch(self._arch)
 
     def _with_arch(self, arch):
-        out = RustSimEnum([variant.with_arch(arch) for variant in self.variants], self.overlapping_discriminant)
+        out = RustSimEnum([variant.with_arch(arch) for variant in self.variants], self.discriminant_size)
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
@@ -521,21 +530,20 @@ class RustSimEnum(RustSimType, SimType):
 
 
 class RustSimTypeOption(RustSimEnum):
-    def __init__(self, data_type, none_discriminant, some_discriminant=None, overlapping_discriminant=True):
+    def __init__(self, data_type, none_discriminant, some_discriminant=None, discriminant_size=0):
         self.data_type = data_type
         self.none_discriminant = none_discriminant
         self.some_discriminant = some_discriminant
-        self.overlapping_discriminant = overlapping_discriminant
 
         variants = [
             EnumVariant.from_no_data("None", none_discriminant),
-            EnumVariant.from_single_struct("Some", some_discriminant, data_type),
+            EnumVariant.from_single_struct("Some", some_discriminant, data_type, discriminant_size),
         ]
-        super().__init__(variants)
+        super().__init__(variants, discriminant_size=discriminant_size)
 
     def copy(self):
         return RustSimTypeOption(
-            self.data_type, self.none_discriminant, self.some_discriminant, self.overlapping_discriminant
+            self.data_type, self.none_discriminant, self.some_discriminant, self.discriminant_size
         ).with_arch(self._arch)
 
     def _with_arch(self, arch):
@@ -543,9 +551,41 @@ class RustSimTypeOption(RustSimEnum):
             self.data_type.with_arch(arch),
             self.none_discriminant,
             self.some_discriminant,
-            self.overlapping_discriminant,
+            self.discriminant_size,
         )
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         return f"Option<{self.data_type}>"
+
+
+class RustSimTypeResult(RustSimEnum):
+    def __init__(self, ok_type, err_type, ok_discriminant, err_discriminant, discriminant_size):
+        self.ok_type = ok_type
+        self.err_type = err_type
+        self.ok_discriminant = ok_discriminant
+        self.err_discriminant = err_discriminant
+
+        variants = [
+            EnumVariant.from_single_struct("Ok", ok_discriminant, ok_type, discriminant_size),
+            EnumVariant.from_single_struct("Err", err_discriminant, err_type, discriminant_size),
+        ]
+        super().__init__(variants, discriminant_size=discriminant_size)
+
+    def copy(self):
+        return RustSimTypeResult(
+            self.ok_type, self.err_type, self.ok_discriminant, self.err_discriminant, self.discriminant_size
+        ).with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        out = RustSimTypeResult(
+            self.ok_type.with_arch(arch),
+            self.err_type.with_arch(arch),
+            self.ok_discriminant,
+            self.err_discriminant,
+            self.discriminant_size,
+        )
+        return out
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        return f"Result<{self.ok_type}, {self.err_type}>"
