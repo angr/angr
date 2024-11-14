@@ -7,6 +7,7 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
 class SRDAMixin:
     def __init__(self, subject, graph, project):
+        self._graph = graph
         self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph)
         self.srda_view = SRDAView(self.srda.model)
 

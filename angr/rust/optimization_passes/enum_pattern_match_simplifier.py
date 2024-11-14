@@ -49,7 +49,7 @@ class EnumPatternMatchSimplifier(OptimizationPass, CFAMixin, DFAHelper, SSAVaria
             block_addr = jump.true_target.value
             if (block_addr, jump.true_target_idx) in self.blocks_by_addr_and_idx:
                 block = self.blocks_by_addr_and_idx[(block_addr, jump.true_target_idx)]
-                src_offset = enum_vvar.stack_offset
+                src_offset = enum_vvar.stack_offset + variant.data_offset
                 for ty in variant.associated_data.keys():
                     ty_size = ty.size // self.project.arch.byte_width
                     stmts, dst_offset = self.find_stack_data_flow(block, src_offset, ty_size)
@@ -109,3 +109,6 @@ class EnumPatternMatchSimplifier(OptimizationPass, CFAMixin, DFAHelper, SSAVaria
                                 defs = self._find_associated_data_definitions(last_stmt, variant, vvar)
                                 let_expr = Let(None, variant, defs, vvar)
                                 last_stmt.condition = let_expr
+                                import ipdb
+
+                                ipdb.set_trace()

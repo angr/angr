@@ -1,16 +1,18 @@
 import logging
 import traceback
 from pprint import pformat
-from typing import Tuple
+from typing import Tuple, Optional
+from collections import OrderedDict
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load
-from ailment.statement import Store, Call, Statement, ConditionalJump, Return
+from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi
+from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment
 import networkx as nx
 
 from ..mixins.cfa_mixin import CFAMixin
 from ..mixins.srda_mixin import SRDAMixin
-from ..sim_type import RustSimEnum, RustSimTypeOption
+from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
+from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from ..utils.library import normalize
@@ -97,7 +99,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
             if self.func.normalized and self.func.size:
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
-                    self.model.clinic = self.project.analyses.Clinic(self.func, cfg=cfg, optimization_passes=[])
+                    self.model.clinic = self.project.analyses.Clinic(
+                        self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer]
+                    )
                 except Exception as e:
                     l.debug(f"Failed to recover AIL graph for {normalize(self.func.name)}")
                     l.debug("".join(traceback.format_exception(e)))
@@ -115,15 +119,107 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                     l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
                     l.debug("".join(traceback.format_exception(e)))
 
+    def _calculate_discriminant(self, path: Tuple[Block]) -> Optional[Const]:
+        discriminant = None
+        for i in range(len(path)):
+            block = path[i]
+            next_block = path[i + 1] if i + 1 < len(path) else None
+            for stmt in reversed(block.statements):
+                if discriminant is None:
+                    if (
+                        isinstance(stmt, Store)
+                        and isinstance(stmt.addr, VirtualVariable)
+                        and stmt.addr.varid == 0
+                        and stmt.addr.was_parameter
+                    ):
+                        discriminant = stmt.data
+                else:
+                    if isinstance(stmt, Assignment) and stmt.dst.likes(discriminant):
+                        discriminant = stmt.src
+                if isinstance(discriminant, Phi) and next_block:
+                    for src, vvar in discriminant.src_and_vvars:
+                        if src == (next_block.addr, next_block.idx):
+                            discriminant = vvar
+                            break
+                if discriminant and not isinstance(discriminant, VirtualVariable):
+                    return discriminant if isinstance(discriminant, Const) else None
+        return None
+
+    def _remove_discriminant_from_struct(self, struct_type: RustSimStruct):
+        field_types = list(struct_type.fields.values())[1:]
+        fields = OrderedDict()
+        offset = 0
+        for field_type in field_types:
+            fields[f"field_{offset}"] = field_type
+            offset += field_type.size // self.project.arch.byte_width
+        return RustSimStruct(
+            fields,
+            name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+            pack=True,
+        ).with_arch(self.project.arch)
+
     def _decide_final_type(self, struct_types) -> RustSimStruct | RustSimEnum | None:
         if len(struct_types) == 0:
             return None
 
         sizes = {ty.size for ty in struct_types}
 
-        # Check if it's a struct
-        if len(sizes) == 1:
+        # Simplest case: if all inferred struct types are equivalent, just return any of them.
+        if len(struct_types) == 1:
             return next(iter(struct_types))
+
+        # Oh, no! There are different struct types. It may be an enum.
+        struct_type_to_path = {}
+        struct_type_to_discriminant = {}
+        for struct_type, block_or_path in struct_types.items():
+            if isinstance(block_or_path, tuple):
+                struct_type_to_path[struct_type] = block_or_path
+                struct_type_to_discriminant[struct_type] = self._calculate_discriminant(block_or_path)
+
+        # If there are two different struct types, it could be Option<T> or Result<T, E>
+        # If the size of one of the struct types is equal to discriminant size, it is an Option<T>
+        # Otherwise it's a Result<T, E>
+        discriminants = list(struct_type_to_discriminant.values())
+        if len(struct_type_to_discriminant) == 2 and discriminants.count(None) <= 1:
+            discriminant_size = set(discriminant.bits for discriminant in discriminants if discriminant is not None)
+            if len(discriminant_size) == 1:
+                discriminant_size = next(iter(discriminant_size))
+                sizes = set(struct_type.size for struct_type in struct_type_to_discriminant)
+                if len(sizes) == 2:
+                    overlapping_discriminant = None in discriminants
+                    if discriminant_size in sizes:
+                        none_type = next(filter(lambda ty: ty.size == discriminant_size, struct_type_to_discriminant))
+                        some_type = next(filter(lambda ty: ty.size != discriminant_size, struct_type_to_discriminant))
+                        # Get the discriminant for None and Some variants
+                        # Notice that if overlapping_discriminant is True, some_discriminant maybe None
+                        none_discriminant = struct_type_to_discriminant[none_type].value
+                        some_discriminant = struct_type_to_discriminant[some_type]
+                        if some_discriminant:
+                            some_discriminant = some_discriminant.value
+                        if not overlapping_discriminant:
+                            some_type = self._remove_discriminant_from_struct(some_type)
+                        return RustSimTypeOption(
+                            some_type,
+                            none_discriminant,
+                            some_discriminant,
+                            discriminant_size // self.project.arch.byte_width if not overlapping_discriminant else 0,
+                        )
+                    elif None not in discriminants:
+                        struct_type_and_discriminant = sorted(
+                            struct_type_to_discriminant.items(),
+                            key=lambda item: item[1].value,
+                        )
+                        ok_type, ok_discriminant = struct_type_and_discriminant[0]
+                        err_type, err_discriminant = struct_type_and_discriminant[1]
+                        ok_type = self._remove_discriminant_from_struct(ok_type)
+                        err_type = self._remove_discriminant_from_struct(err_type)
+                        return RustSimTypeResult(
+                            ok_type,
+                            err_type,
+                            ok_discriminant.value,
+                            err_discriminant.value,
+                            discriminant_size // self.project.arch.byte_width,
+                        )
 
         # Check if it's an Option<T>
         if self.model.none_discriminant is not None and len(sizes) == 2 and self.project.arch.bits in sizes:
@@ -134,22 +230,21 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
 
     def _infer_arg_type(self, arg_idx):
         memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]
-        struct_types = []
+        struct_types = {}
 
-        for block in memory_writes:
+        for block_or_path in memory_writes:
             fields = {}
-            block_memory_writes = memory_writes[block]
+            block_memory_writes = memory_writes[block_or_path]
             for offset in sorted(block_memory_writes.keys()):
                 expr, func_addr = block_memory_writes[offset]
                 arg_ty = RustSimTypeInt(expr.bits, signed=False)
                 fields[f"field_{offset}"] = arg_ty
-            struct_types.append(
-                RustSimStruct(
-                    fields,
-                    name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
-                    pack=True,
-                ).with_arch(self.project.arch)
-            )
+            struct_ty = RustSimStruct(
+                fields,
+                name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+                pack=True,
+            ).with_arch(self.project.arch)
+            struct_types[struct_ty] = block_or_path
 
         final_ty = self._decide_final_type(struct_types)
         if final_ty:

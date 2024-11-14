@@ -1,5 +1,6 @@
 from ailment import Assignment
-from ailment.expression import VirtualVariable, Load, BasePointerOffset
+from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset
+from ailment.statement import Store
 
 
 class DFAHelper:
@@ -14,14 +15,24 @@ class DFAHelper:
         dst_offset = None
         src_offset = None
         size = None
+        dst, src = None, None
         if isinstance(stmt, Assignment):
-            if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
-                dst_offset = stmt.dst.stack_offset
-            if isinstance(stmt.src, VirtualVariable) and stmt.src.was_stack:
-                src_offset = stmt.src.stack_offset
-            elif isinstance(stmt.src, Load) and isinstance(stmt.src.addr, BasePointerOffset):
-                src_offset = stmt.src.addr.offset
+            dst = stmt.dst
+            src = stmt.src
             size = stmt.src.size
+        elif isinstance(stmt, Store):
+            dst = stmt.addr
+            src = stmt.data
+            size = stmt.data.size
+        if dst and src:
+            if isinstance(dst, VirtualVariable) and dst.was_stack:
+                dst_offset = dst.stack_offset
+            elif isinstance(dst, StackBaseOffset):
+                dst_offset = dst.offset
+            if isinstance(src, VirtualVariable) and src.was_stack:
+                src_offset = src.stack_offset
+            elif isinstance(src, Load) and isinstance(src.addr, BasePointerOffset):
+                src_offset = src.addr.offset
         return dst_offset, src_offset, size
 
     def find_stack_data_flow(self, block, src_offset, size):
