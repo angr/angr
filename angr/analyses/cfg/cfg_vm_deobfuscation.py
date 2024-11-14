@@ -1596,8 +1596,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 state_var_ast.append(ast)
 
 
-                        # if len(state_var_ast) != 1:
-                        #     import ipdb;ipdb.set_trace()
+                        if len(state_var_ast) != 1 and sim_successors.all_successors[0].regs.ip.depth>2:
+                            import ipdb;ipdb.set_trace()
 
                         if len(state_var_ast) > 0:
 
@@ -1662,7 +1662,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 print("More than one unconstrained successor?!")
                 import ipdb;ipdb.set_trace()
 
-            l.debug("All possible successors: " + str(sim_successors.all_successors))
+            #l.debug("All possible successors: " + str(sim_successors.all_successors))
         if job.block_id.vm_vpc is not None or self.start_deobfuscation_immediately or job.state.globals['start_deobfuscation']:
             #### Keeping only symbolic and True successors
             if self.data_sensitive:
