@@ -54,10 +54,14 @@ def analyze_binary(binary_path: str) -> dict:
                 ],
             )
         except Exception as ex:  # pylint:disable=broad-exception-caught
-            print('\n'.join([
-                f'Exception decompiling "{func_key}()" in "{binary_path}":',
-                f"{ex}\nContinuing with other functions."
-            ]))
+            print(
+                "\n".join(
+                    [
+                        f'Exception decompiling "{func_key}()" in "{binary_path}":',
+                        f"{ex}\nContinuing with other functions.",
+                    ]
+                )
+            )
 
         if decomp.codegen:
             decompilation[func_key] = decomp.codegen.text
