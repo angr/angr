@@ -65,7 +65,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         return self.__make_default(ty, True, "errored_" + op)
 
     def _check_zero_division(self, op, args):
-        if getattr(self.state, "mode", None) == "static" and len(args) == 2 and (args[1] == 0).is_true():
+        if getattr(self.state, "mode", None) == "static" and len(args) == 2 and self.state.solver.is_true(args[1] == 0):
             # Monkeypatch the dividend to another value instead of 0
             args = list(args)
             ty = pyvex.expr.op_arg_types(op)[1][1]
