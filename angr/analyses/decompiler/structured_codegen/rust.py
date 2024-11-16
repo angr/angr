@@ -9,7 +9,7 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....rust.ailment.statement import FunctionLikeMacro
-from ....rust.definitions.structs import StrReference, Option
+from ....rust.definitions.structs import StrReference
 from ....rust.structuring.structurer_nodes import PatternMatchNode
 from ....sim_type import (
     SimTypeLongLong,
@@ -38,6 +38,7 @@ from ....rust.sim_type import (
     RustSimTypeVec,
     RustSimStruct,
     EnumVariant,
+    RustSimTypeOption,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -1156,7 +1157,10 @@ class RustPatternMatch(RustStatement):
                 for i, bound_var in enumerate(bound_vars):
                     if i > 0:
                         yield ", ", None
-                    yield from RustExpression._try_c_repr_chunks(bound_var)
+                    if bound_var:
+                        yield from RustExpression._try_c_repr_chunks(bound_var)
+                    else:
+                        yield "<ERROR>", None
                 yield ")", paren
             yield " => {\n", self
             yield from arm.c_repr_chunks(indent=indent + 2 * INDENT_DELTA)
@@ -1522,7 +1526,7 @@ class RustStruct(RustExpression):
             return
         indent_str = self.indent_str(indent=indent)
         field_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
-        if isinstance(self.type, Option):
+        if isinstance(self.type, RustSimTypeOption) and 0 in self.fields:
             if isinstance(self.fields[0], ailment.expression.Const) and self.fields[0].value == 0:
                 yield "None", None
         else:

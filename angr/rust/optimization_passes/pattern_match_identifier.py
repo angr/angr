@@ -114,8 +114,8 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                             true_moves = self._find_associated_data_moves(true_block, true_variant, vvar)
                             false_moves = self._find_associated_data_moves(false_block, false_variant, vvar)
                             match_arms = {
-                                (true_block.addr, true_block.idx): (true_variant, true_moves),
-                                (false_block.addr, false_block.idx): (false_variant, false_moves),
+                                true_block.addr: (true_variant, true_moves),
+                                false_block.addr: (false_variant, false_moves),
                             }
                             cond.tags["scrutinee"] = vvar
                             cond.tags["match_arms"] = match_arms

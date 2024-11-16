@@ -28,6 +28,10 @@ prototypes = {
         args=[RustSimTypeReference(Arguments)],
         returnty=None,
     ),
+    "core::panicking::panic_fmt": RustSimTypeFunction(
+        args=[RustSimTypeReference(Arguments)],
+        returnty=None,
+    ),
     "alloc::fmt::format::format_inner": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(Arguments)],
         returnty=None,
