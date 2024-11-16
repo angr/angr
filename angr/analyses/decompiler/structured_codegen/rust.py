@@ -1526,25 +1526,21 @@ class RustStruct(RustExpression):
             return
         indent_str = self.indent_str(indent=indent)
         field_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
-        if isinstance(self.type, RustSimTypeOption) and 0 in self.fields:
-            if isinstance(self.fields[0], ailment.expression.Const) and self.fields[0].value == 0:
-                yield "None", None
-        else:
-            yield str(self.type.name), self
-            yield " {\n", brace
-            for offset, name in self.field_names.items():
-                yield field_indent_str, None
-                yield name, self
-                yield ": ", self
-                if offset in self.fields:
-                    yield from RustExpression._try_c_repr_chunks(
-                        self.codegen._handle(self.fields[offset]), indent=indent + INDENT_DELTA
-                    )
-                else:
-                    yield "<UNKNOWN>", None
-                yield "\n", None
-            yield indent_str, None
-            yield "}", brace
+        yield str(self.type.name), self
+        yield " {\n", brace
+        for offset, name in self.field_names.items():
+            yield field_indent_str, None
+            yield name, self
+            yield ": ", self
+            if offset in self.fields:
+                yield from RustExpression._try_c_repr_chunks(
+                    self.codegen._handle(self.fields[offset]), indent=indent + INDENT_DELTA
+                )
+            else:
+                yield "<UNKNOWN>", None
+            yield "\n", None
+        yield indent_str, None
+        yield "}", brace
 
 
 class RustStructField(RustExpression):
