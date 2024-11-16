@@ -2,8 +2,8 @@ from .callsite_simplifier import CallsiteSimplifier
 from .calling_convention_recovery import CallingConventionRecovery
 from .callsite_corrector import CallsiteCorrector
 from .cleanup_code_remover import CleanupCodeRemover
-from .enum_pattern_match_simplifier import EnumPatternMatchSimplifier
-from .error_handling_simplifier import ErrorHandlingSimplifier
+from .pattern_match_identifier import PatternMatchIdentifier
+from .pattern_match_simplifier import PatternMatchSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .ret_site_simplifier import RetSiteSimplifier
@@ -25,10 +25,12 @@ def get_rust_optimization_passes():
         CallsiteSimplifier,
         CallsiteCorrector,
         # UnwrapSimplifier,
-        EnumPatternMatchSimplifier,
+        PatternMatchIdentifier,
         OwnershipSimplifier,
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
+        # AFTER_STRUCTURING
+        PatternMatchSimplifier,
     ]

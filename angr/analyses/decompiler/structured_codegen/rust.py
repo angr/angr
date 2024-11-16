@@ -10,6 +10,7 @@ from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....rust.ailment.statement import FunctionLikeMacro
 from ....rust.definitions.structs import StrReference, Option
+from ....rust.structuring.structurer_nodes import PatternMatchNode
 from ....sim_type import (
     SimTypeLongLong,
     SimTypeChar,
@@ -36,6 +37,7 @@ from ....rust.sim_type import (
     RustSimTypeString,
     RustSimTypeVec,
     RustSimStruct,
+    EnumVariant,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -1110,6 +1112,63 @@ class RustSwitchCase(RustStatement):
             yield indent_str, None
             yield "default:\n", self
             yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
+
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", None
+
+
+class RustPatternMatch(RustStatement):
+    """
+    Represents a pattern-match statement in Rust.
+    """
+
+    __slots__ = ("scrutinee", "arms", "default", "tags")
+
+    def __init__(self, match_expr, cases, default, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.scrutinee = match_expr
+        self.arms: List[Tuple[EnumVariant, Tuple[RustExpression], RustStatements]] = cases
+        self.default = default
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        paren = RustClosingObject("(")
+        brace = RustClosingObject("{")
+
+        yield indent_str, None
+        yield "match ", self
+        yield from self.scrutinee.c_repr_chunks()
+        yield " ", None
+        yield "{", brace
+        yield "\n", None
+
+        arm_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
+
+        # arms
+        for (variant, bound_vars), arm in self.arms:
+            yield arm_indent_str, None
+            yield variant.name, None
+            if len(bound_vars):
+                yield "(", paren
+                for i, bound_var in enumerate(bound_vars):
+                    if i > 0:
+                        yield ", ", None
+                    yield from RustExpression._try_c_repr_chunks(bound_var)
+                yield ")", paren
+            yield " => {\n", self
+            yield from arm.c_repr_chunks(indent=indent + 2 * INDENT_DELTA)
+            yield arm_indent_str, None
+            yield "},\n", self
+
+        if self.default is not None:
+            yield arm_indent_str, None
+            yield "_ => {\n", self
+            yield from self.default.c_repr_chunks(indent=indent + 2 * INDENT_DELTA)
+            yield arm_indent_str, None
+            yield "}\n", self
 
         yield indent_str, None
         yield "}", brace
@@ -2505,6 +2564,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             BreakNode: self._handle_Break,
             SwitchCaseNode: self._handle_SwitchCase,
             ContinueNode: self._handle_Continue,
+            PatternMatchNode: self._handle_PatternMatch,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
@@ -3272,6 +3332,34 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         tags = {"ins_addr": node.addr}
         switch_case = RustSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
         return switch_case
+
+    def _get_bound_variable(self, move):
+        expr = None
+        var = None
+        if isinstance(move, ailment.Stmt.Store):
+            expr = move.addr
+            var = move.variable
+        if expr and var is not None:
+            var_thing = self._variable(var, expr.size)
+            var_thing.tags = dict(expr.tags)
+            if "def_at" in var_thing.tags and "ins_addr" not in var_thing.tags:
+                var_thing.tags["ins_addr"] = var_thing.tags["def_at"].ins_addr
+            return var_thing
+        return None
+
+    def _handle_PatternMatch(self, node, **kwargs):
+        scrutinee = self._handle(node.scrutinee)
+        arms = [
+            (
+                (variant_and_moves[0], tuple(self._get_bound_variable(move) for move in variant_and_moves[1])),
+                self._handle(arm, is_expr=False),
+            )
+            for variant_and_moves, arm in node.arms.items()
+        ]
+        default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
+        tags = {"ins_addr": node.addr}
+        pattern_match = RustPatternMatch(scrutinee, arms, default=default, tags=tags, codegen=self)
+        return pattern_match
 
     def _handle_Continue(self, node, **kwargs):
         tags = {"ins_addr": node.addr}

@@ -3,7 +3,7 @@ from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBa
 from ailment.statement import Store
 
 
-class DFAHelper:
+class DFAMixin:
     """
     Data Flow Analysis Helper
     """

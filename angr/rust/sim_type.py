@@ -499,6 +499,9 @@ class EnumVariant:
     def __hash__(self):
         return hash((self.name, self.discriminant, tuple(self.associated_data)))
 
+    def __repr__(self):
+        return f"{self.name}(...)"
+
 
 class RustSimEnum(RustSimType, SimType):
     def __init__(self, variants: List[EnumVariant], discriminant_size=0):
