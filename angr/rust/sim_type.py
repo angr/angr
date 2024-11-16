@@ -517,6 +517,7 @@ class RustSimEnum(RustSimType, SimType):
 
     def _with_arch(self, arch):
         out = RustSimEnum([variant.with_arch(arch) for variant in self.variants], self.discriminant_size)
+        out._arch = arch
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
@@ -556,6 +557,7 @@ class RustSimTypeOption(RustSimEnum):
             self.some_discriminant,
             self.discriminant_size,
         )
+        out._arch = arch
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
@@ -588,6 +590,7 @@ class RustSimTypeResult(RustSimEnum):
             self.err_discriminant,
             self.discriminant_size,
         )
+        out._arch = arch
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):

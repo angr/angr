@@ -13,6 +13,32 @@ class PatternMatchWalker(SequenceWalker):
     def __init__(self):
         super().__init__()
 
+    def _build_pattern_match(self, true_node, false_node, condition, addr):
+        scrutinee = condition.tags.get("scrutinee", None)
+        match_arms = condition.tags.get("match_arms", None)
+        if scrutinee and match_arms and true_node.addr in match_arms and false_node.addr in match_arms:
+            true_variant_and_moves = match_arms[true_node.addr]
+            false_variant_and_moves = match_arms[false_node.addr]
+            arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
+            for stmt in true_variant_and_moves[1] + false_variant_and_moves[1]:
+                stmt.tags["hidden"] = True
+            return PatternMatchNode(scrutinee, arms, None, addr)
+        return None
+
+    def _handle_Condition(self, node, **kwargs):
+        new_node = super()._handle_Condition(node, **kwargs)
+        if new_node:
+            node = new_node
+
+        if node.true_node and node.false_node:
+            true_node = node.true_node
+            false_node = node.false_node
+            pattern_match = self._build_pattern_match(true_node, false_node, node.condition, node.addr)
+            if pattern_match:
+                new_node = pattern_match
+
+        return new_node
+
     def _handle_Sequence(self, seq_node, **kwargs):
         nodes = list(seq_node.nodes)
         new_nodes = []
@@ -22,16 +48,10 @@ class PatternMatchWalker(SequenceWalker):
             if isinstance(node, ConditionNode) and node.true_node is not None and node.false_node is None and next_node:
                 true_node = node.true_node
                 false_node = next_node
-                scrutinee = node.condition.tags.get("scrutinee", None)
-                match_arms = node.condition.tags.get("match_arms", None)
-                if scrutinee and match_arms:
-                    true_variant_and_moves = match_arms[(true_node.addr, true_node.idx)]
-                    false_variant_and_moves = match_arms[(false_node.addr, false_node.idx)]
-                    if true_variant_and_moves and false_variant_and_moves:
-                        arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
-                        new_node = PatternMatchNode(scrutinee, arms, None, node.addr)
-                        new_nodes.append(new_node)
-                        continue
+                pattern_match = self._build_pattern_match(true_node, false_node, node.condition, node.addr)
+                if pattern_match:
+                    new_nodes.append(pattern_match)
+                    continue
             new_nodes.append(node)
             if next_node:
                 nodes.insert(0, next_node)

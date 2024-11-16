@@ -16,6 +16,7 @@ from .structuring.structurer_nodes import (
     ConditionalBreakNode,
     IncompleteSwitchCaseNode,
 )
+from ...rust.structuring.structurer_nodes import PatternMatchNode
 
 
 class SequenceWalker:
@@ -44,6 +45,7 @@ class SequenceWalker:
             ConditionNode: self._handle_Condition,
             CascadingConditionNode: self._handle_CascadingCondition,
             SwitchCaseNode: self._handle_SwitchCase,
+            PatternMatchNode: self._handle_PatternMatch,
             IncompleteSwitchCaseNode: self._handle_IncompleteSwitchCase,
             LoopNode: self._handle_Loop,
             MultiNode: self._handle_MultiNode,
@@ -157,6 +159,32 @@ class SequenceWalker:
 
         if changed:
             return SwitchCaseNode(node.switch_expr, new_cases, new_default_node, addr=node.addr)
+
+        return None
+
+    def _handle_PatternMatch(self, node: PatternMatchNode, **kwargs):
+        self._handle(node.scrutinee, parent=node, label="scrutinee")
+
+        changed = False
+        new_arms = OrderedDict()
+        for key, arm in node.arms.items():
+            new_arm = self._handle(arm, parent=node, label="arm")
+            if new_arm is not None:
+                changed = True
+                new_arms[key] = new_arm
+            else:
+                new_arms[key] = new_arm
+
+        new_default_node = None
+        if node.default_node is not None:
+            new_default_node = self._handle(node.default_node, parent=node, index=0, label="default")
+            if new_default_node is not None:
+                changed = True
+            else:
+                new_default_node = node.default_node
+
+        if changed:
+            return PatternMatchNode(node.scrutinee, new_arms, new_default_node, addr=node.addr)
 
         return None
 
