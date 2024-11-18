@@ -8,6 +8,7 @@ from ailment import BinaryOp, Const, AILBlockWalker, Block
 from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment
 import networkx as nx
+from networkx import DiGraph
 
 from ..mixins.cfa_mixin import CFAMixin
 from ..mixins.srda_mixin import SRDAMixin
@@ -119,20 +120,26 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                     l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
                     l.debug("".join(traceback.format_exception(e)))
 
+    def _srda_on_path(self, path: Tuple[Block]):
+        graph = DiGraph()
+        for i in range(len(path) - 1):
+            u = path[i + 1]
+            v = path[i]
+            graph.add_edge(u, v)
+        return SRDAMixin(self.func, graph, self.project)
+
     def _calculate_discriminant(self, path: Tuple[Block]) -> Optional[Const]:
+        srda = self._srda_on_path(path)
         discriminant = None
         for i in range(len(path)):
             block = path[i]
             next_block = path[i + 1] if i + 1 < len(path) else None
             for stmt in reversed(block.statements):
                 if discriminant is None:
-                    if (
-                        isinstance(stmt, Store)
-                        and isinstance(stmt.addr, VirtualVariable)
-                        and stmt.addr.varid == 0
-                        and stmt.addr.was_parameter
-                    ):
-                        discriminant = stmt.data
+                    if isinstance(stmt, Store) and isinstance(stmt.addr, VirtualVariable):
+                        real_var = srda.get_terminal_vvar(stmt.addr)
+                        if real_var.varid == 0 and real_var.was_parameter:
+                            discriminant = stmt.data
                 else:
                     if isinstance(stmt, Assignment) and stmt.dst.likes(discriminant):
                         discriminant = stmt.src
@@ -221,12 +228,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                             discriminant_size // self.project.arch.byte_width,
                         )
 
-        # Check if it's an Option<T>
-        if self.model.none_discriminant is not None and len(sizes) == 2 and self.project.arch.bits in sizes:
-            struct_type = next(filter(lambda ty: ty.size != self.project.arch.bits, struct_types))
-            return RustSimTypeOption(struct_type, self.model.none_discriminant)
-
-        return RustSimEnum(struct_types, False)
+        return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))
 
     def _infer_arg_type(self, arg_idx):
         memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]

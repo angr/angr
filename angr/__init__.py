@@ -168,6 +168,7 @@ from .block import Block
 from .sim_manager import SimulationManager
 from .analyses import Analysis, register_analysis
 from . import analyses
+from .rust.analyses import *
 from . import knowledge_plugins
 from . import exploration_techniques
 from .exploration_techniques import ExplorationTechnique
