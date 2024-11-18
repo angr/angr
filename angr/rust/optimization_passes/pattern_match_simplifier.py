@@ -21,7 +21,8 @@ class PatternMatchWalker(SequenceWalker):
             false_variant_and_moves = match_arms[false_node.addr]
             arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
             for stmt in true_variant_and_moves[1] + false_variant_and_moves[1]:
-                stmt.tags["hidden"] = True
+                if stmt:
+                    stmt.tags["hidden"] = True
             return PatternMatchNode(scrutinee, arms, None, addr)
         return None
 
