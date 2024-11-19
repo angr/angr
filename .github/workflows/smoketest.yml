@@ -43,7 +43,7 @@ jobs:
 
   macos:
     name: Test macOS installation
-    runs-on: macos-12
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
