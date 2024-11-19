@@ -63,7 +63,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, Vec, Struct, Array, Let
+from ....rust.ailment.expression import String, Struct, Array, Let
 
 if TYPE_CHECKING:
     import archinfo
@@ -2280,9 +2280,6 @@ class RustConstant(RustExpression):
                 elif isinstance(v, String):
                     yield RustConstant.str_to_rust_str(v.decoded_str, is_heap_str=v.is_heap_str), self
                     return
-                elif isinstance(v, Vec):
-                    yield str(v), self
-                    return
                 elif isinstance(v, Function):
                     yield demangle(v.name), self
                     return
@@ -2590,7 +2587,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
             String: self._handle_Expr_String,
-            Vec: self._handle_Expr_Vec,
             Struct: self._handle_Expr_Struct,
             Array: self._handle_Expr_Array,
             Let: self._handle_Expr_Let,
@@ -3444,7 +3440,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     if target_func.prototype is not None and i < len(target_func.prototype.args):
                         type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
-                if isinstance(arg, Expr.Const) and arg.__class__ not in [String, Vec]:
+                if isinstance(arg, Expr.Const) and arg.__class__ not in [String]:
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
                         type_ = guess_value_type(arg.value, self.project) or type_
 
@@ -3686,11 +3682,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             type_ = RustSimTypeString().with_arch(self.project.arch)
         else:
             type_ = RustSimTypeReference(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
-        reference_values = {type_: expr}
-        return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
-
-    def _handle_Expr_Vec(self, expr: Vec, **kwargs):
-        type_ = RustSimTypeVec().with_arch(self.project.arch)
         reference_values = {type_: expr}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 

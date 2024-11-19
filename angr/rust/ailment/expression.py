@@ -32,26 +32,6 @@ class String(ailment.Const):
         return String(self.idx, self.variable, self.value, self.bits, self.decoded_str, **self.tags)
 
 
-class Vec(ailment.Const):
-    def __init__(self, idx, variable, value, bits, elements, **kwargs):
-        super().__init__(idx, variable, value, bits, **kwargs)
-        self.elements = elements
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    @property
-    def length(self):
-        return len(self.elements)
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return f"vec!{self.elements}"
-
-
 class Array(ailment.Expression):
     def __init__(self, idx, elements, array_type: ArrayReference, **kwargs):
         super().__init__(idx, (max(ele.depth for ele in elements) if len(elements) else 0) + 1, **kwargs)
