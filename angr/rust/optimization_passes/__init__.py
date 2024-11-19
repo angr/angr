@@ -7,6 +7,7 @@ from .pattern_match_simplifier import PatternMatchSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .ret_site_simplifier import RetSiteSimplifier
+from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
 from .unwrap_simplifier import UnwrapSimplifier
 from .lib_function_identifier import LibFunctionIdentifier
@@ -30,6 +31,7 @@ def get_rust_optimization_passes():
         OwnershipSimplifier,
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
+        SecurityCheckRemover,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
         StrArgumentSimplifier,

@@ -27,3 +27,13 @@ class FunctionLikeMacro(Macro):
 
     def __repr__(self):
         return str(self)
+
+    def likes(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.delimiter == other.delimiter
+            and self.bits == other.bits
+            and len(self.args) == len(other.args)
+            and all(arg.likes(other_arg) for arg, other_arg in zip(self.args, other.args))
+        )
