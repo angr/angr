@@ -12,116 +12,153 @@ class CFGTransformationMixin:
         for block in self._graph.nodes:
             self._block_by_addr_and_idx[(block.addr, block.idx)] = block
 
-    def _remove_some_branch(
-        self, block: Block, jump: ConditionalJump, kept_target, kept_target_idx, removed_target, removed_target_idx
-    ):
-        new_stmt = Jump(
-            jump.idx,
-            kept_target,
-            kept_target_idx,
-            **jump.tags,
-        )
-        block.statements[-1] = new_stmt
-        if isinstance(removed_target, Const):
-            key = (removed_target.value, removed_target_idx)
-            if key in self._block_by_addr_and_idx:
-                removed_target_block = self._block_by_addr_and_idx[key]
-                try:
-                    self._graph.remove_edge(block, removed_target_block)
-                except NetworkXError:
-                    pass
+    def remove_jump_target(self, block: Block, jump_target: Const | int, jump_target_idx: int | None):
+        if block.statements:
+            removed = False
+            last_stmt = block.statements[-1]
+            if isinstance(jump_target, Const):
+                jump_target = jump_target.value
+            if isinstance(last_stmt, Jump):
+                if (
+                    isinstance(last_stmt.target, Const)
+                    and last_stmt.target.value == jump_target
+                    and last_stmt.target_idx == jump_target_idx
+                ):
+                    block.statements = block.statements[:-1]
+                    removed = True
+            elif isinstance(last_stmt, ConditionalJump):
+                new_target, new_target_idx = None, None
+                if (
+                    isinstance(last_stmt.true_target, Const)
+                    and last_stmt.true_target.value == jump_target
+                    and last_stmt.true_target_idx == jump_target_idx
+                ):
+                    new_target = last_stmt.false_target
+                    new_target_idx = last_stmt.false_target_idx
+                elif (
+                    isinstance(last_stmt.false_target, Const)
+                    and last_stmt.false_target.value == jump_target
+                    and last_stmt.false_target_idx == jump_target_idx
+                ):
+                    new_target = last_stmt.true_target
+                    new_target_idx = last_stmt.true_target_idx
+                if new_target:
+                    new_stmt = Jump(
+                        last_stmt.idx,
+                        new_target,
+                        new_target_idx,
+                        **last_stmt.tags,
+                    )
+                    block.statements[-1] = new_stmt
+                    removed = True
+            if removed:
+                key = (jump_target, jump_target_idx)
+                if key in self._block_by_addr_and_idx:
+                    removed_target_block = self._block_by_addr_and_idx[key]
+                    try:
+                        self._graph.remove_edge(block, removed_target_block)
+                    except NetworkXError:
+                        pass
 
     def remove_false_branch(self, block: Block):
         if block.statements and isinstance(block.statements[-1], ConditionalJump):
             jump = block.statements[-1]
-            self._remove_some_branch(
-                block, jump, jump.true_target, jump.true_target_idx, jump.false_target, jump.false_target_idx
-            )
+            self.remove_jump_target(block, jump.false_target, jump.false_target_idx)
+
+    def remove_block(self, block: Block):
+        graph = self._graph
+
+        for pred in list(graph.predecessors(block)):
+            self.remove_jump_target(pred, block.addr, block.idx)
+
+        if block in graph:
+            graph.remove_node(block)
 
     def replace_jump_target(
         self,
         block,
-        old_target: Optional[Tuple[Expression, Optional[int]]],
-        new_target: Tuple[Expression, Optional[int]],
+        old_target: Const | int | None,
+        old_target_idx: int | None,
+        new_target: Const | int,
+        new_target_idx: int | None,
     ):
         if not block.statements:
             return
-
-        old_target_addr, old_target_idx = None, None
-        new_target_addr, new_target_idx = new_target
-        if old_target:
-            old_target_addr, old_target_idx = old_target
-
-        terminal = block.statements[-1]
-        if isinstance(terminal, Jump):
-            if old_target is None or (isinstance(terminal.target, Const) and terminal.target.value == old_target_addr):
-                target = Const(0, None, new_target_addr, terminal.target.bits)
-                block.statements[-1] = Jump(
-                    terminal.idx,
-                    target,
-                    new_target_idx,
-                    **terminal.tags,
-                )
-            else:
-                return
-        elif isinstance(terminal, ConditionalJump):
+        if isinstance(old_target, Const):
+            old_target = old_target.value
+        if isinstance(new_target, Const):
+            new_target = new_target.value
+        replaced = False
+        last_stmt = block.statements[-1]
+        if isinstance(last_stmt, Jump):
             if old_target is None or (
-                isinstance(terminal.true_target, Const)
-                and isinstance(terminal.false_target, Const)
+                isinstance(last_stmt.target, Const)
+                and last_stmt.target.value == old_target
+                and last_stmt.target_idx == old_target_idx
+            ):
+                new_stmt = last_stmt.copy()
+                new_stmt.target = Const(0, None, new_target, last_stmt.target.bits)
+                new_stmt.target_idx = new_target_idx
+                block.statements[-1] = new_stmt
+                replaced = True
+        elif isinstance(last_stmt, ConditionalJump):
+            if old_target is None or (
+                isinstance(last_stmt.true_target, Const)
+                and isinstance(last_stmt.false_target, Const)
                 and (
                     (
-                        terminal.true_target.value == old_target_addr
-                        and terminal.true_target_idx == old_target_idx
-                        and terminal.false_target.value == new_target_addr
-                        and terminal.false_target_idx == new_target_idx
+                        last_stmt.true_target.value == old_target
+                        and last_stmt.true_target_idx == old_target_idx
+                        and last_stmt.false_target.value == new_target
+                        and last_stmt.false_target_idx == new_target_idx
                     )
                     or (
-                        terminal.false_target.value == old_target_addr
-                        and terminal.false_target_idx == old_target_idx
-                        and terminal.true_target.value == new_target_addr
-                        and terminal.true_target_idx == new_target_idx
+                        last_stmt.false_target.value == old_target
+                        and last_stmt.false_target_idx == old_target_idx
+                        and last_stmt.true_target.value == new_target
+                        and last_stmt.true_target_idx == new_target_idx
                     )
                 )
             ):
-                target = Const(0, None, new_target_addr, terminal.true_target.bits)
+                target = Const(0, None, new_target, last_stmt.true_target.bits)
                 block.statements[-1] = Jump(
-                    terminal.idx,
+                    last_stmt.idx,
                     target,
                     new_target_idx,
-                    ins_addr=terminal.ins_addr,
+                    **last_stmt.tags,
                 )
+                replaced = True
             elif (
-                isinstance(terminal.true_target, Const)
-                and terminal.true_target.value == old_target_addr
-                and terminal.true_target_idx == old_target_idx
+                isinstance(last_stmt.true_target, Const)
+                and last_stmt.true_target.value == old_target
+                and last_stmt.true_target_idx == old_target_idx
             ):
-                terminal.true_target.value = new_target_addr
-                terminal.true_target_idx = new_target_idx
+                last_stmt.true_target.value = new_target
+                last_stmt.true_target_idx = new_target_idx
+                replaced = True
             elif (
-                isinstance(terminal.false_target, Const)
-                and terminal.false_target.value == old_target_addr
-                and terminal.false_target_idx == old_target_idx
+                isinstance(last_stmt.false_target, Const)
+                and last_stmt.false_target.value == old_target
+                and last_stmt.false_target_idx == old_target_idx
             ):
-                terminal.false_target.value = new_target_addr
-                terminal.false_target_idx = new_target_idx
-            else:
-                return
-        elif isinstance(terminal, Call):
-            pass
-        else:
-            return
-        # Remove old edges
-        old_target_block = self._get_block_by_addr_and_idx(old_target_addr, old_target_idx)
-        if old_target_block:
-            try:
-                self._graph.remove_edge(block, old_target_block)
-            except NetworkXError:
-                pass
-        else:
-            for succ in list(self._graph.successors(block)):
+                last_stmt.false_target.value = new_target.addr
+                last_stmt.false_target_idx = new_target.idx
+                replaced = True
+
+        if replaced:
+            if old_target:
                 try:
-                    self._graph.remove_edge(block, succ)
+                    old_target_block = self._block_by_addr_and_idx.get((old_target, old_target_idx), None)
+                    if old_target_block:
+                        self._graph.remove_edge(block, old_target_block)
                 except NetworkXError:
                     pass
-        # Add new edge
-        self._graph.add_edge(block, new_target)
+            else:
+                for succ in list(self._graph.successors(block)):
+                    try:
+                        self._graph.remove_edge(block, succ)
+                    except NetworkXError:
+                        pass
+            new_target_block = self._block_by_addr_and_idx.get((new_target, new_target_idx), None)
+            if new_target_block:
+                self._graph.add_edge(block, new_target_block)
