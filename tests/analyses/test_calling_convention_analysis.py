@@ -352,7 +352,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj = angr.Project(binary_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFG(normalize=True)
-        func = proj.kb.functions[0x1400014D0]
+        func = cfg.kb.functions[0x1400014D0]
         proj.analyses.VariableRecoveryFast(func)
         cc = proj.analyses.CallingConvention(func)
         assert cc.cc is not None
