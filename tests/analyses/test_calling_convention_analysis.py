@@ -347,6 +347,18 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         print(cc.prototype.args)
         assert len(cc.prototype.args) == 3
 
+    def test_windows_call_return_register_overwrite(self):
+        binary_path = os.path.join(test_location, "x86_64", "windows", "CorsairLLAccess64.sys")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions[0x1400014D0]
+        proj.analyses.VariableRecoveryFast(func)
+        cc = proj.analyses.CallingConvention(func)
+        assert cc.cc is not None
+        assert cc.prototype is not None
+        assert len(cc.prototype.args) == 6
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
