@@ -214,8 +214,23 @@ class SimEngineVRVEX(
         for target_func in self.call_info.get(current_addr, []):
             self._handle_function_concrete(target_func)
 
-        # handles return statements
-        if self.block.vex.jumpkind == "Ijk_Ret":
+        if self.block.vex.jumpkind == "Ijk_Call":
+            # emulates return values from calls
+            cc = None
+            for target_func in self.call_info.get(self.state.block_addr, []):
+                if target_func.calling_convention is not None:
+                    cc = target_func.calling_convention
+                    break
+            if cc is None:
+                cc = default_cc(self.arch.name, platform=self.project.simos.name)(self.arch)
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+                data = self._top(reg_size * self.arch.byte_width)
+                self._assign_to_register(reg_offset, data, reg_size, create_variable=False)
+
+        elif self.block.vex.jumpkind == "Ijk_Ret":
+            # handles return statements
+
             # determine the size of the return register
             # TODO: Handle multiple return registers
             cc = self.state.function.calling_convention
