@@ -1272,19 +1272,21 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         if expr_1 is None:
             expr_1 = arg1
 
-        try:
-            return expr_0 * expr_1
-        except TypeError:
-            return ailment.Expr.BinaryOp(
-                expr.idx,
-                "Mull",
-                [expr_0, expr_1],
-                expr.signed,
-                bits=expr.bits,
-                floating_point=expr.floating_point,
-                rounding_mode=expr.rounding_mode,
-                **expr.tags,
-            )
+        if isinstance(expr_0, claripy.ast.Bits) and isinstance(expr_1, claripy.ast.Bits):
+            expr0_ext = claripy.ZeroExt(expr_0.size(), expr_0)
+            expr1_ext = claripy.ZeroExt(expr_1.size(), expr_1)
+            return expr0_ext * expr1_ext
+
+        return ailment.Expr.BinaryOp(
+            expr.idx,
+            "Mull",
+            [expr_0, expr_1],
+            expr.signed,
+            bits=expr.bits * 2,
+            floating_point=expr.floating_point,
+            rounding_mode=expr.rounding_mode,
+            **expr.tags,
+        )
 
     def _ail_handle_And(self, expr):
         arg0, arg1 = expr.operands
