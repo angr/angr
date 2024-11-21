@@ -26,7 +26,7 @@ class FunctionLikeMacro(Macro):
         return f"{self.name}!{self.delimiter[0]}{self.args}{self.delimiter[1]}"
 
     def __repr__(self):
-        return str(self)
+        return f"Macro(name={self.name}, args={self.args})"
 
     def likes(self, other):
         return (

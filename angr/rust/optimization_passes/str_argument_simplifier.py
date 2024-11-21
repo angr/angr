@@ -23,6 +23,7 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
         ):
             try:
                 decoded_str = memory.load(str_addr, str_len).decode("utf-8")
+                decoded_str = decoded_str if decoded_str.isprintable() else None
             except UnicodeDecodeError:
                 pass
         return decoded_str
