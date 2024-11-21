@@ -1995,6 +1995,7 @@ class RustBinaryOp(RustExpression):
             "Concat": self._c_repr_chunks_concat,
             "Rol": self._c_repr_chunks_rol,
             "Ror": self._c_repr_chunks_ror,
+            "Index": self._c_repr_chunks_index,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -2041,6 +2042,13 @@ class RustBinaryOp(RustExpression):
                 yield ")", paren
             else:
                 yield from self._try_c_repr_chunks(self.rhs)
+
+    def _c_repr_chunks_index(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        bracket = RustClosingObject("[")
+        yield "[", bracket
+        yield from self._try_c_repr_chunks(self.rhs)
+        yield "]", bracket
 
     def _c_repr_chunks_add(self):
         yield from self._c_repr_chunks(" + ")

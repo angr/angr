@@ -1,9 +1,9 @@
 from typing import Dict, Optional
 
 import archinfo
-from ailment import Const
-from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory, StackBaseOffset
-from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump
+from ailment import Const, AILBlockWalker, Block
+from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory, StackBaseOffset, UnaryOp
+from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump, Statement
 
 from .base import TransformationPass, SSAVariableHelper
 from ..mixins.srda_mixin import SRDAMixin
@@ -11,6 +11,38 @@ from ..ailment.statement import FunctionLikeMacro
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ..ailment.expression import String
+
+
+class VecIndexingWalker(AILBlockWalker):
+    def __init__(self, raw_ptr_vvar, vec_vvar, element_size):
+        super().__init__()
+        self.raw_ptr_vvar = raw_ptr_vvar
+        self.vec_vvar = vec_vvar
+        self.element_size = element_size
+
+    def _fix_idx_size(self, idx_expr):
+        if isinstance(idx_expr, BinaryOp) and idx_expr.op == "Mul":
+            op0 = idx_expr.operands[0]
+            op1 = idx_expr.operands[1]
+            if isinstance(op0, Const) and op0.value == self.element_size:
+                return op1
+            elif isinstance(op1, Const) and op1.value == self.element_size:
+                return op0
+        return None
+
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+        new_expr = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        expr = expr if new_expr is None else new_expr
+        if expr.op == "Add" and any(self.raw_ptr_vvar.likes(operand) for operand in expr.operands):
+            idx_expr = expr.operands[0] if self.raw_ptr_vvar.likes(expr.operands[1]) else expr.operands[1]
+            idx_expr = self._fix_idx_size(idx_expr)
+            if idx_expr:
+                new_expr = UnaryOp(
+                    expr.idx,
+                    "Reference",
+                    BinaryOp(expr.idx, "Index", [self.vec_vvar, idx_expr], signed=False, bits=self.raw_ptr_vvar.bits),
+                )
+        return new_expr
 
 
 class SimplificationState:
@@ -31,6 +63,8 @@ class SimplificationState:
         self.init_stmts = []
         # Statements that construct the final object
         self.construct_stmts = []
+        self.raw_ptr_vvar = None
+        self.vec_element_size = None
 
     def _try_outline_string(self):
         if self.alloc_align is None or (isinstance(self.alloc_align, Const) and self.alloc_align.value == 1):
@@ -44,19 +78,20 @@ class SimplificationState:
                         init_bytes[offset : offset + stmt.data.size] = data
                 try:
                     decoded_str = init_bytes.decode()
-                    data = String(None, None, 0, self.context.project.arch.bits, decoded_str)
-                    call = Call(
-                        idx=None,
-                        target="String::from",
-                        prototype=self.context.librust.get_prototype("String::from")
-                        .with_arch(self.context.project.arch)
-                        .normalize(),
-                        args=[data],
-                        ret_expr=None,
-                        **self.construct_stmts[0].tags,
-                    )
-                    call.bits = 3 * self.context.project.arch.bits
-                    return call
+                    if decoded_str.isprintable():
+                        data = String(None, None, 0, self.context.project.arch.bits, decoded_str)
+                        call = Call(
+                            idx=None,
+                            target="String::from",
+                            prototype=self.context.librust.get_prototype("String::from")
+                            .with_arch(self.context.project.arch)
+                            .normalize(),
+                            args=[data],
+                            ret_expr=None,
+                            **self.construct_stmts[0].tags,
+                        )
+                        call.bits = 3 * self.context.project.arch.bits
+                        return call
                 except UnicodeDecodeError:
                     pass
         return None
@@ -68,6 +103,7 @@ class SimplificationState:
             if alloc_size % vec_length != 0:
                 return None
             ele_size = alloc_size // vec_length
+            self.vec_element_size = ele_size
             if all(isinstance(stmt, Store) and isinstance(stmt.data, Const) for stmt in self.init_stmts):
                 init_bytes = bytearray(b"\x00" * alloc_size)
                 for stmt in self.init_stmts:
@@ -124,6 +160,8 @@ class SimplificationState:
                 dst_vvar = self.context.new_stack_vvar(
                     dst.stack_offset, self.context.project.arch.bits * 3, self.construct_stmts[0].tags
                 )
+                if isinstance(outline_result, FunctionLikeMacro) and isinstance(self.raw_ptr_vvar, VirtualVariable):
+                    self.context.raw_ptr_vvar_to_vec_vvar[self.raw_ptr_vvar] = dst_vvar
                 replacement = Assignment(idx=None, dst=dst_vvar, src=outline_result, **dst_vvar.tags)
 
         if replacement:
@@ -155,6 +193,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
 
         self._used_construct_stmts = set()
         self._stmt_to_block = {}
+        self.raw_ptr_vvar_to_vec_vvar = {}
 
         self.analyze()
 
@@ -256,6 +295,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
                     if construct_stmts:
                         state.construct_stmts = construct_stmts
                         state.vec_length = vec_length
+                        state.raw_ptr_vvar = stmt.dst if isinstance(stmt, Assignment) else None
                         self._used_construct_stmts = self._used_construct_stmts.union(construct_stmts)
 
     def _get_real_jump_target(self, target, target_idx):
@@ -301,6 +341,11 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
         for block in blocks_to_remove:
             self._remove_block(block)
 
+    def _replace_raw_ptr_with_vec(self, raw_ptr_vvar, vec_vvar, element_size):
+        walker = VecIndexingWalker(raw_ptr_vvar, vec_vvar, element_size)
+        for block in self._graph.nodes:
+            walker.walk(block)
+
     def _analyze(self, cache=None):
         self._remove_alloc_error_handling_blocks()
 
@@ -329,5 +374,9 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
                     block = self._stmt_to_block[old_stmt]
                     idx = block.statements.index(old_stmt)
                     block.statements[idx] = replacement
+                if state.raw_ptr_vvar in self.raw_ptr_vvar_to_vec_vvar and state.vec_element_size:
+                    raw_ptr_vvar = state.raw_ptr_vvar
+                    vec_vvar = self.raw_ptr_vvar_to_vec_vvar[raw_ptr_vvar]
+                    self._replace_raw_ptr_with_vec(raw_ptr_vvar, vec_vvar, state.vec_element_size)
 
         self.out_graph = self._graph

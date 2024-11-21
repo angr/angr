@@ -405,23 +405,29 @@ class RustSimTypeString(RustSimStruct, SimType):
 
 
 class RustSimTypeVec(RustSimStruct, SimType):
-    def __init__(self, label=None, arch=None):
+    def __init__(self, element_type, order=("ptr", "len", "cap"), label=None, arch=None):
+        unordered_fields = {
+            "ptr": RustSimTypeReference(pts_to=element_type).with_arch(arch),
+            "cap": RustSimTypeSize().with_arch(arch),
+            "len": RustSimTypeSize().with_arch(arch),
+        }
+        fields = OrderedDict()
+        for field_name in order:
+            fields[field_name] = unordered_fields[field_name]
         RustSimStruct.__init__(
             self,
-            {
-                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
-                "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
-                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
-            },
-            name="Vec",
+            fields,
+            name=f"Vec<{element_type.name}>",
         )
         SimType.__init__(self, label)
+        self.element_type = element_type
+        self.order = order
 
     def _with_arch(self, arch):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = RustSimTypeVec(label=self.label, arch=arch)
+        out = RustSimTypeVec(self.element_type, self.order, label=self.label, arch=arch)
         out._arch = arch
         self._arch_memo[arch.name] = out
 
@@ -433,7 +439,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
         return f"{name}: {self.__repr__()}"
 
     def __repr__(self):
-        return "Vec"
+        return self.name
 
 
 class RustSimTypeBottom(RustSimType, SimTypeBottom):
