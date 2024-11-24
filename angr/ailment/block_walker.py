@@ -116,6 +116,8 @@ class AILBlockWalkerBase:
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
         self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+        if stmt.guard is not None:
+            self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
 
     def _handle_Jump(self, stmt_idx: int, stmt: Jump, block: Block | None):
         self._handle_expr(0, stmt.target, stmt_idx, stmt, block)
@@ -349,6 +351,12 @@ class AILBlockWalker(AILBlockWalkerBase):
         else:
             data = stmt.data
 
+        guard = None if stmt.guard is None else self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+        if guard is not None and guard is not stmt.guard:
+            changed = True
+        else:
+            guard = stmt.guard
+
         if changed:
             # update the statement directly in the block
             new_stmt = Store(
@@ -357,7 +365,7 @@ class AILBlockWalker(AILBlockWalkerBase):
                 data,
                 stmt.size,
                 stmt.endness,
-                guard=stmt.guard,
+                guard=guard,
                 variable=stmt.variable,
                 offset=stmt.offset,
                 **stmt.tags,
