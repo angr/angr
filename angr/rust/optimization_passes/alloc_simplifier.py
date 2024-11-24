@@ -8,6 +8,7 @@ from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, J
 from .base import TransformationPass, SSAVariableHelper
 from ..mixins.srda_mixin import SRDAMixin
 from ..ailment.statement import FunctionLikeMacro
+from ..sim_type import RustSimTypeVec, RustSimTypeInt
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ..ailment.expression import String
@@ -117,12 +118,15 @@ class SimplificationState:
                     element = int.from_bytes(init_bytes[i * ele_size : (i + 1) * ele_size], byteorder=endian)
                     element = Const(None, None, element, ele_size * self.context.project.arch.byte_width)
                     elements.append(element)
+                ele_ty = RustSimTypeInt(ele_size * self.context.project.arch.byte_width, signed=False)
+                returnty = RustSimTypeVec(ele_ty).with_arch(self.context.project.arch)
                 macro = FunctionLikeMacro(
                     None,
                     "vec",
                     elements,
                     bits=alloc_size * self.context.project.arch.byte_width,
                     delimiter="[]",
+                    returnty=returnty,
                     **self.construct_stmts[-1].tags,
                 )
                 return macro

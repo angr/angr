@@ -9,6 +9,7 @@ from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .ret_site_simplifier import RetSiteSimplifier
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
+from .struct_field_access_simplifier import StructFieldAccessSimplifier
 from .unwrap_simplifier import UnwrapSimplifier
 from .lib_function_identifier import LibFunctionIdentifier
 from .alloc_simplifier import AllocSimplifier
@@ -32,6 +33,7 @@ def get_rust_optimization_passes():
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
         SecurityCheckRemover,
+        StructFieldAccessSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
         StrArgumentSimplifier,

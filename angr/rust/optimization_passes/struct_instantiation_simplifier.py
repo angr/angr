@@ -20,15 +20,15 @@ class StructResolver:
         self.struct_ty = struct_ty
         self.arch = arch
 
-    def find_field_type(self, offset):
+    def find_field(self, offset):
         offsets = self.struct_ty.offsets
         for name, field_ty in self.struct_ty.fields.items():
             field_offset = offsets[name]
             if offset == field_offset:
-                return field_ty
+                return name, field_ty
             elif isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
-                return StructResolver(field_ty).find_field_type(offset - field_offset)
-        return None
+                return StructResolver(field_ty).find_field(offset - field_offset)
+        return None, None
 
 
 class StructBuilder:
@@ -63,7 +63,7 @@ class StructBuilder:
         fixed_struct_members = {}
         for offset in self.struct_members:
             expr = self.struct_members[offset]
-            field_ty = StructResolver(self.struct_ty, self._arch).find_field_type(offset)
+            _, field_ty = StructResolver(self.struct_ty, self._arch).find_field(offset)
             if field_ty and expr.size > field_ty.size // 8:
                 new_expr, leftover = self._truncate(expr, field_ty.size)
                 if new_expr is None:

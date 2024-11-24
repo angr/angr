@@ -1996,6 +1996,7 @@ class RustBinaryOp(RustExpression):
             "Rol": self._c_repr_chunks_rol,
             "Ror": self._c_repr_chunks_ror,
             "Index": self._c_repr_chunks_index,
+            "AccessField": self._c_repr_chunks_access_field,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -2049,6 +2050,14 @@ class RustBinaryOp(RustExpression):
         yield "[", bracket
         yield from self._try_c_repr_chunks(self.rhs)
         yield "]", bracket
+
+    def _c_repr_chunks_access_field(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield ".", None
+        if "field_name" in self.tags and self.tags["field_name"] is not None:
+            yield self.tags["field_name"], None
+        else:
+            yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_add(self):
         yield from self._c_repr_chunks(" + ")
