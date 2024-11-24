@@ -48,29 +48,28 @@ def remove_last_statement(node):
 def remove_last_statements(node) -> bool:
     if type(node) is CodeNode:
         return remove_last_statements(node.node)
-    elif type(node) is ailment.Block:
+    if type(node) is ailment.Block:
         if not node.statements:
             return False
         node.statements = node.statements[:-1]
         return True
-    elif type(node) is MultiNode or type(node) is SequenceNode:
+    if type(node) is MultiNode or type(node) is SequenceNode:
         if node.nodes:
             remove_last_statements(node.nodes[-1])
             if BaseNode.test_empty_node(node.nodes[-1]):
                 node.nodes = node.nodes[:-1]
             return True
         return False
-    elif type(node) is ConditionNode:
+    if type(node) is ConditionNode:
         r = False
         if node.true_node is None and node.false_node is not None:
             r |= remove_last_statements(node.false_node)
         if node.true_node is not None and node.false_node is None:
             r |= remove_last_statements(node.true_node)
         return r
-    elif type(node) is LoopNode:
+    if type(node) is LoopNode:
         return remove_last_statements(node.sequence_node)
-    else:
-        raise NotImplementedError()
+    raise NotImplementedError
 
 
 def append_statement(node, stmt):
