@@ -160,12 +160,14 @@ class SimEngineSSARewriting(
 
     def _handle_Store(self, stmt: Store) -> Store | Assignment | None:
         new_data = self._expr(stmt.data)
-        vvar = self._replace_def_store(self.block.addr, self.block.idx, self.stmt_idx, stmt)
-        if vvar is not None:
-            return Assignment(stmt.idx, vvar, stmt.data if new_data is None else new_data, **stmt.tags)
+        if stmt.guard is None:
+            vvar = self._replace_def_store(self.block.addr, self.block.idx, self.stmt_idx, stmt)
+            if vvar is not None:
+                return Assignment(stmt.idx, vvar, stmt.data if new_data is None else new_data, **stmt.tags)
 
         # fall back to Store
         new_addr = self._expr(stmt.addr)
+        new_guard = self._expr(stmt.guard) if stmt.guard is not None else None
 
         if new_addr is not None or new_data is not None:
             return Store(
@@ -174,7 +176,7 @@ class SimEngineSSARewriting(
                 stmt.data if new_data is None else new_data,
                 stmt.size,
                 stmt.endness,
-                guard=stmt.guard,
+                guard=new_guard,
                 **stmt.tags,
             )
 
