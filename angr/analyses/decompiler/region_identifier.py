@@ -220,7 +220,10 @@ class RegionIdentifier(Analysis):
                 type_ = data.get("type", None)
                 if type_ == "fake_return":
                     if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
-                        self._merge_nodes(graph, src, dst, force_multinode=True)
+                        merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
+                        # update the entry_node if necessary
+                        if entry_node is not None and entry_node is src:
+                            entry_node = merged_node
                         break
                 elif type_ == "call":
                     graph.remove_node(dst)
@@ -1058,6 +1061,8 @@ class RegionIdentifier(Analysis):
 
         assert node_a not in graph
         assert node_b not in graph
+
+        return new_node
 
     def _absorb_node(
         self, graph: networkx.DiGraph, node_mommy, node_kiddie, force_multinode=False
