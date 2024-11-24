@@ -404,8 +404,11 @@ class RustSimTypeString(RustSimStruct, SimType):
         return "String"
 
 
+DEFAULT_VEC_FIELDS_ORDER = ("cap", "ptr", "len")
+
+
 class RustSimTypeVec(RustSimStruct, SimType):
-    def __init__(self, element_type, order=("ptr", "len", "cap"), label=None, arch=None):
+    def __init__(self, element_type, order=DEFAULT_VEC_FIELDS_ORDER, label=None, arch=None):
         unordered_fields = {
             "ptr": RustSimTypeReference(pts_to=element_type).with_arch(arch),
             "cap": RustSimTypeSize().with_arch(arch),
@@ -417,7 +420,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             fields,
-            name=f"Vec<{element_type.name}>",
+            name=f"Vec<{repr(element_type)}>",
         )
         SimType.__init__(self, label)
         self.element_type = element_type

@@ -5,15 +5,16 @@ from ailment.utils import stable_hash
 
 
 class Macro(Expression, Statement):
-    def __init__(self, idx, name, delimiter="()", **kwargs):
+    def __init__(self, idx, name, delimiter="()", returnty=None, **kwargs):
         super().__init__(idx, 1, **kwargs)
         self.name = name
         self.delimiter = delimiter
+        self.returnty = returnty
 
 
 class FunctionLikeMacro(Macro):
-    def __init__(self, idx, name, args, bits=None, delimiter="()", **kwargs):
-        super().__init__(idx, name, delimiter, **kwargs)
+    def __init__(self, idx, name, args, bits=None, delimiter="()", returnty=None, **kwargs):
+        super().__init__(idx, name, delimiter, returnty, **kwargs)
         self.args = args
         self.bits = bits
 
