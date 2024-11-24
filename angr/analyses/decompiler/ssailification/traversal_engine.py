@@ -60,6 +60,8 @@ class SimEngineSSATraversal(
     def _handle_Store(self, stmt: Store):
         self._expr(stmt.addr)
         self._expr(stmt.data)
+        if stmt.guard is not None:
+            self._expr(stmt.guard)
 
         if self.stackvars and isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
             codeloc = self._codeloc()
