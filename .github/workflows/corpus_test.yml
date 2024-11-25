@@ -144,7 +144,7 @@ jobs:
       - name: Fetch metadata for binaries
         id: fetch_metadata_for_binaries
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           # Gather the individual paths from the CORPUS_GITHUB_PATH.
           corpus_path="${{ inputs.corpus_github_path }}"
@@ -242,7 +242,7 @@ jobs:
 
       - name: Fetch binary files and run analysis
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
           NIGHTLY: inputs.nightly
         run: |
           source .venv/bin/activate
