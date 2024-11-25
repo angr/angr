@@ -55,15 +55,15 @@ class CFAMixin:
             stmt = stmt.src
         return stmt if isinstance(stmt, Call) else None
 
-    def match_call(self, block_or_stmt, expected):
+    def match_call(self, block_or_stmt, expected, monopolize=True, use_trait_name=True):
         stmt = self.terminal_call(block_or_stmt) if isinstance(block_or_stmt, Block) else block_or_stmt
         if isinstance(stmt, Call):
             name = None
             if isinstance(stmt.target, str):
-                name = normalize(stmt.target, monopolize=True, use_trait_name=True)
+                name = normalize(stmt.target, monopolize=monopolize, use_trait_name=use_trait_name)
             elif isinstance(stmt.target, Const) and stmt.target.value in self._project.kb.functions:
                 func = self._project.kb.functions[stmt.target.value]
-                name = normalize(func.name, monopolize=True, use_trait_name=True)
+                name = normalize(func.name, monopolize=monopolize, use_trait_name=use_trait_name)
             if name in expected:
                 return name
         return None

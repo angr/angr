@@ -2,6 +2,7 @@ from .callsite_simplifier import CallsiteSimplifier
 from .calling_convention_recovery import CallingConventionRecovery
 from .callsite_corrector import CallsiteCorrector
 from .cleanup_code_remover import CleanupCodeRemover
+from .deref_coercion_simplifier import DerefCoercionSimplifier
 from .pattern_match_identifier import PatternMatchIdentifier
 from .pattern_match_simplifier import PatternMatchSimplifier
 from .lifetime_simplifier import LifetimeSimplifier
@@ -36,6 +37,7 @@ def get_rust_optimization_passes():
         SecurityCheckRemover,
         StructFieldAccessSimplifier,
         StructReturnSimplifier,
+        DerefCoercionSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
         StrArgumentSimplifier,
