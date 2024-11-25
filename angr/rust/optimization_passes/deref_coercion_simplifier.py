@@ -1,8 +1,10 @@
 from typing import Any
 
-from ailment import AILBlockWalker, Block, Expression
+from ailment import AILBlockWalker, Block, Expression, BinaryOp
+from ailment.expression import VirtualVariable
 from ailment.statement import Call, Statement, Assignment
 
+from ..sim_type import RustSimTypeVec
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...rust.mixins.cfa_mixin import CFAMixin
 from ...rust.mixins.srda_mixin import SRDAMixin
@@ -24,9 +26,9 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
             while len(args) >= 2:
                 arg0 = args.pop(0)
                 arg1 = args.pop(0)
-                value = self.context.get_terminal_vvar_value(arg0)
-                if (
-                    isinstance(value, Call)
+                if isinstance(arg0, VirtualVariable) and (
+                    (value := self.context.get_terminal_vvar_value(arg0))
+                    and isinstance(value, Call)
                     and value.args
                     and len(value.args) == 1
                     and self.context.match_call(value, VEC_DEREF_FUNCTION, monopolize=False, use_trait_name=False)
@@ -35,6 +37,19 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
                     new_args.append(new_arg)
                     changed = True
                     self.calls_to_remove.add(value)
+                elif (
+                    isinstance(arg0, BinaryOp)
+                    and arg0.op == "AccessField"
+                    and isinstance(arg1, BinaryOp)
+                    and arg1.op == "AccessField"
+                    and isinstance(arg0.tags["struct_type"], RustSimTypeVec)
+                    and isinstance(arg1.tags["struct_type"], RustSimTypeVec)
+                    and arg0.tags["field_name"] == "ptr"
+                    and arg1.tags["field_name"] == "len"
+                ):
+                    new_arg = arg0.operands[0]
+                    new_args.append(new_arg)
+                    changed = True
                 else:
                     new_args.append(arg0)
                     args.append(arg1)

@@ -41,7 +41,7 @@ class StructFieldAccessSimplifierWalker(AILBlockWalker):
 class StructFieldAccessSimplifier(OptimizationPass, CFAMixin, SRDAMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify struct member access operations"
 
     def __init__(self, func, **kwargs):
