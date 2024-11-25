@@ -336,8 +336,9 @@ jobs:
         if: ${{ ! inputs.nightly }}
         run: |
           snapshot_branch="${ANGR_BRANCH}"
+          cd corpus_tests/
           echo "Creating snapshots branch '${snapshot_branch}'."
-          ./corpus_tests/scripts/gh_create_branch.sh \
+          ./scripts/gh_create_branch.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${SNAPSHOT_GITHUB_BRANCH}" \
             -t "${SNAPSHOT_TOKEN}"
@@ -346,7 +347,7 @@ jobs:
           for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
             # Second arg is the file path in the snapshots repo.
             n=0
-            while ! ./corpus_tests/scripts/gh_push_file.sh \
+            while ! ./scripts/gh_push_file.sh \
                 -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
                 -H "${SNAPSHOT_GITHUB_BRANCH}" \
                 -t "${SNAPSHOT_TOKEN}" \
