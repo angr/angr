@@ -388,7 +388,7 @@ jobs:
         if: ${{ ! inputs.nightly }}
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           set +e
 
