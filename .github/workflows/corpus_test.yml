@@ -1,7 +1,7 @@
 name: Corpus Test
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - master
   workflow_call:
@@ -18,14 +18,14 @@ on:
 
 env:
   CORPUS_GITHUB_BRANCH: "main"
-  CORPUS_GITHUB_OWNER: "project-purcellville"
+  CORPUS_GITHUB_OWNER: "angr"
   # NB: The full corpus can be invoked with: path=cgc-challenges
   #     These challenge binaries were chosen for their low testing run-times.
   CORPUS_GITHUB_PATH: "stable/cgc-challenges/linux-build64"
-  CORPUS_GITHUB_REPO: "direct-file-store-0000"
+  CORPUS_GITHUB_REPO: "dec-test-corpus"
   SNAPSHOT_GITHUB_BRANCH: "main"
-  SNAPSHOT_GITHUB_OWNER: "project-purcellville"
-  SNAPSHOT_GITHUB_REPO: "snapshots-0000"
+  SNAPSHOT_GITHUB_OWNER: "angr"
+  SNAPSHOT_GITHUB_REPO: "dec-snapshots"
 
 jobs:
   precondition:
