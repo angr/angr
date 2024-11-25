@@ -1,0 +1,447 @@
+name: Corpus Test
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_call:
+    inputs:
+      corpus_github_path:
+        description: "Path to the corpus in the GitHub repository"
+        type: string
+        required: true
+      nightly:
+        description: "Enable nightly-only tests"
+        default: false
+        type: boolean
+        required: false
+
+env:
+  CORPUS_GITHUB_BRANCH: "main"
+  CORPUS_GITHUB_OWNER: "angr"
+  # NB: The full corpus can be invoked with: path=cgc-challenges
+  #     These challenge binaries were chosen for their low testing run-times.
+  CORPUS_GITHUB_PATH: "stable/cgc-challenges/linux-build64"
+  CORPUS_GITHUB_REPO: "dec-test-corpus"
+  SNAPSHOT_GITHUB_BRANCH: "main"
+  SNAPSHOT_GITHUB_OWNER: "angr"
+  SNAPSHOT_GITHUB_REPO: "dec-snapshots"
+
+jobs:
+  precondition:
+    name: "Check that the dependent repositories exist and are operable."
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Install apt packages (when testing locally in act)
+        if: ${{ env.ACT }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bsdextrautils curl jq wget
+
+          sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name:
+        env:
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          # Check that the corpus repo is available.
+          gh repo list \
+            --json 'name' \
+            -q ".[] | select(.name == \"${CORPUS_GITHUB_REPO}\")" \
+            "${CORPUS_GITHUB_OWNER}"
+          # Check that the snapshot repo is available.
+          gh repo list \
+            --json 'name' \
+            -q ".[] | select(.name == \"${SNAPSHOT_GITHUB_REPO}\")" \
+            "${SNAPSHOT_GITHUB_OWNER}"
+          gh pr list \
+            --limit 1 \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
+
+  build:
+    name: "Download dependencies to a cached virtual environment."
+    needs: [precondition]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python and Install Testing Dependencies
+        uses: actions/setup-python@v5
+        id: setup_python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Restore venv Cache
+        uses: actions/cache/restore@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
+      - run: python -m venv .venv
+        name: Create venv
+        shell: bash
+
+      - run: |
+          source .venv/bin/activate
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
+          pip install git+https://github.com/angr/archinfo.git
+          pip install git+https://github.com/angr/pyvex.git
+          pip install git+https://github.com/angr/cle.git
+          pip install git+https://github.com/angr/claripy.git
+          pip install git+https://github.com/angr/ailment.git
+          pip install requests
+        name: Install angr Dependencies
+
+      - run: |
+          source .venv/bin/activate
+          pip install --no-build-isolation .
+        name: Install angr
+
+      - run: |
+          source .venv/bin/activate
+          pip install pytest pytest-insta
+        name: Install test frameworks
+
+      - name: Save venv Cache
+        uses: actions/cache/save@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
+  fetch_metadata_for_binaries:
+    runs-on: ubuntu-latest
+    outputs:
+      chunks: ${{ steps.fetch_metadata_for_binaries.outputs.chunks }}
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Install apt packages (when testing locally in act)
+        if: ${{ env.ACT }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq wget
+
+          sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Fetch metadata for binaries
+        id: fetch_metadata_for_binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Gather the individual paths from the CORPUS_GITHUB_PATH.
+          corpus_path="${{ inputs.corpus_github_path }}"
+          if [[ -z "$corpus_path" ]]; then
+            corpus_path="${CORPUS_GITHUB_PATH}"
+          fi
+
+          echo "Semicolon-delimited path list: '${corpus_path}'"
+          all_paths=()
+          while read -r path; do
+            all_paths+=("-p $path")
+          done < <(echo "${corpus_path}" | tr ';' '\n')
+
+          echo "Number of separate paths: ${#all_paths[@]}"
+
+          declare -a all_files
+          mapfile -t all_files < <(
+            ./corpus_tests/scripts/gh_ls.sh \
+              -R "${CORPUS_GITHUB_OWNER}/${CORPUS_GITHUB_REPO}" \
+              -b "${CORPUS_GITHUB_BRANCH}" \
+              ${all_paths[@]} -t "${GITHUB_TOKEN}"
+          )
+
+          # Count the number of files
+          files_count="${#all_files[@]}"
+          echo "Total number of files: $files_count"
+
+          # Calculate the number of files each job should handle (max 256 jobs)
+          MAX_MATRIX_JOBS=256
+          segment_size=$(((files_count + $((MAX_MATRIX_JOBS - 1))) / MAX_MATRIX_JOBS))
+          echo "Segment size (number of files per job): $segment_size"
+
+          # Set environment variables for each chunk
+          chunks=()
+          current_chunk=""
+
+          for file in "${all_files[@]}"; do
+            if [[ -n "$current_chunk" ]]; then
+              current_chunk+=","
+            fi
+            current_chunk+="$file"
+            count=$((count + 1))
+
+            # if the segment size is reached, add chunk to array and reset
+            if [[ $count -ge $segment_size ]]; then
+              chunks+=("$current_chunk")
+              current_chunk=""
+              count=0
+            fi
+          done
+
+          # Add the last chunk if it has any files
+          if [[ -n "$current_chunk" ]]; then
+            chunks+=("$current_chunk")
+          fi
+
+          # Output the chunks in JSON format
+          echo "chunks=$(printf '%s\n' "${chunks[@]}" | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+
+  analyze_binaries:
+    needs: [build, fetch_metadata_for_binaries]
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        chunk: ${{ fromJson(needs.fetch_metadata_for_binaries.outputs.chunks) }}
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        if: ${{ env.ACT }}
+        run: |
+          (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
+          && sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Setup Python and Install Testing Dependencies
+        uses: actions/setup-python@v5
+        id: setup_python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Restore venv Cache
+        uses: actions/cache/restore@v4
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ github.sha }}
+          path: .venv
+
+      - name: Fetch binary files and run analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIGHTLY: inputs.nightly
+        run: |
+          source .venv/bin/activate
+
+          # Determine the environment variable name for the current chunk
+          files="${{ matrix.chunk }}"
+
+          # Convert the comma-separated list of binaries into an array
+          IFS=',' read -ra files_array <<< "$files"
+
+          # Set the context to the corpus_test folder for running pytest
+          cd corpus_tests
+          mkdir -p binaries snapshots
+
+          changed_snapshots=0
+          for file in "${files_array[@]}"; do
+            if [[ -n "$file" ]]; then
+              echo "Processing binary: $file"
+
+              # Create the directory to place the downloaded file.
+              mkdir -p "binaries/$(dirname "$file")"
+
+              # Fetch the binary file from the binaries repository
+              owner_repo_branch="$CORPUS_GITHUB_OWNER/$CORPUS_GITHUB_REPO/$CORPUS_GITHUB_BRANCH"
+              binary_url="https://raw.githubusercontent.com/${owner_repo_branch}/$file"
+              echo "Retrieving binary from '${binary_url}'."
+              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "binaries/$file" "${binary_url}"
+
+              echo -e "Downloaded binary:\n$(ls -l "binaries/$file")"
+
+              # Fetch the corresponding snapshot.
+              # Make sure this process is in sync with the code in test_corpus.py.
+              snapshot_repo_file="${file}.json.txt"
+
+              # Suffix of "__0.txt" is not needed for single named snapshots.
+              pytest_insta_prefix="corpus__decompilation__"
+              pytest_insta_suffix=""
+              escaped_snapshot_file="${snapshot_repo_file//\//_}"
+              pytest_insta_snapshot_file="snapshots/${pytest_insta_prefix}${escaped_snapshot_file}${pytest_insta_suffix}"
+              owner_repo_branch="$SNAPSHOT_GITHUB_OWNER/$SNAPSHOT_GITHUB_REPO/$SNAPSHOT_GITHUB_BRANCH"
+              snapshot_url="https://raw.githubusercontent.com/${owner_repo_branch}/snapshots/${snapshot_repo_file}"
+
+              echo "Retrieving snapshot from '${snapshot_url}'."
+              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
+
+              if [ ! -e "${pytest_insta_snapshot_file}" ]; then
+                echo "*** Failed to download snapshot at '${snapshot_url}'."
+                exit 1
+              fi
+
+              echo -e "Downloaded snapshot:\n$(ls -l "${pytest_insta_snapshot_file}")"
+
+              echo "Duplicating snapshot to 'snapshots/${snapshot_repo_file}'."
+              mkdir -p "$(dirname "snapshots/${snapshot_repo_file}")"
+              cp "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"
+
+              # Run Angr Analysis on the binary file
+              echo "Running 'angr' and 'pytest --insta update' to compare decompiler snapshots for '${file}'."
+
+              pytest --insta update --binary "binaries/$file" > "${pytest_insta_snapshot_file}.log" 2>&1
+              if [ -e "${pytest_insta_snapshot_file}.log" ]; then
+                head_lines=100
+                tail_lines=100
+                echo -e "\n== Pytest log file first $head_lines lines:"
+                head -$head_lines "${pytest_insta_snapshot_file}.log"
+                echo -e "\n== Pytest log file last $tail_lines lines:"
+                tail -$tail_lines "${pytest_insta_snapshot_file}.log"
+              fi
+              if diff -q "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"; then
+                echo "Decompilation unchanged for '$file'."
+              else
+                echo "Decompilation CHANGED for '$file'."
+                changed_snapshots=$((changed_snapshots + 1))
+                if [[ "$NIGHTLY" == "true" ]]; then
+                  diff -u "snapshots/${snapshot_repo_file}" "${pytest_insta_snapshot_file}"
+                fi
+                cp "${pytest_insta_snapshot_file}" "snapshots/${snapshot_repo_file}"
+              fi
+            fi
+          done
+
+          if [ "$NIGHTLY" == "true" ] && [ $changed_snapshots -gt 0 ]; then
+            echo "Failing nightly build due to $changed_snapshots snapshot diffs."
+            exit 1
+          fi
+
+      - name: Push snapshots to snapshot repo
+        env:
+          ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        if: ${{ ! inputs.nightly }}
+        run: |
+          snapshot_branch="${ANGR_BRANCH}"
+          echo "Creating snapshots branch '${snapshot_branch}'."
+          ./corpus_tests/scripts/gh_create_branch.sh \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
+            -H "${SNAPSHOT_GITHUB_BRANCH}" \
+            -t "${SNAPSHOT_TOKEN}"
+
+          echo "Pushing all .json.txt files up to the branch."
+          for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
+            # Second arg is the file path in the snapshots repo.
+            n=0
+            while ! ./corpus_tests/scripts/gh_push_file.sh \
+                -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
+                -H "${SNAPSHOT_GITHUB_BRANCH}" \
+                -t "${SNAPSHOT_TOKEN}" \
+                "${file}" \
+                "${file}"; do
+              n=$((n+1))
+              if [ $n -ge $tries ]; then
+                break
+              fi
+              wait_time="$(printf '%u.%03u' $((RANDOM % 4)) $((RANDOM % 1000)))"
+              echo "Pushing file failed; waiting ${wait_time}s to try again."
+              sleep "${wait_time}"
+            done
+          done
+
+  create_snapshot_pr:
+    needs: [analyze_binaries]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Install apt packages (when testing locally in act)
+        if: ${{ env.ACT }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bsdextrautils curl jq wget
+
+          sudo mkdir -p -m 755 /etc/apt/keyrings \
+          && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+          && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Maybe Create Snapshot Pull Request
+        id: snapshot-pr
+        if: ${{ ! inputs.nightly }}
+        env:
+          ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          set +e
+
+          title="Decompilation snapshots: ${ANGR_BRANCH} -> ${SNAPSHOT_GITHUB_BRANCH}"
+          gh api -X POST "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" \
+            -f base="${SNAPSHOT_GITHUB_BRANCH}" \
+            -f body="" \
+            -f head="${ANGR_BRANCH}" \
+            -f title="${title}"
+          success="$?"
+
+          # XXX: Does the api pre-sort responses descending by order?
+          url="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
+                 jq --arg title "$title" '.[] | select(.title == $title) | .html_url' | head -n 1)"
+          number="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
+                    jq --arg title "$title" '.[] | select(.title == $title) | .number' | head -n 1)"
+          if [[ -z "$url" ]]; then
+            echo "Error: failed to create pull request in snapshots repository."
+            exit 1
+          elif [[ "$success" -eq "0" ]]; then
+            echo "Created new snapshot pull request."
+          else
+            echo "Updating existing snapshot pull request."
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment snapshot_diff summary to Snapshot Pull Request
+        env:
+          ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          ./corpus_tests/scripts/snapshot_diff.sh \
+            -H "${ANGR_BRANCH}" \
+            -t "${GH_TOKEN}" | \
+          gh pr comment "${number}" \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
+            --body-file -
+
+      - name: Comment snapshot_url to Angr Pull Request
+        if: ${{ ! inputs.nightly }}
+        env:
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
+
+      - name: Merge the Snapshot Pull Request
+        if: github.event.pull_request.merged == true
+        env:
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        run: |
+          if [ -n "${number}" ]; then
+            gh pr merge --squash "${number}" \
+              -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
+          fi
