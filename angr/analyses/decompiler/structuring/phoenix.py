@@ -20,6 +20,7 @@ from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import (
     remove_last_statement,
+    remove_last_statements,
     extract_jump_targets,
     switch_extract_cmp_bounds,
     is_empty_or_label_only_node,
@@ -1538,7 +1539,7 @@ class PhoenixStructurer(StructurerBase):
 
         if node_a is not None:
             # remove the last statement in node_a
-            remove_last_statement(node_a)
+            remove_last_statements(node_a)
 
         return True
 
@@ -2308,7 +2309,7 @@ class PhoenixStructurer(StructurerBase):
             if new_src is not None:
                 self.replace_nodes(full_graph, src, new_src)
         if remove_src_last_stmt:
-            remove_last_statement(src)
+            remove_last_statements(src)
 
     def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
         """
