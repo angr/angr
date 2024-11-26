@@ -33,7 +33,9 @@ class DFAMixin:
                 src_offset = src.stack_offset
             elif isinstance(src, Load) and isinstance(src.addr, BasePointerOffset):
                 src_offset = src.addr.offset
-        return dst_offset, src_offset, size
+        if dst_offset is not None and src_offset is not None and size is not None:
+            return dst_offset, src_offset, size
+        return None, None, None
 
     def find_stack_data_flow(self, block, src_offset, size):
         cur_size = 0
