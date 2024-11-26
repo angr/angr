@@ -113,3 +113,9 @@ class SRDAMixin:
         if isinstance(value, FunctionLikeMacro):
             return value.returnty
         return None
+
+    def get_def_by_vvar(self, vvar):
+        for def_ in self.srda.model.all_definitions:
+            if hasattr(def_.atom, "varid") and def_.atom.varid == vvar.varid:
+                return def_
+        return None
