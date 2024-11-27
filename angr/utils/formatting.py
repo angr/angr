@@ -25,8 +25,8 @@ def setup_terminal():
 
     global ansi_color_enabled  # pylint:disable=global-statement
     # https://no-color.org/
-    no_nocolor = os.environ.get('NO_COLOR', None) is None
-    ansi_color_enabled = isatty and no_nocolor
+    no_color = os.environ.get("NO_COLOR", "")
+    ansi_color_enabled = isatty and not no_color
 
 
 def ansi_color(s: str, color: str | None) -> str:
