@@ -340,7 +340,7 @@ jobs:
           echo "Creating snapshots branch '${snapshot_branch}'."
           ./scripts/gh_create_branch.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
-            -H "${SNAPSHOT_GITHUB_BRANCH}" \
+            -H "${snapshot_branch}" \
             -t "${SNAPSHOT_TOKEN}"
 
           echo "Pushing all .json.txt files up to the branch."
@@ -349,7 +349,7 @@ jobs:
             n=0
             while ! ./scripts/gh_push_file.sh \
                 -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
-                -H "${SNAPSHOT_GITHUB_BRANCH}" \
+                -H "${snapshot_branch}" \
                 -t "${SNAPSHOT_TOKEN}" \
                 "${file}" \
                 "${file}"; do
