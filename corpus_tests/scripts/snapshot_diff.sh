@@ -125,15 +125,19 @@ else
   mkdir -p "${SNAPSHOT_DIR}"
 fi
 
+# create the file path for the index file; sanitize REF_HEAD to replace "/" with "_"
+SANITIZED_REF_HEAD=$(echo -n "${REF_HEAD}" | tr '/' '_')
+SNAPSHOT_INDEX_FILE="${SNAPSHOT_DIR}/index_${SANITIZED_REF_HEAD}.txt"
+
 # Retrieve a list of all of the available snapshot file paths.
-if ! [[ -f "${SNAPSHOT_DIR}/index_${REF_HEAD}.txt" ]]; then
+if ! [[ -f "${SNAPSHOT_INDEX_FILE}" ]]; then
   printf "Indexing remote: %s\n" "${REF_HEAD}" >&2
   "${SCRIPT_DIR}/gh_ls.sh" \
     -R "${REPO}" \
     --branch "${REF_HEAD}" \
     --path snapshots/ \
     --token "${GITHUB_TOKEN}" \
-    >> "${SNAPSHOT_DIR}/index_${REF_HEAD}.txt"
+    >> "${SNAPSHOT_INDEX_FILE}"
 fi
 
 # If FILEPATHs were provided, call `gh_ls.sh` and retrieve all available
@@ -175,7 +179,7 @@ fi
 
 # If there are still no file paths, get the list of paths from the head ref.
 if [[ "${#FILEPATH[@]}" -eq 0 ]]; then
-  mapfile -t FILEPATH < <(sort "${SNAPSHOT_DIR}/index_${REF_HEAD}.txt")
+  mapfile -t FILEPATH < <(sort "${SNAPSHOT_INDEX_FILE}")
 fi
 
 # Download each snapshot.
