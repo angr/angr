@@ -421,6 +421,7 @@ jobs:
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           ./corpus_tests/scripts/snapshot_diff.sh \
             -H "${ANGR_BRANCH}" \
