@@ -391,8 +391,6 @@ jobs:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
-          set +e
-
           title="Decompilation snapshots: ${ANGR_BRANCH} -> ${SNAPSHOT_GITHUB_BRANCH}"
           gh api -X POST "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" \
             -f base="${SNAPSHOT_GITHUB_BRANCH}" \
@@ -427,7 +425,7 @@ jobs:
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${ANGR_BRANCH}" \
             -t "${GH_TOKEN}" | \
-          gh pr comment "${number}" \
+          gh pr comment "${{ steps.snapshot-pr.outputs.number }}" \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             --body-file -
 
