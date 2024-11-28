@@ -424,6 +424,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           ./corpus_tests/scripts/snapshot_diff.sh \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${ANGR_BRANCH}" \
             -t "${GH_TOKEN}" | \
           gh pr comment "${number}" \
