@@ -12,6 +12,7 @@ from networkx import DiGraph
 
 from ..mixins.cfa_mixin import CFAMixin
 from ..mixins.srda_mixin import SRDAMixin
+from ..optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
 from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
@@ -101,7 +102,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
                     self.model.clinic = self.project.analyses.Clinic(
-                        self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer]
+                        self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover]
                     )
                 except Exception as e:
                     l.debug(f"Failed to recover AIL graph for {normalize(self.func.name)}")
