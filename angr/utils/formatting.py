@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import sys
 from collections.abc import Sequence, Callable
 
@@ -23,7 +24,9 @@ def setup_terminal():
             colorama.init()
 
     global ansi_color_enabled  # pylint:disable=global-statement
-    ansi_color_enabled = isatty
+    # https://no-color.org/
+    no_color = os.environ.get("NO_COLOR", "")
+    ansi_color_enabled = isatty and not no_color
 
 
 def ansi_color(s: str, color: str | None) -> str:
