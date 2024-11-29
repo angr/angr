@@ -5,6 +5,7 @@ from ailment.expression import BasePointerOffset, Const, VirtualVariable
 from ailment.statement import Store, Assignment
 from archinfo import Endness
 
+from ..mixins.srda_mixin import SRDAMixin
 from ..ailment.expression import Struct, Array
 from ..definitions.structs import ArrayReference
 from ..sim_type import RustSimStruct, RustSimTypeReference
@@ -139,7 +140,7 @@ class StructBuilder:
         return Struct(0, fields, self.struct_ty)
 
 
-class StructInstantiationSimplifier(OptimizationPass):
+class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -147,8 +148,7 @@ class StructInstantiationSimplifier(OptimizationPass):
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
-        self.srda = self.project.analyses.SReachingDefinitions(subject=self._func, func_graph=self._graph)
-        self.srda_view = SRDAView(self.srda.model)
+        SRDAMixin.__init__(self, func, self._graph, self.project)
 
         self.codeloc_to_block = {}
         for node in self._graph.nodes:
@@ -161,33 +161,6 @@ class StructInstantiationSimplifier(OptimizationPass):
 
     def _check(self):
         return self.project.is_rust_binary, None
-
-    def _get_stack_vvar_by_insn(
-        self, stack_offset: int, addr: int, block_idx: int | None = None
-    ) -> VirtualVariable | None:
-        vvars = set()
-
-        def _predicate(stmt) -> bool:
-            if (
-                isinstance(stmt, Assignment)
-                and isinstance(stmt.dst, VirtualVariable)
-                and stmt.dst.was_stack
-                and stmt.dst.stack_offset == stack_offset
-            ):
-                vvars.add(stmt.dst)
-                return True
-            return False
-
-        self.srda_view._get_vvar_by_insn(addr, OP_BEFORE, _predicate, block_idx=block_idx)
-
-        # assert len(vvars) <= 1
-        return next(iter(vvars), None)
-
-    def _get_def_by_stack_vvar(self, stack_vvar):
-        for def_ in self.srda.model.all_definitions:
-            if hasattr(def_.atom, "varid") and def_.atom.varid == stack_vvar.varid:
-                return def_
-        return None
 
     def _get_stmt_by_codeloc(self, codeloc: CodeLocation):
         block = self._get_block_by_codeloc(codeloc)
@@ -207,23 +180,42 @@ class StructInstantiationSimplifier(OptimizationPass):
         # Otherwise just bind the offset and head variable to each field definition
         collected_members = {}
         offset = expr_offset
-        offset_to_def = {}
+        offset_to_codeloc = {}
         while offset - expr_offset < struct_ty.size // 8:
-            vvar = self._get_stack_vvar_by_insn(offset, stmt.ins_addr, block.idx)
-            if vvar:
-                def_ = self._get_def_by_stack_vvar(vvar)
-                offset_to_def[offset - expr_offset] = def_
-                value = self.srda_view.get_vvar_value(vvar)
-                collected_members[offset - expr_offset] = value
-                offset += value.size if hasattr(value, "size") else 1
+            vvar = self.get_stack_vvar_by_insn(offset, stmt.ins_addr, block.idx)
+            def_ = self.get_def_by_vvar(vvar) if vvar else None
+            if vvar and def_:
+                codeloc = def_.codeloc
+                offset_to_codeloc[offset - expr_offset] = codeloc
+                value = self.get_vvar_value(vvar)
+                if value:
+                    collected_members[offset - expr_offset] = value
+                    offset += value.size
+                else:
+                    offset += 1
             else:
-                offset += 1
+                # In case the Store statement is not ssailified
+                value = None
+                for stmt_idx, stmt in enumerate(block.statements):
+                    if (
+                        isinstance(stmt, Store)
+                        and isinstance(stmt.addr, BasePointerOffset)
+                        and stmt.addr.offset == offset
+                    ):
+                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        offset_to_codeloc[offset - expr_offset] = codeloc
+                        value = stmt.data
+                if value:
+                    collected_members[offset - expr_offset] = value
+                    offset += value.size
+                else:
+                    offset += 1
         builder = StructBuilder(struct_ty, collected_members, self)
         struct = builder.build(block, stmt)
 
-        if struct and 0 in offset_to_def:
-            def_ = offset_to_def[0]
-            head_stmt = self._get_stmt_by_codeloc(def_.codeloc)
+        if struct and 0 in offset_to_codeloc:
+            codeloc = offset_to_codeloc[0]
+            head_stmt = self._get_stmt_by_codeloc(codeloc)
             store = Store(
                 idx=head_stmt.idx,
                 addr=expr,
@@ -236,12 +228,12 @@ class StructInstantiationSimplifier(OptimizationPass):
             for expr, struct_ty in builder.pending_potential_structs:
                 self._simplify_struct_instantiation(block, stmt, expr, struct_ty)
 
-            for offset, def_ in offset_to_def.items():
-                block = self._get_block_by_codeloc(def_.codeloc)
-                stmt = self._get_stmt_by_codeloc(def_.codeloc)
+            for offset, codeloc in offset_to_codeloc.items():
+                block = self._get_block_by_codeloc(codeloc)
+                stmt = self._get_stmt_by_codeloc(codeloc)
                 if stmt in block.statements:
                     if offset == 0:
-                        self._stmts_to_replace[block].append((def_.codeloc.stmt_idx, store))
+                        self._stmts_to_replace[block].append((codeloc.stmt_idx, store))
                     else:
                         self._stmts_to_remove[block].append(stmt)
 
