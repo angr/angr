@@ -64,7 +64,7 @@ class SRDAMixin:
         return vvar
 
     def get_stack_vvar_by_insn(
-        self, stack_offset: int, addr: int, block_idx: int | None = None, op_type=OP_BEFORE
+        self, stack_offset: int, addr: int, block_idx: int | None = None, size=None, op_type=OP_BEFORE
     ) -> VirtualVariable | None:
         vvars = set()
 
@@ -74,6 +74,7 @@ class SRDAMixin:
                 and isinstance(stmt.dst, VirtualVariable)
                 and stmt.dst.was_stack
                 and stmt.dst.stack_offset == stack_offset
+                and (size is None or stmt.dst.size == size)
             ):
                 vvars.add(stmt.dst)
                 return True

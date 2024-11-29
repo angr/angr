@@ -26,7 +26,14 @@ class StructFieldAccessSimplifierWalker(AILBlockWalker):
                 vvar_type = self.context.get_vvar_type(base_vvar)
                 if isinstance(vvar_type, RustSimStruct):
                     offset = Const(None, None, offset, bits=self.project.arch.bits)
-                    new_expr = BinaryOp(expr.idx, "AccessField", operands=[base_vvar, offset], signed=False)
+                    new_expr = BinaryOp(
+                        expr.idx,
+                        "AccessField",
+                        operands=[base_vvar, offset],
+                        signed=False,
+                        bits=expr.bits,
+                        to_bits=expr.bits,
+                    )
                     field_name, field_type = StructResolver(vvar_type).find_field(offset.value)
                     new_expr.tags["struct_type"] = vvar_type
                     new_expr.tags["field_name"] = field_name
