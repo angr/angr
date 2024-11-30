@@ -336,19 +336,20 @@ jobs:
         if: ${{ ! inputs.nightly }}
         run: |
           snapshot_branch="${ANGR_BRANCH}"
+          cd corpus_tests/
           echo "Creating snapshots branch '${snapshot_branch}'."
-          ./corpus_tests/scripts/gh_create_branch.sh \
+          ./scripts/gh_create_branch.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
-            -H "${SNAPSHOT_GITHUB_BRANCH}" \
+            -H "${snapshot_branch}" \
             -t "${SNAPSHOT_TOKEN}"
 
           echo "Pushing all .json.txt files up to the branch."
           for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
             # Second arg is the file path in the snapshots repo.
             n=0
-            while ! ./corpus_tests/scripts/gh_push_file.sh \
+            while ! ./scripts/gh_push_file.sh \
                 -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
-                -H "${SNAPSHOT_GITHUB_BRANCH}" \
+                -H "${snapshot_branch}" \
                 -t "${SNAPSHOT_TOKEN}" \
                 "${file}" \
                 "${file}"; do
@@ -390,8 +391,6 @@ jobs:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
-          set +e
-
           title="Decompilation snapshots: ${ANGR_BRANCH} -> ${SNAPSHOT_GITHUB_BRANCH}"
           gh api -X POST "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" \
             -f base="${SNAPSHOT_GITHUB_BRANCH}" \
@@ -420,18 +419,20 @@ jobs:
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           ./corpus_tests/scripts/snapshot_diff.sh \
+            -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${ANGR_BRANCH}" \
             -t "${GH_TOKEN}" | \
-          gh pr comment "${number}" \
+          gh pr comment "${{ steps.snapshot-pr.outputs.number }}" \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             --body-file -
 
-      - name: Comment snapshot_url to Angr Pull Request
+      - name: Comment snapshot_url to angr Pull Request
         if: ${{ ! inputs.nightly }}
         env:
-          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.ANGR_PR_PAT }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
             -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
