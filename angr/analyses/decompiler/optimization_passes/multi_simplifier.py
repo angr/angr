@@ -157,18 +157,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Sub", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
-    def _ail_handle_Shl(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if isinstance(operand_1, Expr.Const):
-            new_operand = Expr.Const(operand_1.idx, None, 2**operand_1.value, operand_0.bits)
-            return Expr.BinaryOp(expr.idx, "Mul", [operand_0, new_operand], expr.signed, **expr.tags)
-
-        if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
-            return Expr.BinaryOp(expr.idx, "Shl", [operand_0, operand_1], expr.signed, **expr.tags)
-        return expr
-
     def _ail_handle_Mul(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])

@@ -13,6 +13,7 @@ from .const_mull_a_shift import ConstMullAShift
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_redundant_ite_branch import RemoveRedundantITEBranches
+from .shl_to_mul import ShlToMul
 from .single_bit_xor import SingleBitXor
 from .a_sub_a_sub_n import ASubASubN
 from .conv_a_sub0_shr_and import ConvASub0ShrAnd
@@ -94,6 +95,7 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     InlinedWstrcpy,
     CmpORDRewriter,
     CoalesceAdjacentShiftRights,
+    ShlToMul,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
