@@ -429,10 +429,10 @@ jobs:
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             --body-file -
 
-      - name: Comment snapshot_url to Angr Pull Request
+      - name: Comment snapshot_url to angr Pull Request
         if: ${{ ! inputs.nightly }}
         env:
-          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.ANGR_PR_PAT }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
             -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
