@@ -459,16 +459,17 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
+        result_size = arg0.bits
         if r0.data.concrete and r1.data.concrete:
-            # constants
-            result_size = arg0.bits
-            return RichR(r0.data * r1.data, typevar=typeconsts.int_type(result_size), type_constraints=None)
-
-        r = self.state.top(expr.bits)
-        return RichR(
-            r,
-            typevar=r0.typevar,
-        )
+            v = r0.data * r1.data
+            tv = r0.typevar
+        elif r1.data.concrete:
+            v = r0.data * r1.data
+            tv = typeconsts.int_type(result_size)
+        else:
+            v = self.state.top(expr.bits)
+            tv = typeconsts.int_type(result_size)
+        return RichR(v, typevar=tv, type_constraints=None)
 
     def _ail_handle_Mull(self, expr):
         arg0, arg1 = expr.operands
@@ -608,7 +609,6 @@ class SimEngineVRAIL(
             )
 
         shiftamount = r1.data.concrete_value
-
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
     def _ail_handle_Shr(self, expr):
@@ -676,8 +676,8 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
+        result_size = arg0.bits
         if r0.data.concrete and r1.data.concrete:
-            result_size = arg0.bits
             return RichR(
                 r0.data & r1.data,
                 typevar=typeconsts.int_type(result_size),
@@ -685,7 +685,7 @@ class SimEngineVRAIL(
             )
 
         r = self.state.top(expr.bits)
-        return RichR(r, typevar=r0.typevar)
+        return RichR(r, typevar=typeconsts.int_type(result_size))
 
     def _ail_handle_Or(self, expr):
         arg0, arg1 = expr.operands
@@ -693,8 +693,8 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
+        result_size = arg0.bits
         if r0.data.concrete and r1.data.concrete:
-            result_size = arg0.bits
             return RichR(
                 r0.data | r1.data,
                 typevar=typeconsts.int_type(result_size),
@@ -702,7 +702,7 @@ class SimEngineVRAIL(
             )
 
         r = self.state.top(expr.bits)
-        return RichR(r, typevar=r0.typevar)
+        return RichR(r, typevar=typeconsts.int_type(result_size))
 
     def _ail_handle_LogicalAnd(self, expr):
         arg0, arg1 = expr.operands

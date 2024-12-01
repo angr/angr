@@ -103,8 +103,11 @@ class Typehoon(Analysis):
         print(f"### {sum(map(len, self._constraints.values()))} constraints")
         for func_var in self._constraints:
             print(f"{func_var}:")
+            lst = []
             for constraint in self._constraints[func_var]:
-                print("    " + constraint.pp_str(typevar_to_var))
+                lst.append("    " + constraint.pp_str(typevar_to_var))
+            lst = sorted(lst)
+            print("\n".join(lst))
         print("### end of constraints ###")
 
     def pp_solution(self) -> None:

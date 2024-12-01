@@ -1,8 +1,10 @@
+# pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Expression, Convert
 from ailment.statement import Call
 
 from .base import PeepholeOptimizationExprBase
+from .utils import get_expr_shift_left_amount
 
 
 class Bswap(PeepholeOptimizationExprBase):
@@ -69,19 +71,21 @@ class Bswap(PeepholeOptimizationExprBase):
                 cores = set()
                 for piece in or_pieces:
                     if isinstance(piece, BinaryOp):
-                        if piece.op == "Shl" and isinstance(piece.operands[1], Const):
+                        if piece.op in {"Shl", "Mul"} and isinstance(piece.operands[1], Const):
                             cores.add(piece.operands[0])
-                            shifts.add(("<<", piece.operands[1].value, 0xFFFFFFFF))
+                            shift_amount = get_expr_shift_left_amount(piece)
+                            shifts.add(("<<", shift_amount, 0xFFFFFFFF))
                         elif piece.op == "And" and isinstance(piece.operands[1], Const):
                             and_amount = piece.operands[1].value
                             and_core = piece.operands[0]
                             if (
                                 isinstance(and_core, BinaryOp)
-                                and and_core.op == "Shl"
+                                and and_core.op in {"Shl", "Mul"}
                                 and isinstance(and_core.operands[1], Const)
                             ):
                                 cores.add(and_core.operands[0])
-                                shifts.add(("<<", and_core.operands[1].value, and_amount))
+                                shift_amount = get_expr_shift_left_amount(and_core)
+                                shifts.add(("<<", shift_amount, and_amount))
                             elif (
                                 isinstance(and_core, BinaryOp)
                                 and and_core.op == "Shr"
@@ -112,9 +116,9 @@ class Bswap(PeepholeOptimizationExprBase):
             if (
                 (
                     isinstance(inner_first, BinaryOp)
-                    and inner_first.op == "Shl"
+                    and inner_first.op in {"Shl", "Mul"}
                     and isinstance(inner_first.operands[1], Const)
-                    and inner_first.operands[1].value == 8
+                    and get_expr_shift_left_amount(inner_first) == 8
                 )
                 and (
                     isinstance(inner_second, BinaryOp)

@@ -3,6 +3,7 @@ from ailment.statement import Assignment
 from ailment.expression import BinaryOp, Const, Tmp
 
 from .base import PeepholeOptimizationStmtBase
+from .utils import get_expr_shift_left_amount
 
 
 class RolRorRewriter(PeepholeOptimizationStmtBase):
@@ -64,7 +65,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             if (
                 stmt_1.src.op in {"Shl", "Mul"}
                 and stmt_2.src.op == "Shr"
-                and (shiftleft_amount := self._get_expr_shift_left_amount(stmt_1.src)) is not None
+                and (shiftleft_amount := get_expr_shift_left_amount(stmt_1.src)) is not None
             ):
                 if shiftleft_amount + stmt2_op1.value == stmt.dst.bits:
                     rol_amount = Const(None, None, shiftleft_amount, 8, **stmt1_op1.tags)
@@ -77,7 +78,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             if (
                 stmt_1.src.op == "Shr"
                 and stmt_2.src.op in {"Shl", "Mul"}
-                and (shiftleft_amount := self._get_expr_shift_left_amount(stmt_2.src)) is not None
+                and (shiftleft_amount := get_expr_shift_left_amount(stmt_2.src)) is not None
             ):
                 if stmt1_op1.value + shiftleft_amount == stmt.dst.bits:
                     return Assignment(
@@ -102,7 +103,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             if (
                 op0.op in {"Shl", "Mul"}
                 and op1.op == "Shr"
-                and (op0_shiftamount := self._get_expr_shift_left_amount(op0)) is not None
+                and (op0_shiftamount := get_expr_shift_left_amount(op0)) is not None
             ):
                 if op0_shiftamount + op1_v == stmt.dst.bits:
                     shiftamount = Const(None, None, op0_shiftamount, 8, **op0.operands[1].tags)
@@ -115,7 +116,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             if (
                 op0.op == "Shr"
                 and op1.op in {"Shl", "Mul"}
-                and (op1_shiftamount := self._get_expr_shift_left_amount(op1)) is not None
+                and (op1_shiftamount := get_expr_shift_left_amount(op1)) is not None
             ):
                 if op0_v + op1_shiftamount == stmt.dst.bits:
                     shiftamount = op0.operands[1]
@@ -126,18 +127,4 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                         **stmt.tags,
                     )
 
-        return None
-
-    @staticmethod
-    def _get_expr_shift_left_amount(expr: BinaryOp) -> int | None:
-        assert expr.op in {"Shl", "Mul"}
-
-        if expr.op == "Shl":
-            if isinstance(expr.operands[1], Const):
-                return expr.operands[1].value
-        elif expr.op == "Mul":
-            if isinstance(expr.operands[1], Const):
-                v = expr.operands[1].value
-                if v & (v - 1) == 0:
-                    return v.bit_length() - 1
         return None
