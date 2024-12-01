@@ -61,43 +61,83 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             if not (isinstance(stmt1_op1, Const) and isinstance(stmt2_op1, Const)):
                 return None
 
-            if stmt_1.src.op == "Shl" and stmt_2.src.op == "Shr" and stmt1_op1.value + stmt2_op1.value == stmt.dst.bits:
-                return Assignment(
-                    stmt.idx,
-                    stmt.dst,
-                    BinaryOp(None, "Rol", [stmt1_op0, stmt1_op1], False, bits=stmt.dst.bits, **stmt_1.src.tags),
-                    **stmt.tags,
-                )
-            if stmt_1.src.op == "Shr" and stmt_2.src.op == "Shl" and stmt1_op1.value + stmt2_op1.value == stmt.dst.bits:
-                return Assignment(
-                    stmt.idx,
-                    stmt.dst,
-                    BinaryOp(None, "Ror", [stmt1_op0, stmt1_op1], False, bits=stmt.dst.bits, **stmt_1.src.tags),
-                    **stmt.tags,
-                )
-        elif isinstance(op0, BinaryOp) and isinstance(op1, BinaryOp) and {op0.op, op1.op} == {"Shl", "Shr"}:
+            if (
+                stmt_1.src.op in {"Shl", "Mul"}
+                and stmt_2.src.op == "Shr"
+                and (shiftleft_amount := self._get_expr_shift_left_amount(stmt_1.src)) is not None
+            ):
+                if shiftleft_amount + stmt2_op1.value == stmt.dst.bits:
+                    rol_amount = Const(None, None, shiftleft_amount, 8, **stmt1_op1.tags)
+                    return Assignment(
+                        stmt.idx,
+                        stmt.dst,
+                        BinaryOp(None, "Rol", [stmt1_op0, rol_amount], False, bits=stmt.dst.bits, **stmt_1.src.tags),
+                        **stmt.tags,
+                    )
+            if (
+                stmt_1.src.op == "Shr"
+                and stmt_2.src.op in {"Shl", "Mul"}
+                and (shiftleft_amount := self._get_expr_shift_left_amount(stmt_2.src)) is not None
+            ):
+                if stmt1_op1.value + shiftleft_amount == stmt.dst.bits:
+                    return Assignment(
+                        stmt.idx,
+                        stmt.dst,
+                        BinaryOp(None, "Ror", [stmt1_op0, stmt1_op1], False, bits=stmt.dst.bits, **stmt_1.src.tags),
+                        **stmt.tags,
+                    )
+        elif (
+            isinstance(op0, BinaryOp)
+            and isinstance(op1, BinaryOp)
+            and {op0.op, op1.op} in [{"Shl", "Shr"}, {"Mul", "Shr"}]
+        ):
             if not op0.operands[0].likes(op1.operands[0]):
                 return None
 
             if not isinstance(op0.operands[1], Const) or not isinstance(op1.operands[1], Const):
                 return None
-            shiftamount = op0.operands[1]
-            op0_shiftamount = op0.operands[1].value
-            op1_shiftamount = op1.operands[1].value
+            op0_v = op0.operands[1].value
+            op1_v = op1.operands[1].value
 
-            if op0.op == "Shl" and op1.op == "Shr" and op0_shiftamount + op1_shiftamount == stmt.dst.bits:
-                return Assignment(
-                    stmt.idx,
-                    stmt.dst,
-                    BinaryOp(None, "Rol", [op0.operands[0], shiftamount], False, bits=stmt.dst.bits, **op0.tags),
-                    **stmt.tags,
-                )
-            if op0.op == "Shr" and op1.op == "Shl" and op0_shiftamount + op1_shiftamount == stmt.dst.bits:
-                return Assignment(
-                    stmt.idx,
-                    stmt.dst,
-                    BinaryOp(None, "Ror", [op0.operands[0], shiftamount], False, bits=stmt.dst.bits, **op0.tags),
-                    **stmt.tags,
-                )
+            if (
+                op0.op in {"Shl", "Mul"}
+                and op1.op == "Shr"
+                and (op0_shiftamount := self._get_expr_shift_left_amount(op0)) is not None
+            ):
+                if op0_shiftamount + op1_v == stmt.dst.bits:
+                    shiftamount = Const(None, None, op0_shiftamount, 8, **op0.operands[1].tags)
+                    return Assignment(
+                        stmt.idx,
+                        stmt.dst,
+                        BinaryOp(None, "Rol", [op0.operands[0], shiftamount], False, bits=stmt.dst.bits, **op0.tags),
+                        **stmt.tags,
+                    )
+            if (
+                op0.op == "Shr"
+                and op1.op in {"Shl", "Mul"}
+                and (op1_shiftamount := self._get_expr_shift_left_amount(op1)) is not None
+            ):
+                if op0_v + op1_shiftamount == stmt.dst.bits:
+                    shiftamount = op0.operands[1]
+                    return Assignment(
+                        stmt.idx,
+                        stmt.dst,
+                        BinaryOp(None, "Ror", [op0.operands[0], shiftamount], False, bits=stmt.dst.bits, **op0.tags),
+                        **stmt.tags,
+                    )
 
+        return None
+
+    @staticmethod
+    def _get_expr_shift_left_amount(expr: BinaryOp) -> int | None:
+        assert expr.op in {"Shl", "Mul"}
+
+        if expr.op == "Shl":
+            if isinstance(expr.operands[1], Const):
+                return expr.operands[1].value
+        elif expr.op == "Mul":
+            if isinstance(expr.operands[1], Const):
+                v = expr.operands[1].value
+                if v & (v - 1) == 0:
+                    return v.bit_length() - 1
         return None

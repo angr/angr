@@ -46,13 +46,15 @@ from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
 from .inlined_wstrcpy import InlinedWstrcpy
 from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
-
+from .a_mul_const_sub_a import AMulConstSubA
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
+
 
 ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     ADivConstAddAMulNDivConst,
     AMulConstDivShrConst,
     AShlConstSubA,
+    AMulConstSubA,
     ASubADiv,
     ASubADivConstMulConst,
     ARMCmpF,

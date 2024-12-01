@@ -190,7 +190,11 @@ class Sketch:
                 for _, dst, data in self.graph.out_edges(node, data=True):
                     if "label" in data and data["label"] == label:
                         succs.append(dst)
-                assert len(succs) <= 1
+                if len(succs) > 1:
+                    _l.warning(
+                        "Multiple successors found for node %s with label %s. Picking the first one.", node, label
+                    )
+                    succs = succs[:1]
                 if not succs:
                     return None
                 node = succs[0]

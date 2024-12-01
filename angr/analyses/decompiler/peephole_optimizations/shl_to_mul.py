@@ -8,7 +8,7 @@ from .base import PeepholeOptimizationExprBase
 class ShlToMul(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    NAME = "a << A -> a * (2 ** A)"
+    NAME = "a << A => a * (2 ** A)"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp, **kwargs):
