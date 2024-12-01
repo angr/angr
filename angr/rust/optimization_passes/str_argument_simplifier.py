@@ -48,7 +48,6 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
                 else:
                     new_args.append(arg0)
                     if arg1:
-                        new_args.append(arg1)
                         args.insert(0, arg1)
         if changed:
             new_call = call.copy()
