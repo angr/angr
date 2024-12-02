@@ -1,6 +1,6 @@
 # pylint: disable=missing-class-docstring
 from __future__ import annotations
-from ailment.expression import BinaryOp, Convert, Const, VirtualVariable
+from ailment.expression import BinaryOp, Convert, Const
 
 from .base import PeepholeOptimizationExprBase
 
@@ -15,7 +15,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
 
         if isinstance(expr, BinaryOp):
             return self._optimize_BinaryOp(expr)
-        elif isinstance(expr, Convert):
+        if isinstance(expr, Convert):
             return self._optimize_Convert(expr)
         return None
 
