@@ -65,13 +65,29 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 and isinstance(expr.operands[0].operands[1], Const)
                 and expr.operands[0].operands[0].likes(expr.operands[1])
             ):
-                # A * x + x => (A + 1) * x
+                # x * A + x => (A + 1) * x
                 coeff_expr = expr.operands[0].operands[1]
                 new_coeff = coeff_expr.value + 1
                 return BinaryOp(
                     expr.idx,
                     "Mul",
                     [Const(coeff_expr.idx, None, new_coeff, coeff_expr.bits), expr.operands[1]],
+                    expr.signed,
+                    **expr.tags,
+                )
+            if (
+                isinstance(expr.operands[1], BinaryOp)
+                and expr.operands[1].op == "Mul"
+                and isinstance(expr.operands[1].operands[1], Const)
+                and expr.operands[1].operands[0].likes(expr.operands[0])
+            ):
+                # x + x * A => (A + 1) * x
+                coeff_expr = expr.operands[1].operands[1]
+                new_coeff = coeff_expr.value + 1
+                return BinaryOp(
+                    expr.idx,
+                    "Mul",
+                    [Const(coeff_expr.idx, None, new_coeff, coeff_expr.bits), expr.operands[0]],
                     expr.signed,
                     **expr.tags,
                 )
@@ -119,12 +135,25 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
         elif expr.op == "Mul":
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
+                # x * 1 => x
                 return expr.operands[0]
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                # constant multiplication
                 mask = (1 << expr.bits) - 1
                 return Const(
                     expr.idx, None, (expr.operands[0].value * expr.operands[1].value) & mask, expr.bits, **expr.tags
                 )
+            if {type(expr.operands[0]), type(expr.operands[1])} == {BinaryOp, Const}:
+                op0, op1 = expr.operands
+                const_, x0 = (op0, op1) if isinstance(op0, Const) else (op1, op0)
+                if x0.op == "Mul" and (isinstance(x0.operands[0], Const) or isinstance(x0.operands[1], Const)):
+                    # (A * x) * C => (A * C) * x
+                    if isinstance(x0.operands[0], Const):
+                        const_x0, x = x0.operands[0], x0.operands[1]
+                    else:
+                        const_x0, x = x0.operands[1], x0.operands[0]
+                    new_const = Const(const_.idx, None, const_.value * const_x0.value, const_.bits, **const_x0.tags)
+                    return BinaryOp(expr.idx, "Mul", [x, new_const], expr.signed, bits=expr.bits, **expr.tags)
 
         elif (
             expr.op == "Div"
