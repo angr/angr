@@ -11,7 +11,7 @@ def get_expr_shift_left_amount(expr: BinaryOp) -> int | None:
     """
     if expr.op == "Shl" and isinstance(expr.operands[1], Const):
         return expr.operands[1].value
-    elif expr.op == "Mul" and isinstance(expr.operands[1], Const):
+    if expr.op == "Mul" and isinstance(expr.operands[1], Const):
         v = expr.operands[1].value
         if v & (v - 1) == 0:
             return v.bit_length() - 1
