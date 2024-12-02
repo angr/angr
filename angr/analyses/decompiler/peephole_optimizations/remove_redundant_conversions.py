@@ -1,6 +1,6 @@
 # pylint: disable=missing-class-docstring
 from __future__ import annotations
-from ailment.expression import BinaryOp, Convert, Const
+from ailment.expression import BinaryOp, Convert, Const, VirtualVariable
 
 from .base import PeepholeOptimizationExprBase
 
@@ -9,9 +9,18 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Remove redundant conversions around binary operators"
-    expr_classes = (BinaryOp,)
+    expr_classes = (BinaryOp, Convert)
 
-    def optimize(self, expr: BinaryOp, **kwargs):
+    def optimize(self, expr: BinaryOp | Convert, **kwargs):
+
+        if isinstance(expr, BinaryOp):
+            return self._optimize_BinaryOp(expr)
+        elif isinstance(expr, Convert):
+            return self._optimize_Convert(expr)
+        return None
+
+    @staticmethod
+    def _optimize_BinaryOp(expr: BinaryOp):
         # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):
             # check: is the lhs convert an up-cast and is rhs a const?
@@ -156,3 +165,32 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             )
 
         return None
+
+    @staticmethod
+    def _optimize_Convert(expr: Convert):
+        operand_expr = expr.operand
+        if isinstance(operand_expr, BinaryOp) and operand_expr.op in {
+            "Mul",
+            "Shl",
+            "Div",
+            "DivMod",
+            "Mod",
+            "Add",
+            "Sub",
+        }:
+            op0, op1 = operand_expr.operands
+            if (
+                isinstance(op0, Convert)
+                and isinstance(op1, Convert)
+                and op0.from_bits == op1.from_bits
+                and op0.to_bits == op1.to_bits
+                and expr.from_bits == op0.to_bits
+                and expr.to_bits == op1.from_bits
+            ):
+                return BinaryOp(
+                    operand_expr.idx,
+                    operand_expr.op,
+                    [op0.operand, op1.operand],
+                    expr.is_signed,
+                    **operand_expr.tags,
+                )
