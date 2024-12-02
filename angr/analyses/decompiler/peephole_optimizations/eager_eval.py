@@ -59,38 +59,52 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.signed,
                         **expr.tags,
                     )
-            if (
-                isinstance(expr.operands[0], BinaryOp)
-                and expr.operands[0].op == "Mul"
-                and isinstance(expr.operands[0].operands[1], Const)
-                and expr.operands[0].operands[0].likes(expr.operands[1])
-            ):
-                # x * A + x => (A + 1) * x
-                coeff_expr = expr.operands[0].operands[1]
-                new_coeff = coeff_expr.value + 1
-                return BinaryOp(
-                    expr.idx,
-                    "Mul",
-                    [Const(coeff_expr.idx, None, new_coeff, coeff_expr.bits), expr.operands[1]],
-                    expr.signed,
-                    **expr.tags,
-                )
-            if (
-                isinstance(expr.operands[1], BinaryOp)
-                and expr.operands[1].op == "Mul"
-                and isinstance(expr.operands[1].operands[1], Const)
-                and expr.operands[1].operands[0].likes(expr.operands[0])
-            ):
-                # x + x * A => (A + 1) * x
-                coeff_expr = expr.operands[1].operands[1]
-                new_coeff = coeff_expr.value + 1
-                return BinaryOp(
-                    expr.idx,
-                    "Mul",
-                    [Const(coeff_expr.idx, None, new_coeff, coeff_expr.bits), expr.operands[0]],
-                    expr.signed,
-                    **expr.tags,
-                )
+            op0, op1 = expr.operands
+            if op0.likes(op1):
+                # x + x => 2 * x
+                count = Const(expr.idx, None, 2, op0.bits, **expr.tags)
+                return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, **expr.tags)
+
+            op0_is_mulconst = (
+                isinstance(op0, BinaryOp)
+                and op0.op == "Mul"
+                and (isinstance(op0.operands[0], Const) or isinstance(op0.operands[1], Const))
+            )
+            op1_is_mulconst = (
+                isinstance(op1, BinaryOp)
+                and op1.op == "Mul"
+                and (isinstance(op1.operands[0], Const) or isinstance(op1.operands[1], Const))
+            )
+            const0, x0 = None, None
+            const1, x1 = None, None
+            if op0_is_mulconst:
+                if isinstance(op0.operands[0], Const):
+                    const0, x0 = op0.operands
+                elif isinstance(op0.operands[1], Const):
+                    x0, const0 = op0.operands
+            if op1_is_mulconst:
+                if isinstance(op1.operands[0], Const):
+                    const1, x1 = op1.operands
+                elif isinstance(op1.operands[1], Const):
+                    x1, const1 = op1.operands
+
+            if op0_is_mulconst ^ op1_is_mulconst:
+                if x0 is not None and const0 is not None:
+                    if x0.likes(op1):
+                        # x * A + x => (A + 1) * x
+                        new_const = Const(const0.idx, None, const0.value + 1, const0.bits, **const0.tags)
+                        return BinaryOp(expr.idx, "Mul", [x0, new_const], expr.signed, **expr.tags)
+                if x1 is not None and const1 is not None:
+                    if x1.likes(op0):
+                        # x + x * A => (A + 1) * x
+                        new_const = Const(const1.idx, None, const1.value + 1, const1.bits, **const1.tags)
+                        return BinaryOp(expr.idx, "Mul", [x1, new_const], expr.signed, **expr.tags)
+            elif op0_is_mulconst and op1_is_mulconst:
+                if x0.likes(x1):
+                    # x * A + x * B => (A + B) * x
+                    new_const = Const(const0.idx, None, const0.value + const1.value, const0.bits, **const0.tags)
+                    return BinaryOp(expr.idx, "Mul", [x0, new_const], expr.signed, **expr.tags)
+
         elif expr.op == "Sub":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
                 mask = (1 << expr.bits) - 1
