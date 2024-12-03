@@ -5,9 +5,11 @@ from ailment.expression import BasePointerOffset, Const, VirtualVariable
 from ailment.statement import Store, Assignment
 from archinfo import Endness
 
+from ..mixins.str_mixin import StrMixin
+from ..mixins.cfa_mixin import CFAMixin
 from ..mixins.srda_mixin import SRDAMixin
 from ..ailment.expression import Struct, Array
-from ..definitions.structs import ArrayReference
+from ..definitions.structs import ArrayReference, Arguments
 from ..sim_type import RustSimStruct, RustSimTypeReference
 from ..utils.ail_util import get_terminal_call
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -140,7 +142,7 @@ class StructBuilder:
         return Struct(0, fields, self.struct_ty)
 
 
-class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
+class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -149,6 +151,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
+        CFAMixin.__init__(self, self._graph, self.project)
 
         self.codeloc_to_block = {}
         for node in self._graph.nodes:
@@ -171,8 +174,37 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
     def _get_block_by_codeloc(self, codeloc: CodeLocation):
         return self.codeloc_to_block.get((codeloc.block_addr, codeloc.block_idx), None)
 
+    def _is_consecutive_codelocs(self, codelocs):
+        if len({(codeloc.block_addr, codeloc.block_idx) for codeloc in codelocs}) != 1:
+            return False
+        stmt_idxes = sorted([codeloc.stmt_idx for codeloc in codelocs])
+        return stmt_idxes[-1] - stmt_idxes[0] + 1 == len(stmt_idxes)
+
+    def _match_existing_type(self, struct_ty: RustSimStruct, collected_members):
+        arch_bytes = self.project.arch.bytes
+        # Match with Arguments
+        arguments_ty = Arguments.with_arch(self.project.arch)
+        pieces_ptr_offset = 0
+        pieces_len_offset = arch_bytes
+        args_ptr_offset = 2 * arch_bytes
+        args_len_offset = 3 * arch_bytes
+        if (
+            struct_ty.size == arguments_ty.size
+            and pieces_ptr_offset in collected_members
+            and pieces_len_offset in collected_members
+            and args_ptr_offset in collected_members
+            and args_len_offset in collected_members
+            and isinstance(collected_members[pieces_ptr_offset], Const)
+            and isinstance(collected_members[pieces_len_offset], Const)
+            and isinstance(collected_members[args_len_offset], Const)
+            and 1 >= collected_members[pieces_len_offset].value - collected_members[args_len_offset].value >= 0
+            and self.extract_str_from_addr(collected_members[pieces_ptr_offset].value)
+        ):
+            return arguments_ty
+        return struct_ty
+
     def _simplify_struct_instantiation(
-        self, block, stmt, expr: BasePointerOffset | VirtualVariable, struct_ty: RustSimStruct
+        self, block, last_stmt, expr: BasePointerOffset | VirtualVariable, struct_ty: RustSimStruct
     ):
         assert isinstance(expr, BasePointerOffset) or (isinstance(expr, VirtualVariable) and expr.was_stack)
         expr_offset = expr.offset if isinstance(expr, BasePointerOffset) else expr.stack_offset
@@ -182,7 +214,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
         offset = expr_offset
         offset_to_codeloc = {}
         while offset - expr_offset < struct_ty.size // 8:
-            vvar = self.get_stack_vvar_by_insn(offset, stmt.ins_addr, block.idx)
+            vvar = self.get_stack_vvar_by_insn(offset, last_stmt.ins_addr, block.idx)
             def_ = self.get_def_by_vvar(vvar) if vvar else None
             if vvar and def_:
                 codeloc = def_.codeloc
@@ -210,10 +242,12 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
                     offset += value.size
                 else:
                     offset += 1
-        builder = StructBuilder(struct_ty, collected_members, self)
-        struct = builder.build(block, stmt)
 
-        if struct and 0 in offset_to_codeloc:
+        struct_ty = self._match_existing_type(struct_ty, collected_members)
+        builder = StructBuilder(struct_ty, collected_members, self)
+        struct = builder.build(block, last_stmt)
+
+        if struct and 0 in offset_to_codeloc and self._is_consecutive_codelocs(offset_to_codeloc.values()):
             codeloc = offset_to_codeloc[0]
             head_stmt = self._get_stmt_by_codeloc(codeloc)
             store = Store(
@@ -226,7 +260,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin):
             )
 
             for expr, struct_ty in builder.pending_potential_structs:
-                self._simplify_struct_instantiation(block, stmt, expr, struct_ty)
+                self._simplify_struct_instantiation(block, last_stmt, expr, struct_ty)
 
             for offset, codeloc in offset_to_codeloc.items():
                 block = self._get_block_by_codeloc(codeloc)

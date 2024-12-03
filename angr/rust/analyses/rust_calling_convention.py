@@ -347,11 +347,19 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                     while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
                         list(filter(lambda offset: arg.offset >= offset, stack_offsets))
                     ):
-                        vvar = srda.get_stack_vvar_by_insn(cur_offset, call.ins_addr, callsite_block.idx)
-                        if vvar is None:
-                            break
-                        self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, vvar)
-                        cur_offset += vvar.size
+                        data = srda.get_stack_vvar_by_insn(cur_offset, call.ins_addr, callsite_block.idx)
+                        if data is None:
+                            for stmt in reversed(callsite_block.statements):
+                                if (
+                                    isinstance(stmt, Store)
+                                    and isinstance(stmt.addr, BasePointerOffset)
+                                    and stmt.addr.offset == cur_offset
+                                ):
+                                    data = stmt.data
+                            if data is None:
+                                break
+                        self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, data)
+                        cur_offset += data.size
 
     def collect_post_callsite_facts(self):
         callsite_block = self.model.callsite_block

@@ -1160,7 +1160,7 @@ class RustPatternMatch(RustStatement):
                     if bound_var:
                         yield from RustExpression._try_c_repr_chunks(bound_var)
                     else:
-                        yield "<ERROR>", None
+                        yield "_", None
                 yield ")", paren
             yield " => {\n", self
             yield from arm.c_repr_chunks(indent=indent + 2 * INDENT_DELTA)
@@ -2549,7 +2549,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         show_casts=True,
         braces_on_own_lines=False,
         use_compound_assignments=True,
-        show_local_types=True,
+        show_local_types=False,
         comment_gotos=False,
         cstyle_null_cmp=True,
         flavor=None,
