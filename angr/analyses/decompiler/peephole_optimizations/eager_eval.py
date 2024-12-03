@@ -3,6 +3,7 @@ from math import gcd
 
 from ailment.expression import BinaryOp, UnaryOp, Const, Convert, StackBaseOffset
 
+from angr.utils.bits import sign_extend
 from .base import PeepholeOptimizationExprBase
 
 
@@ -278,8 +279,11 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             and expr.from_type == Convert.TYPE_INT
             and expr.to_type == Convert.TYPE_INT
             and expr.from_bits <= expr.to_bits
-            and expr.is_signed is False
         ):
-            # unsigned extension
-            return Const(expr.idx, expr.operand.variable, expr.operand.value, expr.to_bits, **expr.operand.tags)
+            if expr.is_signed is False:
+                # unsigned extension
+                return Const(expr.idx, expr.operand.variable, expr.operand.value, expr.to_bits, **expr.operand.tags)
+            # signed extension
+            v = sign_extend(expr.operand.value, expr.to_bits)
+            return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
         return None
