@@ -90,16 +90,14 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     x1, const1 = op1.operands
 
             if op0_is_mulconst ^ op1_is_mulconst:
-                if x0 is not None and const0 is not None:
-                    if x0.likes(op1):
-                        # x * A + x => (A + 1) * x
-                        new_const = Const(const0.idx, None, const0.value + 1, const0.bits, **const0.tags)
-                        return BinaryOp(expr.idx, "Mul", [x0, new_const], expr.signed, **expr.tags)
-                if x1 is not None and const1 is not None:
-                    if x1.likes(op0):
-                        # x + x * A => (A + 1) * x
-                        new_const = Const(const1.idx, None, const1.value + 1, const1.bits, **const1.tags)
-                        return BinaryOp(expr.idx, "Mul", [x1, new_const], expr.signed, **expr.tags)
+                if x0 is not None and const0 is not None and x0.likes(op1):
+                    # x * A + x => (A + 1) * x
+                    new_const = Const(const0.idx, None, const0.value + 1, const0.bits, **const0.tags)
+                    return BinaryOp(expr.idx, "Mul", [x0, new_const], expr.signed, **expr.tags)
+                if x1 is not None and const1 is not None and x1.likes(op0):
+                    # x + x * A => (A + 1) * x
+                    new_const = Const(const1.idx, None, const1.value + 1, const1.bits, **const1.tags)
+                    return BinaryOp(expr.idx, "Mul", [x1, new_const], expr.signed, **expr.tags)
             elif op0_is_mulconst and op1_is_mulconst:
                 if x0.likes(x1):
                     # x * A + x * B => (A + B) * x
