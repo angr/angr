@@ -2691,7 +2691,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         if variable_type is None:
             variable_type = self.default_simtype_from_bits(
-                fallback_type_size * self.project.arch.byte_width or self.project.arch.bits
+                (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
         cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self)
         self._variables_in_use[variable] = cvar
