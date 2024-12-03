@@ -240,6 +240,16 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if expr.operands[0].likes(expr.operands[1]):
                 return expr.operands[0]
 
+        elif expr.op in {"CmpEQ", "CmpLE", "CmpGE"}:
+            if expr.operands[0].likes(expr.operands[1]):
+                # x == x => 1
+                return Const(expr.idx, None, 1, 1, **expr.tags)
+
+        elif expr.op in {"CmpNE", "CmpLT", "CmpGT"}:
+            if expr.operands[0].likes(expr.operands[1]):
+                # x != x => 0
+                return Const(expr.idx, None, 0, 1, **expr.tags)
+
         return None
 
     @staticmethod
