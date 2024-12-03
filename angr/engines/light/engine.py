@@ -1273,8 +1273,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             expr_1 = arg1
 
         if isinstance(expr_0, claripy.ast.Bits) and isinstance(expr_1, claripy.ast.Bits):
-            expr0_ext = claripy.ZeroExt(expr.bits, expr_0) if expr.bits > expr_0.size() else expr_0
-            expr1_ext = claripy.ZeroExt(expr.bits, expr_1) if expr.bits > expr_1.size() else expr_1
+            expr0_ext = claripy.ZeroExt(expr.bits - expr_0.size(), expr_0) if expr.bits > expr_0.size() else expr_0
+            expr1_ext = claripy.ZeroExt(expr.bits - expr_1.size(), expr_1) if expr.bits > expr_1.size() else expr_1
             return expr0_ext * expr1_ext
 
         return ailment.Expr.BinaryOp(
