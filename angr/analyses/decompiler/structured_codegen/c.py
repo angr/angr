@@ -2671,16 +2671,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Util methods
     #
 
-    def default_simtype_from_size(self, n: int, signed: bool = True) -> SimType:
+    def default_simtype_from_bits(self, n: int, signed: bool = True) -> SimType:
         _mapping = {
-            8: SimTypeLongLong,
-            4: SimTypeInt,
-            2: SimTypeShort,
-            1: SimTypeChar,
+            64: SimTypeLongLong,
+            32: SimTypeInt,
+            16: SimTypeShort,
+            8: SimTypeChar,
         }
         if n in _mapping:
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
-        return SimTypeNum(n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
+        return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
     def _variable(self, variable: SimVariable, fallback_type_size: int | None) -> CVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
@@ -2690,7 +2690,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             variable, is_global=isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable)
         )
         if variable_type is None:
-            variable_type = self.default_simtype_from_size(fallback_type_size or self.project.arch.bytes)
+            variable_type = self.default_simtype_from_bits(
+                (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
+            )
         cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self)
         self._variables_in_use[variable] = cvar
         return cvar
@@ -3313,7 +3315,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if result.is_expr and result.type.size != stmt.size * self.project.arch.byte_width:
             result = CTypeCast(
                 result.type,
-                self.default_simtype_from_size(stmt.size, signed=getattr(result.type, "signed", False)),
+                self.default_simtype_from_bits(
+                    stmt.size * self.project.arch.byte_width, signed=getattr(result.type, "signed", False)
+                ),
                 result,
                 codegen=self,
             )
@@ -3376,12 +3380,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return cvar
             offset = 0 if expr.variable_offset is None else expr.variable_offset
             # FIXME: The type should be associated to the register expression itself
-            type_ = self.default_simtype_from_size(expr.size, signed=False)
+            type_ = self.default_simtype_from_bits(expr.bits, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         return CRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
-        ty = self.default_simtype_from_size(expr.size)
+        ty = self.default_simtype_from_bits(expr.bits)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             # we do not allow returning a struct for a primitive type
@@ -3406,7 +3410,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         l.warning("FIXME: Leftover Tmp expressions are found.")
         return self._variable(SimTemporaryVariable(expr.tmp_idx), expr.size)
 
-    def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None, **kwargs):
+    def _handle_Expr_Const(self, expr: Expr.Const, type_=None, reference_values=None, variable=None, **kwargs):
         inline_string = False
         function_pointer = False
 
@@ -3483,7 +3487,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if type_ is None:
             # default to int
-            type_ = self.default_simtype_from_size(expr.size)
+            type_ = self.default_simtype_from_bits(expr.bits)
 
         if variable is None and hasattr(expr, "reference_variable") and expr.reference_variable is not None:
             variable = expr.reference_variable
@@ -3561,7 +3565,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # do we need an intermediate cast?
         if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits:
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
-            child_ty = self.default_simtype_from_size(child.type.size // self.project.arch.byte_width, expr.is_signed)
+            child_ty = self.default_simtype_from_bits(child.type.size, expr.is_signed)
             child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
