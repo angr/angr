@@ -169,14 +169,14 @@ class SimEngineSSARewriting(
         new_addr = self._expr(stmt.addr)
         new_guard = self._expr(stmt.guard) if stmt.guard is not None else None
 
-        if new_addr is not None or new_data is not None:
+        if new_addr is not None or new_data is not None or new_guard is not None:
             return Store(
                 stmt.idx,
                 stmt.addr if new_addr is None else new_addr,
                 stmt.data if new_data is None else new_data,
                 stmt.size,
                 stmt.endness,
-                guard=new_guard,
+                guard=stmt.guard if new_guard is None else new_guard,
                 **stmt.tags,
             )
 
