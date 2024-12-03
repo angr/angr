@@ -26,5 +26,20 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
                 # extension then truncation (e.g., 1->64->1) can be removed, but truncation then extension cannot be
                 # removed (e.g., the high 32 bits must be removed during 64->32->64)
                 return inner.operand
+            if (
+                expr.to_bits < expr.from_bits
+                and expr.from_bits == inner.to_bits
+                and inner.to_bits <= inner.from_bits
+                and expr.is_signed == inner.is_signed
+            ):
+                # merging two truncations into one
+                return Convert(
+                    expr.idx,
+                    inner.from_bits,
+                    expr.to_bits,
+                    expr.is_signed,
+                    inner.operand,
+                    **expr.tags,
+                )
 
         return None
