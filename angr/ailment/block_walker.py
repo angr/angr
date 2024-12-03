@@ -302,8 +302,14 @@ class AILBlockWalker(AILBlockWalkerBase):
         return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if stmt.args:
-            changed = False
+        changed = False
+
+        new_target = self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
+        if new_target is not None and new_target is not stmt.target:
+            changed = True
+
+        new_args = None
+        if stmt.args is not None:
             new_args = []
 
             i = 0
@@ -321,19 +327,19 @@ class AILBlockWalker(AILBlockWalkerBase):
                         new_args.append(arg)
                 i += 1
 
-            if changed:
-                new_stmt = Call(
-                    stmt.idx,
-                    stmt.target,
-                    calling_convention=stmt.calling_convention,
-                    prototype=stmt.prototype,
-                    args=new_args,
-                    ret_expr=stmt.ret_expr,
-                    **stmt.tags,
-                )
-                if self._update_block and block is not None:
-                    block.statements[stmt_idx] = new_stmt
-                return new_stmt
+        if changed:
+            new_stmt = Call(
+                stmt.idx,
+                new_target if new_target is not None else stmt.target,
+                calling_convention=stmt.calling_convention,
+                prototype=stmt.prototype,
+                args=new_args,
+                ret_expr=stmt.ret_expr,
+                **stmt.tags,
+            )
+            if self._update_block and block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
         return None
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
@@ -485,7 +491,12 @@ class AILBlockWalker(AILBlockWalkerBase):
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         changed = False
 
-        if expr.args:
+        new_target = self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
+        if new_target is not None and new_target is not expr.target:
+            changed = True
+
+        new_args = None
+        if expr.args is not None:
             i = 0
             new_args = []
             while i < len(expr.args):
@@ -502,11 +513,12 @@ class AILBlockWalker(AILBlockWalkerBase):
                         new_args.append(arg)
                 i += 1
 
-            if changed:
-                expr = expr.copy()
-                expr.args = new_args
-                return expr
-
+        if changed:
+            expr = expr.copy()
+            if new_target is not None:
+                expr.target = new_target
+            expr.args = new_args
+            return expr
         return None
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
