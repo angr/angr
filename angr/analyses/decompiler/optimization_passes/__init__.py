@@ -11,7 +11,6 @@ from .expr_op_swapper import ExprOpSwapper
 from .ite_region_converter import ITERegionConverter
 from .ite_expr_converter import ITEExprConverter
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
-from .multi_simplifier import MultiSimplifier
 from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
 from .return_duplicator_low import ReturnDuplicatorLow
@@ -45,7 +44,6 @@ ALL_OPTIMIZATION_PASSES = [
     WinStackCanarySimplifier,
     BasePointerSaveSimplifier,
     DivSimplifier,
-    MultiSimplifier,
     ModSimplifier,
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
@@ -116,7 +114,6 @@ __all__ = (
     "ITERegionConverter",
     "ITEExprConverter",
     "LoweredSwitchSimplifier",
-    "MultiSimplifier",
     "DivSimplifier",
     "ModSimplifier",
     "ReturnDuplicatorLow",

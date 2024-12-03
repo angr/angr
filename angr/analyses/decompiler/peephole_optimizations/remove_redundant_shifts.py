@@ -1,7 +1,9 @@
+# pylint:disable=no-self-use,missing-class-docstring
 from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
+from .utils import get_expr_shift_left_amount
 
 
 class RemoveRedundantShifts(PeepholeOptimizationExprBase):
@@ -15,8 +17,8 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
         if expr.op in ("Shr", "Sar") and isinstance(expr.operands[1], Const):
             expr_a = expr.operands[0]
             n0 = expr.operands[1].value
-            if isinstance(expr_a, BinaryOp) and expr_a.op == "Shl" and isinstance(expr_a.operands[1], Const):
-                n1 = expr_a.operands[1].value
+            if isinstance(expr_a, BinaryOp) and expr_a.op in {"Shl", "Mul"} and isinstance(expr_a.operands[1], Const):
+                n1 = get_expr_shift_left_amount(expr_a)
                 if n0 == n1:
                     inner_expr = expr_a.operands[0]
                     conv_inner_expr = Convert(

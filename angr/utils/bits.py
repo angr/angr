@@ -14,3 +14,8 @@ def truncate_bits(value: int, nbits: int) -> int:
 
 def ffs(x: int) -> int:
     return (x & -x).bit_length() - 1
+
+
+def sign_extend(value: int, bits: int) -> int:
+    sign_bit = 1 << (bits - 1)
+    return (value & (sign_bit - 1)) - (value & sign_bit)

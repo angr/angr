@@ -1400,6 +1400,8 @@ class TestDecompiler(unittest.TestCase):
         # we don't allow bizarre expressions like (&connection_infos)[1234]...
         assert "connection_infos" in d.codegen.text
         for line in lines:
+            if line.startswith("extern "):
+                continue
             for m in re.finditer(r"connection_infos", line):
                 assert line[m.end()] == "["
 
