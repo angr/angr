@@ -1,4 +1,4 @@
-# pylint: disable=missing-class-docstring
+# pylint: disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 from ailment.expression import BinaryOp, Convert, Const
 
@@ -194,3 +194,4 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     expr.is_signed,
                     **operand_expr.tags,
                 )
+        return None
