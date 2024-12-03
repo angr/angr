@@ -214,16 +214,34 @@ class SPropagatorAnalysis(Analysis):
 
             if self._sp_tracker is not None and vvar.category == VirtualVariableCategory.REGISTER:
                 if vvar.oident == self.project.arch.sp_offset:
+                    sp_bits = (
+                        (self.project.arch.registers["sp"][1] * self.project.arch.byte_width)
+                        if "sp" in self.project.arch.registers
+                        else None
+                    )
                     for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
                         if sb_offset is not None:
-                            replacements[useloc][vvar_at_use] = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                            v = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                            if sp_bits is not None and vvar.bits < sp_bits:
+                                # truncation needed
+                                v = Convert(None, sp_bits, vvar.bits, False, v)
+                            replacements[useloc][vvar_at_use] = v
                     continue
                 if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
+                    bp_bits = (
+                        (self.project.arch.registers["bp"][1] * self.project.arch.byte_width)
+                        if "bp" in self.project.arch.registers
+                        else None
+                    )
                     for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
                         if sb_offset is not None:
-                            replacements[useloc][vvar_at_use] = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                            v = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                            if bp_bits is not None and vvar.bits < bp_bits:
+                                # truncation needed
+                                v = Convert(None, bp_bits, vvar.bits, False, v)
+                            replacements[useloc][vvar_at_use] = v
                     continue
 
         # find all tmp definitions
