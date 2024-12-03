@@ -3751,7 +3751,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         elif expr.to_bits == 1:
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
-            raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
+            dst_type = RustSimTypeInt(expr.to_bits)
+            # raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
 
         # convert child
         child = self._handle(expr.operand)

@@ -38,9 +38,9 @@ def get_rust_optimization_passes():
         StructFieldAccessSimplifier,
         DerefCoercionSimplifier,
         # AFTER_VARIABLE_RECOVERY
-        StructReturnSimplifier,
         TypeCorrector,
         StrArgumentSimplifier,
         # AFTER_STRUCTURING
         PatternMatchSimplifier,
+        StructReturnSimplifier,
     ]
