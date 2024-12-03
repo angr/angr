@@ -245,11 +245,37 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if expr.operands[0].likes(expr.operands[1]):
                 # x == x => 1
                 return Const(expr.idx, None, 1, 1, **expr.tags)
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                if expr.op == "CmpEQ":
+                    return Const(
+                        expr.idx, None, 1 if expr.operands[0].value == expr.operands[1].value else 0, 1, **expr.tags
+                    )
+                if expr.op == "CmpLE":
+                    return Const(
+                        expr.idx, None, 1 if expr.operands[0].value <= expr.operands[1].value else 0, 1, **expr.tags
+                    )
+                if expr.op == "CmpGE":
+                    return Const(
+                        expr.idx, None, 1 if expr.operands[0].value >= expr.operands[1].value else 0, 1, **expr.tags
+                    )
 
         elif expr.op in {"CmpNE", "CmpLT", "CmpGT"}:
             if expr.operands[0].likes(expr.operands[1]):
                 # x != x => 0
                 return Const(expr.idx, None, 0, 1, **expr.tags)
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                if expr.op == "CmpNE":
+                    return Const(
+                        expr.idx, None, 1 if expr.operands[0].value != expr.operands[1].value else 0, 1, **expr.tags
+                    )
+                if expr.op == "CmpLT":
+                    return Const(
+                        expr.idx, None, 1 if expr.operands[0].value < expr.operands[1].value else 0, 1, **expr.tags
+                    )
+                if expr.op == "CmpGT":
+                    return Const(
+                        expr.idx, None, 1 if expr.operands[0].value > expr.operands[1].value else 0, 1, **expr.tags
+                    )
 
         return None
 
