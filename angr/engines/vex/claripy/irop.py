@@ -426,6 +426,9 @@ class SimIROp:
                 print(f"... {k}: {v}")
 
     def calculate(self, *args):
+        # calculate may recieve SimActionObjects (if AST_DEPS is enabled) or
+        # claripy expressions, so we need to unpack the SAOs before passing them
+        # to claripy.
         unpacked_args = []
         for arg in args:
             if isinstance(arg, SimActionObject):
@@ -435,9 +438,6 @@ class SimIROp:
             else:
                 raise SimOperationError(f"Unsupported argument type {type(arg)}")
         args = unpacked_args
-
-        if not all(isinstance(a, claripy.ast.Base) for a in args):
-            raise SimOperationError("IROp needs all args as claripy expressions")
 
         if not self._float:
             args = tuple(arg.raw_to_bv() for arg in args)
