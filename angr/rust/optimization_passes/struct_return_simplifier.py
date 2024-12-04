@@ -95,10 +95,10 @@ class StructReturnSimplifier(SequenceOptimizationPass):
     def _analyze(self, cache=None):
         StructReturnWalker(self).walk(self.seq)
         self.out_seq = self.seq
-        for block in self._graph.nodes:
-            if block.statements and isinstance(block.statements[-1], Return):
-                ret = block.statements[-1]
-                if ret.ret_exprs and not isinstance(ret.ret_exprs[0], Struct):
-                    import ipdb
-
-                    ipdb.set_trace()
+        # for block in self._graph.nodes:
+        #     if block.statements and isinstance(block.statements[-1], Return):
+        #         ret = block.statements[-1]
+        #         if ret.ret_exprs and not isinstance(ret.ret_exprs[0], Struct):
+        #             import ipdb
+        #
+        #             ipdb.set_trace()
