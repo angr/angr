@@ -222,7 +222,7 @@ class Sketch:
             subtype, PRIMITIVE_TYPES
         ):
             sub_node = self.lookup(subtype)
-            assert super_node is None or isinstance(super_node, SketchNode)
+            assert sub_node is None or isinstance(sub_node, SketchNode)
             # assert sub_node is not None
             if sub_node is not None:
                 sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)
