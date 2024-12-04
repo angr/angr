@@ -55,7 +55,7 @@ class SimEngineRDVEX(
         self.state: ReachingDefinitionsState
 
     def process(
-        self, state, *args, block=None, fail_fast=False, visited_blocks=None, dep_graph=None, whitelist=None, **kwargs
+        self, state, *, block=None, fail_fast=False, visited_blocks=None, dep_graph=None, whitelist=None, **kwargs
     ):
         self._visited_blocks = visited_blocks
         self._dep_graph = dep_graph
@@ -716,7 +716,9 @@ class SimEngineRDVEX(
         if expr0_v is not None and expr1_v is not None:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                r = MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)  # type: ignore
+                r = (
+                    MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)
+                )  # type: ignore
         elif expr0_v is None and expr1_v is not None:
             if expr1_v.concrete and expr1_v.concrete_value == 0:
                 r = MultiValues(self.state.top(bits))

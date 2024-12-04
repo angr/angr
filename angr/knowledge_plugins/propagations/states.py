@@ -2,9 +2,10 @@
 from __future__ import annotations
 from abc import abstractmethod
 from typing import Any, TYPE_CHECKING
-from typing_extensions import Self
 from collections import defaultdict
 import weakref
+
+from typing_extensions import Self
 
 import ailment
 import claripy
@@ -267,8 +268,8 @@ class PropagatorState:
         self._replacements = defaultdict(dict)
 
     def add_replacement(
-        self, codeloc: CodeLocation, old, new, force_replace: bool = False
-    ) -> bool:  # pylint:disable=unused-argument
+        self, codeloc: CodeLocation, old, new, force_replace: bool = False  # pylint:disable=unused-argument
+    ) -> bool:
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.

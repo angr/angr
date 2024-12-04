@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 import contextlib
+from collections.abc import Mapping
 from collections import defaultdict
 
 from ailment.block import Block

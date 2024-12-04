@@ -5,6 +5,7 @@ from collections import defaultdict
 import archinfo
 import claripy
 
+import angr
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses import AnalysesHub
 from angr.errors import SimMemoryMissingError
@@ -15,7 +16,6 @@ from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.code_location import CodeLocation
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .annotations import StackLocationAnnotation
-import angr
 
 l = logging.getLogger(name=__name__)
 

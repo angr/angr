@@ -25,10 +25,10 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-RichRT = TypeVar("RichRT", bound=claripy.ast.Bits, covariant=True)
+RichRT_co = TypeVar("RichRT_co", bound=claripy.ast.Bits, covariant=True)
 
 
-class RichR(Generic[RichRT]):
+class RichR(Generic[RichRT_co]):
     """
     A rich representation of calculation results. The variable recovery data domain.
     """
@@ -42,7 +42,7 @@ class RichR(Generic[RichRT]):
 
     def __init__(
         self,
-        data: RichRT,
+        data: RichRT_co,
         variable=None,
         typevar: typeconsts.TypeConstant | typevars.TypeVariable | None = None,
         type_constraints: set[typevars.TypeConstraint] | None = None,

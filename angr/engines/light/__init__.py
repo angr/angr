@@ -15,8 +15,6 @@ __all__ = (
     "SpOffset",
     "RegisterOffset",
     "SimEngineLight",
-    "SimEngineLightVEXMixin",
-    "SimEngineLightAILMixin",
     "SimEngineLightVEX",
     "SimEngineLightAIL",
     "SimEngineNostmtVEX",

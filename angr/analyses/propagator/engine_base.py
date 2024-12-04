@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Generic
 import logging
 
 
-from angr.engines.light.engine import BlockType, DataType, StateType
+from angr.engines.light.engine import BlockType, DataType_co, StateType
 
 from angr.engines.light import SimEngineLight
 from angr.errors import SimEngineError
@@ -17,7 +17,7 @@ l = logging.getLogger(name=__name__)
 
 
 class SimEnginePropagatorBaseMixin(
-    Generic[StateType, DataType, BlockType], SimEngineLight[StateType, DataType, BlockType, StateType]
+    Generic[StateType, DataType_co, BlockType], SimEngineLight[StateType, DataType_co, BlockType, StateType]
 ):  # pylint:disable=abstract-method
     def __init__(
         self,

@@ -2,8 +2,6 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
 from __future__ import annotations
 
-from angr.project import load_shellcode
-
 __package__ = __package__ or "tests.state_plugins.inspect"  # pylint:disable=redefined-builtin
 
 import os
@@ -16,6 +14,7 @@ import archinfo
 import angr
 from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
 from angr.engines import ProcedureEngine, HeavyVEXMixin, SimInspectMixin
+from angr.project import load_shellcode
 
 from tests.common import bin_location
 

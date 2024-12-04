@@ -15,11 +15,16 @@ from angr.misc.ux import once
 from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from angr.code_location import CodeLocation
 from angr.project import Project
-from angr.engines.engine import DataType, SimEngine, StateType
+from angr.engines.engine import DataType_co, SimEngine, StateType
 from angr.block import Block
 
 
 class BlockProtocol(Protocol):
+    """
+    The minimum protocol that a block an engine can process should adhere to.
+    Requires just an addr attribute.
+    """
+
     addr: int
 
 
@@ -29,6 +34,10 @@ StmtDataType = TypeVar("StmtDataType")
 
 
 class IRTop(pyvex.expr.IRExpr):
+    """
+    A dummy IRExpr used for intra-engine communication and code-reuse.
+    """
+
     def __init__(self, ty: str):
         super().__init__()
         self.ty = ty
@@ -37,7 +46,7 @@ class IRTop(pyvex.expr.IRExpr):
         return self.ty
 
 
-class SimEngineLight(Generic[StateType, DataType, BlockType, ResultType], SimEngine[StateType, ResultType]):
+class SimEngineLight(Generic[StateType, DataType_co, BlockType, ResultType], SimEngine[StateType, ResultType]):
     """
     A full-featured engine base class, suitable for static analysis
     """
@@ -49,7 +58,7 @@ class SimEngineLight(Generic[StateType, DataType, BlockType, ResultType], SimEng
 
     stmt_idx: int
     ins_addr: int
-    tmps: dict[int, DataType]
+    tmps: dict[int, DataType_co]
 
     def __init__(self, project: Project, logger=None):
         self.l = logger or logging.getLogger(self.__module__ + "." + self.__class__.__name__)
@@ -79,7 +88,7 @@ class SimEngineLight(Generic[StateType, DataType, BlockType, ResultType], SimEng
         )
 
     @abstractmethod
-    def _top(self, bits: int) -> DataType: ...
+    def _top(self, bits: int) -> DataType_co: ...
 
     @abstractmethod
     def _is_top(self, expr: Any) -> bool: ...
@@ -135,7 +144,7 @@ def longest_prefix_lookup(haystack: str, mapping: dict[str, T]) -> T | None:
 
 # noinspection PyPep8Naming
 class SimEngineLightVEX(
-    Generic[StateType, DataType, ResultType, StmtDataType], SimEngineLight[StateType, DataType, Block, ResultType]
+    Generic[StateType, DataType_co, ResultType, StmtDataType], SimEngineLight[StateType, DataType_co, Block, ResultType]
 ):
     """
     A mixin for doing static analysis on VEX
@@ -144,34 +153,34 @@ class SimEngineLightVEX(
     tyenv: pyvex.IRTypeEnv
 
     @staticmethod
-    def unop_handler(f: Callable[[T, pyvex.expr.Unop], DataType]) -> Callable[[T, pyvex.expr.Unop], DataType]:
+    def unop_handler(f: Callable[[T, pyvex.expr.Unop], DataType_co]) -> Callable[[T, pyvex.expr.Unop], DataType_co]:
         f.unop_handler = True
         return f
 
     @staticmethod
-    def binop_handler(f: Callable[[T, pyvex.expr.Binop], DataType]) -> Callable[[T, pyvex.expr.Binop], DataType]:
+    def binop_handler(f: Callable[[T, pyvex.expr.Binop], DataType_co]) -> Callable[[T, pyvex.expr.Binop], DataType_co]:
         f.binop_handler = True
         return f
 
     @staticmethod
     def binopv_handler(
-        f: Callable[[T, int, int, pyvex.expr.Binop], DataType]
-    ) -> Callable[[T, int, int, pyvex.expr.Binop], DataType]:
+        f: Callable[[T, int, int, pyvex.expr.Binop], DataType_co]
+    ) -> Callable[[T, int, int, pyvex.expr.Binop], DataType_co]:
         f.binopv_handler = True
         return f
 
     @staticmethod
-    def triop_handler(f: Callable[[T, pyvex.expr.Triop], DataType]) -> Callable[[T, pyvex.expr.Triop], DataType]:
+    def triop_handler(f: Callable[[T, pyvex.expr.Triop], DataType_co]) -> Callable[[T, pyvex.expr.Triop], DataType_co]:
         f.triop_handler = True
         return f
 
     @staticmethod
-    def qop_handler(f: Callable[[T, pyvex.expr.Qop], DataType]) -> Callable[[T, pyvex.expr.Qop], DataType]:
+    def qop_handler(f: Callable[[T, pyvex.expr.Qop], DataType_co]) -> Callable[[T, pyvex.expr.Qop], DataType_co]:
         f.qop_handler = True
         return f
 
     @staticmethod
-    def ccall_handler(f: Callable[[T, pyvex.expr.CCall], DataType]) -> Callable[[T, pyvex.expr.CCall], DataType]:
+    def ccall_handler(f: Callable[[T, pyvex.expr.CCall], DataType_co]) -> Callable[[T, pyvex.expr.CCall], DataType_co]:
         f.ccall_handler = True
         return f
 
@@ -206,7 +215,7 @@ class SimEngineLightVEX(
             "Ist_AbiHint": self._handle_stmt_AbiHint,
             "Ist_Dirty": self._handle_stmt_Dirty,
         }
-        self._expr_handlers: dict[str, Callable[[Any], DataType]] = {
+        self._expr_handlers: dict[str, Callable[[Any], DataType_co]] = {
             "IRTop": self._handle_expr_IRTop,
             "VECRET": self._handle_expr_VECRET,
             "GSPTR": self._handle_expr_GSPTR,
@@ -222,32 +231,32 @@ class SimEngineLightVEX(
             "CCall": self._handle_expr_CCall,
             "Const": self._handle_expr_Const,
         }
-        self._unop_handlers: dict[str, Callable[[pyvex.expr.Unop], DataType]] = {
+        self._unop_handlers: dict[str, Callable[[pyvex.expr.Unop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "unop_handler")
             for name in dir(self)
             if name.startswith("_handle_unop_")
         }
-        self._binop_handlers: dict[str, Callable[[pyvex.expr.Binop], DataType]] = {
+        self._binop_handlers: dict[str, Callable[[pyvex.expr.Binop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "binop_handler")
             for name in dir(self)
             if name.startswith("_handle_binop_")
         }
-        self._binopv_handlers: dict[str, Callable[[int, int, pyvex.expr.Binop], DataType]] = {
+        self._binopv_handlers: dict[str, Callable[[int, int, pyvex.expr.Binop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "binopv_handler")
             for name in dir(self)
             if name.startswith("_handle_binopv_")
         }
-        self._triop_handlers: dict[str, Callable[[pyvex.expr.Triop], DataType]] = {
+        self._triop_handlers: dict[str, Callable[[pyvex.expr.Triop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "triop_handler")
             for name in dir(self)
             if name.startswith("_handle_triop_")
         }
-        self._qop_handlers: dict[str, Callable[[pyvex.expr.Qop], DataType]] = {
+        self._qop_handlers: dict[str, Callable[[pyvex.expr.Qop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "qop_handler")
             for name in dir(self)
             if name.startswith("_handle_qop_")
         }
-        self._ccall_handlers: dict[str, Callable[[pyvex.expr.CCall], DataType]] = {
+        self._ccall_handlers: dict[str, Callable[[pyvex.expr.CCall], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "ccall_handler")
             for name in dir(self)
             if name.startswith("_handle_ccall_")
@@ -362,36 +371,36 @@ class SimEngineLightVEX(
     # Expression handlers
     #
 
-    def _expr(self, expr: IRExpr) -> DataType:
+    def _expr(self, expr: IRExpr) -> DataType_co:
         handler = type(expr).__name__
         return self._expr_handlers[handler](expr)
 
     # not generated by vex
-    def _handle_expr_IRTop(self, expr: IRTop) -> DataType:
+    def _handle_expr_IRTop(self, expr: IRTop) -> DataType_co:
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     @abstractmethod
-    def _handle_expr_VECRET(self, expr: pyvex.expr.VECRET) -> DataType: ...
+    def _handle_expr_VECRET(self, expr: pyvex.expr.VECRET) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_GSPTR(self, expr: pyvex.expr.GSPTR) -> DataType: ...
+    def _handle_expr_GSPTR(self, expr: pyvex.expr.GSPTR) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_RdTmp(self, expr: pyvex.expr.RdTmp) -> DataType: ...
+    def _handle_expr_RdTmp(self, expr: pyvex.expr.RdTmp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Get(self, expr: pyvex.expr.Get) -> DataType: ...
+    def _handle_expr_Get(self, expr: pyvex.expr.Get) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_GetI(self, expr: pyvex.expr.GetI) -> DataType: ...
+    def _handle_expr_GetI(self, expr: pyvex.expr.GetI) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Load(self, expr: pyvex.expr.Load) -> DataType: ...
+    def _handle_expr_Load(self, expr: pyvex.expr.Load) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_ITE(self, expr: pyvex.expr.ITE) -> DataType: ...
+    def _handle_expr_ITE(self, expr: pyvex.expr.ITE) -> DataType_co: ...
 
-    def _handle_expr_Unop(self, expr: pyvex.expr.Unop) -> DataType:
+    def _handle_expr_Unop(self, expr: pyvex.expr.Unop) -> DataType_co:
         handler = None
         assert expr.op.startswith("Iop_")
         handler = longest_prefix_lookup(expr.op[4:], self._unop_handlers)
@@ -412,9 +421,9 @@ class SimEngineLightVEX(
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     @abstractmethod
-    def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: IRExpr) -> DataType: ...
+    def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: IRExpr) -> DataType_co: ...
 
-    def _handle_expr_Binop(self, expr: pyvex.expr.Binop) -> DataType:
+    def _handle_expr_Binop(self, expr: pyvex.expr.Binop) -> DataType_co:
         assert expr.op.startswith("Iop_")
 
         # vector information
@@ -434,7 +443,7 @@ class SimEngineLightVEX(
             self.l.warning("Unsupported Binop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
-    def _handle_expr_Triop(self, expr: pyvex.expr.Triop) -> DataType:
+    def _handle_expr_Triop(self, expr: pyvex.expr.Triop) -> DataType_co:
         assert expr.op.startswith("Iop_")
         handler = longest_prefix_lookup(expr.op[4:], self._triop_handlers)
         if handler is not None:
@@ -446,7 +455,7 @@ class SimEngineLightVEX(
             self.l.error("Unsupported Triop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
-    def _handle_expr_Qop(self, expr: pyvex.expr.Qop) -> DataType:
+    def _handle_expr_Qop(self, expr: pyvex.expr.Qop) -> DataType_co:
         assert expr.op.startswith("Iop_")
         handler = longest_prefix_lookup(expr.op[4:], self._qop_handlers)
         if handler is not None:
@@ -456,7 +465,7 @@ class SimEngineLightVEX(
             self.l.error("Unsupported Qop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
-    def _handle_expr_CCall(self, expr: pyvex.expr.CCall) -> DataType:  # pylint:disable=useless-return
+    def _handle_expr_CCall(self, expr: pyvex.expr.CCall) -> DataType_co:  # pylint:disable=useless-return
         handler = longest_prefix_lookup(expr.cee.name, self._ccall_handlers)
         if handler is not None:
             return handler(expr)
@@ -466,12 +475,17 @@ class SimEngineLightVEX(
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     @abstractmethod
-    def _handle_expr_Const(self, expr: pyvex.expr.Const) -> DataType: ...
+    def _handle_expr_Const(self, expr: pyvex.expr.Const) -> DataType_co: ...
 
 
 class SimEngineNostmtVEX(
-    Generic[StateType, DataType, ResultType], SimEngineLightVEX[StateType, DataType, ResultType, None]
+    Generic[StateType, DataType_co, ResultType], SimEngineLightVEX[StateType, DataType_co, ResultType, None]
 ):
+    """
+    A base class of SimEngineLightVEX that has default handlers for statements if they just need to return None, so you
+    don't have to implement every single statement handler as ``return None``.
+    """
+
     def _handle_stmt_WrTmp(self, stmt):
         pass
 
@@ -514,8 +528,8 @@ class SimEngineNostmtVEX(
 
 # noinspection PyPep8Naming
 class SimEngineLightAIL(
-    Generic[StateType, DataType, StmtDataType, ResultType],
-    SimEngineLight[StateType, DataType, ailment.Block, ResultType],
+    Generic[StateType, DataType_co, StmtDataType, ResultType],
+    SimEngineLight[StateType, DataType_co, ailment.Block, ResultType],
 ):
     """
     A mixin for doing static analysis on AIL
@@ -532,7 +546,7 @@ class SimEngineLightAIL(
             "DirtyStatement": self._handle_stmt_DirtyStatement,
             "Label": self._handle_stmt_Label,
         }
-        self._expr_handlers: dict[str, Callable[[Any], DataType]] = {
+        self._expr_handlers: dict[str, Callable[[Any], DataType_co]] = {
             "Atom": self._handle_expr_Atom,
             "Const": self._handle_expr_Const,
             "Tmp": self._handle_expr_Tmp,
@@ -553,7 +567,7 @@ class SimEngineLightAIL(
             "BasePointerOffset": self._handle_expr_BasePointerOffset,
             "StackBaseOffset": self._handle_expr_StackBaseOffset,
         }
-        self._unop_handlers: dict[str, Callable[[ailment.UnaryOp], DataType]] = {
+        self._unop_handlers: dict[str, Callable[[ailment.UnaryOp], DataType_co]] = {
             "Not": self._handle_unop_Not,
             "Neg": self._handle_unop_Neg,
             "BitwiseNeg": self._handle_unop_BitwiseNeg,
@@ -562,7 +576,7 @@ class SimEngineLightAIL(
             "Clz": self._handle_unop_Clz,
             "Ctz": self._handle_unop_Ctz,
         }
-        self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType]] = {
+        self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType_co]] = {
             "Add": self._handle_binop_Add,
             "AddF": self._handle_binop_AddF,
             "AddV": self._handle_binop_AddV,
@@ -689,208 +703,215 @@ class SimEngineLightAIL(
     # Expressions
     #
 
-    def _expr(self, expr: ailment.Expression) -> DataType:
+    def _expr(self, expr: ailment.Expression) -> DataType_co:
         expr_type_name = type(expr).__name__
         return self._expr_handlers[expr_type_name](expr)
 
-    def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType:
+    def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType_co:
         raise TypeError("We should never see raw Atoms")
 
     @abstractmethod
-    def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType: ...
+    def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Tmp(self, expr: ailment.expression.Tmp) -> DataType: ...
+    def _handle_expr_Tmp(self, expr: ailment.expression.Tmp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType: ...
+    def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType: ...
+    def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType_co: ...
 
-    def _handle_expr_Op(self, expr: ailment.expression.Op) -> DataType:
+    def _handle_expr_Op(self, expr: ailment.expression.Op) -> DataType_co:
         raise TypeError("We should never see raw Ops")
 
-    def _handle_expr_UnaryOp(self, expr: ailment.expression.UnaryOp) -> DataType:
+    def _handle_expr_UnaryOp(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         return self._unop_handlers[expr.op](expr)
 
-    def _handle_expr_BinaryOp(self, expr: ailment.expression.BinaryOp) -> DataType:
+    def _handle_expr_BinaryOp(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         return self._binop_handlers[expr.op](expr)
 
     @abstractmethod
-    def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType: ...
+    def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType: ...
+    def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType: ...
+    def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType: ...
+    def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType: ...
+    def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType: ...
+    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType: ...
+    def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_VEXCCallExpression(self, expr: ailment.expression.VEXCCallExpression) -> DataType: ...
+    def _handle_expr_VEXCCallExpression(self, expr: ailment.expression.VEXCCallExpression) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_MultiStatementExpression(self, expr: ailment.expression.MultiStatementExpression) -> DataType: ...
+    def _handle_expr_MultiStatementExpression(
+        self, expr: ailment.expression.MultiStatementExpression
+    ) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_BasePointerOffset(self, expr: ailment.expression.BasePointerOffset) -> DataType: ...
+    def _handle_expr_BasePointerOffset(self, expr: ailment.expression.BasePointerOffset) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType: ...
+    def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co: ...
 
     #
     # UnOps
     #
 
     @abstractmethod
-    def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     #
     # BinOps
     #
     @abstractmethod
-    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+    def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType: ...
+    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
 
 class SimEngineNostmtAIL(
-    Generic[StateType, DataType, StmtDataType, ResultType],
-    SimEngineLightAIL[StateType, DataType, StmtDataType | None, ResultType],
+    Generic[StateType, DataType_co, StmtDataType, ResultType],
+    SimEngineLightAIL[StateType, DataType_co, StmtDataType | None, ResultType],
 ):
+    """
+    A base class of SimEngineLightAIL that has default handlers for statements if they just need to return None, so you
+    don't have to implement every single statement handler as ``return None``.
+    """
+
     def _handle_stmt_Assignment(self, stmt) -> StmtDataType | None:
         pass
 
@@ -917,184 +938,189 @@ class SimEngineNostmtAIL(
 
 
 class SimEngineNoexprAIL(
-    Generic[StateType, DataType, StmtDataType, ResultType],
-    SimEngineLightAIL[StateType, DataType | None, StmtDataType, ResultType],
+    Generic[StateType, DataType_co, StmtDataType, ResultType],
+    SimEngineLightAIL[StateType, DataType_co | None, StmtDataType, ResultType],
 ):
-    def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType | None:
+    """
+    A base class of SimEngineLightAIL that has default handlers for expressions if they just need to return None, so you
+    don't have to implement every single expression handler as ``return None``.
+    """
+
+    def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType_co | None:
         pass
 
-    def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType | None:
+    def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType_co | None:
         pass
 
-    def _handle_expr_Tmp(self, expr: ailment.expression.Tmp) -> DataType | None:
+    def _handle_expr_Tmp(self, expr: ailment.expression.Tmp) -> DataType_co | None:
         pass
 
-    def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType | None:
+    def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType_co | None:
         pass
 
-    def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType | None:
+    def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType_co | None:
         pass
 
-    def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType | None:
+    def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType_co | None:
         pass
 
-    def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType | None:
+    def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType_co | None:
         pass
 
-    def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType | None:
+    def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType_co | None:
         pass
 
-    def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType | None:
+    def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType_co | None:
         pass
 
-    def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType | None:
+    def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co | None:
         pass
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType | None:
+    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co | None:
         pass
 
-    def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType | None:
+    def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co | None:
         pass
 
-    def _handle_expr_VEXCCallExpression(self, expr: ailment.expression.VEXCCallExpression) -> DataType | None:
+    def _handle_expr_VEXCCallExpression(self, expr: ailment.expression.VEXCCallExpression) -> DataType_co | None:
         pass
 
     def _handle_expr_MultiStatementExpression(
         self, expr: ailment.expression.MultiStatementExpression
-    ) -> DataType | None:
+    ) -> DataType_co | None:
         pass
 
-    def _handle_expr_BasePointerOffset(self, expr: ailment.expression.BasePointerOffset) -> DataType | None:
+    def _handle_expr_BasePointerOffset(self, expr: ailment.expression.BasePointerOffset) -> DataType_co | None:
         pass
 
-    def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType | None:
+    def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co | None:
         pass
 
-    def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+    def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
-    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType | None:
+    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass

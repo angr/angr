@@ -6,7 +6,7 @@ from pyvex.expr import IRExpr, Unop, get_op_retty, Binop
 from pyvex.const import get_type_size
 
 from angr.block import Block
-from angr.engines.engine import DataType
+from angr.engines.engine import DataType_co
 from angr.engines.light.engine import SimEngineLight, SimEngineLightVEX, StateType, BlockType, ResultType, StmtDataType
 
 TOPS: dict[int, claripy.ast.BV] = {}
@@ -15,13 +15,13 @@ T = TypeVar("T")
 
 
 class ClaripyDataEngineMixin(
-    Generic[StateType, DataType, BlockType, ResultType],
-    SimEngineLight[StateType, DataType | claripy.ast.BV, BlockType, ResultType],
+    Generic[StateType, DataType_co, BlockType, ResultType],
+    SimEngineLight[StateType, DataType_co | claripy.ast.BV, BlockType, ResultType],
 ):
     def _is_top(self, expr) -> bool:
         return "TOP" in expr.variables
 
-    def _top(self, bits: int) -> DataType | claripy.ast.BV:
+    def _top(self, bits: int) -> DataType_co | claripy.ast.BV:
         if bits in TOPS:
             return TOPS[bits]
         r = claripy.BVS("TOP", bits, explicit_name=True)
@@ -110,9 +110,9 @@ def _vex_make_vec_operation(
 
 
 class ClaripyDataVEXEngineMixin(
-    Generic[StateType, DataType, ResultType, StmtDataType],
-    ClaripyDataEngineMixin[StateType, DataType, Block, ResultType],
-    SimEngineLightVEX[StateType, DataType | claripy.ast.BV, ResultType, StmtDataType],
+    Generic[StateType, DataType_co, ResultType, StmtDataType],
+    ClaripyDataEngineMixin[StateType, DataType_co, Block, ResultType],
+    SimEngineLightVEX[StateType, DataType_co | claripy.ast.BV, ResultType, StmtDataType],
 ):
     def _expr_bv(self, expr: IRExpr) -> claripy.ast.BV:
         result = self._expr(expr)

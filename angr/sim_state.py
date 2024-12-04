@@ -9,11 +9,10 @@ from typing import Any, TypeVar, TYPE_CHECKING, Generic
 from collections.abc import Callable
 
 import archinfo
-import claripy
 from archinfo import Arch
-from cle import Clemory
-
 from archinfo.arch_soot import SootAddressDescriptor
+import claripy
+from cle import Clemory
 
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
@@ -331,17 +330,6 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
     def plugins(self):
         # TODO: This shouldn't be access directly.
         return self._active_plugins
-
-    @property
-    def se(self):
-        """
-        Deprecated alias for `solver`
-        """
-        global _complained_se
-        if not _complained_se:
-            _complained_se = True
-            l.critical("The name state.se is deprecated; please use state.solver.")
-        return self.get_plugin("solver")
 
     @property
     def ip(self):

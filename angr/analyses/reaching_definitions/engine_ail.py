@@ -715,9 +715,13 @@ class SimEngineRDAIL(
         if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
             xt = expr.bits // 2
             if expr.signed:
-                r = MultiValues(offset_to_values={0: {expr0_v.sign_extend(xt) * expr1_v.sign_extend(xt)}})  # type: ignore
+                r = MultiValues(
+                    offset_to_values={0: {expr0_v.sign_extend(xt) * expr1_v.sign_extend(xt)}}  # type: ignore
+                )
             else:
-                r = MultiValues(offset_to_values={0: {expr0_v.zero_extend(xt) * expr1_v.zero_extend(xt)}})  # type: ignore
+                r = MultiValues(
+                    offset_to_values={0: {expr0_v.zero_extend(xt) * expr1_v.zero_extend(xt)}}  # type: ignore
+                )
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 

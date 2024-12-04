@@ -164,7 +164,7 @@ class SimTemporaryVariable(SimVariable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.tmp_id)
+        obj = cls(cmsg.tmp_id, cmsg.base.size)
         obj._from_base(cmsg)
         return obj
 
@@ -426,16 +426,15 @@ class SimVariableSet(collections.abc.MutableSet):
         # For the sake of performance, we have another set that stores memory addresses of memory_variables
         self.memory_variable_addresses = set()
 
-    def add(self, item):  # pylint:disable=arguments-differ
-        if type(item) is SimRegisterVariable:
-            if not self.contains_register_variable(item):
-                self.add_register_variable(item)
-        elif type(item) is SimMemoryVariable:
-            if not self.contains_memory_variable(item):
-                self.add_memory_variable(item)
+    def add(self, value):
+        if type(value) is SimRegisterVariable:
+            if not self.contains_register_variable(value):
+                self.add_register_variable(value)
+        elif type(value) is SimMemoryVariable:
+            if not self.contains_memory_variable(value):
+                self.add_memory_variable(value)
         else:
-            # TODO:
-            raise Exception("WTF")
+            assert False, "Unknown type"
 
     def add_register_variable(self, reg_var):
         self.register_variables.add(reg_var)
@@ -447,16 +446,15 @@ class SimVariableSet(collections.abc.MutableSet):
         for i in range(mem_var.size):
             self.memory_variable_addresses.add(base_address + i)
 
-    def discard(self, item):  # pylint:disable=arguments-differ
-        if type(item) is SimRegisterVariable:
-            if self.contains_register_variable(item):
-                self.discard_register_variable(item)
-        elif isinstance(item, SimMemoryVariable):
-            if self.contains_memory_variable(item):
-                self.discard_memory_variable(item)
+    def discard(self, value):
+        if type(value) is SimRegisterVariable:
+            if self.contains_register_variable(value):
+                self.discard_register_variable(value)
+        elif isinstance(value, SimMemoryVariable):
+            if self.contains_memory_variable(value):
+                self.discard_memory_variable(value)
         else:
-            # TODO:
-            raise Exception("")
+            assert False, "Unknown type"
 
     def discard_register_variable(self, reg_var):
         self.register_variables.remove(reg_var)
@@ -532,5 +530,4 @@ class SimVariableSet(collections.abc.MutableSet):
             # TODO: Make it better!
             return self.contains_memory_variable(item)
 
-        __import__("ipdb").set_trace()
-        raise Exception("WTF is this variable?")
+        assert False, "WTF is this variable?"

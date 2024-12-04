@@ -9,13 +9,12 @@ import threading
 from archinfo.arch_soot import SootAddressDescriptor
 import claripy
 
-from angr.sim_state import SimState
-from .successors import SimSuccessors
-
 import angr
+from angr.sim_state import SimState
 from angr import sim_options as o
 from angr.errors import SimException
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from .successors import SimSuccessors
 
 
 l = logging.getLogger(name=__name__)
@@ -23,7 +22,7 @@ l = logging.getLogger(name=__name__)
 
 StateType = TypeVar("StateType")
 ResultType = TypeVar("ResultType")
-DataType = TypeVar("DataType", covariant=True)
+DataType_co = TypeVar("DataType_co", covariant=True)
 HeavyState = SimState[int | SootAddressDescriptor, claripy.ast.BV | SootAddressDescriptor]
 
 
@@ -48,7 +47,6 @@ class SimEngineBase(Generic[StateType]):
 
     def __setstate__(self, state):
         self.project = state[0]
-        self.state = NotImplemented
 
 
 class SimEngine(Generic[StateType, ResultType], SimEngineBase[StateType], metaclass=abc.ABCMeta):
@@ -74,7 +72,7 @@ class TLSMixin:
     MAGIC MAGIC MAGIC
     """
 
-    __local: threading.local
+    __local: threading.local  # pylint: disable=unused-private-member
 
     def __new__(cls, *args, **kwargs):  # pylint:disable=unused-argument
         obj = super().__new__(cls)
@@ -90,8 +88,9 @@ class TLSMixin:
                     attr = f"_{subcls.__name__}{attr}"
 
                 if hasattr(cls, attr):
-                    if type(getattr(cls, attr, None)) is not TLSProperty:
-                        raise Exception(f"Programming error: {attr} is both in __tls and __class__")
+                    assert (
+                        type(getattr(cls, attr, None)) is TLSProperty
+                    ), f"Programming error: {attr} is both in __tls and __class__"
                 else:
                     setattr(cls, attr, TLSProperty(attr))
 
@@ -200,7 +199,7 @@ class SuccessorsMixin(SimEngine[HeavyState, SimSuccessors]):
 
         return self.successors
 
-    def process_successors(self, successors, **kwargs):  # pylint:disable=unused-argument
+    def process_successors(self, successors, **kwargs):  # pylint:disable=unused-argument,no-self-use
         """
         Implement this function to fill out the SimSuccessors object with the results of stepping state.
 
