@@ -613,6 +613,11 @@ class SimEngineLightAIL(
             "InterleaveLOV": self._handle_binop_InterleaveLOV,
             "InterleaveHIV": self._handle_binop_InterleaveHIV,
             "CasCmpNE": self._handle_binop_CasCmpNE,
+            "ExpCmpNE": self._handle_binop_ExpCmpNE,
+            "ShrNV": self._handle_binop_ShrNV,
+            "ShlNV": self._handle_binop_ShlNV,
+            "GetMSBs": self._handle_binop_GetMSBs,
+            "CmpEQV": self._handle_binop_CmpEQV,
         }
         super().__init__(*args, **kwargs)
 
@@ -897,6 +902,21 @@ class SimEngineLightAIL(
     def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
+    def _handle_binop_ExpCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_ShrNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_ShlNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_GetMSBs(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
@@ -1117,6 +1137,21 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_ExpCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_ShrNV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_ShlNV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_GetMSBs(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:

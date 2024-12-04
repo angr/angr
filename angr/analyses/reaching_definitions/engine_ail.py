@@ -679,7 +679,6 @@ class SimEngineRDAIL(
     _handle_binop_AddV = _handle_binop_Add
     _handle_binop_Div = _handle_binop_Default
     _handle_binop_MulV = _handle_binop_Default
-    _handle_binop_Mull = _handle_binop_Default
     _handle_binop_Mod = _handle_binop_Default
     _handle_binop_AddF = _handle_binop_Default
     _handle_binop_DivF = _handle_binop_Default
@@ -688,6 +687,11 @@ class SimEngineRDAIL(
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
     _handle_binop_CasCmpNE = _handle_binop_Default
+    _handle_binop_ExpCmpNE = _handle_binop_Default
+    _handle_binop_ShrNV = _handle_binop_Default
+    _handle_binop_ShlNV = _handle_binop_Default
+    _handle_binop_GetMSBs = _handle_binop_Default
+    _handle_binop_CmpEQV = _handle_binop_Default
 
     def _handle_binop_Mul(self, expr):
         expr0 = self._expr(expr.operands[0])
@@ -704,7 +708,7 @@ class SimEngineRDAIL(
 
         return r
 
-    def _handle_binop_Mul(self, expr):
+    def _handle_binop_Mull(self, expr):
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
         bits = expr.bits

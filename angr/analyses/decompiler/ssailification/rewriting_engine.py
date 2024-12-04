@@ -785,6 +785,11 @@ class SimEngineSSARewriting(
     _handle_binop_InterleaveLOV = _unreachable
     _handle_binop_InterleaveHIV = _unreachable
     _handle_binop_CasCmpNE = _unreachable
+    _handle_binop_ExpCmpNE = _unreachable
+    _handle_binop_ShrNV = _unreachable
+    _handle_binop_ShlNV = _unreachable
+    _handle_binop_GetMSBs = _unreachable
+    _handle_binop_CmpEQV = _unreachable
     _handle_unop_BitwiseNeg = _unreachable
     _handle_unop_Dereference = _unreachable
     _handle_unop_Neg = _unreachable

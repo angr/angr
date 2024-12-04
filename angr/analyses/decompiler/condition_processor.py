@@ -189,7 +189,10 @@ _ail2claripy_op_mapping = {
     "SBorrow": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "ExpCmpNE": lambda expr, _, m, *args: _dummy_bools(expr, m),
     "CmpORD": lambda expr, _, m, *args: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
+    "CmpEQV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "GetMSBs": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "ShlNV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "ShrNV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "InterleaveLOV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "InterleaveHIV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     # catch-all

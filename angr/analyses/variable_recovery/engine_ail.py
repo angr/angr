@@ -16,7 +16,7 @@ from angr.analyses.typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
-    pass
+    from .variable_recovery_fast import VariableRecoveryFastState
 
 
 l = logging.getLogger(name=__name__)
@@ -24,8 +24,8 @@ l.addFilter(UniqueLogFilter())
 
 
 class SimEngineVRAIL(
-    SimEngineNostmtAIL["VariableRecoveryFastState", RichR[claripy.ast.BV | claripy.ast.FP], None, None],
-    SimEngineVRBase["VariableRecoveryFastState", ailment.Block],
+    SimEngineNostmtAIL[VariableRecoveryFastState, RichR[claripy.ast.BV | claripy.ast.FP], None, None],
+    SimEngineVRBase[VariableRecoveryFastState, ailment.Block],
 ):
     """
     The engine for variable recovery on AIL.
@@ -758,6 +758,11 @@ class SimEngineVRAIL(
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
     _handle_binop_CasCmpNE = _handle_binop_Default
+    _handle_binop_ExpCmpNE = _handle_binop_Default
+    _handle_binop_ShrNV = _handle_binop_Default
+    _handle_binop_ShlNV = _handle_binop_Default
+    _handle_binop_GetMSBs = _handle_binop_Default
+    _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_CmpEQ = _handle_binop_Default
     _handle_binop_CmpNE = _handle_binop_Default
     _handle_binop_CmpLT = _handle_binop_Default

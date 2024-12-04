@@ -410,6 +410,11 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
     _handle_binop_CasCmpNE = _handle_binop_Default
+    _handle_binop_ExpCmpNE = _handle_binop_Default
+    _handle_binop_ShrNV = _handle_binop_Default
+    _handle_binop_ShlNV = _handle_binop_Default
+    _handle_binop_GetMSBs = _handle_binop_Default
+    _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_MulF = _handle_binop_Default
     _handle_binop_MulV = _handle_binop_Default
     _handle_binop_SBorrow = _handle_binop_Default
