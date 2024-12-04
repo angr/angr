@@ -1,9 +1,6 @@
 name: Corpus Test
 
 on:
-  pull_request:
-    branches:
-      - master
   workflow_call:
     inputs:
       corpus_github_path:
