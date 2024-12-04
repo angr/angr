@@ -59,10 +59,6 @@ class StructReturnWalker(SequenceWalker):
             struct_ty = self._build_struct_ty(fields)
             result = Struct(0, fields, struct_ty)
             return stmts_to_remove, result
-        if len(fields):
-            import ipdb
-
-            ipdb.set_trace()
         return None, None
 
     def _handle_Sequence(self, seq: SequenceNode, **kwargs):
@@ -74,10 +70,11 @@ class StructReturnWalker(SequenceWalker):
                     break
                 blocks.append(node)
             stmts_to_remove, struct_expr = self.collect_ret_expr(blocks)
-            last_node.statements[-1].ret_exprs = [struct_expr]
-            for block in stmts_to_remove:
-                for stmt in stmts_to_remove[block]:
-                    block.statements.remove(stmt)
+            if struct_expr:
+                last_node.statements[-1].ret_exprs = [struct_expr]
+                for block in stmts_to_remove:
+                    for stmt in stmts_to_remove[block]:
+                        block.statements.remove(stmt)
         super()._handle_Sequence(seq, **kwargs)
 
 
