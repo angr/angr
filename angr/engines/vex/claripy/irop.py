@@ -17,6 +17,7 @@ import pyvex
 import claripy
 
 from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
+from angr.state_plugins.sim_action_object import SimActionObject
 
 
 l = logging.getLogger(name=__name__)
@@ -425,8 +426,18 @@ class SimIROp:
                 print(f"... {k}: {v}")
 
     def calculate(self, *args):
-        if not all(isinstance(a, claripy.ast.Base) for a in args):
-            raise SimOperationError("IROp needs all args as claripy expressions")
+        # calculate may recieve SimActionObjects (if AST_DEPS is enabled) or
+        # claripy expressions, so we need to unpack the SAOs before passing them
+        # to claripy.
+        unpacked_args = []
+        for arg in args:
+            if isinstance(arg, SimActionObject):
+                unpacked_args.append(arg.to_claripy())
+            elif isinstance(arg, claripy.ast.Base):
+                unpacked_args.append(arg)
+            else:
+                raise SimOperationError(f"Unsupported argument type {type(arg)}")
+        args = unpacked_args
 
         if not self._float:
             args = tuple(arg.raw_to_bv() for arg in args)
