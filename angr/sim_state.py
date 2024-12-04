@@ -127,7 +127,8 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
         # Arch
         if self._is_java_jni_project and project is not None:
-            assert isinstance(project.simos, SimJavaVM)
+            if TYPE_CHECKING:
+                assert isinstance(project.simos, SimJavaVM)
             self._arch = {"soot": project.arch, "vex": project.simos.native_simos.arch}
             # This flag indicates whether the current ip is a native address or
             # a soot address descriptor.
