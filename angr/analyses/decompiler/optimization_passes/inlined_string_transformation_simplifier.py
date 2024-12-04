@@ -364,7 +364,10 @@ class InlinedStringTransformationAILEngine(
         return None
 
     def _handle_expr_Tmp(self, expr):
-        return None
+        try:
+            return self.tmps[expr.tmp_idx]
+        except KeyError:
+            return None
 
     def _handle_expr_VEXCCallExpression(self, expr):
         return None
