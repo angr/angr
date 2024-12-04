@@ -430,3 +430,5 @@ class SimplifierAILEngine(
     _handle_binop_InterleaveLOV = _handle_binop_Default
 
     _handle_binop_InterleaveHIV = _handle_binop_Default
+
+    _handle_binop_CasCmpNE = _handle_binop_Default

@@ -687,6 +687,7 @@ class SimEngineRDAIL(
     _handle_binop_SubF = _handle_binop_Default
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_CasCmpNE = _handle_binop_Default
 
     def _handle_binop_Mul(self, expr):
         expr0 = self._expr(expr.operands[0])

@@ -598,6 +598,7 @@ class SimEngineLightAIL(
             "SBorrow": self._handle_binop_SBorrow,
             "InterleaveLOV": self._handle_binop_InterleaveLOV,
             "InterleaveHIV": self._handle_binop_InterleaveHIV,
+            "CasCmpNE": self._handle_binop_CasCmpNE,
         }
         super().__init__(*args, **kwargs)
 
@@ -877,6 +878,9 @@ class SimEngineLightAIL(
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType: ...
 
     @abstractmethod
+    def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType: ...
+
+    @abstractmethod
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType: ...
 
     @abstractmethod
@@ -1084,6 +1088,9 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType | None:
+        pass
+
+    def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType | None:
         pass
 
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType | None:

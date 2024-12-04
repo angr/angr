@@ -757,6 +757,7 @@ class SimEngineVRAIL(
     _handle_binop_SBorrow = _handle_binop_Default
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_CasCmpNE = _handle_binop_Default
     _handle_binop_CmpEQ = _handle_binop_Default
     _handle_binop_CmpNE = _handle_binop_Default
     _handle_binop_CmpLT = _handle_binop_Default

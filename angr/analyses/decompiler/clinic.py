@@ -1362,10 +1362,9 @@ class Clinic(Analysis):
 
     @timethis
     def _transform_to_ssa_level0(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        ssailification = self.project.analyses[Ssailification].prep()(
+        ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
-            fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
