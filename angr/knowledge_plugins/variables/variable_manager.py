@@ -77,14 +77,14 @@ class VariableManagerInternal(Serializable):
 
         self.func_addr = func_addr
 
-        self._variables: set[SimVariable] = OrderedSet()  # all variables that are added to any region
+        self._variables: OrderedSet[SimVariable] = OrderedSet()  # all variables that are added to any region
         self._global_region = KeyedRegion()
         self._stack_region = KeyedRegion()
         self._register_region = KeyedRegion()
         self._live_variables = {}  # a mapping between addresses of program points and live variable collections
 
         self._variable_accesses: dict[SimVariable, set[VariableAccess]] = defaultdict(set)
-        self._insn_to_variable: dict[int, set[tuple[SimVariable, int]]] = defaultdict(set)
+        self._insn_to_variable: dict[int, set[tuple[SimVariable, int | None]]] = defaultdict(set)
         self._stmt_to_variable: dict[tuple[int, int] | tuple[int, int, int], set[tuple[SimVariable, int]]] = (
             defaultdict(set)
         )
@@ -115,7 +115,7 @@ class VariableManagerInternal(Serializable):
         # optimization
         self._variables_without_writes = set()
 
-        self.stack_offset_to_struct_member_info: dict[SimStackVariable, (int, SimStackVariable, SimStruct)] = {}
+        self.stack_offset_to_struct_member_info: dict[SimStackVariable, tuple[int, SimStackVariable, SimStruct]] = {}
 
         self.ret_val_size = None
 
@@ -292,7 +292,6 @@ class VariableManagerInternal(Serializable):
             variable = variable_access.variable
             offset = variable_access.offset
             assert variable is not None
-            assert offset is not None
             tpl = (variable, offset)
 
             model._variable_accesses[variable_access.variable].add(variable_access)
