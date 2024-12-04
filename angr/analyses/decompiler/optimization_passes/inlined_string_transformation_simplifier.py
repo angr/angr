@@ -1,4 +1,4 @@
-# pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use
+# pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use,unused-argument
 from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
@@ -146,10 +146,10 @@ class InlinedStringTransformationAILEngine(
             i += 1
 
     def _top(self, bits):
-        raise Exception("Should not be reachable")
+        assert False, "Should not be reachable"
 
     def _is_top(self, expr):
-        raise Exception("Should not be reachable")
+        assert False, "Should not be reachable"
 
     def _process_block_end(self, block, stmt_data, whitelist):
         pass
@@ -375,7 +375,6 @@ class InlinedStringTransformationAILEngine(
     def _handle_binop_Default(self, expr):
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
-        return
 
     _handle_binop_Add = _make_binop(lambda a, b: a + b)
     _handle_binop_And = _make_binop(lambda a, b: a & b)
@@ -386,8 +385,8 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Mod = _make_binop(lambda a, b: a % b)
     _handle_binop_Mul = _make_binop(lambda a, b: a * b)
     _handle_binop_Or = _make_binop(lambda a, b: a | b)
-    _handle_binop_Rol = _make_binop(lambda a, b: claripy.RotateLeft(a, b))
-    _handle_binop_Ror = _make_binop(lambda a, b: claripy.RotateRight(a, b))
+    _handle_binop_Rol = _make_binop(claripy.RotateLeft)
+    _handle_binop_Ror = _make_binop(claripy.RotateRight)
     _handle_binop_Sar = _make_binop(lambda a, b: a >> b)
     _handle_binop_Shl = _make_binop(lambda a, b: a << b)
     _handle_binop_Shr = _make_binop(lambda a, b: a.LShR(b))

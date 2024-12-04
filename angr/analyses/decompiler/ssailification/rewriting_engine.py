@@ -2,8 +2,6 @@
 from __future__ import annotations
 import logging
 
-from angr.engines.light.engine import SimEngineNostmtAIL
-
 from ailment.manager import Manager
 from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement
 from ailment.expression import (
@@ -23,6 +21,7 @@ from ailment.expression import (
     DirtyExpression,
 )
 
+from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.utils.ssa import get_reg_offset_base_and_size
 from .rewriting_state import RewritingState
 
@@ -77,10 +76,10 @@ class SimEngineSSARewriting(
     #
 
     def _top(self, bits):
-        raise Exception("Unreachable")
+        assert False, "Unreachable"
 
     def _is_top(self, expr):
-        raise Exception("Unreachable")
+        assert False, "Unreachable"
 
     def _process_block_end(self, block, stmt_data, whitelist):
         assert whitelist is None

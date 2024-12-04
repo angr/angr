@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import logging
 import time
+import contextlib
 
 import claripy
 import ailment
@@ -17,7 +18,6 @@ from angr import sim_options
 from angr.analyses import register_analysis
 from angr.analyses.analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
-import contextlib
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
@@ -164,7 +164,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 
-        self._engine_vex = SimEnginePropagatorVEX(
+        # pyright says pylint is wrong about this
+        self._engine_vex = SimEnginePropagatorVEX(  # pylint: disable=abstract-class-instantiated
             project=self.project,
             reaching_definitions=self._reaching_definitions,
             bp_as_gpr=bp_as_gpr,

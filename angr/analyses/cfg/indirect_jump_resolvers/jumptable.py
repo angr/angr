@@ -3,12 +3,10 @@ from __future__ import annotations
 import enum
 from typing import TYPE_CHECKING, Any, Literal, cast
 from collections.abc import Sequence
+from collections import defaultdict, OrderedDict
 import logging
 import functools
-from collections import defaultdict, OrderedDict
 
-from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
-from angr.engines.vex.claripy.datalayer import value
 import pyvex
 import claripy
 from archinfo.arch_arm import is_arm_arch
@@ -30,6 +28,8 @@ from angr.exploration_techniques.explorer import Explorer
 from angr.project import Project
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.analyses.propagator.vex_vars import VEXReg
+from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
+from angr.engines.vex.claripy.datalayer import value
 from .resolver import IndirectJumpResolver
 from .propagator_utils import PropagatorLoadCallback
 
@@ -682,10 +682,10 @@ class RegisterInitializerHook:
     Hook for register init.
     """
 
-    def __init__(self, reg_offset, reg_bits, value):
+    def __init__(self, reg_offset, reg_bits, initial_value):
         self.reg_offset = reg_offset
         self.reg_bits = reg_bits
-        self.value = value
+        self.value = initial_value
 
     def hook(self, state):
         state.registers.store(self.reg_offset, claripy.BVV(self.value, self.reg_bits))

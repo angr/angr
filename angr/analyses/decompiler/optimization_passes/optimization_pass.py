@@ -5,6 +5,8 @@ from typing import Any, TYPE_CHECKING
 from collections.abc import Generator
 from enum import Enum
 
+import networkx
+
 import ailment
 
 from angr.analyses.decompiler import RegionIdentifier
@@ -14,8 +16,6 @@ from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStruc
 from angr.analyses.decompiler.utils import add_labels
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.project import Project
-
-import networkx
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function

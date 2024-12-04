@@ -1,8 +1,8 @@
+# pylint: disable=missing-class-docstring
 from __future__ import annotations
 from typing import cast
 import logging
 
-from angr.block import Block
 import claripy
 import pyvex
 
@@ -14,6 +14,7 @@ from .engine_base import SimEnginePropagatorBaseMixin
 from .top_checker_mixin import ClaripyDataVEXEngineMixin
 from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 from angr.analyses.propagator.propagator import PropagatorVEXState
+from angr.block import Block
 
 
 _l = logging.getLogger(name=__name__)

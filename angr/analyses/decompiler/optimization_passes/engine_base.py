@@ -58,10 +58,10 @@ class SimplifierAILEngine(
         return block
 
     def _top(self, bits):
-        raise Exception("This code should be unreachable")
+        assert False, "This code should be unreachable"
 
     def _is_top(self, expr):
-        raise Exception("This code should be unreachable")
+        assert False, "This code should be unreachable"
 
     # handle stmt
 
