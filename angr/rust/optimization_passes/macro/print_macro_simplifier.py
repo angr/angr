@@ -10,7 +10,13 @@ from angr.rust.ailment.statement import FunctionLikeMacro
 from angr.rust.mixins.cfa_mixin import CFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 
-PRINT_FUNCTIONS = ("std::io::stdio::_print", "std::io::stdio::_eprint", "alloc::fmt::format::format_inner")
+PRINT_FUNCTIONS = (
+    "std::io::stdio::_print",
+    "std::io::stdio::_eprint",
+    "alloc::fmt::format::format_inner",
+    "core::option::Option<T>::map_or_else",
+    "core::panicking::panic_fmt",
+)
 
 
 class PrintMacroSimplifier(OptimizationPass, CFAMixin):
@@ -58,10 +64,18 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
             return "eprint", fmt_str
         elif func_name.endswith("::format_inner"):
             return "format", fmt_str
+        elif func_name.endswith("::map_or_else"):
+            return "format", fmt_str
+        elif func_name.endswith("::panic_fmt"):
+            return "panic", fmt_str
         return None, None
 
     def replace_call(self, call: Call, block: Block):
-        if (name := self.match_call(call, PRINT_FUNCTIONS)) and call.args and isinstance(call.args[0], StackBaseOffset):
+        if (
+            (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
+            and call.args
+            and isinstance(call.args[0], StackBaseOffset)
+        ):
             stack = {}
             offset_to_stmt = {}
             for stmt in block.statements:
