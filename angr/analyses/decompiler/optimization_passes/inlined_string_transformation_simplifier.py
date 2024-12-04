@@ -169,7 +169,7 @@ class InlinedStringTransformationAILEngine(
                     return (v0 + v1.concrete_value) & self.MASK, "stack"
         return None
 
-    def _handle_expr_Assignment(self, stmt):
+    def _handle_stmt_Assignment(self, stmt):
         if isinstance(stmt.dst, VirtualVariable):
             if stmt.dst.was_reg:
                 val = self._expr(stmt.src)
