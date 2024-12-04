@@ -89,7 +89,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
     2. Uses of return value after callee is called
     """
 
-    def __init__(self, func, callsite_block=None, post_callsite_block=None, depth=0, max_depth=1):
+    def __init__(self, func, callsite_block=None, post_callsite_block=None, depth=0, max_depth=2):
         self.func: Function = func
 
         if self.func.addr in self.kb.rust_calling_conventions.cache:
