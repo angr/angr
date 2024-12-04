@@ -13,11 +13,11 @@ import math
 import re
 import logging
 
-from angr.state_plugins.sim_action_object import SimActionObject
 import pyvex
 import claripy
 
 from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
+from angr.state_plugins import SimActionObject
 
 
 l = logging.getLogger(name=__name__)
