@@ -19,6 +19,7 @@ class StructReturnWalker(SequenceWalker):
     def __init__(self, context: "StructReturnSimplifier"):
         super().__init__()
         self.context = context
+        self._handlers[Block] = self._handle_Block
 
     def _get_vvar_and_offset(self, expr) -> Tuple[VirtualVariable | None, int | None]:
         if isinstance(expr, VirtualVariable):
@@ -77,6 +78,16 @@ class StructReturnWalker(SequenceWalker):
                         block.statements.remove(stmt)
         super()._handle_Sequence(seq, **kwargs)
 
+    def _handle_Block(self, block: Block, **kwargs):
+        if block.statements and isinstance(block.statements[-1], Return):
+            ret = block.statements[-1]
+            if ret.ret_exprs and not isinstance(ret.ret_exprs[0], Struct):
+                stmts_to_remove, struct_expr = self.collect_ret_expr([block])
+                if struct_expr:
+                    block.statements[-1].ret_exprs = [struct_expr]
+                    for stmt in stmts_to_remove[block]:
+                        block.statements.remove(stmt)
+
 
 class StructReturnSimplifier(SequenceOptimizationPass):
     ARCHES = None
@@ -93,12 +104,6 @@ class StructReturnSimplifier(SequenceOptimizationPass):
         return self.project.is_rust_binary, None
 
     def _analyze(self, cache=None):
-        StructReturnWalker(self).walk(self.seq)
+        walker = StructReturnWalker(self)
+        walker.walk(self.seq)
         self.out_seq = self.seq
-        # for block in self._graph.nodes:
-        #     if block.statements and isinstance(block.statements[-1], Return):
-        #         ret = block.statements[-1]
-        #         if ret.ret_exprs and not isinstance(ret.ret_exprs[0], Struct):
-        #             import ipdb
-        #
-        #             ipdb.set_trace()

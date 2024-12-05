@@ -1,7 +1,7 @@
 from typing import Optional
 
 from ailment import BinaryOp
-from ailment.expression import BasePointerOffset, Const, Load, StackBaseOffset
+from ailment.expression import BasePointerOffset, Const, Load, StackBaseOffset, VirtualVariable
 from ailment.statement import ConditionalJump, Call, Store
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
@@ -85,12 +85,15 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                     and isinstance(last_stmt.false_target, Const)
                     and isinstance(cond, BinaryOp)
                     and (cond.op == "CmpEQ" or cond.op == "CmpNE")
-                    and isinstance(cond.operands[0], Load)
-                    and isinstance(cond.operands[0].addr, BasePointerOffset)
                     and isinstance(cond.operands[1], Const)
                 ):
-                    vvar = self.get_stack_vvar_by_insn(cond.operands[0].addr.offset, last_stmt.ins_addr, block.idx)
-                    value = self.get_terminal_vvar_value(vvar) if vvar else None
+                    vvar, value = None, None
+                    cond_op0 = cond.operands[0]
+                    if isinstance(cond_op0, VirtualVariable):
+                        cond_op0 = self.get_terminal_vvar_value(cond_op0)
+                    if isinstance(cond_op0, Load) and isinstance(cond_op0.addr, StackBaseOffset):
+                        vvar = self.get_stack_vvar_by_insn(cond_op0.addr.offset, last_stmt.ins_addr, block.idx)
+                        value = self.get_terminal_vvar_value(vvar) if vvar else None
                     if (
                         isinstance(value, Call)
                         and value.prototype
