@@ -184,17 +184,35 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                 struct_type_to_path[struct_type] = block_or_path
                 struct_type_to_discriminant[struct_type] = self._calculate_discriminant(block_or_path)
 
+        # Heuristics when one discriminant is not found
+        # if list(struct_type_to_discriminant.values()).count(None) == 1:
+        #     max_discriminant = max(
+        #         [discriminant for discriminant in struct_type_to_discriminant.values() if discriminant],
+        #         key=lambda ele: ele.value,
+        #     )
+        #     if "ParagraphStream" in self.func.name:
+        #         import ipdb
+        #
+        #         ipdb.set_trace()
+        #     if max_discriminant:
+        #         guessed_discriminant = max_discriminant.copy()
+        #         guessed_discriminant.value += 1
+        #         for k, v in dict(struct_type_to_discriminant).items():
+        #             if v is None:
+        #                 struct_type_to_discriminant[k] = guessed_discriminant
+        #                 break
+
         # If there are two different struct types, it could be Option<T> or Result<T, E>
         # If the size of one of the struct types is equal to discriminant size, it is an Option<T>
         # Otherwise it's a Result<T, E>
         discriminants = list(struct_type_to_discriminant.values())
-        if len(struct_type_to_discriminant) == 2 and discriminants.count(None) <= 1:
+        if 3 >= len(struct_type_to_discriminant) >= 2 and discriminants.count(None) <= 1:
             discriminant_size = set(discriminant.bits for discriminant in discriminants if discriminant is not None)
             if len(discriminant_size) == 1:
                 discriminant_size = next(iter(discriminant_size))
                 sizes = set(struct_type.size for struct_type in struct_type_to_discriminant)
+                overlapping_discriminant = None in discriminants
                 if len(sizes) == 2:
-                    overlapping_discriminant = None in discriminants
                     if discriminant_size in sizes:
                         none_type = next(filter(lambda ty: ty.size == discriminant_size, struct_type_to_discriminant))
                         some_type = next(filter(lambda ty: ty.size != discriminant_size, struct_type_to_discriminant))
@@ -228,6 +246,38 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                             err_discriminant.value,
                             discriminant_size // self.project.arch.byte_width,
                         )
+                    else:
+                        ok_type = None
+                        err_type, err_discriminant = None, None
+                        for struct_ty, discriminant in struct_type_to_discriminant.items():
+                            if discriminant is None:
+                                ok_type = struct_ty
+                            else:
+                                err_type = struct_ty
+                                err_discriminant = discriminant
+                        return RustSimTypeResult(
+                            ok_type,
+                            err_type,
+                            None,
+                            err_discriminant.value,
+                            discriminant_size // self.project.arch.byte_width,
+                        )
+                elif len(sizes) == 3:
+                    # This could be an Option<Result<T, E>>
+                    if discriminant_size in sizes:
+                        none_type = next(filter(lambda ty: ty.size == discriminant_size, struct_type_to_discriminant))
+                        other_struct_types = {k: v for k, v in struct_types.items() if k.size != discriminant_size}
+                        some_type = self._decide_final_type(other_struct_types)
+                        none_discriminant = struct_type_to_discriminant[none_type].value
+                        if isinstance(some_type, RustSimTypeResult):
+                            return RustSimTypeOption(
+                                some_type,
+                                none_discriminant,
+                                None,
+                                discriminant_size // self.project.arch.byte_width
+                                if not overlapping_discriminant
+                                else 0,
+                            )
 
         return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))
 

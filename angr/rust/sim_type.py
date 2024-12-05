@@ -572,6 +572,9 @@ class RustSimTypeOption(RustSimEnum):
     def repr(self, name=None, full=0, memo=None, indent=0):
         return f"Option<{self.data_type}>"
 
+    def __repr__(self):
+        return self.repr()
+
 
 class RustSimTypeResult(RustSimEnum):
     def __init__(self, ok_type, err_type, ok_discriminant, err_discriminant, discriminant_size):
@@ -604,3 +607,6 @@ class RustSimTypeResult(RustSimEnum):
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         return f"Result<{self.ok_type}, {self.err_type}>"
+
+    def __repr__(self):
+        return self.repr()
