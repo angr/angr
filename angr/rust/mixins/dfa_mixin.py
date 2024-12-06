@@ -1,5 +1,5 @@
 from ailment import Assignment
-from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset
+from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset, BinaryOp, Const
 from ailment.statement import Store
 
 
@@ -10,6 +10,11 @@ class DFAMixin:
 
     def __init__(self):
         pass
+
+    def _extract_operands(self, expr):
+        if isinstance(expr, BinaryOp) and expr.op == "Add" and isinstance(expr.operands[1], Const):
+            return expr.operands[0], expr.operands[1].value
+        return expr, 0
 
     def extract_stack_data_flow(self, stmt):
         dst_offset = None
@@ -36,6 +41,19 @@ class DFAMixin:
         if dst_offset is not None and src_offset is not None and size is not None:
             return dst_offset, src_offset, size
         return None, None, None
+
+    def find_reg_ptr_to_reg_data_flow(self, block, reg_vvar):
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_reg
+                and isinstance(stmt.src, Load)
+            ):
+                vvar, offset = self._extract_operands(stmt.src.addr)
+                if isinstance(vvar, VirtualVariable) and vvar.likes(reg_vvar):
+                    return stmt.dst, vvar, offset, stmt
+        return None, None, None, None
 
     def find_stack_data_flow(self, block, src_offset, size):
         cur_size = 0

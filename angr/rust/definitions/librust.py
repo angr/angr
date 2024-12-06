@@ -56,6 +56,9 @@ prototypes = {
     "core::result::unwrap": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
     ),
+    "core::option::unwrap": RustSimTypeFunction(
+        args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
+    ),
 }
 
 for name, prototype in prototypes.items():

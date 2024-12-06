@@ -214,34 +214,25 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMi
         offset = expr_offset
         offset_to_codeloc = {}
         while offset - expr_offset < struct_ty.size // 8:
-            vvar = self.get_stack_vvar_by_insn(offset, last_stmt.ins_addr, block.idx)
-            def_ = self.get_def_by_vvar(vvar) if vvar else None
-            if vvar and def_:
-                codeloc = def_.codeloc
-                offset_to_codeloc[offset - expr_offset] = codeloc
-                value = self.get_vvar_value(vvar)
-                if value:
-                    collected_members[offset - expr_offset] = value
-                    offset += value.size
-                else:
-                    offset += 1
+            # Workaround: In case the Store statement is not ssailified
+            value = None
+            for stmt_idx, stmt in enumerate(block.statements):
+                if isinstance(stmt, Store) and isinstance(stmt.addr, BasePointerOffset) and stmt.addr.offset == offset:
+                    codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                    offset_to_codeloc[offset - expr_offset] = codeloc
+                    value = stmt.data
+            if not value:
+                vvar = self.get_stack_vvar_by_insn(offset, last_stmt.ins_addr, block.idx)
+                def_ = self.get_def_by_vvar(vvar) if vvar else None
+                if vvar and def_:
+                    codeloc = def_.codeloc
+                    offset_to_codeloc[offset - expr_offset] = codeloc
+                    value = self.get_vvar_value(vvar)
+            if value:
+                collected_members[offset - expr_offset] = value
+                offset += value.size
             else:
-                # In case the Store statement is not ssailified
-                value = None
-                for stmt_idx, stmt in enumerate(block.statements):
-                    if (
-                        isinstance(stmt, Store)
-                        and isinstance(stmt.addr, BasePointerOffset)
-                        and stmt.addr.offset == offset
-                    ):
-                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
-                        offset_to_codeloc[offset - expr_offset] = codeloc
-                        value = stmt.data
-                if value:
-                    collected_members[offset - expr_offset] = value
-                    offset += value.size
-                else:
-                    offset += 1
+                offset += 1
 
         struct_ty = self._match_existing_type(struct_ty, collected_members)
         builder = StructBuilder(struct_ty, collected_members, self)
