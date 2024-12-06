@@ -29,7 +29,7 @@ def get_rust_optimization_passes():
         AllocSimplifier,
         CallsiteSimplifier,
         CallsiteCorrector,
-        # UnwrapSimplifier,
+        UnwrapSimplifier,
         PatternMatchIdentifier,
         OwnershipSimplifier,
         StructInstantiationSimplifier,
