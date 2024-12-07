@@ -1299,6 +1299,8 @@ class CFunctionCall(CStatement, CExpression):
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
                 func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
             yield func_name, self
+        elif isinstance(self.callee_target, str):
+            yield self.callee_target, self
         else:
             yield from CExpression._try_c_repr_chunks(self.callee_target)
 
