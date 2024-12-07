@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import claripy
 from ailment.expression import BasePointerOffset, Const, VirtualVariable
-from ailment.statement import Store, Assignment
+from ailment.statement import Store, Assignment, Call
 from archinfo import Endness
 
 from ..mixins.str_mixin import StrMixin
@@ -198,7 +198,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMi
             and isinstance(collected_members[pieces_len_offset], Const)
             and isinstance(collected_members[args_len_offset], Const)
             and 1 >= collected_members[pieces_len_offset].value - collected_members[args_len_offset].value >= 0
-            and self.extract_str_from_addr(collected_members[pieces_ptr_offset].value)
+            and self.extract_str_from_addr(collected_members[pieces_ptr_offset].value, infer_empty_str=True) is not None
         ):
             return arguments_ty
         return struct_ty
@@ -206,6 +206,10 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMi
     def _simplify_struct_instantiation(
         self, block, last_stmt, expr: BasePointerOffset | VirtualVariable, struct_ty: RustSimStruct
     ):
+        # if self.match_call(block, "core::iter::adapters::try_process"):
+        #     import ipdb
+        #
+        #     ipdb.set_trace()
         assert isinstance(expr, BasePointerOffset) or (isinstance(expr, VirtualVariable) and expr.was_stack)
         expr_offset = expr.offset if isinstance(expr, BasePointerOffset) else expr.stack_offset
         # If we can find all definitions of struct fields, let's create a struct instantiation
@@ -225,9 +229,12 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMi
                 vvar = self.get_stack_vvar_by_insn(offset, last_stmt.ins_addr, block.idx)
                 def_ = self.get_def_by_vvar(vvar) if vvar else None
                 if vvar and def_:
-                    codeloc = def_.codeloc
-                    offset_to_codeloc[offset - expr_offset] = codeloc
                     value = self.get_vvar_value(vvar)
+                    if isinstance(value, Call):
+                        value = vvar
+                    else:
+                        codeloc = def_.codeloc
+                        offset_to_codeloc[offset - expr_offset] = codeloc
             if value:
                 collected_members[offset - expr_offset] = value
                 offset += value.size
