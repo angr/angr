@@ -193,7 +193,7 @@ class SimLinux(SimUserland):
             jk = state.history.parent.jumpkind
         if jk == "Ijk_Sys_int128":
             return "i386"
-        if jk == "Ijk_Sys_syscall" and state.solver.eval(state.memory.load(state.regs.ip_at_syscall, 2) == 0x050f):
+        if jk == "Ijk_Sys_syscall" and state.solver.eval(state.memory.load(state.regs.ip_at_syscall, 2) == 0x050F):
             return "amd64"
         raise AngrSyscallError(f"Unknown syscall jumpkind {jk}")
 
