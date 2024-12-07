@@ -96,19 +96,20 @@ class UnwrapSimplifier(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTrans
                 dst_vvar, src_vvar, offset, stmt_to_remove = self.find_reg_ptr_to_reg_data_flow(
                     state.ownership_move_block, state.cmp_expr
                 )
-                last_stmt = self.last_stmt(state.ownership_move_block)
-                unwrap_func_name = UNWRAP_FUNCTIONS[state.unwrap_failed_func_name]
-                replacement = Call(
-                    idx=last_stmt.idx,
-                    target=unwrap_func_name,
-                    prototype=self.librust.get_prototype(unwrap_func_name).with_arch(self.project.arch),
-                    args=[src_vvar],
-                    ret_expr=None,
-                    **last_stmt.tags,
-                )
-                replacement.bits = dst_vvar.bits
-                state.replacement = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
-                state.stmt_to_replace = (state.ownership_move_block, stmt_to_remove, state.replacement)
+                if dst_vvar:
+                    last_stmt = self.last_stmt(state.ownership_move_block)
+                    unwrap_func_name = UNWRAP_FUNCTIONS[state.unwrap_failed_func_name]
+                    replacement = Call(
+                        idx=last_stmt.idx,
+                        target=unwrap_func_name,
+                        prototype=self.librust.get_prototype(unwrap_func_name).with_arch(self.project.arch),
+                        args=[src_vvar],
+                        ret_expr=None,
+                        **last_stmt.tags,
+                    )
+                    replacement.bits = dst_vvar.bits
+                    state.replacement = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
+                    state.stmt_to_replace = (state.ownership_move_block, stmt_to_remove, state.replacement)
         if state.replacement:
             # Simplification succeeded
             block, old_stmt, new_stmt = state.stmt_to_replace

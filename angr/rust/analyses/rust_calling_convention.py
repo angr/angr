@@ -5,12 +5,13 @@ from typing import Tuple, Optional
 from collections import OrderedDict
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi
+from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, StackBaseOffset
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment
 import networkx as nx
 from networkx import DiGraph
 
 from ..mixins.cfa_mixin import CFAMixin
+from ..mixins.dfa_mixin import DFAMixin
 from ..mixins.srda_mixin import SRDAMixin
 from ..optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
@@ -75,7 +76,7 @@ class PathFactsCollector(AILBlockWalker):
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
+class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     """
     This analysis infer function prototype including struct return type and struct argument types
     Function prototype is inferred based on collected facts from the callee function body and the caller function body
@@ -111,6 +112,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
         if self.model.clinic:
             CFAMixin.__init__(self, self.model.clinic, self.project)
             SRDAMixin.__init__(self, self.func, self.clinic.graph, self.project)
+            DFAMixin.__init__(self)
             self.depth = depth
             self.max_depth = max_depth
 
@@ -380,13 +382,50 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
                 for block in path:
                     walker.walk(block)
 
+    # def collect_callsite_facts(self):
+    #     callsite_block = self.model.callsite_block
+    #     call = self.terminal_call(callsite_block)
+    #     if call and call.args:
+    #         func_graph = nx.DiGraph()
+    #         func_graph.add_node(callsite_block)
+    #         srda = SRDAMixin(callsite_block, func_graph, self.project)
+    #         stack_offsets = []
+    #         for arg in call.args:
+    #             if isinstance(arg, BasePointerOffset):
+    #                 stack_offsets.append(arg.offset)
+    #         for idx, arg in enumerate(call.args):
+    #             if isinstance(arg, BasePointerOffset):
+    #                 cur_offset = arg.offset
+    #                 while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
+    #                     list(filter(lambda offset: arg.offset >= offset, stack_offsets))
+    #                 ):
+    #                     data = srda.get_stack_vvar_by_insn(cur_offset, call.ins_addr, callsite_block.idx)
+    #                     if data is None:
+    #                         for stmt in reversed(callsite_block.statements):
+    #                             if (
+    #                                 isinstance(stmt, Store)
+    #                                 and isinstance(stmt.addr, BasePointerOffset)
+    #                                 and stmt.addr.offset == cur_offset
+    #                             ):
+    #                                 data = stmt.data
+    #                         if data is None:
+    #                             break
+    #                     self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, data)
+    #                     cur_offset += data.size
+
+    def _find_closest_stack_data_flow(self, cur_offset, block) -> Optional[int]:
+        candidates = []
+        for stmt in block.statements:
+            dst_offset, src_data = self.extract_stack_dest_data_flow(stmt)
+            if dst_offset is not None:
+                if dst_offset - cur_offset > 0:
+                    candidates.append(dst_offset)
+        return min(candidates) if candidates else None
+
     def collect_callsite_facts(self):
         callsite_block = self.model.callsite_block
         call = self.terminal_call(callsite_block)
         if call and call.args:
-            func_graph = nx.DiGraph()
-            func_graph.add_node(callsite_block)
-            srda = SRDAMixin(callsite_block, func_graph, self.project)
             stack_offsets = []
             for arg in call.args:
                 if isinstance(arg, BasePointerOffset):
@@ -394,20 +433,29 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin):
             for idx, arg in enumerate(call.args):
                 if isinstance(arg, BasePointerOffset):
                     cur_offset = arg.offset
+                    tolerance = 1
                     while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
                         list(filter(lambda offset: arg.offset >= offset, stack_offsets))
                     ):
-                        data = srda.get_stack_vvar_by_insn(cur_offset, call.ins_addr, callsite_block.idx)
-                        if data is None:
-                            for stmt in reversed(callsite_block.statements):
-                                if (
-                                    isinstance(stmt, Store)
-                                    and isinstance(stmt.addr, BasePointerOffset)
-                                    and stmt.addr.offset == cur_offset
-                                ):
-                                    data = stmt.data
-                            if data is None:
+                        data = None
+                        for stmt in reversed(callsite_block.statements):
+                            dst_offset, src_data = self.extract_stack_dest_data_flow(stmt)
+                            if dst_offset == cur_offset and src_data:
+                                data = src_data
                                 break
+                        # if data is None:
+                        #     if tolerance > 0:
+                        #         tolerance -= 1
+                        #         closest_offset = self._find_closest_stack_data_flow(cur_offset, callsite_block)
+                        #         if closest_offset is not None and closest_offset <= 64:
+                        #             data = Load(
+                        #                 None,
+                        #                 StackBaseOffset(None, self.project.arch.bits, cur_offset),
+                        #                 closest_offset - cur_offset,
+                        #                 endness=self.project.arch.memory_endness,
+                        #             )
+                        if data is None:
+                            break
                         self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, data)
                         cur_offset += data.size
 

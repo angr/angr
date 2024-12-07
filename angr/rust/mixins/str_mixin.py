@@ -5,9 +5,11 @@ class StrMixin:
     def __init__(self, project):
         self.project = project
 
-    def extract_str_from_addr(self, addr):
+    def extract_str_from_addr(self, addr, infer_empty_str=False):
         decoded_str = None
         if (section := self.project.loader.find_section_containing(addr)) and section.is_readable:
+            if infer_empty_str:
+                decoded_str = ""
             memory = self.project.loader.memory
             str_addr = memory.unpack(addr, self.project.arch.struct_fmt())[0]
             if (

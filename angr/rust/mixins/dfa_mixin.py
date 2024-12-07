@@ -16,6 +16,24 @@ class DFAMixin:
             return expr.operands[0], expr.operands[1].value
         return expr, 0
 
+    def extract_stack_dest_data_flow(self, stmt):
+        dst_offset = None
+        dst, src = None, None
+        if isinstance(stmt, Assignment):
+            dst = stmt.dst
+            src = stmt.src
+        elif isinstance(stmt, Store):
+            dst = stmt.addr
+            src = stmt.data
+        if dst and src:
+            if isinstance(dst, VirtualVariable) and dst.was_stack:
+                dst_offset = dst.stack_offset
+            elif isinstance(dst, StackBaseOffset):
+                dst_offset = dst.offset
+        if dst_offset is not None and src is not None:
+            return dst_offset, src
+        return None, None
+
     def extract_stack_data_flow(self, stmt):
         dst_offset = None
         src_offset = None

@@ -74,7 +74,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
         if (
             (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
             and call.args
-            and isinstance(call.args[0], StackBaseOffset)
+            and isinstance(call.args[-1], StackBaseOffset)
         ):
             stack = {}
             offset_to_stmt = {}
@@ -82,7 +82,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                 if isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
                     stack[stmt.addr.offset] = stmt.data
                     offset_to_stmt[stmt.addr.offset] = stmt
-            arg = stack.get(call.args[0].offset, None)
+            arg = stack.get(call.args[-1].offset, None)
             if isinstance(arg, Struct) and arg.type.name == "Arguments":
                 pieces = arg.get_field("pieces")
                 args = arg.get_field("args")
@@ -100,7 +100,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                     and all(isinstance(piece, Const) for piece in pieces.elements)
                 ):
                     stmts_to_remove = [offset_to_stmt[arg.offset] for arg in args.elements]
-                    stmts_to_remove.append(offset_to_stmt[call.args[0].offset])
+                    stmts_to_remove.append(offset_to_stmt[call.args[-1].offset])
 
                     pieces = [self._extract_string_from_const(piece) for piece in pieces.elements]
                     args = [stack[arg.offset] for arg in args.elements]
