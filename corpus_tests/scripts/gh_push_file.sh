@@ -95,6 +95,7 @@ REMOTE_PATH="${REST[1]}"
 "${SCRIPT_DIR}/gh_ls.sh" \
   -R "${REPO}" \
   -t "${GITHUB_TOKEN}" \
+  -b "${REF_HEAD}" \
   -p "${REMOTE_PATH}" \
   --with-sha | \
 awk -F, '{print $NF}' | \
