@@ -14,6 +14,8 @@ on:
         required: false
 
 env:
+  ANALYZE_SNAPSHOT_RETRIES: 3  # The number of times to try updating a snapshot.
+                               # take.
   CORPUS_GITHUB_BRANCH: "main"
   CORPUS_GITHUB_OWNER: "angr"
   # NB: The full corpus can be invoked with: path=cgc-challenges
@@ -46,10 +48,11 @@ jobs:
           && sudo apt update \
           && sudo apt install gh -y
 
-      - name:
-        env:
+      - env:
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set -euo pipefail
+
           # Check that the corpus repo is available.
           gh repo list \
             --json 'name' \
@@ -204,6 +207,7 @@ jobs:
   analyze_binaries:
     needs: [build, fetch_metadata_for_binaries]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     strategy:
       matrix:
@@ -340,20 +344,37 @@ jobs:
             -H "${snapshot_branch}" \
             -t "${SNAPSHOT_TOKEN}"
 
+          # Allow scripts to fail to check exit codes.
+          set +e
+
           echo "Pushing all .json.txt files up to the branch."
           for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
             # Second arg is the file path in the snapshots repo.
             n=0
-            while ! ./scripts/gh_push_file.sh \
+            while true; do
+              ./scripts/gh_push_file.sh \
                 -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
                 -H "${snapshot_branch}" \
                 -t "${SNAPSHOT_TOKEN}" \
                 "${file}" \
-                "${file}"; do
-              n=$((n+1))
-              if [ $n -ge $tries ]; then
+                "${file}"
+              exit_code=$?
+
+              if [[ $exit_code -eq 0 ]]; then
+                echo "successfully uploaded $file"
+                break
+              elif [[ $exit_code -ne 75 ]]; then
+                # Failure that is not safe to retry.
+                echo "failed to upload $file"
                 break
               fi
+
+              n=$((n+1))
+              if [[ $n -ge $ANALYZE_SNAPSHOT_RETRIES ]]; then
+                echo "exceeded retries for $file"
+                break
+              fi
+
               wait_time="$(printf '%u.%03u' $((RANDOM % 4)) $((RANDOM % 1000)))"
               echo "Pushing file failed; waiting ${wait_time}s to try again."
               sleep "${wait_time}"

@@ -119,4 +119,43 @@ gh api "/repos/${REPO}/contents/${REMOTE_PATH}" \
    -f "committer[email]=github-actions[bot]@users.noreply.github.com" \
    -f content="$(base64 < "${LOCAL_FILE}")" \
    -f branch="${REF_HEAD}" \
-   ${SHA_OPTION[@]}
+   ${SHA_OPTION[@]} | \
+jq -c '.' | \
+read -r HTTP_RESPONSE
+
+HTTP_STATUS="$(jq -r .status <<< "$HTTP_RESPONSE")"
+
+EX_OK=0
+EX_GENERIC=1
+EX_TEMPFAIL=75
+EX_NOTFOUND=127
+
+case $HTTP_STATUS in
+  # Successfully created a file.
+  200) exit $EX_OK ;;
+
+  # GitHub rate limits are hourly limits. Short-circuit.
+  #
+  # gh: API rate limit exceeded for user ID <id>. If you reach out to GitHub
+  #     Support for help, please include the request ID <id> and timestamp
+  #     2024-12-03 UTC. (HTTP 403)
+  403 | 429) exit $EX_NOTFOUND ;;
+
+  # Branch does not exist. Short-circuit.
+  #
+  # gh: Branch feat/multisimplifier_replacement not found (HTTP 404)
+  404) exit $EX_NOTFOUND ;;
+
+  # Conflict: File does not match. Signal to retry. This script will get invoked
+  # again, at which time, the updated file SHA should be retrieved.
+  #
+  # gh: snapshots/stable/cgc-challenges/linux-build64/BudgIT.json.txt does not
+  #     match a07355019d18e4c9fa09a2150379f6b0c48e257e (HTTP 409)
+  409) exit $EX_TEMPFAIL ;;
+
+  # gh: We couldn't respond to your request in time. Sorry about that. Please try
+  #     resubmitting your request and contact us if the problem persists. (HTTP 504)
+  504) exit $EX_TEMPFAIL ;;
+
+  *) exit $EX_GENERIC ;;
+esac
