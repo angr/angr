@@ -113,7 +113,7 @@ printf "Found REF_BASE: %s %s\n" "${REF_BASE}" "${SHA}" >&2
 gh api "/repos/${REPO}/git/refs/heads/${REF_HEAD}" \
   -X GET \
   -H "Accept: application/vnd.github.v3+json" 2>/dev/null | \
-jq -r .status | \
+jq -cr .status | \
 read -r STATUS
 
 if [[ "${STATUS}" = "404" ]]; then
