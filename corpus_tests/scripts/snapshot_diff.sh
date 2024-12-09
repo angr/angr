@@ -119,8 +119,8 @@ if [[ -z "${REF_HEAD}" ]]; then
 fi
 
 if [[ -z "${SNAPSHOT_DIR}" ]]; then
-  trap 'rm -rf "$TEMP_DIR"' EXIT
   SNAPSHOT_DIR=$(mktemp -d)
+  trap 'rm -rf "$SNAPSHOT_DIR"' EXIT
 else
   mkdir -p "${SNAPSHOT_DIR}"
 fi
