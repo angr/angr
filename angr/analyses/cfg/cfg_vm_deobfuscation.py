@@ -1516,6 +1516,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # if block_id.vm_vpc in [4594391]:
         #     import ipdb;ipdb.set_trace(())
+        if block_id in self.project.to_symbolize:
+            for k in self.project.to_symbolize[block_id].keys():
+                for page_no, offset, size in self.project.to_symbolize[block_id][k]:
+                    sym_result = job.state.solver.BVS("symbolified_expr" + str(hex(block_id.addr))+str(block_id.vm_vpc), size*self.project.arch.byte_width)
+                    if k=='mem':
+                        job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness)
+                    elif k=='reg':
+                        job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness)
+
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         if self.saved_call_stack is None:
