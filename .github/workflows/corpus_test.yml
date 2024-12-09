@@ -289,7 +289,7 @@ jobs:
               echo "Retrieving snapshot from '${snapshot_url}'."
               curl -L -H "Authorization: token $GITHUB_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
 
-              if [ ! -e "${pytest_insta_snapshot_file}" ]; then
+              if [[ ! -e "${pytest_insta_snapshot_file}" ]]; then
                 echo "*** Failed to download snapshot at '${snapshot_url}'."
                 exit 1
               fi
