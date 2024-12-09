@@ -1,8 +1,9 @@
 from typing import Iterable, Tuple, Any, Callable
 
 from . import MemoryMixin
-
-
+import time
+def cur_time():
+    return time.perf_counter_ns() / 1000000
 class EvalTopMergerMixin(MemoryMixin):
     """
     A memory mixin for merging values in memory to TOP.
@@ -13,7 +14,7 @@ class EvalTopMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
-    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, all_states=None, **kwargs):
+    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, all_states=None, page_addr=None, offset=None, size=None, **kwargs):
         if len(all_states) != len(values):
             print("We have a problem!")
             import ipdb;ipdb.set_trace()
@@ -56,12 +57,29 @@ class EvalTopMergerMixin(MemoryMixin):
             # this causes load address which should only resolve to one address to resolve to multiple addresses
             # and create another mba_split_cond variable
             # So if both the values evaluate to the same concrete value
-            return value0
-            # merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-            # for tm, fv in values:
-            #     merged_val = self.state.solver.If(fv, tm, merged_val)
-            # # should we add state constraint as well?
-            # return merged_val
+            # return value0
+
+            is_sp_addr1 = False
+            is_sp_addr2 = False
+            for var in value0.variables:
+                if var.startswith('precon_sp'):
+                    is_sp_addr1 = True
+                    break
+            for var in value1.variables:
+                if var.startswith('precon_sp'):
+                    is_sp_addr2 = True
+                    break
+            if not is_sp_addr1 or not is_sp_addr2:
+                conc_ast = self.state.solver.BVV(conc_addr1, value0.size())
+                return conc_ast
+            else:
+                # merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
+                # for tm, fv in values:
+                #     merged_val = self.state.solver.If(fv, tm, merged_val)
+                # # should we add state constraint as well?
+                # return merged_val
+                # we only return value0 to make things easier and quicker for the solver, otherwise the right thing to do is return both as above
+                return value0
 
         # if value0.symbolic and value1.symbolic:
         #     is_sp_addr1 = False
@@ -95,7 +113,7 @@ class EvalTopMergerMixin(MemoryMixin):
                 #     import ipdb;
                 #     ipdb.set_trace()
 
-        if conc_addr0:
+        if conc_addr0 is not None:
             # this is to deal with the case when we have not yet explored a branch plit, but during symbolization
             # the vips are resolving to two values and now a merge is happening with the previous single vip value
             # we do not want vip to become TOP, so we return the initial vip and wait for the new branch discovery
@@ -123,7 +141,7 @@ class EvalTopMergerMixin(MemoryMixin):
 
             except:
                 pass
-        elif conc_addr1:
+        elif conc_addr1 is not None:
             try:
                 conc_addrs0 = state0.partial_symbolic_constraint_solver.eval_upto(value0, 3)
                 if len(conc_addrs0) == 2 and conc_addr1 in conc_addrs0:
@@ -145,7 +163,7 @@ class EvalTopMergerMixin(MemoryMixin):
 
             except:
                 pass
-        else:
+        elif self.state.globals['is_constant_propagation']:
             #keep both symbolic values, we could replace this with TOP to make things faster
             merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
             for tm, fv in values:
@@ -155,6 +173,9 @@ class EvalTopMergerMixin(MemoryMixin):
 
         merged_val = self._top_func(merged_size * self.state.arch.byte_width)
         self.state.project.merger_top_dict_debug[merged_val.args[0]] = values
+        if self.id not in self.state.project.to_symbolize[self.state.globals['cur_block_id']]:
+            self.state.project.to_symbolize[self.state.globals['cur_block_id']][self.id] = []
+        self.state.project.to_symbolize[self.state.globals['cur_block_id']][self.id].append((page_addr, offset, size))
         return merged_val
 
     def copy(self, memo=None):

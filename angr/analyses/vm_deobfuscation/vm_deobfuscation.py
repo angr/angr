@@ -131,59 +131,6 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
     def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
         return self._handle_vex_expr_RdTmp(expr)
 
-
-    def _handle_vex_expr(self, expr):
-        result = super()._handle_vex_expr(expr)
-        ## Should we do at least _replacement() here so tht mbas will keep getting simplified, this will help if the mba is on stack and has not been replaced in _perform_vex_expr_Load
-        ## But this slows down analyses so instead we just do replacement for all temps and registers in _perform_vex_expr_Load
-        #new_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
-        new_result = result
-        code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
-
-        symbolify = False
-
-        if (code_loc, expr) in self.project.merged_tops:
-            if not (result.depth == 1 and self.state.solver.symbolic(result) and result.args[0].startswith('symbolified_expr')):
-                # import ipdb;ipdb.set_trace()
-                symbolify = True
-
-        # if isinstance(expr, pyvex.expr.Load) and self.state.solver.symbolic(result) and self.project.prev_symbolic_expr_locations and (code_loc, expr) in self.project.prev_symbolic_expr_locations:
-        #     skip = False
-        #     #make sure that we are only testing exprs with all variables that are the mba_state_split_cond
-        #     for var in result.variables:
-        #         if var.startswith('precon_sp'):
-        #             skip = True
-        #             break
-        #
-        #     if not skip:
-        #         try:
-        #             #we need to check for constants that need to be symbolized
-        #             tmp = self.state.partial_symbolic_constraint_solver.eval_one(result)
-        #             symbolify = True
-        #         except:
-        #             pass
-
-        if symbolify or (self.project.prev_symbolic_expr_locations and not self.state.solver.symbolic(result) and (code_loc, expr) in self.project.prev_symbolic_expr_locations):
-            sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(code_loc.block_addr)), result.size())
-            self.state.globals['expr_loc_map'][sym_result.args[0]] = (code_loc, expr)
-            new_result = sym_result
-
-            cur_stmt = self.state.scratch.irsb.statements[self.stmt_idx]
-            # store the symbolized value back in memory
-            if isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data, pyvex.expr.Load) and isinstance(expr, pyvex.expr.Load):
-                if isinstance(cur_stmt.data.addr, pyvex.expr.RdTmp):
-                    if not self.state.solver.symbolic(self.state.scratch.temps[cur_stmt.data.addr.tmp]):
-                        self.state.memory.store(self.state.scratch.temps[cur_stmt.data.addr.tmp], sym_result)
-                    else:
-                        addr = self.state.partial_symbolic_constraint_solver.eval_one(self.state.scratch.temps[cur_stmt.data.addr.tmp])
-                        self.state.memory.store(addr, sym_result)
-                elif isinstance(cur_stmt.data.addr, pyvex.expr.Const):
-                    self.state.memory.store(cur_stmt.data.addr.con.value, sym_result)
-            elif isinstance(cur_stmt, pyvex.stmt.WrTmp) and isinstance(cur_stmt.data, pyvex.expr.Get) and isinstance(expr, pyvex.expr.Get):
-                self.state.registers.store(cur_stmt.data.offset, sym_result)
-
-        return new_result
-
     def _handle_vex_expr_Load(self, expr: pyvex.expr.Load):
         return self._perform_vex_expr_Load(self._analyze_vex_expr_Load_addr(expr.addr), expr.ty, expr.end, expr=expr)
 
@@ -283,38 +230,38 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
 
                 return final_cond
 
-            elif len(conc_addrs) > 2:
-                # jump table for switch case
-                sec = self.project.loader.main_object.find_section_containing(conc_addrs[0].args[0])
-                if not sec:
-                    return result
-                elif (sec.name.startswith('.rdata') or sec.name.startswith('.data')):
-                    return result
-
-                print("possibly a switch case jump table?")
-                conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 12)
-                ast_addrs = []
-                for con_addr in conc_addrs:
-                    ast_addrs.append(claripy.BVV(con_addr, addr.size()))
-
-                conc_addrs = ast_addrs
-
-                loaded_values = []
-
-                for conc_addr in conc_addrs:
-                    loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
-                                                          endness=self.state.arch.memory_endness)
-                    if loaded_value.concrete and self.state.project.loader.main_object.contains_addr(loaded_value.concrete_value):
-                        loaded_values.append(loaded_value)
-
-                no_bits = len(bin(len(loaded_values)))-2
-                indirect_jump_var = claripy.BVS('switch_case_table', no_bits)
-                final_cond = loaded_values[-1]
-                for idx, loaded_value in enumerate(loaded_values[:-1]):
-                    final_cond = claripy.If(indirect_jump_var == idx, loaded_value, final_cond)
-
-
-                return final_cond
+            # elif len(conc_addrs) > 2:
+            #     # jump table for switch case
+            #     sec = self.project.loader.main_object.find_section_containing(conc_addrs[0].args[0])
+            #     if not sec:
+            #         return result
+            #     elif (sec.name.startswith('.rdata') or sec.name.startswith('.data')):
+            #         return result
+            #
+            #     print("possibly a switch case jump table?")
+            #     conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 12)
+            #     ast_addrs = []
+            #     for con_addr in conc_addrs:
+            #         ast_addrs.append(claripy.BVV(con_addr, addr.size()))
+            #
+            #     conc_addrs = ast_addrs
+            #
+            #     loaded_values = []
+            #
+            #     for conc_addr in conc_addrs:
+            #         loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
+            #                                               endness=self.state.arch.memory_endness)
+            #         if loaded_value.concrete and self.state.project.loader.main_object.contains_addr(loaded_value.concrete_value):
+            #             loaded_values.append(loaded_value)
+            #
+            #     no_bits = len(bin(len(loaded_values)))-2
+            #     indirect_jump_var = claripy.BVS('switch_case_table', no_bits)
+            #     final_cond = loaded_values[-1]
+            #     for idx, loaded_value in enumerate(loaded_values[:-1]):
+            #         final_cond = claripy.If(indirect_jump_var == idx, loaded_value, final_cond)
+            #
+            #
+            #     return final_cond
 
 
             elif len(conc_addrs) == 2:
@@ -408,8 +355,8 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
 
                 return to_return
             else:
-                print("Hmmm")
-                import ipdb;ipdb.set_trace()
+                print("More than one possible addrs")
+                # import ipdb;ipdb.set_trace()
 
 
         return result
@@ -478,7 +425,7 @@ def save_vpc_at_mem_loc(state):
     expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.memory.load(state.inspect.mem_write_address, state.arch.bytes, endness=state.arch.memory_endness), 2)
     if len(expr_val) > 1:
         l.debug("More than one VIP, gonna add both values and create a new one")
-        import ipdb;ipdb.set_trace()
+        # import ipdb;ipdb.set_trace()
         expr_val = expr_val[0]
     else:
         expr_val = expr_val[0]
@@ -553,7 +500,7 @@ class VMDeobfuscation(Analysis):
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
-                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False):
+                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -674,6 +621,10 @@ class VMDeobfuscation(Analysis):
             with open(pickled_file_name, 'wb') as f:
                 pickle.dump(self.project.symbolizer_solve_times, f)
 
+            pickled_file_name = os.path.dirname(self.project.filename) + "/merge_state_to_symb" + str(symb_iter)
+            with open(pickled_file_name, 'wb') as f:
+                pickle.dump(self.project.to_symbolize, f)
+
             self.project.symbolizer_solve_times = []
 
 
@@ -736,6 +687,7 @@ class VMDeobfuscation(Analysis):
 
         import gc
         gc.collect()
+        self.project.to_symbolize = defaultdict(dict)
         ## This is constant propgation along with finding non-constants
         new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations=None,
                                      prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)
@@ -788,7 +740,7 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
 
-            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
         #pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
         # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
@@ -890,7 +842,7 @@ class VMDeobfuscation(Analysis):
 
                 new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
 
-                new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+                new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
                 new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
 
@@ -917,7 +869,7 @@ class VMDeobfuscation(Analysis):
 
                 new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
 
-                new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+                new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
                 self.draw_graph(new_cfg, os.path.join(folder_name,  str(i)+"block_arithmetic_simplifications_using_dep_graph.svg"))
 
@@ -1770,7 +1722,7 @@ class VMDeobfuscation(Analysis):
 
             initial_input_state.register_plugin('partial_symbolic_constraint_solver',
                                                 angr.state_plugins.solver.SimSolver(
-                                                    claripy.solvers.SolverReplacement(claripy.Solver(timeout=500000),
+                                                    claripy.solvers.SolverReplacement(claripy.Solver(timeout=1200000),
                                                                                       unsafe_replacement=True,
                                                                                       auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
@@ -2242,7 +2194,7 @@ class VMDeobfuscation(Analysis):
 
 
     @logtime
-    def join_basic_blocks(self, cfg, proj, start_addr, start_state):
+    def join_basic_blocks(self, cfg, proj, start_addr, start_state, skip_call_ret=False):
         print("Join Basic blocks")
         #new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
         new_model = cfg
@@ -2251,8 +2203,8 @@ class VMDeobfuscation(Analysis):
             # This is to check if the node was deleted or not
             if node in new_model.graph.nodes():
                 if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
-                    # if node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
-                    #     continue
+                    if skip_call_ret and node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
+                        continue
                     succ = list(new_model.graph.successors(node))[0]
                     if len(list(new_model.graph.predecessors(succ))) == 1 and not succ.is_simprocedure:
                         new_stmts = []
@@ -4567,16 +4519,22 @@ class VMDeobfuscation(Analysis):
 
     def super_graph(self, cfg):
         super_graph = cfg.graph.copy()
+        all_nodes = list(super_graph.nodes())
         nodes_to_remove = []
         edges_to_add = []
-        for node in super_graph.nodes():
+        for node in all_nodes:
             if len(list(super_graph.successors(node))) == 1 and len(list(super_graph.predecessors(node))) == 1 and not node.is_simprocedure:
-                # edges_to_add.append((list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0]))
-                nodes_to_remove.append(node)
+                succ = list(super_graph.successors(node))[0]
+                pred = list(super_graph.predecessors(node))[0]
+                if len(list(super_graph.successors(pred))) == 1 and len(list(super_graph.predecessors(succ))) == 1:
+                    # edges_to_add.append((list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0]))
+                    # nodes_to_remove.append(node)
+                    super_graph.add_edge(list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0])
+                    super_graph.remove_node(node)
 
-        for node in nodes_to_remove:
-            super_graph.add_edge(list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0])
-            super_graph.remove_node(node)
+        # for node in nodes_to_remove:
+        #     super_graph.add_edge(list(super_graph.predecessors(node))[0], list(super_graph.successors(node))[0])
+        #     super_graph.remove_node(node)
         # for edge in edges_to_add:
         #     super_graph.add_edge(edge[0], edge[1])
         return super_graph
