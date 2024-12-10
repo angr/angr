@@ -52,6 +52,7 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     LoopNode,
     BreakNode,
     SwitchCaseNode,
+    IncompleteSwitchCaseNode,
     ContinueNode,
     CascadingConditionNode,
 )
@@ -1130,6 +1131,53 @@ class CSwitchCase(CStatement):
             yield indent_str, None
             yield "default:\n", self
             yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
+
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", None
+
+
+class CIncompleteSwitchCase(CStatement):
+    """
+    Represents an incomplete switch-case construct; this only appear in the decompilation output when switch-case
+    structuring fails (for whatever reason).
+    """
+
+    __slots__ = ("head", "cases", "tags")
+
+    def __init__(self, head, cases, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.head = head
+        self.cases: list[tuple[int, CStatements]] = cases
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        paren = CClosingObject("(")
+        brace = CClosingObject("{")
+
+        yield from self.head.c_repr_chunks(indent=indent)
+        yield "\n", None
+        yield indent_str, None
+        yield "switch ", self
+        yield "(", paren
+        yield "/* incomplete */", None
+        yield ")", paren
+        if self.codegen.braces_on_own_lines:
+            yield "\n", None
+            yield indent_str, None
+        else:
+            yield " ", None
+        yield "{", brace
+        yield "\n", None
+
+        # cases
+        for case_addr, case in self.cases:
+            yield indent_str, None
+            yield f"case {case_addr:#x}", self
+            yield ":\n", None
+            yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
 
         yield indent_str, None
         yield "}", brace
@@ -2445,6 +2493,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Block: self._handle_AILBlock,
             BreakNode: self._handle_Break,
             SwitchCaseNode: self._handle_SwitchCase,
+            IncompleteSwitchCaseNode: self._handle_IncompleteSwitchCase,
             ContinueNode: self._handle_Continue,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
@@ -3175,6 +3224,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
         return CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
+
+    def _handle_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
+        head = self._handle(node.head, is_expr=False)
+        cases = [(case.addr, self._handle(case, is_expr=False)) for case in node.cases]
+        tags = {"ins_addr": node.addr}
+        return CIncompleteSwitchCase(head, cases, tags=tags, codegen=self)
 
     def _handle_Continue(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
