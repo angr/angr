@@ -2078,7 +2078,7 @@ class Clinic(Analysis):
             node_dict[node.addr].append(node)
 
         candidates = []
-        for block_addr, indirect_jump in self._cfg.jump_tables.items():
+        for block_addr in self._cfg.jump_tables:
             block_nodes = node_dict[block_addr]
             for block_node in block_nodes:
                 if ail_graph.in_degree[block_node] > 1:
@@ -2152,11 +2152,13 @@ class Clinic(Analysis):
 
         return overlap
 
-    def _get_overlapping_suffix_instructions_compare_instructions(self, insn_0, insn_1) -> bool:
+    @staticmethod
+    def _get_overlapping_suffix_instructions_compare_instructions(insn_0, insn_1) -> bool:
         return insn_0.mnemonic == insn_1.mnemonic and insn_0.op_str == insn_1.op_str
 
+    @staticmethod
     def _get_overlapping_suffix_instructions_compare_conditional_jumps(
-        self, ailblock_0: ailment.Block, ailblock_1: ailment.Block
+        ailblock_0: ailment.Block, ailblock_1: ailment.Block
     ) -> bool:
         # TODO: The logic here is naive and highly customized to the only example I can access. Expand this method
         #  later to handle more cases if needed.
