@@ -16,7 +16,7 @@ from angr.analyses.typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
-    from .variable_recovery_fast import VariableRecoveryFastState
+    pass
 
 
 l = logging.getLogger(name=__name__)
@@ -24,8 +24,8 @@ l.addFilter(UniqueLogFilter())
 
 
 class SimEngineVRAIL(
-    SimEngineNostmtAIL[VariableRecoveryFastState, RichR[claripy.ast.BV | claripy.ast.FP], None, None],
-    SimEngineVRBase[VariableRecoveryFastState, ailment.Block],
+    SimEngineNostmtAIL["VariableRecoveryFastState", RichR[claripy.ast.BV | claripy.ast.FP], None, None],
+    SimEngineVRBase["VariableRecoveryFastState", ailment.Block],
 ):
     """
     The engine for variable recovery on AIL.
