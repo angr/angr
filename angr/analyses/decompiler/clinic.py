@@ -116,6 +116,7 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
+        unsound_fix_abnormal_switches: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -147,6 +148,7 @@ class Clinic(Analysis):
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
+        self._unsound_fix_abnormal_switches = unsound_fix_abnormal_switches
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
@@ -2124,9 +2126,39 @@ class Clinic(Analysis):
                 # Case 1
                 self._fix_abnormal_switch_case_heads_case1(ail_graph, candidate, intended_head, other_heads, overlap)
             else:
-                # Case 2
-                l.warning("Switch-case at %#x has multiple head nodes but cannot be fixed soundly.", candidate.addr)
-                self._fix_abnormal_switch_case_heads_case2(ail_graph, candidate, intended_head, other_heads)
+                if self._unsound_fix_abnormal_switches:
+                    # Case 2
+                    l.warning("Switch-case at %#x has multiple head nodes but cannot be fixed soundly.", candidate.addr)
+                    # find the comparison instruction in the intended head
+                    comparison_stmt = None
+                    if "cc_op" in self.project.arch.registers:
+                        comparison_stmt = next(
+                            iter(
+                                stmt
+                                for stmt in intended_head.statements
+                                if isinstance(stmt, ailment.Stmt.Assignment)
+                                and isinstance(stmt.dst, ailment.Expr.Register)
+                                and stmt.dst.reg_offset == self.project.arch.registers["cc_op"][0]
+                            ),
+                            None,
+                        )
+                    if comparison_stmt is not None:
+                        intended_head_block = self.project.factory.block(
+                            intended_head.addr, size=intended_head.original_size
+                        )
+                        cmp_rpos = len(
+                            intended_head_block.instruction_addrs
+                        ) - intended_head_block.instruction_addrs.index(comparison_stmt.ins_addr)
+                    else:
+                        cmp_rpos = 2
+                    self._fix_abnormal_switch_case_heads_case2(
+                        ail_graph,
+                        candidate,
+                        intended_head,
+                        other_heads,
+                        intended_head_split_insns=cmp_rpos,
+                        other_head_split_insns=0,
+                    )
 
     def _get_overlapping_suffix_instructions(self, ailblock_0: ailment.Block, ailblock_1: ailment.Block) -> int:
         # we first compare their ending conditional jumps
@@ -2217,7 +2249,12 @@ class Clinic(Analysis):
         overlap: int,
     ) -> None:
         self._fix_abnormal_switch_case_heads_case2(
-            ail_graph, indirect_jump_node, intended_head, other_heads, overlap=overlap
+            ail_graph,
+            indirect_jump_node,
+            intended_head,
+            other_heads,
+            intended_head_split_insns=overlap,
+            other_head_split_insns=overlap,
         )
 
     def _fix_abnormal_switch_case_heads_case2(
@@ -2226,12 +2263,13 @@ class Clinic(Analysis):
         indirect_jump_node: ailment.Block,
         intended_head: ailment.Block,
         other_heads: list[ailment.Block],
-        overlap: int = 1,
+        intended_head_split_insns: int = 1,
+        other_head_split_insns: int = 0,
     ) -> None:
 
         # split the intended head into two
         intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
-        split_ins_addr = intended_head_block.instruction_addrs[-overlap]
+        split_ins_addr = intended_head_block.instruction_addrs[-intended_head_split_insns]
         intended_head_block_0 = self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
         intended_head_block_1 = self.project.factory.block(
             split_ins_addr, size=intended_head.addr + intended_head.original_size - split_ins_addr
@@ -2257,10 +2295,13 @@ class Clinic(Analysis):
 
         # split other heads
         for o in other_heads:
-            o_block = self.project.factory.block(o.addr, size=o.original_size)
-            o_split_addr = o_block.instruction_addrs[-overlap]
-            new_o_block = self.project.factory.block(o.addr, size=o_split_addr - o.addr)
-            new_head = self._convert_vex(new_o_block)
+            if other_head_split_insns > 0:
+                o_block = self.project.factory.block(o.addr, size=o.original_size)
+                o_split_addr = o_block.instruction_addrs[-other_head_split_insns]
+                new_o_block = self.project.factory.block(o.addr, size=o_split_addr - o.addr)
+                new_head = self._convert_vex(new_o_block)
+            else:
+                new_head = o
 
             if (
                 new_head.statements
