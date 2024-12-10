@@ -18,6 +18,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.codenode import BlockNode
 from angr.utils import timethis
+from angr.utils.graph import GraphUtils
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from angr.sim_type import (
     SimTypeChar,
@@ -265,6 +266,8 @@ class Clinic(Analysis):
     def _decompilation_fixups(self, ail_graph):
         is_pcode_arch = ":" in self.project.arch.name
 
+        # _fix_abnormal_switch_case_heads may re-lift from VEX blocks, so it should be placed as high up as possible
+        self._fix_abnormal_switch_case_heads(ail_graph)
         if self._rewrite_ites_to_diamonds:
             self._rewrite_ite_expressions(ail_graph)
         self._remove_redundant_jump_blocks(ail_graph)
@@ -941,7 +944,7 @@ class Clinic(Analysis):
 
     def _convert(self, block_node):
         """
-        Convert a VEX block to an AIL block.
+        Convert a BlockNode to an AIL block.
 
         :param block_node:  A BlockNode instance.
         :return:            A converted AIL block.
@@ -955,13 +958,16 @@ class Clinic(Analysis):
             return ailment.Block(block_node.addr, 0, statements=[])
 
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
+        return self._convert_vex(block)
+
+    def _convert_vex(self, block):
         if block.vex.jumpkind not in {"Ijk_Call", "Ijk_Boring", "Ijk_Ret"} and not block.vex.jumpkind.startswith(
             "Ijk_Sys"
         ):
             # we don't support lifting this block. use a dummy block instead
             dirty_expr = ailment.Expr.DirtyExpression(
                 self._ail_manager.next_atom,
-                f"Unsupported jumpkind {block.vex.jumpkind} at address {block_node.addr}",
+                f"Unsupported jumpkind {block.vex.jumpkind} at address {block.addr}",
                 [],
                 bits=0,
             )
@@ -969,10 +975,10 @@ class Clinic(Analysis):
                 ailment.Stmt.DirtyStatement(
                     self._ail_manager.next_atom(),
                     dirty_expr,
-                    ins_addr=block_node.addr,
+                    ins_addr=block.addr,
                 )
             ]
-            return ailment.Block(block_node.addr, block_node.size, statements=statements)
+            return ailment.Block(block.addr, block.size, statements=statements)
 
         return ailment.IRSBConverter.convert(block.vex, self._ail_manager)
 
@@ -2054,6 +2060,236 @@ class Clinic(Analysis):
         ail_graph.add_edge(false_block_ail, end_block_ail)
 
         return end_block_ail.addr
+
+    def _fix_abnormal_switch_case_heads(self, ail_graph: networkx.DiGraph) -> None:
+        """
+        Detect the existence of switch-case heads whose indirect jump node has more than one predecessor, and attempt
+        to fix those cases by altering the graph.
+        """
+
+        if self._cfg is None:
+            return
+
+        if not self._cfg.jump_tables:
+            return
+
+        node_dict: defaultdict[int, list[ailment.Block]] = defaultdict(list)
+        for node in ail_graph:
+            node_dict[node.addr].append(node)
+
+        candidates = []
+        for block_addr, indirect_jump in self._cfg.jump_tables.items():
+            block_nodes = node_dict[block_addr]
+            for block_node in block_nodes:
+                if ail_graph.in_degree[block_node] > 1:
+                    # found it
+                    candidates.append(block_node)
+
+        if not candidates:
+            return
+
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(ail_graph)
+        node_to_rank = {node: rank for rank, node in enumerate(sorted_nodes)}
+        for candidate in candidates:
+            # determine the "intended" switch-case head using topological order
+            preds = list(ail_graph.predecessors(candidate))
+            preds = sorted(preds, key=lambda n_: node_to_rank[n_])
+            intended_head = preds[0]
+            other_heads = preds[1:]
+
+            # now here is the tricky part. there are two cases:
+            # Case 1: the intended head and the other heads share the same suffix (of instructions)
+            #    Example:
+            #       ; binary 736cb27201273f6c4f83da362c9595b50d12333362e02bc7a77dd327cc6b045a
+            #       0041DA97 mov     ecx, [esp+2Ch+var_18]  ; this is the intended head
+            #       0041DA9B mov     ecx, [ecx]
+            #       0041DA9D cmp     ecx, 9
+            #       0041DAA0 jbe     loc_41D5A8
+            #
+            #       0041D599 mov     ecx, [ecx]             ; this is the other head
+            #       0041D59B mov     [esp+2Ch+var_10], eax
+            #       0041D59F cmp     ecx, 9
+            #       0041D5A2 ja      loc_41DAA6             ; fallthrough to 0x41d5a8
+            # given the overlap of two instructions at the end of both blocks, we will alter the second block to remove
+            # the overlapped instructions and add an unconditional jump so that it jumps to 0x41da9d.
+            # this is the most common case created by jump threading optimization in compilers. it's easy to handle.
+
+            # Case 2: the intended head and the other heads do not share the same suffix of instructions. in this case,
+            # we cannot reliably convert the blocks into a properly structured switch-case construct. we will alter the
+            # last instruction of all other heads to jump to the cmp instruction in the intended head, but do not remove
+            # any other instructions in these other heads. this is unsound, but is the best we can do in this case.
+
+            overlaps = [self._get_overlapping_suffix_instructions(intended_head, head) for head in other_heads]
+            if overlaps and (overlap := min(overlaps)) > 0:
+                # Case 1
+                self._fix_abnormal_switch_case_heads_case1(ail_graph, candidate, intended_head, other_heads, overlap)
+            else:
+                # Case 2
+                l.warning("Switch-case at %#x has multiple head nodes but cannot be fixed soundly.", candidate.addr)
+                self._fix_abnormal_switch_case_heads_case2(ail_graph, candidate, intended_head, other_heads)
+
+    def _get_overlapping_suffix_instructions(self, ailblock_0: ailment.Block, ailblock_1: ailment.Block) -> int:
+        # we first compare their ending conditional jumps
+        if not self._get_overlapping_suffix_instructions_compare_conditional_jumps(ailblock_0, ailblock_1):
+            return 0
+
+        # we re-lift the blocks and compare the instructions
+        block_0 = self.project.factory.block(ailblock_0.addr, size=ailblock_0.original_size)
+        block_1 = self.project.factory.block(ailblock_1.addr, size=ailblock_1.original_size)
+
+        i0 = len(block_0.capstone.insns) - 2
+        i1 = len(block_1.capstone.insns) - 2
+        overlap = 1
+        while i0 >= 0 and i1 >= 0:
+            same = self._get_overlapping_suffix_instructions_compare_instructions(
+                block_0.capstone.insns[i0], block_1.capstone.insns[i1]
+            )
+            if not same:
+                break
+            overlap += 1
+            i0 -= 1
+            i1 -= 1
+
+        return overlap
+
+    def _get_overlapping_suffix_instructions_compare_instructions(self, insn_0, insn_1) -> bool:
+        return insn_0.mnemonic == insn_1.mnemonic and insn_0.op_str == insn_1.op_str
+
+    def _get_overlapping_suffix_instructions_compare_conditional_jumps(
+        self, ailblock_0: ailment.Block, ailblock_1: ailment.Block
+    ) -> bool:
+        # TODO: The logic here is naive and highly customized to the only example I can access. Expand this method
+        #  later to handle more cases if needed.
+        if len(ailblock_0.statements) == 0 or len(ailblock_1.statements) == 0:
+            return False
+
+        # 12 | 0x41d5a2 | t17 = (t4 <= 0x9<32>)
+        # 13 | 0x41d5a2 | t16 = Conv(1->32, t17)
+        # 14 | 0x41d5a2 | t14 = t16
+        # 15 | 0x41d5a2 | t18 = Conv(32->1, t14)
+        # 16 | 0x41d5a2 | t9 = t18
+        # 17 | 0x41d5a2 | if (t9) { Goto 0x41d5a8<32> } else { Goto 0x41daa6<32> }
+
+        last_stmt_0 = ailblock_0.statements[-1]
+        last_stmt_1 = ailblock_1.statements[-1]
+        if not (isinstance(last_stmt_0, ailment.Stmt.ConditionalJump) and last_stmt_0.likes(last_stmt_1)):
+            return False
+
+        last_cmp_stmt_0 = next(
+            iter(
+                stmt
+                for stmt in reversed(ailblock_0.statements)
+                if isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
+                and isinstance(stmt.src.operands[1], ailment.Expr.Const)
+                and stmt.ins_addr == last_stmt_0.ins_addr
+            ),
+            None,
+        )
+        last_cmp_stmt_1 = next(
+            iter(
+                stmt
+                for stmt in reversed(ailblock_1.statements)
+                if isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
+                and isinstance(stmt.src.operands[1], ailment.Expr.Const)
+                and stmt.ins_addr == last_stmt_1.ins_addr
+            ),
+            None,
+        )
+        return (
+            last_cmp_stmt_0 is not None
+            and last_cmp_stmt_1 is not None
+            and last_cmp_stmt_0.src.op == last_cmp_stmt_1.src.op
+            and last_cmp_stmt_0.src.operands[1].likes(last_cmp_stmt_1.src.operands[1])
+        )
+
+    def _fix_abnormal_switch_case_heads_case1(
+        self,
+        ail_graph: networkx.DiGraph,
+        indirect_jump_node: ailment.Block,
+        intended_head: ailment.Block,
+        other_heads: list[ailment.Block],
+        overlap: int,
+    ) -> None:
+        self._fix_abnormal_switch_case_heads_case2(
+            ail_graph, indirect_jump_node, intended_head, other_heads, overlap=overlap
+        )
+
+    def _fix_abnormal_switch_case_heads_case2(
+        self,
+        ail_graph: networkx.DiGraph,
+        indirect_jump_node: ailment.Block,
+        intended_head: ailment.Block,
+        other_heads: list[ailment.Block],
+        overlap: int = 1,
+    ) -> None:
+
+        # split the intended head into two
+        intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
+        split_ins_addr = intended_head_block.instruction_addrs[-overlap]
+        intended_head_block_0 = self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+        intended_head_block_1 = self.project.factory.block(
+            split_ins_addr, size=intended_head.addr + intended_head.original_size - split_ins_addr
+        )
+        intended_head_0 = self._convert_vex(intended_head_block_0)
+        intended_head_1 = self._convert_vex(intended_head_block_1)
+
+        # adjust the graph accordingly
+        preds = list(ail_graph.predecessors(intended_head))
+        succs = list(ail_graph.successors(intended_head))
+        ail_graph.remove_node(intended_head)
+        ail_graph.add_edge(intended_head_0, intended_head_1)
+        for pred in preds:
+            if pred is intended_head:
+                ail_graph.add_edge(intended_head_1, intended_head_0)
+            else:
+                ail_graph.add_edge(pred, intended_head_0)
+        for succ in succs:
+            if succ is intended_head:
+                ail_graph.add_edge(intended_head_1, intended_head_0)
+            else:
+                ail_graph.add_edge(intended_head_1, succ)
+
+        # split other heads
+        for o in other_heads:
+            o_block = self.project.factory.block(o.addr, size=o.original_size)
+            o_split_addr = o_block.instruction_addrs[-overlap]
+            new_o_block = self.project.factory.block(o.addr, size=o_split_addr - o.addr)
+            new_head = self._convert_vex(new_o_block)
+
+            if (
+                new_head.statements
+                and isinstance(new_head.statements[-1], ailment.Stmt.Jump)
+                and isinstance(new_head.statements[-1].target, ailment.Expr.Const)
+            ):
+                # update the jump target
+                new_head.statements[-1] = ailment.Stmt.Jump(
+                    new_head.statements[-1].idx,
+                    ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
+                    target_idx=intended_head_1.idx,
+                    **new_head.statements[-1].tags,
+                )
+
+            # adjust the graph accordingly
+            preds = list(ail_graph.predecessors(o))
+            succs = list(ail_graph.successors(o))
+            ail_graph.remove_node(o)
+            for pred in preds:
+                if pred is o:
+                    ail_graph.add_edge(new_head, new_head)
+                else:
+                    ail_graph.add_edge(pred, new_head)
+            for succ in succs:
+                if succ is o:
+                    ail_graph.add_edge(new_head, new_head)
+                elif succ is indirect_jump_node:
+                    ail_graph.add_edge(new_head, intended_head_1)
+                else:
+                    # it should be going to the default node. ignore it
+                    pass
 
     @staticmethod
     def _remove_redundant_jump_blocks(ail_graph):

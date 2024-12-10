@@ -1192,8 +1192,10 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
-            self._unpack_incompleteswitchcasenode(graph, node_a)
-            self._unpack_incompleteswitchcasenode(full_graph, node_a)
+            r = self._unpack_incompleteswitchcasenode(graph, node_a)
+            if not r:
+                return False
+            self._unpack_incompleteswitchcasenode(full_graph, node_a)  # this shall not fail
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
@@ -1308,7 +1310,9 @@ class PhoenixStructurer(StructurerBase):
         ):
             out_nodes = set()
             for succ in successors:
-                out_nodes |= set(full_graph.successors(succ))
+                out_nodes |= {
+                    succ for succ in full_graph.successors(succ) if succ is not node and succ not in successors
+                }
             out_nodes = list(out_nodes)
             if len(out_nodes) <= 1:
                 new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
@@ -1508,7 +1512,10 @@ class PhoenixStructurer(StructurerBase):
                     if node_default is not None:
                         all_case_nodes.append(node_default)
                     case_node: SequenceNode = next(nn for nn in all_case_nodes if nn.addr == out_src.addr)
-                    case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
+                    try:
+                        case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
+                    except EmptyBlockNotice:
+                        case_node_last_stmt = None
                     if not isinstance(case_node_last_stmt, Jump):
                         jump_stmt = Jump(
                             None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
@@ -2460,7 +2467,7 @@ class PhoenixStructurer(StructurerBase):
         return True, new_seq
 
     @staticmethod
-    def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode):
+    def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode) -> bool:
         preds = list(graph.predecessors(incscnode))
         succs = list(graph.successors(incscnode))
         if len(succs) <= 1:
@@ -2471,6 +2478,8 @@ class PhoenixStructurer(StructurerBase):
                 graph.add_edge(incscnode.head, case_node)
                 if succs:
                     graph.add_edge(case_node, succs[0])
+            return True
+        return False
 
     @staticmethod
     def _count_statements(node: BaseNode | Block) -> int:
