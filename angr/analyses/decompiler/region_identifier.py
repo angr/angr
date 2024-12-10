@@ -235,10 +235,11 @@ class RegionIdentifier(Analysis):
         heads = {t for _, t in dfs_back_edges(graph, self._start_node)}
         return GraphUtils.quasi_topological_sort_nodes(graph, heads)
 
-    def _find_initial_loop_nodes(self, graph: networkx.DiGraph, head):
+    @staticmethod
+    def find_initial_loop_nodes(graph: networkx.DiGraph, start_node, loop_head):
         # TODO optimize
-        latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
-        loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
+        latching_nodes = {s for s, t in dfs_back_edges(graph, start_node) if t == loop_head}
+        loop_subgraph = RegionIdentifier.slice_graph(graph, loop_head, latching_nodes, include_frontier=True)
 
         # special case: any node with more than two non-self successors are probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
@@ -485,7 +486,7 @@ class RegionIdentifier(Analysis):
         original_entry = self._get_entry_node(graph)
 
         l.debug("Found cyclic region at %#08x", head.addr)
-        initial_loop_nodes = self._find_initial_loop_nodes(graph, head)
+        initial_loop_nodes = self.find_initial_loop_nodes(graph, self._start_node, head)
         l.debug("Initial loop nodes %s", self._dbg_block_list(initial_loop_nodes))
 
         # Make sure no other loops are contained in the current loop
