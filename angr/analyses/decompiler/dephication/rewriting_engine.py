@@ -400,7 +400,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     _handle_binop_InterleaveLOV = _unreachable
     _handle_binop_InterleaveHIV = _unreachable
     _handle_binop_CasCmpNE = _unreachable
-    _handle_binop_CmpExpNE = _unreachable
+    _handle_binop_ExpCmpNE = _unreachable
     _handle_binop_ShrNV = _unreachable
     _handle_binop_ShlNV = _unreachable
     _handle_binop_GetMSBs = _unreachable
