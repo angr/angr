@@ -257,7 +257,14 @@ class RegionIdentifier(Analysis):
 
         return set(loop_subgraph)
 
-    def _refine_loop(self, graph: networkx.DiGraph, head, initial_loop_nodes, initial_exit_nodes):
+    @staticmethod
+    def refine_loop(
+        graph: networkx.DiGraph,
+        head,
+        initial_loop_nodes,
+        initial_exit_nodes,
+        largest_successor_tree_outside_loop: bool = False,
+    ):
         if len(initial_exit_nodes) <= 1:
             return initial_loop_nodes, initial_exit_nodes
 
@@ -327,7 +334,7 @@ class RegionIdentifier(Analysis):
         refined_exit_nodes = set(sorted_refined_exit_nodes)
         refined_loop_nodes = refined_loop_nodes - refined_exit_nodes
 
-        if self._largest_successor_tree_outside_loop and not refined_exit_nodes:
+        if largest_successor_tree_outside_loop and not refined_exit_nodes:
             # figure out the new successor tree with the highest number of nodes
             initial_exit_to_newnodes = defaultdict(set)
             newnode_to_initial_exits = defaultdict(set)
@@ -510,7 +517,13 @@ class RegionIdentifier(Analysis):
 
         l.debug("Initial exit nodes %s", self._dbg_block_list(initial_exit_nodes))
 
-        refined_loop_nodes, refined_exit_nodes = self._refine_loop(graph, head, initial_loop_nodes, initial_exit_nodes)
+        refined_loop_nodes, refined_exit_nodes = self.refine_loop(
+            graph,
+            head,
+            initial_loop_nodes,
+            initial_exit_nodes,
+            largest_successor_tree_outside_loop=self._largest_successor_tree_outside_loop,
+        )
         l.debug("Refined loop nodes %s", self._dbg_block_list(refined_loop_nodes))
         l.debug("Refined exit nodes %s", self._dbg_block_list(refined_exit_nodes))
 

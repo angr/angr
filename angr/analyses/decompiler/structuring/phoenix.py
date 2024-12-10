@@ -632,7 +632,17 @@ class PhoenixStructurer(StructurerBase):
         # continue_node either the loop header for while(true) loops or the loop header predecessor for do-while loops
         continue_node = loop_head
 
-        loop_nodes = RegionIdentifier.find_initial_loop_nodes(graph, loop_head, loop_head)
+        initial_loop_nodes = RegionIdentifier.find_initial_loop_nodes(graph, loop_head, loop_head)
+        initial_exit_nodes = set()
+        for nn in initial_loop_nodes:
+            succs = set(graph.successors(nn))
+            initial_exit_nodes |= succs - initial_loop_nodes
+        loop_nodes, _ = RegionIdentifier.refine_loop(
+            graph,
+            loop_head,
+            initial_loop_nodes,
+            initial_exit_nodes,
+        )
 
         is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, loop_nodes, head_succs)
         is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(
@@ -900,7 +910,7 @@ class PhoenixStructurer(StructurerBase):
 
         return bool(outgoing_edges or len(continue_edges) > 1)
 
-    def _refine_cyclic_is_while_loop(
+    def _refine_cyclic_is_while_loop(  # pylint:disable=unused-argument
         self, graph, fullgraph, loop_head, loop_nodes, head_succs
     ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         if len(head_succs) == 2 and any(head_succ not in loop_nodes for head_succ in head_succs):
