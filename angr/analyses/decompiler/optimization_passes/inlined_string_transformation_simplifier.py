@@ -419,6 +419,7 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_ShlNV = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_CmpGTV = _handle_binop_Default
+    _handle_binop_CmpLEV = _handle_binop_Default
     _handle_binop_MulF = _handle_binop_Default
     _handle_binop_MulV = _handle_binop_Default
     _handle_binop_MulHiV = _handle_binop_Default

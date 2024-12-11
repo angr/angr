@@ -454,6 +454,8 @@ class SimplifierAILEngine(
 
     _handle_binop_CmpGTV = _handle_binop_Default
 
+    _handle_binop_CmpLEV = _handle_binop_Default
+
     _handle_binop_MinV = _handle_binop_Default
 
     _handle_binop_MaxV = _handle_binop_Default

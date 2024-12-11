@@ -785,6 +785,7 @@ class SimEngineVRAIL(
     _handle_binop_CmpGT = _handle_binop_Default
     _handle_binop_CmpGE = _handle_binop_Default
     _handle_binop_CmpGTV = _handle_binop_Default
+    _handle_binop_CmpLEV = _handle_binop_Default
     _handle_binop_CmpF = _handle_binop_Default
 
     def _handle_unop_Not(self, expr):

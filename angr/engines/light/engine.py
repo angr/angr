@@ -624,6 +624,7 @@ class SimEngineLightAIL(
             "ShlNV": self._handle_binop_ShlNV,
             "CmpEQV": self._handle_binop_CmpEQV,
             "CmpGTV": self._handle_binop_CmpGTV,
+            "CmpLEV": self._handle_binop_CmpLEV,
             "MinV": self._handle_binop_MinV,
             "MaxV": self._handle_binop_MaxV,
             "Sqrt": self._handle_binop_Sqrt,
@@ -943,6 +944,9 @@ class SimEngineLightAIL(
 
     @abstractmethod
     def _handle_binop_CmpGTV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_CmpLEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_MinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
