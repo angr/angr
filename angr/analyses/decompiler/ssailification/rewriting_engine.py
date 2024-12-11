@@ -764,6 +764,7 @@ class SimEngineSSARewriting(
     _handle_binop_Concat = _unreachable
     _handle_binop_Div = _unreachable
     _handle_binop_DivF = _unreachable
+    _handle_binop_DivV = _unreachable
     _handle_binop_LogicalAnd = _unreachable
     _handle_binop_LogicalOr = _unreachable
     _handle_binop_Mod = _unreachable
@@ -771,6 +772,7 @@ class SimEngineSSARewriting(
     _handle_binop_Mull = _unreachable
     _handle_binop_MulF = _unreachable
     _handle_binop_MulV = _unreachable
+    _handle_binop_MulHiV = _unreachable
     _handle_binop_Or = _unreachable
     _handle_binop_Rol = _unreachable
     _handle_binop_Ror = _unreachable
@@ -781,15 +783,22 @@ class SimEngineSSARewriting(
     _handle_binop_Shr = _unreachable
     _handle_binop_Sub = _unreachable
     _handle_binop_SubF = _unreachable
+    _handle_binop_SubV = _unreachable
     _handle_binop_Xor = _unreachable
     _handle_binop_InterleaveLOV = _unreachable
     _handle_binop_InterleaveHIV = _unreachable
+    _handle_binop_CasCmpEQ = _unreachable
     _handle_binop_CasCmpNE = _unreachable
     _handle_binop_ExpCmpNE = _unreachable
+    _handle_binop_SarNV = _unreachable
     _handle_binop_ShrNV = _unreachable
     _handle_binop_ShlNV = _unreachable
-    _handle_binop_GetMSBs = _unreachable
     _handle_binop_CmpEQV = _unreachable
+    _handle_binop_CmpGTV = _unreachable
+    _handle_binop_MinV = _unreachable
+    _handle_binop_MaxV = _unreachable
+    _handle_binop_QNarrowBinV = _unreachable
+    _handle_binop_Sqrt = _unreachable
     _handle_unop_BitwiseNeg = _unreachable
     _handle_unop_Dereference = _unreachable
     _handle_unop_Neg = _unreachable
@@ -797,3 +806,4 @@ class SimEngineSSARewriting(
     _handle_unop_Reference = _unreachable
     _handle_unop_Clz = _unreachable
     _handle_unop_Ctz = _unreachable
+    _handle_unop_GetMSBs = _unreachable

@@ -575,6 +575,7 @@ class SimEngineLightAIL(
             "Dereference": self._handle_unop_Dereference,
             "Clz": self._handle_unop_Clz,
             "Ctz": self._handle_unop_Ctz,
+            "GetMSBs": self._handle_unop_GetMSBs,
         }
         self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType_co]] = {
             "Add": self._handle_binop_Add,
@@ -582,12 +583,15 @@ class SimEngineLightAIL(
             "AddV": self._handle_binop_AddV,
             "Sub": self._handle_binop_Sub,
             "SubF": self._handle_binop_SubF,
+            "SubV": self._handle_binop_SubV,
             "Mul": self._handle_binop_Mul,
             "Mull": self._handle_binop_Mull,
             "MulF": self._handle_binop_MulF,
             "MulV": self._handle_binop_MulV,
+            "MulHiV": self._handle_binop_MulHiV,
             "Div": self._handle_binop_Div,
             "DivF": self._handle_binop_DivF,
+            "DivV": self._handle_binop_DivV,
             "Mod": self._handle_binop_Mod,
             "Xor": self._handle_binop_Xor,
             "And": self._handle_binop_And,
@@ -612,12 +616,18 @@ class SimEngineLightAIL(
             "SBorrow": self._handle_binop_SBorrow,
             "InterleaveLOV": self._handle_binop_InterleaveLOV,
             "InterleaveHIV": self._handle_binop_InterleaveHIV,
+            "CasCmpEQ": self._handle_binop_CasCmpEQ,
             "CasCmpNE": self._handle_binop_CasCmpNE,
             "ExpCmpNE": self._handle_binop_ExpCmpNE,
+            "SarNV": self._handle_binop_SarNV,
             "ShrNV": self._handle_binop_ShrNV,
             "ShlNV": self._handle_binop_ShlNV,
-            "GetMSBs": self._handle_binop_GetMSBs,
             "CmpEQV": self._handle_binop_CmpEQV,
+            "CmpGTV": self._handle_binop_CmpGTV,
+            "MinV": self._handle_binop_MinV,
+            "MaxV": self._handle_binop_MaxV,
+            "Sqrt": self._handle_binop_Sqrt,
+            "QNarrowBinV": self._handle_binop_QNarrowBinV,
         }
         super().__init__(*args, **kwargs)
 
@@ -790,6 +800,9 @@ class SimEngineLightAIL(
     @abstractmethod
     def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @abstractmethod
+    def _handle_unop_GetMSBs(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
     #
     # BinOps
     #
@@ -809,6 +822,9 @@ class SimEngineLightAIL(
     def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
+    def _handle_binop_SubV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
@@ -821,10 +837,16 @@ class SimEngineLightAIL(
     def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
+    def _handle_binop_MulHiV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
     def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_DivV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
@@ -899,10 +921,16 @@ class SimEngineLightAIL(
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
+    def _handle_binop_CasCmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
     def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_ExpCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_SarNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_ShrNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
@@ -911,10 +939,22 @@ class SimEngineLightAIL(
     def _handle_binop_ShlNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_GetMSBs(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+    def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+    def _handle_binop_CmpGTV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_MinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_Sqrt(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_QNarrowBinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
@@ -1031,6 +1071,9 @@ class SimEngineNoexprAIL(
     def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
+    def _handle_unop_GetMSBs(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
+        pass
+
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
@@ -1044,6 +1087,9 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_SubV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
@@ -1146,9 +1192,6 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_binop_ShlNV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
-        pass
-
-    def _handle_binop_GetMSBs(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:

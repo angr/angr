@@ -162,6 +162,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_binop_Concat = _handle_binop_Default
     _handle_binop_Div = _handle_binop_Default
     _handle_binop_DivF = _handle_binop_Default
+    _handle_binop_DivV = _handle_binop_Default
     _handle_binop_LogicalAnd = _handle_binop_Default
     _handle_binop_LogicalOr = _handle_binop_Default
     _handle_binop_Mod = _handle_binop_Default
@@ -169,6 +170,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_binop_Mull = _handle_binop_Default
     _handle_binop_MulF = _handle_binop_Default
     _handle_binop_MulV = _handle_binop_Default
+    _handle_binop_MulHiV = _handle_binop_Default
     _handle_binop_Or = _handle_binop_Default
     _handle_binop_Rol = _handle_binop_Default
     _handle_binop_Ror = _handle_binop_Default
@@ -179,15 +181,22 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_binop_Shr = _handle_binop_Default
     _handle_binop_Sub = _handle_binop_Default
     _handle_binop_SubF = _handle_binop_Default
+    _handle_binop_SubV = _handle_binop_Default
     _handle_binop_Xor = _handle_binop_Default
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_CasCmpEQ = _handle_binop_Default
     _handle_binop_CasCmpNE = _handle_binop_Default
     _handle_binop_ExpCmpNE = _handle_binop_Default
+    _handle_binop_SarNV = _handle_binop_Default
     _handle_binop_ShrNV = _handle_binop_Default
     _handle_binop_ShlNV = _handle_binop_Default
-    _handle_binop_GetMSBs = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
+    _handle_binop_CmpGTV = _handle_binop_Default
+    _handle_binop_MinV = _handle_binop_Default
+    _handle_binop_MaxV = _handle_binop_Default
+    _handle_binop_QNarrowBinV = _handle_binop_Default
+    _handle_binop_Sqrt = _handle_binop_Default
 
     def _handle_unop_Default(self, expr):
         self._expr(expr.operands[0])
@@ -199,6 +208,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_unop_Reference = _handle_unop_Default
     _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_GetMSBs = _handle_unop_Default
 
     def _handle_expr_UnaryOp(self, expr):
         self._expr(expr.operand)

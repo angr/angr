@@ -107,6 +107,13 @@ class Int256(Int):
         return "int256"
 
 
+class Int512(Int):
+    SIZE = 32
+
+    def __repr__(self, memo=None):
+        return "int512"
+
+
 class FloatBase(TypeConstant):
     def __repr__(self, memo=None):
         return "floatbase"
@@ -290,6 +297,7 @@ def int_type(bits: int) -> Int:
         64: Int64,
         128: Int128,
         256: Int256,
+        512: Int512,
     }
     if bits in mapping:
         return mapping[bits]()

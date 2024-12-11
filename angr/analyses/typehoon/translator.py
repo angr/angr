@@ -151,6 +151,9 @@ class TypeTranslator:
     def _translate_Int256(self, tc):  # pylint:disable=unused-argument
         return sim_type.SimTypeInt256(signed=False).with_arch(self.arch)
 
+    def _translate_Int512(self, tc):  # pylint:disable=unused-argument
+        return sim_type.SimTypeInt512(signed=False).with_arch(self.arch)
+
     def _translate_TypeVariableReference(self, tc):
         if tc.typevar in self.translated:
             return self.translated[tc.typevar]
@@ -189,6 +192,9 @@ class TypeTranslator:
 
     def _translate_SimTypeInt256(self, st: sim_type.SimTypeChar) -> typeconsts.Int256:
         return typeconsts.Int256()
+
+    def _translate_SimTypeInt512(self, st: sim_type.SimTypeChar) -> typeconsts.Int512:
+        return typeconsts.Int512()
 
     def _translate_SimTypeInt(self, st: sim_type.SimTypeInt) -> typeconsts.Int32:
         return typeconsts.Int32()
@@ -235,6 +241,7 @@ TypeConstHandlers = {
     typeconsts.Int64: TypeTranslator._translate_Int64,
     typeconsts.Int128: TypeTranslator._translate_Int128,
     typeconsts.Int256: TypeTranslator._translate_Int256,
+    typeconsts.Int512: TypeTranslator._translate_Int512,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
 }
 
@@ -247,6 +254,7 @@ SimTypeHandlers = {
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeInt128: TypeTranslator._translate_SimTypeInt128,
     sim_type.SimTypeInt256: TypeTranslator._translate_SimTypeInt256,
+    sim_type.SimTypeInt512: TypeTranslator._translate_SimTypeInt512,
     sim_type.SimStruct: TypeTranslator._translate_SimStruct,
     sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
 }

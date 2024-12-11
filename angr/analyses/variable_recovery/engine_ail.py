@@ -749,21 +749,30 @@ class SimEngineVRAIL(
 
     _handle_binop_AddF = _handle_binop_Default
     _handle_binop_SubF = _handle_binop_Default
+    _handle_binop_SubV = _handle_binop_Default
     _handle_binop_MulF = _handle_binop_Default
     _handle_binop_DivF = _handle_binop_Default
+    _handle_binop_DivV = _handle_binop_Default
     _handle_binop_AddV = _handle_binop_Default
     _handle_binop_MulV = _handle_binop_Default
+    _handle_binop_MulHiV = _handle_binop_Default
     _handle_binop_Carry = _handle_binop_Default
     _handle_binop_Borrow = _handle_binop_Default
     _handle_binop_SCarry = _handle_binop_Default
     _handle_binop_SBorrow = _handle_binop_Default
     _handle_binop_InterleaveLOV = _handle_binop_Default
     _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_CasCmpEQ = _handle_binop_Default
     _handle_binop_CasCmpNE = _handle_binop_Default
     _handle_binop_ExpCmpNE = _handle_binop_Default
+    _handle_binop_SarNV = _handle_binop_Default
     _handle_binop_ShrNV = _handle_binop_Default
     _handle_binop_ShlNV = _handle_binop_Default
-    _handle_binop_GetMSBs = _handle_binop_Default
+    _handle_binop_PermV = _handle_binop_Default
+    _handle_binop_MaxV = _handle_binop_Default
+    _handle_binop_MinV = _handle_binop_Default
+    _handle_binop_Sqrt = _handle_binop_Default
+    _handle_binop_QNarrowBinV = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_CmpEQ = _handle_binop_Default
     _handle_binop_CmpNE = _handle_binop_Default
@@ -771,6 +780,7 @@ class SimEngineVRAIL(
     _handle_binop_CmpLE = _handle_binop_Default
     _handle_binop_CmpGT = _handle_binop_Default
     _handle_binop_CmpGE = _handle_binop_Default
+    _handle_binop_CmpGTV = _handle_binop_Default
     _handle_binop_CmpF = _handle_binop_Default
 
     def _handle_unop_Not(self, expr):
@@ -829,3 +839,4 @@ class SimEngineVRAIL(
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_GetMSBs = _handle_unop_Default
