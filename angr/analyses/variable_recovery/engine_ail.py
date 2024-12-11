@@ -540,18 +540,21 @@ class SimEngineVRAIL(
 
         r0 = self._expr_bv(arg0)
         r1 = self._expr_bv(arg1)
-        from_size = expr.bits
-        to_size = r1.bits
+        result_size = expr.bits
 
         if expr.floating_point:
-            remainder = self.state.top(to_size)
+            remainder = self.state.top(result_size)
         else:
             if (r1.data == 0).is_true():
-                remainder = self.state.top(to_size)
+                remainder = self.state.top(result_size)
             elif expr.signed:
-                remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+                remainder = r0.data.SMod(r1.data)
             else:
-                remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
+                remainder = r0.data % r1.data
+
+        # truncation if necessary
+        if remainder.size() > result_size:
+            remainder = claripy.Extract(result_size - 1, 0, remainder)
 
         return RichR(
             remainder,
