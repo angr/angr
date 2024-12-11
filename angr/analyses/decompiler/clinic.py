@@ -1932,9 +1932,11 @@ class Clinic(Analysis):
                         break
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
-        # lift the ite instruction to get its size
-        ite_insn_size = self.project.factory.block(ite_ins_addr, num_inst=1).size
+        ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
+        ite_insn_size = ite_insn_only_block.size
         if ite_insn_size <= 2:  # we need an address for true_block and another address for false_block
+            return None
+        if ite_insn_only_block.vex.exit_statements:
             return None
 
         # relift the head and the ITE instruction
