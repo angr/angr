@@ -761,10 +761,6 @@ class SimIROp:
 
     _op_generic_ExpCmpNE = _op_generic_CmpNE
     _op_generic_CasCmpNE = _op_generic_CmpNE
-    _op_generic_ShrNV = _op_generic_CmpNE
-    _op_generic_ShlNV = _op_generic_CmpNE
-    _op_generic_GetMSBs = _op_generic_CmpNE
-    _op_generic_CmpEQV = _op_generic_CmpNE
 
     @supports_vector
     def _op_generic_CmpNEZ(self, args):
