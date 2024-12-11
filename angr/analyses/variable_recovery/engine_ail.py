@@ -201,7 +201,9 @@ class SimEngineVRAIL(
             # the return expression is not used, so we treat this call as not returning anything
             create_variable = False
 
-        if isinstance(target, ailment.Expr.Expression) and not isinstance(target, ailment.Expr.Const):
+        if isinstance(target, ailment.Expr.Expression) and not isinstance(
+            target, (ailment.Expr.Const, ailment.Expr.DirtyExpression)
+        ):
             # this is a dynamically calculated call target
             target_expr = self._expr(target)
             funcaddr_typevar = target_expr.typevar
