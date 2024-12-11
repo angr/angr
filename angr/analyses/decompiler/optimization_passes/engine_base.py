@@ -463,4 +463,6 @@ class SimplifierAILEngine(
 
     _handle_binop_QNarrowBinV = _handle_binop_Default
 
+    _handle_binop_PermV = _handle_binop_Default
+
     _handle_binop_Sqrt = _handle_binop_Default

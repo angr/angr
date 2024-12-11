@@ -630,6 +630,7 @@ class SimEngineLightAIL(
             "MaxV": self._handle_binop_MaxV,
             "Sqrt": self._handle_binop_Sqrt,
             "QNarrowBinV": self._handle_binop_QNarrowBinV,
+            "PermV": self._handle_binop_PermV,
         }
         super().__init__(*args, **kwargs)
 
@@ -965,6 +966,9 @@ class SimEngineLightAIL(
     def _handle_binop_QNarrowBinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
+    def _handle_binop_PermV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
@@ -1221,6 +1225,9 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_binop_CmpLEV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_PermV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:

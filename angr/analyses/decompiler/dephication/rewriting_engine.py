@@ -415,6 +415,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     _handle_binop_MinV = _unreachable
     _handle_binop_MaxV = _unreachable
     _handle_binop_QNarrowBinV = _unreachable
+    _handle_binop_PermV = _unreachable
     _handle_binop_Sqrt = _unreachable
     _handle_unop_BitwiseNeg = _unreachable
     _handle_unop_Dereference = _unreachable
