@@ -210,6 +210,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
+    _handle_unop_unpack = _handle_unop_Default
 
     def _handle_expr_UnaryOp(self, expr):
         self._expr(expr.operand)

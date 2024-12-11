@@ -291,6 +291,7 @@ class InlinedStringTransformationAILEngine(
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Reference = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
+    _handle_unop_unpack = _handle_unop_Default
 
     def _handle_expr_Convert(self, expr: Convert):
         v = self._expr(expr.operand)

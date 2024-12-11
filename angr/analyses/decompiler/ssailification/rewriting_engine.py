@@ -809,3 +809,4 @@ class SimEngineSSARewriting(
     _handle_unop_Clz = _unreachable
     _handle_unop_Ctz = _unreachable
     _handle_unop_GetMSBs = _unreachable
+    _handle_unop_unpack = _unreachable
