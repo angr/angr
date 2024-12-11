@@ -131,7 +131,6 @@ class SimEngineVRAIL(
                 self._reference_spoffset = False
                 args.append(richr)
 
-        ret_expr_bits = self.state.arch.bits
         ret_expr_bits = expr.bits
 
         if isinstance(target, ailment.Expr.Expression) and not isinstance(
