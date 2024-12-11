@@ -386,6 +386,8 @@ class SimplifierAILEngine(
 
     _handle_binop_Div = _handle_binop_Default
 
+    _handle_binop_DivV = _handle_binop_Default
+
     _handle_binop_DivF = _handle_binop_Default
 
     _handle_binop_Mod = _handle_binop_Default
@@ -441,6 +443,8 @@ class SimplifierAILEngine(
     _handle_binop_CasCmpNE = _handle_binop_Default
 
     _handle_binop_ExpCmpNE = _handle_binop_Default
+
+    _handle_binop_SarNV = _handle_binop_Default
 
     _handle_binop_ShrNV = _handle_binop_Default
 
