@@ -1170,7 +1170,10 @@ class SimpleSolver:
             for labels, succ in path_and_successors:
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
-                    candidate_bases[last_label.offset].add(last_label.bits // 8)
+                    # TODO: Really determine the maximum possible size of the field when MAX_POINTSTO_BITS is in use
+                    candidate_bases[last_label.offset].add(
+                        1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
+                    )
 
             node_to_base = {}
 
