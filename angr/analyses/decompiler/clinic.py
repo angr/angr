@@ -2150,15 +2150,15 @@ class Clinic(Analysis):
                             ),
                             None,
                         )
+                    intended_head_block = self.project.factory.block(
+                        intended_head.addr, size=intended_head.original_size
+                    )
                     if comparison_stmt is not None:
-                        intended_head_block = self.project.factory.block(
-                            intended_head.addr, size=intended_head.original_size
-                        )
                         cmp_rpos = len(
                             intended_head_block.instruction_addrs
                         ) - intended_head_block.instruction_addrs.index(comparison_stmt.ins_addr)
                     else:
-                        cmp_rpos = min(len(intended_head.statements), 2)
+                        cmp_rpos = min(len(intended_head.instruction_addrs), 2)
                     self._fix_abnormal_switch_case_heads_case2(
                         ail_graph,
                         candidate,
