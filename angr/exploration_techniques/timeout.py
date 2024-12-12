@@ -1,7 +1,9 @@
 from __future__ import annotations
-import time
+
 import logging
-from . import ExplorationTechnique
+import time
+
+from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

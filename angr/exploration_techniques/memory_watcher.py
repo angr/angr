@@ -1,6 +1,8 @@
 from __future__ import annotations
-from . import ExplorationTechnique
+
 import psutil
+
+from .base import ExplorationTechnique
 
 
 class MemoryWatcher(ExplorationTechnique):

@@ -4,7 +4,7 @@ from itertools import islice
 
 import claripy
 
-from . import ExplorationTechnique
+from .base import ExplorationTechnique
 
 
 l = logging.getLogger(name=__name__)

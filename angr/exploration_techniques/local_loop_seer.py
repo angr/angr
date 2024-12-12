@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
-from . import ExplorationTechnique
+from .base import ExplorationTechnique
 
 
 l = logging.getLogger(name=__name__)

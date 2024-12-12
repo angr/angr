@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import logging
+
+from .base import ExplorationTechnique
 from .common import condition_to_lambda
-from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
 
