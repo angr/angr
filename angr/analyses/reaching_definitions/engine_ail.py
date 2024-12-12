@@ -564,6 +564,8 @@ class SimEngineRDAIL(
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
     _handle_unop_unpack = _handle_unop_Default
+    _handle_unop_Sqrt = _handle_unop_Default
+    _handle_unop_RSqrtEst = _handle_unop_Default
 
     def _handle_expr_ITE(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         _: MultiValues = self._expr(expr.cond)
@@ -698,13 +700,17 @@ class SimEngineRDAIL(
     _handle_binop_ShrNV = _handle_binop_Default
     _handle_binop_ShlNV = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
+    _handle_binop_CmpNEV = _handle_binop_Default
+    _handle_binop_CmpGEV = _handle_binop_Default
     _handle_binop_CmpGTV = _handle_binop_Default
     _handle_binop_CmpLEV = _handle_binop_Default
+    _handle_binop_CmpLTV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
     _handle_binop_MaxV = _handle_binop_Default
+    _handle_binop_QAddV = _handle_binop_Default
     _handle_binop_QNarrowBinV = _handle_binop_Default
     _handle_binop_PermV = _handle_binop_Default
-    _handle_binop_Sqrt = _handle_binop_Default
+    _handle_binop_Set = _handle_binop_Default
 
     def _handle_binop_Mul(self, expr):
         expr0 = self._expr(expr.operands[0])

@@ -773,19 +773,23 @@ class SimEngineVRAIL(
     _handle_binop_ShrNV = _handle_binop_Default
     _handle_binop_ShlNV = _handle_binop_Default
     _handle_binop_PermV = _handle_binop_Default
+    _handle_binop_Set = _handle_binop_Default
     _handle_binop_MaxV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
-    _handle_binop_Sqrt = _handle_binop_Default
+    _handle_binop_QAddV = _handle_binop_Default
     _handle_binop_QNarrowBinV = _handle_binop_Default
-    _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_CmpEQ = _handle_binop_Default
     _handle_binop_CmpNE = _handle_binop_Default
     _handle_binop_CmpLT = _handle_binop_Default
     _handle_binop_CmpLE = _handle_binop_Default
     _handle_binop_CmpGT = _handle_binop_Default
     _handle_binop_CmpGE = _handle_binop_Default
+    _handle_binop_CmpEQV = _handle_binop_Default
+    _handle_binop_CmpNEV = _handle_binop_Default
+    _handle_binop_CmpGEV = _handle_binop_Default
     _handle_binop_CmpGTV = _handle_binop_Default
     _handle_binop_CmpLEV = _handle_binop_Default
+    _handle_binop_CmpLTV = _handle_binop_Default
     _handle_binop_CmpF = _handle_binop_Default
 
     def _handle_unop_Not(self, expr):
@@ -846,3 +850,5 @@ class SimEngineVRAIL(
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
     _handle_unop_unpack = _handle_unop_Default
+    _handle_unop_Sqrt = _handle_unop_Default
+    _handle_unop_RSqrtEst = _handle_unop_Default

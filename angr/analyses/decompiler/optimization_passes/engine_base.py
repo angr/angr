@@ -346,6 +346,8 @@ class SimplifierAILEngine(
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
     _handle_unop_unpack = _handle_unop_Default
+    _handle_unop_Sqrt = _handle_unop_Default
+    _handle_unop_RSqrtEst = _handle_unop_Default
 
     def _handle_binop_Default(self, expr):
         lhs = self._expr(expr.operands[0])
@@ -453,16 +455,24 @@ class SimplifierAILEngine(
 
     _handle_binop_CmpEQV = _handle_binop_Default
 
+    _handle_binop_CmpNEV = _handle_binop_Default
+
+    _handle_binop_CmpGEV = _handle_binop_Default
+
     _handle_binop_CmpGTV = _handle_binop_Default
 
     _handle_binop_CmpLEV = _handle_binop_Default
+
+    _handle_binop_CmpLTV = _handle_binop_Default
 
     _handle_binop_MinV = _handle_binop_Default
 
     _handle_binop_MaxV = _handle_binop_Default
 
+    _handle_binop_QAddV = _handle_binop_Default
+
     _handle_binop_QNarrowBinV = _handle_binop_Default
 
     _handle_binop_PermV = _handle_binop_Default
 
-    _handle_binop_Sqrt = _handle_binop_Default
+    _handle_binop_Set = _handle_binop_Default

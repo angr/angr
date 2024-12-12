@@ -577,6 +577,8 @@ class SimEngineLightAIL(
             "Ctz": self._handle_unop_Ctz,
             "GetMSBs": self._handle_unop_GetMSBs,
             "unpack": self._handle_unop_unpack,
+            "Sqrt": self._handle_unop_Sqrt,
+            "RSqrtEst": self._handle_unop_RSqrtEst,
         }
         self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType_co]] = {
             "Add": self._handle_binop_Add,
@@ -624,13 +626,17 @@ class SimEngineLightAIL(
             "ShrNV": self._handle_binop_ShrNV,
             "ShlNV": self._handle_binop_ShlNV,
             "CmpEQV": self._handle_binop_CmpEQV,
+            "CmpNEV": self._handle_binop_CmpNEV,
+            "CmpGEV": self._handle_binop_CmpGEV,
             "CmpGTV": self._handle_binop_CmpGTV,
-            "CmpLEV": self._handle_binop_CmpLEV,
+            "CmpLEV": self._handle_binop_CmpLTV,
+            "CmpLTV": self._handle_binop_CmpLEV,
             "MinV": self._handle_binop_MinV,
             "MaxV": self._handle_binop_MaxV,
-            "Sqrt": self._handle_binop_Sqrt,
+            "QAddV": self._handle_binop_QAddV,
             "QNarrowBinV": self._handle_binop_QNarrowBinV,
             "PermV": self._handle_binop_PermV,
+            "Set": self._handle_binop_Set,
         }
         super().__init__(*args, **kwargs)
 
@@ -801,13 +807,25 @@ class SimEngineLightAIL(
     def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+    def _handle_unop_Dereference(elf, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_GetMSBs(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_unpack(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_unop_GetMSBs(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_unop_unpack(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_unop_Sqrt(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     #
     # BinOps
@@ -948,10 +966,19 @@ class SimEngineLightAIL(
     def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
+    def _handle_binop_CmpNEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_CmpGEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
     def _handle_binop_CmpGTV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_CmpLEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_CmpLTV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_MinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
@@ -960,7 +987,7 @@ class SimEngineLightAIL(
     def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_binop_Sqrt(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+    def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_QNarrowBinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
@@ -969,10 +996,7 @@ class SimEngineLightAIL(
     def _handle_binop_PermV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
-
-    @abstractmethod
-    def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+    def _handle_binop_Set(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
 
 class SimEngineNostmtAIL(
@@ -1087,6 +1111,9 @@ class SimEngineNoexprAIL(
         pass
 
     def _handle_unop_unpack(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
@@ -1221,13 +1248,25 @@ class SimEngineNoexprAIL(
     def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
+    def _handle_binop_CmpNEV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_CmpGEV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
     def _handle_binop_CmpGTV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_binop_CmpLEV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
+    def _handle_binop_CmpLTV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
     def _handle_binop_PermV(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+        pass
+
+    def _handle_binop_Set(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:

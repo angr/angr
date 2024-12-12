@@ -410,13 +410,17 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     _handle_binop_ShrNV = _unreachable
     _handle_binop_ShlNV = _unreachable
     _handle_binop_CmpEQV = _unreachable
+    _handle_binop_CmpNEV = _unreachable
+    _handle_binop_CmpGEV = _unreachable
     _handle_binop_CmpGTV = _unreachable
     _handle_binop_CmpLEV = _unreachable
+    _handle_binop_CmpLTV = _unreachable
     _handle_binop_MinV = _unreachable
     _handle_binop_MaxV = _unreachable
+    _handle_binop_QAddV = _unreachable
     _handle_binop_QNarrowBinV = _unreachable
     _handle_binop_PermV = _unreachable
-    _handle_binop_Sqrt = _unreachable
+    _handle_binop_Set = _unreachable
     _handle_unop_BitwiseNeg = _unreachable
     _handle_unop_Dereference = _unreachable
     _handle_unop_Neg = _unreachable
@@ -426,3 +430,5 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     _handle_unop_Ctz = _unreachable
     _handle_unop_GetMSBs = _unreachable
     _handle_unop_unpack = _unreachable
+    _handle_unop_Sqrt = _unreachable
+    _handle_unop_RSqrtEst = _unreachable
