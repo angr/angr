@@ -2158,7 +2158,7 @@ class Clinic(Analysis):
                             intended_head_block.instruction_addrs
                         ) - intended_head_block.instruction_addrs.index(comparison_stmt.ins_addr)
                     else:
-                        cmp_rpos = min(len(intended_head.instruction_addrs), 2)
+                        cmp_rpos = min(len(intended_head_block.instruction_addrs), 2)
                     self._fix_abnormal_switch_case_heads_case2(
                         ail_graph,
                         candidate,
