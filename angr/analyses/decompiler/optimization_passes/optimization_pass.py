@@ -197,10 +197,9 @@ class OptimizationPass(BaseOptimizationPass):
             raise MultipleBlocksException(
                 f"There are {len(blocks)} blocks at address {addr:#x}.{idx} but only one is requested."
             )
-        else:
-            raise MultipleBlocksException(
-                f"There are {len(blocks)} blocks at address {addr:#x} (block ID ignored) but only one is requested."
-            )
+        raise MultipleBlocksException(
+            f"There are {len(blocks)} blocks at address {addr:#x} (block ID ignored) but only one is requested."
+        )
 
     def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block]:
         if not self._blocks_by_addr:
