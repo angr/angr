@@ -45,29 +45,29 @@ REF_BASE=""
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-      -b|--base-ref)
-        REF_BASE="${2}"
-        shift 2
-        ;;
-      -h|--help)
-        help
-        ;;
-      -H|--head-ref)
-        REF_HEAD="$2"
-        shift 2
-        ;;
-      -R|--repo)
-        REPO="$2"
-        shift 2
-        ;;
-      -t|--token)
-        export GH_TOKEN="$2"
-        shift 2
-        ;;
-      *)
-        echo "Unknown option: $1"
-        help
-        ;;
+    -b | --base-ref)
+      REF_BASE="${2}"
+      shift 2
+      ;;
+    -h | --help)
+      help
+      ;;
+    -H | --head-ref)
+      REF_HEAD="$2"
+      shift 2
+      ;;
+    -R | --repo)
+      REPO="$2"
+      shift 2
+      ;;
+    -t | --token)
+      export GH_TOKEN="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      help
+      ;;
     esac
   done
 }
@@ -91,17 +91,17 @@ if [[ -z "${REF_BASE}" ]]; then
   printf "Looking up default branch for repo: %s\n" "${REPO}" >&2
   gh api "/repos/${REPO}" \
     -X GET \
-    -H "Accept: application/vnd.github.v3+json" | \
-  jq -r '.default_branch' | \
-  read -r REF_BASE
+    -H "Accept: application/vnd.github.v3+json" |
+    jq -r '.default_branch' |
+    read -r REF_BASE
 fi
 
 # Get the sha value for the default branch.
 gh api "/repos/${REPO}/git/refs/heads/${REF_BASE}" \
   -X GET \
-  -H "Accept: application/vnd.github.v3+json" | \
-jq -r .object.sha | \
-read -r SHA
+  -H "Accept: application/vnd.github.v3+json" |
+  jq -r .object.sha |
+  read -r SHA
 
 if [[ -z "${SHA}" ]]; then
   echo "ERROR: Could not lookup ref: '${REF_BASE}'" >&2
@@ -112,9 +112,9 @@ printf "Found REF_BASE: %s %s\n" "${REF_BASE}" "${SHA}" >&2
 # Check to see if the target branch already exists.
 gh api "/repos/${REPO}/git/refs/heads/${REF_HEAD}" \
   -X GET \
-  -H "Accept: application/vnd.github.v3+json" 2>/dev/null | \
-jq -cr .status | \
-read -r STATUS
+  -H "Accept: application/vnd.github.v3+json" 2>/dev/null |
+  jq -cr .status |
+  read -r STATUS
 
 if [[ "${STATUS}" = "404" ]]; then
   # Create the new ref.

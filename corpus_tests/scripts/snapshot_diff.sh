@@ -56,7 +56,10 @@ ANGR
 }
 
 declare -a FILEPATH
+FILEPATH=()
+GH_TOKEN=""
 REF_BASE="HEAD"
+REF_HEAD=""
 REPO="project-purcellville/snapshots-0000"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 SNAPSHOT_DIR=""
@@ -65,41 +68,41 @@ VERBOSE=""
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-      -b|--base-ref)
-        REF_BASE="${2}"
-        shift 2
-        ;;
-      -d|--snapshot-dir)
-        SNAPSHOT_DIR="${2}"
-        shift 2
-        ;;
-      -h|--help)
-        help
-        ;;
-      -H|--head-ref)
-        REF_HEAD="$2"
-        shift 2
-        ;;
-      -p|--path)
-        FILEPATH+=("$2")
-        shift 2
-        ;;
-      -R|--repo)
-        REPO="$2"
-        shift 2
-        ;;
-      -t|--token)
-        GH_TOKEN="$2"
-        shift 2
-        ;;
-      -v|--verbose)
-        VERBOSE=true
-        shift
-        ;;
-      *)
-        echo "Unknown option: $1"
-        help
-        ;;
+    -b | --base-ref)
+      REF_BASE="${2}"
+      shift 2
+      ;;
+    -d | --snapshot-dir)
+      SNAPSHOT_DIR="${2}"
+      shift 2
+      ;;
+    -h | --help)
+      help
+      ;;
+    -H | --head-ref)
+      REF_HEAD="$2"
+      shift 2
+      ;;
+    -p | --path)
+      FILEPATH+=("$2")
+      shift 2
+      ;;
+    -R | --repo)
+      REPO="$2"
+      shift 2
+      ;;
+    -t | --token)
+      GH_TOKEN="$2"
+      shift 2
+      ;;
+    -v | --verbose)
+      VERBOSE=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      help
+      ;;
     esac
   done
 }
@@ -137,7 +140,7 @@ if ! [[ -f "${SNAPSHOT_INDEX_FILE}" ]]; then
     --branch "${REF_HEAD}" \
     --path snapshots/ \
     --token "${GH_TOKEN}" \
-    >> "${SNAPSHOT_INDEX_FILE}"
+    >>"${SNAPSHOT_INDEX_FILE}"
 fi
 
 # If FILEPATHs were provided, call `gh_ls.sh` and retrieve all available
@@ -157,7 +160,7 @@ if ! [[ "${#FILEPATH[@]}" -eq 0 ]]; then
         --path "${FILEPATH[$index]}" \
         --token "${GH_TOKEN}"
     )
-    FILEPATH_NEW=( "${FILEPATH_NEW[@]}" "${FILEPATH_TMP[@]}" )
+    FILEPATH_NEW=("${FILEPATH_NEW[@]}" "${FILEPATH_TMP[@]}")
   done
   FILEPATH=("${FILEPATH_NEW[@]}")
   printf "\33[2K\rHydrated %s snapshot paths, done.\n" "${#FILEPATH_NEW[@]}" >&2
@@ -232,7 +235,6 @@ done
 wait
 echo ", done." >&2
 
-# XXX: This was indulgent. Revisit performance here.
 {
   for index in "${!FILEPATH[@]}"; do
     SNAPSHOT1="${SNAPSHOT_DIR}/${REF_BASE}/${FILEPATH[$index]}"
@@ -244,16 +246,16 @@ echo ", done." >&2
       "${SCRIPT_DIR}/classify_diff.sh" "${SNAPSHOT1}" "${SNAPSHOT2}"
     fi
   done
-} | \
-jq 'select(.identical == false)' | \
-jq -s 'reduce(.[].changes |
-              to_entries[] |
-              select(.value != 0)) as {"key": $key, "value": $value}
-       ({}; .["changes"][$key]["hunks"] += $value |
-            .["changes"][$key]["files"] += 1)' | \
-jq -r '.changes |
-       to_entries |
-       ["-----------,-----,-----"] +
-       map("\(.key | gsub("_"; " ") | ascii_upcase),\(.value.hunks),\(.value.files)") |
-       .[]' | \
-column -t -N "Change Type,Hunks,Files" -o " | " -s ","
+} |
+  jq 'select(.identical == false)' |
+  jq -s 'reduce(.[].changes |
+                to_entries[] |
+                select(.value != 0)) as {"key": $key, "value": $value}
+         ({}; .["changes"][$key]["hunks"] += $value |
+              .["changes"][$key]["files"] += 1)' |
+  jq -cr '.changes |
+         to_entries |
+         ["-----------,-----,-----"] +
+         map("\(.key | gsub("_"; " ") | ascii_upcase),\(.value.hunks),\(.value.files)") |
+         .[]' |
+  column -t -N "Change Type,Hunks,Files" -o " | " -s ","

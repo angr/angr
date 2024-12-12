@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -uo pipefail
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -25,26 +25,27 @@ ANGR
 }
 
 declare -a REST
+REST=()
 VERBOSE=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-      -h|--help)
-        help
-        ;;
-      -v|--verbose)
-        VERBOSE=true
-        shift 1
-        ;;
-      -|--)
-        echo "Unknown option: $1"
-        help
-        ;;
-      *)
-        REST+=("$1")
-        shift 1
-        ;;
+    -h | --help)
+      help
+      ;;
+    -v | --verbose)
+      VERBOSE=true
+      shift 1
+      ;;
+    - | --)
+      echo "Unknown option: $1"
+      help
+      ;;
+    *)
+      REST+=("$1")
+      shift 1
+      ;;
     esac
   done
 }
@@ -77,7 +78,7 @@ mkdir -p "${HUNK_DIR}"
 
 diff -u \
   <(echo -e "$(cat "${REST[0]}")") \
-  <(echo -e "$(cat "${REST[1]}")") > "${TEMP_DIR}/diff.patch"
+  <(echo -e "$(cat "${REST[1]}")") >"${TEMP_DIR}/diff.patch"
 [[ -n "${VERBOSE}" ]] && cat "${TEMP_DIR}/diff.patch" >&2
 
 # Handle the case that the two files are the same.
@@ -111,12 +112,12 @@ while IFS= read -r line; do
     ((hunk_count++))
     in_hunk=1
 
-    echo "$line" >> "$temp_file"
+    echo "$line" >>"$temp_file"
   elif [[ $in_hunk -eq 1 ]]; then
     # Add line to current hunk
-    echo "$line" >> "$temp_file"
+    echo "$line" >>"$temp_file"
   fi
-done < "${TEMP_DIR}/diff.patch"
+done <"${TEMP_DIR}/diff.patch"
 
 # Save the last hunk if there is one.
 if [[ $in_hunk -eq 1 ]]; then

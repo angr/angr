@@ -418,15 +418,20 @@ jobs:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set +e
+          set -uo pipefail
+
           title="Decompilation snapshots: ${ANGR_BRANCH} -> ${SNAPSHOT_GITHUB_BRANCH}"
           gh api -X POST "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" \
             -f base="${SNAPSHOT_GITHUB_BRANCH}" \
             -f body="" \
             -f head="${ANGR_BRANCH}" \
-            -f title="${title}"
+            -f title="${title}" \
+            --silent
           success="$?"
 
-          # XXX: Does the api pre-sort responses descending by order?
+          # NB: The API defaults to sorted by the attribute `created` in
+          #     descending order.
           url="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
                  jq --arg title "$title" '.[] | select(.title == $title) | .html_url' | head -n 1)"
           number="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
@@ -434,7 +439,7 @@ jobs:
           if [[ -z "$url" ]]; then
             echo "Error: failed to create pull request in snapshots repository."
             exit 1
-          elif [[ "$success" -eq "0" ]]; then
+          elif [[ $success -eq 0 ]]; then
             echo "Created new snapshot pull request."
           else
             echo "Updating existing snapshot pull request."
@@ -447,6 +452,8 @@ jobs:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set -euo pipefail
+
           ./corpus_tests/scripts/snapshot_diff.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${ANGR_BRANCH}" \
@@ -460,6 +467,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ANGR_PR_PAT }}
         run: |
+          set -euo pipefail
+
           gh pr comment ${{ github.event.pull_request.number }} \
             -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
 
@@ -468,7 +477,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
-          if [ -n "${number}" ]; then
+          set -eo pipefail
+
+          if [[ -n "${number}" ]]; then
             gh pr merge --squash "${number}" \
               -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
           fi

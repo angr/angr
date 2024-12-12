@@ -72,37 +72,37 @@ WITH_SHA=""
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-      -b|--branch)
-        BRANCH="$2"
-        shift 2
-        ;;
-      -h|--help)
-        help
-        ;;
-      -p|--path)
-        STARTPATTERN+=("$2")
-        shift 2
-        ;;
-      -R|--repo)
-        REPO="$2"
-        shift 2
-        ;;
-      -s|--sha)
-        SHA+=("$2")
-        shift 2
-        ;;
-      -t|--token)
-        GH_TOKEN="$2"
-        shift 2
-        ;;
-      --with-sha)
-        WITH_SHA="1"
-        shift
-        ;;
-      *)
-        echo "Unknown option: $1"
-        help
-        ;;
+    -b | --branch)
+      BRANCH="$2"
+      shift 2
+      ;;
+    -h | --help)
+      help
+      ;;
+    -p | --path)
+      STARTPATTERN+=("$2")
+      shift 2
+      ;;
+    -R | --repo)
+      REPO="$2"
+      shift 2
+      ;;
+    -s | --sha)
+      SHA+=("$2")
+      shift 2
+      ;;
+    -t | --token)
+      GH_TOKEN="$2"
+      shift 2
+      ;;
+    --with-sha)
+      WITH_SHA="1"
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      help
+      ;;
     esac
   done
 }
@@ -132,12 +132,12 @@ fetch_tree() {
 
   while read -r item; do
     case "$(echo "$item" | jq -r '.type')" in
-      dir)
-        SHA+=("$(echo "$item" | jq -r '.sha + " " + .name')")
-        ;;
-      file)
-        FILEPATH+=("$(echo "$item" | jq -r '.name')")
-        ;;
+    dir)
+      SHA+=("$(echo "$item" | jq -r '.sha + " " + .name')")
+      ;;
+    file)
+      FILEPATH+=("$(echo "$item" | jq -r '.name')")
+      ;;
     esac
   done < <(echo "${response}" | jq -c '.[] | {name, sha, type}')
 }
