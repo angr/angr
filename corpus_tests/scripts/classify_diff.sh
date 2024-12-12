@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -o pipefail
+set -euo pipefail
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
