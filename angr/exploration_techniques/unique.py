@@ -1,8 +1,9 @@
 from __future__ import annotations
-from difflib import SequenceMatcher
-from collections import Counter
 
-from . import ExplorationTechnique
+from collections import Counter
+from difflib import SequenceMatcher
+
+from .base import ExplorationTechnique
 
 
 class UniqueSearch(ExplorationTechnique):

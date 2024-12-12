@@ -1,6 +1,8 @@
 from __future__ import annotations
-from . import ExplorationTechnique
+
 import random
+
+from .base import ExplorationTechnique
 
 
 class DFS(ExplorationTechnique):

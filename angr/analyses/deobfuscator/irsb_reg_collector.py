@@ -1,85 +1,54 @@
-# pylint:disable=no-self-use,unused-argument,attribute-defined-outside-init
+# pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
 
-import pyvex
-
-from angr.engines.light import SimEngineLightVEXMixin
+from angr.engines.light import SimEngineNostmtVEX
 
 
-class IRSBRegisterCollector(SimEngineLightVEXMixin):
+class IRSBRegisterCollector(SimEngineNostmtVEX[None, None, None]):
     """
     Scan the VEX IRSB to collect all registers that are read.
     """
 
-    def __init__(self, block, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.block = block
         self.reg_reads: set[tuple[int, int]] = set()
 
-    def process(self):
-        self.tmps = {}
-        self.tyenv = self.block.vex.tyenv
+    def _top(self, bits):
+        return None
 
-        self._process_Stmt()
+    def _is_top(self, expr):
+        return True
 
-        self.stmt_idx = None
-        self.ins_addr = None
-
-    def _handle_Put(self, stmt):
-        pass
-
-    def _handle_Load(self, expr):
-        pass
-
-    def _handle_Store(self, stmt):
-        pass
-
-    def _handle_LoadG(self, stmt):
-        pass
-
-    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
-        pass
-
-    def _handle_StoreG(self, stmt):
-        pass
-
-    def _handle_Get(self, expr: pyvex.IRExpr.Get):
+    def _handle_expr_Get(self, expr):
         self.reg_reads.add((expr.offset, expr.result_size(self.tyenv)))
 
-    def _handle_RdTmp(self, expr):
-        pass
+    def _handle_stmt_WrTmp(self, stmt):
+        self._expr(stmt.data)
 
-    def _handle_Conversion(self, expr: pyvex.IRExpr.Unop):
-        pass
+    def _handle_conversion(self, from_size, to_size, signed, operand):
+        return None
 
-    def _handle_16HLto32(self, expr):
-        pass
+    def _process_block_end(self, stmt_result, whitelist):
+        return None
 
-    def _handle_Cmp_v(self, expr, _vector_size, _vector_count):
-        pass
+    def _handle_expr_VECRET(self, expr):
+        return None
 
-    _handle_CmpEQ_v = _handle_Cmp_v
-    _handle_CmpNE_v = _handle_Cmp_v
-    _handle_CmpLE_v = _handle_Cmp_v
-    _handle_CmpLT_v = _handle_Cmp_v
-    _handle_CmpGE_v = _handle_Cmp_v
-    _handle_CmpGT_v = _handle_Cmp_v
+    def _handle_expr_GSPTR(self, expr):
+        return None
 
-    def _handle_ExpCmpNE64(self, expr):
-        pass
+    def _handle_expr_RdTmp(self, expr):
+        return None
 
-    def _handle_CCall(self, expr):
-        pass
+    def _handle_expr_GetI(self, expr):
+        return None
 
-    def _handle_function(self, func_addr):
-        pass
+    def _handle_expr_Load(self, expr):
+        return None
 
-    def _handle_Unop(self, expr):
-        pass
+    def _handle_expr_ITE(self, expr):
+        return None
 
-    def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
-        pass
-
-    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
-        pass
+    def _handle_expr_Const(self, expr):
+        return None

@@ -1,11 +1,9 @@
-# pylint: disable=cell-var-from-loop
 from __future__ import annotations
+
 import concurrent.futures
 import logging
 
-from . import ExplorationTechnique
-from angr.engines.engine import TLSMixin
-from angr.misc.ux import once
+from .base import ExplorationTechnique
 
 l = logging.getLogger(__name__)
 
@@ -71,8 +69,7 @@ class Threading(ExplorationTechnique):
         return state, error_list, simgr
 
     def successors(self, simgr, state, engine=None, **kwargs):
+        if engine is not None:
+            l.warning("Threading exploration teqchnique does not support custom engines")
         engine = engine or self.project.factory.default_engine
-        if not isinstance(engine, TLSMixin) and once("tls_engine"):
-            l.error("Using Threading exploration technique but your engine is not thread-safe.")
-            l.error("Do you want to add the TLSMixin to your engine?")
         return simgr.successors(state, engine=engine, **kwargs)

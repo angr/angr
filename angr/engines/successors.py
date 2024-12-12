@@ -4,10 +4,12 @@ import logging
 
 import claripy
 
-from archinfo.arch_soot import ArchSoot
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
 
 if TYPE_CHECKING:
     from angr import SimState
+    from angr.engines.engine import HeavyState
 
 
 l = logging.getLogger(name=__name__)
@@ -40,15 +42,15 @@ class SimSuccessors:
     https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
-    def __init__(self, addr: int | None, initial_state):
+    def __init__(self, addr: int | SootAddressDescriptor | None, initial_state: HeavyState | None):
         self.addr = addr
-        self.initial_state: SimState = initial_state
+        self.initial_state = initial_state
 
-        self.successors: list[SimState] = []
-        self.all_successors: list[SimState] = []
-        self.flat_successors: list[SimState] = []
-        self.unsat_successors: list[SimState] = []
-        self.unconstrained_successors: list[SimState] = []
+        self.successors: list[HeavyState] = []
+        self.all_successors: list[HeavyState] = []
+        self.flat_successors: list[HeavyState] = []
+        self.unsat_successors: list[HeavyState] = []
+        self.unconstrained_successors: list[HeavyState] = []
 
         # the engine that should process or did process this request
         self.engine = None
@@ -150,6 +152,8 @@ class SimSuccessors:
         :param state: the successor state
         """
 
+        assert self.initial_state is not None
+
         # Next, simplify what needs to be simplified
         if o.SIMPLIFY_EXIT_STATE in state.options:
             state.solver.simplify()
@@ -182,7 +186,7 @@ class SimSuccessors:
         state.options.discard(o.AUTO_REFS)
 
     @staticmethod
-    def _manage_callstack(state):
+    def _manage_callstack(state: SimState[claripy.ast.BV | SootAddressDescriptor, int | SootAddressDescriptor]):
         # condition for call = Ijk_Call
         # condition for ret = stack pointer drops below call point
         if state.history.jumpkind == "Ijk_Call":

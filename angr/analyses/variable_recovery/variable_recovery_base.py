@@ -1,17 +1,19 @@
 from __future__ import annotations
 import weakref
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast, TypeVar
 from collections.abc import Generator, Iterable
 import logging
 from collections import defaultdict
 
+import archinfo
 import claripy
 from claripy.annotation import Annotation
 from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
+from angr.knowledge_plugins.functions.function import Function
+from angr.project import Project
 from angr.utils.cowdict import DefaultChainMapCOW
-from angr.engines.light import SpOffset
 from angr.sim_variable import SimVariable
 from angr.errors import AngrRuntimeError
 from angr.storage.memory_mixins import MultiValuedMemory
@@ -23,6 +25,8 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
+
+AnyClaripy = TypeVar("AnyClaripy", bound=claripy.ast.Base)
 
 
 def parse_stack_pointer(sp):
@@ -152,10 +156,11 @@ class VariableRecoveryStateBase:
 
     def __init__(
         self,
-        block_addr,
-        analysis,
-        arch,
-        func,
+        block_addr: int,
+        analysis: VariableRecoveryBase,
+        arch: archinfo.Arch,
+        func: Function,
+        project: Project,
         stack_region=None,
         register_region=None,
         global_region=None,
@@ -164,7 +169,6 @@ class VariableRecoveryStateBase:
         func_typevar=None,
         delayed_type_constraints=None,
         stack_offset_typevars=None,
-        project=None,
     ):
         self.block_addr = block_addr
         self._analysis = analysis
@@ -246,18 +250,16 @@ class VariableRecoveryStateBase:
         return bool(isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == "top")
 
     @staticmethod
-    def extract_variables(expr: claripy.ast.Base) -> Generator[tuple[int, SimVariable | SpOffset]]:
+    def extract_variables(expr: claripy.ast.Base) -> Generator[tuple[int, SimVariable]]:
         for anno in expr.annotations:
             if isinstance(anno, VariableAnnotation):
                 yield from anno.addr_and_variables
 
     @staticmethod
-    def annotate_with_variables(
-        expr: claripy.ast.Base, addr_and_variables: Iterable[tuple[int, SimVariable | SpOffset]]
-    ) -> claripy.ast.Base:
+    def annotate_with_variables(expr: AnyClaripy, addr_and_variables: Iterable[tuple[int, SimVariable]]) -> AnyClaripy:
         return expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
 
-    def stack_address(self, offset: int) -> claripy.ast.Base:
+    def stack_address(self, offset: int) -> claripy.ast.BV:
         base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
         if offset:
             return base + offset
@@ -267,9 +269,9 @@ class VariableRecoveryStateBase:
     def is_stack_address(addr: claripy.ast.Base) -> bool:
         return "stack_base" in addr.variables
 
-    def is_global_variable_address(self, addr: claripy.ast.Base) -> bool:
+    def is_global_variable_address(self, addr: claripy.ast.Bits) -> bool:
         if addr.op == "BVV":
-            addr_v = addr.concrete_value
+            addr_v = cast(claripy.ast.BV, addr).concrete_value
             # make sure it is within a mapped region
             obj = self.project.loader.find_object_containing(addr_v)
             if obj is not None:
@@ -277,45 +279,42 @@ class VariableRecoveryStateBase:
         return False
 
     @staticmethod
-    def extract_stack_offset_from_addr(addr: claripy.ast.Base) -> claripy.ast.Base | None:
+    def _get_stack_offset(addr: claripy.ast.Bits) -> int | None:
+        # recursive function that returns a python int without really trying to handle bitvector arithmetic wrapping
         r = None
         if addr.op == "BVS":
             if addr.args[0] == "stack_base":
-                return claripy.BVV(0, addr.size())
+                return 0
             return None
         if addr.op == "BVV":
-            r = addr
+            r = cast(int, addr.concrete_value)
         elif addr.op == "__add__":
             arg_offsets = []
-            for arg in addr.args:
-                arg_offset = VariableRecoveryStateBase.extract_stack_offset_from_addr(arg)
+            for arg in cast(list[claripy.ast.BV], addr.args):
+                arg_offset = VariableRecoveryStateBase._get_stack_offset(arg)
                 if arg_offset is None:
                     return None
                 arg_offsets.append(arg_offset)
             r = sum(arg_offsets)
         elif addr.op == "__sub__":
-            r1 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[0])
-            r2 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[1])
+            r1 = VariableRecoveryStateBase._get_stack_offset(cast(claripy.ast.BV, addr.args[0]))
+            r2 = VariableRecoveryStateBase._get_stack_offset(cast(claripy.ast.BV, addr.args[1]))
             if r1 is None or r2 is None:
                 return None
             r = r1 - r2
         return r
 
-    def get_stack_offset(self, addr: claripy.ast.Base) -> int | None:
+    def get_stack_offset(self, addr: claripy.ast.Bits) -> int | None:
         if "stack_base" in addr.variables:
-            r = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr)
-            if r is None:
+            val = VariableRecoveryStateBase._get_stack_offset(addr)
+            if val is None:
                 return None
 
-            # extract_stack_offset_from_addr should ensure that r is a BVV
-            assert r.concrete
-
-            val = r.concrete_value
             # convert it to a signed integer
-            if val >= 2 ** (self.arch.bits - 1):
-                return val - 2**self.arch.bits
-            if val < -(2 ** (self.arch.bits - 1)):
-                return 2**self.arch.bits + val
+            while val >= 2 ** (self.arch.bits - 1):
+                val -= 2**self.arch.bits
+            while val < -(2 ** (self.arch.bits - 1)):
+                val += 2**self.arch.bits
             return val
 
         return None
@@ -414,7 +413,7 @@ class VariableRecoveryStateBase:
 
         return mos_self == mos_other
 
-    def _make_phi_variable(self, values: set[claripy.ast.Base]) -> claripy.ast.Base | None:
+    def _make_phi_variable(self, values: set[claripy.ast.BV | claripy.ast.FP]) -> claripy.ast.Base | None:
         # we only create a new phi variable if the there is at least one variable involved
         variables = set()
         bits: int | None = None

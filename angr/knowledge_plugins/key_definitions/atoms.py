@@ -220,10 +220,10 @@ class Register(Atom):
         "arch",
     )
 
-    def __init__(self, reg_offset: RegisterOffset, size: int, arch: Arch | None = None):
+    def __init__(self, reg_offset: RegisterOffset | int, size: int, arch: Arch | None = None):
         super().__init__(size)
 
-        self.reg_offset = reg_offset
+        self.reg_offset = RegisterOffset(reg_offset)
         self.arch = arch
 
     def __repr__(self):

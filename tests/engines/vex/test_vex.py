@@ -17,7 +17,8 @@ l = logging.getLogger(__name__)
 
 class TestVex(unittest.TestCase):
     def test_ccall(self):
-        s = SimState(arch="AMD64")
+        p = load_shellcode(b"\xc3", arch="AMD64")
+        s = SimState(project=p)
 
         l.debug("Testing amd64_actions_ADD")
         l.debug("(8-bit) 1 + 1...")
@@ -204,10 +205,12 @@ class TestVex(unittest.TestCase):
         assert s.satisfiable(extra_constraints=(flag_z == 1,))
 
     def test_some_vector_ops(self):
-        engine = HeavyVEXMixin(None)
-        s = SimState(arch="AMD64")
+        p = load_shellcode(b"\xc3", arch="AMD64")
+        s = SimState(project=p)
+        engine = HeavyVEXMixin(p)
 
         def translate(state, op, args):  # pylint:disable=unused-argument
+            engine.state = state
             return engine._perform_vex_expr_Op(op, args)
 
         a = claripy.BVV(0xFFFF0000000100020003000400050006, 128)
@@ -483,13 +486,14 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(calc_result == correct_result)
 
     def test_store_simplification(self):
-        state = SimState(arch="X86")
+        p = load_shellcode(b"\xc3", arch="X86")
+        state = SimState(project=p)
         state.regs.esp = claripy.BVS("stack_pointer", 32)
         state.regs.ebp = claripy.BVS("base_pointer", 32)
         state.regs.eax = claripy.BVS("base_eax", 32)
 
         irsb = pyvex.IRSB(b"PT]\xc2\x10\x00", 0x4000, state.arch)
-        sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
+        sim_successors = HeavyVEXMixin(p).process(state.copy(), irsb=irsb)
         exit_state = sim_successors.all_successors[0]
 
         solver = claripy.Solver()
@@ -497,8 +501,9 @@ class TestVex(unittest.TestCase):
         assert solver.is_true(maybe_true)
 
     def test_loadg_no_constraint_creation(self):
-        state = SimState(arch="armel", mode="symbolic")
-        engine = HeavyVEXMixin(None)
+        p = load_shellcode(b"\x00\x00\x00\x00", arch="armel")
+        state = SimState(project=p, mode="symbolic")
+        engine = HeavyVEXMixin(p)
 
         stmt = pyvex.IRStmt.LoadG(
             "Iend_LE",

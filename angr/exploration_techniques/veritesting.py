@@ -1,7 +1,7 @@
 from __future__ import annotations
-from . import ExplorationTechnique
 
 from angr.sim_options import EFFICIENT_STATE_MERGING
+from .base import ExplorationTechnique
 
 
 class Veritesting(ExplorationTechnique):

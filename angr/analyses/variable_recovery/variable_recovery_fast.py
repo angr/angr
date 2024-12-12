@@ -288,8 +288,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         # cleanup (for cpython pickle)
         self.downsize()
-        self._ail_engine = None
-        self._vex_engine = None
+        del self._ail_engine
+        del self._vex_engine
 
     #
     # Main analysis routines

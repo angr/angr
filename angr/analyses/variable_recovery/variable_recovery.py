@@ -2,11 +2,14 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
+import archinfo
 import claripy
 
+import angr
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses import AnalysesHub
 from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.functions.function import Function
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr import BP, BP_AFTER
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
@@ -24,8 +27,26 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     :ivar angr.knowledge.variable_manager.VariableManager variable_manager: The variable manager.
     """
 
-    def __init__(self, block_addr, analysis, arch, func, concrete_states, stack_region=None, register_region=None):
-        super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region)
+    def __init__(
+        self,
+        project: angr.Project,
+        block_addr: int,
+        analysis,
+        arch: archinfo.Arch,
+        func: Function,
+        concrete_states,
+        stack_region=None,
+        register_region=None,
+    ):
+        super().__init__(
+            project=project,
+            block_addr=block_addr,
+            analysis=analysis,
+            arch=arch,
+            func=func,
+            stack_region=stack_region,
+            register_region=register_region,
+        )
 
         self._concrete_states = concrete_states
         # register callbacks
@@ -50,13 +71,14 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         """
 
         for s in self.concrete_states:
-            if s.ip.concrete_value == addr:
+            if s.addr == addr:
                 return s
 
         return None
 
     def copy(self):
         return VariableRecoveryState(
+            self.project,
             self.block_addr,
             self._analysis,
             self.arch,
@@ -88,7 +110,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             )
             concrete_state.inspect.add_breakpoint("mem_write", BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, others: tuple[VariableRecoveryState], successor=None) -> tuple[VariableRecoveryState, bool]:
+    def merge(self, others: tuple[VariableRecoveryState, ...], successor=None) -> tuple[VariableRecoveryState, bool]:
         """
         Merge two abstract states.
 
@@ -115,6 +137,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         return (
             VariableRecoveryState(
+                self.project,
                 successor,
                 self._analysis,
                 self.arch,
@@ -477,7 +500,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
         # give it enough stack space
         concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [concrete_state])
+        return VariableRecoveryState(self.project, node.addr, self, self.project.arch, self.function, [concrete_state])
 
     def _merge_states(self, node, *states: VariableRecoveryState):
         if len(states) == 1:

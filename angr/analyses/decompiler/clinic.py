@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any, NamedTuple, TYPE_CHECKING
 import copy
@@ -12,6 +13,7 @@ import capstone
 
 import ailment
 
+from angr.analyses.decompiler.ssailification.ssailification import Ssailification
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -268,6 +270,7 @@ class Clinic(Analysis):
     def _decompilation_fixups(self, ail_graph):
         is_pcode_arch = ":" in self.project.arch.name
 
+        self._remove_redundant_jump_blocks(ail_graph)
         # _fix_abnormal_switch_case_heads may re-lift from VEX blocks, so it should be placed as high up as possible
         self._fix_abnormal_switch_case_heads(ail_graph)
         if self._rewrite_ites_to_diamonds:
@@ -1359,10 +1362,9 @@ class Clinic(Analysis):
 
     @timethis
     def _transform_to_ssa_level0(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
-        ssailification = self.project.analyses.Ssailification(
+        ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
-            fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
@@ -1932,9 +1934,11 @@ class Clinic(Analysis):
                         break
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
-        # lift the ite instruction to get its size
-        ite_insn_size = self.project.factory.block(ite_ins_addr, num_inst=1).size
+        ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
+        ite_insn_size = ite_insn_only_block.size
         if ite_insn_size <= 2:  # we need an address for true_block and another address for false_block
+            return None
+        if ite_insn_only_block.vex.exit_statements:
             return None
 
         # relift the head and the ITE instruction
@@ -2036,6 +2040,10 @@ class Clinic(Analysis):
                 and stmt.src.op == "Sar"
             ):
                 return None
+
+        # corner-case: the last statement of original_block might have been patched by _remove_redundant_jump_blocks.
+        # we detect such case and fix it in new_head_ail
+        self._remove_redundant_jump_blocks_repatch_relifted_block(original_block, end_block_ail)
 
         ail_graph.remove_node(original_block)
 
@@ -2142,15 +2150,15 @@ class Clinic(Analysis):
                             ),
                             None,
                         )
+                    intended_head_block = self.project.factory.block(
+                        intended_head.addr, size=intended_head.original_size
+                    )
                     if comparison_stmt is not None:
-                        intended_head_block = self.project.factory.block(
-                            intended_head.addr, size=intended_head.original_size
-                        )
                         cmp_rpos = len(
                             intended_head_block.instruction_addrs
                         ) - intended_head_block.instruction_addrs.index(comparison_stmt.ins_addr)
                     else:
-                        cmp_rpos = 2
+                        cmp_rpos = min(len(intended_head.instruction_addrs), 2)
                     self._fix_abnormal_switch_case_heads_case2(
                         ail_graph,
                         candidate,
@@ -2216,7 +2224,6 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and isinstance(stmt.src.operands[1], ailment.Expr.Const)
                 and stmt.ins_addr == last_stmt_0.ins_addr
             ),
             None,
@@ -2228,7 +2235,6 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and isinstance(stmt.src.operands[1], ailment.Expr.Const)
                 and stmt.ins_addr == last_stmt_1.ins_addr
             ),
             None,
@@ -2270,51 +2276,86 @@ class Clinic(Analysis):
         # split the intended head into two
         intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
         split_ins_addr = intended_head_block.instruction_addrs[-intended_head_split_insns]
-        intended_head_block_0 = self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+        # note that the two blocks can be fully overlapping, so block_0 will be empty...
+        intended_head_block_0 = (
+            self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+            if split_ins_addr != intended_head.addr
+            else None
+        )
         intended_head_block_1 = self.project.factory.block(
             split_ins_addr, size=intended_head.addr + intended_head.original_size - split_ins_addr
         )
-        intended_head_0 = self._convert_vex(intended_head_block_0)
+        intended_head_0 = self._convert_vex(intended_head_block_0) if intended_head_block_0 is not None else None
         intended_head_1 = self._convert_vex(intended_head_block_1)
+
+        # corner-case: the last statement of intended_head might have been patched by _remove_redundant_jump_blocks. we
+        # detect such case and fix it in intended_head_1
+        self._remove_redundant_jump_blocks_repatch_relifted_block(intended_head, intended_head_1)
 
         # adjust the graph accordingly
         preds = list(ail_graph.predecessors(intended_head))
         succs = list(ail_graph.successors(intended_head))
         ail_graph.remove_node(intended_head)
-        ail_graph.add_edge(intended_head_0, intended_head_1)
-        for pred in preds:
-            if pred is intended_head:
-                ail_graph.add_edge(intended_head_1, intended_head_0)
-            else:
-                ail_graph.add_edge(pred, intended_head_0)
-        for succ in succs:
-            if succ is intended_head:
-                ail_graph.add_edge(intended_head_1, intended_head_0)
-            else:
-                ail_graph.add_edge(intended_head_1, succ)
+
+        if intended_head_0 is None:
+            # perfect overlap; the first block is empty
+            for pred in preds:
+                if pred is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_1)
+                else:
+                    ail_graph.add_edge(pred, intended_head_1)
+            for succ in succs:
+                if succ is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_1)
+                else:
+                    ail_graph.add_edge(intended_head_1, succ)
+        else:
+            ail_graph.add_edge(intended_head_0, intended_head_1)
+            for pred in preds:
+                if pred is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_0)
+                else:
+                    ail_graph.add_edge(pred, intended_head_0)
+            for succ in succs:
+                if succ is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_0)
+                else:
+                    ail_graph.add_edge(intended_head_1, succ)
 
         # split other heads
         for o in other_heads:
             if other_head_split_insns > 0:
                 o_block = self.project.factory.block(o.addr, size=o.original_size)
                 o_split_addr = o_block.instruction_addrs[-other_head_split_insns]
-                new_o_block = self.project.factory.block(o.addr, size=o_split_addr - o.addr)
-                new_head = self._convert_vex(new_o_block)
+                new_o_block = (
+                    self.project.factory.block(o.addr, size=o_split_addr - o.addr) if o_split_addr != o.addr else None
+                )
+                new_head = self._convert_vex(new_o_block) if new_o_block is not None else None
             else:
                 new_head = o
 
-            if (
-                new_head.statements
-                and isinstance(new_head.statements[-1], ailment.Stmt.Jump)
-                and isinstance(new_head.statements[-1].target, ailment.Expr.Const)
-            ):
-                # update the jump target
-                new_head.statements[-1] = ailment.Stmt.Jump(
-                    new_head.statements[-1].idx,
+            if new_head is None:
+                # the head is removed - let's replace it with a jump to the target
+                jump_stmt = ailment.Stmt.Jump(
+                    None,
                     ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
                     target_idx=intended_head_1.idx,
-                    **new_head.statements[-1].tags,
+                    ins_addr=o.addr,
                 )
+                new_head = ailment.Block(o.addr, 1, statements=[jump_stmt], idx=o.idx)
+            else:
+                if (
+                    new_head.statements
+                    and isinstance(new_head.statements[-1], ailment.Stmt.Jump)
+                    and isinstance(new_head.statements[-1].target, ailment.Expr.Const)
+                ):
+                    # update the jump target
+                    new_head.statements[-1] = ailment.Stmt.Jump(
+                        new_head.statements[-1].idx,
+                        ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
+                        target_idx=intended_head_1.idx,
+                        **new_head.statements[-1].tags,
+                    )
 
             # adjust the graph accordingly
             preds = list(ail_graph.predecessors(o))
@@ -2383,6 +2424,39 @@ class Clinic(Analysis):
                                     patch_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
                             ail_graph.add_edge(pred, succs[0])
                         ail_graph.remove_node(node)
+
+    @staticmethod
+    def _remove_redundant_jump_blocks_repatch_relifted_block(
+        patched_block: ailment.Block, new_block: ailment.Block
+    ) -> None:
+        """
+        The last statement of patched_block might have been patched by _remove_redundant_jump_blocks. In this case, we
+        fix the last instruction for new_block, which is a newly lifted (from VEX) block that ends at the same address
+        as patched_block.
+
+        :param patched_block:   Previously patched block.
+        :param new_block:       Newly lifted block.
+        """
+
+        if (
+            isinstance(patched_block.statements[-1], ailment.Stmt.Jump)
+            and isinstance(patched_block.statements[-1].target, ailment.Expr.Const)
+            and isinstance(new_block.statements[-1], ailment.Stmt.Jump)
+            and isinstance(new_block.statements[-1].target, ailment.Expr.Const)
+            and not patched_block.statements[-1].likes(new_block.statements[-1])
+        ):
+            new_block.statements[-1].target = patched_block.statements[-1].target
+        if (
+            isinstance(patched_block.statements[-1], ailment.Stmt.ConditionalJump)
+            and isinstance(patched_block.statements[-1].true_target, ailment.Expr.Const)
+            and isinstance(patched_block.statements[-1].false_target, ailment.Expr.Const)
+            and isinstance(new_block.statements[-1], ailment.Stmt.ConditionalJump)
+            and isinstance(new_block.statements[-1].true_target, ailment.Expr.Const)
+            and isinstance(new_block.statements[-1].false_target, ailment.Expr.Const)
+            and not patched_block.statements[-1].likes(new_block.statements[-1])
+        ):
+            new_block.statements[-1].true_target = patched_block.statements[-1].true_target
+            new_block.statements[-1].false_target = patched_block.statements[-1].false_target
 
     @staticmethod
     def _insert_block_labels(ail_graph):

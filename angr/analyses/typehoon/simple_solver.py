@@ -127,8 +127,8 @@ class SketchNode(SketchNodeBase):
 
     def __init__(self, typevar: TypeVariable | DerivedTypeVariable):
         self.typevar: TypeVariable | DerivedTypeVariable = typevar
-        self.upper_bound = TopType()
-        self.lower_bound = BottomType()
+        self.upper_bound: TypeConstant = TopType()
+        self.lower_bound: TypeConstant = BottomType()
 
     def __repr__(self):
         return f"{self.lower_bound} <: {self.typevar} <: {self.upper_bound}"
@@ -202,7 +202,7 @@ class Sketch:
                     node = self.lookup(node.target)
         return node
 
-    def add_edge(self, src: SketchNodeBase, dst: SketchNodeBase, label):
+    def add_edge(self, src: SketchNodeBase, dst: SketchNodeBase, label) -> None:
         self.graph.add_edge(src, dst, label=label)
 
     def add_constraint(self, constraint: TypeConstraint) -> None:
@@ -214,13 +214,15 @@ class Sketch:
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             supertype, PRIMITIVE_TYPES
         ):
-            super_node: SketchNode | None = self.lookup(supertype)
+            super_node = self.lookup(supertype)
+            assert super_node is None or isinstance(super_node, SketchNode)
             if super_node is not None:
                 super_node.lower_bound = self.solver.join(super_node.lower_bound, subtype)
         elif SimpleSolver._typevar_inside_set(supertype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             subtype, PRIMITIVE_TYPES
         ):
-            sub_node: SketchNode | None = self.lookup(subtype)
+            sub_node = self.lookup(subtype)
+            assert sub_node is None or isinstance(sub_node, SketchNode)
             # assert sub_node is not None
             if sub_node is not None:
                 sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)

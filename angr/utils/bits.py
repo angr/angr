@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import claripy
+
 
 def truncate_bits(value: int, nbits: int) -> int:
     """
@@ -19,3 +21,13 @@ def ffs(x: int) -> int:
 def sign_extend(value: int, bits: int) -> int:
     sign_bit = 1 << (bits - 1)
     return (value & (sign_bit - 1)) - (value & sign_bit)
+
+
+def zeroextend_on_demand(op0: claripy.ast.BV, op1: claripy.ast.BV) -> claripy.ast.BV:
+    """
+    ZeroExtend op1 if the size of op1 is smaller than the size of op0. Otherwise, return op1.
+    """
+
+    if op0.size() > op1.size():
+        return claripy.ZeroExt(op0.size() - op1.size(), op1)
+    return op1

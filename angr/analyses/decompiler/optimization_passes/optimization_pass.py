@@ -5,15 +5,17 @@ from typing import Any, TYPE_CHECKING
 from collections.abc import Generator
 from enum import Enum
 
-import networkx  # pylint:disable=unused-import
+import networkx
+
 import ailment
 
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.goto_manager import GotoManager
+from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import add_labels
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
+from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -60,8 +62,10 @@ class BaseOptimizationPass:
 
     ARCHES = []  # strings of supported architectures
     PLATFORMS = []  # strings of supported platforms. Can be one of the following: "win32", "linux"
-    STAGE: int = None  # Specifies when this optimization pass should be executed
-    STRUCTURING: str | None = None  # specifies if this optimization pass is specific to a certain structuring algorithm
+    STAGE: OptimizationPassStage  # Specifies when this optimization pass should be executed
+    STRUCTURING: list[str] | None = (
+        None  # specifies if this optimization pass is specific to a certain structuring algorithm
+    )
     NAME = "N/A"
     DESCRIPTION = "N/A"
 
@@ -69,7 +73,8 @@ class BaseOptimizationPass:
         self._func: Function = func
 
     @property
-    def project(self):
+    def project(self) -> Project:
+        assert self._func.project is not None
         return self._func.project
 
     @property
@@ -115,7 +120,7 @@ class OptimizationPass(BaseOptimizationPass):
         variable_kb=None,
         region_identifier=None,
         reaching_definitions=None,
-        vvar_id_start=None,
+        vvar_id_start: int = 0,
         entry_node_addr=None,
         scratch: dict[str, Any] | None = None,
         force_loop_single_exit: bool = True,
@@ -124,8 +129,8 @@ class OptimizationPass(BaseOptimizationPass):
     ):
         super().__init__(func)
         # self._blocks is just a cache
-        self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr
-        self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx
+        self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr or {}
+        self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx or {}
         self._graph: networkx.DiGraph | None = graph
         self._variable_kb = variable_kb
         self._ri = region_identifier
@@ -164,10 +169,23 @@ class OptimizationPass(BaseOptimizationPass):
         self._new_block_addrs.add(new_addr)
         return new_addr
 
-    def _get_block(self, addr, idx=None) -> ailment.Block | None:
+    def _get_block(self, addr, **kwargs) -> ailment.Block | None:
+        """
+        Get exactly one block by its address and optionally, also considering its block ID. An exception,
+        MultipleBlocksException, will be raised if there are more than one block satisfying the specified criteria.
+
+        :param addr:        The address of the block.
+        :param kwargs:      Optionally, you can specify "idx" to consider the block ID. If "idx" is not specified, this
+                            method will return the only block at the specified address, None if there is no block at
+                            that address, or raise an exception if there are more than one block at that address.
+        :return:            The requested block or None if no block matching the specified criteria exists.
+        """
+
         if not self._blocks_by_addr:
             return None
-        if idx is None:
+        idx_specified = "idx" in kwargs
+        idx = kwargs.get("idx")
+        if not idx_specified:
             blocks = self._blocks_by_addr.get(addr, None)
         else:
             blocks = [self._blocks_by_addr_and_idx.get((addr, idx), None)]
@@ -175,8 +193,12 @@ class OptimizationPass(BaseOptimizationPass):
             return None
         if len(blocks) == 1:
             return next(iter(blocks))
+        if idx_specified:
+            raise MultipleBlocksException(
+                f"There are {len(blocks)} blocks at address {addr:#x}.{idx} but only one is requested."
+            )
         raise MultipleBlocksException(
-            "There are %d blocks at address %#x.%s but only one is requested." % (len(blocks), addr, idx)
+            f"There are {len(blocks)} blocks at address {addr:#x} (block ID ignored) but only one is requested."
         )
 
     def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block]:
@@ -195,6 +217,7 @@ class OptimizationPass(BaseOptimizationPass):
     def _update_block(self, old_block, new_block):
         if self.out_graph is None:
             self.out_graph = self._graph  # we do not make copy here for performance reasons. we can change it if needed
+            assert self.out_graph is not None
 
         if old_block not in self.out_graph:
             return
@@ -220,6 +243,7 @@ class OptimizationPass(BaseOptimizationPass):
     def _remove_block(self, block):
         if self.out_graph is None:
             self.out_graph = self._graph
+            assert self.out_graph is not None
 
         if block in self.out_graph:
             self.out_graph.remove_node(block)
@@ -270,10 +294,6 @@ class SequenceOptimizationPass(BaseOptimizationPass):
     The base class for any sequence node optimization pass.
     """
 
-    ARCHES = []  # strings of supported architectures
-    PLATFORMS = []  # strings of supported platforms. Can be one of the following: "win32", "linux"
-    STAGE: int = None  # Specifies when this optimization pass should be executed
-
     def __init__(self, func, seq=None, **kwargs):
         super().__init__(func)
         self.seq = seq
@@ -298,6 +318,10 @@ class StructuringOptimizationPass(OptimizationPass):
     STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
+    _initial_gotos: set[Goto]
+    _goto_manager: GotoManager
+    _prev_graph: networkx.DiGraph
+
     def __init__(
         self,
         func,
@@ -320,10 +344,6 @@ class StructuringOptimizationPass(OptimizationPass):
         self._require_gotos = require_gotos
         self._must_improve_rel_quality = must_improve_rel_quality
         self._readd_labels = readd_labels
-
-        self._initial_gotos = None
-        self._goto_manager: GotoManager | None = None
-        self._prev_graph: networkx.DiGraph | None = None
 
         # relative quality metrics (excludes gotos)
         self._initial_structure_counter = None

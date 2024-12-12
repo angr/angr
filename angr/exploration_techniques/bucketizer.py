@@ -4,7 +4,7 @@ from collections import defaultdict
 import logging
 
 from angr.engines.successors import SimSuccessors
-from . import ExplorationTechnique
+from .base import ExplorationTechnique
 
 _l = logging.getLogger(__name__)
 

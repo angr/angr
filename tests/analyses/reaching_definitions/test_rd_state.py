@@ -37,7 +37,12 @@ class TestReachingDefinitionsState(TestCase):
     def test_initializing_rd_state_for_ppc_without_rtoc_value_should_raise_an_error(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
         self.assertRaises(
-            ValueError, ReachingDefinitionsState, CodeLocation(0x42, None), arch=arch, subject=_MockFunctionSubject()
+            ValueError,
+            ReachingDefinitionsState,
+            CodeLocation(0x42, None),
+            arch=arch,
+            subject=_MockFunctionSubject(),
+            analysis=None,
         )
 
     def test_initializing_rd_state_for_ppc_with_rtoc_value(self):
@@ -45,7 +50,7 @@ class TestReachingDefinitionsState(TestCase):
         rtoc_value = random.randint(0, 0xFFFFFFFFFFFFFFFF)
 
         state = ReachingDefinitionsState(
-            CodeLocation(0x42, None), arch=arch, subject=_MockFunctionSubject(), rtoc_value=rtoc_value
+            CodeLocation(0x42, None), arch=arch, subject=_MockFunctionSubject(), rtoc_value=rtoc_value, analysis=None
         )
 
         rtoc_offset = arch.registers["rtoc"][0]
@@ -58,7 +63,7 @@ class TestReachingDefinitionsState(TestCase):
 
     def test_rd_state_gets_a_default_heap_allocator(self):
         arch = archinfo.arch_arm.ArchARM()
-        state = ReachingDefinitionsState(CodeLocation(0x42, None), arch, _MockFunctionSubject())
+        state = ReachingDefinitionsState(CodeLocation(0x42, None), arch, _MockFunctionSubject(), analysis=None)
 
         self.assertTrue(isinstance(state.heap_allocator, HeapAllocator))
 
@@ -67,7 +72,11 @@ class TestReachingDefinitionsState(TestCase):
         live_definitions = LiveDefinitions(arch)
 
         state = ReachingDefinitionsState(
-            CodeLocation(0x42, None), arch=arch, subject=_MockFunctionSubject(), live_definitions=live_definitions
+            CodeLocation(0x42, None),
+            arch=arch,
+            subject=_MockFunctionSubject(),
+            live_definitions=live_definitions,
+            analysis=None,
         )
 
         with mock.patch.object(LiveDefinitions, "get_sp") as live_definitions_get_sp_mock:

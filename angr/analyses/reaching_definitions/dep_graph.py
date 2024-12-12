@@ -150,7 +150,7 @@ class DepGraph:
         return any(definition.atom == atom for definition in self.nodes())
 
     def add_dependencies_for_concrete_pointers_of(
-        self, values: Iterable[claripy.ast.Base | int], definition: Definition, cfg: CFGModel, loader: Loader
+        self, values: Iterable[claripy.ast.Base | int], definition: Definition, cfg: CFGModel | None, loader: Loader
     ):
         """
         When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in

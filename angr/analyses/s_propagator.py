@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Mapping
 from collections import defaultdict
 
 from ailment.block import Block
-from ailment.expression import Const, VirtualVariable, VirtualVariableCategory, StackBaseOffset, Load, Convert
+from ailment.expression import (
+    Const,
+    VirtualVariable,
+    VirtualVariableCategory,
+    StackBaseOffset,
+    Load,
+    Convert,
+    Expression,
+)
 from ailment.statement import Assignment, Store, Return, Jump
 
 from angr.knowledge_plugins.functions import Function
@@ -31,7 +40,7 @@ class SPropagatorModel:
     """
 
     def __init__(self):
-        self.replacements = {}
+        self.replacements: Mapping[CodeLocation, Mapping[Expression, Expression]] = {}
 
 
 class SPropagatorAnalysis(Analysis):
@@ -41,7 +50,7 @@ class SPropagatorAnalysis(Analysis):
 
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
-        subject,
+        subject: Block | Function,
         func_graph=None,
         only_consts: bool = True,
         immediate_stmt_removal: bool = False,
@@ -86,10 +95,13 @@ class SPropagatorAnalysis(Analysis):
         return self.model.replacements
 
     def _analyze(self):
+        blocks: dict[tuple[int, int | None], Block]
         match self.mode:
             case "block":
+                assert self.block is not None
                 blocks = {(self.block.addr, self.block.idx): self.block}
             case "function":
+                assert self.func_graph is not None
                 blocks = {(block.addr, block.idx): block for block in self.func_graph}
             case _:
                 raise NotImplementedError
@@ -120,11 +132,14 @@ class SPropagatorAnalysis(Analysis):
 
             vvarid_to_vvar[vvar.varid] = vvar
             defloc = vvar_deflocs[vvar]
+            assert defloc.block_addr is not None
+            assert defloc.stmt_idx is not None
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
             r, v = is_const_assignment(stmt)
             if r:
                 # replace wherever it's used
+                assert v is not None
                 const_vvars[vvar.varid] = v
                 for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                     replacements[useloc][vvar_at_use] = v
