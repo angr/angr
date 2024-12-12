@@ -1,6 +1,6 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from ailment.expression import Convert
+from ailment.expression import Convert, ConvertType
 
 from .base import PeepholeOptimizationExprBase
 
@@ -22,6 +22,7 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
                 and expr.to_bits < expr.from_bits
                 and expr.from_bits == inner.to_bits
                 and expr.is_signed == inner.is_signed
+                and expr.from_type == expr.to_type == inner.from_type == inner.to_type == ConvertType.TYPE_INT
             ):
                 # extension then truncation (e.g., 1->64->1) can be removed, but truncation then extension cannot be
                 # removed (e.g., the high 32 bits must be removed during 64->32->64)
@@ -31,6 +32,7 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
                 and expr.from_bits == inner.to_bits
                 and inner.to_bits <= inner.from_bits
                 and expr.is_signed == inner.is_signed
+                and expr.from_type == expr.to_type == inner.from_type == inner.to_type == ConvertType.TYPE_INT
             ):
                 # merging two truncations into one
                 return Convert(
