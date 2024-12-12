@@ -2041,6 +2041,10 @@ class Clinic(Analysis):
             ):
                 return None
 
+        # corner-case: the last statement of original_block might have been patched by _remove_redundant_jump_blocks.
+        # we detect such case and fix it in new_head_ail
+        self._remove_redundant_jump_blocks_repatch_relifted_block(original_block, end_block_ail)
+
         ail_graph.remove_node(original_block)
 
         if end_block_ail not in ail_graph:
@@ -2286,25 +2290,7 @@ class Clinic(Analysis):
 
         # corner-case: the last statement of intended_head might have been patched by _remove_redundant_jump_blocks. we
         # detect such case and fix it in intended_head_1
-        if (
-            isinstance(intended_head.statements[-1], ailment.Stmt.Jump)
-            and isinstance(intended_head.statements[-1].target, ailment.Expr.Const)
-            and isinstance(intended_head_1.statements[-1], ailment.Stmt.Jump)
-            and isinstance(intended_head_1.statements[-1].target, ailment.Expr.Const)
-            and not intended_head.statements[-1].likes(intended_head_1.statements[-1])
-        ):
-            intended_head_1.statements[-1].target = intended_head.statements[-1].target
-        if (
-            isinstance(intended_head.statements[-1], ailment.Stmt.ConditionalJump)
-            and isinstance(intended_head.statements[-1].true_target, ailment.Expr.Const)
-            and isinstance(intended_head.statements[-1].false_target, ailment.Expr.Const)
-            and isinstance(intended_head_1.statements[-1], ailment.Stmt.ConditionalJump)
-            and isinstance(intended_head_1.statements[-1].true_target, ailment.Expr.Const)
-            and isinstance(intended_head_1.statements[-1].false_target, ailment.Expr.Const)
-            and not intended_head.statements[-1].likes(intended_head_1.statements[-1])
-        ):
-            intended_head_1.statements[-1].true_target = intended_head.statements[-1].true_target
-            intended_head_1.statements[-1].false_target = intended_head.statements[-1].false_target
+        self._remove_redundant_jump_blocks_repatch_relifted_block(intended_head, intended_head_1)
 
         # adjust the graph accordingly
         preds = list(ail_graph.predecessors(intended_head))
@@ -2438,6 +2424,39 @@ class Clinic(Analysis):
                                     patch_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
                             ail_graph.add_edge(pred, succs[0])
                         ail_graph.remove_node(node)
+
+    @staticmethod
+    def _remove_redundant_jump_blocks_repatch_relifted_block(
+        patched_block: ailment.Block, new_block: ailment.Block
+    ) -> None:
+        """
+        The last statement of patched_block might have been patched by _remove_redundant_jump_blocks. In this case, we
+        fix the last instruction for new_block, which is a newly lifted (from VEX) block that ends at the same address
+        as patched_block.
+
+        :param patched_block:   Previously patched block.
+        :param new_block:       Newly lifted block.
+        """
+
+        if (
+            isinstance(patched_block.statements[-1], ailment.Stmt.Jump)
+            and isinstance(patched_block.statements[-1].target, ailment.Expr.Const)
+            and isinstance(new_block.statements[-1], ailment.Stmt.Jump)
+            and isinstance(new_block.statements[-1].target, ailment.Expr.Const)
+            and not patched_block.statements[-1].likes(new_block.statements[-1])
+        ):
+            new_block.statements[-1].target = patched_block.statements[-1].target
+        if (
+            isinstance(patched_block.statements[-1], ailment.Stmt.ConditionalJump)
+            and isinstance(patched_block.statements[-1].true_target, ailment.Expr.Const)
+            and isinstance(patched_block.statements[-1].false_target, ailment.Expr.Const)
+            and isinstance(new_block.statements[-1], ailment.Stmt.ConditionalJump)
+            and isinstance(new_block.statements[-1].true_target, ailment.Expr.Const)
+            and isinstance(new_block.statements[-1].false_target, ailment.Expr.Const)
+            and not patched_block.statements[-1].likes(new_block.statements[-1])
+        ):
+            new_block.statements[-1].true_target = patched_block.statements[-1].true_target
+            new_block.statements[-1].false_target = patched_block.statements[-1].false_target
 
     @staticmethod
     def _insert_block_labels(ail_graph):
