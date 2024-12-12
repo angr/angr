@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import overload
+from typing import overload, TYPE_CHECKING
 
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
@@ -11,7 +11,7 @@ from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
 from .errors import AngrAssemblyError, AngrError
-from .engines import UberEngine, ProcedureEngine, SimEngineConcrete, SimEngine
+from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 from .sim_type import SimTypeFunction, SimTypeInt
 from .codenode import HookNode, SyscallNode
 from .block import Block, SootBlock
@@ -23,6 +23,10 @@ try:
 except ImportError:
     UberEnginePcode = None
 
+if TYPE_CHECKING:
+    from angr import Project, SimCC
+    from angr.engines import SimEngine
+
 
 l = logging.getLogger(name=__name__)
 
@@ -32,7 +36,11 @@ class AngrObjectFactory:
     This factory provides access to important analysis elements.
     """
 
+    project: Project
     default_engine_factory: type[SimEngine]
+    procedure_engine: ProcedureEngine
+    concrete_engine: SimEngineConcrete | None
+    _default_cc: type[SimCC] | None
 
     # We use thread local storage to cache engines on a per-thread basis
     _tls: threading.local
@@ -62,6 +70,13 @@ class AngrObjectFactory:
             self.concrete_engine = SimEngineConcrete(project)
         else:
             self.concrete_engine = None
+
+    def __getstate__(self):
+        return self.project, self.default_engine_factory, self.procedure_engine, self.concrete_engine, self._default_cc
+
+    def __setstate__(self, state):
+        self.project, self.default_engine_factory, self.procedure_engine, self.concrete_engine, self._default_cc = state
+        self._tls = threading.local()
 
     @property
     def default_engine(self):
