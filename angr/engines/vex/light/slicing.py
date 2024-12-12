@@ -1,6 +1,8 @@
 from __future__ import annotations
-from .light import VEXMixin
+
 from angr.utils.constants import DEFAULT_STATEMENT
+
+from .light import VEXMixin
 
 
 class VEXSlicingMixin(VEXMixin):

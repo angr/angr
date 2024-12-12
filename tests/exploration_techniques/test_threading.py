@@ -10,6 +10,8 @@ from tests.common import bin_location
 
 
 class TestThreading(unittest.TestCase):
+    """Test the Threading exploration technique by running a few steps and checking for errors."""
+
     def test_threading_basic(self):
         # Load the fauxware binary
         binary_path = os.path.join(bin_location, "tests", "x86_64", "fauxware")

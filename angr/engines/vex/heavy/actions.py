@@ -148,7 +148,7 @@ class TrackActionsMixin(HeavyVEXMixin):
 
     # statements
 
-    def _perform_vex_stmt_WrTmp(self, tmp, data_bundle, **kwargs):
+    def _perform_vex_stmt_WrTmp(self, tmp, data_bundle, **kwargs):  # pylint:disable=unused-argument
         data, data_deps = data_bundle
 
         if o.TRACK_TMP_ACTIONS not in self.state.options:
