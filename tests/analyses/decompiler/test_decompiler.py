@@ -3297,7 +3297,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x140005250]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         assert 'DbgPrint("SIOCTL.SYS: ");' in d.codegen.text

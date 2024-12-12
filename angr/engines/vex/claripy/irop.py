@@ -84,7 +84,7 @@ def op_attrs(p):
 
 
 all_operations = list(pyvex.irop_enums_to_ints.keys())
-operations = {}
+operations: dict[str, SimIROp] = {}
 classified = set()
 unclassified = set()
 unsupported = set()

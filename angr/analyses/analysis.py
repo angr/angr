@@ -20,6 +20,7 @@ from rich import progress
 from angr.misc.plugins import PluginVendor, VendorPreset
 from angr.misc.ux import deprecated
 from angr.misc import telemetry
+from angr.misc.testing import is_testing
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -190,11 +191,14 @@ class AnalysisFactory(Generic[A]):
 
     def prep(
         self,
-        fail_fast=False,
+        fail_fast: bool | None = None,
         kb: KnowledgeBase | None = None,
         progress_callback: Callable | None = None,
         show_progressbar: bool = False,
     ) -> type[A]:
+        if fail_fast is None:
+            fail_fast = is_testing
+
         @functools.wraps(self._analysis_cls.__init__)
         @t.start_as_current_span(self._analysis_cls.__name__)
         def wrapper(*args, **kwargs):
@@ -253,7 +257,7 @@ class AnalysisFactory(Generic[A]):
         return wrapper  # type: ignore
 
     def __call__(self, *args, **kwargs) -> A:
-        fail_fast = kwargs.pop("fail_fast", False)
+        fail_fast = kwargs.pop("fail_fast", is_testing)
         kb = kwargs.pop("kb", self._project.kb)
         progress_callback = kwargs.pop("progress_callback", None)
         show_progressbar = kwargs.pop("show_progressbar", False)

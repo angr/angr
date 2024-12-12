@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ailment.block import Block
 from ailment.statement import Assignment, Call, Return
+import networkx
 
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
@@ -22,9 +23,8 @@ class SReachingDefinitionsAnalysis(Analysis):
         self,
         subject,
         func_addr: int | None = None,
-        func_graph=None,
+        func_graph: networkx.DiGraph[Block] | None = None,
         track_tmps: bool = False,
-        stack_pointer_tracker=None,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -40,7 +40,6 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.func_graph = func_graph
         self.func_addr = func_addr if func_addr is not None else self.func.addr if self.func is not None else None
         self._track_tmps = track_tmps
-        self._sp_tracker = stack_pointer_tracker  # FIXME: Is it still used?
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -53,8 +52,10 @@ class SReachingDefinitionsAnalysis(Analysis):
     def _analyze(self):
         match self.mode:
             case "block":
+                assert self.block is not None
                 blocks = {(self.block.addr, self.block.idx): self.block}
             case "function":
+                assert self.func_graph is not None
                 blocks = {(block.addr, block.idx): block for block in self.func_graph}
             case _:
                 raise NotImplementedError
@@ -115,9 +116,10 @@ class SReachingDefinitionsAnalysis(Analysis):
                 stmt = block.statements[stmt_idx]
                 assert isinstance(stmt, (Call, Assignment, Return))
 
-                call: Call = (
+                call = (
                     stmt if isinstance(stmt, Call) else stmt.src if isinstance(stmt, Assignment) else stmt.ret_exprs[0]
                 )
+                assert isinstance(call, Call)
                 if call.prototype is None:
                     # without knowing the prototype, we must conservatively add uses to all registers that are
                     # potentially used here
@@ -126,7 +128,9 @@ class SReachingDefinitionsAnalysis(Analysis):
                     else:
                         # just use all registers in the default calling convention because we don't know anything about
                         # the calling convention yet
-                        cc = default_cc(self.project.arch.name)(self.project.arch)
+                        cc_cls = default_cc(self.project.arch.name)
+                        assert cc_cls is not None
+                        cc = cc_cls(self.project.arch)
 
                     codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
                     arg_locs = cc.ARG_REGS

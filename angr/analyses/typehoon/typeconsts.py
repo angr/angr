@@ -107,6 +107,13 @@ class Int256(Int):
         return "int256"
 
 
+class Int512(Int):
+    SIZE = 32
+
+    def __repr__(self, memo=None):
+        return "int512"
+
+
 class FloatBase(TypeConstant):
     def __repr__(self, memo=None):
         return "floatbase"
@@ -281,7 +288,7 @@ class TypeVariableReference(TypeConstant):
 #
 
 
-def int_type(bits: int) -> Int | None:
+def int_type(bits: int) -> Int:
     mapping = {
         1: Int1,
         8: Int8,
@@ -290,10 +297,11 @@ def int_type(bits: int) -> Int | None:
         64: Int64,
         128: Int128,
         256: Int256,
+        512: Int512,
     }
     if bits in mapping:
         return mapping[bits]()
-    return None
+    raise TypeError(f"Not a known size of int: {bits}")
 
 
 def float_type(bits: int) -> FloatBase | None:

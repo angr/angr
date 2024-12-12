@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 
+from ailment.manager import Manager
 from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement
 from ailment.expression import (
     Expression,
@@ -12,7 +13,6 @@ from ailment.expression import (
     VirtualVariableCategory,
     BinaryOp,
     UnaryOp,
-    Phi,
     Convert,
     StackBaseOffset,
     VEXCCallExpression,
@@ -21,8 +21,8 @@ from ailment.expression import (
     DirtyExpression,
 )
 
+from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.utils.ssa import get_reg_offset_base_and_size
-from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 from .rewriting_state import RewritingState
 
 
@@ -30,34 +30,28 @@ _l = logging.getLogger(__name__)
 
 
 class SimEngineSSARewriting(
-    SimEngineLightAILMixin,
-    SimEngineLight,
+    SimEngineNostmtAIL[RewritingState, Expression | None, Statement | tuple[Statement, ...], None]
 ):
     """
     This engine rewrites every block to insert phi variables and replaces every used variable with their versioned
     copies at each use location.
     """
 
-    state: RewritingState
-
     def __init__(
         self,
-        arch,
-        *,
         project,
+        *,
         sp_tracker,
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
         stackvar_locs: dict[int, int],
-        ail_manager=None,
+        ail_manager: Manager,
         vvar_id_start: int = 0,
         bp_as_gpr: bool = False,
         rewrite_tmps: bool = False,
     ):
-        super().__init__()
+        super().__init__(project)
 
-        self.arch = arch
-        self.project = project
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.def_to_vvid: dict[tuple[int, int | None, int, Expression | Statement], int] = {}
@@ -81,18 +75,25 @@ class SimEngineSSARewriting(
     # Handlers
     #
 
-    def _handle_Stmt(self, stmt: Statement):
-        new_stmt = super()._handle_Stmt(stmt)
-        if new_stmt is not None:
-            if type(new_stmt) is tuple:
-                for stmt_ in new_stmt:
-                    self.state.append_statement(stmt_)
-            else:
-                self.state.append_statement(new_stmt)
-        else:
-            self.state.append_statement(stmt)
+    def _top(self, bits):
+        assert False, "Unreachable"
 
-    def _handle_Assignment(self, stmt: Assignment) -> Assignment | tuple[Assignment, ...] | None:
+    def _is_top(self, expr):
+        assert False, "Unreachable"
+
+    def _process_block_end(self, block, stmt_data, whitelist):
+        assert whitelist is None
+        for stmt_idx, new_stmt in enumerate(stmt_data):
+            if new_stmt is not None:
+                if isinstance(new_stmt, tuple):
+                    for stmt_ in new_stmt:
+                        self.state.append_statement(stmt_)
+                else:
+                    self.state.append_statement(new_stmt)
+            else:
+                self.state.append_statement(block.statements[stmt_idx])
+
+    def _handle_stmt_Assignment(self, stmt):
         new_src = self._expr(stmt.src)
 
         if isinstance(stmt.dst, VirtualVariable):
@@ -158,7 +159,7 @@ class SimEngineSSARewriting(
             return new_stmt
         return None
 
-    def _handle_Store(self, stmt: Store) -> Store | Assignment | None:
+    def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | None:
         new_data = self._expr(stmt.data)
         if stmt.guard is None:
             vvar = self._replace_def_store(self.block.addr, self.block.idx, self.stmt_idx, stmt)
@@ -182,7 +183,7 @@ class SimEngineSSARewriting(
 
         return None
 
-    def _handle_ConditionalJump(self, stmt: ConditionalJump) -> ConditionalJump | None:
+    def _handle_stmt_ConditionalJump(self, stmt: ConditionalJump) -> ConditionalJump | None:
         new_cond = self._expr(stmt.condition)
         new_true_target = self._expr(stmt.true_target) if stmt.true_target is not None else None
         new_false_target = self._expr(stmt.false_target) if stmt.false_target is not None else None
@@ -199,7 +200,7 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_Call(self, stmt: Call) -> Call | None:
+    def _handle_stmt_Call(self, stmt: Call) -> Call | None:
         changed = False
 
         new_target = self._replace_use_expr(stmt.target)
@@ -260,23 +261,22 @@ class SimEngineSSARewriting(
             )
         return None
 
-    _handle_CallExpr = _handle_Call
-
-    def _handle_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
+    def _handle_stmt_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
         dirty = self._expr(stmt.dirty)
         if dirty is None or dirty is stmt.dirty:
             return None
+        assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
 
-    def _handle_Register(self, expr: Register) -> VirtualVariable | None:
+    def _handle_expr_Register(self, expr: Register) -> VirtualVariable | None:
         return self._replace_use_reg(expr)
 
-    def _handle_Tmp(self, expr: Tmp) -> VirtualVariable | None:
+    def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         return (
             self._replace_use_tmp(self.block.addr, self.block.idx, self.stmt_idx, expr) if self.rewrite_tmps else None
         )
 
-    def _handle_Load(self, expr: Load) -> Load | VirtualVariable | None:
+    def _handle_expr_Load(self, expr: Load) -> Load | VirtualVariable | None:
         if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
             new_expr = self._replace_use_load(expr)
             if new_expr is not None:
@@ -287,7 +287,7 @@ class SimEngineSSARewriting(
             return Load(expr.idx, new_addr, expr.size, expr.endness, guard=expr.guard, alt=expr.alt, **expr.tags)
         return None
 
-    def _handle_Convert(self, expr: Convert) -> Convert | None:
+    def _handle_expr_Convert(self, expr: Convert) -> Convert | None:
         new_operand = self._expr(expr.operand)
         if new_operand is not None:
             return Convert(
@@ -303,22 +303,13 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_Const(self, expr: Const) -> None:
-        return None
-
-    def _handle_Phi(self, expr: Phi) -> None:
-        return None
-
-    def _handle_VirtualVariable(self, expr: VirtualVariable) -> None:
-        return None
-
-    def _handle_Return(self, expr: Return) -> Return | None:
-        if expr.ret_exprs is None:
+    def _handle_stmt_Return(self, stmt: Return) -> Return | None:
+        if stmt.ret_exprs is None:
             new_ret_exprs = None
         else:
             updated = False
             new_ret_exprs = []
-            for r in expr.ret_exprs:
+            for r in stmt.ret_exprs:
                 new_r = self._expr(r)
                 if new_r is not None:
                     updated = True
@@ -327,10 +318,10 @@ class SimEngineSSARewriting(
                 new_ret_exprs = None
 
         if new_ret_exprs:
-            return Return(expr.idx, new_ret_exprs, **expr.tags)
+            return Return(stmt.idx, new_ret_exprs, **stmt.tags)
         return None
 
-    def _handle_BinaryOp(self, expr: BinaryOp) -> BinaryOp | None:
+    def _handle_expr_BinaryOp(self, expr: BinaryOp) -> BinaryOp | None:
         new_op0 = self._expr(expr.operands[0])
         new_op1 = self._expr(expr.operands[1])
 
@@ -346,24 +337,23 @@ class SimEngineSSARewriting(
                 bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
-                from_bits=expr.from_bits,
-                to_bits=expr.to_bits,
                 **expr.tags,
             )
         return None
 
-    def _handle_UnaryOp(self, expr) -> UnaryOp | None:
+    def _handle_expr_UnaryOp(self, expr) -> UnaryOp | None:
         new_op = self._expr(expr.operand)
         if new_op is not None:
             return UnaryOp(
                 expr.idx,
                 expr.op,
                 new_op,
+                bits=expr.bits,
                 **expr.tags,
             )
         return None
 
-    def _handle_ITE(self, expr: ITE) -> ITE | None:
+    def _handle_expr_ITE(self, expr: ITE) -> ITE | None:
         new_cond = self._expr(expr.cond)
         new_iftrue = self._expr(expr.iftrue)
         new_iffalse = self._expr(expr.iffalse)
@@ -378,7 +368,7 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
+    def _handle_expr_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
         updated = False
         new_operands = []
         for operand in expr.operands:
@@ -390,10 +380,19 @@ class SimEngineSSARewriting(
                 new_operands.append(operand)
 
         if updated:
-            return VEXCCallExpression(expr.idx, expr.callee, new_operands, bits=expr.bits, **expr.tags)
+            return VEXCCallExpression(expr.idx, expr.callee, tuple(new_operands), bits=expr.bits, **expr.tags)
         return None
 
-    def _handle_DirtyExpression(self, expr: DirtyExpression) -> DirtyExpression | None:
+    def _handle_expr_BasePointerOffset(self, expr):
+        return None
+
+    def _handle_expr_Call(self, expr):
+        return self._handle_stmt_Call(expr)
+
+    def _handle_expr_Const(self, expr):
+        return None
+
+    def _handle_expr_DirtyExpression(self, expr: DirtyExpression) -> DirtyExpression | None:
         updated = False
         new_operands = []
         for operand in expr.operands:
@@ -424,7 +423,19 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_Dummy(self, expr) -> None:
+    def _handle_expr_MultiStatementExpression(self, expr):
+        return None
+
+    def _handle_expr_Phi(self, expr):
+        return None
+
+    def _handle_expr_Reinterpret(self, expr):
+        return None
+
+    def _handle_expr_StackBaseOffset(self, expr):
+        return None
+
+    def _handle_expr_VirtualVariable(self, expr):
         return None
 
     #
@@ -477,7 +488,7 @@ class SimEngineSSARewriting(
                     extended_vvar,
                     shift_amount,
                 ],
-                extended_vvar.bits,
+                bits=extended_vvar.bits,
                 **extended_vvar.tags,
             )
         else:
@@ -606,6 +617,7 @@ class SimEngineSSARewriting(
                 and self.state.registers[reg_expr.reg_offset][reg_expr.size] is not None
             ):
                 vvar = self.state.registers[reg_expr.reg_offset][reg_expr.size]
+                assert vvar is not None
                 return VirtualVariable(
                     reg_expr.idx,
                     vvar.varid,
@@ -734,3 +746,74 @@ class SimEngineSSARewriting(
                         self.state.registers[off] = {base_size: self.state.registers[off][base_size]}
                 else:
                     del self.state.registers[off]
+
+    def _unreachable(self, *args, **kwargs):
+        assert False
+
+    _handle_binop_Add = _unreachable
+    _handle_binop_AddF = _unreachable
+    _handle_binop_AddV = _unreachable
+    _handle_binop_And = _unreachable
+    _handle_binop_Carry = _unreachable
+    _handle_binop_CmpEQ = _unreachable
+    _handle_binop_CmpF = _unreachable
+    _handle_binop_CmpGE = _unreachable
+    _handle_binop_CmpGT = _unreachable
+    _handle_binop_CmpLE = _unreachable
+    _handle_binop_CmpLT = _unreachable
+    _handle_binop_CmpNE = _unreachable
+    _handle_binop_Concat = _unreachable
+    _handle_binop_Div = _unreachable
+    _handle_binop_DivF = _unreachable
+    _handle_binop_DivV = _unreachable
+    _handle_binop_LogicalAnd = _unreachable
+    _handle_binop_LogicalOr = _unreachable
+    _handle_binop_Mod = _unreachable
+    _handle_binop_Mul = _unreachable
+    _handle_binop_Mull = _unreachable
+    _handle_binop_MulF = _unreachable
+    _handle_binop_MulV = _unreachable
+    _handle_binop_MulHiV = _unreachable
+    _handle_binop_Or = _unreachable
+    _handle_binop_Rol = _unreachable
+    _handle_binop_Ror = _unreachable
+    _handle_binop_SBorrow = _unreachable
+    _handle_binop_SCarry = _unreachable
+    _handle_binop_Sar = _unreachable
+    _handle_binop_Shl = _unreachable
+    _handle_binop_Shr = _unreachable
+    _handle_binop_Sub = _unreachable
+    _handle_binop_SubF = _unreachable
+    _handle_binop_SubV = _unreachable
+    _handle_binop_Xor = _unreachable
+    _handle_binop_InterleaveLOV = _unreachable
+    _handle_binop_InterleaveHIV = _unreachable
+    _handle_binop_CasCmpEQ = _unreachable
+    _handle_binop_CasCmpNE = _unreachable
+    _handle_binop_ExpCmpNE = _unreachable
+    _handle_binop_SarNV = _unreachable
+    _handle_binop_ShrNV = _unreachable
+    _handle_binop_ShlNV = _unreachable
+    _handle_binop_CmpEQV = _unreachable
+    _handle_binop_CmpNEV = _unreachable
+    _handle_binop_CmpGEV = _unreachable
+    _handle_binop_CmpGTV = _unreachable
+    _handle_binop_CmpLEV = _unreachable
+    _handle_binop_CmpLTV = _unreachable
+    _handle_binop_MinV = _unreachable
+    _handle_binop_MaxV = _unreachable
+    _handle_binop_QAddV = _unreachable
+    _handle_binop_QNarrowBinV = _unreachable
+    _handle_binop_PermV = _unreachable
+    _handle_binop_Set = _unreachable
+    _handle_unop_BitwiseNeg = _unreachable
+    _handle_unop_Dereference = _unreachable
+    _handle_unop_Neg = _unreachable
+    _handle_unop_Not = _unreachable
+    _handle_unop_Reference = _unreachable
+    _handle_unop_Clz = _unreachable
+    _handle_unop_Ctz = _unreachable
+    _handle_unop_GetMSBs = _unreachable
+    _handle_unop_unpack = _unreachable
+    _handle_unop_Sqrt = _unreachable
+    _handle_unop_RSqrtEst = _unreachable

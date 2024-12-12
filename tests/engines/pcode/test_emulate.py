@@ -95,12 +95,10 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
 
     @staticmethod
     def _step_irsb(irsb, state=None):
-        emulator = PcodeEmulatorMixin()
-        # FIMXE: *sigh* it's not so easy to use the mixin in isolation
+        emulator = PcodeEmulatorMixin(angr.load_shellcode(b"\x90", arch="AMD64"))
 
-        emulator.project = angr.load_shellcode(b"\x90", arch="AMD64")
         if state is None:
-            state = SimState(arch="AMD64")
+            state = SimState(arch=emulator.project.arch)
         emulator.state = state
         emulator.state.history.recent_bbl_addrs.append(0)
         emulator.successors = SimSuccessors(0, emulator.state)

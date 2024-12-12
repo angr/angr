@@ -535,6 +535,11 @@ class SimTypeInt256(SimTypeFixedSizeInt):
     _fixed_size = 256
 
 
+class SimTypeInt512(SimTypeFixedSizeInt):
+    _base_name = "int512_t"
+    _fixed_size = 512
+
+
 class SimTypeChar(SimTypeReg):
     """
     SimTypeChar is a type that specifies a character;

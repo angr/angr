@@ -212,6 +212,7 @@ class BlockWalker(AILBlockWalker):
                 expr.signed,
                 variable=expr.variable,
                 variable_offset=expr.variable_offset,
+                bits=expr.bits,
                 **expr.tags,
             )
         return None

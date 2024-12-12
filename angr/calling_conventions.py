@@ -229,7 +229,7 @@ class SimFunctionArgument:
     :ivar bool is_fp:  Whether loads from this location should return a floating point bitvector
     """
 
-    def __init__(self, size, is_fp=False):
+    def __init__(self, size: int, is_fp: bool = False):
         self.size = size
         self.is_fp = is_fp
 

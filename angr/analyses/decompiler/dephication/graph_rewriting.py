@@ -37,7 +37,7 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object]):
         )
         self._graph = ail_graph
         self._vvar_to_vvar = vvar_to_vvar
-        self._engine_ail = SimEngineDephiRewriting(self.project.arch, self._vvar_to_vvar)
+        self._engine_ail = SimEngineDephiRewriting(self.project, self._vvar_to_vvar)
 
         self._visited_blocks: set[Any] = set()
         self.out_blocks = {}

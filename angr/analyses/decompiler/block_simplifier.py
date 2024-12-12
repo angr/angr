@@ -2,10 +2,10 @@
 from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Tmp, Load, Const, Register, Convert
+from ailment.expression import Tmp, Load, Const, Register, Convert, Expression
 from ailment import AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation, CodeLocation
@@ -139,7 +139,7 @@ class BlockSimplifier(Analysis):
 
         self.result_block = block
 
-    def _compute_propagation(self, block):
+    def _compute_propagation(self, block) -> SPropagatorAnalysis:
         if self._propagator is None:
             self._propagator = self.project.analyses[SPropagatorAnalysis].prep()(
                 subject=block,
@@ -155,7 +155,6 @@ class BlockSimplifier(Analysis):
                 .prep()(
                     subject=block,
                     track_tmps=True,
-                    stack_pointer_tracker=self._stack_pointer_tracker,
                     func_addr=self.func_addr,
                 )
                 .model
@@ -201,8 +200,8 @@ class BlockSimplifier(Analysis):
 
     @staticmethod
     def _replace_and_build(
-        block,
-        replacements,
+        block: Block,
+        replacements: Mapping[CodeLocation, Mapping[Expression, Expression]],
         replace_assignment_dsts: bool = False,
         replace_loads: bool = False,
         gp: int | None = None,
@@ -211,14 +210,9 @@ class BlockSimplifier(Analysis):
         new_statements = block.statements[::]
         replaced = False
 
-        stmts_to_remove = set()
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
-                stmt_to_remove = None
-                if isinstance(new, dict):
-                    stmt_to_remove = new["stmt_to_remove"]
-                    new = new["expr"]
-
+                assert codeloc.stmt_idx is not None
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
                     not replace_loads
@@ -229,7 +223,9 @@ class BlockSimplifier(Analysis):
                     # skip memory-based replacement for non-Call and non-gp-loading statements
                     continue
                 if stmt == old:
-                    # replace this statement
+                    # the replacement must be a call, since replacements can only be expressions
+                    # and call is the only thing which is both a statement and an expression
+                    assert isinstance(new, Call)
                     r = True
                     new_stmt = new
                 else:
@@ -257,19 +253,12 @@ class BlockSimplifier(Analysis):
                         r, new_stmt = stmt.replace(old, new)
 
                 if r:
+                    assert new_stmt is not None
                     replaced = True
                     new_statements[codeloc.stmt_idx] = new_stmt
-                    if stmt_to_remove is not None:
-                        stmts_to_remove.add(stmt_to_remove)
 
         if not replaced:
             return False, block
-
-        if stmts_to_remove:
-            stmt_ids_to_remove = {a.stmt_idx for a in stmts_to_remove}
-            all_stmts = {idx: stmt for idx, stmt in enumerate(new_statements) if idx not in stmt_ids_to_remove}
-            filtered_stmts = sorted(all_stmts.items(), key=lambda x: x[0])
-            new_statements = [stmt for _, stmt in filtered_stmts]
 
         new_block = block.copy()
         new_block.statements = new_statements

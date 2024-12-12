@@ -54,7 +54,7 @@ class InsnAndNodeObserveTestingUtils:
         )
 
         state = ReachingDefinitionsState(
-            CodeLocation(main_function.addr, None), project.arch, reaching_definitions.subject
+            CodeLocation(main_function.addr, None), project.arch, reaching_definitions.subject, analysis=None
         )
 
         return (project, main_function, reaching_definitions, state)

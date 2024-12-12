@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
+from typing import cast
 
 import claripy
 import pyvex
@@ -7,26 +8,28 @@ import pyvex
 from angr.analyses import visitors, ForwardAnalysis
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.knowledge_plugins.functions.function import Function
-from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
+from angr.engines.light import SimEngineNostmtVEX
 from .propagator.vex_vars import VEXTmp
 from .propagator.values import Top
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
 
 
-class SimEngineXRefsVEX(
-    SimEngineLightVEXMixin,
-    SimEngineLight,
-):
+class SimEngineXRefsVEX(SimEngineNostmtVEX[None, None, None]):  # go girl give us nothing!!
     """
     The VEX engine class for XRefs analysis.
     """
 
-    def __init__(self, xref_manager, project=None, replacements=None):
-        super().__init__()
-        self.project = project
+    def __init__(self, xref_manager, project, replacements=None):
+        super().__init__(project)
         self.xref_manager = xref_manager
         self.replacements = replacements if replacements is not None else {}
+
+    def _top(self, bits):
+        return None
+
+    def _is_top(self, expr):
+        return True
 
     def add_xref(self, xref_type, from_loc, to_loc):
         self.xref_manager.add_xref(
@@ -49,24 +52,27 @@ class SimEngineXRefsVEX(
         """
 
         if isinstance(expr, claripy.ast.Base) and expr.op == "BVV":
-            return expr.args[0]
+            return cast(int, expr.args[0])
+        return None
+
+    def _process_block_end(self, stmt_result, whitelist):
         return None
 
     #
     # Statement handlers
     #
 
-    def _handle_WrTmp(self, stmt):
+    def _handle_stmt_WrTmp(self, stmt):
         # Don't execute the tmp write since it has been done during constant propagation
         self._expr(stmt.data)
         if type(stmt.data) is pyvex.IRExpr.Load:
             self._handle_data_offset_refs(stmt.tmp)
 
-    def _handle_Put(self, stmt):
+    def _handle_stmt_Put(self, stmt):
         # if there is a Load, get it executed
         self._expr(stmt.data)
 
-    def _handle_Store(self, stmt):
+    def _handle_stmt_Store(self, stmt):
         if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
             addr_tmp = VEXTmp(stmt.addr.tmp)
             blockloc = self._codeloc(block_only=True)
@@ -79,7 +85,7 @@ class SimEngineXRefsVEX(
             addr = stmt.addr.con.value
             self.add_xref(XRefType.Write, self._codeloc(), addr)
 
-    def _handle_StoreG(self, stmt):
+    def _handle_stmt_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(stmt.addr.tmp)
@@ -89,7 +95,7 @@ class SimEngineXRefsVEX(
                 if addr_v is not None:
                     self.add_xref(XRefType.Write, self._codeloc(), addr_v)
 
-    def _handle_LoadG(self, stmt):
+    def _handle_stmt_LoadG(self, stmt):
         # What are we reading?
         blockloc = self._codeloc(block_only=True)
         if type(stmt.addr) is pyvex.IRExpr.RdTmp:
@@ -101,7 +107,7 @@ class SimEngineXRefsVEX(
                     self.add_xref(XRefType.Read, self._codeloc(), addr_v)
         self._handle_data_offset_refs(stmt.dst)
 
-    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+    def _handle_stmt_LLSC(self, stmt: pyvex.IRStmt.LLSC):
         blockloc = self._codeloc(block_only=True)
         if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
             addr_tmp = VEXTmp(stmt.addr.tmp)
@@ -135,10 +141,16 @@ class SimEngineXRefsVEX(
     # Expression handlers
     #
 
-    def _handle_Get(self, expr):
+    def _handle_conversion(self, from_size, to_size, signed, operand):
         return None
 
-    def _handle_Load(self, expr):
+    def _handle_expr_Const(self, expr):
+        return None
+
+    def _handle_expr_Get(self, expr):
+        return None
+
+    def _handle_expr_Load(self, expr):
         blockloc = self._codeloc(block_only=True)
         if type(expr.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(expr.addr.tmp)
@@ -151,7 +163,22 @@ class SimEngineXRefsVEX(
             addr = expr.addr.con.value
             self.add_xref(XRefType.Read, self._codeloc(), addr)
 
-    def _handle_CCall(self, expr):
+    def _handle_expr_CCall(self, expr):
+        return None
+
+    def _handle_expr_VECRET(self, expr):
+        return None
+
+    def _handle_expr_GSPTR(self, expr):
+        return None
+
+    def _handle_expr_ITE(self, expr):
+        return None
+
+    def _handle_expr_RdTmp(self, expr):
+        return None
+
+    def _handle_expr_GetI(self, expr):
         return None
 
     def _handle_function(self, func):
@@ -231,7 +258,7 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         return None
 
     def _merge_states(self, node, *states):
-        return None
+        return None, False
 
     def _run_on_node(self, node, state):
         block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)

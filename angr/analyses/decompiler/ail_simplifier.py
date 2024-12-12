@@ -24,6 +24,7 @@ from ailment.expression import (
     VirtualVariable,
 )
 
+from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.utils.ail import is_phi_assignment, HasExprWalker
 from angr.code_location import CodeLocation, ExternalCodeLocation
@@ -213,11 +214,11 @@ class AILSimplifier(Analysis):
         self._reaching_definitions = rd
         return rd
 
-    def _compute_propagation(self, immediate_stmt_removal: bool = False):
+    def _compute_propagation(self, immediate_stmt_removal: bool = False) -> SPropagatorAnalysis:
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
-        prop = self.project.analyses.SPropagator(
+        prop = self.project.analyses[SPropagatorAnalysis].prep()(
             subject=self.func,
             func_graph=self.func_graph,
             # gp=self._gp,

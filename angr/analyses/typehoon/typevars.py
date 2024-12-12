@@ -316,12 +316,12 @@ class TypeVariable:
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("type_var", "labels")
 
-    type_var: TypeVariable | TypeConstant
+    labels: tuple[BaseLabel, ...]
 
     def __init__(
         self,
-        type_var: TypeVariable | DerivedTypeVariable | None,
-        label,
+        type_var: TypeType,
+        label: BaseLabel | None,
         labels: Iterable[BaseLabel] | None = None,
         idx=None,
     ):
@@ -339,8 +339,10 @@ class DerivedTypeVariable(TypeVariable):
 
         if label is not None:
             self.labels = (*existing_labels, label)
+        elif labels is not None:
+            self.labels = existing_labels + tuple(labels)
         else:
-            self.labels: tuple[BaseLabel] = existing_labels + tuple(labels)
+            self.labels = existing_labels
 
         if not self.labels:
             raise ValueError("A DerivedTypeVariable must have at least one label")
@@ -350,10 +352,10 @@ class DerivedTypeVariable(TypeVariable):
     def one_label(self) -> BaseLabel | None:
         return self.labels[0] if len(self.labels) == 1 else None
 
-    def path(self) -> tuple[BaseLabel]:
+    def path(self) -> tuple[BaseLabel, ...]:
         return self.labels
 
-    def longest_prefix(self) -> TypeVariable | DerivedTypeVariable | None:
+    def longest_prefix(self) -> TypeType | None:
         if not self.labels:
             return None
         if len(self.labels) == 1:
@@ -418,7 +420,7 @@ class TypeVariables:
         # )
         return "{TypeVars: %d items}" % len(self._typevars)
 
-    def add_type_variable(self, var: SimVariable, codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
+    def add_type_variable(self, var: SimVariable, codeloc, typevar: TypeType):  # pylint:disable=unused-argument
         if var not in self._typevars:
             self._typevars[var] = set()
         elif typevar in self._typevars[var]:
