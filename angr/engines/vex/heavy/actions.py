@@ -14,8 +14,6 @@ class TrackActionsMixin(HeavyVEXMixin):
 
         self.__tmp_deps = {}
 
-    __tls = ("__tmp_deps",)
-
     def _optimize_guarded_addr(self, addr, guard):
         addr, addr_deps = addr
         guard, _ = guard
@@ -150,7 +148,7 @@ class TrackActionsMixin(HeavyVEXMixin):
 
     # statements
 
-    def _perform_vex_stmt_WrTmp(self, tmp, data_bundle, **kwargs):
+    def _perform_vex_stmt_WrTmp(self, tmp, data_bundle, **kwargs):  # pylint:disable=unused-argument
         data, data_deps = data_bundle
 
         if o.TRACK_TMP_ACTIONS not in self.state.options:

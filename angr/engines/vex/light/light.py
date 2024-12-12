@@ -22,8 +22,6 @@ class VEXMixin(SimEngineBase):
         self.stmt_idx = None
         self.tmps = None
 
-    __tls = ("irsb", "stmt_idx", "tmps")
-
     def __init_handlers(self):
         self._vex_expr_handlers = [None] * pyvex.expr.tag_count
         self._vex_stmt_handlers = [None] * pyvex.stmt.tag_count

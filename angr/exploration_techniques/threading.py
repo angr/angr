@@ -67,9 +67,3 @@ class Threading(ExplorationTechnique):
         error_list = []
         simgr.step(stash=self.local_stash, error_list=error_list, **kwargs)
         return state, error_list, simgr
-
-    def successors(self, simgr, state, engine=None, **kwargs):
-        if engine is not None:
-            l.warning("Threading exploration teqchnique does not support custom engines")
-        engine = engine or self.project.factory.default_engine
-        return simgr.successors(state, engine=engine, **kwargs)
