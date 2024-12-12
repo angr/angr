@@ -550,18 +550,6 @@ class SimEngineRDVEX(
         return r
 
     @unop_handler
-    def _handle_unop_Not1(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr_bv(arg0)
-
-        e0 = expr_0.one_value()
-
-        if e0 is not None and not e0.symbolic:
-            return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != 1 else claripy.BVV(0, 1))
-
-        return MultiValues(self.state.top(1))
-
-    @unop_handler
     def _handle_unop_Not(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr_bv(arg0)
