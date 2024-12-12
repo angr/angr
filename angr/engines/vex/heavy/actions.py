@@ -14,8 +14,6 @@ class TrackActionsMixin(HeavyVEXMixin):
 
         self.__tmp_deps = {}
 
-    __tls = ("__tmp_deps",)
-
     def _optimize_guarded_addr(self, addr, guard):
         addr, addr_deps = addr
         guard, _ = guard

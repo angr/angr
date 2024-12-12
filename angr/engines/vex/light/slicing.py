@@ -12,8 +12,6 @@ class VEXSlicingMixin(VEXMixin):
         self._last_stmt = None
         self._whitelist = None
 
-    __tls = ("__no_exit_sliced", "_skip_stmts", "_last_stmt", "_whitelist")
-
     def process(self, state, block=None, skip_stmts=0, last_stmt=None, whitelist=None, **kwargs):
         self._skip_stmts = skip_stmts
         self._last_stmt = last_stmt

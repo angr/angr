@@ -3,11 +3,9 @@ from __future__ import annotations
 from typing import Generic, TypeVar
 import abc
 import logging
-import threading
 
-
-from archinfo.arch_soot import SootAddressDescriptor
 import claripy
+from archinfo.arch_soot import SootAddressDescriptor
 
 import angr
 from angr.sim_state import SimState
@@ -40,8 +38,6 @@ class SimEngineBase(Generic[StateType]):
         self.project = project
         self.arch = self.project.arch
 
-    __tls = ("state",)
-
     def __getstate__(self):
         return (self.project,)
 
@@ -64,53 +60,6 @@ class SimEngine(Generic[StateType, ResultType], SimEngineBase[StateType], metacl
         """
 
 
-class TLSMixin:
-    """
-    Mix this class into any class that defines __tls to make all of the attributes named in that list into
-    thread-local properties.
-
-    MAGIC MAGIC MAGIC
-    """
-
-    __local: threading.local  # pylint: disable=unused-private-member
-
-    def __new__(cls, *args, **kwargs):  # pylint:disable=unused-argument
-        obj = super().__new__(cls)
-        obj.__local = threading.local()
-        return obj
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-
-        for subcls in cls.mro():
-            for attr in subcls.__dict__.get(f"_{subcls.__name__}__tls", ()):
-                if attr.startswith("__"):
-                    attr = f"_{subcls.__name__}{attr}"
-
-                if hasattr(cls, attr):
-                    assert (
-                        type(getattr(cls, attr, None)) is TLSProperty
-                    ), f"Programming error: {attr} is both in __tls and __class__"
-                else:
-                    setattr(cls, attr, TLSProperty(attr))
-
-
-class TLSProperty:  # pylint:disable=missing-class-docstring
-    def __init__(self, name):
-        self.name = name
-
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        return getattr(instance._TLSMixin__local, self.name)
-
-    def __set__(self, instance, value):
-        setattr(instance._TLSMixin__local, self.name, value)
-
-    def __delete__(self, instance):
-        delattr(instance._TLSMixin__local, self.name)
-
-
 class SuccessorsMixin(SimEngine[HeavyState, SimSuccessors]):
     """
     A mixin for SimEngine which implements ``process`` to perform common operations related to symbolic execution
@@ -121,8 +70,6 @@ class SuccessorsMixin(SimEngine[HeavyState, SimSuccessors]):
         super().__init__(*args, **kwargs)
 
         self.successors: SimSuccessors | None = None
-
-    __tls = ("successors",)
 
     def process(self, state: HeavyState, **kwargs) -> SimSuccessors:  # pylint:disable=unused-argument
         """
