@@ -144,8 +144,10 @@ jobs:
       - name: Fetch metadata for binaries
         id: fetch_metadata_for_binaries
         env:
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set -euo pipefail
+
           # Gather the individual paths from the CORPUS_GITHUB_PATH.
           corpus_path="${{ inputs.corpus_github_path }}"
           if [[ -z "$corpus_path" ]]; then
@@ -161,16 +163,20 @@ jobs:
           echo "Number of separate paths: ${#all_paths[@]}"
 
           declare -a all_files
+          all_files=()
           mapfile -t all_files < <(
             ./corpus_tests/scripts/gh_ls.sh \
               -R "${CORPUS_GITHUB_OWNER}/${CORPUS_GITHUB_REPO}" \
               -b "${CORPUS_GITHUB_BRANCH}" \
-              ${all_paths[@]} -t "${GITHUB_TOKEN}"
+              ${all_paths[@]} -t "${GH_TOKEN}"
           )
 
           # Count the number of files
           files_count="${#all_files[@]}"
           echo "Total number of files: $files_count"
+          if [[ $files_count -eq 0 ]]; then
+            exit 1
+          fi
 
           # Calculate the number of files each job should handle (max 256 jobs)
           MAX_MATRIX_JOBS=256
@@ -179,6 +185,7 @@ jobs:
 
           # Set environment variables for each chunk
           chunks=()
+          count=0
           current_chunk=""
 
           for file in "${all_files[@]}"; do
@@ -243,9 +250,11 @@ jobs:
 
       - name: Fetch binary files and run analysis
         env:
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
           NIGHTLY: inputs.nightly
         run: |
+          set -euo pipefail
+
           source .venv/bin/activate
 
           # Determine the environment variable name for the current chunk
@@ -270,7 +279,7 @@ jobs:
               owner_repo_branch="$CORPUS_GITHUB_OWNER/$CORPUS_GITHUB_REPO/$CORPUS_GITHUB_BRANCH"
               binary_url="https://raw.githubusercontent.com/${owner_repo_branch}/$file"
               echo "Retrieving binary from '${binary_url}'."
-              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "binaries/$file" "${binary_url}"
+              curl -L -H "Authorization: token $GH_TOKEN" -o "binaries/$file" "${binary_url}"
 
               echo -e "Downloaded binary:\n$(ls -l "binaries/$file")"
 
@@ -287,7 +296,7 @@ jobs:
               snapshot_url="https://raw.githubusercontent.com/${owner_repo_branch}/snapshots/${snapshot_repo_file}"
 
               echo "Retrieving snapshot from '${snapshot_url}'."
-              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
+              curl -L -H "Authorization: token $GH_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
 
               if [[ ! -e "${pytest_insta_snapshot_file}" ]]; then
                 echo "*** Failed to download snapshot at '${snapshot_url}'."
@@ -437,7 +446,6 @@ jobs:
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
           ./corpus_tests/scripts/snapshot_diff.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
