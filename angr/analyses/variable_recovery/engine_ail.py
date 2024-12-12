@@ -108,14 +108,6 @@ class SimEngineVRAIL(
         except KeyError:
             return self._top(expr.bits)
 
-    def _handle_expr_VEXCCallExpression(self, expr):
-        for arg in expr.operands:
-            self._expr(arg)
-        return self._top(expr.bits)
-
-    def _handle_expr_DirtyExpression(self, expr):
-        return self._top(expr.bits)
-
     def _handle_expr_MultiStatementExpression(self, expr):
         for stmt in expr.statements:
             self._stmt(stmt)
@@ -276,7 +268,7 @@ class SimEngineVRAIL(
             for ret_expr in stmt.ret_exprs:
                 self._expr(ret_expr)
 
-    def _ail_handle_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> RichR:
+    def _handle_expr_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> RichR:
         for op in expr.operands:
             self._expr(op)
         if expr.guard:
@@ -285,7 +277,7 @@ class SimEngineVRAIL(
             self._expr(expr.maddr)
         return RichR(self.state.top(expr.bits))
 
-    def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> RichR:
+    def _handle_expr_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> RichR:
         for op in expr.operands:
             self._expr(op)
         return RichR(self.state.top(expr.bits))

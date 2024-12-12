@@ -150,7 +150,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
         return None
 
-    def _handle_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
+    def _handle_stmt_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
         dirty = self._expr(stmt.dirty)
         if dirty is None or dirty is stmt.dirty:
             return None
@@ -288,7 +288,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
         return None
 
-    def _handle_DirtyExpression(self, expr: DirtyExpression) -> DirtyExpression | None:
+    def _handle_expr_DirtyExpression(self, expr: DirtyExpression) -> DirtyExpression | None:
         new_operands = []
         updated = False
         for o in expr.operands:
