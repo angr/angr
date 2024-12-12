@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -o pipefail
+set -euo pipefail
 shopt -s lastpipe
 
 help() {
@@ -35,7 +35,7 @@ GitHub Options:
   -t <token>, --token <token>
 
       A GitHub token with access permissions. This can also be specified via the
-      GITHUB_TOKEN environment variable.
+      GH_TOKEN environment variable.
 ANGR
   exit 1
 }
@@ -61,7 +61,7 @@ parse_args() {
         shift 2
         ;;
       -t|--token)
-        export GITHUB_TOKEN="$2"
+        export GH_TOKEN="$2"
         shift 2
         ;;
       *)
