@@ -1,5 +1,9 @@
 # pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed
-from typing import Optional, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from abc import ABC, abstractmethod
+from typing_extensions import Self
 
 try:
     import claripy
@@ -8,26 +12,29 @@ except ImportError:
 
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
 from .tagged_object import TaggedObject
-from .expression import Expression, DirtyExpression
+from .expression import Atom, Expression, DirtyExpression
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
 
 
-class Statement(TaggedObject):
+class Statement(TaggedObject, ABC):
     """
     The base class of all AIL statements.
     """
 
     __slots__ = ()
 
+    @abstractmethod
     def __repr__(self):
         raise NotImplementedError()
 
+    @abstractmethod
     def __str__(self):
         raise NotImplementedError()
 
-    def replace(self, old_expr, new_expr):
+    @abstractmethod
+    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
         raise NotImplementedError()
 
     def eq(self, expr0, expr1):  # pylint:disable=no-self-use
@@ -35,11 +42,13 @@ class Statement(TaggedObject):
             return expr0 is expr1
         return expr0 == expr1
 
-    def likes(self, atom):  # pylint:disable=unused-argument,no-self-use
+    @abstractmethod
+    def likes(self, other) -> bool:  # pylint:disable=unused-argument,no-self-use
         raise NotImplementedError()
 
-    def matches(self, atom):  # pylint:disable=unused-argument,no-self-use
-        return NotImplementedError()
+    @abstractmethod
+    def matches(self, other) -> bool:  # pylint:disable=unused-argument,no-self-use
+        raise NotImplementedError()
 
 
 class Assignment(Statement):
@@ -52,7 +61,7 @@ class Assignment(Statement):
         "src",
     )
 
-    def __init__(self, idx, dst, src, **kwargs):
+    def __init__(self, idx: int | None, dst: Atom, src: Expression, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.dst = dst
@@ -78,9 +87,10 @@ class Assignment(Statement):
     def __str__(self):
         return f"{str(self.dst)} = {str(self.src)}"
 
-    def replace(self, old_expr, new_expr):
+    def replace(self, old_expr: Expression, new_expr: Expression):
         if self.dst == old_expr:
             r_dst = True
+            assert isinstance(new_expr, Atom)
             replaced_dst = new_expr
         else:
             r_dst, replaced_dst = self.dst.replace(old_expr, new_expr)
@@ -96,7 +106,7 @@ class Assignment(Statement):
         else:
             return False, self
 
-    def copy(self) -> "Assignment":
+    def copy(self) -> Assignment:
         return Assignment(self.idx, self.dst, self.src, **self.tags)
 
 
@@ -115,7 +125,18 @@ class Store(Statement):
         "guard",
     )
 
-    def __init__(self, idx, addr, data, size, endness, guard=None, variable=None, offset=None, **kwargs):
+    def __init__(
+        self,
+        idx: int | None,
+        addr: Expression,
+        data: Expression,
+        size: int,
+        endness: str,
+        guard: Expression | None = None,
+        variable=None,
+        offset=None,
+        **kwargs,
+    ):
         super().__init__(idx, **kwargs)
 
         self.addr = addr
@@ -219,7 +240,7 @@ class Store(Statement):
         else:
             return False, self
 
-    def copy(self) -> "Store":
+    def copy(self) -> Store:
         return Store(
             self.idx,
             self.addr,
@@ -424,7 +445,7 @@ class ConditionalJump(Statement):
         else:
             return False, self
 
-    def copy(self) -> "ConditionalJump":
+    def copy(self) -> ConditionalJump:
         return ConditionalJump(
             self.idx,
             self.condition,
@@ -452,18 +473,17 @@ class Call(Expression, Statement):
         "args",
         "ret_expr",
         "fp_ret_expr",
-        "bits",
     )
 
     def __init__(
         self,
         idx,
         target,
-        calling_convention: Optional["SimCC"] = None,
+        calling_convention: SimCC | None = None,
         prototype=None,
-        args=None,
-        ret_expr=None,
-        fp_ret_expr=None,
+        args: Sequence[Expression] | None = None,
+        ret_expr: Expression | None = None,
+        fp_ret_expr: Expression | None = None,
         bits: int | None = None,
         **kwargs,
     ):
@@ -475,7 +495,14 @@ class Call(Expression, Statement):
         self.args = args
         self.ret_expr = ret_expr
         self.fp_ret_expr = fp_ret_expr
-        self.bits = bits if bits is not None else ret_expr.bits if ret_expr is not None else None
+        if bits is not None:
+            self.bits = bits
+        elif ret_expr is not None:
+            self.bits = ret_expr.bits
+        elif fp_ret_expr is not None:
+            self.bits = fp_ret_expr.bits
+        else:
+            self.bits = 0  # uhhhhhhhhhhhhhhhhhhh
 
     def likes(self, other):
         return (
@@ -544,7 +571,7 @@ class Call(Expression, Statement):
     def op(self):
         return "call"
 
-    def replace(self, old_expr, new_expr):
+    def replace(self, old_expr: Expression, new_expr: Expression):
         if isinstance(self.target, Expression):
             r0, replaced_target = self.target.replace(old_expr, new_expr)
         else:
@@ -692,7 +719,7 @@ class DirtyStatement(Statement):
 
     __slots__ = ("dirty",)
 
-    def __init__(self, idx, dirty: DirtyExpression, **kwargs):
+    def __init__(self, idx: int | None, dirty: DirtyExpression, **kwargs):
         super().__init__(idx, **kwargs)
         self.dirty = dirty
 
@@ -707,14 +734,21 @@ class DirtyStatement(Statement):
 
     def replace(self, old_expr, new_expr):
         if self.dirty == old_expr:
+            assert isinstance(new_expr, DirtyExpression)
             return True, DirtyStatement(self.idx, new_expr, **self.tags)
         r, new_dirty = self.dirty.replace(old_expr, new_expr)
         if r:
             return True, DirtyStatement(self.idx, new_dirty, **self.tags)
         return False, self
 
-    def copy(self) -> "DirtyStatement":
+    def copy(self) -> DirtyStatement:
         return DirtyStatement(self.idx, self.dirty, **self.tags)
+
+    def likes(self, other):
+        return type(other) is DirtyStatement and self.dirty.likes(other.dirty)
+
+    def matches(self, other):
+        return type(other) is DirtyStatement and self.dirty.matches(other.dirty)
 
 
 class Label(Statement):
@@ -734,8 +768,11 @@ class Label(Statement):
         self.ins_addr = ins_addr
         self.block_idx = block_idx
 
-    def likes(self, other: "Label"):
+    def likes(self, other: Label):
         return isinstance(other, Label)
+
+    def replace(self, old_expr, new_expr):
+        return False, self
 
     matches = likes
 
@@ -755,5 +792,5 @@ class Label(Statement):
     def __str__(self):
         return f"{self.name}:"
 
-    def copy(self) -> "Label":
+    def copy(self) -> Label:
         return Label(self.idx, self.name, self.ins_addr, self.block_idx, **self.tags)

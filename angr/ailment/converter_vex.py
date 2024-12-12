@@ -20,7 +20,6 @@ from .expression import (
     ITE,
     Reinterpret,
     VEXCCallExpression,
-    TernaryOp,
 )
 from .converter_common import SkipConversionNotice, Converter
 
@@ -288,10 +287,68 @@ class VEXExprConverter(Converter):
 
         bits = op._output_size_bits
 
-        extra_kwargs = {}
         if op_name == "DivMod":
-            extra_kwargs["from_bits"] = op._from_size if op._from_size is not None else operands[1].bits
-            extra_kwargs["to_bits"] = op._to_size if op._to_size is not None else operands[1].bits
+            op1_size = op._from_size if op._from_size is not None else operands[0].bits
+            op2_size = op._to_size if op._to_size is not None else operands[1].bits
+
+            if op2_size < op1_size:
+                # e.g., DivModU64to32
+                operands[1] = Convert(
+                    manager.next_atom(),
+                    op2_size,
+                    op1_size,
+                    op._from_signed != "U",
+                    operands[1],
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=manager.vex_stmt_idx,
+                )
+            chunk_bits = bits // 2
+
+            div = BinaryOp(
+                manager.next_atom(),
+                "Div",
+                operands,
+                signed,
+                ins_addr=manager.ins_addr,
+                vex_block_addr=manager.block_addr,
+                vex_stmt_idx=manager.vex_stmt_idx,
+                bits=op1_size,
+            )
+            truncated_div = Convert(
+                manager.next_atom(),
+                op1_size,
+                chunk_bits,
+                signed,
+                div,
+                ins_addr=manager.ins_addr,
+                vex_block_addr=manager.block_addr,
+                vex_stmt_idx=manager.vex_stmt_idx,
+            )
+            mod = BinaryOp(
+                manager.next_atom(),
+                "Mod",
+                operands,
+                signed,
+                ins_addr=manager.ins_addr,
+                vex_block_addr=manager.block_addr,
+                vex_stmt_idx=manager.vex_stmt_idx,
+                bits=op1_size,
+            )
+            truncated_mod = Convert(
+                manager.next_atom(),
+                op1_size,
+                chunk_bits,
+                signed,
+                mod,
+                ins_addr=manager.ins_addr,
+                vex_block_addr=manager.block_addr,
+                vex_stmt_idx=manager.vex_stmt_idx,
+            )
+
+            operands = [truncated_mod, truncated_div]
+            op_name = "Concat"
+            signed = False
 
         return BinaryOp(
             manager.next_atom(),
@@ -304,7 +361,6 @@ class VEXExprConverter(Converter):
             bits=bits,
             vector_count=vector_count,
             vector_size=vector_size,
-            **extra_kwargs,
         )
 
     @staticmethod
@@ -332,14 +388,9 @@ class VEXExprConverter(Converter):
                 bits=bits,
             )
 
-        return TernaryOp(
-            manager.next_atom(),
-            op_name,
-            operands,
-            ins_addr=manager.ins_addr,
-            vex_block_addr=manager.block_addr,
-            vex_stmt_idx=manager.vex_stmt_idx,
-            bits=bits,
+        raise TypeError(
+            "Please figure out what kind of operation this is (smart money says fused multiply) and convert it into "
+            "multiple binops"
         )
 
     @staticmethod

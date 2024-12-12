@@ -16,7 +16,7 @@ class Block:
         "idx",
     )
 
-    def __init__(self, addr, original_size, statements=None, idx=None):
+    def __init__(self, addr: int, original_size, statements=None, idx=None):
         self.addr = addr
         self.original_size = original_size
         self.statements: list["Statement"] = [] if statements is None else statements

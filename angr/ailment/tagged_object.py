@@ -9,7 +9,7 @@ class TaggedObject:
         "_hash",
     )
 
-    def __init__(self, idx, **kwargs):
+    def __init__(self, idx: int | None, **kwargs):
         self._tags = None
         self.idx = idx
         self._hash = None
@@ -43,7 +43,7 @@ class TaggedObject:
         self._tags = None
         return self
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         if self._hash is None:
             self._hash = self._hash_core()
         return self._hash

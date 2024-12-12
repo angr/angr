@@ -1,37 +1,29 @@
-from typing import Union, TYPE_CHECKING
+# pylint:disable=ungrouped-imports,wrong-import-position
+from __future__ import annotations
+from typing import TypeAlias
 import struct
 
 try:
-    import claripy
+    from claripy.ast import Bits
 except ImportError:
-    claripy = None
+    from typing_extensions import Never as Bits
 
 try:
     import _md5 as md5lib
 except ImportError:
     import hashlib as md5lib
 
-if TYPE_CHECKING:
-    from .expression import Expression
+GetBitsTypeParams: TypeAlias = "Bits | Expression"
 
 
-get_bits_type_params = Union[int, "Expression"]
-if claripy:
-    get_bits_type_params = Union[int, claripy.ast.Bits, "Expression"]
-
-
-def get_bits(expr: get_bits_type_params) -> int | None:
-    # delayed import
-    from .expression import Expression  # pylint:disable=import-outside-toplevel
+def get_bits(expr: GetBitsTypeParams) -> int:
 
     if isinstance(expr, Expression):
         return expr.bits
-    elif isinstance(expr, claripy.ast.Bits):
+    elif isinstance(expr, Bits):
         return expr.size()
-    elif hasattr(expr, "bits"):
-        return expr.bits
     else:
-        return None
+        raise TypeError(type(expr))
 
 
 md5_unpacker = struct.Struct("4I")
@@ -95,8 +87,6 @@ def is_none_or_likeable(arg1, arg2, is_list=False):
     """
     Returns whether two things are both None or can like each other
     """
-    from .expression import Expression  # pylint:disable=import-outside-toplevel
-
     if arg1 is None or arg2 is None:
         if arg1 == arg2:
             return True
@@ -114,8 +104,6 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     """
     Returns whether two things are both None or can match each other
     """
-    from .expression import Expression  # pylint:disable=import-outside-toplevel
-
     if arg1 is None or arg2 is None:
         if arg1 == arg2:
             return True
@@ -127,3 +115,6 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     if isinstance(arg1, Expression):
         return arg1.matches(arg2)
     return arg1 == arg2
+
+
+from .expression import Expression  # noqa: E402

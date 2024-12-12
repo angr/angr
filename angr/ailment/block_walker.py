@@ -72,10 +72,10 @@ class AILBlockWalkerBase:
         self,
         expr: Expression,
         stmt_idx: int | None = None,
-        stmt: int | None = None,
+        stmt: Statement | None = None,
         block: Block | None = None,
     ):
-        return self._handle_expr(0, expr, stmt_idx, stmt, block)
+        return self._handle_expr(0, expr, stmt_idx or 0, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> Any:
         try:
