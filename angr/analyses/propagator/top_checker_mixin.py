@@ -5,6 +5,7 @@ import claripy
 from pyvex.expr import IRExpr, Unop, get_op_retty, Binop
 from pyvex.const import get_type_size
 
+from angr.utils.bits import zeroextend_on_demand
 from angr.block import Block
 from angr.engines.engine import DataType_co
 from angr.engines.light.engine import SimEngineLight, SimEngineLightVEX, StateType, BlockType, ResultType, StmtDataType
@@ -149,9 +150,9 @@ class ClaripyDataVEXEngineMixin(
     _handle_binop_And = _vex_make_operation(lambda a, b: a & b)
     _handle_binop_Or = _vex_make_operation(lambda a, b: a | b)
     _handle_binop_Xor = _vex_make_operation(lambda a, b: a ^ b)
-    _handle_binop_Shl = _vex_make_shift_operation(lambda a, b: a << b)
-    _handle_binop_Sar = _vex_make_shift_operation(lambda a, b: a >> b)
-    _handle_binop_Shr = _vex_make_shift_operation(claripy.LShR)
+    _handle_binop_Shl = _vex_make_shift_operation(lambda a, b: a << zeroextend_on_demand(a, b))
+    _handle_binop_Sar = _vex_make_shift_operation(lambda a, b: a >> zeroextend_on_demand(a, b))
+    _handle_binop_Shr = _vex_make_shift_operation(lambda a, b: claripy.LShR(a, zeroextend_on_demand(a, b)))
 
     @SimEngineLightVEX.binop_handler
     def _handle_binop_Div(self, expr):

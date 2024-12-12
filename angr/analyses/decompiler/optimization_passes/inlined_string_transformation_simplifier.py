@@ -20,6 +20,7 @@ from ailment.expression import (
 from ailment.statement import ConditionalJump, Jump, Assignment
 import claripy
 
+from angr.utils.bits import zeroextend_on_demand
 from angr.engines.light import SimEngineNostmtAIL
 from angr.storage.memory_mixins import (
     SimpleInterfaceMixin,
@@ -389,11 +390,11 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Mod = _make_binop(lambda a, b: a % b)
     _handle_binop_Mul = _make_binop(lambda a, b: a * b)
     _handle_binop_Or = _make_binop(lambda a, b: a | b)
-    _handle_binop_Rol = _make_binop(claripy.RotateLeft)
-    _handle_binop_Ror = _make_binop(claripy.RotateRight)
-    _handle_binop_Sar = _make_binop(lambda a, b: a >> b)
-    _handle_binop_Shl = _make_binop(lambda a, b: a << b)
-    _handle_binop_Shr = _make_binop(lambda a, b: a.LShR(b))
+    _handle_binop_Rol = _make_binop(lambda a, b: claripy.RotateLeft(a, zeroextend_on_demand(a, b)))
+    _handle_binop_Ror = _make_binop(lambda a, b: claripy.RotateRight(a, zeroextend_on_demand(a, b)))
+    _handle_binop_Sar = _make_binop(lambda a, b: a >> zeroextend_on_demand(a, b))
+    _handle_binop_Shl = _make_binop(lambda a, b: a << zeroextend_on_demand(a, b))
+    _handle_binop_Shr = _make_binop(lambda a, b: a.LShR(zeroextend_on_demand(a, b)))
     _handle_binop_Sub = _make_binop(lambda a, b: a - b)
     _handle_binop_Xor = _make_binop(lambda a, b: a ^ b)
 
