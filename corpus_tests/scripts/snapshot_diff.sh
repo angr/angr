@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -o pipefail
+set -euo pipefail
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -50,7 +50,7 @@ GitHub Options:
   -t <token>, --token <token>
 
       A GitHub token with access permissions. This can also be specified via the
-      GITHUB_TOKEN environment variable.
+      GH_TOKEN environment variable.
 ANGR
   exit 1
 }
@@ -89,7 +89,7 @@ parse_args() {
         shift 2
         ;;
       -t|--token)
-        GITHUB_TOKEN="$2"
+        GH_TOKEN="$2"
         shift 2
         ;;
       -v|--verbose)
@@ -136,7 +136,7 @@ if ! [[ -f "${SNAPSHOT_INDEX_FILE}" ]]; then
     -R "${REPO}" \
     --branch "${REF_HEAD}" \
     --path snapshots/ \
-    --token "${GITHUB_TOKEN}" \
+    --token "${GH_TOKEN}" \
     >> "${SNAPSHOT_INDEX_FILE}"
 fi
 
@@ -155,7 +155,7 @@ if ! [[ "${#FILEPATH[@]}" -eq 0 ]]; then
         -R "${REPO}" \
         --branch "${REF_HEAD}" \
         --path "${FILEPATH[$index]}" \
-        --token "${GITHUB_TOKEN}"
+        --token "${GH_TOKEN}"
     )
     FILEPATH_NEW=( "${FILEPATH_NEW[@]}" "${FILEPATH_TMP[@]}" )
   done
@@ -209,7 +209,7 @@ for index in "${!FILEPATH[@]}"; do
   if ! [[ -f "${DIRPATH}/${FILENAME}" ]]; then
     curl \
       --location \
-      --header "Authorization: token $GITHUB_TOKEN" \
+      --header "Authorization: token $GH_TOKEN" \
       --output "${DIRPATH}/${FILENAME}" \
       --silent \
       "${SNAPSHOT_BASE_URL}" &
@@ -222,7 +222,7 @@ for index in "${!FILEPATH[@]}"; do
   if ! [[ -f "${DIRPATH}/${FILENAME}" ]]; then
     curl \
       --location \
-      --header "Authorization: token $GITHUB_TOKEN" \
+      --header "Authorization: token $GH_TOKEN" \
       --output "${DIRPATH}/${FILENAME}" \
       --silent \
       "${SNAPSHOT_URL}" &
