@@ -3933,7 +3933,7 @@ class TestDecompiler(unittest.TestCase):
         )
         proj = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast(force_smart_scan=True, normalize=True)
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x41D560]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
@@ -3948,7 +3948,7 @@ class TestDecompiler(unittest.TestCase):
         )
         proj = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast(force_smart_scan=True, normalize=True)
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x41DCE0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
@@ -3956,6 +3956,22 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("switch") == 2
         for i in range(10):
             assert f"case {i}:" in d.codegen.text
+
+    def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "0a9bd4898d4c966cda1102952a74b3b829581c5b6bbeb4c4e6a09cefde8c0d26"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions[0x1400040C0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        # should not crash, and should generate at least one switch-case construct
+        assert d.codegen.text.count("switch") >= 1
+        for i in range(10):
+            assert f"case {i}:" in d.codegen.text
+        assert "default:" in d.codegen.text
 
 
 if __name__ == "__main__":

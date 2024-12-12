@@ -1569,6 +1569,17 @@ class PhoenixStructurer(StructurerBase):
 
         return case_and_entry_addrs
 
+    def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
+        jump_tables = self.kb.cfgs["CFGFast"].jump_tables
+        if node.addr in jump_tables:
+            return True
+        for succ in graph.successors(node):
+            if succ.addr in jump_tables:
+                return True
+        if node in self.switch_case_known_heads:
+            return True
+        return False
+
     # other acyclic schemas
 
     def _match_acyclic_sequence(self, graph, full_graph, start_node) -> bool:
@@ -1578,14 +1589,12 @@ class PhoenixStructurer(StructurerBase):
         succs = list(graph.successors(start_node))
         if len(succs) == 1:
             end_node = succs[0]
-            jump_tables = self.kb.cfgs["CFGFast"].jump_tables
             if (
                 full_graph.out_degree[start_node] == 1
                 and full_graph.in_degree[end_node] == 1
                 and not full_graph.has_edge(end_node, start_node)
-                and end_node.addr not in jump_tables
-                and end_node not in self.switch_case_known_heads
-                and start_node not in self.switch_case_known_heads
+                and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node)
+                and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
                 and end_node not in self.dowhile_known_tail_nodes
             ):
                 # merge two blocks
@@ -1606,7 +1615,9 @@ class PhoenixStructurer(StructurerBase):
         succs = list(full_graph.successors(start_node))
         if len(succs) == 2:
             left, right = succs
-            if left in self.switch_case_known_heads or right in self.switch_case_known_heads:
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                full_graph, left
+            ) or self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, right):
                 # structure the switch-case first before we wrap them into an ITE. give up
                 return False
 
@@ -2039,7 +2050,9 @@ class PhoenixStructurer(StructurerBase):
                 left, right = right, left
 
             # ensure left and right nodes are not the head of a switch-case construct
-            if left in self.switch_case_known_heads or right in self.switch_case_known_heads:
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                full_graph, left
+            ) or self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, right):
                 return None
 
             if (
@@ -2086,7 +2099,9 @@ class PhoenixStructurer(StructurerBase):
                 left, right = right, left
 
             # ensure left and right nodes are not the head of a switch-case construct
-            if left in self.switch_case_known_heads or right in self.switch_case_known_heads:
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                full_graph, left
+            ) or self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, right):
                 return None
 
             if (
@@ -2127,7 +2142,9 @@ class PhoenixStructurer(StructurerBase):
                 left, successor = successor, left
 
             # ensure left and successor nodes are not the head of a switch-case construct
-            if left in self.switch_case_known_heads or successor in self.switch_case_known_heads:
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                full_graph, left
+            ) or self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, successor):
                 return None
 
             if (
@@ -2175,7 +2192,9 @@ class PhoenixStructurer(StructurerBase):
                 left, else_node = else_node, left
 
             # ensure left and else nodes are not the head of a switch-case construct
-            if left in self.switch_case_known_heads or else_node in self.switch_case_known_heads:
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                full_graph, left
+            ) or self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, else_node):
                 return None
 
             if (

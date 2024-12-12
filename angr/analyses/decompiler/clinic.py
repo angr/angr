@@ -268,6 +268,7 @@ class Clinic(Analysis):
     def _decompilation_fixups(self, ail_graph):
         is_pcode_arch = ":" in self.project.arch.name
 
+        self._remove_redundant_jump_blocks(ail_graph)
         # _fix_abnormal_switch_case_heads may re-lift from VEX blocks, so it should be placed as high up as possible
         self._fix_abnormal_switch_case_heads(ail_graph)
         if self._rewrite_ites_to_diamonds:
@@ -2152,7 +2153,7 @@ class Clinic(Analysis):
                             intended_head_block.instruction_addrs
                         ) - intended_head_block.instruction_addrs.index(comparison_stmt.ins_addr)
                     else:
-                        cmp_rpos = 2
+                        cmp_rpos = min(len(intended_head.statements), 2)
                     self._fix_abnormal_switch_case_heads_case2(
                         ail_graph,
                         candidate,
@@ -2218,7 +2219,6 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and isinstance(stmt.src.operands[1], ailment.Expr.Const)
                 and stmt.ins_addr == last_stmt_0.ins_addr
             ),
             None,
@@ -2230,7 +2230,6 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and isinstance(stmt.src.operands[1], ailment.Expr.Const)
                 and stmt.ins_addr == last_stmt_1.ins_addr
             ),
             None,
@@ -2272,51 +2271,104 @@ class Clinic(Analysis):
         # split the intended head into two
         intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
         split_ins_addr = intended_head_block.instruction_addrs[-intended_head_split_insns]
-        intended_head_block_0 = self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+        # note that the two blocks can be fully overlapping, so block_0 will be empty...
+        intended_head_block_0 = (
+            self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+            if split_ins_addr != intended_head.addr
+            else None
+        )
         intended_head_block_1 = self.project.factory.block(
             split_ins_addr, size=intended_head.addr + intended_head.original_size - split_ins_addr
         )
-        intended_head_0 = self._convert_vex(intended_head_block_0)
+        intended_head_0 = self._convert_vex(intended_head_block_0) if intended_head_block_0 is not None else None
         intended_head_1 = self._convert_vex(intended_head_block_1)
+
+        # corner-case: the last statement of intended_head might have been patched by _remove_redundant_jump_blocks. we
+        # detect such case and fix it in intended_head_1
+        if (
+            isinstance(intended_head.statements[-1], ailment.Stmt.Jump)
+            and isinstance(intended_head.statements[-1].target, ailment.Expr.Const)
+            and isinstance(intended_head_1.statements[-1], ailment.Stmt.Jump)
+            and isinstance(intended_head_1.statements[-1].target, ailment.Expr.Const)
+            and not intended_head.statements[-1].likes(intended_head_1.statements[-1])
+        ):
+            intended_head_1.statements[-1].target = intended_head.statements[-1].target
+        if (
+            isinstance(intended_head.statements[-1], ailment.Stmt.ConditionalJump)
+            and isinstance(intended_head.statements[-1].true_target, ailment.Expr.Const)
+            and isinstance(intended_head.statements[-1].false_target, ailment.Expr.Const)
+            and isinstance(intended_head_1.statements[-1], ailment.Stmt.ConditionalJump)
+            and isinstance(intended_head_1.statements[-1].true_target, ailment.Expr.Const)
+            and isinstance(intended_head_1.statements[-1].false_target, ailment.Expr.Const)
+            and not intended_head.statements[-1].likes(intended_head_1.statements[-1])
+        ):
+            intended_head_1.statements[-1].true_target = intended_head.statements[-1].true_target
+            intended_head_1.statements[-1].false_target = intended_head.statements[-1].false_target
 
         # adjust the graph accordingly
         preds = list(ail_graph.predecessors(intended_head))
         succs = list(ail_graph.successors(intended_head))
         ail_graph.remove_node(intended_head)
-        ail_graph.add_edge(intended_head_0, intended_head_1)
-        for pred in preds:
-            if pred is intended_head:
-                ail_graph.add_edge(intended_head_1, intended_head_0)
-            else:
-                ail_graph.add_edge(pred, intended_head_0)
-        for succ in succs:
-            if succ is intended_head:
-                ail_graph.add_edge(intended_head_1, intended_head_0)
-            else:
-                ail_graph.add_edge(intended_head_1, succ)
+
+        if intended_head_0 is None:
+            # perfect overlap; the first block is empty
+            for pred in preds:
+                if pred is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_1)
+                else:
+                    ail_graph.add_edge(pred, intended_head_1)
+            for succ in succs:
+                if succ is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_1)
+                else:
+                    ail_graph.add_edge(intended_head_1, succ)
+        else:
+            ail_graph.add_edge(intended_head_0, intended_head_1)
+            for pred in preds:
+                if pred is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_0)
+                else:
+                    ail_graph.add_edge(pred, intended_head_0)
+            for succ in succs:
+                if succ is intended_head:
+                    ail_graph.add_edge(intended_head_1, intended_head_0)
+                else:
+                    ail_graph.add_edge(intended_head_1, succ)
 
         # split other heads
         for o in other_heads:
             if other_head_split_insns > 0:
                 o_block = self.project.factory.block(o.addr, size=o.original_size)
                 o_split_addr = o_block.instruction_addrs[-other_head_split_insns]
-                new_o_block = self.project.factory.block(o.addr, size=o_split_addr - o.addr)
-                new_head = self._convert_vex(new_o_block)
+                new_o_block = (
+                    self.project.factory.block(o.addr, size=o_split_addr - o.addr) if o_split_addr != o.addr else None
+                )
+                new_head = self._convert_vex(new_o_block) if new_o_block is not None else None
             else:
                 new_head = o
 
-            if (
-                new_head.statements
-                and isinstance(new_head.statements[-1], ailment.Stmt.Jump)
-                and isinstance(new_head.statements[-1].target, ailment.Expr.Const)
-            ):
-                # update the jump target
-                new_head.statements[-1] = ailment.Stmt.Jump(
-                    new_head.statements[-1].idx,
+            if new_head is None:
+                # the head is removed - let's replace it with a jump to the target
+                jump_stmt = ailment.Stmt.Jump(
+                    None,
                     ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
                     target_idx=intended_head_1.idx,
-                    **new_head.statements[-1].tags,
+                    ins_addr=o.addr,
                 )
+                new_head = ailment.Block(o.addr, 1, statements=[jump_stmt], idx=o.idx)
+            else:
+                if (
+                    new_head.statements
+                    and isinstance(new_head.statements[-1], ailment.Stmt.Jump)
+                    and isinstance(new_head.statements[-1].target, ailment.Expr.Const)
+                ):
+                    # update the jump target
+                    new_head.statements[-1] = ailment.Stmt.Jump(
+                        new_head.statements[-1].idx,
+                        ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
+                        target_idx=intended_head_1.idx,
+                        **new_head.statements[-1].tags,
+                    )
 
             # adjust the graph accordingly
             preds = list(ail_graph.predecessors(o))
