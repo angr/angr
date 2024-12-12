@@ -1,3 +1,5 @@
+from ailment.statement import Return
+
 from .base import TransformationPass
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from ...utils.graph import GraphUtils
@@ -106,7 +108,10 @@ class CleanupCodeRemover(TransformationPass):
     def _simplify_drop(self):
         for block in self._graph.nodes:
             if self.match_call(block, CLEANUP_FUNCTIONS):
-                block.statements = block.statements[:-1]
+                if isinstance(block.statements[-1], Return):
+                    block.statements[-1].ret_exprs = []
+                else:
+                    block.statements = block.statements[:-1]
 
     def _analyze(self, cache=None):
         self._simplify_for_loop_drop()
