@@ -235,7 +235,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
         for operand in expr.operands:
             self._expr(operand)
 
-    def _handle_DirtyExpression(self, expr: DirtyExpression):
+    def _handle_expr_DirtyExpression(self, expr: DirtyExpression):
         for operand in expr.operands:
             self._expr(operand)
         if expr.guard is not None:
@@ -248,7 +248,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
 
     _handle_expr_VirtualVariable = _handle_Dummy
     _handle_expr_Phi = _handle_Dummy
-    _handle_expr_DirtyExpression = _handle_Dummy
     _handle_expr_Load = _handle_Dummy
     _handle_expr_Convert = _handle_Dummy
     _handle_expr_Const = _handle_Dummy

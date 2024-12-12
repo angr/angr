@@ -261,7 +261,7 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
+    def _handle_stmt_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
         dirty = self._expr(stmt.dirty)
         if dirty is None or dirty is stmt.dirty:
             return None
