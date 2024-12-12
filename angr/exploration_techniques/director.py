@@ -2,15 +2,14 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-import networkx
-
 import claripy
+import networkx
 
 from angr.sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
 from angr.calling_conventions import default_cc
 from angr.knowledge_base import KnowledgeBase
 from angr.errors import AngrDirectorError
-from . import ExplorationTechnique
+from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import random
 from collections import defaultdict
 
-from . import ExplorationTechnique
+from .base import ExplorationTechnique
 
 
 class StochasticSearch(ExplorationTechnique):

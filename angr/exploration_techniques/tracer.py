@@ -1,14 +1,15 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
-import cle
+from typing import TYPE_CHECKING
 
 import claripy
+import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
-from . import ExplorationTechnique
 from angr import BP_BEFORE, BP_AFTER, sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
+from .base import ExplorationTechnique
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState

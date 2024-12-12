@@ -1,5 +1,6 @@
 from __future__ import annotations
-from . import ExplorationTechnique
+
+from .base import ExplorationTechnique
 
 
 class StubStasher(ExplorationTechnique):

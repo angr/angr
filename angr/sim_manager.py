@@ -10,6 +10,7 @@ from types import TracebackType
 import claripy
 import mulpyplexer
 
+from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
 from .misc.hookset import HookSet
 from .misc.ux import once
 from .misc.picklable_lock import PicklableLock
@@ -968,6 +969,3 @@ class ErrorRecord:
 
     def __eq__(self, other):
         return self is other or self.state is other
-
-
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
