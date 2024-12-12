@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eo pipefail
+set -euo pipefail
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -53,14 +53,20 @@ GitHub Options:
   -t <token>, --token <token>
 
       A GitHub token with access permissions. This can also be specified via the
-      GITHUB_TOKEN environment variable.
+      GH_TOKEN environment variable.
 ANGR
   exit 1
 }
 
+BRANCH=""
 declare -a FILEPATH
+FILEPATH=()
+GH_TOKEN=""
+REPO=""
 declare -a STARTPATTERN
+STARTPATTERN=()
 declare -a SHA
+SHA=()
 WITH_SHA=""
 
 parse_args() {
@@ -86,7 +92,7 @@ parse_args() {
         shift 2
         ;;
       -t|--token)
-        GITHUB_TOKEN="$2"
+        GH_TOKEN="$2"
         shift 2
         ;;
       --with-sha)
@@ -116,11 +122,11 @@ fetch_tree() {
     --show-error \
     --silent \
     -H "Accept: application/vnd.github+json" \
-    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Authorization: token $GH_TOKEN" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "https://api.github.com/repos/${REPO}/contents/${path}?ref=${BRANCH:-HEAD}")"
   if ! [[ "$(echo "${response}" | jq -r 'if type == "array" then 0 else .status end')" -eq 0 ]]; then
-    echo "${response}" | jq
+    echo "${response}" | jq >&2
     exit 1
   fi
 
@@ -144,11 +150,11 @@ fetch_tree_by_sha() {
     --show-error \
     --silent \
     -H "Accept: application/vnd.github+json" \
-    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Authorization: token $GH_TOKEN" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "https://api.github.com/repos/${REPO}/git/trees/${sha}?recursive=1")"
-  if ! [[ "$(echo "${response}" | jq -r 'if type == "array" then 0 else .status end')" -eq 0 ]]; then
-    echo "${response}" | jq
+  if ! [[ "$(echo "${response}" | jq -r 'if has("tree") then 0 else 1 end')" -eq 0 ]]; then
+    echo "${response}" | jq >&2
     exit 1
   fi
 
