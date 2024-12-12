@@ -178,7 +178,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         while True:
             frontier = set()
             for b in blocks:
-                frontier |= frontiers[b]
+                if b in frontiers:
+                    frontier |= frontiers[b]
             if last_frontier is not None and last_frontier == frontier:
                 break
             last_frontier = frontier
