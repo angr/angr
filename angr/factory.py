@@ -1,6 +1,9 @@
 from __future__ import annotations
-from typing import overload
+
 import logging
+import threading
+from typing import overload
+
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
@@ -29,15 +32,22 @@ class AngrObjectFactory:
     This factory provides access to important analysis elements.
     """
 
+    default_engine_factory: type[SimEngine]
+
+    # We use thread local storage to cache engines on a per-thread basis
+    _tls: threading.local
+
     def __init__(self, project, default_engine: type[SimEngine] | None = None):
+        self._tls = threading.local()
+
         if default_engine is None:
             if isinstance(project.arch, archinfo.ArchPcode) and UberEnginePcode is not None:
                 l.warning("Creating project with the experimental 'UberEnginePcode' engine")
-                default_engine_n = UberEnginePcode
+                self.default_engine_factory = UberEnginePcode
             else:
-                default_engine_n = UberEngine
+                self.default_engine_factory = UberEngine
         else:
-            default_engine_n = default_engine
+            self.default_engine_factory = default_engine
 
         if isinstance(project.arch, archinfo.ArchPcode):
             register_pcode_arch_default_cc(project.arch)
@@ -46,13 +56,18 @@ class AngrObjectFactory:
         self._default_cc = default_cc(
             project.arch.name, platform=project.simos.name if project.simos is not None else None, default=SimCCUnknown
         )
-        self.default_engine = default_engine_n(project)
         self.procedure_engine = ProcedureEngine(project)
 
         if project.concrete_target:
             self.concrete_engine = SimEngineConcrete(project)
         else:
             self.concrete_engine = None
+
+    @property
+    def default_engine(self):
+        if not hasattr(self._tls, "default_engine"):
+            self._tls.default_engine = self.default_engine_factory(self.project)
+        return self._tls.default_engine
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":
