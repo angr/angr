@@ -169,10 +169,23 @@ class OptimizationPass(BaseOptimizationPass):
         self._new_block_addrs.add(new_addr)
         return new_addr
 
-    def _get_block(self, addr, idx=None) -> ailment.Block | None:
+    def _get_block(self, addr, **kwargs) -> ailment.Block | None:
+        """
+        Get exactly one block by its address and optionally, also considering its block ID. An exception,
+        MultipleBlocksException, will be raised if there are more than one block satisfying the specified criteria.
+
+        :param addr:        The address of the block.
+        :param kwargs:      Optionally, you can specify "idx" to consider the block ID. If "idx" is not specified, this
+                            method will return the only block at the specified address, None if there is no block at
+                            that address, or raise an exception if there are more than one block at that address.
+        :return:            The requested block or None if no block matching the specified criteria exists.
+        """
+
         if not self._blocks_by_addr:
             return None
-        if idx is None:
+        idx_specified = "idx" in kwargs
+        idx = kwargs.get("idx")
+        if not idx_specified:
             blocks = self._blocks_by_addr.get(addr, None)
         else:
             blocks = [self._blocks_by_addr_and_idx.get((addr, idx), None)]
@@ -180,9 +193,14 @@ class OptimizationPass(BaseOptimizationPass):
             return None
         if len(blocks) == 1:
             return next(iter(blocks))
-        raise MultipleBlocksException(
-            "There are %d blocks at address %#x.%s but only one is requested." % (len(blocks), addr, idx)
-        )
+        if idx_specified:
+            raise MultipleBlocksException(
+                f"There are {len(blocks)} blocks at address {addr:#x}.{idx} but only one is requested."
+            )
+        else:
+            raise MultipleBlocksException(
+                f"There are {len(blocks)} blocks at address {addr:#x} (block ID ignored) but only one is requested."
+            )
 
     def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block]:
         if not self._blocks_by_addr:
