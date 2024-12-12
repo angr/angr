@@ -7,7 +7,6 @@ from collections import OrderedDict
 from ailment import BinaryOp, Const, AILBlockWalker, Block
 from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, StackBaseOffset
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment
-import networkx as nx
 from networkx import DiGraph
 
 from ..mixins.cfa_mixin import CFAMixin
