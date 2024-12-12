@@ -1576,9 +1576,7 @@ class PhoenixStructurer(StructurerBase):
         for succ in graph.successors(node):
             if succ.addr in jump_tables:
                 return True
-        if node in self.switch_case_known_heads:
-            return True
-        return False
+        return node in self.switch_case_known_heads
 
     # other acyclic schemas
 
