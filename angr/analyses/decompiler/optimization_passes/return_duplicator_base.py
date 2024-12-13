@@ -137,11 +137,11 @@ class ReturnDuplicatorBase:
                 ):
                     # every eligible pred gets a new region copy
                     self._copy_region([pred_node], region_head, region, graph)
-                    graph_changed = True
 
             if region_head in graph and graph.in_degree(region_head) == 0:
                 graph.remove_nodes_from(region)
-                graph_changed = True
+
+            graph_changed = True
 
         return graph_changed
 
