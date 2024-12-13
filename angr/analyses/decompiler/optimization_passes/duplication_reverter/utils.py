@@ -47,8 +47,6 @@ def replace_node_in_graph(graph: nx.DiGraph, node, replace_with):
         else:
             graph.add_edge(replace_with, dst)
 
-    assert node not in graph
-
 
 def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
     blocks = []
