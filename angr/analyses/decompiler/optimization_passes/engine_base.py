@@ -112,7 +112,7 @@ class SimplifierAILEngine(
         return stmt
 
     def _handle_stmt_Call(self, stmt):
-        target = self._expr(stmt.target)
+        target = self._expr(stmt.target) if isinstance(stmt.target, ailment.Expr.Expression) else stmt.target
 
         new_args = None
 
