@@ -264,7 +264,7 @@ class Jump(Statement):
         "target_idx",
     )
 
-    def __init__(self, idx, target, target_idx: int | None = None, **kwargs):
+    def __init__(self, idx: int | None, target: Expression, target_idx: int | None = None, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.target = target
@@ -329,10 +329,10 @@ class ConditionalJump(Statement):
 
     def __init__(
         self,
-        idx,
-        condition,
-        true_target,
-        false_target,
+        idx: int | None,
+        condition: Expression,
+        true_target: Expression | None,
+        false_target: Expression | None,
         true_target_idx: int | None = None,
         false_target_idx: int | None = None,
         **kwargs,
@@ -477,8 +477,8 @@ class Call(Expression, Statement):
 
     def __init__(
         self,
-        idx,
-        target,
+        idx: int | None,
+        target: Expression | str,
         calling_convention: SimCC | None = None,
         prototype=None,
         args: Sequence[Expression] | None = None,
@@ -651,7 +651,7 @@ class Return(Statement):
 
     __slots__ = ("ret_exprs",)
 
-    def __init__(self, idx, ret_exprs, **kwargs):
+    def __init__(self, idx: int | None, ret_exprs, **kwargs):
         super().__init__(idx, **kwargs)
         self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 
@@ -762,7 +762,7 @@ class Label(Statement):
         "block_idx",
     )
 
-    def __init__(self, idx, name: str, ins_addr: int, block_idx: int | None = None, **kwargs):
+    def __init__(self, idx: int | None, name: str, ins_addr: int, block_idx: int | None = None, **kwargs):
         super().__init__(idx, **kwargs)
         self.name = name
         self.ins_addr = ins_addr
