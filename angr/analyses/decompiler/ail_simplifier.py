@@ -97,6 +97,7 @@ class AILSimplifier(Analysis):
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
+        avoid_vvar_ids: set[int] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -115,6 +116,7 @@ class AILSimplifier(Analysis):
         self._should_rewrite_ccalls = rewrite_ccalls
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
         self._arg_vvars = arg_vvars
+        self._avoid_vvar_ids = avoid_vvar_ids
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -614,6 +616,17 @@ class AILSimplifier(Analysis):
             replace_loads = insn_addrs_using_stack_args is not None and {
                 stmt.ins_addr for stmt in block.statements
             }.intersection(insn_addrs_using_stack_args)
+
+            # remove virtual variables in the avoid list
+            if self._avoid_vvar_ids:
+                filtered_reps = {}
+                for loc, rep_dict in reps.items():
+                    filtered_reps[loc] = {
+                        k: v
+                        for k, v in rep_dict.items()
+                        if not (isinstance(k, VirtualVariable) and k.varid in self._avoid_vvar_ids)
+                    }
+                reps = filtered_reps
 
             r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
             replaced |= r

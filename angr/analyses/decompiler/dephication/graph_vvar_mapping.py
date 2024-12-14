@@ -10,7 +10,7 @@ from angr.analyses import Analysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
-from angr.utils.ssa import is_phi_assignment
+from angr.utils.ssa import is_phi_assignment, DEPHI_VVAR_REG_OFFSET
 
 l = logging.getLogger(name=__name__)
 
@@ -30,6 +30,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         ail_graph,
         entry=None,
         vvar_id_start: int = 0,
+        arg_vvars: list[VirtualVariable] | None = None,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -49,8 +50,10 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self._vvar_defloc = {}
         self.vvar_id_start = vvar_id_start
         self._stmts_to_prepend = defaultdict(list)
+        self._arg_vvars = arg_vvars or []
 
         self.vvar_to_vvar_mapping = None
+        self.copied_vvar_ids: set[int] = set()
         self._rd: SRDAModel = self.project.analyses.SReachingDefinitions(
             subject=self._function, func_graph=self._graph
         ).model
@@ -74,7 +77,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 phi_congruence_class[varid] = {varid}
 
         # compute liveness
-        liveness = self.project.analyses.SLiveness(self._function, func_graph=self._graph, entry=self._entry)
+        liveness = self.project.analyses.SLiveness(
+            self._function, func_graph=self._graph, entry=self._entry, arg_vvars=self._arg_vvars
+        )
 
         live_ins = liveness.model.live_ins
         live_outs = liveness.model.live_outs
@@ -136,6 +141,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
                 if insertion_type == 0:
                     for src, old_vvar_id, new_vvar_id in new_vvar_ids:
+                        self.copied_vvar_ids.add(new_vvar_id)
+
                         phi_congruence_class[new_vvar_id] = {new_vvar_id}
                         live_outs[src].add(new_vvar_id)
 
@@ -153,6 +160,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
                 else:  # insertion_type == 1
                     phi_block_loc, old_phi_varid, new_phi_varid = next(iter(new_vvar_ids))
+                    self.copied_vvar_ids.add(new_phi_varid)
 
                     phi_congruence_class[new_phi_varid] = {new_phi_varid}
 
@@ -217,7 +225,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     # it's a parameter, so we copy the variable into a dummy register vvar
                     # a parameter vvar should never be assigned to
                     new_category = VirtualVariableCategory.REGISTER
-                    new_oident = 4096
+                    new_oident = DEPHI_VVAR_REG_OFFSET
                 else:
                     new_category = vvar.category
                     new_oident = vvar.oident

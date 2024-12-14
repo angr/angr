@@ -125,6 +125,7 @@ class OptimizationPass(BaseOptimizationPass):
         scratch: dict[str, Any] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
+        avoid_vvar_ids: set[int] | None = None,
         **kwargs,
     ):
         super().__init__(func)
@@ -143,6 +144,7 @@ class OptimizationPass(BaseOptimizationPass):
         )
         self._force_loop_single_exit = force_loop_single_exit
         self._complete_successors = complete_successors
+        self._avoid_vvar_ids = avoid_vvar_ids or set()
 
         # output
         self.out_graph: networkx.DiGraph | None = None
@@ -268,6 +270,7 @@ class OptimizationPass(BaseOptimizationPass):
                 func_graph=graph,
                 use_callee_saved_regs_at_return=False,
                 gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+                avoid_vvar_ids=self._avoid_vvar_ids,
             )
             if simp.simplified:
                 graph = simp.func_graph

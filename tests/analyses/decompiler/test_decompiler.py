@@ -3973,6 +3973,26 @@ class TestDecompiler(unittest.TestCase):
             assert f"case {i}:" in d.codegen.text
         assert "default:" in d.codegen.text
 
+    def test_decompiling_ite_function_arguments_missing_assignments(self, decompiler_options=None):
+        # https://github.com/angr/angr/issues/5077
+        bin_path = os.path.join(test_location, "x86_64", "test_cmovneq")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions["test"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
+        start_pos = lines.index("{")
+        assert lines[start_pos + 3 :][:6] == [
+            "if (a1)",
+            "v1 = a1;",
+            "else",
+            "v1 = a0;",
+            "g_1234 = v1;",
+            "return &g_1234;",
+        ]
+
 
 if __name__ == "__main__":
     unittest.main()
