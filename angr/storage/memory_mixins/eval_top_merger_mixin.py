@@ -163,13 +163,22 @@ class EvalTopMergerMixin(MemoryMixin):
 
             except:
                 pass
-        elif self.state.globals['is_constant_propagation']:
-            #keep both symbolic values, we could replace this with TOP to make things faster
-            merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-            for tm, fv in values:
-                merged_val = self.state.solver.If(fv, tm, merged_val)
-            # should we add state constraint as well?
-            return merged_val
+        # elif self.state.globals['is_constant_propagation']:
+        #     #keep both symbolic values, we could replace this with TOP to make things faster
+        #     merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
+        #     for tm, fv in values:
+        #         merged_val = self.state.solver.If(fv, tm, merged_val)
+        #     # should we add state constraint as well?
+        #     return merged_val
+
+        # special check to simplify away jumps that depend on guards like this
+        # if (3 | big_expression) == 0:
+        # the value will always be non zero
+        # alternative would be to keep both symbolic values but that makes analyses slow
+        if value0.op == "__or__" and value1.op == "__or__" and value0.args[0].concrete and value1.args[0].concrete and \
+            value1.args[0].concrete_value == value0.args[0].concrete_value:
+            merged_val = self._top_func(merged_size * self.state.arch.byte_width)
+            return value1.args[0].concrete_value | merged_val
 
         merged_val = self._top_func(merged_size * self.state.arch.byte_width)
         self.state.project.merger_top_dict_debug[merged_val.args[0]] = values
