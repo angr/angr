@@ -12,9 +12,9 @@ class PeepholeOptimizationStmtBase:
     """
 
     __slots__ = (
-        "project",
-        "kb",
         "func_addr",
+        "kb",
+        "project",
     )
     project: Project | None
     kb: KnowledgeBase | None
@@ -39,9 +39,9 @@ class PeepholeOptimizationMultiStmtBase:
     """
 
     __slots__ = (
-        "project",
-        "kb",
         "func_addr",
+        "kb",
+        "project",
     )
     project: Project | None
     kb: KnowledgeBase | None
@@ -66,9 +66,9 @@ class PeepholeOptimizationExprBase:
     """
 
     __slots__ = (
-        "project",
-        "kb",
         "func_addr",
+        "kb",
+        "project",
     )
     project: Project | None
     kb: KnowledgeBase | None

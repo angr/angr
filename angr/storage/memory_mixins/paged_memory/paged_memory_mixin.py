@@ -107,9 +107,7 @@ class PagedMemoryMixin(
                     permissions = perms
                     break
 
-        return dict(
-            memory=self, memory_id="%s_%d" % (self.id, pageno), permissions=permissions, **self._extra_page_kwargs
-        )
+        return dict(memory=self, memory_id=f"{self.id}_{pageno}", permissions=permissions, **self._extra_page_kwargs)
 
     def _divide_addr(self, addr: int) -> tuple[int, int]:
         return divmod(addr, self.page_size)

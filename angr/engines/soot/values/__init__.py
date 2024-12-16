@@ -27,14 +27,14 @@ from .strref import SimSootValue_StringRef
 
 
 __all__ = (
-    "translate_value",
-    "SimSootValue_Local",
-    "SimSootValue_ParamRef",
-    "SimSootValue_ArrayRef",
     "SimSootValue_ArrayBaseRef",
-    "SimSootValue_ThisRef",
-    "SimSootValue_StaticFieldRef",
+    "SimSootValue_ArrayRef",
     "SimSootValue_InstanceFieldRef",
     "SimSootValue_IntConstant",
+    "SimSootValue_Local",
+    "SimSootValue_ParamRef",
+    "SimSootValue_StaticFieldRef",
     "SimSootValue_StringRef",
+    "SimSootValue_ThisRef",
+    "translate_value",
 )

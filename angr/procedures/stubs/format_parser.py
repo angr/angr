@@ -323,11 +323,11 @@ class FormatSpecifier:
     """
 
     __slots__ = (
-        "string",
-        "size",
-        "signed",
         "length_spec",
         "pad_chr",
+        "signed",
+        "size",
+        "string",
     )
 
     def __init__(self, string, length_spec, pad_chr, size, signed):

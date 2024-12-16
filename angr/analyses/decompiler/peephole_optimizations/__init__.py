@@ -111,7 +111,7 @@ EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
 ]
 
 __all__ = (
+    "EXPR_OPTS",
     "MULTI_STMT_OPTS",
     "STMT_OPTS",
-    "EXPR_OPTS",
 )

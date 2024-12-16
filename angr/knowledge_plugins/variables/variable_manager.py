@@ -390,7 +390,7 @@ class VariableManagerInternal(Serializable):
         else:
             prefix = "m"
 
-        return "i%s_%d" % (prefix, next(self._variable_counters[sort]))
+        return f"i{prefix}_{next(self._variable_counters[sort])}"
 
     def add_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":

@@ -392,7 +392,7 @@ class CallSiteMaker(Analysis):
         return s
 
     def _determine_variadic_arguments(self, func: Function | None, cc: SimCC, call_stmt) -> int | None:
-        if func is not None and "printf" in func.name or "scanf" in func.name:
+        if (func is not None and "printf" in func.name) or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
 

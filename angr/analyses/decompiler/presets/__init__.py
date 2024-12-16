@@ -15,6 +15,6 @@ DECOMPILATION_PRESETS = {
 
 
 __all__ = (
-    "DecompilationPreset",
     "DECOMPILATION_PRESETS",
+    "DecompilationPreset",
 )

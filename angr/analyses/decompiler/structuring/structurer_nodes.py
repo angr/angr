@@ -17,9 +17,9 @@ class EmptyBlockNotice(Exception):
 
 class MultiNode:
     __slots__ = (
-        "nodes",
         "addr",
         "idx",
+        "nodes",
     )
 
     def __init__(self, nodes, addr=None, idx=None):
@@ -48,7 +48,7 @@ class MultiNode:
                 addrs.append(node.addr)
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
-        return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
+        return f"<MultiNode {self.addr:#x} of {len(self.nodes)} nodes{s}>"
 
     def __hash__(self):
         # changing self.nodes does not change the hash, which enables in-place editing
@@ -110,8 +110,8 @@ class SequenceNode(BaseNode):
 
     def __repr__(self):
         if self.addr is None:
-            return "<SequenceNode, %d nodes>" % len(self.nodes)
-        return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
+            return f"<SequenceNode, {len(self.nodes)} nodes>"
+        return f"<SequenceNode {self.addr:#x}, {len(self.nodes)} nodes>"
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -192,11 +192,11 @@ class CodeNode(BaseNode):
 class ConditionNode(BaseNode):
     __slots__ = (
         "addr",
+        "condition",
+        "false_node",
         "node",
         "reaching_condition",
-        "condition",
         "true_node",
-        "false_node",
     )
 
     def __init__(self, addr, reaching_condition, condition, true_node, false_node=None):
@@ -238,13 +238,13 @@ class CascadingConditionNode(BaseNode):
 
 class LoopNode(BaseNode):
     __slots__ = (
-        "sort",
-        "condition",
-        "sequence_node",
-        "initializer",
-        "iterator",
         "_addr",
         "_continue_addr",
+        "condition",
+        "initializer",
+        "iterator",
+        "sequence_node",
+        "sort",
     )
 
     def __init__(
@@ -351,10 +351,10 @@ class ConditionalBreakNode(BreakNode):
 
 class SwitchCaseNode(BaseNode):
     __slots__ = (
-        "switch_expr",
+        "addr",
         "cases",
         "default_node",
-        "addr",
+        "switch_expr",
     )
 
     def __init__(self, switch_expr, cases: OrderedDict[int | tuple[int, ...], SequenceNode], default_node, addr=None):
@@ -370,7 +370,7 @@ class IncompleteSwitchCaseNode(BaseNode):
     into a SwitchCaseNode by the end of structuring. Only used in Phoenix structurer.
     """
 
-    __slots__ = ("addr", "head", "cases")
+    __slots__ = ("addr", "cases", "head")
 
     def __init__(self, addr, head, cases: list):
         self.addr = addr
@@ -388,7 +388,7 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     Describes a switch-case head. This is only created by LoweredSwitchSimplifier.
     """
 
-    __slots__ = ("addr", "switch_variable", "case_addrs", "_case_addrs_str")
+    __slots__ = ("_case_addrs_str", "addr", "case_addrs", "switch_variable")
 
     def __init__(self, idx, switch_variable, case_addrs, **kwargs):
         super().__init__(idx, **kwargs)

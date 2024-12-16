@@ -44,7 +44,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
             elif disposition == 3:
                 raise angr.errors.SimUnsupportedError("Exception disposition ExceptionCollidedUnwind is unsupported")
             else:
-                raise angr.errors.SimError("Bad exception disposition %d" % disposition)
+                raise angr.errors.SimError(f"Bad exception disposition {disposition}")
 
         # todo: check cur_ptr against stack bounds
         cur_ptr = self.cur_ptr

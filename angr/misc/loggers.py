@@ -15,10 +15,10 @@ class Loggers:
     """
 
     __slots__ = (
-        "default_level",
         "_loggers",
-        "profiling_enabled",
+        "default_level",
         "handler",
+        "profiling_enabled",
     )
 
     def __init__(self, default_level=logging.WARNING):

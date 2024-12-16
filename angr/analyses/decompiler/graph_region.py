@@ -23,15 +23,15 @@ class GraphRegion:
     """
 
     __slots__ = (
-        "head",
-        "graph",
-        "successors",
-        "graph_with_successors",
-        "cyclic",
-        "full_graph",
-        "cyclic_ancestor",
         "_node_to_replaced_regions",
         "_replaced_regions",
+        "cyclic",
+        "cyclic_ancestor",
+        "full_graph",
+        "graph",
+        "graph_with_successors",
+        "head",
+        "successors",
     )
 
     def __init__(
@@ -74,7 +74,7 @@ class GraphRegion:
         if addrs:
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
-        return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
+        return f"<GraphRegion {self.head!r} of {self.graph.number_of_nodes()} nodes{s}>"
 
     def copy(self) -> GraphRegion:
         return GraphRegion(

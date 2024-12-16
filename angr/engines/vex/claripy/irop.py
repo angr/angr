@@ -134,7 +134,7 @@ for _vec_lanewidth in (8, 16, 32, 64):
             continue
 
         # the regex thinks the I is an integral descriptor
-        explicit_attrs["Iop_InterleaveHI%dx%d" % (_vec_lanewidth, _vec_count)] = {
+        explicit_attrs[f"Iop_InterleaveHI{_vec_lanewidth}x{_vec_count}"] = {
             "generic_name": "InterleaveHI",
             "to_size": _vec_width,
             "vector_size": _vec_lanewidth,
@@ -220,29 +220,29 @@ class SimIROp:
     """
 
     __slots__ = (
-        "name",
-        "op_attrs",
-        "_generic_name",
-        "_from_size",
+        "_calculate",
+        "_conversion",
+        "_float",
         "_from_side",
-        "_from_type",
         "_from_signed",
-        "_to_size",
-        "_to_type",
-        "_to_signed",
+        "_from_size",
+        "_from_type",
+        "_generic_name",
+        "_output_size_bits",
+        "_output_type",
+        "_rounding_mode",
         "_set_side",
         "_set_size",
-        "_conversion",
-        "_vector_size",
+        "_to_signed",
+        "_to_size",
+        "_to_type",
+        "_vector_count",
         "_vector_signed",
+        "_vector_size",
         "_vector_type",
         "_vector_zero",
-        "_vector_count",
-        "_rounding_mode",
-        "_output_type",
-        "_output_size_bits",
-        "_float",
-        "_calculate",
+        "name",
+        "op_attrs",
     )
 
     def __init__(self, name, **attrs):
@@ -567,7 +567,7 @@ class SimIROp:
         """
         arg_num = len(args)
         if arg_num != 1:
-            raise SimOperationError("expect exactly one vector to be duplicated, got %d" % arg_num)
+            raise SimOperationError(f"expect exactly one vector to be duplicated, got {arg_num}")
         # Duplicate the vector for this many times
         vector_count = self._vector_count
         # Keep a copy of the vector to be duplicated

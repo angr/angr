@@ -17,7 +17,7 @@ class Detail:
                     or the current function.
     """
 
-    __slots__ = ("size", "expr", "def_at")
+    __slots__ = ("def_at", "expr", "size")
 
     def __init__(self, size: int, expr: ailment.Expression | None, def_at: CodeLocation | None):
         self.size = size
@@ -37,8 +37,8 @@ class PropValue:
     """
 
     __slots__ = (
-        "value",
         "offset_and_details",
+        "value",
     )
 
     def __init__(self, value: claripy.ast.Bits, offset_and_details: dict[int, Detail] | None = None):

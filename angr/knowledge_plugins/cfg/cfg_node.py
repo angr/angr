@@ -29,7 +29,7 @@ class CFGNodeCreationFailure:
     and the exception messages.
     """
 
-    __slots__ = ["short_reason", "long_reason", "traceback"]
+    __slots__ = ["long_reason", "short_reason", "traceback"]
 
     def __init__(self, exc_info=None, to_copy=None):
         if to_copy is None:
@@ -52,23 +52,23 @@ class CFGNode(Serializable):
     """
 
     __slots__ = (
-        "addr",
-        "simprocedure_name",
-        "syscall_name",
-        "size",
-        "no_ret",
-        "is_syscall",
-        "function_address",
-        "block_id",
-        "thumb",
-        "byte_string",
-        "_name",
-        "instruction_addrs",
-        "irsb",
-        "has_return",
         "_cfg_model",
         "_hash",
+        "_name",
+        "addr",
+        "block_id",
+        "byte_string",
+        "function_address",
+        "has_return",
+        "instruction_addrs",
+        "irsb",
+        "is_syscall",
+        "no_ret",
+        "simprocedure_name",
+        "size",
         "soot_block",
+        "syscall_name",
+        "thumb",
     )
 
     def __init__(
@@ -320,7 +320,7 @@ class CFGNode(Serializable):
         elif not isinstance(self.addr, SootAddressDescriptor):
             s += hex(self.addr)
         if self.size is not None:
-            s += "[%d]" % self.size
+            s += f"[{self.size}]"
         s += ">"
         return s
 
@@ -362,14 +362,14 @@ class CFGENode(CFGNode):
     """
 
     __slots__ = [
-        "input_state",
-        "looping_times",
+        "_callstack_key",
+        "creation_failure_info",
         "depth",
         "final_states",
-        "creation_failure_info",
+        "input_state",
+        "looping_times",
         "return_target",
         "syscall",
-        "_callstack_key",
     ]
 
     def __init__(
@@ -452,9 +452,9 @@ class CFGENode(CFGNode):
             s += self.name + " "
         s += hex(self.addr)
         if self.size is not None:
-            s += "[%d]" % self.size
+            s += f"[{self.size}]"
         if self.looping_times > 0:
-            s += " - %d" % self.looping_times
+            s += f" - {self.looping_times}"
         if self.creation_failure_info is not None:
             s += f" - creation failed: {self.creation_failure_info.long_reason}"
         s += ">"

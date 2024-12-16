@@ -90,8 +90,8 @@ class SimRegNameView(SimStatePlugin):
         if self.state.arch.name in ("X86", "AMD64"):
             return (
                 list(self.state.arch.registers.keys())
-                + ["st%d" % n for n in range(8)]
-                + ["tag%d" % n for n in range(8)]
+                + [f"st{n}" for n in range(8)]
+                + [f"tag{n}" for n in range(8)]
                 + ["flags", "eflags", "rflags"]
             )
         if is_arm_arch(self.state.arch):

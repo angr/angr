@@ -554,7 +554,9 @@ class AILSimplifier(Analysis):
             if (
                 first_op.op == "And"
                 and isinstance(first_op.operands[1], Const)
-                and (second_op is None or isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+                and (
+                    second_op is None or (isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+                )
             ):
                 mask = first_op.operands[1].value
                 if mask == 0xFF:
@@ -761,10 +763,8 @@ class AILSimplifier(Analysis):
                 # the definition is in a callee function
                 continue
 
-            if (
-                isinstance(the_def.codeloc, ExternalCodeLocation)
-                or isinstance(eq.atom1, VirtualVariable)
-                and eq.atom1.was_parameter
+            if isinstance(the_def.codeloc, ExternalCodeLocation) or (
+                isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter
             ):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
                 # argument if
@@ -778,10 +778,8 @@ class AILSimplifier(Analysis):
 
                 if defs and len(defs) == 1:
                     arg_copy_def = defs[0]
-                    if (
-                        isinstance(arg_copy_def.atom, atoms.VirtualVariable)
-                        and arg_copy_def.atom.was_stack
-                        or (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg)
+                    if (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack) or (
+                        isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg
                     ):
                         # found the copied definition (either a stack variable or a register variable)
 
@@ -932,7 +930,7 @@ class AILSimplifier(Analysis):
                             continue
                         block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                         stmt = block.statements[use_loc.stmt_idx]
-                        if isinstance(stmt, Assignment) or isinstance(replace_with, Load) and isinstance(stmt, Store):
+                        if isinstance(stmt, Assignment) or (isinstance(replace_with, Load) and isinstance(stmt, Store)):
                             assignment_ctr += 1
                     if assignment_ctr > 1:
                         continue

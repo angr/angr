@@ -848,11 +848,11 @@ class ConditionProcessor:
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
             if condition.to_bits == 1:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = "ailcond_Conv(%d->%d, %d)" % (condition.from_bits, condition.to_bits, hash(var_))
+                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
                 var = claripy.BoolS(name, explicit_name=True)
             else:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = "ailexpr_Conv(%d->%d, %d)" % (condition.from_bits, condition.to_bits, hash(var_))
+                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
@@ -867,17 +867,17 @@ class ConditionProcessor:
         if isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
             if condition.bits == 1:
-                var = claripy.BoolS("ailtmp_%d" % condition.tmp_idx, explicit_name=True)
+                var = claripy.BoolS(f"ailtmp_{condition.tmp_idx}", explicit_name=True)
             else:
-                var = claripy.BVS("ailtmp_%d" % condition.tmp_idx, condition.bits, explicit_name=True)
+                var = claripy.BVS(f"ailtmp_{condition.tmp_idx}", condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.MultiStatementExpression):
             # just cache it
             if condition.bits == 1:
-                var = claripy.BoolS("mstmtexpr_%d" % hash(condition), explicit_name=True)
+                var = claripy.BoolS(f"mstmtexpr_{hash(condition)}", explicit_name=True)
             else:
-                var = claripy.BVS("mstmtexpr_%d" % hash(condition), condition.bits, explicit_name=True)
+                var = claripy.BVS(f"mstmtexpr_{hash(condition)}", condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
 

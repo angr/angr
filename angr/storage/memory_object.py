@@ -21,13 +21,13 @@ class SimMemoryObject:
     """
 
     __slots__ = (
-        "is_bytes",
         "_byte_width",
-        "base",
-        "object",
-        "length",
-        "endness",
         "_concrete_bytes",
+        "base",
+        "endness",
+        "is_bytes",
+        "length",
+        "object",
     )
 
     def __init__(self, obj, base, endness, length=None, byte_width=8):

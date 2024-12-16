@@ -63,8 +63,8 @@ class ExpressionLocation(LocationBase):
     __slots__ = (
         "block_addr",
         "block_idx",
-        "stmt_idx",
         "expr_idx",
+        "stmt_idx",
     )
 
     def __init__(self, block_addr, block_idx, stmt_idx, expr_idx):
@@ -94,8 +94,8 @@ class ExpressionLocation(LocationBase):
 
 class ConditionLocation(LocationBase):
     __slots__ = (
-        "node_addr",
         "case_idx",
+        "node_addr",
     )
 
     def __init__(self, cond_node_addr, case_idx: int | None = None):
@@ -171,8 +171,8 @@ class ExpressionUseFinder(AILBlockWalker):
     """
 
     __slots__ = (
-        "uses",
         "has_load",
+        "uses",
     )
 
     def __init__(self):

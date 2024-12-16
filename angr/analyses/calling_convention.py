@@ -277,7 +277,7 @@ class CallingConventionAnalysis(Analysis):
                     # prioritize the hooker
                     hooker = self.project.hooked_by(real_func.addr)
                     if hooker is not None and (
-                        not hooker.is_stub or hooker.is_function and not hooker.guessed_prototype
+                        not hooker.is_stub or (hooker.is_function and not hooker.guessed_prototype)
                     ):
                         return real_func.calling_convention, hooker.prototype
                 if real_func.calling_convention and real_func.prototype:
@@ -414,7 +414,7 @@ class CallingConventionAnalysis(Analysis):
 
         for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
-            if not (edge_type == "Ijk_Call" or edge_type == "Ijk_Boring" and self._cfg.graph.out_degree[src] == 1):
+            if not (edge_type == "Ijk_Call" or (edge_type == "Ijk_Boring" and self._cfg.graph.out_degree[src] == 1)):
                 continue
             if not self.kb.functions.contains_addr(src.function_address):
                 continue
@@ -523,8 +523,7 @@ class CallingConventionAnalysis(Analysis):
             def_
             for def_ in rda.all_uses._uses_by_definition
             if (
-                def_.codeloc.block_addr == caller_block_addr
-                and def_.codeloc.stmt_idx == DEFAULT_STATEMENT
+                (def_.codeloc.block_addr == caller_block_addr and def_.codeloc.stmt_idx == DEFAULT_STATEMENT)
                 or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
             )
         }

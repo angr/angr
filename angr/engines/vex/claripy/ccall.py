@@ -1701,7 +1701,7 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unrecognized condition %d in armg_calculate_condition", concrete_cond)
-    raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
+    raise SimCCallError(f"Unrecognized condition {concrete_cond} in armg_calculate_condition")
 
 
 ARM64G_CC_SHIFT_N = 31
@@ -1991,7 +1991,7 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
         return flag
 
     l.error("Unrecognized condition %d in arm64g_calculate_condition", concrete_cond)
-    raise SimCCallError("Unrecognized condition %d in arm64g_calculate_condition" % concrete_cond)
+    raise SimCCallError(f"Unrecognized condition {concrete_cond} in arm64g_calculate_condition")
 
 
 #

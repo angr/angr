@@ -49,7 +49,7 @@ class KnowledgeBase:
         object.__setattr__(self, "_project", project)
         object.__setattr__(self, "_plugins", {})
 
-        self.name = name if name else ("kb_%d" % next(kb_ctr))
+        self.name = name if name else f"kb_{next(kb_ctr)}"
 
     @property
     def callgraph(self):

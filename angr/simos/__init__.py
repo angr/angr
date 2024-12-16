@@ -34,12 +34,12 @@ register_simos("snimmuc_nxp", SimSnimmucNxp)
 
 
 __all__ = (
-    "SimOS",
-    "SimUserland",
-    "SimLinux",
     "SimCGC",
-    "SimWindows",
     "SimJavaVM",
+    "SimLinux",
+    "SimOS",
     "SimSnimmucNxp",
+    "SimUserland",
+    "SimWindows",
     "os_mapping",
 )

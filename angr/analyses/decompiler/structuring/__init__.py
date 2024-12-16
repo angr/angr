@@ -20,11 +20,11 @@ def structurer_class_from_name(name: str) -> type | None:
 
 
 __all__ = (
+    "DEFAULT_STRUCTURER",
+    "STRUCTURER_CLASSES",
     "DreamStructurer",
     "PhoenixStructurer",
-    "SAILRStructurer",
     "RecursiveStructurer",
-    "STRUCTURER_CLASSES",
-    "DEFAULT_STRUCTURER",
+    "SAILRStructurer",
     "structurer_class_from_name",
 )

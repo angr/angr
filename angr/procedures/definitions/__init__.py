@@ -5,7 +5,7 @@ import os
 import logging
 import inspect
 from collections import defaultdict
-from typing import Optional, Dict, Type, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import itanium_demangler
 
@@ -569,7 +569,7 @@ class SimSyscallLibrary(SimLibrary):
             mapping = self.syscall_number_mapping[abi]
             if number in mapping:
                 return mapping[number], arch, abi
-        return "sys_%d" % number, arch, None
+        return f"sys_{number}", arch, None
 
     def _apply_numerical_metadata(self, proc, number, arch, abi):
         proc.syscall_number = number

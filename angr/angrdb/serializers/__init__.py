@@ -5,6 +5,6 @@ from .kb import KnowledgeBaseSerializer
 
 
 __all__ = (
-    "LoaderSerializer",
     "KnowledgeBaseSerializer",
+    "LoaderSerializer",
 )

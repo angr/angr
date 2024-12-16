@@ -79,7 +79,7 @@ class Register:
     Represent a register.
     """
 
-    __slots__ = ("offset", "bitlen")
+    __slots__ = ("bitlen", "offset")
 
     def __init__(self, offset, bitlen):
         self.offset = offset
@@ -103,8 +103,8 @@ class OffsetVal:
     """
 
     __slots__ = (
-        "_reg",
         "_offset",
+        "_reg",
     )
 
     def __init__(self, reg, offset):
@@ -177,7 +177,7 @@ class FrozenStackPointerTrackerState:
     Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
     """
 
-    __slots__ = "regs", "memory", "is_tracking_memory", "resilient"
+    __slots__ = "is_tracking_memory", "memory", "regs", "resilient"
 
     def __init__(
         self,
@@ -218,7 +218,7 @@ class StackPointerTrackerState:
     Abstract state for StackPointerTracker analysis.
     """
 
-    __slots__ = "regs", "memory", "is_tracking_memory", "resilient"
+    __slots__ = "is_tracking_memory", "memory", "regs", "resilient"
 
     def __init__(self, regs, memory, is_tracking_memory, resilient: bool):
         self.regs = regs

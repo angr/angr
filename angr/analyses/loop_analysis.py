@@ -19,7 +19,7 @@ class VariableTypes:
 
 
 class AnnotatedVariable:
-    __slots__ = ["variable", "type"]
+    __slots__ = ["type", "variable"]
 
     def __init__(self, variable, type_):
         self.variable = variable

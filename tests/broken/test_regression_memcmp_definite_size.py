@@ -15,7 +15,7 @@ def regression_test_memcmp_strlen_simprocedure_interaction():
 
     bin_path = os.path.join(test_location, "i386", "cpp_regression_test_ch25")
     p = angr.Project(bin_path, auto_load_libs=True)  # this binary requires the loading of libstdc++.so.6
-    argv1 = cp.Concat(*[cp.BVS("argv%d" % i, 8) for i in range(48)])
+    argv1 = cp.Concat(*[cp.BVS(f"argv{i}", 8) for i in range(48)])
 
     state = p.factory.full_init_state(args=[bin_path, argv1], add_options=angr.sim_options.unicorn)
 

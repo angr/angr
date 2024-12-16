@@ -74,11 +74,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         self.ret_val_size = ret_val_size
 
     def __repr__(self):
-        return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
-            self.block_addr,
-            len(self.register_region),
-            len(self.stack_region),
-        )
+        return f"<VRAbstractState@{self.block_addr:#x}: {len(self.register_region)} register variables, {len(self.stack_region)} stack variables>"
 
     def __eq__(self, other):
         if type(other) is not VariableRecoveryFastState:
@@ -523,7 +519,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             256: pyvex.const.V256,
         }
         if size not in mapping:
-            raise TypeError("Unsupported size %d." % size)
+            raise TypeError(f"Unsupported size {size}.")
         return mapping.get(size)(value)
 
     def _peephole_optimize(self, block: Block):

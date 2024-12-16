@@ -192,7 +192,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             self.state.add_constraints(constraint_on_start_idx)
 
     def _store_array_element_on_heap(self, array, idx, value, value_type, store_condition=None):
-        heap_elem_id = "%s[%d]" % (array.id, idx)
+        heap_elem_id = f"{array.id}[{idx}]"
         l.debug("Set %s to %s with condition %s", heap_elem_id, value, store_condition)
         if store_condition is not None:
             current_value = self._load_array_element_from_heap(array, idx)
@@ -267,7 +267,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
     def _load_array_element_from_heap(self, array: SimSootValue_ArrayBaseRef, idx):
         # try to load the element
-        heap_elem_id = "%s[%d]" % (array.id, idx)
+        heap_elem_id = f"{array.id}[{idx}]"
         value = self.heap.load(heap_elem_id, none_if_missing=True)
         # if it's not available, initialize it
         if value is None:

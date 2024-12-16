@@ -109,7 +109,7 @@ class SimFileBase(SimStatePlugin):
                     yield "?"
 
         nice_name = "".join(generate())
-        return "file_%d_%s" % (next(file_counter), nice_name)
+        return f"file_{next(file_counter)}_{nice_name}"
 
     def concretize(self, **kwargs):
         """
@@ -250,7 +250,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         if type(self._size) is int:
             self._size = claripy.BVV(self._size, state.arch.bits)
         elif len(self._size) != state.arch.bits:
-            raise TypeError("SimFile size must be a bitvector of size %d (arch.bits)" % state.arch.bits)
+            raise TypeError(f"SimFile size must be a bitvector of size {state.arch.bits} (arch.bits)")
 
     @property
     def size(self):
@@ -379,7 +379,7 @@ class SimFileStream(SimFile):
         if type(self.pos) is int:
             self.pos = claripy.BVV(self.pos, state.arch.bits)
         elif len(self.pos) != state.arch.bits:
-            raise TypeError("SimFileStream position must be a bitvector of size %d (arch.bits)" % state.arch.bits)
+            raise TypeError(f"SimFileStream position must be a bitvector of size {state.arch.bits} (arch.bits)")
 
     def read(self, pos, size, **kwargs):
         no_stream = kwargs.pop("no_stream", False)
@@ -509,9 +509,9 @@ class SimPackets(SimFileBase):
         if pos is None:
             pos = len(self.content)
         if pos < 0:
-            raise SimFileError("SimPacket.read(%d): Negative packet number?" % pos)
+            raise SimFileError(f"SimPacket.read({pos}): Negative packet number?")
         if pos > len(self.content):
-            raise SimFileError("SimPacket.read(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
+            raise SimFileError(f"SimPacket.read({pos}): Packet number is past frontier of {len(self.content)}?")
         if pos != len(self.content):
             _, realsize = self.content[pos]
             self.state.add_constraints(realsize <= size)  # assert that the packet fits within the read request
@@ -533,7 +533,7 @@ class SimPackets(SimFileBase):
         # if short reads are enabled, replace size with a symbol
         if short_reads is True or (short_reads is None and sim_options.SHORT_READS in self.state.options):
             size = self.state.solver.BVS(
-                "packetsize_%d_%s" % (len(self.content), self.ident),
+                f"packetsize_{len(self.content)}_{self.ident}",
                 self.state.arch.bits,
                 key=("file", self.ident, "packetsize", len(self.content)),
             )
@@ -561,7 +561,7 @@ class SimPackets(SimFileBase):
 
         # generate the packet data and return it
         data = self.state.solver.BVS(
-            "packet_%d_%s" % (len(self.content), self.ident),
+            f"packet_{len(self.content)}_{self.ident}",
             max_size * self.state.arch.byte_width,
             key=("file", self.ident, "packet", len(self.content)),
         )
@@ -601,9 +601,9 @@ class SimPackets(SimFileBase):
         if pos is None:
             pos = len(self.content)
         if pos < 0:
-            raise SimFileError("SimPacket.write(%d): Negative packet number?" % pos)
+            raise SimFileError(f"SimPacket.write({pos}): Negative packet number?")
         if pos > len(self.content):
-            raise SimFileError("SimPacket.write(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
+            raise SimFileError(f"SimPacket.write({pos}): Packet number is past frontier of {len(self.content)}?")
         if pos != len(self.content):
             realdata, realsize = self.content[pos]
             maxlen = max(len(realdata), len(data))
@@ -1171,7 +1171,7 @@ class SimPacketsSlots(SimFileBase):
             self.read_sizes.pop(0)
 
         data = self.state.solver.BVS(
-            "packet_%d_%s" % (len(self.read_data), self.ident),
+            f"packet_{len(self.read_data)}_{self.ident}",
             real_size * self.state.arch.byte_width,
             key=("file", self.ident, "packet", len(self.read_data)),
         )

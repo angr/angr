@@ -13,11 +13,11 @@ from .cfg_base import CFGBase
 
 
 __all__ = (
-    "CFGFast",
-    "CFGEmulated",
     "CFG",
     "CFBlanket",
-    "CFGFastSoot",
     "CFGArchOptions",
     "CFGBase",
+    "CFGEmulated",
+    "CFGFast",
+    "CFGFastSoot",
 )

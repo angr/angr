@@ -14,11 +14,11 @@ class AddressWrapper:
     """
 
     __slots__ = (
+        "address",
+        "function_address",
+        "is_on_stack",
         "region",
         "region_base_addr",
-        "address",
-        "is_on_stack",
-        "function_address",
     )
 
     def __init__(self, region: str, region_base_addr: int, address, is_on_stack: bool, function_address: int | None):
@@ -62,8 +62,8 @@ class RegionDescriptor:
     """
 
     __slots__ = (
-        "region_id",
         "base_address",
+        "region_id",
         "related_function_address",
     )
 
@@ -145,7 +145,7 @@ class RegionMap:
         if self.is_stack:
             # Sanity check
             if not region_id.startswith("stack_"):
-                raise SimRegionMapError('Received a non-stack memory ID "%d" in a stack region map' % region_id)
+                raise SimRegionMapError(f'Received a non-stack memory ID "{region_id}" in a stack region map')
 
             # Remove all stack regions that are lower than the one to add
             while True:

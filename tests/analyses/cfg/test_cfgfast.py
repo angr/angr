@@ -723,10 +723,10 @@ class TestCfgfast(unittest.TestCase):
         for returning_block_addr, expected_return_addrs in tail_call_return_addrs.items():
             returning_block = cfg.model.get_any_node(returning_block_addr)
             return_block_addrs = [rb.addr for rb in cfg.model.get_successors(returning_block)]
-            msg = "%x: unequal sizes of expected_addrs [%d] and return_block_addrs [%d]" % (
-                returning_block_addr,
-                len(expected_return_addrs),
-                len(return_block_addrs),
+            msg = (
+                f"{returning_block_addr:x}: unequal sizes of expected_addrs "
+                f"[{len(expected_return_addrs)}] and return_block_addrs "
+                f"[{len(return_block_addrs)}]"
             )
             assert len(return_block_addrs) == len(expected_return_addrs), msg
             for expected_addr in expected_return_addrs:

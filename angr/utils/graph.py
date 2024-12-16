@@ -572,7 +572,7 @@ class SCCPlaceholder:
         return isinstance(other, SCCPlaceholder) and other.scc_id == self.scc_id
 
     def __hash__(self):
-        return hash("scc_placeholder_%d" % self.scc_id)
+        return hash(f"scc_placeholder_{self.scc_id}")
 
 
 class GraphUtils:

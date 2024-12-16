@@ -100,9 +100,9 @@ class FunctionReturn:
     """
 
     __slots__ = (
+        "call_site_addr",
         "callee_func_addr",
         "caller_func_addr",
-        "call_site_addr",
         "return_to",
     )
 
@@ -287,9 +287,9 @@ class FunctionEdge:
     """
 
     __slots__ = (
+        "ins_addr",
         "src_func_addr",
         "stmt_idx",
-        "ins_addr",
     )
 
     def apply(self, cfg):
@@ -302,11 +302,11 @@ class FunctionTransitionEdge(FunctionEdge):
     """
 
     __slots__ = (
-        "src_node",
         "dst_addr",
-        "to_outside",
         "dst_func_addr",
         "is_exception",
+        "src_node",
+        "to_outside",
     )
 
     def __init__(
@@ -353,7 +353,7 @@ class FunctionCallEdge(FunctionEdge):
     Describes a call edge in functions' transition graphs.
     """
 
-    __slots__ = ("src_node", "dst_addr", "ret_addr", "syscall")
+    __slots__ = ("dst_addr", "ret_addr", "src_node", "syscall")
 
     def __init__(self, src_node, dst_addr, ret_addr, src_func_addr, syscall=False, stmt_idx=None, ins_addr=None):
         self.src_node = src_node
@@ -380,7 +380,7 @@ class FunctionFakeRetEdge(FunctionEdge):
     Describes a FakeReturn (also called fall-through) edge in functions' transition graphs.
     """
 
-    __slots__ = ("src_node", "dst_addr", "confirmed")
+    __slots__ = ("confirmed", "dst_addr", "src_node")
 
     def __init__(self, src_node, dst_addr, src_func_addr, confirmed=None):
         self.src_node = src_node
@@ -402,7 +402,7 @@ class FunctionReturnEdge(FunctionEdge):
     Describes a return (from a function call or a syscall) edge in functions' transition graphs.
     """
 
-    __slots__ = ("ret_from_addr", "ret_to_addr", "dst_func_addr")
+    __slots__ = ("dst_func_addr", "ret_from_addr", "ret_to_addr")
 
     def __init__(self, ret_from_addr, ret_to_addr, dst_func_addr):
         self.ret_from_addr = ret_from_addr
@@ -437,19 +437,19 @@ class CFGJob:
     """
 
     __slots__ = (
+        "_func_edges",
         "addr",
         "func_addr",
-        "jumpkind",
-        "ret_target",
-        "last_addr",
-        "src_node",
-        "src_ins_addr",
-        "src_stmt_idx",
-        "returning_source",
-        "syscall",
-        "_func_edges",
-        "job_type",
         "gp",
+        "job_type",
+        "jumpkind",
+        "last_addr",
+        "ret_target",
+        "returning_source",
+        "src_ins_addr",
+        "src_node",
+        "src_stmt_idx",
+        "syscall",
     )
 
     def __init__(
@@ -1812,7 +1812,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         elif (
                             not security_init_cookie_found
                             and is_function_security_init_cookie(func, self.project, security_cookie_addr)
-                            or not security_init_cookie_found
+                        ) or (
+                            not security_init_cookie_found
                             and is_function_security_init_cookie_win8(func, self.project, security_cookie_addr)
                         ):
                             security_init_cookie_found = True
@@ -3036,7 +3037,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self.kb.xrefs.add_xref(cr)
 
         if is_arm_arch(self.project.arch) and (
-            (irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xFFFF_FFFF_FFFF_FFFE) + 4 or data_addr == insn_addr + 8
+            ((irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xFFFF_FFFF_FFFF_FFFE) + 4)
+            or data_addr == insn_addr + 8
         ):
             return
         self.insn_addr_to_memory_data[insn_addr] = self.model.memory_data[data_addr]

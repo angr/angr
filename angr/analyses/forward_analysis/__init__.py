@@ -4,8 +4,8 @@ from .forward_analysis import ForwardAnalysis
 from .visitors import CallGraphVisitor, FunctionGraphVisitor, LoopVisitor, SingleNodeGraphVisitor
 
 __all__ = (
-    "ForwardAnalysis",
     "CallGraphVisitor",
+    "ForwardAnalysis",
     "FunctionGraphVisitor",
     "LoopVisitor",
     "SingleNodeGraphVisitor",

@@ -539,8 +539,8 @@ class TestDecompiler(unittest.TestCase):
         for line in lines:
             if '"%02x"' in line:
                 assert "sprintf(" in line
-                assert (
-                    "v0" in line and "v1" in line and "v2" in line or "v2" in line and "v3" in line and "v4" in line
+                assert ("v0" in line and "v1" in line and "v2" in line) or (
+                    "v2" in line and "v3" in line and "v4" in line
                 ), "Failed to find v0, v1, and v2 in the same line. Is propagator over-propagating?"
 
         assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"
@@ -575,11 +575,10 @@ class TestDecompiler(unittest.TestCase):
         # with global variables discovered, there should not be any loads of constant addresses.
         assert "fflush(stdout);" in code.lower()
 
+        access_count = code.count("access(")
         assert (
-            code.count("access(") == 2
-        ), "The decompilation should contain 2 calls to access(), but instead %d calls are present." % code.count(
-            "access("
-        )
+            access_count == 2
+        ), f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
 
         m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
@@ -1811,8 +1810,7 @@ class TestDecompiler(unittest.TestCase):
         assert (
             d.codegen.text.count("if (!v0)") == 3
             or d.codegen.text.count("if (v0)") == 3
-            or d.codegen.text.count("if (!v0)") == 2
-            and d.codegen.text.count("if (!a0)") == 1
+            or (d.codegen.text.count("if (!v0)") == 2 and d.codegen.text.count("if (!a0)") == 1)
         )
         assert d.codegen.text.count("break;") > 0
 

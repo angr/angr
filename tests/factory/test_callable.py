@@ -116,7 +116,7 @@ class TestCallable(unittest.TestCase):
 
         p = angr.Project(os.path.join(test_location, arch, "manyfloatsum"))
         function = "sum_doubles"
-        args = [claripy.FPS("arg_%d" % i, claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
+        args = [claripy.FPS(f"arg_{i}", claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
         addr = p.loader.main_object.get_symbol(function).rebased_addr
         my_callable = p.factory.callable(addr, prototype=type_cache[function])
         result = my_callable(*args)

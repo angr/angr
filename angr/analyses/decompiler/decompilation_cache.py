@@ -14,16 +14,16 @@ class DecompilationCache:
     """
 
     __slots__ = (
-        "parameters",
         "addr",
-        "type_constraints",
-        "func_typevar",
-        "var_to_typevar",
-        "codegen",
-        "clinic",
-        "ite_exprs",
         "binop_operators",
+        "clinic",
+        "codegen",
         "errors",
+        "func_typevar",
+        "ite_exprs",
+        "parameters",
+        "type_constraints",
+        "var_to_typevar",
     )
 
     def __init__(self, addr):

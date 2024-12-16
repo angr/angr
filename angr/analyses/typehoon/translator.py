@@ -42,7 +42,7 @@ class TypeTranslator:
     #
 
     def struct_name(self):
-        return "struct_%d" % next(self._struct_ctr)
+        return f"struct_{next(self._struct_ctr)}"
 
     #
     # Type translation
@@ -227,7 +227,7 @@ class TypeTranslator:
             return typeconsts.Pointer32(base)
         if self.arch.bits == 64:
             return typeconsts.Pointer64(base)
-        raise TypeError("Unsupported pointer size %d" % self.arch.bits)
+        raise TypeError(f"Unsupported pointer size {self.arch.bits}")
 
 
 TypeConstHandlers = {

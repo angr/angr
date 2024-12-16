@@ -111,7 +111,7 @@ class CFGBase(Analysis):
 
         # Sanity checks
         if context_sensitivity_level < 0:
-            raise ValueError("Unsupported context sensitivity level %d" % context_sensitivity_level)
+            raise ValueError(f"Unsupported context sensitivity level {context_sensitivity_level}")
 
         self._binary = binary if binary is not None else self.project.loader.main_object
         self._force_segment = force_segment

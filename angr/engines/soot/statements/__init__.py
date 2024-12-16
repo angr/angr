@@ -32,15 +32,15 @@ from .throw import SimSootStmt_Throw
 
 
 __all__ = (
-    "translate_stmt",
     "SimSootStmt_Assign",
+    "SimSootStmt_Goto",
+    "SimSootStmt_Identity",
+    "SimSootStmt_If",
+    "SimSootStmt_Invoke",
+    "SimSootStmt_LookupSwitch",
     "SimSootStmt_Return",
     "SimSootStmt_ReturnVoid",
-    "SimSootStmt_Identity",
-    "SimSootStmt_Goto",
-    "SimSootStmt_Invoke",
-    "SimSootStmt_If",
     "SimSootStmt_TableSwitch",
-    "SimSootStmt_LookupSwitch",
     "SimSootStmt_Throw",
+    "translate_stmt",
 )

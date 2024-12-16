@@ -31,7 +31,7 @@ class ExprNarrowingInfo:
     Stores the analysis result of _narrowing_needed().
     """
 
-    __slots__ = ("narrowable", "to_size", "use_exprs", "phi_vars")
+    __slots__ = ("narrowable", "phi_vars", "to_size", "use_exprs")
 
     def __init__(
         self,

@@ -143,10 +143,10 @@ class ConstantValueManager:
     """
 
     __slots__ = (
-        "project",
-        "kb",
         "func",
+        "kb",
         "mapping",
+        "project",
     )
 
     def __init__(self, project: Project, kb, func: Function):
@@ -240,13 +240,13 @@ class JumpTableProcessorState:
     """
 
     __slots__ = (
-        "arch",
         "_registers",
         "_stack",
         "_tmpvar_source",
+        "arch",
         "is_jumptable",
-        "stmts_to_instrument",
         "regs_to_initialize",
+        "stmts_to_instrument",
     )
 
     def __init__(self, arch):
@@ -2175,10 +2175,12 @@ class JumpTableResolver(IndirectJumpResolver):
                 stmt_taken = i in stmt_ids
                 display = stmt_taken if in_slice_stmts_only else True
                 if display:
-                    s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
-                    s += f"{stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)} "
+                    s = (
+                        f"{'+' if stmt_taken else ' '} {addr:x}:{i:02d} | "
+                        f"{stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)} "
+                    )
                     if stmt_taken:
-                        s += "IN: %d" % blade.slice.in_degree((addr, i))
+                        s += f"IN: {blade.slice.in_degree((addr, i))}"
                     print(s)
 
             # the default exit

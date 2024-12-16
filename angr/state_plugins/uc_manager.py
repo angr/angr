@@ -48,7 +48,7 @@ class SimUCManager(SimStatePlugin):
         dst_uc_alloc_depth = self._uc_alloc_depth[dst_addr_ast]
         if dst_uc_alloc_depth > self._max_alloc_depth:
             raise SimUCManagerAllocationError(
-                "Current allocation depth %d is greater than the cap (%d)" % (dst_uc_alloc_depth, self._max_alloc_depth)
+                f"Current allocation depth {dst_uc_alloc_depth} is greater than the cap ({self._max_alloc_depth})"
             )
 
         abs_addr = self._region_base + self._pos

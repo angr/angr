@@ -112,7 +112,7 @@ def error_converter(f):
 def _concrete_bool(e):
     if isinstance(e, bool):
         return e
-    if isinstance(e, claripy.ast.Base) and e.op == "BoolV" or isinstance(e, SimActionObject) and e.op == "BoolV":
+    if (isinstance(e, claripy.ast.Base) and e.op == "BoolV") or (isinstance(e, SimActionObject) and e.op == "BoolV"):
         return e.args[0]
     return None
 
@@ -302,10 +302,8 @@ class SimSolver(SimStatePlugin):
         elif o.SYMBOLIC in self.state.options and o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite(track=track)
         elif (
-            o.SYMBOLIC in self.state.options
-            and any(opt in self.state.options for opt in o.approximation)
-            or o.HYBRID_SOLVER in self.state.options
-        ):
+            o.SYMBOLIC in self.state.options and any(opt in self.state.options for opt in o.approximation)
+        ) or o.HYBRID_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverHybrid(track=track, approximate_first=approximate_first)
         elif o.SYMBOLIC in self.state.options:
             self._stored_solver = claripy.Solver(track=track)
@@ -856,7 +854,7 @@ class SimSolver(SimStatePlugin):
 
         cast_vals = [self._cast_to(e, v, cast_to) for v in self._eval(e, n, **kwargs)]
         if len(cast_vals) == 0:
-            raise SimUnsatError("Not satisfiable: %s, expected up to %d solutions" % (e.shallow_repr(), n))
+            raise SimUnsatError(f"Not satisfiable: {e.shallow_repr()}, expected up to {n} solutions")
         return cast_vals
 
     @overload
@@ -967,7 +965,7 @@ class SimSolver(SimStatePlugin):
         """
         r = self.eval_upto(e, n + 1, cast_to, **kwargs)
         if len(r) > n:
-            raise SimValueError("Concretized %d values (must be at most %d) in eval_atmost" % (len(r), n))
+            raise SimValueError(f"Concretized {len(r)} values (must be at most {n}) in eval_atmost")
         return r
 
     @overload
@@ -1002,7 +1000,7 @@ class SimSolver(SimStatePlugin):
         """
         r = self.eval_upto(e, n, cast_to, **kwargs)
         if len(r) != n:
-            raise SimValueError("Concretized %d values (must be at least %d) in eval_atleast" % (len(r), n))
+            raise SimValueError(f"Concretized {len(r)} values (must be at least {n}) in eval_atleast")
         return r
 
     @overload
@@ -1038,7 +1036,7 @@ class SimSolver(SimStatePlugin):
         """
         r = self.eval_upto(e, n + 1, cast_to, **kwargs)
         if len(r) != n:
-            raise SimValueError("Concretized %d values (must be exactly %d) in eval_exact" % (len(r), n))
+            raise SimValueError(f"Concretized {len(r)} values (must be exactly {n}) in eval_exact")
         return r
 
     min_int = min

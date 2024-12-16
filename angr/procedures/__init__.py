@@ -5,8 +5,8 @@ from .definitions import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 
 __all__ = (
-    "SIM_PROCEDURES",
     "SIM_LIBRARIES",
+    "SIM_PROCEDURES",
     "SIM_TYPE_COLLECTIONS",
     "SimProcedures",
 )

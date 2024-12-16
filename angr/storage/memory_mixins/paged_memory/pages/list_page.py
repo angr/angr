@@ -263,7 +263,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
-            if not s_contains and o_contains or s_contains and not o_contains:
+            if (not s_contains and o_contains) or (s_contains and not o_contains):
                 differences.add(c)
             else:
                 if self.content[c] is None:

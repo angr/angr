@@ -90,20 +90,13 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         return arg_str == expected_str
 
     def check_args(self, func_name, args, expected_arg_strs):
-        assert len(args) == len(expected_arg_strs), "Wrong number of arguments for function %s. Got %d, expect %d." % (
-            func_name,
-            len(args),
-            len(expected_arg_strs),
+        assert len(args) == len(expected_arg_strs), (
+            f"Wrong number of arguments for function {func_name}. " f"Got {len(args)}, expect {len(expected_arg_strs)}."
         )
 
         for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
             r = self.check_arg(arg, expected_arg_str)
-            assert r, "Incorrect argument %d for function %s. Got %s, expect %s." % (
-                idx,
-                func_name,
-                arg,
-                expected_arg_str,
-            )
+            assert r, f"Incorrect argument {idx} for function {func_name}. " f"Got {arg}, expect {expected_arg_str}."
 
     def _a(self, funcs, func_name):
         func = funcs[func_name]
@@ -283,7 +276,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def test_tail_calls(self):
         for opt_level in (1, 2):
-            binary_path = os.path.join(test_location, "x86_64", "tailcall-O%d" % opt_level)
+            binary_path = os.path.join(test_location, "x86_64", f"tailcall-O{opt_level}")
             proj = angr.Project(binary_path, auto_load_libs=False)
 
             proj.analyses.CFG(normalize=True)
