@@ -6,10 +6,10 @@ from .heap_libc import SimHeapLibc
 from .heap_ptmalloc import SimHeapPTMalloc, PTChunk, PTChunkIterator
 
 __all__ = (
+    "PTChunk",
+    "PTChunkIterator",
     "SimHeapBase",
     "SimHeapBrk",
     "SimHeapLibc",
     "SimHeapPTMalloc",
-    "PTChunk",
-    "PTChunkIterator",
 )

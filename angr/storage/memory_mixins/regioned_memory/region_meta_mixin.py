@@ -129,13 +129,13 @@ class AbstractLocation:
 
 class MemoryRegionMetaMixin(MemoryMixin):
     __slots__ = (
+        "_alocs",
         "_endness",
         "_id",
-        "_state",
         "_is_stack",
-        "_related_function_addr",
-        "_alocs",
         "_memory",
+        "_related_function_addr",
+        "_state",
     )
 
     def __init__(self, related_function_addr=None, **kwargs):

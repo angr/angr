@@ -65,20 +65,20 @@ class PropagatorState:
     """
 
     __slots__ = (
-        "arch",
-        "gpr_size",
-        "_expr_used_locs",
-        "_only_consts",
-        "_replacements",
+        "__weakref__",
+        "_artificial_reg_offsets",
         "_equivalence",
-        "project",
-        "rda",
-        "_store_tops",
+        "_expr_used_locs",
         "_gp",
         "_max_prop_expr_occurrence",
+        "_only_consts",
+        "_replacements",
+        "_store_tops",
+        "arch",
+        "gpr_size",
         "model",
-        "_artificial_reg_offsets",
-        "__weakref__",
+        "project",
+        "rda",
     )
 
     _tops = {}
@@ -237,11 +237,10 @@ class PropagatorState:
                                 or isinstance(repl, claripy.ast.Base)
                             )
                             and replacements_0[loc][var] is not repl
-                            or (
-                                not isinstance(replacements_0[loc][var], claripy.ast.Base)
-                                and not isinstance(repl, claripy.ast.Base)
-                                and replacements_0[loc][var] != repl
-                            )
+                        ) or (
+                            not isinstance(replacements_0[loc][var], claripy.ast.Base)
+                            and not isinstance(repl, claripy.ast.Base)
+                            and replacements_0[loc][var] != repl
                         ):
                             replacements_0[loc][var] = repl
                             merge_occurred = True
@@ -371,8 +370,8 @@ class PropagatorVEXState(PropagatorState):
     __slots__ = (
         "_registers",
         "_stack_variables",
-        "do_binops",
         "block_initial_reg_values",
+        "do_binops",
     )
 
     def __init__(
@@ -551,9 +550,9 @@ class Equivalence:
     """
 
     __slots__ = (
-        "codeloc",
         "atom0",
         "atom1",
+        "codeloc",
     )
 
     def __init__(self, codeloc, atom0, atom1):
@@ -583,14 +582,14 @@ class PropagatorAILState(PropagatorState):
 
     __slots__ = (
         "_registers",
+        "_sp_adjusted",
         "_stack_variables",
         "_tmps",
-        "temp_expressions",
-        "register_expressions",
-        "last_stack_store",
-        "global_stores",
         "block_initial_reg_values",
-        "_sp_adjusted",
+        "global_stores",
+        "last_stack_store",
+        "register_expressions",
+        "temp_expressions",
     )
 
     def __init__(
@@ -917,10 +916,8 @@ class PropagatorAILState(PropagatorState):
         replaced = False
         # count-based propagation rule only matters when we are performing a full-function copy propagation
         if self._max_prop_expr_occurrence == 0:
-            if (
-                isinstance(old, ailment.Expr.Tmp)
-                or isinstance(old, ailment.Expr.Register)
-                and self.should_replace_reg(old.reg_offset, bp_as_gpr, new)
+            if isinstance(old, ailment.Expr.Tmp) or (
+                isinstance(old, ailment.Expr.Register) and self.should_replace_reg(old.reg_offset, bp_as_gpr, new)
             ):
                 self._replacements[codeloc][old] = (
                     new if stmt_to_remove is None else {"expr": new, "stmt_to_remove": stmt_to_remove}
@@ -963,8 +960,7 @@ class PropagatorAILState(PropagatorState):
                 force_replace
                 or prop_count <= self._max_prop_expr_occurrence
                 or isinstance(new, ailment.Expr.StackBaseOffset)
-                or isinstance(new, ailment.Expr.Convert)
-                and isinstance(new.operand, ailment.Expr.StackBaseOffset)
+                or (isinstance(new, ailment.Expr.Convert) and isinstance(new.operand, ailment.Expr.StackBaseOffset))
                 or (
                     isinstance(old, ailment.Expr.Register)
                     and self.arch.is_artificial_register(old.reg_offset, old.size)
@@ -1020,10 +1016,14 @@ class PropagatorAILState(PropagatorState):
             isinstance(expr, ailment.Expr.BinaryOp)
             and expr.op in {"Add", "Sub"}
             and (
-                isinstance(expr.operands[0], ailment.Expr.Register)
-                and PropagatorAILState.is_global_variable_load(expr.operands[1])
-                or isinstance(expr.operands[1], ailment.Expr.Register)
-                and PropagatorAILState.is_global_variable_load(expr.operands[0])
+                (
+                    isinstance(expr.operands[0], ailment.Expr.Register)
+                    and PropagatorAILState.is_global_variable_load(expr.operands[1])
+                )
+                or (
+                    isinstance(expr.operands[1], ailment.Expr.Register)
+                    and PropagatorAILState.is_global_variable_load(expr.operands[0])
+                )
             )
         )
 

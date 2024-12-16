@@ -215,14 +215,14 @@ def is_dephi_vvar(vvar: VirtualVariable) -> bool:
 
 __all__ = (
     "VVarUsesCollector",
+    "get_tmp_deflocs",
+    "get_tmp_uselocs",
     "get_vvar_deflocs",
     "get_vvar_uselocs",
-    "is_const_assignment",
-    "is_phi_assignment",
-    "phi_assignment_get_src",
     "is_const_and_vvar_assignment",
+    "is_const_assignment",
     "is_const_vvar_load_assignment",
     "is_const_vvar_load_dirty_assignment",
-    "get_tmp_uselocs",
-    "get_tmp_deflocs",
+    "is_phi_assignment",
+    "phi_assignment_get_src",
 )

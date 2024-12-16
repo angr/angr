@@ -231,7 +231,7 @@ class StackCanarySimplifier(OptimizationPass):
                     negated = False
                     condition = stmt.condition
                 if isinstance(condition, ailment.Expr.BinaryOp) and (
-                    not negated and condition.op == "CmpEQ" or negated and condition.op == "CmpNE"
+                    (not negated and condition.op == "CmpEQ") or (negated and condition.op == "CmpNE")
                 ):
                     pass
                 else:
@@ -255,8 +255,10 @@ class StackCanarySimplifier(OptimizationPass):
                             op0 = op0_v
 
                     if not (
-                        self._is_stack_canary_load_expr(op0, self.project.arch.bits, canary_value_stack_offset)
-                        and self._is_random_number_load_expr(op1, self.project.arch.get_register_offset("fs"))
+                        (
+                            self._is_stack_canary_load_expr(op0, self.project.arch.bits, canary_value_stack_offset)
+                            and self._is_random_number_load_expr(op1, self.project.arch.get_register_offset("fs"))
+                        )
                         or (
                             self._is_stack_canary_load_expr(op1, self.project.arch.bits, canary_value_stack_offset)
                             and self._is_random_number_load_expr(op0, self.project.arch.get_register_offset("fs"))
@@ -270,8 +272,10 @@ class StackCanarySimplifier(OptimizationPass):
                 ):
                     # a == b
                     if not (
-                        self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
-                        and self._is_random_number_load_expr(expr1, self.project.arch.get_register_offset("fs"))
+                        (
+                            self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
+                            and self._is_random_number_load_expr(expr1, self.project.arch.get_register_offset("fs"))
+                        )
                         or (
                             self._is_stack_canary_load_expr(expr1, self.project.arch.bits, canary_value_stack_offset)
                             and self._is_random_number_load_expr(expr0, self.project.arch.get_register_offset("fs"))

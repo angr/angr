@@ -10,9 +10,9 @@ from .api_obf_peephole_optimizer import APIObfType1PeepholeOptimizer
 
 
 __all__ = (
-    "StringObfuscationFinder",
+    "APIObfType1PeepholeOptimizer",
+    "APIObfuscationFinder",
     "StringObfType1PeepholeOptimizer",
     "StringObfType3Rewriter",
-    "APIObfuscationFinder",
-    "APIObfType1PeepholeOptimizer",
+    "StringObfuscationFinder",
 )

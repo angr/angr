@@ -5,6 +5,6 @@ from .propagation_manager import PropagationManager
 
 
 __all__ = (
-    "PropagationModel",
     "PropagationManager",
+    "PropagationModel",
 )

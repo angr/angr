@@ -112,17 +112,17 @@ class IRSB:
 
     __slots__ = (
         "_direct_next",
+        "_disassembly",
         "_exit_statements",
         "_instruction_addresses",
         "_ops",
         "_size",
         "_statements",
-        "_disassembly",
         "addr",
         "arch",
         "behaviors",
-        "data_refs",
         "const_vals",
+        "data_refs",
         "default_exit_target",
         "jumpkind",
         "next",
@@ -521,19 +521,19 @@ class Lifter:
     REQUIRE_DATA_PY = False
 
     __slots__ = (
-        "data",
-        "bytes_offset",
-        "opt_level",
-        "traceflags",
-        "allow_arch_optimizations",
-        "strict_block_end",
-        "collect_data_refs",
-        "max_inst",
-        "max_bytes",
-        "skip_stmts",
-        "irsb",
-        "arch",
         "addr",
+        "allow_arch_optimizations",
+        "arch",
+        "bytes_offset",
+        "collect_data_refs",
+        "data",
+        "irsb",
+        "max_bytes",
+        "max_inst",
+        "opt_level",
+        "skip_stmts",
+        "strict_block_end",
+        "traceflags",
     )
 
     data: str | bytes | None
@@ -1377,10 +1377,8 @@ class PcodeLifterEngineMixin(SimEngineBase):
 
     def __is_stop_point(self, addr: int, extra_stop_points: Sequence[int] | None = None) -> bool:
         return bool(
-            self.project is not None
-            and addr in self.project._sim_procedures
-            or extra_stop_points is not None
-            and addr in extra_stop_points
+            (self.project is not None and addr in self.project._sim_procedures)
+            or (extra_stop_points is not None and addr in extra_stop_points)
         )
 
     def __getstate__(self):

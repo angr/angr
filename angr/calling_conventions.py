@@ -505,10 +505,10 @@ class ArgSession:
     """
 
     __slots__ = (
+        "both_iter",
         "cc",
         "fp_iter",
         "int_iter",
-        "both_iter",
     )
 
     def __init__(self, cc):

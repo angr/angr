@@ -9,14 +9,14 @@ class CodeLocation:
     """
 
     __slots__ = (
+        "_hash",
         "block_addr",
-        "stmt_idx",
-        "sim_procedure",
-        "ins_addr",
+        "block_idx",
         "context",
         "info",
-        "block_idx",
-        "_hash",
+        "ins_addr",
+        "sim_procedure",
+        "stmt_idx",
     )
 
     def __init__(

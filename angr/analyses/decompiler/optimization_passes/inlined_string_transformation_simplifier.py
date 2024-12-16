@@ -548,10 +548,8 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             if len(preds) == 2 and len(succs) == 2 and node in preds and node in succs:
                 pred = next(iter(nn for nn in preds if nn is not node))
                 succ = next(iter(nn for nn in succs if nn is not node))
-                if (
-                    self._graph.out_degree[pred] == 1
-                    and self._graph.in_degree[succ] == 1
-                    or self._graph.out_degree[pred] == 2
+                if (self._graph.out_degree[pred] == 1 and self._graph.in_degree[succ] == 1) or (
+                    self._graph.out_degree[pred] == 2
                     and self._graph.in_degree[succ] == 2
                     and self._graph.has_edge(pred, succ)
                 ):

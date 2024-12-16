@@ -36,11 +36,11 @@ def looks_like_sql(s: str) -> bool:
 
 
 __all__ = (
-    "timethis",
-    "graph",
     "constants",
     "enums_conv",
-    "lazy_import",
+    "graph",
     "is_pyinstaller",
+    "lazy_import",
     "looks_like_sql",
+    "timethis",
 )

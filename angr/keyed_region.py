@@ -13,7 +13,7 @@ l = logging.getLogger(name=__name__)
 
 
 class StoredObject:
-    __slots__ = ("__weakref__", "start", "obj", "size")
+    __slots__ = ("__weakref__", "obj", "size", "start")
 
     def __init__(self, start, obj, size):
         self.start = start
@@ -41,7 +41,7 @@ class RegionObject:
     Represents one or more objects occupying one or more bytes in KeyedRegion.
     """
 
-    __slots__ = ("start", "size", "stored_objects", "_internal_objects")
+    __slots__ = ("_internal_objects", "size", "start", "stored_objects")
 
     def __init__(self, start, size, objects=None):
         self.start = start
@@ -114,10 +114,10 @@ class KeyedRegion:
     """
 
     __slots__ = (
-        "_storage",
+        "_canonical_size",
         "_object_mapping",
         "_phi_node_contains",
-        "_canonical_size",
+        "_storage",
     )
 
     def __init__(self, tree=None, phi_node_contains=None, canonical_size=8):

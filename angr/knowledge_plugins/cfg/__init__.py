@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 __all__ = (
-    "MemoryDataSort",
-    "MemoryData",
-    "CFGNode",
     "CFGENode",
+    "CFGManager",
+    "CFGModel",
+    "CFGNode",
     "IndirectJump",
     "IndirectJumpType",
-    "CFGModel",
-    "CFGManager",
+    "MemoryData",
+    "MemoryDataSort",
 )
 
 from .memory_data import MemoryDataSort, MemoryData

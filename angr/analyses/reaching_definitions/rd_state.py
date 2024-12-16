@@ -56,21 +56,21 @@ class ReachingDefinitionsState:
     """
 
     __slots__ = (
-        "arch",
+        "_canonical_size",
+        "_element_limit",
+        "_environment",
+        "_sp_adjusted",
         "_subject",
+        "_track_consts",
         "_track_tmps",
+        "all_definitions",
         "analysis",
+        "arch",
         "codeloc",
         "codeloc_uses",
-        "live_definitions",
-        "all_definitions",
-        "_canonical_size",
-        "heap_allocator",
-        "_environment",
-        "_track_consts",
-        "_sp_adjusted",
         "exit_observed",
-        "_element_limit",
+        "heap_allocator",
+        "live_definitions",
     )
 
     def __init__(

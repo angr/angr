@@ -143,10 +143,10 @@ class ConstantValueManager:
     """
 
     __slots__ = (
-        "project",
-        "kb",
         "func",
+        "kb",
         "mapping",
+        "project",
     )
 
     def __init__(self, project: Project, kb, func: Function):
@@ -240,13 +240,13 @@ class JumpTableProcessorState:
     """
 
     __slots__ = (
-        "arch",
         "_registers",
         "_stack",
         "_tmpvar_source",
+        "arch",
         "is_jumptable",
-        "stmts_to_instrument",
         "regs_to_initialize",
+        "stmts_to_instrument",
     )
 
     def __init__(self, arch):

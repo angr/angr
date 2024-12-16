@@ -216,8 +216,8 @@ class Register(Atom):
     """
 
     __slots__ = (
-        "reg_offset",
         "arch",
+        "reg_offset",
     )
 
     def __init__(self, reg_offset: RegisterOffset | int, size: int, arch: Arch | None = None):
@@ -245,9 +245,9 @@ class VirtualVariable(Atom):
     """
 
     __slots__ = (
-        "varid",
         "category",
         "oident",
+        "varid",
     )
 
     def __init__(

@@ -332,8 +332,8 @@ class ArithmeticExpression:
 class RegisterOffset:
     __slots__ = (
         "_bits",
-        "reg",
         "offset",
+        "reg",
     )
 
     def __init__(self, bits, reg, offset):

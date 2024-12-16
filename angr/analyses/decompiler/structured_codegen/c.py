@@ -388,16 +388,16 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
     __slots__ = (
         "addr",
-        "name",
-        "functy",
         "arg_list",
-        "statements",
-        "variables_in_use",
-        "variable_manager",
         "demangled_name",
-        "unified_local_vars",
-        "show_demangled_name",
+        "functy",
+        "name",
         "omit_header",
+        "show_demangled_name",
+        "statements",
+        "unified_local_vars",
+        "variable_manager",
+        "variables_in_use",
     )
 
     def __init__(
@@ -728,8 +728,8 @@ class CWhileLoop(CLoop):
     """
 
     __slots__ = (
-        "condition",
         "body",
+        "condition",
         "tags",
     )
 
@@ -776,8 +776,8 @@ class CDoWhileLoop(CLoop):
     """
 
     __slots__ = (
-        "condition",
         "body",
+        "condition",
         "tags",
     )
 
@@ -826,7 +826,7 @@ class CForLoop(CStatement):
     Represents a for-loop in C.
     """
 
-    __slots__ = ("initializer", "condition", "iterator", "body", "tags")
+    __slots__ = ("body", "condition", "initializer", "iterator", "tags")
 
     def __init__(self, initializer, condition, iterator, body, tags=None, **kwargs):
         super().__init__(**kwargs)
@@ -878,7 +878,7 @@ class CIfElse(CStatement):
     Represents an if-else construct in C.
     """
 
-    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "cstyle_ifs", "tags")
+    __slots__ = ("condition_and_nodes", "cstyle_ifs", "else_node", "simplify_else_scope", "tags")
 
     def __init__(
         self,
@@ -1085,7 +1085,7 @@ class CSwitchCase(CStatement):
     Represents a switch-case statement in C.
     """
 
-    __slots__ = ("switch", "cases", "default", "tags")
+    __slots__ = ("cases", "default", "switch", "tags")
 
     def __init__(self, switch, cases, default, tags=None, **kwargs):
         super().__init__(**kwargs)
@@ -1144,7 +1144,7 @@ class CIncompleteSwitchCase(CStatement):
     structuring fails (for whatever reason).
     """
 
-    __slots__ = ("head", "cases", "tags")
+    __slots__ = ("cases", "head", "tags")
 
     def __init__(self, head, cases, tags=None, **kwargs):
         super().__init__(**kwargs)
@@ -1251,15 +1251,15 @@ class CFunctionCall(CStatement, CExpression):
     """
 
     __slots__ = (
-        "callee_target",
-        "callee_func",
         "args",
-        "returning",
-        "ret_expr",
-        "tags",
+        "callee_func",
+        "callee_target",
         "is_expr",
+        "ret_expr",
+        "returning",
         "show_demangled_name",
         "show_disambiguated_name",
+        "tags",
     )
 
     def __init__(
@@ -1397,9 +1397,9 @@ class CReturn(CStatement):
 
 class CGoto(CStatement):
     __slots__ = (
+        "tags",
         "target",
         "target_idx",
-        "tags",
     )
 
     def __init__(self, target, target_idx, tags=None, **kwargs):
@@ -1481,9 +1481,9 @@ class CLabel(CStatement):
     """
 
     __slots__ = (
-        "name",
-        "ins_addr",
         "block_idx",
+        "ins_addr",
+        "name",
         "tags",
     )
 
@@ -1504,9 +1504,9 @@ class CLabel(CStatement):
 
 class CStructField(CExpression):
     __slots__ = (
-        "struct_type",
-        "offset",
         "field",
+        "offset",
+        "struct_type",
         "tags",
     )
 
@@ -1558,10 +1558,10 @@ class CVariable(CExpression):
     """
 
     __slots__ = (
+        "tags",
+        "unified_variable",
         "variable",
         "variable_type",
-        "unified_variable",
-        "tags",
     )
 
     def __init__(self, variable: SimVariable, unified_variable=None, variable_type=None, tags=None, **kwargs):
@@ -1766,7 +1766,7 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ("op", "lhs", "rhs", "tags", "common_type", "_cstyle_null_cmp")
+    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs", "tags")
 
     def __init__(self, op, lhs, rhs, tags: dict | None = None, **kwargs):
         super().__init__(**kwargs)
@@ -2038,9 +2038,9 @@ class CBinaryOp(CExpression):
 
 class CTypeCast(CExpression):
     __slots__ = (
-        "src_type",
         "dst_type",
         "expr",
+        "src_type",
         "tags",
     )
 
@@ -2080,9 +2080,9 @@ class CTypeCast(CExpression):
 
 class CConstant(CExpression):
     __slots__ = (
-        "value",
         "reference_values",
         "tags",
+        "value",
     )
 
     def __init__(self, value, type_: SimType, reference_values=None, tags: dict | None = None, **kwargs):
@@ -2133,11 +2133,8 @@ class CConstant(CExpression):
             result = False
             if isinstance(self.value, int):
                 value_size = self._type.size if self._type is not None else None
-                if (
-                    value_size == 32
-                    and 0xF000_0000 <= self.value <= 0xFFFF_FFFF
-                    or value_size == 64
-                    and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
+                if (value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF) or (
+                    value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
                 ):
                     result = True
 
@@ -2304,8 +2301,8 @@ class CRegister(CExpression):
 class CITE(CExpression):
     __slots__ = (
         "cond",
-        "iftrue",
         "iffalse",
+        "iftrue",
         "tags",
     )
 
@@ -2339,7 +2336,7 @@ class CMultiStatementExpression(CExpression):
     (stmt0, stmt1, stmt2, expr)
     """
 
-    __slots__ = ("stmts", "expr", "tags")
+    __slots__ = ("expr", "stmts", "tags")
 
     def __init__(self, stmts: CStatements, expr: CExpression, tags=None, **kwargs):
         super().__init__(**kwargs)

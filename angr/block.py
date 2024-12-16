@@ -23,7 +23,7 @@ class DisassemblerBlock:
     instructions
     """
 
-    __slots__ = ["addr", "insns", "thumb", "arch"]
+    __slots__ = ["addr", "arch", "insns", "thumb"]
 
     def __init__(self, addr, insns, thumb, arch):
         self.addr = addr
@@ -122,25 +122,25 @@ class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = [
-        "_project",
         "_bytes",
-        "_vex",
-        "thumb",
-        "_disassembly",
         "_capstone",
-        "addr",
-        "size",
-        "arch",
-        "_instructions",
-        "_instruction_addrs",
-        "_opt_level",
-        "_vex_nostmt",
         "_collect_data_refs",
-        "_strict_block_end",
-        "_cross_insn_opt",
-        "_load_from_ro_regions",
         "_const_prop",
+        "_cross_insn_opt",
+        "_disassembly",
         "_initial_regs",
+        "_instruction_addrs",
+        "_instructions",
+        "_load_from_ro_regions",
+        "_opt_level",
+        "_project",
+        "_strict_block_end",
+        "_vex",
+        "_vex_nostmt",
+        "addr",
+        "arch",
+        "size",
+        "thumb",
     ]
 
     def __init__(

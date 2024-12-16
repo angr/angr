@@ -12,13 +12,13 @@ from .amd64_pe_iat import AMD64PeIatResolver
 
 
 __all__ = (
+    "AMD64ElfGotResolver",
+    "AMD64PeIatResolver",
+    "ArmElfFastResolver",
+    "ConstantResolver",
+    "JumpTableResolver",
     "MipsElfFastResolver",
     "MipsElfGotResolver",
     "X86ElfPicPltResolver",
-    "JumpTableResolver",
     "X86PeIatResolver",
-    "AMD64ElfGotResolver",
-    "ArmElfFastResolver",
-    "ConstantResolver",
-    "AMD64PeIatResolver",
 )

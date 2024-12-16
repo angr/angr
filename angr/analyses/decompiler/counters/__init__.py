@@ -7,10 +7,10 @@ from .expression_counters import SingleExpressionCounter, RegisterExpressionCoun
 
 
 __all__ = (
-    "BooleanCounter",
     "AILBlockCallCounter",
+    "BooleanCounter",
     "ControlFlowStructureCounter",
-    "SingleExpressionCounter",
-    "RegisterExpressionCounter",
     "OperatorCounter",
+    "RegisterExpressionCounter",
+    "SingleExpressionCounter",
 )

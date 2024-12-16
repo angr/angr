@@ -306,7 +306,8 @@ class PhoenixStructurer(StructurerBase):
                     and isinstance(head_block.nodes[0], Block)
                     and head_block.nodes[0].statements
                     and isinstance(first_nonlabel_nonphi_statement(head_block.nodes[0]), ConditionalJump)
-                    or isinstance(head_block, Block)
+                ) or (
+                    isinstance(head_block, Block)
                     and head_block.statements
                     and isinstance(first_nonlabel_nonphi_statement(head_block), ConditionalJump)
                 ):
@@ -1747,10 +1748,8 @@ class PhoenixStructurer(StructurerBase):
                 and right not in graph
                 and full_graph.in_degree[left] == 1
                 and (
-                    full_graph.in_degree[right] == 2
-                    and left_succs == [right]
-                    or full_graph.in_degree[right] == 1
-                    and not left_succs
+                    (full_graph.in_degree[right] == 2 and left_succs == [right])
+                    or (full_graph.in_degree[right] == 1 and not left_succs)
                 )
             ):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
@@ -2384,17 +2383,19 @@ class PhoenixStructurer(StructurerBase):
                     and last_stmt.target.value == dst_addr
                     and (dst_idx is ... or last_stmt.target_idx == dst_idx)
                 )
-                or isinstance(last_stmt, ConditionalJump)
-                and (
-                    (
-                        isinstance(last_stmt.true_target, Const)
-                        and last_stmt.true_target.value == dst_addr
-                        and (dst_idx is ... or last_stmt.true_target_idx == dst_idx)
-                    )
-                    or (
-                        isinstance(last_stmt.false_target, Const)
-                        and last_stmt.false_target.value == dst_addr
-                        and (dst_idx is ... or last_stmt.false_target_idx == dst_idx)
+                or (
+                    isinstance(last_stmt, ConditionalJump)
+                    and (
+                        (
+                            isinstance(last_stmt.true_target, Const)
+                            and last_stmt.true_target.value == dst_addr
+                            and (dst_idx is ... or last_stmt.true_target_idx == dst_idx)
+                        )
+                        or (
+                            isinstance(last_stmt.false_target, Const)
+                            and last_stmt.false_target.value == dst_addr
+                            and (dst_idx is ... or last_stmt.false_target_idx == dst_idx)
+                        )
                     )
                 )
                 or (
@@ -2431,10 +2432,8 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             walker.block_id += 1
-            if (
-                break_node.target == dst_addr
-                or isinstance(break_node.target, Const)
-                and break_node.target.value == dst_addr
+            if break_node.target == dst_addr or (
+                isinstance(break_node.target, Const) and break_node.target.value == dst_addr
             ):
                 # FIXME: idx is ignored
                 walker.parent_and_block.append((walker.block_id, parent, break_node))

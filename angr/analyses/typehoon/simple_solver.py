@@ -123,7 +123,7 @@ class SketchNode(SketchNodeBase):
     Represents a node in a sketch graph.
     """
 
-    __slots__ = ("typevar", "upper_bound", "lower_bound")
+    __slots__ = ("lower_bound", "typevar", "upper_bound")
 
     def __init__(self, typevar: TypeVariable | DerivedTypeVariable):
         self.typevar: TypeVariable | DerivedTypeVariable = typevar
@@ -164,8 +164,8 @@ class Sketch:
 
     __slots__ = (
         "graph",
-        "root",
         "node_mapping",
+        "root",
         "solver",
     )
 
@@ -263,7 +263,7 @@ class FORGOTTEN(enum.Enum):
 
 
 class ConstraintGraphNode:
-    __slots__ = ("typevar", "variance", "tag", "forgotten")
+    __slots__ = ("forgotten", "tag", "typevar", "variance")
 
     def __init__(
         self,
@@ -627,10 +627,8 @@ class SimpleSolver:
             for _, dst0, data0 in graph.out_edges(cls0, data=True):
                 if "label" in data0 and data0["label"] is not None:
                     for _, dst1, data1 in graph.out_edges(cls1, data=True):
-                        if (
-                            data0["label"] == data1["label"]
-                            or isinstance(data0["label"], Load)
-                            and isinstance(data1["label"], Store)
+                        if data0["label"] == data1["label"] or (
+                            isinstance(data0["label"], Load) and isinstance(data1["label"], Store)
                         ):
                             SimpleSolver._unify(
                                 equivalence_classes, equivalence_classes[dst0], equivalence_classes[dst1], graph

@@ -10,13 +10,13 @@ class XRef(Serializable):
     """
 
     __slots__ = (
-        "ins_addr",
         "block_addr",
-        "stmt_idx",
+        "dst",
+        "ins_addr",
         "insn_op_idx",
         "insn_op_type",
         "memory_data",
-        "dst",
+        "stmt_idx",
         "type",
     )
 

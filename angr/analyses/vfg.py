@@ -93,11 +93,11 @@ class PendingJob:
 
     __slots__ = (
         "block_id",
-        "state",
         "call_stack",
         "src_block_id",
-        "src_stmt_idx",
         "src_ins_addr",
+        "src_stmt_idx",
+        "state",
     )
 
     def __init__(

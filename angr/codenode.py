@@ -11,7 +11,7 @@ def repr_addr(addr):
 
 
 class CodeNode:
-    __slots__ = ["addr", "size", "_graph", "thumb", "_hash"]
+    __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
 
     def __init__(self, addr: int, size: int, graph=None, thumb=False):
         self.addr: int = addr

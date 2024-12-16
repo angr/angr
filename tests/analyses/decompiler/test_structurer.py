@@ -28,7 +28,7 @@ class DummyNode:
         return hash(self.n)
 
     def __eq__(self, other):
-        return isinstance(other, DummyNode) and self.n == other.n or isinstance(other, int) and self.n == other
+        return (isinstance(other, DummyNode) and self.n == other.n) or (isinstance(other, int) and self.n == other)
 
     @property
     def addr(self):

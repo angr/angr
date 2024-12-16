@@ -7,9 +7,9 @@ class CallSite:
     """
 
     __slots__ = (
-        "caller_func_addr",
         "block_addr",
         "callee_func_addr",
+        "caller_func_addr",
     )
 
     def __init__(self, caller_func_addr: int, block_addr: int | None, callee_func_addr: int):

@@ -39,51 +39,51 @@ class Function(Serializable):
     """
 
     __slots__ = (
-        "transition_graph",
-        "_local_transition_graph",
-        "normalized",
-        "_ret_sites",
-        "_jumpout_sites",
-        "_callout_sites",
-        "_endpoints",
-        "_call_sites",
-        "_retout_sites",
-        "addr",
-        "_function_manager",
-        "is_syscall",
-        "_project",
-        "is_plt",
-        "addr",
-        "is_simprocedure",
-        "_name",
-        "previous_names",
-        "is_default_name",
-        "from_signature",
-        "binary_name",
+        "_addr_to_block_node",
         "_argument_registers",
         "_argument_stack_variables",
-        "bp_on_stack",
-        "retaddr_on_stack",
-        "sp_delta",
-        "calling_convention",
-        "prototype",
-        "prototype_libname",
+        "_block_cache",
+        "_block_sizes",
+        "_call_sites",
+        "_callout_sites",
+        "_cyclomatic_complexity",
+        "_endpoints",
+        "_function_manager",
+        "_jumpout_sites",
+        "_local_block_addrs",
+        "_local_blocks",
+        "_local_transition_graph",
+        "_name",
+        "_project",
+        "_ret_sites",
+        "_retout_sites",
         "_returning",
+        "addr",
+        "addr",
+        "binary_name",
+        "bp_on_stack",
+        "calling_convention",
+        "from_signature",
+        "info",
+        "is_alignment",
+        "is_default_name",
+        "is_plt",
+        "is_prototype_guessed",
+        "is_simprocedure",
+        "is_syscall",
+        "normalized",
         "prepared_registers",
         "prepared_stack_variables",
-        "registers_read_afterwards",
-        "startpoint",
-        "_addr_to_block_node",
-        "_block_sizes",
-        "_block_cache",
-        "_local_blocks",
-        "_local_block_addrs",
-        "info",
-        "tags",
-        "is_alignment",
-        "is_prototype_guessed",
+        "previous_names",
+        "prototype",
+        "prototype_libname",
         "ran_cca",
-        "_cyclomatic_complexity",
+        "registers_read_afterwards",
+        "retaddr_on_stack",
+        "sp_delta",
+        "startpoint",
+        "tags",
+        "transition_graph",
     )
 
     def __init__(
@@ -1093,10 +1093,8 @@ class Function(Serializable):
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
             if "type" in data and (
-                data["type"] in ("transition", "exception")
-                and ("outside" not in data or data["outside"] is False)
-                or data["type"] == "fake_return"
-                and ("outside" not in data or data["outside"] is False)
+                (data["type"] in ("transition", "exception") and ("outside" not in data or data["outside"] is False))
+                or (data["type"] == "fake_return" and ("outside" not in data or data["outside"] is False))
             ):
                 g.add_edge(src, dst, **data)
 
@@ -1268,11 +1266,8 @@ class Function(Serializable):
             if b.addr <= addr < b.addr + b.size:
                 # found it
                 for i, instr_addr in enumerate(b.instruction_addrs):
-                    if (
-                        i < len(b.instruction_addrs) - 1
-                        and instr_addr <= addr < b.instruction_addrs[i + 1]
-                        or i == len(b.instruction_addrs) - 1
-                        and instr_addr <= addr
+                    if (i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i + 1]) or (
+                        i == len(b.instruction_addrs) - 1 and instr_addr <= addr
                     ):
                         return instr_addr
                 # Not covered by any instruction... why?

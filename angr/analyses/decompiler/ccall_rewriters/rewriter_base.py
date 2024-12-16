@@ -8,8 +8,8 @@ class CCallRewriterBase:
     """
 
     __slots__ = (
-        "result",
         "arch",
+        "result",
     )
 
     def __init__(self, ccall: ailment.Expr.VEXCCallExpression, arch):

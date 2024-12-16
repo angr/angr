@@ -31,14 +31,14 @@ class Case:
     """
 
     __slots__ = (
-        "original_node",
-        "node_type",
-        "variable_hash",
         "expr",
-        "value",
+        "next_addr",
+        "node_type",
+        "original_node",
         "target",
         "target_idx",
-        "next_addr",
+        "value",
+        "variable_hash",
     )
 
     def __init__(

@@ -47,12 +47,12 @@ class MemoryData(Serializable):
 
     __slots__ = (
         "addr",
-        "size",
-        "reference_size",
-        "sort",
+        "content",
         "max_size",
         "pointer_addr",
-        "content",
+        "reference_size",
+        "size",
+        "sort",
     )
 
     def __init__(

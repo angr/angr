@@ -119,13 +119,19 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
             # then if the address expression is up-to-date, we check the global store
             if not self.out_dated and (
-                self.state.global_stores
-                and not all(
-                    self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
-                    for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
+                (
+                    self.state.global_stores
+                    and not all(
+                        self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
+                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
+                    )
                 )
-                or self.state.last_stack_store is not None
-                and not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat)
+                or (
+                    self.state.last_stack_store is not None
+                    and not self._check_store_precedes_load(
+                        CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat
+                    )
+                )
             ):
                 self.out_dated = True
 

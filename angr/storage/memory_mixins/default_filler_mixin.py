@@ -30,9 +30,7 @@ class DefaultFillerMixin(MemoryMixin):
             type(addr) is int
             and self.category == "mem"
             and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options
-            or self.category == "reg"
-            and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options
-        ):
+        ) or (self.category == "reg" and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options):
             return claripy.BVV(0, bits)
 
         if self.category == "reg" and type(addr) is int and addr == self.state.arch.ip_offset:

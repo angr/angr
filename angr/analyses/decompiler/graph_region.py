@@ -23,15 +23,15 @@ class GraphRegion:
     """
 
     __slots__ = (
-        "head",
-        "graph",
-        "successors",
-        "graph_with_successors",
-        "cyclic",
-        "full_graph",
-        "cyclic_ancestor",
         "_node_to_replaced_regions",
         "_replaced_regions",
+        "cyclic",
+        "cyclic_ancestor",
+        "full_graph",
+        "graph",
+        "graph_with_successors",
+        "head",
+        "successors",
     )
 
     def __init__(

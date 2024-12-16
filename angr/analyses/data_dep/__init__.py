@@ -5,12 +5,12 @@ from .dep_nodes import DepNodeTypes, BaseDepNode, VarDepNode, MemDepNode, Consta
 
 
 __all__ = (
+    "BaseDepNode",
+    "ConstantDepNode",
     "DataDependencyGraphAnalysis",
     "DepNodeTypes",
-    "BaseDepNode",
-    "VarDepNode",
     "MemDepNode",
-    "ConstantDepNode",
-    "TmpDepNode",
     "RegDepNode",
+    "TmpDepNode",
+    "VarDepNode",
 )

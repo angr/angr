@@ -8,10 +8,10 @@ from .region_meta_mixin import MemoryRegionMetaMixin
 from .regioned_address_concretization_mixin import RegionedAddressConcretizationMixin
 
 __all__ = (
-    "RegionedMemoryMixin",
-    "RegionCategoryMixin",
-    "StaticFindMixin",
     "AbstractMergerMixin",
     "MemoryRegionMetaMixin",
+    "RegionCategoryMixin",
     "RegionedAddressConcretizationMixin",
+    "RegionedMemoryMixin",
+    "StaticFindMixin",
 )

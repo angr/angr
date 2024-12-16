@@ -13,12 +13,12 @@ if TYPE_CHECKING:
 
 class SimVariable(Serializable):
     __slots__ = [
+        "candidate_names",
+        "category",
         "ident",
         "name",
         "region",
-        "category",
         "renamed",
-        "candidate_names",
         "size",
     ]
 
@@ -87,7 +87,7 @@ class SimVariable(Serializable):
 
 
 class SimConstantVariable(SimVariable):
-    __slots__ = ["value", "_hash"]
+    __slots__ = ["_hash", "value"]
 
     def __init__(self, size: int, ident=None, value=None, region=None):
         super().__init__(ident=ident, region=region, size=size)
@@ -122,7 +122,7 @@ class SimConstantVariable(SimVariable):
 
 
 class SimTemporaryVariable(SimVariable):
-    __slots__ = ["tmp_id", "_hash"]
+    __slots__ = ["_hash", "tmp_id"]
 
     def __init__(self, tmp_id: int, size: int):
         SimVariable.__init__(self, size=size)
@@ -170,7 +170,7 @@ class SimTemporaryVariable(SimVariable):
 
 
 class SimRegisterVariable(SimVariable):
-    __slots__ = ["reg", "_hash"]
+    __slots__ = ["_hash", "reg"]
 
     def __init__(self, reg_offset: int, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -236,7 +236,7 @@ class SimRegisterVariable(SimVariable):
 
 
 class SimMemoryVariable(SimVariable):
-    __slots__ = ["addr", "_hash"]
+    __slots__ = ["_hash", "addr"]
 
     def __init__(self, addr, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -311,8 +311,8 @@ class SimMemoryVariable(SimVariable):
 class SimStackVariable(SimMemoryVariable):
     __slots__ = (
         "base",
-        "offset",
         "base_addr",
+        "offset",
     )
 
     def __init__(

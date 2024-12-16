@@ -14,11 +14,11 @@ class AddressWrapper:
     """
 
     __slots__ = (
+        "address",
+        "function_address",
+        "is_on_stack",
         "region",
         "region_base_addr",
-        "address",
-        "is_on_stack",
-        "function_address",
     )
 
     def __init__(self, region: str, region_base_addr: int, address, is_on_stack: bool, function_address: int | None):
@@ -62,8 +62,8 @@ class RegionDescriptor:
     """
 
     __slots__ = (
-        "region_id",
         "base_address",
+        "region_id",
         "related_function_address",
     )
 

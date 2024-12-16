@@ -19,7 +19,7 @@ class DynamicDictList(Generic[VT]):
     https://github.com/angr/angr/pull/3471#issuecomment-1236515950.
     """
 
-    __slots__ = ("list_content", "dict_content", "max_size")
+    __slots__ = ("dict_content", "list_content", "max_size")
 
     def __init__(
         self,

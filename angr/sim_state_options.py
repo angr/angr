@@ -11,11 +11,11 @@ class StateOption:
     """
 
     __slots__ = (
-        "name",
-        "types",
+        "_one_type",
         "default",
         "description",
-        "_one_type",
+        "name",
+        "types",
     )
 
     def __init__(self, name, types, default=_NO_DEFAULT_VALUE, description=None):

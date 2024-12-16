@@ -52,7 +52,7 @@ class DefinitionAnnotation(Annotation):
     An annotation that attaches a `Definition` to an AST.
     """
 
-    __slots__ = ("definition", "_hash")
+    __slots__ = ("_hash", "definition")
 
     def __init__(self, definition):
         super().__init__()
@@ -91,24 +91,24 @@ class LiveDefinitions:
     _tops = {}
 
     __slots__ = (
-        "project",
+        "__weakref__",
+        "_canonical_size",
         "arch",
-        "track_tmps",
+        "heap",
+        "heap_uses",
+        "memory",
+        "memory_uses",
+        "other_uses",
+        "others",
+        "project",
+        "register_uses",
         "registers",
         "stack",
-        "heap",
-        "memory",
-        "tmps",
-        "others",
-        "other_uses",
-        "register_uses",
         "stack_uses",
-        "heap_uses",
-        "memory_uses",
-        "uses_by_codeloc",
         "tmp_uses",
-        "_canonical_size",
-        "__weakref__",
+        "tmps",
+        "track_tmps",
+        "uses_by_codeloc",
     )
 
     def __init__(

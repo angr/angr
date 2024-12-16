@@ -5,7 +5,7 @@ from angr.engines.soot.field_dispatcher import resolve_field
 
 
 class SimSootValue_InstanceFieldRef(SimSootValue):
-    __slots__ = ["id", "class_name", "field_name", "type"]
+    __slots__ = ["class_name", "field_name", "id", "type"]
 
     def __init__(self, heap_alloc_id, class_name, field_name, type_):
         self.id = f"{heap_alloc_id}.{class_name}.{field_name}"

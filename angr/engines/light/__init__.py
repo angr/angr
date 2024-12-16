@@ -12,12 +12,12 @@ from .engine import (
 
 __all__ = (
     "ArithmeticExpression",
-    "SpOffset",
     "RegisterOffset",
     "SimEngineLight",
-    "SimEngineLightVEX",
     "SimEngineLightAIL",
-    "SimEngineNostmtVEX",
-    "SimEngineNostmtAIL",
+    "SimEngineLightVEX",
     "SimEngineNoexprAIL",
+    "SimEngineNostmtAIL",
+    "SimEngineNostmtVEX",
+    "SpOffset",
 )

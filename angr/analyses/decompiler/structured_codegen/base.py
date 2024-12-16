@@ -9,7 +9,7 @@ from angr.sim_variable import SimVariable
 
 
 class PositionMappingElement:
-    __slots__ = ("start", "length", "obj")
+    __slots__ = ("length", "obj", "start")
 
     def __init__(self, start, length, obj):
         self.start: int = start

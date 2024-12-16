@@ -12,16 +12,16 @@ class IndirectJumpType:
 class IndirectJump(Serializable):
     __slots__ = (
         "addr",
-        "ins_addr",
         "func_addr",
+        "ins_addr",
         "jumpkind",
-        "stmt_idx",
-        "resolved_targets",
         "jumptable",
         "jumptable_addr",
-        "jumptable_size",
-        "jumptable_entry_size",
         "jumptable_entries",
+        "jumptable_entry_size",
+        "jumptable_size",
+        "resolved_targets",
+        "stmt_idx",
         "type",
     )
 

@@ -150,7 +150,7 @@ class StructurerBase(Analysis):
                 if isinstance(stmt, ailment.Stmt.Jump):
                     targets = extract_jump_targets(stmt)
                     for t in targets:
-                        if t in cases or default is not None and t == default.addr:
+                        if t in cases or (default is not None and t == default.addr):
                             # the node after switch cannot be one of the nodes in the switch-case construct
                             continue
                         goto_addrs[t] += 1
@@ -863,7 +863,7 @@ class StructurerBase(Analysis):
         addr = node_0.addr if node_0.addr is not None else node_1.addr
 
         # fix the last block of node_0 and remove useless goto statements
-        if isinstance(node_0, SequenceNode) and node_0.nodes or isinstance(node_0, MultiNode) and node_0.nodes:
+        if (isinstance(node_0, SequenceNode) and node_0.nodes) or (isinstance(node_0, MultiNode) and node_0.nodes):
             last_node = node_0.nodes[-1]
         elif isinstance(node_0, ailment.Block):
             last_node = node_0

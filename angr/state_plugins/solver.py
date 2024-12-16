@@ -112,7 +112,7 @@ def error_converter(f):
 def _concrete_bool(e):
     if isinstance(e, bool):
         return e
-    if isinstance(e, claripy.ast.Base) and e.op == "BoolV" or isinstance(e, SimActionObject) and e.op == "BoolV":
+    if (isinstance(e, claripy.ast.Base) and e.op == "BoolV") or (isinstance(e, SimActionObject) and e.op == "BoolV"):
         return e.args[0]
     return None
 
@@ -302,10 +302,8 @@ class SimSolver(SimStatePlugin):
         elif o.SYMBOLIC in self.state.options and o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite(track=track)
         elif (
-            o.SYMBOLIC in self.state.options
-            and any(opt in self.state.options for opt in o.approximation)
-            or o.HYBRID_SOLVER in self.state.options
-        ):
+            o.SYMBOLIC in self.state.options and any(opt in self.state.options for opt in o.approximation)
+        ) or o.HYBRID_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverHybrid(track=track, approximate_first=approximate_first)
         elif o.SYMBOLIC in self.state.options:
             self._stored_solver = claripy.Solver(track=track)

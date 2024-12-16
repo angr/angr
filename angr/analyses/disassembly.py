@@ -119,9 +119,9 @@ class Label(DisassemblyPiece):
 class IROp(DisassemblyPiece):
     __slots__ = (
         "addr",
-        "seq",
-        "obj",
         "irsb",
+        "obj",
+        "seq",
     )
 
     addr: int

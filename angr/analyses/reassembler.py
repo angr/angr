@@ -1442,11 +1442,12 @@ class Data:
 
                 show_integer = False
                 if len(addr_to_labels) == 0 or (
-                    len(addr_to_labels) == 1
-                    and self.addr is not None
-                    and next(iter(addr_to_labels.keys())) == self.addr
-                    or self.addr is None
-                    and next(iter(addr_to_labels.keys())) == 0
+                    (
+                        len(addr_to_labels) == 1
+                        and self.addr is not None
+                        and next(iter(addr_to_labels.keys())) == self.addr
+                    )
+                    or (self.addr is None and next(iter(addr_to_labels.keys())) == 0)
                 ):
                     show_integer = True
 
@@ -1554,7 +1555,7 @@ class Data:
 
     def _initialize(self):
         if self.memory_data is None:
-            if self.size is None or self._initial_content is None and self.sort is None:
+            if self.size is None or (self._initial_content is None and self.sort is None):
                 raise BinaryError("You must at least specify size, initial_content, and sort.")
 
             if self.sort == MemoryDataSort.PointerArray:
@@ -2647,8 +2648,7 @@ class Reassembler(Analysis):
         return bool(
             cfg.project.loader.find_section_containing(ptr) is not None
             or cfg.project.loader.find_segment_containing(ptr) is not None
-            or self._extra_memory_regions
-            and next((a < ptr < b for a, b in self._extra_memory_regions), None)
+            or (self._extra_memory_regions and next((a < ptr < b for a, b in self._extra_memory_regions), None))
         )
 
     def _sequence_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument

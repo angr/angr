@@ -26,11 +26,11 @@ class VariableAccess(Serializable):
     """
 
     __slots__ = (
-        "variable",
         "access_type",
+        "atom_hash",
         "location",
         "offset",
-        "atom_hash",
+        "variable",
     )
 
     def __init__(self, variable, access_type, location, offset, atom_hash=None):

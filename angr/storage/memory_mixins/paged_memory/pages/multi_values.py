@@ -20,8 +20,8 @@ class MultiValues(Generic[MVType]):
     """
 
     __slots__ = (
-        "_values",
         "_single_value",
+        "_values",
     )
 
     _single_value: MVType | None
