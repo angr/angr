@@ -65,11 +65,7 @@ class CodeLocation:
                 self.block_addr,
             )
         else:
-            s = "<%s%#x[%d]" % (
-                (f"{self.ins_addr:#x} id=") if self.ins_addr else "",
-                self.block_addr,
-                self.stmt_idx,
-            )
+            s = f"<{(f'{self.ins_addr:#x} id=') if self.ins_addr else ''}{self.block_addr:#x}[{self.stmt_idx}]"
 
         if self.context is None:
             s += " contextless"

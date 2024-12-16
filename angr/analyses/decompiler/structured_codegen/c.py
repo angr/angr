@@ -492,7 +492,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             if variable.name:
                 name = variable.name
             elif isinstance(variable, SimTemporaryVariable):
-                name = "tmp_%d" % variable.tmp_id
+                name = f"tmp_{variable.tmp_id}"
             else:
                 name = str(variable)
 
@@ -1583,7 +1583,7 @@ class CVariable(CExpression):
         if v.name:
             return v.name
         if isinstance(v, SimTemporaryVariable):
-            return "tmp_%d" % v.tmp_id
+            return f"tmp_{v.tmp_id}"
         return str(v)
 
     def c_repr_chunks(self, indent=0, asexpr=False):

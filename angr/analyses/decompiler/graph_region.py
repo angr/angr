@@ -74,7 +74,7 @@ class GraphRegion:
         if addrs:
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
-        return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
+        return f"<GraphRegion {self.head!r} of {self.graph.number_of_nodes()} nodes{s}>"
 
     def copy(self) -> GraphRegion:
         return GraphRegion(

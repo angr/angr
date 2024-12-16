@@ -90,9 +90,7 @@ class MemoryData(Serializable):
         return self.addr
 
     def __repr__(self):
-        return "\\{:#x}, {}, {}/".format(
-            self.address, "%d bytes" % self.size if self.size is not None else "size unknown", self.sort
-        )
+        return f"\\{self.address:#x}, {self.size if self.size is not None else 'size unknown'} bytes, {self.sort}/"
 
     def copy(self):
         """

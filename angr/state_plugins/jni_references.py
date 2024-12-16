@@ -30,8 +30,9 @@ class SimStateJNIReferences(SimStatePlugin):
         if opaque_ref_value in self.global_refs:
             return self.global_refs[opaque_ref_value]
         raise KeyError(
-            "Unknown JNI reference %d. Local references: %s Global references: %s"
-            % (opaque_ref_value, self.local_refs, self.global_refs)
+            f"Unknown JNI reference {opaque_ref_value}. "
+            f"Local references: {self.local_refs} "
+            f"Global references: {self.global_refs}"
         )
 
     def create_new_reference(self, obj, global_ref=False):

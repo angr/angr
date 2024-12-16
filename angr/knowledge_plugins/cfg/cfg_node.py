@@ -320,7 +320,7 @@ class CFGNode(Serializable):
         elif not isinstance(self.addr, SootAddressDescriptor):
             s += hex(self.addr)
         if self.size is not None:
-            s += "[%d]" % self.size
+            s += f"[{self.size}]"
         s += ">"
         return s
 
@@ -452,9 +452,9 @@ class CFGENode(CFGNode):
             s += self.name + " "
         s += hex(self.addr)
         if self.size is not None:
-            s += "[%d]" % self.size
+            s += f"[{self.size}]"
         if self.looping_times > 0:
-            s += " - %d" % self.looping_times
+            s += f" - {self.looping_times}"
         if self.creation_failure_info is not None:
             s += f" - creation failed: {self.creation_failure_info.long_reason}"
         s += ">"

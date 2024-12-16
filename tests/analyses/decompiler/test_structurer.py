@@ -35,7 +35,7 @@ class DummyNode:
         return self.n
 
     def __repr__(self):
-        return "<Node %d>" % self.n
+        return f"<Node {self.n}>"
 
 
 def d(n):

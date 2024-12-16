@@ -229,7 +229,7 @@ class AnnotatedCFG:
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(len(statements)):
             line = "+" if whitelist is None or i in whitelist else "-"
-            line += "[% 3d] " % i
+            line += f"[{i: 3d}] "
             # We cannot get data returned by pp(). WTF?
             print(line, end="")
             statements[i].pp()

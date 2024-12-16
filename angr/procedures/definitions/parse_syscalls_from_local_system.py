@@ -26,7 +26,7 @@ def parse_unistd_include_header(header_path):
 def dump_mapping(abi, mapping):
     print(f'\nlib.add_number_mapping_from_dict("{abi}", {{')
     for num in sorted(mapping):
-        print('    %d: "%s",' % (num, mapping[num]))
+        print(f'    {num}: "{mapping[num]}",')
     print('})')
 
 def main():

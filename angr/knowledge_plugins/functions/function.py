@@ -586,17 +586,18 @@ class Function(Serializable):
         return False
 
     def __str__(self):
-        s = f"Function {self.name} [{self.addr:#x}]\n"
-        s += f"  Syscall: {self.is_syscall}\n"
-        s += "  SP difference: %d\n" % self.sp_delta
-        s += f"  Has return: {self.has_return}\n"
-        s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
-        s += f"  Alignment: {self.alignment}\n"
-        s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
-        s += "  Blocks: [{}]\n".format(", ".join([f"{i:#x}" for i in self.block_addrs]))
-        s += f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
-        s += f"  Calling convention: {self.calling_convention}"
-        return s
+        return (
+            f"Function {self.name} [{self.addr:#x}]\n"
+            f"  Syscall: {self.is_syscall}\n"
+            f"  SP difference: {self.sp_delta}\n"
+            f"  Has return: {self.has_return}\n"
+            f"  Returning: {'Unknown' if self.returning is None else self.returning}\n"
+            f"  Alignment: {self.alignment}\n"
+            f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
+            f"  Blocks: [{', '.join(f'{i:#x}' for i in self.block_addrs)}]\n"
+            f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
+            f"  Calling convention: {self.calling_convention}"
+        )
 
     def __repr__(self):
         if self.is_syscall:

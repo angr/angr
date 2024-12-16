@@ -145,7 +145,7 @@ class RegionMap:
         if self.is_stack:
             # Sanity check
             if not region_id.startswith("stack_"):
-                raise SimRegionMapError('Received a non-stack memory ID "%d" in a stack region map' % region_id)
+                raise SimRegionMapError(f'Received a non-stack memory ID "{region_id}" in a stack region map')
 
             # Remove all stack regions that are lower than the one to add
             while True:

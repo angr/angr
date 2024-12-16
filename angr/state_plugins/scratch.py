@@ -108,7 +108,7 @@ class SimStateScratch(SimStatePlugin):
             v = self.temps[tmp]
             if v is None:
                 raise SimMissingTempError(
-                    "VEX temp variable %d does not exist. This is usually the result of an incorrect slicing." % tmp
+                    f"VEX temp variable {tmp} does not exist. This is usually the result of an incorrect slicing."
                 )
         except IndexError as err:
             raise SimMissingTempError("Accessing a temp that is illegal in this tyenv") from err

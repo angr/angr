@@ -214,7 +214,7 @@ class SimOS:
                 empty_bools = [((val >> (x * 2)) & 3) == 3 for x in range(8)]
                 tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
                 for i, tag in enumerate(tag_chars):
-                    setattr(state.regs, "fpu_t%d" % i, tag)
+                    setattr(state.regs, f"fpu_t{i}", tag)
             elif reg in ("fiseg", "fioff", "foseg", "fooff", "fop"):
                 pass
             elif reg == "mxcsr":

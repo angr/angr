@@ -48,7 +48,7 @@ class MultiNode:
                 addrs.append(node.addr)
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
-        return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
+        return f"<MultiNode {self.addr:#x} of {len(self.nodes)} nodes{s}>"
 
     def __hash__(self):
         # changing self.nodes does not change the hash, which enables in-place editing
@@ -110,8 +110,8 @@ class SequenceNode(BaseNode):
 
     def __repr__(self):
         if self.addr is None:
-            return "<SequenceNode, %d nodes>" % len(self.nodes)
-        return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
+            return f"<SequenceNode, {len(self.nodes)} nodes>"
+        return f"<SequenceNode {self.addr:#x}, {len(self.nodes)} nodes>"
 
     def add_node(self, node):
         self.nodes.append(node)

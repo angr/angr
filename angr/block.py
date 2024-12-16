@@ -277,7 +277,7 @@ class Block(Serializable):
             self.size = vex_block.size
 
     def __repr__(self):
-        return "<Block for %#x, %d bytes>" % (self.addr, self.size)
+        return f"<Block for {self.addr:#x}, {self.size} bytes>"
 
     def __getstate__(self):
         return {k: getattr(self, k) for k in self.__slots__ if k not in {"_capstone", "_disassembly", "_project"}}

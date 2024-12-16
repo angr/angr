@@ -5,8 +5,8 @@ from archinfo.arch_arm import is_arm_arch
 
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
-stn_map = {"st%d" % n: n for n in range(8)}
-tag_map = {"tag%d" % n: n for n in range(8)}
+stn_map = {f"st{n}": n for n in range(8)}
+tag_map = {f"tag{n}": n for n in range(8)}
 
 
 class NameResolutionMixin(MemoryMixin):

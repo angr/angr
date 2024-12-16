@@ -119,14 +119,11 @@ class CallStack(SimStatePlugin):
         :return: A printable representation of the CallStack object
         :rtype: str
         """
-        return "<CallStack (depth %d)>" % len(self)
+        return f"<CallStack (depth {len(self)})>"
 
     def __str__(self):
-        return "Backtrace:\n{}".format(
-            "\n".join(
-                "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr)
-                for i, f in enumerate(self)
-            )
+        return "Backtrace:\n" + "\n".join(
+            f"Frame {i}: {f.call_site_addr:#x} => {f.func_addr:#x}, sp = {f.stack_ptr:#x}" for i, f in enumerate(self)
         )
 
     def __eq__(self, other):
@@ -319,13 +316,9 @@ class CallStack(SimStatePlugin):
 
         stack = []
         for i, frame in enumerate(self):
-            s = "%d | %s -> %s, returning to %s" % (
-                i,
-                "None" if frame.call_site_addr is None else f"{frame.call_site_addr:#x}",
-                "None" if frame.func_addr is None else f"{frame.func_addr:#x}",
-                "None" if frame.current_return_target is None else f"{frame.current_return_target:#x}",
+            stack.append(
+                f"{i} | {frame.call_site_addr:#x} -> {frame.func_addr:#x}, returning to {frame.current_return_target:#x}"
             )
-            stack.append(s)
 
         return "\n".join(stack)
 

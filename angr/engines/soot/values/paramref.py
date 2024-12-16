@@ -6,7 +6,7 @@ class SimSootValue_ParamRef(SimSootValue):
     __slots__ = ["id", "index", "type"]
 
     def __init__(self, index, type_):
-        self.id = "param_%d" % index
+        self.id = f"param_{index}"
         self.index = index
         self.type = type_
 

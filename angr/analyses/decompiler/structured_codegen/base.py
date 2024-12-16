@@ -20,7 +20,7 @@ class PositionMappingElement:
         return self.start <= offset < self.start + self.length
 
     def __repr__(self):
-        return "<%d-%d: %s>" % (self.start, self.start + self.length, self.obj)
+        return f"<{self.start}-{self.start + self.length}: {self.obj}>"
 
 
 class PositionMapping:
@@ -79,7 +79,7 @@ class InstructionMappingElement:
         return self.ins_addr == offset
 
     def __repr__(self):
-        return "<%d: %d>" % (self.ins_addr, self.posmap_pos)
+        return f"<{self.ins_addr}: {self.posmap_pos}>"
 
 
 class InstructionMapping:

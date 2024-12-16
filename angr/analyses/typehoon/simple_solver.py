@@ -367,7 +367,7 @@ class SimpleSolver:
 
     def __init__(self, bits: int, constraints, typevars):
         if bits not in (32, 64):
-            raise ValueError("Pointer size %d is not supported. Expect 32 or 64." % bits)
+            raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
 
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
@@ -1278,4 +1278,4 @@ class SimpleSolver:
             return Pointer32
         if self.bits == 64:
             return Pointer64
-        raise NotImplementedError("Unsupported bits %d" % self.bits)
+        raise NotImplementedError(f"Unsupported bits {self.bits}")

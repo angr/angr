@@ -327,7 +327,7 @@ class VariableRecoveryStateBase:
             base = 0x7F_FFFF_FFFE_0000
             mask = 0xFFFF_FFFF_FFFF_FFFF
         else:
-            raise AngrRuntimeError("Unsupported bits %d" % self.arch.bits)
+            raise AngrRuntimeError(f"Unsupported bits {self.arch.bits}")
         return (offset + base) & mask
 
     @property

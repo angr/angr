@@ -428,7 +428,7 @@ class SimTypeInt(SimTypeReg):
             name = "unsigned " + name
 
         try:
-            return name + " (%d bits)" % self.size
+            return f"{name} ({self.size} bits)"
         except ValueError:
             return name
 
@@ -516,7 +516,7 @@ class SimTypeFixedSizeInt(SimTypeInt):
             name = "u" + name
 
         try:
-            return name + " (%d bits)" % self.size
+            return f"{name} ({self.size} bits)"
         except ValueError:
             return name
 
@@ -778,12 +778,8 @@ class SimTypePointer(SimTypeReg):
         return out
 
     def _init_str(self):
-        return "%s(%s%s, offset=%d)" % (
-            self.__class__.__name__,
-            self.pts_to._init_str(),
-            (f', label="{self.label}"') if self.label is not None else "",
-            self.offset,
-        )
+        label_str = f', label="{self.label}"' if self.label is not None else ""
+        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}, offset={self.offset})"
 
     def copy(self):
         return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
@@ -1282,7 +1278,7 @@ class SimTypeLength(SimTypeLong):
         return self._arch.bits
 
     def _init_str(self):
-        return "%s(size=%d)" % (self.__class__.__name__, self.size)
+        return f"{self.__class__.__name__}(size={self.size})"
 
     def copy(self):
         return SimTypeLength(signed=self.signed, addr=self.addr, length=self.length, label=self.label)
@@ -1322,7 +1318,7 @@ class SimTypeFloat(SimTypeReg):
         return "float"
 
     def _init_str(self):
-        return "%s(size=%d)" % (self.__class__.__name__, self.size)
+        return f"{self.__class__.__name__}(size={self.size})"
 
     def copy(self):
         return SimTypeFloat(self.size)
@@ -1510,7 +1506,7 @@ class SimStruct(NamedTypeMixin, SimType):
             raise TypeError(f"Can't store struct of type {type(value)}")
 
         if len(value) != len(self.fields):
-            raise ValueError("Passed bad values for %s; expected %d, got %d" % (self, len(self.offsets), len(value)))
+            raise ValueError(f"Passed bad values for {self}; expected {len(self.offsets)}, got {len(value)}")
 
         for field, offset in self.offsets.items():
             ty = self.fields[field]
@@ -1793,7 +1789,7 @@ class SimCppClass(SimStruct):
             raise TypeError(f"Can't store struct of type {type(value)}")
 
         if len(value) != len(self.fields):
-            raise ValueError("Passed bad values for %s; expected %d, got %d" % (self, len(self.offsets), len(value)))
+            raise ValueError(f"Passed bad values for {self}; expected {len(self.offsets)}, got {len(value)}")
 
         for field, offset in self.offsets.items():
             ty = self.fields[field]
@@ -3507,7 +3503,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
             idx = s.find(",", last_pos)
             if idx == -1:
                 break
-            arg_name = "a%d" % i
+            arg_name = f"a{i}"
             i += 1
             s = s[:idx] + " " + arg_name + s[idx:]
             last_pos = idx + len(arg_name) + 1 + 1
@@ -3516,7 +3512,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
         idx = s.find(")", last_pos)
         # TODO: consider the case where there are one or multiple spaces between ( and )
         if idx != -1 and s[idx - 1] != "(":
-            arg_name = "a%d" % i
+            arg_name = f"a{i}"
             s = s[:idx] + " " + arg_name + s[idx:]
 
     # CppHeaderParser does not like missing function body

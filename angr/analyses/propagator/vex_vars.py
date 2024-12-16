@@ -29,7 +29,7 @@ class VEXMemVar:
         return type(other) is VEXMemVar and other.addr == self.addr and other.size == self.size
 
     def __repr__(self):
-        return "<mem %#x[%d bytes]>" % (self.addr, self.size)
+        return f"<mem {self.addr:#x}[{self.size} bytes]>"
 
 
 class VEXReg(VEXVariable):
@@ -49,7 +49,7 @@ class VEXReg(VEXVariable):
         return type(other) is VEXReg and other.offset == self.offset and other.size == self.size
 
     def __repr__(self):
-        return "<reg %d[%d]>" % (self.offset, self.size)
+        return f"<reg {self.offset}[{self.size}]>"
 
 
 class VEXTmp(VEXVariable):
@@ -65,4 +65,4 @@ class VEXTmp(VEXVariable):
         return type(other) is VEXTmp and other.tmp == self.tmp
 
     def __repr__(self):
-        return "<tmp %d>" % self.tmp
+        return f"<tmp {self.tmp}>"

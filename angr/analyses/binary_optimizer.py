@@ -35,12 +35,8 @@ class RedundantStackVariable:
         self.argument_register_as_retval = False
 
     def __repr__(self):
-        return "<StackVar %s for %s at %d locations%s>" % (
-            self.stack_variable,
-            self.argument,
-            len(self.stack_variable_consuming_locs),
-            " - retval" if self.argument_register_as_retval else "",
-        )
+        retval_str = " - retval" if self.argument_register_as_retval else ""
+        return f"<StackVar {self.stack_variable} for {self.argument} at {len(self.stack_variable_consuming_locs)} locations{retval_str}>"
 
 
 class RegisterReallocation:
@@ -79,12 +75,9 @@ class RegisterReallocation:
         self.epilogue_size = epilogue_size
 
     def __repr__(self):
-        return "<RegisterReallocation %s for %s with %d sources and %d consumers>" % (
-            self.register_variable,
-            self.stack_variable,
-            len(self.stack_variable_sources),
-            len(self.stack_variable_consumers),
-        )
+        sources_count = len(self.stack_variable_sources)
+        consumers_count = len(self.stack_variable_consumers)
+        return f"<RegisterReallocation {self.register_variable} for {self.stack_variable} with {sources_count} sources and {consumers_count} consumers>"
 
 
 class DeadAssignment:

@@ -189,7 +189,7 @@ class Array(TypeConstant):
     def __repr__(self, memo=None):
         if self.count is None:
             return f"{self.element!r}[?]"
-        return "%r[%d]" % (self.element, self.count)
+        return f"{self.element!r}[{self.count}]"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count

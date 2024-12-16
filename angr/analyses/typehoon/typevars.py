@@ -308,7 +308,7 @@ class TypeVariable:
     def __repr__(self):
         if self.name:
             return f"{self.name}|tv_{self.idx:02d}"
-        return "tv_%02d" % self.idx
+        return f"tv_{self.idx:02d}"
 
 
 class DerivedTypeVariable(TypeVariable):
@@ -416,7 +416,7 @@ class TypeVariables:
         #    sum(len(v) for v in self._typevars.items()),
         #    len(self._typevars),
         # )
-        return "{TypeVars: %d items}" % len(self._typevars)
+        return f"{{TypeVars: {len(self._typevars)} items}}"
 
     def add_type_variable(self, var: SimVariable, codeloc, typevar: TypeType):  # pylint:disable=unused-argument
         if var not in self._typevars:
@@ -512,7 +512,7 @@ class AddN(BaseLabel):
         super().__init__()
 
     def __repr__(self):
-        return "+%d" % self.n
+        return f"+{self.n}"
 
 
 class SubN(BaseLabel):
@@ -523,7 +523,7 @@ class SubN(BaseLabel):
         super().__init__()
 
     def __repr__(self):
-        return "-%d" % self.n
+        return f"-{self.n}"
 
 
 class ConvertTo(BaseLabel):
@@ -534,7 +534,7 @@ class ConvertTo(BaseLabel):
         super().__init__()
 
     def __repr__(self):
-        return "conv(%d)" % self.to_bits
+        return f"conv({self.to_bits})"
 
 
 class ReinterpretAs(BaseLabel):

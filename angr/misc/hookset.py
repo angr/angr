@@ -85,11 +85,10 @@ class HookedMethod:
         self.pending = []
 
     def __repr__(self):
-        return "<HookedMethod(%s.%s, %d pending)>" % (
-            self.func.__self__.__class__.__name__,
-            self.func.__name__,
-            len(self.pending),
-        )
+        class_name = self.func.__self__.__class__.__name__
+        func_name = self.func.__name__
+        pending_count = len(self.pending)
+        return f"<HookedMethod({class_name}.{func_name}, {pending_count} pending)>"
 
     def __call__(self, *args, **kwargs):
         if self.pending:

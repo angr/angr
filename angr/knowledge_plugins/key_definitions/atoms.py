@@ -197,7 +197,7 @@ class Tmp(Atom):
         self.tmp_idx = tmp_idx
 
     def __repr__(self):
-        return "<Tmp %d>" % self.tmp_idx
+        return f"<Tmp {self.tmp_idx}>"
 
     def _identity(self):
         return hash(("tmp", self.tmp_idx))
@@ -227,7 +227,7 @@ class Register(Atom):
         self.arch = arch
 
     def __repr__(self):
-        return "<Reg %s<%d>>" % (self.name, self.size)
+        return f"<Reg {self.name}<{self.size}>>"
 
     def _identity(self):
         return (self.reg_offset, self.size)
@@ -260,7 +260,7 @@ class VirtualVariable(Atom):
         self.oident = oident
 
     def __repr__(self):
-        return "<VVar %d<%d>>" % (self.varid, self.size)
+        return f"<VVar {self.varid}<{self.size}>>"
 
     def _identity(self):
         return self.varid, self.size
@@ -323,7 +323,7 @@ class MemoryLocation(Atom):
     def __repr__(self):
         address_format = hex(self.addr) if type(self.addr) is int else self.addr
         stack_format = " (stack)" if self.is_on_stack else ""
-        size = "%d" % self.size if isinstance(self.size, int) else self.size
+        size = f"{self.size}" if isinstance(self.size, int) else self.size
 
         return f"<Mem {address_format}<{size}>{stack_format}>"
 

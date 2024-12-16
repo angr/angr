@@ -60,6 +60,6 @@ class IndirectJump(Serializable):
             if self.jumptable_addr is not None:
                 status += f"@{self.jumptable_addr:#08x}"
             if self.jumptable_entries is not None:
-                status += " with %d entries" % len(self.jumptable_entries)
+                status += f" with {len(self.jumptable_entries)} entries"
 
         return "<IndirectJump {:#08x} - ins {:#08x}{}>".format(self.addr, self.ins_addr, " " + status if status else "")

@@ -95,9 +95,9 @@ class RegionedMemoryMixin(MemoryMixin):
         if isinstance(size, BV) and size.has_annotation_type(RegionAnnotation):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:
-                var_name = "invalid_read_%d_%#x" % (next(invalid_read_ctr), self.state.scratch.ins_addr)
+                var_name = f"invalid_read_{next(invalid_read_ctr)}_{self.state.scratch.ins_addr:#x}"
             else:
-                var_name = "invalid_read_%d_None" % next(invalid_read_ctr)
+                var_name = f"invalid_read_{next(invalid_read_ctr)}_None"
 
             return self.state.solver.Unconstrained(var_name, self.state.arch.bits)
 
@@ -127,7 +127,7 @@ class RegionedMemoryMixin(MemoryMixin):
             # address_wrappers is empty - we cannot concretize the address in static mode.
             # ensure val is not None
             val = self.state.solver.Unconstrained(
-                "invalid_read_%d_%d" % (next(invalid_read_ctr), size), size * self.state.arch.byte_width
+                f"invalid_read_{next(invalid_read_ctr)}_{size}", size * self.state.arch.byte_width
             )
 
         return val
@@ -225,7 +225,7 @@ class RegionedMemoryMixin(MemoryMixin):
         if region_id not in region_ids:
             return region_id
         for i in range(2000):
-            new_region_id = region_id + "_%d" % i
+            new_region_id = f"{region_id}_{i}"
             if new_region_id not in region_ids:
                 return new_region_id
         raise SimMemoryError(f"Cannot allocate region ID for function {function_address:#08x} - recursion too deep")

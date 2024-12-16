@@ -230,7 +230,7 @@ class LiveDefinitions:
     def __repr__(self):
         ctnt = "LiveDefs"
         if self.tmps:
-            ctnt += ", %d tmpdefs" % len(self.tmps)
+            ctnt += f", {len(self.tmps)} tmpdefs"
         return f"<{ctnt}>"
 
     def copy(self, discard_tmpdefs=False) -> LiveDefinitions:
@@ -445,7 +445,7 @@ class LiveDefinitions:
             base_v = self.INITIAL_SP_64BIT
             mask = 0xFFFF_FFFF_FFFF_FFFF
         else:
-            raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+            raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
         return (base_v + offset) & mask
 
     def merge(self, *others: LiveDefinitions) -> tuple[LiveDefinitions, bool]:

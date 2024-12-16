@@ -134,7 +134,7 @@ for _vec_lanewidth in (8, 16, 32, 64):
             continue
 
         # the regex thinks the I is an integral descriptor
-        explicit_attrs["Iop_InterleaveHI%dx%d" % (_vec_lanewidth, _vec_count)] = {
+        explicit_attrs[f"Iop_InterleaveHI{_vec_lanewidth}x{_vec_count}"] = {
             "generic_name": "InterleaveHI",
             "to_size": _vec_width,
             "vector_size": _vec_lanewidth,
@@ -567,7 +567,7 @@ class SimIROp:
         """
         arg_num = len(args)
         if arg_num != 1:
-            raise SimOperationError("expect exactly one vector to be duplicated, got %d" % arg_num)
+            raise SimOperationError(f"expect exactly one vector to be duplicated, got {arg_num}")
         # Duplicate the vector for this many times
         vector_count = self._vector_count
         # Keep a copy of the vector to be duplicated

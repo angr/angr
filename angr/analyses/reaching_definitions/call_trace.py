@@ -48,7 +48,7 @@ class CallTrace:
         self.callsites: list[CallSite] = []
 
     def __repr__(self):
-        return "<Trace with %d callsites>" % len(self.callsites)
+        return f"<Trace with {len(self.callsites)} callsites>"
 
     def current_function_address(self) -> int:
         if not self.callsites:

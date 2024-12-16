@@ -1419,7 +1419,7 @@ class Clinic(Analysis):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
-                            ident="arg_%d" % idx,
+                            ident=f"arg_{idx}",
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
@@ -1428,13 +1428,13 @@ class Clinic(Analysis):
                             arg.stack_offset,
                             arg.size,
                             base="bp",
-                            ident="arg_%d" % idx,
+                            ident=f"arg_{idx}",
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
                     else:
                         argvar = SimVariable(
-                            ident="arg_%d" % idx,
+                            ident=f"arg_{idx}",
                             name=arg_names[idx],
                             region=self.function.addr,
                             size=arg.size,

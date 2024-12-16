@@ -280,7 +280,7 @@ class NormalizedBlock:
 
     def __repr__(self):
         size = sum([b.size for b in self.blocks])
-        return "<Normalized Block for %#x, %d bytes>" % (self.addr, size)
+        return f"<Normalized Block for {self.addr:#x}, {size} bytes>"
 
 
 class NormalizedFunction:

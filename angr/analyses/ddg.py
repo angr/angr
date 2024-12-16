@@ -95,7 +95,7 @@ class DDGJob:
         self.call_depth = call_depth
 
     def __repr__(self):
-        return "<DDGJob %s, call_depth %d>" % (self.cfg_node, self.call_depth)
+        return f"<DDGJob {self.cfg_node}, call_depth {self.call_depth}>"
 
 
 class LiveDefinitions:
@@ -342,11 +342,7 @@ class DDGViewItem:
         return None
 
     def __repr__(self):
-        return "[%s, %d dependents, depends on %d]" % (
-            self._variable,
-            len(self.dependents),
-            len(self.depends_on),
-        )
+        return f"[{self._variable}, {len(self.dependents)} dependents, depends on {len(self.depends_on)}]"
 
     def __eq__(self, other):
         return (

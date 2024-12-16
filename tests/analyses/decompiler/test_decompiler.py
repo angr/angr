@@ -575,11 +575,10 @@ class TestDecompiler(unittest.TestCase):
         # with global variables discovered, there should not be any loads of constant addresses.
         assert "fflush(stdout);" in code.lower()
 
+        access_count = code.count("access(")
         assert (
-            code.count("access(") == 2
-        ), "The decompilation should contain 2 calls to access(), but instead %d calls are present." % code.count(
-            "access("
-        )
+            access_count == 2
+        ), f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
 
         m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."

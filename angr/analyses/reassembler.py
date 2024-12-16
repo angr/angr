@@ -152,7 +152,7 @@ class Label:
         self.var_size = None
 
         if self.name is None:
-            self.name = "label_%d" % next(Label.g_label_ctr)
+            self.name = f"label_{next(Label.g_label_ctr)}"
 
         self.original_addr = original_addr
         self.base_addr = None
@@ -189,7 +189,7 @@ class Label:
         offset = self.offset
         sign = "+" if offset >= 0 else "-"
         offset = abs(offset)
-        return ".%s%s%d" % (self.name, sign, offset)
+        return f".{self.name}{sign}{offset}"
 
     @property
     def offset(self):
@@ -318,7 +318,7 @@ class SymbolManager:
 
         i = 0
         while True:
-            name = "%s_%d" % (symbol_name, i)
+            name = f"{symbol_name}_{i}"
             if name not in self.symbol_names:
                 self.symbol_names.add(name)
                 return name
@@ -473,9 +473,9 @@ class Operand:
     def assembly(self):
         if self.type == OP_TYPE_IMM and self.label:
             if self.label_offset > 0:
-                return "%s + %d" % (self.label.operand_str, self.label_offset)
+                return f"{self.label.operand_str} + {self.label_offset}"
             if self.label_offset < 0:
-                return "%s - %d" % (self.label.operand_str, abs(self.label_offset))
+                return f"{self.label.operand_str} - {abs(self.label_offset)}"
             return self.label.operand_str
 
         if self.type == OP_TYPE_MEM:
@@ -483,13 +483,13 @@ class Operand:
             if self.disp:
                 if self.disp_label:
                     if self.disp_label_offset > 0:
-                        disp = "%s + %d" % (self.disp_label.operand_str, self.disp_label_offset)
+                        disp = f"{self.disp_label.operand_str} + {self.disp_label_offset}"
                     elif self.disp_label_offset < 0:
-                        disp = "%s - %d" % (self.disp_label.operand_str, abs(self.disp_label_offset))
+                        disp = f"{self.disp_label.operand_str} - {abs(self.disp_label_offset)}"
                     else:
                         disp = self.disp_label.operand_str
                 else:
-                    disp = "%d" % self.disp
+                    disp = f"{self.disp}"
 
             base = ""
             if self.base:
@@ -504,12 +504,7 @@ class Operand:
                     disp = "*" + disp
 
                 if self.index:
-                    s = "%s(%s, %%%s, %d)" % (
-                        disp,
-                        base,
-                        CAPSTONE_REG_MAP[self.project.arch.name][self.index],
-                        self.scale,
-                    )
+                    s = f"{disp}({base}, %{CAPSTONE_REG_MAP[self.project.arch.name][self.index]}, {self.scale})"
                 elif self.base:  # not self.index
                     s = f"{disp}({base})"
                 else:
@@ -524,7 +519,7 @@ class Operand:
             if self.index and self.scale:
                 if s:
                     s.append("+")
-                s.append("(%s * %d)" % (CAPSTONE_REG_MAP[self.project.arch.name][self.index], self.scale))
+                s.append(f"({CAPSTONE_REG_MAP[self.project.arch.name][self.index]} * {self.scale})")
 
             if disp:
                 if disp.startswith("-"):
@@ -807,7 +802,7 @@ class Instruction:
                     if op.type in (OP_TYPE_IMM, OP_TYPE_MEM, OP_TYPE_RAW):
                         all_operands[i] = op_asm
                     else:
-                        raise BinaryError("Unsupported operand type %d." % op.type)
+                        raise BinaryError(f"Unsupported operand type {op.type}.")
 
                     if op.type != OP_TYPE_RAW and self.capstone_operand_types[i] == capstone.CS_OP_IMM:
                         if mnemonic.startswith(("j", "call", "loop")):
@@ -1247,7 +1242,7 @@ class Data:
         self._initialize()
 
     def __repr__(self):
-        return "<DataItem %s@%#08x, %d bytes>" % (self.sort, self.addr, self.size)
+        return f"<DataItem {self.sort}@{self.addr:#08x}, {self.size} bytes>"
 
     @property
     def content(self):
@@ -1399,7 +1394,7 @@ class Data:
                     i += self.project.arch.bytes
 
                     if isinstance(symbolized_label, int):
-                        s += "\t%s %d\n" % (directive, symbolized_label)
+                        s += f"\t{directive} {symbolized_label}\n"
                     else:
                         s += f"\t{directive} {symbolized_label.operand_str}\n"
 
@@ -1475,7 +1470,7 @@ class Data:
                                     content += [f"{label!s}"]
                             addr += 1
 
-                            content += ["\t.byte %d" % c]
+                            content += [f"\t.byte {c}"]
 
             else:
                 integer = struct.unpack(fmt_str, self.content[0])[0]
@@ -1509,10 +1504,10 @@ class Data:
                                 content += [f"{label!s}"]
                         addr += 1
 
-                        content += ["\t.byte %d" % c]
+                        content += [f"\t.byte {c}"]
             else:
                 for piece in self.content:
-                    content += ["\t.byte %d" % c for c in piece]
+                    content += [f"\t.byte {c}" for c in piece]
 
             s += "\n".join(content)
             s += "\n"
@@ -1535,10 +1530,10 @@ class Data:
                                 content += [f"{label!s}"]
                         addr += 1
 
-                        content += ["\t.byte %d" % c]
+                        content += [f"\t.byte {c}"]
             else:
                 for piece in self.content:
-                    content += ["\t.byte %d" % c for c in piece]
+                    content += [f"\t.byte {c}" for c in piece]
 
             s += "\n".join(content)
             s += "\n"

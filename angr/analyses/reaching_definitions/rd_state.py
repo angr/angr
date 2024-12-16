@@ -177,7 +177,7 @@ class ReachingDefinitionsState:
             return claripy.BVS("stack_base", 32, explicit_name=True)
         if self.arch.bits == 64:
             return claripy.BVS("stack_base", 64, explicit_name=True)
-        raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+        raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
 
     def _to_signed(self, n):
         if n >= 2 ** (self.arch.bits - 1):

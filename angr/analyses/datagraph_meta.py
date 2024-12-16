@@ -51,7 +51,7 @@ class DataGraphMeta:
         pp = []
         for stmt in e:
             # true case is a SimProcedure
-            s = "(0x%x, %d)" % (stmt[0], stmt[1]) if imarks is False or stmt[1] == -1 else f"[0x{self._imarks[stmt]:x}]"
+            s = f"(0x{stmt[0]:x}, {stmt[1]})" if imarks is False or stmt[1] == -1 else f"[0x{self._imarks[stmt]:x}]"
             pp.append(s)
 
         print(pp[0] + " -> " + pp[1] + " : " + str(data))

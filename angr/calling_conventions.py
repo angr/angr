@@ -243,12 +243,12 @@ class SimFunctionArgument:
         if not isinstance(value, claripy.ast.Base) and self.size is None:
             raise TypeError("Only claripy objects may be stored through SimFunctionArgument when size is not provided")
         if self.size is not None and isinstance(value, claripy.ast.Base) and self.size * arch.byte_width < value.length:
-            raise TypeError("%s doesn't fit in an argument of size %d" % (value, self.size))
+            raise TypeError(f"{value} doesn't fit in an argument of size {self.size}")
         if isinstance(value, int):
             value = claripy.BVV(value, self.size * arch.byte_width)
         if isinstance(value, float):
             if self.size not in (4, 8):
-                raise ValueError("What do I do with a float %d bytes long" % self.size)
+                raise ValueError(f"What do I do with a float {self.size} bytes long")
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
         return value.raw_to_bv()
 
@@ -468,7 +468,7 @@ class SimArrayArg(SimFunctionArgument):
 
     def set_value(self, state, value, **kwargs):
         if len(value) != len(self.locs):
-            raise TypeError("Expected %d elements, got %d" % (len(self.locs), len(value)))
+            raise TypeError(f"Expected {len(self.locs)} elements, got {len(value)}")
         for subvalue, setter in zip(value, self.locs):
             setter.set_value(state, subvalue, **kwargs)
 
@@ -1027,7 +1027,7 @@ class SimCC:
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
             if type(arg) is not SimStructValue:
                 if len(arg) != len(ty.fields):
-                    raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
+                    raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
                 arg = SimStructValue(ty, arg)
             return SimStructValue(
                 ty, [SimCC._standardize_value(arg[field], ty.fields[field], state, alloc) for field in ty.fields]
@@ -1063,7 +1063,7 @@ class SimCC:
                 if len(arg) != ty.size:
                     if arg.concrete:
                         return claripy.BVV(arg.concrete_value, ty.size)
-                    raise TypeError("Type mismatch of symbolic data: expected %s, got %d bits" % (ty, len(arg)))
+                    raise TypeError(f"Type mismatch of symbolic data: expected {ty}, got {len(arg)} bits")
                 return arg
             if isinstance(ty, (SimTypeFloat)):
                 raise TypeError(

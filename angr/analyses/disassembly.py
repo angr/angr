@@ -444,7 +444,7 @@ class SootExpressionTarget(SootExpression):
         self.target_stmt_idx = target_stmt_idx
 
     def _render(self, formatting=None):
-        return ["Goto %d" % self.target_stmt_idx]
+        return [f"Goto {self.target_stmt_idx}"]
 
 
 class SootExpressionStaticFieldRef(SootExpression):
@@ -898,7 +898,7 @@ class Value(OperandPiece):
                     return [f"{self.val:#x}"]
                 if style[0] == "dec":
                     if self.render_with_sign:
-                        return ["%+d" % self.val]
+                        return [f"{self.val:+d}"]
                     return [str(self.val)]
                 if style[0] == "label":
                     labeloffset = style[1]
