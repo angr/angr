@@ -9,7 +9,6 @@ import capstone
 
 from pyvex.stmt import Put
 from pyvex.expr import RdTmp
-from archinfo.arch_arm import is_arm_arch, ArchARMHF
 import ailment
 
 from angr.code_location import ExternalCodeLocation
@@ -26,7 +25,7 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeDouble,
 )
-from angr.sim_variable import SimStackVariable, SimRegisterVariable
+from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
 from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
 from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -35,8 +34,9 @@ from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
 from angr.knowledge_plugins.functions import Function
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr import SIM_PROCEDURES
-from .reaching_definitions import get_all_definitions
-from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
+from angr.analyses import Analysis, register_analysis, ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions import get_all_definitions
+from .utils import is_sane_register_variable
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -95,6 +95,8 @@ class CallingConventionAnalysis(Analysis):
         callsite_block_addr: int | None = None,
         callsite_insn_addr: int | None = None,
         func_graph: networkx.DiGraph | None = None,
+        input_args: list[SimVariable] | None = None,
+        retval_size: int | None = None,
     ):
         if func is not None and not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -106,6 +108,8 @@ class CallingConventionAnalysis(Analysis):
         self.callsite_block_addr = callsite_block_addr
         self.callsite_insn_addr = callsite_insn_addr
         self._func_graph = func_graph
+        self._input_args = input_args
+        self._retval_size = retval_size
 
         self.cc: SimCC | None = None
         self.prototype: SimTypeFunction | None = None
@@ -308,9 +312,17 @@ class CallingConventionAnalysis(Analysis):
             # we do not analyze SimProcedures or PLT stubs
             return None
 
-        if not self._variable_manager.has_function_manager(self._function.addr):
-            l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
-            return None
+        if self._input_args is None or self._retval_size is None:
+            if not self._variable_manager.has_function_manager(self._function.addr):
+                l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
+                return None
+            vm = self._variable_manager[self._function.addr]
+            retval_size = vm.ret_val_size
+            input_variables = vm.input_variables()
+            input_args = self._args_from_vars(input_variables, vm)
+        else:
+            input_args = self._input_args
+            retval_size = self._retval_size
 
         # check if this function is a variadic function
         if self.project.arch.name == "AMD64":
@@ -318,11 +330,6 @@ class CallingConventionAnalysis(Analysis):
         else:
             is_variadic = False
             fixed_args = None
-
-        vm = self._variable_manager[self._function.addr]
-
-        input_variables = vm.input_variables()
-        input_args = self._args_from_vars(input_variables, vm)
 
         # TODO: properly determine sp_delta
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
@@ -342,7 +349,7 @@ class CallingConventionAnalysis(Analysis):
             args = args[:fixed_args]
 
         # guess the type of the return value -- it's going to be a wild guess...
-        ret_type = self._guess_retval_type(cc, vm.ret_val_size)
+        ret_type = self._guess_retval_type(cc, retval_size)
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
@@ -698,7 +705,7 @@ class CallingConventionAnalysis(Analysis):
                     args.add(arg)
             elif isinstance(variable, SimRegisterVariable):
                 # a register variable, convert it to a register argument
-                if not self._is_sane_register_variable(variable, def_cc=def_cc):
+                if not is_sane_register_variable(self.project.arch, variable.reg, variable.size, def_cc=def_cc):
                     continue
                 reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
                 if self.project.arch.name in {"AMD64", "X86"} and variable.size < self.project.arch.bytes:
@@ -747,53 +754,6 @@ class CallingConventionAnalysis(Analysis):
                                 restored_reg_vars.add(SimRegArg(reg_name, var_.size))
 
         return args.difference(restored_reg_vars)
-
-    def _is_sane_register_variable(self, variable: SimRegisterVariable, def_cc: SimCC | None = None) -> bool:
-        """
-        Filters all registers that are surly not members of function arguments.
-        This can be seen as a workaround, since VariableRecoveryFast sometimes gives input variables of cc_ndep (which
-        is a VEX-specific register) :-(
-
-        :param variable: The variable to test.
-        :return:         True if it is an acceptable function argument, False otherwise.
-        :rtype:          bool
-        """
-
-        arch = self.project.arch
-        arch_name = arch.name
-        if ":" in arch_name:
-            # for pcode architectures, we only leave registers that are known to be used as input arguments
-            if def_cc is not None:
-                return arch.translate_register_name(variable.reg, size=variable.size) in def_cc.ARG_REGS
-            return True
-
-        # VEX
-        if arch_name == "AARCH64":
-            return 16 <= variable.reg < 80  # x0-x7
-
-        if arch_name == "AMD64":
-            return 24 <= variable.reg < 40 or 64 <= variable.reg < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
-            # 224 <= variable.reg < 480)  # xmm0-xmm7
-
-        if is_arm_arch(arch):
-            if isinstance(arch, ArchARMHF):
-                return 8 <= variable.reg < 24 or 128 <= variable.reg < 160  # r0 - 32  # s0 - s7, or d0 - d4
-            return 8 <= variable.reg < 24  # r0-r3
-
-        if arch_name == "MIPS32":
-            return 24 <= variable.reg < 40  # a0-a3
-
-        if arch_name == "MIPS64":
-            return 48 <= variable.reg < 80 or 112 <= variable.reg < 208  # a0-a3 or t4-t7
-
-        if arch_name == "PPC32":
-            return 28 <= variable.reg < 60  # r3-r10
-
-        if arch_name == "X86":
-            return 8 <= variable.reg < 24 or 160 <= variable.reg < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
-
-        l.critical("Unsupported architecture %s.", arch.name)
-        return True
 
     def _reorder_args(self, args: list[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
