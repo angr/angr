@@ -128,9 +128,9 @@ class TestMemory(unittest.TestCase):
         expr = s.memory.load(100, 4)
         assert expr is claripy.BVV(0x1337, 32)
         expr = s.memory.load(100, 2)
-        assert expr is claripy.BVV(0, 16)
+        assert expr.clear_annotations() is claripy.BVV(0, 16)
         expr = s.memory.load(102, 2)
-        assert expr is claripy.BVV(0x1337, 16)
+        assert expr.clear_annotations() is claripy.BVV(0x1337, 16)
 
         # partially symbolic
         expr = s.memory.load(102, 4)
@@ -141,13 +141,13 @@ class TestMemory(unittest.TestCase):
         # partial overwrite
         s.memory.store(101, claripy.BVV(0x1415, 16))
         expr = s.memory.load(101, 3)
-        assert expr is claripy.BVV(0x141537, 24)
+        assert expr.clear_annotations() is claripy.BVV(0x141537, 24)
         expr = s.memory.load(100, 2)
         assert s.solver.min(expr) == 0x14
         expr = s.memory.load(102, 2)
-        assert expr is claripy.BVV(0x1537, 16)
+        assert expr.clear_annotations() is claripy.BVV(0x1537, 16)
         expr = s.memory.load(102, 2, endness="Iend_LE")
-        assert expr is claripy.BVV(0x3715, 16)
+        assert expr.clear_annotations() is claripy.BVV(0x3715, 16)
 
         s.memory.store(0x100, claripy.BVV(b"AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH"), endness="Iend_LE")
         expr = s.memory.load(0x104, 13)
