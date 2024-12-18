@@ -15,6 +15,10 @@ from .utils import is_sane_register_variable
 
 
 class FactCollectorState:
+    """
+    The abstract state for FactCollector.
+    """
+
     __slots__ = (
         "reg_reads",
         "reg_writes",
@@ -57,10 +61,14 @@ class FactCollectorState:
         return new_state
 
 
-class SimEngineFactsCollectorVEX(
+class SimEngineFactCollectorVEX(
     SimEngineNostmtVEX[FactCollectorState, claripy.ast.BV | claripy.ast.FP, None],
     SimEngineLight[type[FactCollectorState], claripy.ast.BV | claripy.ast.FP, Block, None],
 ):
+    """
+    THe engine for FactCollector.
+    """
+
     def __init__(self, project):
         super().__init__(project)
 
@@ -138,7 +146,7 @@ class FactCollector(Analysis):
 
         func_graph = self.function.transition_graph
         startpoint = self.function.startpoint
-        engine = SimEngineFactsCollectorVEX(self.project)
+        engine = SimEngineFactCollectorVEX(self.project)
         init_state = FactCollectorState()
 
         traversed = set()
