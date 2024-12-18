@@ -10,6 +10,7 @@ import functools
 import pyvex
 import claripy
 from archinfo.arch_arm import is_arm_arch
+from claripy.annotation import UninitializedAnnotation
 
 from angr import sim_options as o
 from angr import BP, BP_BEFORE, BP_AFTER
@@ -2169,7 +2170,7 @@ class JumpTableResolver(IndirectJumpResolver):
         read_addr = state.inspect.mem_read_address
         cond = state.inspect.mem_read_condition
 
-        if not isinstance(read_addr, int) and read_addr.uninitialized and cond is None:
+        if not isinstance(read_addr, int) and read_addr.has_annotation_type(UninitializedAnnotation) and cond is None:
             # if this AST has been initialized before, just use the cached addr
             cached_addr = self._cached_memread_addrs.get(read_addr, None)
             if cached_addr is not None:
