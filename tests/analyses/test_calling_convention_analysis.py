@@ -166,6 +166,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             # details: open(3) can take either 2 or 3 args. we use the 2 arg version but we have the 3 arg version
             # hardcoded in angr. the third arg is still "live" from the function start.
         }
+        if mode == CallingConventionAnalysisMode.FAST:
+            expected_args["accepted"] = []
+            expected_args["authenticate"] = ["r_r0", "r_r1"]
 
         for func_name, args in expected_args.items():
             self.check_args(func_name, self._a(funcs, func_name), args)
