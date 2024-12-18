@@ -8,6 +8,7 @@ from angr.block import Block
 from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
+from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset
 from angr.calling_conventions import SimRegArg, SimStackArg
 from .utils import is_sane_register_variable
@@ -135,22 +136,41 @@ class FactCollector(Analysis):
         # breadth-first search using function graph, collect registers and stack variables that are written to as well
         # as read from, until max_depth is reached
 
-        func_graph = self.function.graph
+        func_graph = self.function.transition_graph
         startpoint = self.function.startpoint
         engine = SimEngineFactsCollectorVEX(self.project)
         init_state = FactCollectorState()
 
         traversed = set()
-        queue = [(0, init_state, startpoint)]
+        queue: list[tuple[int, FactCollectorState, BlockNode | HookNode | Function, BlockNode | HookNode | None]] = [
+            (0, init_state, startpoint, None)
+        ]
         end_states: list[FactCollectorState] = []
         while queue:
-            depth, state, node = queue.pop(0)
+            depth, state, node, retnode = queue.pop(0)
             traversed.add(node)
 
             if depth > self._max_depth:
                 break
 
-            if node.size == 0:
+            if isinstance(node, BlockNode) and node.size == 0:
+                continue
+            if isinstance(node, HookNode):
+                # attempt to convert it into a function
+                if self.kb.functions.contains_addr(node.addr):
+                    node = self.kb.functions.get_by_addr(node.addr)
+                else:
+                    continue
+            if isinstance(node, Function):
+                if node.calling_convention is not None and node.prototype is not None:
+                    # consume args and overwrite the return register
+                    self._handle_function(state, node)
+                    if node.returning is False or retnode is None:
+                        # the function call does not return
+                        end_states.append(state)
+                    else:
+                        # enqueue the retnode, but we don't increment the depth
+                        queue.append((depth, state.copy(), retnode, None))
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size)
@@ -158,13 +178,19 @@ class FactCollector(Analysis):
 
             successor_added = False
             for _, succ, data in func_graph.out_edges(node, data=True):
-                if (
-                    data.get("type") in {"transition", "fake_return"}
-                    and succ not in traversed
-                    and depth + 1 <= self._max_depth
-                ):
+                edge_type = data.get("type")
+                call_succ, ret_succ = None, None
+                if succ not in traversed and depth + 1 <= self._max_depth:
+                    if edge_type == "fake_return":
+                        ret_succ = succ
+                    elif edge_type == "transition":
+                        successor_added = True
+                        queue.append((depth + 1, state.copy(), succ, None))
+                    elif edge_type == "call":
+                        call_succ = succ
+                if call_succ is not None:
                     successor_added = True
-                    queue.append((depth + 1, state.copy(), succ))
+                    queue.append((depth + 1, state.copy(), call_succ, ret_succ))
 
             if not successor_added:
                 end_states.append(state)
@@ -194,6 +220,25 @@ class FactCollector(Analysis):
                     stack_offset_created.add(offset)
                     arg = SimStackArg(offset - ret_addr_offset, size)
                     self.input_args.append(arg)
+
+    def _handle_function(self, state: FactCollectorState, func: Function) -> None:
+        try:
+            arg_locs = func.calling_convention.arg_locs(func.prototype)
+        except (TypeError, ValueError):
+            func.prototype = None
+            return
+
+        if None in arg_locs:
+            return
+
+        for arg_loc in arg_locs:
+            for loc in arg_loc.get_footprint():
+                if isinstance(loc, SimRegArg):
+                    state.register_read(self.project.arch.registers[loc.reg_name][0] + loc.reg_offset, loc.size)
+                elif isinstance(loc, SimStackArg):
+                    sp_offset = state.sp_offset
+                    if sp_offset is not None:
+                        state.stack_read(sp_offset + loc.stack_offset, loc.size)
 
 
 AnalysesHub.register_default("FunctionFactCollector", FactCollector)
