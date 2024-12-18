@@ -62,6 +62,4 @@ class TestFactCollector(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # unittest.main()
-    TestFactCollector().test_fauxware_x86_64()
-    TestFactCollector().test_fauxware_i386()
+    unittest.main()
