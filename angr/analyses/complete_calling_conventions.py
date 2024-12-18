@@ -341,25 +341,28 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 self.kb.variables.get_function_manager(func_addr),
             )
 
-        if self.mode == CallingConventionAnalysisMode.VARIABLES:
-            if self._recover_variables and self.function_needs_variable_recovery(func):
-                # special case: we don't have a PCode-engine variable recovery analysis for PCode architectures!
-                if ":" in self.project.arch.name and self._func_graphs and func.addr in self._func_graphs:
-                    # this is a pcode architecture
-                    return None, None, None, None
+        if (
+            self.mode == CallingConventionAnalysisMode.VARIABLES
+            and self._recover_variables
+            and self.function_needs_variable_recovery(func)
+        ):
+            # special case: we don't have a PCode-engine variable recovery analysis for PCode architectures!
+            if ":" in self.project.arch.name and self._func_graphs and func.addr in self._func_graphs:
+                # this is a pcode architecture
+                return None, None, None, None
 
-                _l.info("Performing variable recovery on %r...", func)
-                try:
-                    _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(
-                        func, low_priority=self._low_priority, func_graph=self._func_graphs.get(func.addr, None)
-                    )
-                except claripy.ClaripyError:
-                    _l.warning(
-                        "An claripy exception occurred during variable recovery analysis on function %#x.",
-                        func.addr,
-                        exc_info=True,
-                    )
-                    return None, None, None, None
+            _l.info("Performing variable recovery on %r...", func)
+            try:
+                _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(
+                    func, low_priority=self._low_priority, func_graph=self._func_graphs.get(func.addr, None)
+                )
+            except claripy.ClaripyError:
+                _l.warning(
+                    "An claripy exception occurred during variable recovery analysis on function %#x.",
+                    func.addr,
+                    exc_info=True,
+                )
+                return None, None, None, None
 
         kwargs = {}
         if self.mode == CallingConventionAnalysisMode.FAST:
