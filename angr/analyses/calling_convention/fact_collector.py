@@ -9,7 +9,7 @@ from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset
-from angr.calling_conventions import SimRegArg
+from angr.calling_conventions import SimRegArg, SimStackArg
 from .utils import is_sane_register_variable
 
 
@@ -127,7 +127,7 @@ class FactCollector(Analysis):
         self.function = func
         self._max_depth = max_depth
 
-        self.input_args = None
+        self.input_args: list[SimRegArg | SimStackArg] | None = None
 
         self._analyze()
 
@@ -142,7 +142,7 @@ class FactCollector(Analysis):
 
         traversed = set()
         queue = [(0, init_state, startpoint)]
-        end_states = []
+        end_states: list[FactCollectorState] = []
         while queue:
             depth, state, node = queue.pop(0)
             traversed.add(node)
@@ -150,12 +150,19 @@ class FactCollector(Analysis):
             if depth > self._max_depth:
                 break
 
+            if node.size == 0:
+                continue
+
             block = self.project.factory.block(node.addr, size=node.size)
             engine.process(state, block=block)
 
             successor_added = False
-            for succ in func_graph.successors(node):
-                if succ not in traversed and depth + 1 <= self._max_depth:
+            for _, succ, data in func_graph.out_edges(node, data=True):
+                if (
+                    data.get("type") in {"transition", "fake_return"}
+                    and succ not in traversed
+                    and depth + 1 <= self._max_depth
+                ):
                     successor_added = True
                     queue.append((depth + 1, state.copy(), succ))
 
@@ -163,19 +170,30 @@ class FactCollector(Analysis):
                 end_states.append(state)
 
         self.input_args = []
-        created = set()
+        reg_offset_created = set()
         for state in end_states:
             for offset, bits in state.reg_reads.items():
                 if (
-                    offset in created
+                    offset in reg_offset_created
                     or offset == self.project.arch.bp_offset
                     or not is_sane_register_variable(self.project.arch, offset, bits // self.project.arch.byte_width)
                 ):
                     continue
-                created.add(offset)
+                reg_offset_created.add(offset)
                 reg_name = self.project.arch.translate_register_name(offset, size=self.project.arch.bytes)
                 arg = SimRegArg(reg_name, self.project.arch.bytes)
                 self.input_args.append(arg)
+
+        stack_offset_created = set()
+        ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
+        for state in end_states:
+            for offset, size in state.stack_reads.items():
+                if offset - ret_addr_offset >= 0:
+                    if offset in stack_offset_created:
+                        continue
+                    stack_offset_created.add(offset)
+                    arg = SimStackArg(offset - ret_addr_offset, size)
+                    self.input_args.append(arg)
 
 
 AnalysesHub.register_default("FunctionFactCollector", FactCollector)

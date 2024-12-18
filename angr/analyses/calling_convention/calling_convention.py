@@ -25,7 +25,7 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeDouble,
 )
-from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
+from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
 from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -95,7 +95,7 @@ class CallingConventionAnalysis(Analysis):
         callsite_block_addr: int | None = None,
         callsite_insn_addr: int | None = None,
         func_graph: networkx.DiGraph | None = None,
-        input_args: list[SimVariable] | None = None,
+        input_args: list[SimRegArg | SimStackArg] | None = None,
         retval_size: int | None = None,
     ):
         if func is not None and not isinstance(func, Function):
