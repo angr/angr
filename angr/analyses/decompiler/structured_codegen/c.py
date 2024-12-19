@@ -1221,20 +1221,30 @@ class CAssignment(CStatement):
             "Shl": "<<",
             "Sar": ">>",
         }
+        commutative_ops = {"Add", "Mul", "And", "Xor", "Or"}
 
+        compound_expr_rhs = None
         if (
             self.codegen.use_compound_assignments
             and isinstance(self.lhs, CVariable)
             and isinstance(self.rhs, CBinaryOp)
-            and isinstance(self.rhs.lhs, CVariable)
-            and self.lhs.unified_variable is not None
-            and self.rhs.lhs.unified_variable is not None
-            and self.lhs.unified_variable is self.rhs.lhs.unified_variable
             and self.rhs.op in compound_assignment_ops
+            and self.lhs.unified_variable is not None
         ):
+            if isinstance(self.rhs.lhs, CVariable) and self.lhs.unified_variable is self.rhs.lhs.unified_variable:
+                compound_expr_rhs = self.rhs.rhs
+            elif (
+                self.rhs.op in commutative_ops
+                and isinstance(self.rhs.rhs, CVariable)
+                and self.lhs.unified_variable is self.rhs.rhs.unified_variable
+            ):
+                compound_expr_rhs = self.rhs.lhs
+
+        if compound_expr_rhs is not None:
             # a = a + x  =>  a += x
+            # a = x + a  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
-            yield from CExpression._try_c_repr_chunks(self.rhs.rhs)
+            yield from CExpression._try_c_repr_chunks(compound_expr_rhs)
         else:
             yield " = ", self
             yield from CExpression._try_c_repr_chunks(self.rhs)
