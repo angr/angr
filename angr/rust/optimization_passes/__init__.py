@@ -35,7 +35,7 @@ def get_rust_optimization_passes():
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
         SecurityCheckRemover,
-        StructFieldAccessSimplifier,
+        # StructFieldAccessSimplifier,
         DerefCoercionSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,

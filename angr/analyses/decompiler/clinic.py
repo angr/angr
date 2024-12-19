@@ -65,7 +65,8 @@ from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
 from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from ...rust.ailment.expression import Struct, Array
+from ...rust.ailment.expression import Struct, Array, Let
+from ...rust.ailment.statement import FunctionLikeMacro
 from ...rust.typehoon.typehoon import RustTypehoon
 from .semantic_naming import SemanticNamingOrchestrator
 from ...rust.sim_type import RustSimTypeInt

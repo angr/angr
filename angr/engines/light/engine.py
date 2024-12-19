@@ -544,6 +544,7 @@ class SimEngineLightAIL(
             "Return": self._handle_stmt_Return,
             "DirtyStatement": self._handle_stmt_DirtyStatement,
             "Label": self._handle_stmt_Label,
+            "FunctionLikeMacro": self._handle_stmt_FunctionLikeMacro,
         }
         self._expr_handlers: dict[str, Callable[[Any], DataType_co]] = {
             "Atom": self._handle_expr_Atom,
@@ -567,6 +568,11 @@ class SimEngineLightAIL(
             "MultiStatementExpression": self._handle_expr_MultiStatementExpression,
             "BasePointerOffset": self._handle_expr_BasePointerOffset,
             "StackBaseOffset": self._handle_expr_StackBaseOffset,
+            "String": self._handle_expr_String,
+            "Struct": self._handle_expr_Struct,
+            "Array": self._handle_expr_Array,
+            "Let": self._handle_expr_Let,
+            "FunctionLikeMacro": self._handle_expr_FunctionLikeMacro,
         }
         self._unop_handlers: dict[str, Callable[[ailment.UnaryOp], DataType_co]] = {
             "Not": self._handle_unop_Not,
@@ -728,6 +734,10 @@ class SimEngineLightAIL(
     @abstractmethod
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> StmtDataType: ...
 
+    def _handle_stmt_FunctionLikeMacro(self, stmt):
+        for arg in stmt.args:
+            self._expr(arg)
+
     @abstractmethod
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType: ...
 
@@ -809,6 +819,27 @@ class SimEngineLightAIL(
 
     @abstractmethod
     def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co: ...
+
+    def _handle_expr_String(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Struct(self, expr) -> DataType_co:
+        for field in expr.fields.values():
+            self._expr(field)
+        return self._top(expr.bits)
+
+    def _handle_expr_Array(self, expr) -> DataType_co:
+        for element in expr.elements:
+            self._expr(element)
+        return self._top(expr.bits)
+
+    def _handle_expr_Let(self, expr) -> DataType_co:
+        return self._top(expr.bits)
+
+    def _handle_expr_FunctionLikeMacro(self, expr) -> DataType_co:
+        for arg in expr.args:
+            self._expr(arg)
+        return self._top(expr.bits)
 
     #
     # UnOps
