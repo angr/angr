@@ -3,11 +3,10 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-from typing import Any, TYPE_CHECKING
-from collections.abc import Sequence, Mapping
 import logging
-import unittest
 import os
+import unittest
+from typing import TYPE_CHECKING
 
 import pyvex
 
@@ -19,27 +18,11 @@ from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump
 
-from tests.common import bin_location, compile_c, has_32_bit_compiler_support, skip_if_not_linux, slow_test
+from tests.common import bin_location, slow_test
 
 
 test_location = os.path.join(bin_location, "tests")
 l = logging.getLogger("angr.tests.test_jumptables")
-
-
-def compile_c_to_angr_project(
-    c_code: str, cflags: Sequence[str] | None = None, project_kwargs: Mapping[str, Any] | None = None
-):
-    # pylint:disable=consider-using-with
-    """
-    Compile `c_code` and return an angr project with the resulting binary.
-    """
-    if cflags and "-m32" in cflags and not has_32_bit_compiler_support():
-        raise unittest.SkipTest("No 32-bit compiler support detected")
-    dst = compile_c(c_code, cflags)
-    try:
-        return angr.Project(dst.name, **(project_kwargs or {}))
-    finally:
-        os.remove(dst.name)
 
 
 class J:
@@ -3059,7 +3042,6 @@ class TestJumpTableResolver(unittest.TestCase):
         ]
 
 
-@skip_if_not_linux
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """
     Call table tests for JumpTableResolver
@@ -3072,11 +3054,11 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         """
         return {(proj.kb.labels.lookup(src), proj.kb.labels.lookup(dst), 0) for dst in dsts}
 
-    def _run_calltable_test(self, c_code: str, src: str, dsts: set[str], cflags: Sequence[str] | None = None):
+    def _run_calltable_test(self, binary: str, src: str, dsts: set[str]):
         """
         Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
         """
-        proj = compile_c_to_angr_project(c_code, cflags, {"auto_load_libs": False})
+        proj = angr.Project(binary, auto_load_libs=False)
 
         # Run initial CFG, without attempting indirect jump resolve
         cfg = proj.analyses.CFGFast(resolve_indirect_jumps=False)
@@ -3107,7 +3089,11 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         # Verify JumpTableResolver is correctly resolving table
         r, t = jtr.resolve(cfg, block.addr, func.addr, block, irsb.jumpkind)
         assert r, "JumpTableResolver failed"
-        l.debug("JumpTableResolver returned %d targets: %s", len(t), ", ".join([hex(n) for n in t]))
+        l.debug(
+            "JumpTableResolver returned %d targets: %s",
+            len(t),
+            ", ".join([hex(n) for n in t]),
+        )
         assert set(t) == {proj.kb.labels.lookup(d) for d in dsts}
 
         # Check that CFG analysis is able to correctly resolve the indirect jumps with JumpTableResolver
@@ -3115,78 +3101,29 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         expected_edges = self._make_call_graph_edge_set_by_name(proj, src, dsts)
         assert expected_edges.issubset(set(cfg.functions.callgraph.edges))
 
-    def _run_common_test_matrix(self, c_code):
+    def _run_common_test_matrix(self, name: str):
         # XXX: On x86 with PIE, call get_pc_thunk() is used to calculate table address. Can't handle it yet.
-        cflags = []
-        for arch_flags in [[], ["-m32", "-fno-pie"]]:  # AMD64, x86
+        for arch in ["x86_64", "x86"]:
             for opt_level in range(3):
-                subtest_cflags = [*cflags, f"-O{opt_level}", *arch_flags]
-                with self.subTest(cflags=subtest_cflags):
-                    self._run_calltable_test(
-                        c_code, "src_func", {f"dst_func_{i}" for i in range(4)}, cflags=subtest_cflags
-                    )
-
-    calltable_common_code = """
-        #include <stdlib.h>
-
-        int dst_func_0(int x, int y) { return x + y; }
-        int dst_func_1(int x, int y) { return x - y; }
-        int dst_func_2(int x, int y) { return x * y; }
-        int dst_func_3(int x, int y) { return x / y; }
-
-        typedef int (*calltable_entry_t)(int x, int y);
-        calltable_entry_t table[] = {dst_func_0, dst_func_1, dst_func_2, dst_func_3};
-
-        int src_func(int i, int x, int y);
-
-        int main(int argc, char *argv[]) {
-            return src_func(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]));
-        }
-        """
+                with self.subTest(name=name, arch=arch, opt_level=opt_level):
+                    bin_path = os.path.join(test_location, arch, "calltable", f"{name}-o{opt_level}")
+                    self._run_calltable_test(bin_path, "src_func", {f"dst_func_{i}" for i in range(4)})
 
     # Force compiler emitting calls for all optimization levels via return value mutation
 
     def test_calltable_resolver_without_check(self):
-        self._run_common_test_matrix(
-            self.calltable_common_code
-            + """
-            int src_func(int i, int x, int y) {
-                return table[i](x, y) & 0xff;
-            }"""
-        )
+        self._run_common_test_matrix("resolver_without_check")
 
     def test_calltable_resolver_with_check(self):
-        self._run_common_test_matrix(
-            self.calltable_common_code
-            + """
-            int src_func(int i, int x, int y) {
-                return ( (i < 4) ? table[i](x, y) : 0 ) & 0xff;
-            }"""
-        )
+        self._run_common_test_matrix("resolver_with_check")
 
     # Expect tail-call optimization to the jump target for the following tests on higher optimization levels
 
     def test_calltable_resolver_without_check_tailcall(self):
-        self._run_common_test_matrix(
-            self.calltable_common_code
-            + """
-            int src_func(int i, int x, int y) {
-                return table[i](x, y);
-            }"""
-        )
+        self._run_common_test_matrix("resolver_without_check_tailcall")
 
     def test_calltable_resolver_with_check_tailcall(self):
-        self._run_common_test_matrix(
-            self.calltable_common_code
-            + """
-            int src_func(int i, int x, int y) {
-                if (i < 4) {
-                    return table[i](x, y);
-                } else {
-                    return 0;
-                }
-            }"""
-        )
+        self._run_common_test_matrix("resolver_with_check_tailcall")
 
 
 if __name__ == "__main__":
