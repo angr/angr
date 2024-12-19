@@ -3991,6 +3991,19 @@ class TestDecompiler(unittest.TestCase):
             "return &g_1234;",
         ]
 
+    def test_decompiling_syscall(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "hello_syscalls")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        f = proj.kb.functions["main"]
+
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        assert 'write(1, "What\'s your name? ", 19);' in text
+
 
 if __name__ == "__main__":
     unittest.main()

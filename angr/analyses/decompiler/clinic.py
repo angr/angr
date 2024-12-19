@@ -994,7 +994,7 @@ class Clinic(Analysis):
     @timethis
     def _replace_single_target_indirect_transitions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
-        Remove single-target indirect jumps and calls and replace them with direct jumps or calls.
+        Remove single-target indirect jumps, calls, and syscalls and replace them with direct jumps or calls.
         """
         if self._cfg is None:
             return ail_graph
@@ -1009,7 +1009,7 @@ class Clinic(Analysis):
                 node = self._cfg.get_any_node(block.addr)
                 if node is None:
                     continue
-                successors = self._cfg.get_successors(node, excluding_fakeret=True, jumpkind="Ijk_Call")
+                successors = self._cfg.get_successors(node, excluding_fakeret=True)
                 if len(successors) == 1 and not isinstance(
                     self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                 ):
