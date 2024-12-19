@@ -329,6 +329,26 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     def _handle_stmt_IncompleteSwitchCaseHeadStatement(self, stmt):
         return None
 
+    def _handle_expr_String(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Struct(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Array(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Let(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        # TODO
+        pass
+
     def _handle_expr_BinaryOp(self, expr):
         new_op0 = self._expr(expr.operands[0])
         new_op1 = self._expr(expr.operands[1])

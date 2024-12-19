@@ -16,6 +16,7 @@ from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
+from ...engines.engine import DataType_co
 from ...rust.ailment.statement import FunctionLikeMacro
 from ...rust.sim_type import RustSimTypeStr, RustSimTypeString, RustSimTypeFunction
 from ...rust.ailment.expression import String, Struct, Array, Let
@@ -137,6 +138,10 @@ class SimEngineVRAIL(
         self._expr(stmt.expd_lo)
         if stmt.expd_hi is not None:
             self._expr(stmt.expd_hi)
+
+    def _handle_stmt_FunctionLikeMacro(self, stmt):
+        for arg in stmt.args:
+            self._expr(arg)
 
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr_bv(stmt.addr)
@@ -595,20 +600,27 @@ class SimEngineVRAIL(
             self.state.add_type_constraint(typevars.Subtype(tv, tv_))
         return RichR(self.state.top(expr.bits), typevar=tv)
 
+    def _handle_expr_String(self, expr: String):
+        return RichR(self.state.top(expr.bits))
+
     def _handle_expr_Struct(self, expr: Struct):
         for field in expr.fields.values():
             self._expr(field)
+        return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Array(self, expr: Array):
         for ele in expr.elements:
             self._expr(ele)
+        return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Let(self, expr: Let):
         self._expr(expr.src)
+        return RichR(self.state.top(expr.bits))
 
     def _handle_expr_FunctionLikeMacro(self, expr: FunctionLikeMacro):
         for arg in expr.args:
             self._expr(arg)
+        return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
         return self._get_const(expr.value, expr.bits, expr=expr)

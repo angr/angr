@@ -70,7 +70,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
             return "panic", fmt_str
         return None, None
 
-    def replace_call(self, call: Call, block: Block):
+    def replace_call(self, call: Call, block: Block, is_expr):
         if (
             (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
             and call.args
@@ -117,7 +117,9 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                     if macro_name and fmt_str:
                         args = [arg.get_field("value") for arg in args]
                         args.insert(0, String(None, None, 0, self.project.arch.bits, fmt_str))
-                        macro = FunctionLikeMacro(None, macro_name, args, bits=call.bits, **call.tags)
+                        macro = FunctionLikeMacro(
+                            None, macro_name, args, bits=call.bits if is_expr else None, **call.tags
+                        )
                         self._stmts_to_remove[block] = stmts_to_remove
                         return macro
         return None

@@ -23,6 +23,7 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from .subject import SubjectType
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler, FunctionCallData
+from ...engines.engine import DataType_co
 
 l = logging.getLogger(name=__name__)
 
@@ -125,6 +126,10 @@ class SimEngineRDAIL(
         if self.state.analysis:
             self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_AFTER)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+
+    def _handle_stmt_FunctionLikeMacro(self, stmt):
+        for arg in stmt.args:
+            self._expr(arg)
 
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
@@ -270,9 +275,11 @@ class SimEngineRDAIL(
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
             redefine_locals=stmt.args is None and not is_expr,
             caller_will_handle_single_ret=caller_will_handle_single_ret,
-            ret_atoms={Atom.from_ail_expr(ret_expr, self.arch)}  # TODO: Support stack atoms in the future
-            if isinstance(ret_expr, ailment.Expr.Register)
-            else None,
+            ret_atoms=(
+                {Atom.from_ail_expr(ret_expr, self.arch)}  # TODO: Support stack atoms in the future
+                if isinstance(ret_expr, ailment.Expr.Register)
+                else None
+            ),
         )
 
         self._function_handler.handle_function(self.state, data)
@@ -375,6 +382,21 @@ class SimEngineRDAIL(
     #
     # AIL expression handlers
     #
+
+    def _handle_expr_String(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Struct(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Array(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Let(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        return self._top(expr.bits)
 
     def _handle_expr_Tmp(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         self.state.add_tmp_use(expr.tmp_idx)

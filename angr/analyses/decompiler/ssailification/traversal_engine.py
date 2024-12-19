@@ -441,6 +441,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         for suboff in range(offset, offset + size):
             self.state.register_defs[suboff] = {def_}
 
+    def _handle_stmt_FunctionLikeMacro(self, stmt):
+        for arg in stmt.args:
+            self._expr(arg)
+
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
 
@@ -664,6 +668,27 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 v -= 1 << expr.from_bits
             result.add((None, v))
         return result
+
+    def _handle_expr_Array(self, expr) -> Value:
+        for element in expr.elements:
+            self._expr(element)
+        return set()
+
+    def _handle_expr_Struct(self, expr) -> Value:
+        for field in expr.fields.values():
+            self._expr(field)
+        return set()
+
+    def _handle_expr_String(self, expr) -> Value:
+        return set()
+
+    def _handle_expr_Let(self, expr) -> Value:
+        return set()
+
+    def _handle_expr_FunctionLikeMacro(self, expr) -> Value:
+        for arg in expr.args:
+            self._expr(arg)
+        return set()
 
     def _handle_expr_Reinterpret(self, expr) -> Value:
         self._expr(expr.operand)

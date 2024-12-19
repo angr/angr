@@ -102,7 +102,20 @@ class Struct(ailment.Expression):
         return stable_hash((tuple(self.fields.keys()), tuple(self.fields.values()), self.type))
 
     def likes(self, other):
-        return type(self) is type(other) and self.type == other.type and (self.fields == other.fields)
+        return (
+            type(self) is type(other)
+            and self.type == other.type
+            and self.fields.keys() == other.fields.keys()
+            and all(self.fields[k].likes(other.fields[k]) for k in self.fields)
+        )
+
+    def matches(self, other):
+        return (
+            type(self) is type(other)
+            and self.type == other.type
+            and self.fields.keys() == other.fields.keys()
+            and all(self.fields[k].matches(other.fields[k]) for k in self.fields)
+        )
 
 
 class Let(Op):
@@ -128,4 +141,7 @@ class Let(Op):
         return stable_hash((self.variant, self.src))
 
     def likes(self, other):
+        return type(self) is type(other) and self.variant == other.variant and self.src == other.src
+
+    def matches(self, other):
         return type(self) is type(other) and self.variant == other.variant and self.src == other.src

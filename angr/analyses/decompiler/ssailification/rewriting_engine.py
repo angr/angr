@@ -153,6 +153,9 @@ class SimEngineSSARewriting(
     def _handle_expr_VirtualVariable(self, expr):
         return None
 
+    def _handle_stmt_FunctionLikeMacro(self, stmt):
+        return None
+
     def _handle_stmt_Assignment(self, stmt):
         new_src = self._expr(stmt.src)
         new_dst = self._replace_def_expr(stmt.dst, new_src or stmt.src, stmt)
@@ -316,6 +319,21 @@ class SimEngineSSARewriting(
             return None
         assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
+
+    def _handle_expr_String(self, expr):
+        return expr
+
+    def _handle_expr_Struct(self, expr):
+        return expr
+
+    def _handle_expr_Array(self, expr):
+        return expr
+
+    def _handle_expr_Let(self, expr):
+        return expr
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        return expr
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
         vvar = self._expr_to_vvar(expr, True)
