@@ -52,7 +52,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def __init__(
         self,
-        mode: CallingConventionAnalysisMode = CallingConventionAnalysisMode.VARIABLES,
+        mode: CallingConventionAnalysisMode = CallingConventionAnalysisMode.FAST,
         recover_variables=False,
         low_priority=False,
         force=False,
