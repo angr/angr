@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Tuple
+from typing import Tuple, List, Any
 
 from ailment.statement import Statement
 
@@ -25,4 +25,28 @@ class PatternMatchNode(BaseNode):
         self.scrutinee = scrutinee
         self.arms = arms
         self.default_node = default_node
+        self.addr = addr
+
+
+class IfLetNode(BaseNode):
+    __slots__ = (
+        "pattern",
+        "scrutinee",
+        "true_node",
+        "false_node",
+        "addr",
+    )
+
+    def __init__(
+        self,
+        pattern,
+        scrutinee,
+        true_node,
+        false_node=None,
+        addr=None,
+    ):
+        self.pattern = pattern
+        self.scrutinee = scrutinee
+        self.true_node = true_node
+        self.false_node = false_node
         self.addr = addr

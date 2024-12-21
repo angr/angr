@@ -16,7 +16,7 @@ from .structuring.structurer_nodes import (
     ConditionalBreakNode,
     IncompleteSwitchCaseNode,
 )
-from ...rust.structuring.structurer_nodes import PatternMatchNode
+from ...rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 
 
 class SequenceWalker:
@@ -185,6 +185,43 @@ class SequenceWalker:
 
         if changed:
             return PatternMatchNode(node.scrutinee, new_arms, new_default_node, addr=node.addr)
+
+        return None
+
+    def _handle_IfLet(self, node: IfLetNode, **kwargs):
+        changed = False
+
+        new_scrutinee = self._handle(node.scrutinee, parent=node, label="scrutinee")
+        if new_scrutinee is not None:
+            changed = True
+        else:
+            new_scrutinee = node.scrutinee
+
+        variant, bound_vars = node.pattern
+        new_bound_vars = []
+        for bound_var in bound_vars:
+            new_bound_var = self._handle(bound_var, parent=node, label="bound_var")
+            new_bound_vars.append(new_bound_var if new_bound_var is not None else bound_var)
+            if new_bound_var is not None:
+                changed = True
+        new_pattern = (variant, new_bound_vars)
+
+        new_true_node = self._handle(node.true_node, parent=node, label="true_node")
+        if new_true_node is not None:
+            changed = True
+        else:
+            new_true_node = node.true_node
+
+        new_false_node = None
+        if node.false_node is not None:
+            new_false_node = self._handle(node.false_node, parent=node, label="false_node")
+            if new_false_node is not None:
+                changed = True
+            else:
+                new_false_node = node.false_node
+
+        if changed:
+            return IfLetNode(new_scrutinee, new_pattern, new_true_node, new_false_node, addr=node.addr)
 
         return None
 
