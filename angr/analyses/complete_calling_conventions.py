@@ -368,7 +368,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         if self.mode == CallingConventionAnalysisMode.FAST:
             facts = self.project.analyses[FactCollector].prep(kb=self.kb)(func)
             kwargs["input_args"] = facts.input_args
-            kwargs["retval_size"] = self.project.arch.bytes
+            kwargs["retval_size"] = facts.retval_size
 
         # determine the calling convention of each function
         cc_analysis = self.project.analyses[CallingConventionAnalysis].prep(kb=self.kb)(

@@ -38,7 +38,7 @@ class TestFactCollector(unittest.TestCase):
                 cfg=cfg,
                 analyze_callsites=True,
                 input_args=ffc.input_args,
-                retval_size=fauxware.arch.bytes,
+                retval_size=ffc.retval_size,
             )
             cc = cc_analysis.cc
             assert cc == expected_cc

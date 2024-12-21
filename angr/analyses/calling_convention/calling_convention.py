@@ -111,6 +111,13 @@ class CallingConventionAnalysis(Analysis):
         self._input_args = input_args
         self._retval_size = retval_size
 
+        if self._retval_size is not None and self._input_args is None:
+            # retval size will be ignored if input_args is not specified - user error?
+            raise TypeError(
+                "input_args must be provided to use retval_size. Otherwise please set both input_args and "
+                "retval_size to None."
+            )
+
         self.cc: SimCC | None = None
         self.prototype: SimTypeFunction | None = None
         self.prototype_libname: str | None = None
@@ -312,7 +319,7 @@ class CallingConventionAnalysis(Analysis):
             # we do not analyze SimProcedures or PLT stubs
             return None
 
-        if self._input_args is None or self._retval_size is None:
+        if self._input_args is None:
             if not self._variable_manager.has_function_manager(self._function.addr):
                 l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
                 return None

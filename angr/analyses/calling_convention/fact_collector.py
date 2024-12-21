@@ -10,7 +10,8 @@ from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset
-from angr.calling_conventions import SimRegArg, SimStackArg
+from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.sim_type import SimTypeBottom
 from .utils import is_sane_register_variable
 
 
@@ -137,6 +138,7 @@ class FactCollector(Analysis):
         self._max_depth = max_depth
 
         self.input_args: list[SimRegArg | SimStackArg] | None = None
+        self.retval_size: int | None = None
 
         self._analyze()
 
@@ -144,6 +146,10 @@ class FactCollector(Analysis):
         # breadth-first search using function graph, collect registers and stack variables that are written to as well
         # as read from, until max_depth is reached
 
+        self._analyze_startpoint()
+        self._analyze_endpoints()
+
+    def _analyze_startpoint(self):
         func_graph = self.function.transition_graph
         startpoint = self.function.startpoint
         engine = SimEngineFactCollectorVEX(self.project)
@@ -247,6 +253,74 @@ class FactCollector(Analysis):
                     sp_offset = state.sp_offset
                     if sp_offset is not None:
                         state.stack_read(sp_offset + loc.stack_offset, loc.size)
+
+    def _analyze_endpoints(self):
+        """
+        Analyze all endpoints to determine the return value size.
+        """
+        func_graph = self.function.transition_graph
+        cc_cls = default_cc(
+            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        )
+        cc = cc_cls(self.project.arch)
+        if isinstance(cc.RETURN_VAL, SimRegArg):
+            reg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
+        else:
+            return
+
+        retval_sizes = []
+        for endpoint in self.function.endpoints:
+            traversed = set()
+            queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
+            while queue:
+                depth, node = queue.pop(0)
+                traversed.add(node)
+
+                if depth > 3:
+                    break
+
+                if isinstance(node, BlockNode) and node.size == 0:
+                    continue
+                if isinstance(node, HookNode):
+                    # attempt to convert it into a function
+                    if self.kb.functions.contains_addr(node.addr):
+                        node = self.kb.functions.get_by_addr(node.addr)
+                    else:
+                        continue
+                if isinstance(node, Function):
+                    if node.calling_convention is not None and node.prototype is not None:
+                        # assume the function overwrites the return variable
+                        if node.prototype.returnty is not None and not isinstance(
+                            node.prototype.returnty, SimTypeBottom
+                        ):
+                            retval_size = (
+                                node.prototype.returnty.with_arch(self.project.arch).size
+                                // self.project.arch.byte_width
+                            )
+                            retval_sizes.append(retval_size)
+                    continue
+
+                block = self.project.factory.block(node.addr, size=node.size)
+                # scan the block statements backwards to find writes to the return value register
+                retval_size = None
+                for stmt in reversed(block.vex.statements):
+                    if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == reg_offset:
+                        retval_size = max(stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width, 1)
+                        break
+
+                if retval_size is not None:
+                    retval_sizes.append(retval_size)
+                    continue
+
+                for pred, _, data in func_graph.in_edges(node, data=True):
+                    edge_type = data.get("type")
+                    if pred not in traversed and depth + 1 <= self._max_depth:
+                        if edge_type == "fake_return":
+                            continue
+                        if edge_type in {"transition", "call"}:
+                            queue.append((depth + 1, pred))
+
+        self.retval_size = max(retval_sizes) if retval_sizes else None
 
 
 AnalysesHub.register_default("FunctionFactCollector", FactCollector)
