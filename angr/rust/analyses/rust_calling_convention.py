@@ -275,9 +275,11 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                                 some_type,
                                 none_discriminant,
                                 None,
-                                discriminant_size // self.project.arch.byte_width
-                                if not overlapping_discriminant
-                                else 0,
+                                (
+                                    discriminant_size // self.project.arch.byte_width
+                                    if not overlapping_discriminant
+                                    else 0
+                                ),
                             )
 
         return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))

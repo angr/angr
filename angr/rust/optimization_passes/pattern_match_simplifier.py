@@ -6,7 +6,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import (
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
-from angr.rust.structuring.structurer_nodes import PatternMatchNode
+from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 
 
 class PatternMatchWalker(SequenceWalker):
@@ -19,11 +19,19 @@ class PatternMatchWalker(SequenceWalker):
         if scrutinee and match_arms and true_node.addr in match_arms and false_node.addr in match_arms:
             true_variant_and_moves = match_arms[true_node.addr]
             false_variant_and_moves = match_arms[false_node.addr]
+            if set(false_variant_and_moves[1]) == {None} and set(true_variant_and_moves[1]) != {None}:
+                pattern = true_variant_and_moves
+                result = IfLetNode(pattern, scrutinee, true_node, false_node, addr)
+            elif set(true_variant_and_moves[1]) == {None} and set(false_variant_and_moves[1]) != {None}:
+                pattern = false_variant_and_moves
+                result = IfLetNode(pattern, scrutinee, true_node, false_node, addr)
+            # else:
             arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
+            result = PatternMatchNode(scrutinee, arms, None, addr)
             for stmt in true_variant_and_moves[1] + false_variant_and_moves[1]:
                 if stmt:
                     stmt.tags["hidden"] = True
-            return PatternMatchNode(scrutinee, arms, None, addr)
+            return result
         return None
 
     def _handle_Condition(self, node, **kwargs):

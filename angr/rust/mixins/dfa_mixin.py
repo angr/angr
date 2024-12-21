@@ -97,3 +97,27 @@ class DFAMixin:
             dst_offset = src_offset + next(iter(distance))
             return stmts, dst_offset
         return None, None
+
+    def extract_stack_to_reg_data_flow(self, stmt):
+        src_offset = None
+        size = None
+        dst, src = None, None
+        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+            dst = stmt.dst
+            src = stmt.src
+            size = stmt.src.size
+        if dst and src:
+            if isinstance(src, VirtualVariable) and src.was_stack:
+                src_offset = src.stack_offset
+            elif isinstance(src, Load) and isinstance(src.addr, BasePointerOffset):
+                src_offset = src.addr.offset
+        if dst is not None and src_offset is not None and size is not None:
+            return dst, src_offset, size
+        return None, None, None
+
+    def find_stack_to_reg_data_flow(self, block, src_offset, size):
+        for stmt in block.statements:
+            dst, stmt_src_offset, stmt_size = self.extract_stack_to_reg_data_flow(stmt)
+            if dst and stmt_src_offset == src_offset and stmt_size == size:
+                return stmt, dst
+        return None, None

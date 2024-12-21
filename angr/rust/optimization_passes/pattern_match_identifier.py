@@ -72,7 +72,9 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                 self.replace_stmt(block, stmts, move_stmt)
                 moves.append(move_stmt)
             else:
-                moves.append(None)
+                # If we can not find stack to stack data flow, fall back to finding stack to register data flow
+                stmt, dst_vvar = self.find_stack_to_reg_data_flow(block, src_offset, ty_size)
+                moves.append(stmt)
             src_offset += ty_size
         return tuple(moves)
 

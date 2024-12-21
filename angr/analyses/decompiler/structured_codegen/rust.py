@@ -10,7 +10,7 @@ from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....rust.ailment.statement import FunctionLikeMacro
 from ....rust.definitions.structs import StrReference
-from ....rust.structuring.structurer_nodes import PatternMatchNode
+from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from ....sim_type import (
     SimTypeLongLong,
     SimTypeChar,
@@ -1176,6 +1176,63 @@ class RustPatternMatch(RustStatement):
 
         yield indent_str, None
         yield "}", brace
+        yield "\n", None
+
+
+class RustIfLet(RustStatement):
+    """
+    Represents an if let statement in Rust.
+    """
+
+    __slots__ = ("pattern", "scrutinee", "true_node", "false_node", "tags")
+
+    def __init__(self, pattern, scrutinee, true_node, false_node, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.pattern = pattern
+        self.scrutinee = scrutinee
+        self.true_node = true_node
+        self.false_node = false_node
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        paren = RustClosingObject("(")
+        brace = RustClosingObject("{")
+
+        yield indent_str, None
+        yield "if let ", self
+
+        variant, bound_vars = self.pattern
+        yield variant.name, None
+        if len(bound_vars):
+            yield "(", paren
+            for i, bound_var in enumerate(bound_vars):
+                if i > 0:
+                    yield ", ", None
+                if bound_var:
+                    yield from RustExpression._try_c_repr_chunks(bound_var)
+                else:
+                    yield "_", None
+            yield ")", paren
+
+        yield " = ", None
+        yield from self.scrutinee.c_repr_chunks()
+        yield " ", None
+        yield "{", brace
+        yield "\n", None
+        yield from self.true_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}", brace
+
+        if self.false_node:
+            yield " else ", self
+            yield "{", brace
+            yield "\n", None
+            yield from self.false_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+
         yield "\n", None
 
 
@@ -2579,6 +2636,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             SwitchCaseNode: self._handle_SwitchCase,
             ContinueNode: self._handle_Continue,
             PatternMatchNode: self._handle_PatternMatch,
+            IfLetNode: self._handle_IfLet,
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
@@ -3352,6 +3410,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if isinstance(move, ailment.Stmt.Store):
             expr = move.addr
             var = move.variable
+        elif isinstance(move, ailment.Stmt.Assignment):
+            expr = move.dst
+            var = move.dst.variable
         if expr and var is not None:
             var_thing = self._variable(var, expr.size)
             var_thing.tags = dict(expr.tags)
@@ -3373,6 +3434,15 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         tags = {"ins_addr": node.addr}
         pattern_match = RustPatternMatch(scrutinee, arms, default=default, tags=tags, codegen=self)
         return pattern_match
+
+    def _handle_IfLet(self, node, **kwargs):
+        variant_and_moves = node.pattern
+        pattern = (variant_and_moves[0], tuple(self._get_bound_variable(move) for move in variant_and_moves[1]))
+        scrutinee = self._handle(node.scrutinee)
+        true_node = self._handle(node.true_node, is_expr=False)
+        false_node = self._handle(node.false_node, is_expr=False) if node.false_node is not None else None
+        tags = {"ins_addr": node.addr}
+        return RustIfLet(pattern, scrutinee, true_node, false_node, tags=tags, codegen=self)
 
     def _handle_Continue(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
