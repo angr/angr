@@ -12,7 +12,6 @@ from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
-from angr.block import Block
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
 from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
