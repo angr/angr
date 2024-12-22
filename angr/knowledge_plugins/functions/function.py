@@ -403,7 +403,7 @@ class Function(Serializable):
     def nodes(self) -> Iterable[CodeNode]:
         return self.transition_graph.nodes()
 
-    def get_node(self, addr) -> Block:
+    def get_node(self, addr) -> BlockNode | None:
         return self._addr_to_block_node.get(addr, None)
 
     @property
@@ -1036,8 +1036,9 @@ class Function(Serializable):
                     if function.returning is False:
                         # the target function does not return
                         the_node = self.get_node(src.addr)
-                        self._callout_sites.add(the_node)
-                        self._add_endpoint(the_node, "call")
+                        if the_node is not None:
+                            self._callout_sites.add(the_node)
+                            self._add_endpoint(the_node, "call")
 
     def get_call_sites(self) -> Iterable[int]:
         """
