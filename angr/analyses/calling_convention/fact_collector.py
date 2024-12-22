@@ -288,16 +288,17 @@ class FactCollector(Analysis):
                     else:
                         continue
                 if isinstance(node, Function):
-                    if node.calling_convention is not None and node.prototype is not None:
+                    if (
+                        node.calling_convention is not None
+                        and node.prototype is not None
+                        and node.prototype.returnty is not None
+                        and not isinstance(node.prototype.returnty, SimTypeBottom)
+                    ):
                         # assume the function overwrites the return variable
-                        if node.prototype.returnty is not None and not isinstance(
-                            node.prototype.returnty, SimTypeBottom
-                        ):
-                            retval_size = (
-                                node.prototype.returnty.with_arch(self.project.arch).size
-                                // self.project.arch.byte_width
-                            )
-                            retval_sizes.append(retval_size)
+                        retval_size = (
+                            node.prototype.returnty.with_arch(self.project.arch).size // self.project.arch.byte_width
+                        )
+                        retval_sizes.append(retval_size)
                     continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
