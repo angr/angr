@@ -7,7 +7,7 @@ import logging
 
 import networkx
 
-from ailment import AILBlockWalker
+from ailment import AILBlockWalker, AILBlockWalkerBase
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement
 from ailment.expression import (
@@ -74,6 +74,45 @@ class AILBlockTempCollector(AILBlockWalker):
     def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
         if isinstance(expr, Tmp):
             self.temps.add(expr)
+
+
+class AILBlockCallLoadStoreCounter(AILBlockWalkerBase):
+    """
+    Counts the number of calls, loads, and stores in a block.
+    """
+
+    # FIXME: Better aliasing analyis to permit non-interfering stores and loads
+
+    def __init__(self, guard=None):
+        super().__init__()
+        self._should_count = guard or self._always_count
+        self.num_calls = 0
+        self.num_stores = 0
+        self.num_loads = 0
+
+    @staticmethod
+    def _always_count(stmt_or_expr: Statement | Expression, block: Block) -> bool:
+        return True
+
+    def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
+        if self._should_count(stmt, block):
+            self.num_stores += 1
+        return super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
+        if self._should_count(expr, block):
+            self.num_loads += 1
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+        if self._should_count(stmt, block):
+            self.num_calls += 1
+        return super()._handle_Call(stmt_idx, stmt, block)
+
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+        if self._should_count(expr, block):
+            self.num_calls += 1
+        return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class AILSimplifier(Analysis):
@@ -1214,8 +1253,8 @@ class AILSimplifier(Analysis):
                 # if usesite_expr_def_outdated:
                 #     continue
 
-                # check if there are any calls in between the def site and the use site
-                if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:
+                # check if there are any hazards between the def site and the use site
+                if self._superblock_has_calls_loads_or_stores(super_node_blocks, the_def.codeloc, u):
                     continue
 
                 # replace all uses
@@ -1608,24 +1647,31 @@ class AILSimplifier(Analysis):
         return False
 
     @staticmethod
-    def _count_calls_in_supernodeblocks(blocks: list[Block], start: CodeLocation, end: CodeLocation) -> int:
+    def _superblock_has_calls_loads_or_stores(blocks: list[Block], start: CodeLocation, end: CodeLocation) -> int:
         """
-        Count the number of call statements in a list of blocks for a single super block between two given code
-        locations (exclusive).
+        Check if there are calls, loads, or store expressions/statements in a list of blocks for a single super block
+        between two given code locations (exclusive).
         """
-        calls = 0
+
+        def should_count(stmt_or_expr: Statement | Expression, block: Block) -> bool:
+            return (
+                block.addr != end.block_addr
+                or "ins_addr" not in stmt_or_expr.tags
+                or stmt_or_expr.tags["ins_addr"] < end.ins_addr
+            )
+
+        walker = AILBlockCallLoadStoreCounter(should_count)
         started = False
         for b in blocks:
             if b.addr == start.block_addr:
                 started = True
                 continue
+            if started:
+                walker.walk(b)
             if b.addr == end.block_addr:
-                started = False
-                continue
+                break
 
-            if started and b.statements and isinstance(b.statements[-1], Call):
-                calls += 1
-        return calls
+        return walker.num_calls or walker.num_loads or walker.num_stores
 
     @staticmethod
     def _exprs_contain_vvar(exprs: Iterable[Expression], vvar_ids: set[int]) -> bool:
