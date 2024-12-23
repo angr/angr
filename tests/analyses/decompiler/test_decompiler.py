@@ -3991,6 +3991,66 @@ class TestDecompiler(unittest.TestCase):
             "return &g_1234;",
         ]
 
+    @staticmethod
+    def _decompile_common(bin_path, options=None):
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        print(p.kb.functions)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=options)
+        return dec.codegen.text
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_call_order(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_call_order.o")
+        text = self._decompile_common(bin_path, decompiler_options)
+
+        # Ensure f1 is called before f2
+        f1_loc = text.find("f1()")
+        f2_loc = text.find("f2()")
+        assert 0 < f1_loc < f2_loc
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_load_order(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_load_order.o")
+        text = self._decompile_common(bin_path, decompiler_options)
+
+        # Ensure call is made before global is read
+        store_loc = text.find("g_12345678 =")
+        call_loc = text.find("f1();")
+        load_loc = text.find("g_12345678)")
+        assert 0 < store_loc < call_loc < load_loc
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_store_order(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_store_order.o")
+        text = self._decompile_common(bin_path, decompiler_options)
+
+        # Ensure store 0 happens before call happens before store 1
+        store_0_loc = text.find("g_12345678 = 0;")
+        call_loc = text.find(" = f1();")
+        store_1_loc = text.find("g_12345678 = 1;")
+        assert 0 < store_0_loc < call_loc < store_1_loc
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_call_loop(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_call_loop.o")
+        text = self._decompile_common(bin_path, decompiler_options)
+
+        # Ensure store 0 happens before call happens before store 1
+        e = """
+        for (v1 = 0; v1 < 3; v1 += 1)
+        {
+            v2 = f1();
+        }
+        return v2;
+        """
+
+        def strip(text):
+            return "".join([l for l in [l.strip() for l in text.splitlines()] if l])
+
+        assert strip(e) in strip(text)
+
 
 if __name__ == "__main__":
     unittest.main()
