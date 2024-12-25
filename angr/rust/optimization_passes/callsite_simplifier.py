@@ -31,8 +31,12 @@ class CallsiteSimplifier(TransformationPass):
                 and call.target.value in self.kb.functions
             ):
                 func = self.kb.functions[call.target.value]
-                post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
-                rcc = self.project.analyses.RustCallingConvention(
-                    func, callsite_block=block, post_callsite_block=post_callsite_block
-                )
-                call.prototype = rcc.model.inferred_prototype
+                if isinstance(func.prototype, RustSimTypeFunction):
+                    call.prototype = func.prototype
+                else:
+                    post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
+                    rcc = self.project.analyses.RustCallingConvention(
+                        func, callsite_block=block, post_callsite_block=post_callsite_block
+                    )
+                    call.prototype = rcc.model.inferred_prototype
+                    func.prototype = call.prototype
