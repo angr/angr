@@ -1098,7 +1098,8 @@ class SimCC:
         all_fp_args: set[int | str] = {_arg_ident(a) for a in sample_inst.fp_args}
         all_int_args: set[int | str] = {_arg_ident(a) for a in sample_inst.int_args}
         both_iter = sample_inst.memory_args
-        some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(len(args))}
+        max_args = cls._guess_arg_count(args)
+        some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(max_args)}
 
         new_args = []
         for arg in args:
@@ -1114,6 +1115,12 @@ class SimCC:
         args.extend(new_args)
 
         return True
+
+    @classmethod
+    def _guess_arg_count(cls, args) -> int:
+        stack_args = [a for a in args if isinstance(a, SimStackArg)]
+        stack_arg_count = (max(a.stack_offset for a in stack_args) // cls.ARCH().bytes + 1) if stack_args else 0
+        return max(len(args), stack_arg_count)
 
     @staticmethod
     def find_cc(

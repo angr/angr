@@ -17,12 +17,6 @@ from .optimization_pass import OptimizationPass, OptimizationPassStage
 _l = logging.getLogger(name=__name__)
 
 
-def s2u(s, bits):
-    if s > 0:
-        return s
-    return (1 << bits) + s
-
-
 class SwitchDefaultCaseDuplicator(OptimizationPass):
     """
     For each switch-case construct (identified by jump tables), duplicate the default-case node when we detect

@@ -379,6 +379,29 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cc.prototype is not None
         assert len(cc.prototype.args) == 6
 
+    @cca_mode("fast,variables")
+    def test_cdecl_nonconsecutive_stack_args(self, mode=None):
+        binary_path = os.path.join(test_location, "i386", "calling_convention_0.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        func0 = cfg.kb.functions["sub_12000"]
+        assert isinstance(func0.calling_convention, SimCCCdecl)
+        assert func0.prototype is not None
+        assert len(func0.prototype.args) == 4
+
+        func1 = cfg.kb.functions["sub_119320"]
+        assert isinstance(func1.calling_convention, SimCCCdecl)
+        assert func1.prototype is not None
+        assert len(func1.prototype.args) == 2
+
+        func2 = cfg.kb.functions["sub_8D9F0"]
+        assert isinstance(func2.calling_convention, SimCCCdecl)
+        assert func2.prototype is not None
+        assert len(func2.prototype.args) == 4
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
