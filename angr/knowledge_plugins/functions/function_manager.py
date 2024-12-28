@@ -460,6 +460,12 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :rtype: Function or None
         """
         if name is not None and name.startswith("sub_"):
+            # first check if a function with the specified name exists
+            for func in self.get_by_name(name, check_previous_names=check_previous_names):
+                if plt is None or func.is_plt == plt:
+                    return func
+
+            # then enter the syntactic sugar mode
             try:
                 addr = int(name.split("_")[-1], 16)
                 name = None

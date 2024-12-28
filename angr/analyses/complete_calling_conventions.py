@@ -7,6 +7,7 @@ import threading
 import time
 import logging
 from collections import defaultdict
+from enum import Enum
 
 import networkx
 
@@ -16,7 +17,7 @@ from angr.utils.graph import GraphUtils
 from angr.simos import SimWindows
 from angr.utils.mp import mp_context, Initializer
 from angr.knowledge_plugins.cfg import CFGModel
-from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
+from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis, FactCollector
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
@@ -30,6 +31,18 @@ _l = logging.getLogger(name=__name__)
 _mp_context = mp_context()
 
 
+class CallingConventionAnalysisMode(Enum):
+    """
+    The mode of calling convention analysis.
+
+    FAST: Using FactCollector to collect facts, then use facts for calling convention analysis.
+    VARIABLES: Using variables in VariableManager for calling convention analysis.
+    """
+
+    FAST = "fast"
+    VARIABLES = "variables"
+
+
 class CompleteCallingConventionsAnalysis(Analysis):
     """
     Implements full-binary calling convention analysis. During the initial analysis of a binary, you may set
@@ -39,6 +52,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def __init__(
         self,
+        mode: CallingConventionAnalysisMode = CallingConventionAnalysisMode.FAST,
         recover_variables=False,
         low_priority=False,
         force=False,
@@ -71,6 +85,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         :param workers:             Number of multiprocessing workers.
         """
 
+        self.mode = mode
         self._recover_variables = recover_variables
         self._low_priority = low_priority
         self._force = force
@@ -87,6 +102,10 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._total_funcs = None
         self._func_graphs = func_graphs if func_graphs else {}
         self.prototype_libnames: set[str] = set()
+
+        # sanity check
+        if self.mode not in {CallingConventionAnalysisMode.FAST, CallingConventionAnalysisMode.VARIABLES}:
+            raise ValueError(f"Invalid calling convention analysis mode {self.mode}.")
 
         self._func_addrs = []  # a list that holds addresses of all functions to be analyzed
         self._results = []
@@ -322,7 +341,11 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 self.kb.variables.get_function_manager(func_addr),
             )
 
-        if self._recover_variables and self.function_needs_variable_recovery(func):
+        if (
+            self.mode == CallingConventionAnalysisMode.VARIABLES
+            and self._recover_variables
+            and self.function_needs_variable_recovery(func)
+        ):
             # special case: we don't have a PCode-engine variable recovery analysis for PCode architectures!
             if ":" in self.project.arch.name and self._func_graphs and func.addr in self._func_graphs:
                 # this is a pcode architecture
@@ -341,9 +364,15 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 )
                 return None, None, None, None
 
+        kwargs = {}
+        if self.mode == CallingConventionAnalysisMode.FAST:
+            facts = self.project.analyses[FactCollector].prep(kb=self.kb)(func)
+            kwargs["input_args"] = facts.input_args
+            kwargs["retval_size"] = facts.retval_size
+
         # determine the calling convention of each function
         cc_analysis = self.project.analyses[CallingConventionAnalysis].prep(kb=self.kb)(
-            func, cfg=self._cfg, analyze_callsites=self._analyze_callsites
+            func, cfg=self._cfg, analyze_callsites=self._analyze_callsites, **kwargs
         )
 
         if cc_analysis.cc is not None:

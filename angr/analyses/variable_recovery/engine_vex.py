@@ -215,6 +215,11 @@ class SimEngineVRVEX(
                             addr = RichR(loc.stack_offset + one_sp)
                             self._load(addr, loc.size)
 
+        # clobber caller-saved registers
+        for reg_name in func.calling_convention.CALLER_SAVED_REGS:
+            reg_offset, reg_size = self.arch.registers[reg_name]
+            self._assign_to_register(reg_offset, self._top(reg_size * self.arch.byte_width), reg_size)
+
     def _process_block_end(self, stmt_result, whitelist):
         # handles block-end calls
         current_addr = self.state.block_addr

@@ -30,7 +30,7 @@ from .variable_recovery import VariableRecovery, VariableRecoveryFast
 from .identifier import Identifier
 from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionsAnalysis
-from .calling_convention import CallingConventionAnalysis
+from .calling_convention import CallingConventionAnalysis, FactCollector
 from .code_tagging import CodeTagging
 from .stack_pointer_tracker import StackPointerTracker
 from .dominance_frontier import DominanceFrontier
@@ -84,6 +84,7 @@ __all__ = (
     "Decompiler",
     "Disassembly",
     "DominanceFrontier",
+    "FactCollector",
     "FlirtAnalysis",
     "ForwardAnalysis",
     "Identifier",
