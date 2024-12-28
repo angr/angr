@@ -36,7 +36,7 @@ class FactCollectorState:
         self.tmps = {}
         self.simple_stack = {}
 
-        self.callee_stored_regs = set()
+        self.callee_stored_regs: dict[int, int] = {}  # reg offset -> stack offset
         self.reg_reads = {}
         self.reg_writes = {}
         self.stack_reads = {}
@@ -116,13 +116,9 @@ class SimEngineFactCollectorVEX(
         addr = self._expr(stmt.addr)
         if isinstance(addr, SpOffset):
             data = self._expr(stmt.data)
-            if (
-                isinstance(data, RegisterOffset)
-                and not isinstance(data, SpOffset)
-                and u2s(addr.offset, self.arch.bits) <= 0
-            ):
-                # push reg; we record the stored register
-                self.state.callee_stored_regs.add(data.reg)
+            if isinstance(data, RegisterOffset) and not isinstance(data, SpOffset):
+                # push reg; we record the stored register as well as the stack slot offset
+                self.state.callee_stored_regs[data.reg] = u2s(addr.offset, self.arch.bits)
             if isinstance(data, SpOffset):
                 self.state.simple_stack[addr.offset] = data
 
@@ -214,8 +210,8 @@ class FactCollector(Analysis):
 
         end_states = self._analyze_startpoint()
         self._analyze_endpoints_for_retval_size()
-        caller_restored_regs = self._analyze_endpoints_for_restored_regs()
-        self._determine_input_args(end_states, caller_restored_regs)
+        callee_restored_regs = self._analyze_endpoints_for_restored_regs()
+        self._determine_input_args(end_states, callee_restored_regs)
 
     def _analyze_startpoint(self):
         func_graph = self.function.transition_graph
@@ -449,16 +445,18 @@ class FactCollector(Analysis):
 
         return callee_restored_regs
 
-    def _determine_input_args(self, end_states: list[FactCollectorState], caller_restored_regs: set[int]) -> None:
+    def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []
         reg_offset_created = set()
         callee_saved_regs = set()
+        callee_saved_reg_stack_offsets = set()
 
         # determine callee-saved registers
         for state in end_states:
-            for offset in state.callee_stored_regs:
-                if offset in caller_restored_regs:
-                    callee_saved_regs.add(offset)
+            for reg_offset, stack_offset in state.callee_stored_regs.items():
+                if reg_offset in callee_restored_regs:
+                    callee_saved_regs.add(reg_offset)
+                    callee_saved_reg_stack_offsets.add(stack_offset)
 
         for state in end_states:
             for offset, size in state.reg_reads.items():
@@ -480,7 +478,7 @@ class FactCollector(Analysis):
             for offset, size in state.stack_reads.items():
                 offset = u2s(offset, self.project.arch.bits)
                 if offset - ret_addr_offset > 0:
-                    if offset in stack_offset_created:
+                    if offset in stack_offset_created or offset in callee_saved_reg_stack_offsets:
                         continue
                     stack_offset_created.add(offset)
                     arg = SimStackArg(offset - ret_addr_offset, size)
