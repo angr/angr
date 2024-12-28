@@ -22,14 +22,14 @@ class FactCollectorState:
     """
 
     __slots__ = (
+        "bp_value",
+        "callee_stored_regs",
         "reg_reads",
         "reg_writes",
-        "sp_value",
-        "bp_value",
-        "stack_reads",
-        "callee_stored_regs",
-        "tmps",
         "simple_stack",
+        "sp_value",
+        "stack_reads",
+        "tmps",
     )
 
     def __init__(self):
@@ -140,7 +140,7 @@ class SimEngineFactCollectorVEX(
     def _handle_expr_Get(self, expr) -> SpOffset | None:
         if expr.offset == self.arch.sp_offset:
             return SpOffset(self.arch.bits, self.state.sp_value, is_base=False)
-        elif expr.offset == self.arch.bp_offset and not self.bp_as_gpr:
+        if expr.offset == self.arch.bp_offset and not self.bp_as_gpr:
             return SpOffset(self.arch.bits, self.state.bp_value, is_base=False)
         bits = expr.result_size(self.tyenv)
         self.state.register_read(expr.offset, bits // self.arch.byte_width)
@@ -427,9 +427,7 @@ class FactCollector(Analysis):
                             if (
                                 isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
                                 and tmps.get(stmt.data.args[0].tmp) == "sp"
-                            ):
-                                tmps[stmt.tmp] = "sp"
-                            elif (
+                            ) or (
                                 isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
                                 and tmps.get(stmt.data.args[1].tmp) == "sp"
                             ):
