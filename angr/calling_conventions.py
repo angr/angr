@@ -4,6 +4,7 @@ import logging
 from typing import cast
 from collections.abc import Iterable
 from collections import defaultdict
+import contextlib
 
 import claripy
 import archinfo
@@ -33,7 +34,6 @@ from .sim_type import (
 )
 from .state_plugins.sim_action_object import SimActionObject
 from .engines.soot.engine import SootMixin
-import contextlib
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -656,7 +656,7 @@ class SimCC:
             self.next_arg(session, SimTypePointer(SimTypeBottom()))
         return session
 
-    def return_in_implicit_outparam(self, ty):
+    def return_in_implicit_outparam(self, ty):  # pylint:disable=unused-argument
         return False
 
     def stack_space(self, args):
@@ -1118,6 +1118,7 @@ class SimCC:
 
     @classmethod
     def _guess_arg_count(cls, args) -> int:
+        # pylint:disable=not-callable
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
         stack_arg_count = (max(a.stack_offset for a in stack_args) // cls.ARCH().bytes + 1) if stack_args else 0
         return max(len(args), stack_arg_count)
@@ -1694,7 +1695,7 @@ class SimCCARM(SimCC):
                     raise NotImplementedError("Bug. Report to @rhelmot")
                 elif cls == "MEMORY":
                     mapped_classes.append(next(session.both_iter))
-                elif cls == "INTEGER" or cls == "SINGLEP":
+                elif cls in {"INTEGER", "SINGLEP"}:
                     try:
                         mapped_classes.append(next(session.int_iter))
                     except StopIteration:

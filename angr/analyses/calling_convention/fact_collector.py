@@ -406,7 +406,7 @@ class FactCollector(Analysis):
                 block = self.project.factory.block(node.addr, size=node.size)
                 # scan the block statements backwards to find all statements that restore registers from the stack
                 tmps = {}
-                for idx, stmt in enumerate(block.vex.statements):
+                for stmt in block.vex.statements:
                     if isinstance(stmt, pyvex.IRStmt.WrTmp):
                         if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.offset in {
                             self.project.arch.bp_offset,
@@ -421,7 +421,7 @@ class FactCollector(Analysis):
                             tmps[stmt.tmp] = "stack_value"
                         elif isinstance(stmt.data, pyvex.IRExpr.Const):
                             tmps[stmt.tmp] = "const"
-                        elif isinstance(stmt.data, pyvex.IRExpr.Binop) and (
+                        elif isinstance(stmt.data, pyvex.IRExpr.Binop) and (  # noqa:SIM102
                             stmt.data.op.startswith("Iop_Add") or stmt.data.op.startswith("Iop_Sub")
                         ):
                             if (
