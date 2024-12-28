@@ -27,14 +27,16 @@ class FactCollectorState:
         "sp_value",
         "bp_value",
         "stack_reads",
-        "callee_saved_regs",
+        "callee_stored_regs",
         "tmps",
+        "simple_stack",
     )
 
     def __init__(self):
         self.tmps = {}
+        self.simple_stack = {}
 
-        self.callee_saved_regs = set()
+        self.callee_stored_regs = set()
         self.reg_reads = {}
         self.reg_writes = {}
         self.stack_reads = {}
@@ -64,9 +66,10 @@ class FactCollectorState:
         new_state.reg_reads = self.reg_reads.copy()
         new_state.stack_reads = self.stack_reads.copy()
         new_state.reg_writes = self.reg_writes.copy()
-        new_state.callee_saved_regs = self.callee_saved_regs.copy()
+        new_state.callee_stored_regs = self.callee_stored_regs.copy()
         new_state.sp_value = self.sp_value
         new_state.bp_value = self.bp_value
+        new_state.simple_stack = self.simple_stack.copy()
         if with_tmps:
             new_state.tmps = self.tmps.copy()
         return new_state
@@ -102,22 +105,26 @@ class SimEngineFactCollectorVEX(
 
     def _handle_stmt_Put(self, stmt):
         v = self._expr(stmt.data)
-        if stmt.offset == self.arch.sp_offset:
-            if isinstance(v, SpOffset):
-                if v.is_base:
-                    self.state.bp_value = v.offset
-                else:
-                    self.state.sp_value = v.offset
+        if stmt.offset == self.arch.sp_offset and isinstance(v, SpOffset):
+            self.state.sp_value = v.offset
+        elif stmt.offset == self.arch.bp_offset and isinstance(v, SpOffset):
+            self.state.bp_value = v.offset
         else:
             self.state.register_written(stmt.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width)
 
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
-        if isinstance(addr, SpOffset) and u2s(addr.offset, self.arch.bits) <= 0:
+        if isinstance(addr, SpOffset):
             data = self._expr(stmt.data)
-            if isinstance(data, RegisterOffset):
-                # push reg
-                self.state.callee_saved_regs.add(data.reg)
+            if (
+                isinstance(data, RegisterOffset)
+                and not isinstance(data, SpOffset)
+                and u2s(addr.offset, self.arch.bits) <= 0
+            ):
+                # push reg; we record the stored register
+                self.state.callee_stored_regs.add(data.reg)
+            if isinstance(data, SpOffset):
+                self.state.simple_stack[addr.offset] = data
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
         v = self._expr(stmt.data)
@@ -134,7 +141,7 @@ class SimEngineFactCollectorVEX(
         if expr.offset == self.arch.sp_offset:
             return SpOffset(self.arch.bits, self.state.sp_value, is_base=False)
         elif expr.offset == self.arch.bp_offset and not self.bp_as_gpr:
-            return SpOffset(self.arch.bits, self.state.bp_value, is_base=True)
+            return SpOffset(self.arch.bits, self.state.bp_value, is_base=False)
         bits = expr.result_size(self.tyenv)
         self.state.register_read(expr.offset, bits // self.arch.byte_width)
         return RegisterOffset(bits, expr.offset, 0)
@@ -149,6 +156,7 @@ class SimEngineFactCollectorVEX(
         addr = self._expr(expr.addr)
         if isinstance(addr, SpOffset):
             self.state.stack_read(addr.offset, expr.result_size(self.tyenv) // self.arch.byte_width)
+            return self.state.simple_stack.get(addr.offset)
         return None
 
     def _handle_expr_RdTmp(self, expr):
@@ -204,8 +212,10 @@ class FactCollector(Analysis):
         # breadth-first search using function graph, collect registers and stack variables that are written to as well
         # as read from, until max_depth is reached
 
-        self._analyze_startpoint()
-        self._analyze_endpoints()
+        end_states = self._analyze_startpoint()
+        self._analyze_endpoints_for_retval_size()
+        caller_restored_regs = self._analyze_endpoints_for_restored_regs()
+        self._determine_input_args(end_states, caller_restored_regs)
 
     def _analyze_startpoint(self):
         func_graph = self.function.transition_graph
@@ -213,10 +223,9 @@ class FactCollector(Analysis):
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
         engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr)
         init_state = FactCollectorState()
-
         if self.project.arch.call_pushes_ret:
-            init_state.sp_value += 4
-            init_state.bp_value += 4
+            init_state.sp_value = self.project.arch.bytes
+        init_state.bp_value = init_state.sp_value
 
         traversed = set()
         queue: list[tuple[int, FactCollectorState, BlockNode | HookNode | Function, BlockNode | HookNode | None]] = [
@@ -276,33 +285,7 @@ class FactCollector(Analysis):
             if not successor_added:
                 end_states.append(state)
 
-        self.input_args = []
-        reg_offset_created = set()
-        for state in end_states:
-            for offset, size in state.reg_reads.items():
-                if (
-                    offset in reg_offset_created
-                    or offset == self.project.arch.bp_offset
-                    or not is_sane_register_variable(self.project.arch, offset, size)
-                    or offset in state.callee_saved_regs
-                ):
-                    continue
-                reg_offset_created.add(offset)
-                reg_name = self.project.arch.translate_register_name(offset, size=size)
-                arg = SimRegArg(reg_name, self.project.arch.bytes)
-                self.input_args.append(arg)
-
-        stack_offset_created = set()
-        ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
-        for state in end_states:
-            for offset, size in state.stack_reads.items():
-                offset = u2s(offset, self.project.arch.bits)
-                if offset - ret_addr_offset > 0:
-                    if offset in stack_offset_created:
-                        continue
-                    stack_offset_created.add(offset)
-                    arg = SimStackArg(offset - ret_addr_offset, size)
-                    self.input_args.append(arg)
+        return end_states
 
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
@@ -323,7 +306,12 @@ class FactCollector(Analysis):
                     if sp_value is not None:
                         state.stack_read(sp_value + loc.stack_offset, loc.size)
 
-    def _analyze_endpoints(self):
+        # clobber caller-saved regs
+        for reg_name in func.calling_convention.CALLER_SAVED_REGS:
+            offset = self.project.arch.registers[reg_name][0]
+            state.register_written(offset, self.project.arch.registers[reg_name][1])
+
+    def _analyze_endpoints_for_retval_size(self):
         """
         Analyze all endpoints to determine the return value size.
         """
@@ -333,7 +321,7 @@ class FactCollector(Analysis):
         )
         cc = cc_cls(self.project.arch)
         if isinstance(cc.RETURN_VAL, SimRegArg):
-            reg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
+            retreg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
         else:
             return
 
@@ -374,9 +362,10 @@ class FactCollector(Analysis):
                 # scan the block statements backwards to find writes to the return value register
                 retval_size = None
                 for stmt in reversed(block.vex.statements):
-                    if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == reg_offset:
-                        retval_size = max(stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width, 1)
-                        break
+                    if isinstance(stmt, pyvex.IRStmt.Put):
+                        size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
+                        if stmt.offset == retreg_offset:
+                            retval_size = max(size, 1)
 
                 if retval_size is not None:
                     retval_sizes.append(retval_size)
@@ -391,6 +380,113 @@ class FactCollector(Analysis):
                             queue.append((depth + 1, pred))
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
+
+    def _analyze_endpoints_for_restored_regs(self):
+        """
+        Analyze all endpoints to determine the restored registers.
+        """
+        func_graph = self.function.transition_graph
+        callee_restored_regs = set()
+
+        for endpoint in self.function.endpoints:
+            traversed = set()
+            queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
+            while queue:
+                depth, node = queue.pop(0)
+                traversed.add(node)
+
+                if depth > 3:
+                    break
+
+                if isinstance(node, BlockNode) and node.size == 0:
+                    continue
+                if isinstance(node, (HookNode, Function)):
+                    continue
+
+                block = self.project.factory.block(node.addr, size=node.size)
+                # scan the block statements backwards to find all statements that restore registers from the stack
+                tmps = {}
+                for idx, stmt in enumerate(block.vex.statements):
+                    if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                        if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.offset in {
+                            self.project.arch.bp_offset,
+                            self.project.arch.sp_offset,
+                        }:
+                            tmps[stmt.tmp] = "sp"
+                        elif (
+                            isinstance(stmt.data, pyvex.IRExpr.Load)
+                            and isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp)
+                            and tmps.get(stmt.data.addr.tmp) == "sp"
+                        ):
+                            tmps[stmt.tmp] = "stack_value"
+                        elif isinstance(stmt.data, pyvex.IRExpr.Const):
+                            tmps[stmt.tmp] = "const"
+                        elif isinstance(stmt.data, pyvex.IRExpr.Binop) and (
+                            stmt.data.op.startswith("Iop_Add") or stmt.data.op.startswith("Iop_Sub")
+                        ):
+                            if (
+                                isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                                and tmps.get(stmt.data.args[0].tmp) == "sp"
+                            ):
+                                tmps[stmt.tmp] = "sp"
+                            elif (
+                                isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
+                                and tmps.get(stmt.data.args[1].tmp) == "sp"
+                            ):
+                                tmps[stmt.tmp] = "sp"
+                    if isinstance(stmt, pyvex.IRStmt.Put):
+                        size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
+                        # is the data loaded from the stack?
+                        if (
+                            size == self.project.arch.bytes
+                            and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                            and tmps.get(stmt.data.tmp) == "stack_value"
+                        ):
+                            callee_restored_regs.add(stmt.offset)
+
+                for pred, _, data in func_graph.in_edges(node, data=True):
+                    edge_type = data.get("type")
+                    if pred not in traversed and depth + 1 <= self._max_depth and edge_type == "transition":
+                        queue.append((depth + 1, pred))
+
+        return callee_restored_regs
+
+    def _determine_input_args(self, end_states: list[FactCollectorState], caller_restored_regs: set[int]) -> None:
+        self.input_args = []
+        reg_offset_created = set()
+        callee_saved_regs = set()
+
+        # determine callee-saved registers
+        for state in end_states:
+            for offset in state.callee_stored_regs:
+                if offset in caller_restored_regs:
+                    callee_saved_regs.add(offset)
+
+        for state in end_states:
+            for offset, size in state.reg_reads.items():
+                if (
+                    offset in reg_offset_created
+                    or offset == self.project.arch.bp_offset
+                    or not is_sane_register_variable(self.project.arch, offset, size)
+                    or offset in callee_saved_regs
+                ):
+                    continue
+                reg_offset_created.add(offset)
+                reg_name = self.project.arch.translate_register_name(offset, size=size)
+                arg = SimRegArg(reg_name, self.project.arch.bytes)
+                self.input_args.append(arg)
+
+        stack_offset_created = set()
+        ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
+        for state in end_states:
+            for offset, size in state.stack_reads.items():
+                offset = u2s(offset, self.project.arch.bits)
+                if offset - ret_addr_offset > 0:
+                    if offset in stack_offset_created:
+                        continue
+                    stack_offset_created.add(offset)
+                    arg = SimStackArg(offset - ret_addr_offset, size)
+                    self.input_args.append(arg)
 
 
 AnalysesHub.register_default("FunctionFactCollector", FactCollector)

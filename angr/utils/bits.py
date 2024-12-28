@@ -34,12 +34,13 @@ def zeroextend_on_demand(op0: claripy.ast.BV, op1: claripy.ast.BV) -> claripy.as
 
 
 def s2u(s, bits):
+    mask = (1 << bits) - 1
     if s > 0:
-        return s
-    return (1 << bits) + s
+        return s & mask
+    return ((1 << bits) + s) & mask
 
 
 def u2s(u, bits):
     if u < (1 << (bits - 1)):
         return u
-    return u - (1 << bits)
+    return (u & ((1 << bits) - 1)) - (1 << bits)

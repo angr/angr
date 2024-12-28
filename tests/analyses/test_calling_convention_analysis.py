@@ -160,15 +160,14 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # check args
         expected_args = {
             "main": ["r_r0", "r_r1"],
-            "accepted": ["r_r0", "r_r1", "r_r2", "r_r3"],
+            "accepted": [],
             "rejected": [],
-            "authenticate": ["r_r0", "r_r1", "r_r2"],  # TECHNICALLY WRONG but what are you gonna do about it
+            "authenticate": ["r_r0", "r_r1"],
+            # or "authenticate": ["r_r0", "r_r1", "r_r2"]
+            # TECHNICALLY WRONG but what are you gonna do about it
             # details: open(3) can take either 2 or 3 args. we use the 2 arg version but we have the 3 arg version
             # hardcoded in angr. the third arg is still "live" from the function start.
         }
-        if mode == CallingConventionAnalysisMode.FAST:
-            expected_args["accepted"] = []
-            expected_args["authenticate"] = ["r_r0", "r_r1"]
 
         for func_name, args in expected_args.items():
             self.check_args(func_name, self._a(funcs, func_name), args)
@@ -196,7 +195,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         }
 
         for func in funcs.values():
-            if func.is_simprocedure or func.alignment:
+            if func.is_simprocedure or func.is_alignment:
                 continue
             if func.calling_convention is None:
                 continue
@@ -364,7 +363,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cc = proj.analyses.CallingConvention(cfg.kb.functions[0x140001A90])
         assert cc.cc is not None
         assert cc.prototype is not None
-        print(cc.prototype.args)
         assert len(cc.prototype.args) == 3
 
     def test_windows_call_return_register_overwrite(self):
