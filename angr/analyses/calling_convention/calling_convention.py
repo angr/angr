@@ -714,12 +714,12 @@ class CallingConventionAnalysis(Analysis):
                 # a register variable, convert it to a register argument
                 if not is_sane_register_variable(self.project.arch, variable.reg, variable.size, def_cc=def_cc):
                     continue
-                reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
                 if self.project.arch.name in {"AMD64", "X86"} and variable.size < self.project.arch.bytes:
                     # use complete registers on AMD64 and X86
                     reg_name = self.project.arch.translate_register_name(variable.reg, size=self.project.arch.bytes)
                     arg = SimRegArg(reg_name, self.project.arch.bytes)
                 else:
+                    reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
                     arg = SimRegArg(reg_name, variable.size)
                 args.add(arg)
 

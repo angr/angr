@@ -29,6 +29,7 @@ class FactCollectorState:
         "simple_stack",
         "sp_value",
         "stack_reads",
+        "stack_writes",
         "tmps",
     )
 
@@ -38,8 +39,9 @@ class FactCollectorState:
 
         self.callee_stored_regs: dict[int, int] = {}  # reg offset -> stack offset
         self.reg_reads = {}
-        self.reg_writes = {}
+        self.reg_writes: set[int] = set()
         self.stack_reads = {}
+        self.stack_writes: set[int] = set()
         self.sp_value = 0
         self.bp_value = 0
 
@@ -53,18 +55,25 @@ class FactCollectorState:
 
     def register_written(self, offset: int, size_in_bytes: int):
         for o in range(size_in_bytes):
-            self.reg_writes[offset + o] = 1
+            self.reg_writes.add(offset + o)
 
     def stack_read(self, offset: int, size_in_bytes: int):
+        if offset in self.stack_writes:
+            return
         if offset not in self.stack_reads:
             self.stack_reads[offset] = size_in_bytes
         else:
             self.stack_reads[offset] = max(self.stack_reads[offset], size_in_bytes)
 
+    def stack_written(self, offset: int, size_int_bytes: int):
+        for o in range(size_int_bytes):
+            self.stack_writes.add(offset + o)
+
     def copy(self, with_tmps: bool = False) -> FactCollectorState:
         new_state = FactCollectorState()
         new_state.reg_reads = self.reg_reads.copy()
         new_state.stack_reads = self.stack_reads.copy()
+        new_state.stack_writes = self.stack_writes.copy()
         new_state.reg_writes = self.reg_writes.copy()
         new_state.callee_stored_regs = self.callee_stored_regs.copy()
         new_state.sp_value = self.sp_value
@@ -115,6 +124,7 @@ class SimEngineFactCollectorVEX(
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
         if isinstance(addr, SpOffset):
+            self.state.stack_written(addr.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width)
             data = self._expr(stmt.data)
             if isinstance(data, RegisterOffset) and not isinstance(data, SpOffset):
                 # push reg; we record the stored register as well as the stack slot offset
@@ -468,8 +478,13 @@ class FactCollector(Analysis):
                 ):
                     continue
                 reg_offset_created.add(offset)
-                reg_name = self.project.arch.translate_register_name(offset, size=size)
-                arg = SimRegArg(reg_name, self.project.arch.bytes)
+                if self.project.arch.name in {"AMD64", "X86"} and size < self.project.arch.bytes:
+                    # use complete registers on AMD64 and X86
+                    reg_name = self.project.arch.translate_register_name(offset, size=self.project.arch.bytes)
+                    arg = SimRegArg(reg_name, self.project.arch.bytes)
+                else:
+                    reg_name = self.project.arch.translate_register_name(offset, size=size)
+                    arg = SimRegArg(reg_name, size)
                 self.input_args.append(arg)
 
         stack_offset_created = set()
