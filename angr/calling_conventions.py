@@ -1117,11 +1117,11 @@ class SimCC:
         return True
 
     @classmethod
-    def _guess_arg_count(cls, args) -> int:
+    def _guess_arg_count(cls, args, limit: int = 64) -> int:
         # pylint:disable=not-callable
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
         stack_arg_count = (max(a.stack_offset for a in stack_args) // cls.ARCH().bytes + 1) if stack_args else 0
-        return max(len(args), stack_arg_count)
+        return min(limit, max(len(args), stack_arg_count))
 
     @staticmethod
     def find_cc(
