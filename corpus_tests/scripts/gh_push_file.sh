@@ -2,6 +2,7 @@
 
 set -euo pipefail
 shopt -s lastpipe
+[[ -n "${DEBUG:-}" ]] && set -x
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -37,7 +38,7 @@ ANGR
   exit 1
 }
 
-GH_TOKEN=""
+GH_TOKEN="${GH_TOKEN:-}"
 REF_HEAD=""
 declare -a REST
 REST=()
@@ -104,7 +105,7 @@ REMOTE_PATH="${REST[1]}"
   -p "${REMOTE_PATH}" \
   --with-sha |
   awk -F, '{print $NF}' |
-  read -r REMOTE_SHA
+  read -r REMOTE_SHA || :
 
 # NB: This SHA_OPTION must be provided if updating an existing file.
 declare -a SHA_OPTION
@@ -129,7 +130,7 @@ gh api "/repos/${REPO}/contents/${REMOTE_PATH}" \
   jq -c '.' |
   read -r HTTP_RESPONSE
 
-HTTP_STATUS="$(jq -r .status <<<"$HTTP_RESPONSE")"
+HTTP_STATUS="$(jq -r '.status // 200' <<<"$HTTP_RESPONSE")"
 
 EX_OK=0
 EX_GENERIC=1
@@ -149,7 +150,9 @@ case $HTTP_STATUS in
 # gh: API rate limit exceeded for user ID <id>. If you reach out to GitHub
 #     Support for help, please include the request ID <id> and timestamp
 #     2024-12-03 UTC. (HTTP 403)
-403 | 429) exit $EX_NOTFOUND ;;
+403 | 429)
+  gh api rate_limit | jq >&2
+  exit $EX_NOTFOUND ;;
 
 # Branch does not exist. Short-circuit.
 #

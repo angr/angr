@@ -342,6 +342,7 @@ jobs:
       - name: Push snapshots to snapshot repo
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          SNAPSHOT_BASE_BRANCH: main
           SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         if: ${{ ! inputs.nightly }}
         run: |
@@ -351,6 +352,7 @@ jobs:
           ./scripts/gh_create_branch.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${snapshot_branch}" \
+            -b "${SNAPSHOT_BASE_BRANCH}" \
             -t "${SNAPSHOT_TOKEN}"
 
           # Allow scripts to fail to check exit codes.

@@ -2,6 +2,7 @@
 
 set -euo pipefail
 shopt -s lastpipe
+[[ -n "${DEBUG:-}" ]] && set -x
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -40,7 +41,10 @@ ANGR
   exit 1
 }
 
+GH_TOKEN="${GH_TOKEN:-}"
 REF_BASE=""
+REF_HEAD=""
+REPO=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -93,15 +97,16 @@ if [[ -z "${REF_BASE}" ]]; then
     -X GET \
     -H "Accept: application/vnd.github.v3+json" |
     jq -r '.default_branch' |
-    read -r REF_BASE
+    read -r REF_BASE || :
 fi
 
 # Get the sha value for the default branch.
+SHA=""
 gh api "/repos/${REPO}/git/refs/heads/${REF_BASE}" \
   -X GET \
   -H "Accept: application/vnd.github.v3+json" |
   jq -r .object.sha |
-  read -r SHA
+  read -r SHA || :
 
 if [[ -z "${SHA}" ]]; then
   echo "ERROR: Could not lookup ref: '${REF_BASE}'" >&2
@@ -110,22 +115,25 @@ fi
 printf "Found REF_BASE: %s %s\n" "${REF_BASE}" "${SHA}" >&2
 
 # Check to see if the target branch already exists.
+HTTP_RESPONSE=""
 gh api "/repos/${REPO}/git/refs/heads/${REF_HEAD}" \
   -X GET \
   -H "Accept: application/vnd.github.v3+json" 2>/dev/null |
-  jq -cr .status |
-  read -r STATUS
+  jq -c '.' |
+  read -r HTTP_RESPONSE || :
 
-if [[ "${STATUS}" = "404" ]]; then
+HTTP_STATUS="$(jq -r '.status // 200' <<<"$HTTP_RESPONSE")"
+
+if [[ "${HTTP_STATUS}" = "404" ]]; then
   # Create the new ref.
   gh api "/repos/${REPO}/git/refs" \
     -X POST \
     -H "Accept: application/vnd.github.v3+json" \
     -f ref="refs/heads/${REF_HEAD}" \
     -f sha="${SHA}"
-elif [[ "${STATUS}" = "null" ]]; then
+elif [[ "${HTTP_STATUS}" = "200" ]]; then
   echo "Ref already exists: '${REF_HEAD}'" >&2
 else
-  echo "ERROR: Unexpected error: ${STATUS}" >&2
+  echo "ERROR: Unexpected error: ${HTTP_STATUS}" >&2
   exit 1
 fi

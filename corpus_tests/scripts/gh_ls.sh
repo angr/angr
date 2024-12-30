@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+[[ -n "${DEBUG:-}" ]] && set -x
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -36,6 +37,10 @@ Options:
       The optional SHA of the tree to fetch files from.
       Repeat to enumerate multiple trees.
 
+  -v, --verbose
+
+      Emit verbose logging output.
+
   --with-sha
 
       Return the list of remote files with their git SHA values.
@@ -61,12 +66,13 @@ ANGR
 BRANCH=""
 declare -a FILEPATH
 FILEPATH=()
-GH_TOKEN=""
+GH_TOKEN="${GH_TOKEN:-}"
 REPO=""
 declare -a STARTPATTERN
 STARTPATTERN=()
 declare -a SHA
 SHA=()
+VERBOSE=""
 WITH_SHA=""
 
 parse_args() {
@@ -95,6 +101,10 @@ parse_args() {
       GH_TOKEN="$2"
       shift 2
       ;;
+    -v | --verbose)
+      VERBOSE="1"
+      shift
+      ;;
     --with-sha)
       WITH_SHA="1"
       shift
@@ -118,6 +128,9 @@ fi
 fetch_tree() {
   local path="${1}"
   local response
+
+  [[ -n "${VERBOSE}" ]] && echo "fetching tree ${path}" >&2
+
   response="$(curl \
     --show-error \
     --silent \
@@ -146,6 +159,9 @@ fetch_tree_by_sha() {
   local sha="${1}"
   local prefix="${2}"
   local response
+
+  [[ -n "${VERBOSE}" ]] && echo "fetching tree by sha ${prefix} ${sha}" >&2
+
   response="$(curl \
     --show-error \
     --silent \
