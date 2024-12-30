@@ -58,7 +58,7 @@ class TestRunEcho(unittest.TestCase):
         assert bingo_count == 1
 
     def test_run_getenv_with_symbolic_env(self):
-        flag = claripy.Concat(*[claripy.BVS("flag_%d" % i, 8) for i in range(30)])
+        flag = claripy.Concat(*[claripy.BVS(f"flag_{i}", 8) for i in range(30)])
         env = {"PATH": "/home/angr/", "TEST_ENV1": flag, "JAVA_HOME": "jdk-install-dir"}
         p = angr.Project(os.path.join(test_location, "x86_64", "test_getenv"))
         s = p.factory.entry_state(env=env)

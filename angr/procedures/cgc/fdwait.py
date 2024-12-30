@@ -23,7 +23,7 @@ class fdwait(angr.SimProcedure):
                     sym_bit = claripy.BVV(1, 1)
                 else:
                     sym_bit = self.state.solver.Unconstrained(
-                        "fdwait_read_%d_%d" % (run_count, fd), 1, key=("syscall", "fdwait", fd, "read_ready")
+                        f"fdwait_read_{run_count}_{fd}", 1, key=("syscall", "fdwait", fd, "read_ready")
                     )
                 fd = claripy.BVV(fd, self.state.arch.bits)
                 sym_newbit = claripy.If(claripy.ULT(fd, nfds), sym_bit, 0)
@@ -40,7 +40,7 @@ class fdwait(angr.SimProcedure):
                     sym_bit = claripy.BVV(1, 1)
                 else:
                     sym_bit = self.state.solver.Unconstrained(
-                        "fdwait_write_%d_%d" % (run_count, fd), 1, key=("syscall", "fdwait", fd, "write_ready")
+                        f"fdwait_write_{run_count}_{fd}", 1, key=("syscall", "fdwait", fd, "write_ready")
                     )
 
                 fd = claripy.BVV(fd, self.state.arch.bits)

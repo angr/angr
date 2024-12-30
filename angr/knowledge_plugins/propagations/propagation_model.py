@@ -15,17 +15,16 @@ class PropagationModel(Serializable):
     """
 
     __slots__ = (
+        "_function",
+        "_initial_state",
+        "block_initial_reg_values",
+        "equivalence",
+        "graph_visitor",
+        "input_states",
         "key",
         "node_iterations",
-        "states",
-        "input_states",
-        "block_initial_reg_values",
         "replacements",
-        "equivalence",
-        # internals of the function graph visitor
-        "graph_visitor",
-        "_initial_state",
-        "_function",
+        "states",
     )
 
     def __init__(

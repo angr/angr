@@ -10,13 +10,13 @@ class XRef(Serializable):
     """
 
     __slots__ = (
-        "ins_addr",
         "block_addr",
-        "stmt_idx",
+        "dst",
+        "ins_addr",
         "insn_op_idx",
         "insn_op_type",
         "memory_data",
-        "dst",
+        "stmt_idx",
         "type",
     )
 
@@ -58,11 +58,8 @@ class XRef(Serializable):
             dst_str = hex(self.memory_data.addr)
         else:
             dst_str = "unknown"
-        return "<XRef {}: {}->{}>".format(
-            self.type_string,
-            f"{self.ins_addr:#x}" if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
-            dst_str,
-        )
+        ins_addr_str = f"{self.ins_addr:#x}" if self.ins_addr is not None else f"{self.block_addr:#x}[{self.stmt_idx}]"
+        return f"<XRef {self.type_string}: {ins_addr_str}->{dst_str}>"
 
     def __eq__(self, other):
         return (

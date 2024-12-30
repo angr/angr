@@ -39,11 +39,11 @@ class ConditionalRegion:
     """
 
     __slots__ = (
-        "variable",
-        "op",
-        "value",
         "node",
+        "op",
         "parent",
+        "value",
+        "variable",
     )
 
     def __init__(self, variable, op: CmpOp, value: int, node: ConditionNode | ailment.Block, parent=None):
@@ -63,9 +63,9 @@ class SwitchCaseRegion:
     """
 
     __slots__ = (
-        "variable",
         "node",
         "parent",
+        "variable",
     )
 
     def __init__(self, variable, node: SwitchCaseNode, parent=None):
@@ -195,18 +195,14 @@ def is_simple_jump_node(node, case_addrs, targets: set[int] | None = None) -> bo
                     targets.add(stmt.target.value)
             elif isinstance(stmt, ailment.Stmt.ConditionalJump):
                 ok = False
-                if (
-                    stmt.true_target is None
-                    or isinstance(stmt.true_target, ailment.Expr.Const)
-                    and stmt.true_target.value in case_addrs
+                if stmt.true_target is None or (
+                    isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value in case_addrs
                 ):
                     ok = True
                     if stmt.true_target is not None and targets is not None:
                         targets.add(stmt.true_target.value)
-                if (
-                    stmt.false_target is None
-                    or isinstance(stmt.false_target, ailment.Expr.Const)
-                    and stmt.false_target.value in case_addrs
+                if stmt.false_target is None or (
+                    isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value in case_addrs
                 ):
                     ok = True
                     if stmt.false_target is not None and targets is not None:

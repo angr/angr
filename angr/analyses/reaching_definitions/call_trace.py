@@ -7,9 +7,9 @@ class CallSite:
     """
 
     __slots__ = (
-        "caller_func_addr",
         "block_addr",
         "callee_func_addr",
+        "caller_func_addr",
     )
 
     def __init__(self, caller_func_addr: int, block_addr: int | None, callee_func_addr: int):
@@ -48,7 +48,7 @@ class CallTrace:
         self.callsites: list[CallSite] = []
 
     def __repr__(self):
-        return "<Trace with %d callsites>" % len(self.callsites)
+        return f"<Trace with {len(self.callsites)} callsites>"
 
     def current_function_address(self) -> int:
         if not self.callsites:

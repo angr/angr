@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .successors import SimSuccessors
-from .engine import SimEngine, SuccessorsMixin, TLSMixin
+from .engine import SimEngine, SuccessorsMixin
 
 from .vex import HeavyVEXMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from .procedure import ProcedureMixin, ProcedureEngine
@@ -26,29 +26,27 @@ class UberEngine(
     HeavyResilienceMixin,
     SootMixin,
     HeavyVEXMixin,
-    TLSMixin,
 ):
     pass
 
 
 __all__ = [
-    "SimSuccessors",
-    "SimEngine",
-    "SuccessorsMixin",
-    "TLSMixin",
-    "HeavyVEXMixin",
-    "TrackActionsMixin",
-    "SimInspectMixin",
     "HeavyResilienceMixin",
-    "SuperFastpathMixin",
-    "ProcedureMixin",
+    "HeavyVEXMixin",
+    "HooksMixin",
     "ProcedureEngine",
-    "SimEngineUnicorn",
+    "ProcedureMixin",
+    "SimEngine",
+    "SimEngineConcrete",
     "SimEngineFailure",
     "SimEngineSyscall",
-    "SimEngineConcrete",
-    "HooksMixin",
+    "SimEngineUnicorn",
+    "SimInspectMixin",
+    "SimSuccessors",
     "SootMixin",
+    "SuccessorsMixin",
+    "SuperFastpathMixin",
+    "TrackActionsMixin",
     "UberEngine",
 ]
 

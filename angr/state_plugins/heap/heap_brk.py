@@ -90,10 +90,8 @@ class SimHeapBrk(SimHeapBase):
 
         final_size = size * nmemb
 
-        if (
-            self.state.solver.symbolic(sim_nmemb)
-            or self.state.solver.symbolic(sim_size)
-            and final_size > plugin.max_variable_size
+        if self.state.solver.symbolic(sim_nmemb) or (
+            self.state.solver.symbolic(sim_size) and final_size > plugin.max_variable_size
         ):
             final_size = plugin.max_variable_size
 

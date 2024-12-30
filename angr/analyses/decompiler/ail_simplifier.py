@@ -97,6 +97,7 @@ class AILSimplifier(Analysis):
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
+        avoid_vvar_ids: set[int] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -115,6 +116,7 @@ class AILSimplifier(Analysis):
         self._should_rewrite_ccalls = rewrite_ccalls
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
         self._arg_vvars = arg_vvars
+        self._avoid_vvar_ids = avoid_vvar_ids
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -552,7 +554,9 @@ class AILSimplifier(Analysis):
             if (
                 first_op.op == "And"
                 and isinstance(first_op.operands[1], Const)
-                and (second_op is None or isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+                and (
+                    second_op is None or (isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+                )
             ):
                 mask = first_op.operands[1].value
                 if mask == 0xFF:
@@ -614,6 +618,17 @@ class AILSimplifier(Analysis):
             replace_loads = insn_addrs_using_stack_args is not None and {
                 stmt.ins_addr for stmt in block.statements
             }.intersection(insn_addrs_using_stack_args)
+
+            # remove virtual variables in the avoid list
+            if self._avoid_vvar_ids:
+                filtered_reps = {}
+                for loc, rep_dict in reps.items():
+                    filtered_reps[loc] = {
+                        k: v
+                        for k, v in rep_dict.items()
+                        if not (isinstance(k, VirtualVariable) and k.varid in self._avoid_vvar_ids)
+                    }
+                reps = filtered_reps
 
             r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
             replaced |= r
@@ -748,10 +763,8 @@ class AILSimplifier(Analysis):
                 # the definition is in a callee function
                 continue
 
-            if (
-                isinstance(the_def.codeloc, ExternalCodeLocation)
-                or isinstance(eq.atom1, VirtualVariable)
-                and eq.atom1.was_parameter
+            if isinstance(the_def.codeloc, ExternalCodeLocation) or (
+                isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter
             ):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
                 # argument if
@@ -765,10 +778,8 @@ class AILSimplifier(Analysis):
 
                 if defs and len(defs) == 1:
                     arg_copy_def = defs[0]
-                    if (
-                        isinstance(arg_copy_def.atom, atoms.VirtualVariable)
-                        and arg_copy_def.atom.was_stack
-                        or (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg)
+                    if (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack) or (
+                        isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg
                     ):
                         # found the copied definition (either a stack variable or a register variable)
 
@@ -919,7 +930,7 @@ class AILSimplifier(Analysis):
                             continue
                         block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                         stmt = block.statements[use_loc.stmt_idx]
-                        if isinstance(stmt, Assignment) or isinstance(replace_with, Load) and isinstance(stmt, Store):
+                        if isinstance(stmt, Assignment) or (isinstance(replace_with, Load) and isinstance(stmt, Store)):
                             assignment_ctr += 1
                     if assignment_ctr > 1:
                         continue

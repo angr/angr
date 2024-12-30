@@ -13,12 +13,12 @@ if TYPE_CHECKING:
 
 class SimVariable(Serializable):
     __slots__ = [
+        "candidate_names",
+        "category",
         "ident",
         "name",
         "region",
-        "category",
         "renamed",
-        "candidate_names",
         "size",
     ]
 
@@ -87,7 +87,7 @@ class SimVariable(Serializable):
 
 
 class SimConstantVariable(SimVariable):
-    __slots__ = ["value", "_hash"]
+    __slots__ = ["_hash", "value"]
 
     def __init__(self, size: int, ident=None, value=None, region=None):
         super().__init__(ident=ident, region=region, size=size)
@@ -122,7 +122,7 @@ class SimConstantVariable(SimVariable):
 
 
 class SimTemporaryVariable(SimVariable):
-    __slots__ = ["tmp_id", "_hash"]
+    __slots__ = ["_hash", "tmp_id"]
 
     def __init__(self, tmp_id: int, size: int):
         SimVariable.__init__(self, size=size)
@@ -131,14 +131,14 @@ class SimTemporaryVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        return "<tmp %d>" % (self.tmp_id,)
+        return f"<tmp {self.tmp_id}>"
 
     def loc_repr(self, arch):
         return f"tmp #{self.tmp_id}"
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash("tmp_%d" % (self.tmp_id))
+            self._hash = hash(f"tmp_{self.tmp_id}")
         return self._hash
 
     def __eq__(self, other):
@@ -170,7 +170,7 @@ class SimTemporaryVariable(SimVariable):
 
 
 class SimRegisterVariable(SimVariable):
-    __slots__ = ["reg", "_hash"]
+    __slots__ = ["_hash", "reg"]
 
     def __init__(self, reg_offset: int, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -236,7 +236,7 @@ class SimRegisterVariable(SimVariable):
 
 
 class SimMemoryVariable(SimVariable):
-    __slots__ = ["addr", "_hash"]
+    __slots__ = ["_hash", "addr"]
 
     def __init__(self, addr, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -251,12 +251,10 @@ class SimMemoryVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        size = "%d" % self.size if type(self.size) is int else f"{self.size}"
-
         if type(self.addr) is int:
-            s = f"<{self.name}: {self.region}-Mem {self.addr:#x} {size}>"
+            s = f"<{self.name}: {self.region}-Mem {self.addr:#x} {self.size}>"
         else:
-            s = f"<{self.name}: {self.region}-Mem {self.addr} {size}>"
+            s = f"<{self.name}: {self.region}-Mem {self.addr} {self.size}>"
 
         return s
 
@@ -311,8 +309,8 @@ class SimMemoryVariable(SimVariable):
 class SimStackVariable(SimMemoryVariable):
     __slots__ = (
         "base",
-        "offset",
         "base_addr",
+        "offset",
     )
 
     def __init__(
@@ -333,8 +331,6 @@ class SimStackVariable(SimMemoryVariable):
         self.base_addr = base_addr
 
     def __repr__(self):
-        size = "%d" % self.size if type(self.size) is int else f"{self.size}"
-
         prefix = f"{self.name}(stack)" if self.name is not None else "Stack"
         ident = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
@@ -347,9 +343,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = f"<{region_str}{ident}|{prefix} {self.base}{offset}, {size} B>"
+            s = f"<{region_str}{ident}|{prefix} {self.base}{offset}, {self.size} B>"
         else:
-            s = f"<{region_str}{ident}|{prefix} {self.base}{self.addr}, {size} B>"
+            s = f"<{region_str}{ident}|{prefix} {self.base}{self.addr}, {self.size} B>"
 
         return s
 

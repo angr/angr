@@ -13,7 +13,7 @@ class Segment:
     Representing a memory block. This is not the "Segment" in ELF memory model
     """
 
-    __slots__ = ["start", "end", "sort"]
+    __slots__ = ["end", "sort", "start"]
 
     def __init__(self, start, end, sort):
         """
@@ -56,7 +56,7 @@ class SegmentList:
     blocks or not, and obtain the exact block(segment) that the address belongs to.
     """
 
-    __slots__ = ["_list", "_bytes_occupied"]
+    __slots__ = ["_bytes_occupied", "_list"]
 
     def __init__(self):
         self._list: list[Segment] = []

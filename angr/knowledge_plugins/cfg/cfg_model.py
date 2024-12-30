@@ -41,19 +41,19 @@ class CFGModel(Serializable):
     """
 
     __slots__ = (
-        "ident",
-        "graph",
-        "jump_tables",
-        "memory_data",
-        "insn_addr_to_memory_data",
-        "_nodes_by_addr",
-        "_nodes",
         "_cfg_manager",
         "_iropt_level",
         "_node_addrs",
-        "is_arm",
-        "normalized",
+        "_nodes",
+        "_nodes_by_addr",
         "edges_to_repair",
+        "graph",
+        "ident",
+        "insn_addr_to_memory_data",
+        "is_arm",
+        "jump_tables",
+        "memory_data",
+        "normalized",
     )
 
     def __init__(self, ident, cfg_manager=None, is_arm=False):

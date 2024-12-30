@@ -8,8 +8,8 @@ from ailment import Const
 from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump
 
-from .errors import UnsupportedAILNodeError
 from angr.analyses.decompiler.structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from .errors import UnsupportedAILNodeError
 
 
 _l = logging.getLogger(name=__name__)
@@ -46,8 +46,6 @@ def replace_node_in_graph(graph: nx.DiGraph, node, replace_with):
             graph.add_edge(replace_with, replace_with)
         else:
             graph.add_edge(replace_with, dst)
-
-    assert node not in graph
 
 
 def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):

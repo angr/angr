@@ -4,6 +4,7 @@ import logging
 from typing import cast
 from collections.abc import Iterable
 from collections import defaultdict
+import contextlib
 
 import claripy
 import archinfo
@@ -33,7 +34,6 @@ from .sim_type import (
 )
 from .state_plugins.sim_action_object import SimActionObject
 from .engines.soot.engine import SootMixin
-import contextlib
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -243,12 +243,12 @@ class SimFunctionArgument:
         if not isinstance(value, claripy.ast.Base) and self.size is None:
             raise TypeError("Only claripy objects may be stored through SimFunctionArgument when size is not provided")
         if self.size is not None and isinstance(value, claripy.ast.Base) and self.size * arch.byte_width < value.length:
-            raise TypeError("%s doesn't fit in an argument of size %d" % (value, self.size))
+            raise TypeError(f"{value} doesn't fit in an argument of size {self.size}")
         if isinstance(value, int):
             value = claripy.BVV(value, self.size * arch.byte_width)
         if isinstance(value, float):
             if self.size not in (4, 8):
-                raise ValueError("What do I do with a float %d bytes long" % self.size)
+                raise ValueError(f"What do I do with a float {self.size} bytes long")
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
         return value.raw_to_bv()
 
@@ -468,7 +468,7 @@ class SimArrayArg(SimFunctionArgument):
 
     def set_value(self, state, value, **kwargs):
         if len(value) != len(self.locs):
-            raise TypeError("Expected %d elements, got %d" % (len(self.locs), len(value)))
+            raise TypeError(f"Expected {len(self.locs)} elements, got {len(value)}")
         for subvalue, setter in zip(value, self.locs):
             setter.set_value(state, subvalue, **kwargs)
 
@@ -505,10 +505,10 @@ class ArgSession:
     """
 
     __slots__ = (
+        "both_iter",
         "cc",
         "fp_iter",
         "int_iter",
-        "both_iter",
     )
 
     def __init__(self, cc):
@@ -656,7 +656,7 @@ class SimCC:
             self.next_arg(session, SimTypePointer(SimTypeBottom()))
         return session
 
-    def return_in_implicit_outparam(self, ty):
+    def return_in_implicit_outparam(self, ty):  # pylint:disable=unused-argument
         return False
 
     def stack_space(self, args):
@@ -1027,7 +1027,7 @@ class SimCC:
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
             if type(arg) is not SimStructValue:
                 if len(arg) != len(ty.fields):
-                    raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
+                    raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
                 arg = SimStructValue(ty, arg)
             return SimStructValue(
                 ty, [SimCC._standardize_value(arg[field], ty.fields[field], state, alloc) for field in ty.fields]
@@ -1063,7 +1063,7 @@ class SimCC:
                 if len(arg) != ty.size:
                     if arg.concrete:
                         return claripy.BVV(arg.concrete_value, ty.size)
-                    raise TypeError("Type mismatch of symbolic data: expected %s, got %d bits" % (ty, len(arg)))
+                    raise TypeError(f"Type mismatch of symbolic data: expected {ty}, got {len(arg)} bits")
                 return arg
             if isinstance(ty, (SimTypeFloat)):
                 raise TypeError(
@@ -1098,7 +1098,8 @@ class SimCC:
         all_fp_args: set[int | str] = {_arg_ident(a) for a in sample_inst.fp_args}
         all_int_args: set[int | str] = {_arg_ident(a) for a in sample_inst.int_args}
         both_iter = sample_inst.memory_args
-        some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(len(args))}
+        max_args = cls._guess_arg_count(args)
+        some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(max_args)}
 
         new_args = []
         for arg in args:
@@ -1114,6 +1115,13 @@ class SimCC:
         args.extend(new_args)
 
         return True
+
+    @classmethod
+    def _guess_arg_count(cls, args, limit: int = 64) -> int:
+        # pylint:disable=not-callable
+        stack_args = [a for a in args if isinstance(a, SimStackArg)]
+        stack_arg_count = (max(a.stack_offset for a in stack_args) // cls.ARCH().bytes + 1) if stack_args else 0
+        return min(limit, max(len(args), stack_arg_count))
 
     @staticmethod
     def find_cc(
@@ -1687,7 +1695,7 @@ class SimCCARM(SimCC):
                     raise NotImplementedError("Bug. Report to @rhelmot")
                 elif cls == "MEMORY":
                     mapped_classes.append(next(session.both_iter))
-                elif cls == "INTEGER" or cls == "SINGLEP":
+                elif cls in {"INTEGER", "SINGLEP"}:
                     try:
                         mapped_classes.append(next(session.int_iter))
                     except StopIteration:
@@ -2272,7 +2280,7 @@ def default_cc(  # pylint:disable=unused-argument
     platform: str | None = "Linux",
     language: str | None = None,
     syscall: bool = False,
-    **kwargs,
+    default: type[SimCC] | None = None,
 ) -> type[SimCC] | None:
     """
     Return the default calling convention for a given architecture, platform, and language combination.
@@ -2281,19 +2289,19 @@ def default_cc(  # pylint:disable=unused-argument
     :param platform:    The platform name (e.g., "Linux" or "Win32").
     :param language:    The programming language name (e.g., "go").
     :param syscall:     Return syscall convention (True), or normal calling convention (False, default).
+    :param default:     The default calling convention to return if nothing fits.
     :return:            A default calling convention class if we can find one for the architecture, platform, and
-                        language combination, or None if nothing fits.
+                        language combination, or the default if nothing fits.
     """
 
     if platform is None:
         platform = "Linux"
 
-    default = kwargs.get("default", ...)
     cc_map = SYSCALL_CC if syscall else DEFAULT_CC
 
     if arch in cc_map:
         if platform not in cc_map[arch]:
-            if default is not ...:
+            if default is not None:
                 return default
             if "Linux" in cc_map[arch]:
                 return cc_map[arch]["Linux"]
@@ -2301,9 +2309,7 @@ def default_cc(  # pylint:disable=unused-argument
 
     alias = unify_arch_name(arch)
     if alias not in cc_map or platform not in cc_map[alias]:
-        if default is not ...:
-            return default
-        return None
+        return default
     return cc_map[alias][platform]
 
 

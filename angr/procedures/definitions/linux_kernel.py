@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-from typing import Dict
 
 from angr.sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, SimTypeBottom, SimTypeFd, SimTypeLongLong
 from angr.procedures import SIM_PROCEDURES as P

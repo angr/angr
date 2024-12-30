@@ -155,10 +155,10 @@ class SimulationManager:
                 self.use_technique(t)
 
     def __repr__(self):
-        stashes_repr = ", ".join(("%d %s" % (len(v), k)) for k, v in self._stashes.items() if len(v) != 0)
+        stashes_repr = ", ".join((f"{len(v)} {k}") for k, v in self._stashes.items() if len(v) != 0)
         if not stashes_repr:
             stashes_repr = "all stashes empty"
-        errored_repr = " (%d errored)" % len(self.errored) if self.errored else ""
+        errored_repr = f" ({len(self.errored)} errored)" if self.errored else ""
         return f"<SimulationManager with {stashes_repr}{errored_repr}>"
 
     def __getattr__(self, item):

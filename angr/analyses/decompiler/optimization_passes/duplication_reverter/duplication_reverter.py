@@ -242,11 +242,8 @@ class DuplicationReverter(StructuringOptimizationPass):
                     target_candidates = []
                     for mblock, oblocks in ail_merge_graph.merge_blocks_to_originals.items():
                         for oblock in oblocks:
-                            if (
-                                isinstance(oblock, AILBlockSplit)
-                                and oblock.original.addr == target_addr
-                                or isinstance(oblock, Block)
-                                and oblock.addr == target_addr
+                            if (isinstance(oblock, AILBlockSplit) and oblock.original.addr == target_addr) or (
+                                isinstance(oblock, Block) and oblock.addr == target_addr
                             ):
                                 target_candidates.append(mblock)
 
@@ -287,7 +284,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                                 break
 
                         if new_target is None:
-                            raise RuntimeError("Unable to correct a predecessor, this is a bug!")
+                            _l.debug("Unable to correct a predecessor, this is a bug!")
+                            self.write_graph = self.read_graph.copy()
+                            return False
 
                     replacement_map[target_addr] = new_target.addr
                     self.write_graph.add_edge(orig_pred, new_target)
@@ -316,7 +315,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                         break
 
                 if new_succ is None:
-                    raise RuntimeError("Unable to find the successor for block with no jump or condition!")
+                    _l.debug("Unable to find the successor for block with no jump or condition!")
+                    self.write_graph = self.read_graph.copy()
+                    return False
 
                 self.write_graph.add_edge(orig_pred, new_succ)
 

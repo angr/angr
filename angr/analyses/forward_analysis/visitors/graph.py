@@ -16,14 +16,14 @@ class GraphVisitor(Generic[NodeType]):
     """
 
     __slots__ = (
+        "_back_edges_by_dst",
+        "_back_edges_by_src",
+        "_node_to_index",
+        "_nodes_set",
+        "_pending_nodes",
+        "_reached_fixedpoint",
         "_sorted_nodes",
         "_worklist",
-        "_nodes_set",
-        "_node_to_index",
-        "_reached_fixedpoint",
-        "_back_edges_by_src",
-        "_back_edges_by_dst",
-        "_pending_nodes",
     )
 
     def __init__(self):

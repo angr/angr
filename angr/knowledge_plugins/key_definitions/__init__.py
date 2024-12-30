@@ -7,11 +7,11 @@ from .definition import Definition
 from . import atoms
 
 __all__ = (
-    "ReachingDefinitionsModel",
+    "Definition",
+    "DerefSize",
     "KeyDefinitionManager",
     "LiveDefinitions",
-    "DerefSize",
+    "ReachingDefinitionsModel",
     "Uses",
     "atoms",
-    "Definition",
 )

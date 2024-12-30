@@ -153,10 +153,10 @@ class FunctionParser:
             dst = None
             dst_addr = edge_cmsg.dst_ea
             if (
-                dst_addr not in blocks
-                and edge_type == "call"  # call has to go to either a HookNode or a function
-                or (all_func_addrs is not None and dst_addr in all_func_addrs)  # jumps to another function
-            ):
+                dst_addr not in blocks and edge_type == "call"
+            ) or (  # call has to go to either a HookNode or a function
+                all_func_addrs is not None and dst_addr in all_func_addrs
+            ):  # jumps to another function
                 if function_manager is not None:
                     # get a function
                     dst = FunctionParser._get_func(dst_addr, function_manager)

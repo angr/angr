@@ -9,11 +9,11 @@ from .picklable_lock import PicklableLock
 
 
 __all__ = (
-    "ux",
-    "autoimport",
+    "HookSet",
     "Loggers",
+    "PicklableLock",
     "PluginHub",
     "PluginPreset",
-    "HookSet",
-    "PicklableLock",
+    "autoimport",
+    "ux",
 )

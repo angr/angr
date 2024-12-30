@@ -171,11 +171,8 @@ class SRDAView:
                     starting_stmt_idx = stmt_idx
                 continue
 
-            if (
-                op_type == ObservationPointType.OP_BEFORE
-                and stmt.ins_addr == addr
-                or op_type == ObservationPointType.OP_AFTER
-                and stmt.ins_addr > addr
+            if (op_type == ObservationPointType.OP_BEFORE and stmt.ins_addr == addr) or (
+                op_type == ObservationPointType.OP_AFTER and stmt.ins_addr > addr
             ):
                 starting_stmt_idx = stmt_idx
                 break

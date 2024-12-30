@@ -40,10 +40,16 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
                 x_1 = operand_0
                 c_0 = operand_1.operands[1]
                 c_1 = operand_1.operands[0].operand.operands[1]
-            else:
-                assert False, "Unreachable"
 
-            if x_0 is not None and x_1 is not None and x_0.likes(x_1) and c_0.value == c_1.value:
+            # pylint: disable=too-many-boolean-expressions
+            if (
+                x_0 is not None
+                and x_1 is not None
+                and c_0 is not None
+                and c_1 is not None
+                and x_0.likes(x_1)
+                and c_0.value == c_1.value
+            ):
                 return Expr.BinaryOp(expr.idx, "Mod", [x_0, c_0], expr.signed, **expr.tags)
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):

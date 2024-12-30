@@ -26,9 +26,9 @@ class TypeConstraint:
 
 class Equivalence(TypeConstraint):
     __slots__ = (
+        "_cached_hash",
         "type_a",
         "type_b",
-        "_cached_hash",
     )
 
     def __init__(self, type_a, type_b):
@@ -44,10 +44,8 @@ class Equivalence(TypeConstraint):
 
     def __eq__(self, other):
         return type(other) is Equivalence and (
-            self.type_a == other.type_a
-            and self.type_b == other.type_b
-            or self.type_b == other.type_a
-            and self.type_a == other.type_b
+            (self.type_a == other.type_a and self.type_b == other.type_b)
+            or (self.type_b == other.type_a and self.type_a == other.type_b)
         )
 
     def __hash__(self):
@@ -55,7 +53,7 @@ class Equivalence(TypeConstraint):
 
 
 class Existence(TypeConstraint):
-    __slots__ = ("type_", "_cached_hash")
+    __slots__ = ("_cached_hash", "type_")
 
     def __init__(self, type_):
         self.type_ = type_
@@ -85,9 +83,9 @@ class Existence(TypeConstraint):
 
 class Subtype(TypeConstraint):
     __slots__ = (
-        "super_type",
-        "sub_type",
         "_cached_hash",
+        "sub_type",
+        "super_type",
     )
 
     def __init__(self, sub_type: TypeType, super_type: TypeType):
@@ -141,10 +139,10 @@ class Add(TypeConstraint):
     """
 
     __slots__ = (
+        "_cached_hash",
         "type_0",
         "type_1",
         "type_r",
-        "_cached_hash",
     )
 
     def __init__(self, type_0, type_1, type_r):
@@ -210,10 +208,10 @@ class Sub(TypeConstraint):
     """
 
     __slots__ = (
+        "_cached_hash",
         "type_0",
         "type_1",
         "type_r",
-        "_cached_hash",
     )
 
     def __init__(self, type_0, type_1, type_r):
@@ -277,7 +275,7 @@ _typevariable_counter = count()
 
 
 class TypeVariable:
-    __slots__ = ("idx", "name", "_cached_hash")
+    __slots__ = ("_cached_hash", "idx", "name")
 
     def __init__(self, idx: int | None = None, name: str | None = None):
         if idx is None:
@@ -310,11 +308,11 @@ class TypeVariable:
     def __repr__(self):
         if self.name:
             return f"{self.name}|tv_{self.idx:02d}"
-        return "tv_%02d" % self.idx
+        return f"tv_{self.idx:02d}"
 
 
 class DerivedTypeVariable(TypeVariable):
-    __slots__ = ("type_var", "labels")
+    __slots__ = ("labels", "type_var")
 
     labels: tuple[BaseLabel, ...]
 
@@ -398,8 +396,8 @@ class DerivedTypeVariable(TypeVariable):
 
 class TypeVariables:
     __slots__ = (
-        "_typevars",
         "_last_typevars",
+        "_typevars",
     )
 
     def __init__(self):
@@ -418,7 +416,7 @@ class TypeVariables:
         #    sum(len(v) for v in self._typevars.items()),
         #    len(self._typevars),
         # )
-        return "{TypeVars: %d items}" % len(self._typevars)
+        return f"{{TypeVars: {len(self._typevars)} items}}"
 
     def add_type_variable(self, var: SimVariable, codeloc, typevar: TypeType):  # pylint:disable=unused-argument
         if var not in self._typevars:
@@ -514,7 +512,7 @@ class AddN(BaseLabel):
         super().__init__()
 
     def __repr__(self):
-        return "+%d" % self.n
+        return f"+{self.n}"
 
 
 class SubN(BaseLabel):
@@ -525,7 +523,7 @@ class SubN(BaseLabel):
         super().__init__()
 
     def __repr__(self):
-        return "-%d" % self.n
+        return f"-{self.n}"
 
 
 class ConvertTo(BaseLabel):
@@ -536,13 +534,13 @@ class ConvertTo(BaseLabel):
         super().__init__()
 
     def __repr__(self):
-        return "conv(%d)" % self.to_bits
+        return f"conv({self.to_bits})"
 
 
 class ReinterpretAs(BaseLabel):
     __slots__ = (
-        "to_type",
         "to_bits",
+        "to_type",
     )
 
     def __init__(self, to_type, to_bits):

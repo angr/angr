@@ -384,10 +384,8 @@ class VEXLifter(SimEngineBase):
 
     def __is_stop_point(self, addr, extra_stop_points=None):
         return bool(
-            self.project is not None
-            and addr in self.project._sim_procedures
-            or extra_stop_points is not None
-            and addr in extra_stop_points
+            (self.project is not None and addr in self.project._sim_procedures)
+            or (extra_stop_points is not None and addr in extra_stop_points)
         )
 
     def __getstate__(self):

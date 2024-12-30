@@ -75,7 +75,7 @@ class PTChunk(Chunk):
                 next_chunk.set_prev_freeness(is_free)
             else:
                 self.heap._set_final_freeness(is_free)
-        if (is_free is not None and is_free or self.is_free()) and next_chunk is not None:
+        if ((is_free is not None and is_free) or self.is_free()) and next_chunk is not None:
             self.state.memory.store(next_chunk.base, size, size=self.state.arch.bytes)
 
     def set_prev_freeness(self, is_free):

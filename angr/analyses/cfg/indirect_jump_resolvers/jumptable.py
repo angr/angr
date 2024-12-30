@@ -143,10 +143,10 @@ class ConstantValueManager:
     """
 
     __slots__ = (
-        "project",
-        "kb",
         "func",
+        "kb",
         "mapping",
+        "project",
     )
 
     def __init__(self, project: Project, kb, func: Function):
@@ -240,13 +240,13 @@ class JumpTableProcessorState:
     """
 
     __slots__ = (
-        "arch",
         "_registers",
         "_stack",
         "_tmpvar_source",
+        "arch",
         "is_jumptable",
-        "stmts_to_instrument",
         "regs_to_initialize",
+        "stmts_to_instrument",
     )
 
     def __init__(self, arch):
@@ -1639,7 +1639,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # If we're just reading a constant, don't bother with the rest of this mess!
         if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
             assert isinstance(load_stmt.data, pyvex.IRExpr.Load)
-            if type(load_stmt.data.addr) is pyvex.IRExpr.Const:
+            if isinstance(load_stmt.data.addr, pyvex.IRExpr.Const):
                 # It's directly loading from a constant address
                 # e.g.,
                 #  ldr r0, =main+1
@@ -1656,7 +1656,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 l.info("Resolved constant indirect jump from %#08x to %#08x", addr, jump_target_addr)
                 return jump_target
 
-        elif isinstance(load_stmt, pyvex.IRStmt.LoadG) and type(load_stmt.addr) is pyvex.IRExpr.Const:
+        elif isinstance(load_stmt, pyvex.IRStmt.LoadG) and isinstance(load_stmt.addr, pyvex.IRExpr.Const):
             # It's directly loading from a constant address
             # e.g.,
             #  4352c     SUB     R1, R11, #0x1000
@@ -2175,10 +2175,12 @@ class JumpTableResolver(IndirectJumpResolver):
                 stmt_taken = i in stmt_ids
                 display = stmt_taken if in_slice_stmts_only else True
                 if display:
-                    s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
-                    s += f"{stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)} "
+                    s = (
+                        f"{'+' if stmt_taken else ' '} {addr:x}:{i:02d} | "
+                        f"{stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)} "
+                    )
                     if stmt_taken:
-                        s += "IN: %d" % blade.slice.in_degree((addr, i))
+                        s += f"IN: {blade.slice.in_degree((addr, i))}"
                     print(s)
 
             # the default exit
@@ -2267,9 +2269,9 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if isinstance(load_stmt, pyvex.IRStmt.WrTmp):
             assert isinstance(load_stmt.data, pyvex.IRExpr.Load)
-            if type(load_stmt.data.addr) is pyvex.IRExpr.RdTmp:
+            if isinstance(load_stmt.data.addr, pyvex.IRExpr.RdTmp):
                 load_addr_tmp = load_stmt.data.addr.tmp
-            elif type(load_stmt.data.addr) is pyvex.IRExpr.Const:
+            elif isinstance(load_stmt.data.addr, pyvex.IRExpr.Const):
                 # It's directly loading from a constant address
                 # e.g.,
                 #  ldr r0, =main+1
@@ -2278,9 +2280,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 jump_target_addr = load_stmt.data.addr.con.value
                 return claripy.BVV(jump_target_addr, state.arch.bits)
         elif isinstance(load_stmt, pyvex.IRStmt.LoadG):
-            if type(load_stmt.addr) is pyvex.IRExpr.RdTmp:
+            if isinstance(load_stmt.addr, pyvex.IRExpr.RdTmp):
                 load_addr_tmp = load_stmt.addr.tmp
-            elif type(load_stmt.addr) is pyvex.IRExpr.Const:
+            elif isinstance(load_stmt.addr, pyvex.IRExpr.Const):
                 # It's directly loading from a constant address
                 # e.g.,
                 #  4352c     SUB     R1, R11, #0x1000

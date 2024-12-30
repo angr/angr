@@ -56,21 +56,21 @@ class ReachingDefinitionsState:
     """
 
     __slots__ = (
-        "arch",
+        "_canonical_size",
+        "_element_limit",
+        "_environment",
+        "_sp_adjusted",
         "_subject",
+        "_track_consts",
         "_track_tmps",
+        "all_definitions",
         "analysis",
+        "arch",
         "codeloc",
         "codeloc_uses",
-        "live_definitions",
-        "all_definitions",
-        "_canonical_size",
-        "heap_allocator",
-        "_environment",
-        "_track_consts",
-        "_sp_adjusted",
         "exit_observed",
-        "_element_limit",
+        "heap_allocator",
+        "live_definitions",
     )
 
     def __init__(
@@ -177,7 +177,7 @@ class ReachingDefinitionsState:
             return claripy.BVS("stack_base", 32, explicit_name=True)
         if self.arch.bits == 64:
             return claripy.BVS("stack_base", 64, explicit_name=True)
-        raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+        raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
 
     def _to_signed(self, n):
         if n >= 2 ** (self.arch.bits - 1):

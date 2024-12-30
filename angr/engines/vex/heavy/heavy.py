@@ -285,17 +285,15 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         if o.COPY_STATES not in self.state.options:
             # very special logic to try to minimize copies
             # first, check if this branch is impossible
-            if (
-                guard.is_false()
-                or o.LAZY_SOLVES not in self.state.options
+            if guard.is_false() or (
+                o.LAZY_SOLVES not in self.state.options
                 and not self.state.solver.satisfiable(extra_constraints=(guard,))
             ):
                 cont_state = self.state
 
             # then, check if it's impossible to continue from this branch
-            elif (
-                guard.is_true()
-                or o.LAZY_SOLVES not in self.state.options
+            elif guard.is_true() or (
+                o.LAZY_SOLVES not in self.state.options
                 and not self.state.solver.satisfiable(extra_constraints=(claripy.Not(guard),))
             ):
                 exit_state = self.state

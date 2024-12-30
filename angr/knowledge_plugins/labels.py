@@ -101,7 +101,7 @@ class Labels(KnowledgeBasePlugin):
         # use it as the prefix
         i = 1
         while True:
-            new_label = "%s_%d" % (label, i)
+            new_label = f"{label}_{i}"
             if new_label not in self._labels:
                 return new_label
             i += 1

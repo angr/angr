@@ -35,7 +35,7 @@ class OpBehavior:
     Base class for all operation behaviors.
     """
 
-    __slots__ = ("opcode", "is_unary", "is_special")
+    __slots__ = ("is_special", "is_unary", "opcode")
     opcode: int
     is_unary: bool
     is_special: bool

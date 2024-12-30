@@ -18,7 +18,7 @@ class CFGManager(KnowledgeBasePlugin):
         self.cfgs = {}
 
     def __repr__(self):
-        return "<CFGManager with %d CFGs>" % len(self.cfgs)
+        return f"<CFGManager with {len(self.cfgs)} CFGs>"
 
     def __contains__(self, ident):
         return ident in self.cfgs
@@ -42,7 +42,7 @@ class CFGManager(KnowledgeBasePlugin):
         # find a unique ident
         i = 0
         while True:
-            ident = prefix + "_%d" % i
+            ident = f"{prefix}_{i}"
             if ident not in self.cfgs:
                 break
             i += 1

@@ -35,9 +35,9 @@ class RichR(Generic[RichRT_co]):
 
     __slots__ = (
         "data",
-        "variable",
-        "typevar",
         "type_constraints",
+        "typevar",
+        "variable",
     )
 
     def __init__(
@@ -384,8 +384,7 @@ class SimEngineVRBase(
         if (
             vvar.category == ailment.expression.VirtualVariableCategory.REGISTER
             and vvar.oident in (self.project.arch.ip_offset, self.project.arch.sp_offset, self.project.arch.lr_offset)
-            or not create_variable
-        ):
+        ) or not create_variable:
             # only store the value. don't worry about variables.
             self.vvar_region[vvar_id] = richr.data
             return

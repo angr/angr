@@ -208,11 +208,8 @@ def compare_statement_dict(statement_1, statement_2):
     # constants
     if isinstance(statement_1, (int, float, str, bytes)):
         if (
-            isinstance(statement_1, float)
-            and math.isnan(statement_1)
-            and math.isnan(statement_2)
-            or statement_1 == statement_2
-        ):
+            isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2)
+        ) or statement_1 == statement_2:
             return []
         return [Difference(None, statement_1, statement_2)]
 
@@ -283,7 +280,7 @@ class NormalizedBlock:
 
     def __repr__(self):
         size = sum([b.size for b in self.blocks])
-        return "<Normalized Block for %#x, %d bytes>" % (self.addr, size)
+        return f"<Normalized Block for {self.addr:#x}, {size} bytes>"
 
 
 class NormalizedFunction:

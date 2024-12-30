@@ -14,6 +14,9 @@ from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
 
 
+DEPHI_VVAR_REG_OFFSET = 4096
+
+
 @overload
 def get_reg_offset_base_and_size(
     reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: Literal[True] = True
@@ -206,16 +209,20 @@ def phi_assignment_get_src(stmt: Statement) -> Phi | None:
     return None
 
 
+def is_dephi_vvar(vvar: VirtualVariable) -> bool:
+    return vvar.varid == DEPHI_VVAR_REG_OFFSET
+
+
 __all__ = (
     "VVarUsesCollector",
+    "get_tmp_deflocs",
+    "get_tmp_uselocs",
     "get_vvar_deflocs",
     "get_vvar_uselocs",
-    "is_const_assignment",
-    "is_phi_assignment",
-    "phi_assignment_get_src",
     "is_const_and_vvar_assignment",
+    "is_const_assignment",
     "is_const_vvar_load_assignment",
     "is_const_vvar_load_dirty_assignment",
-    "get_tmp_uselocs",
-    "get_tmp_deflocs",
+    "is_phi_assignment",
+    "phi_assignment_get_src",
 )

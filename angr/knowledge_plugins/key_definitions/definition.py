@@ -151,11 +151,11 @@ class Definition(Generic[A]):
     """
 
     __slots__ = (
+        "_hash",
         "atom",
         "codeloc",
         "dummy",
         "tags",
-        "_hash",
     )
 
     def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: set[Tag] | None = None):

@@ -314,9 +314,6 @@ class ITERegionConverter(OptimizationPass):
 
     @staticmethod
     def _is_assigning_to_vvar(stmt: Statement) -> bool:
-        return (
-            isinstance(stmt, Assignment)
-            and isinstance(stmt.dst, VirtualVariable)
-            or isinstance(stmt, Call)
-            and isinstance(stmt.ret_expr, VirtualVariable)
+        return (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)) or (
+            isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable)
         )

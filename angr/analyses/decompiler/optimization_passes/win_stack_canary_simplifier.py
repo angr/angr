@@ -13,12 +13,6 @@ from .optimization_pass import OptimizationPass, OptimizationPassStage
 _l = logging.getLogger(name=__name__)
 
 
-def s2u(s, bits):
-    if s > 0:
-        return s
-    return (1 << bits) + s
-
-
 class WinStackCanarySimplifier(OptimizationPass):
     """
     Removes stack canary checks from decompilation results for Windows PE files.

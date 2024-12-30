@@ -11,7 +11,7 @@ def repr_addr(addr):
 
 
 class CodeNode:
-    __slots__ = ["addr", "size", "_graph", "thumb", "_hash"]
+    __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
 
     def __init__(self, addr: int, size: int, graph=None, thumb=False):
         self.addr: int = addr
@@ -75,7 +75,7 @@ class BlockNode(CodeNode):
         self.bytestr = bytestr
 
     def __repr__(self):
-        return "<BlockNode at %s (size %d)>" % (repr_addr(self.addr), self.size)
+        return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
 
     def __getstate__(self):
         return (self.addr, self.size, self.bytestr, self.thumb)
@@ -94,7 +94,7 @@ class SootBlockNode(BlockNode):
         assert (stmts is None and size == 0) or (size == len(stmts))
 
     def __repr__(self):
-        return "<SootBlockNode at %s (%d statements)>" % (repr_addr(self.addr), self.size)
+        return f"<SootBlockNode at {repr_addr(self.addr)} ({self.size} statements)>"
 
     def __getstate__(self):
         return self.addr, self.size, self.stmts

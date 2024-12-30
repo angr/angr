@@ -22,6 +22,7 @@ from angr.analyses import (
     CFGFast,
     Decompiler,
 )
+from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.optimization_passes import (
@@ -539,8 +540,8 @@ class TestDecompiler(unittest.TestCase):
         for line in lines:
             if '"%02x"' in line:
                 assert "sprintf(" in line
-                assert (
-                    "v0" in line and "v1" in line and "v2" in line or "v2" in line and "v3" in line and "v4" in line
+                assert ("v0" in line and "v1" in line and "v2" in line) or (
+                    "v2" in line and "v3" in line and "v4" in line
                 ), "Failed to find v0, v1, and v2 in the same line. Is propagator over-propagating?"
 
         assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"
@@ -575,11 +576,10 @@ class TestDecompiler(unittest.TestCase):
         # with global variables discovered, there should not be any loads of constant addresses.
         assert "fflush(stdout);" in code.lower()
 
+        access_count = code.count("access(")
         assert (
-            code.count("access(") == 2
-        ), "The decompilation should contain 2 calls to access(), but instead %d calls are present." % code.count(
-            "access("
-        )
+            access_count == 2
+        ), f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
 
         m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
@@ -1811,8 +1811,7 @@ class TestDecompiler(unittest.TestCase):
         assert (
             d.codegen.text.count("if (!v0)") == 3
             or d.codegen.text.count("if (v0)") == 3
-            or d.codegen.text.count("if (!v0)") == 2
-            and d.codegen.text.count("if (!a0)") == 1
+            or (d.codegen.text.count("if (!v0)") == 2 and d.codegen.text.count("if (!a0)") == 1)
         )
         assert d.codegen.text.count("break;") > 0
 
@@ -2927,7 +2926,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True)
 
         f = proj.kb.functions["process_field"]
-        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        proj.analyses.CompleteCallingConventions(mode=CallingConventionAnalysisMode.VARIABLES, recover_variables=True)
 
         # disable eager returns simplifier
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
@@ -3972,6 +3971,26 @@ class TestDecompiler(unittest.TestCase):
         for i in range(10):
             assert f"case {i}:" in d.codegen.text
         assert "default:" in d.codegen.text
+
+    def test_decompiling_ite_function_arguments_missing_assignments(self, decompiler_options=None):
+        # https://github.com/angr/angr/issues/5077
+        bin_path = os.path.join(test_location, "x86_64", "test_cmovneq")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions["test"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
+        start_pos = lines.index("{")
+        assert lines[start_pos + 3 :][:6] == [
+            "if (a1)",
+            "v1 = a1;",
+            "else",
+            "v1 = a0;",
+            "g_1234 = v1;",
+            "return &g_1234;",
+        ]
 
 
 if __name__ == "__main__":

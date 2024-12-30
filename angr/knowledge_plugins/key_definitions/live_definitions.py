@@ -52,7 +52,7 @@ class DefinitionAnnotation(Annotation):
     An annotation that attaches a `Definition` to an AST.
     """
 
-    __slots__ = ("definition", "_hash")
+    __slots__ = ("_hash", "definition")
 
     def __init__(self, definition):
         super().__init__()
@@ -91,24 +91,24 @@ class LiveDefinitions:
     _tops = {}
 
     __slots__ = (
-        "project",
+        "__weakref__",
+        "_canonical_size",
         "arch",
-        "track_tmps",
+        "heap",
+        "heap_uses",
+        "memory",
+        "memory_uses",
+        "other_uses",
+        "others",
+        "project",
+        "register_uses",
         "registers",
         "stack",
-        "heap",
-        "memory",
-        "tmps",
-        "others",
-        "other_uses",
-        "register_uses",
         "stack_uses",
-        "heap_uses",
-        "memory_uses",
-        "uses_by_codeloc",
         "tmp_uses",
-        "_canonical_size",
-        "__weakref__",
+        "tmps",
+        "track_tmps",
+        "uses_by_codeloc",
     )
 
     def __init__(
@@ -230,7 +230,7 @@ class LiveDefinitions:
     def __repr__(self):
         ctnt = "LiveDefs"
         if self.tmps:
-            ctnt += ", %d tmpdefs" % len(self.tmps)
+            ctnt += f", {len(self.tmps)} tmpdefs"
         return f"<{ctnt}>"
 
     def copy(self, discard_tmpdefs=False) -> LiveDefinitions:
@@ -445,7 +445,7 @@ class LiveDefinitions:
             base_v = self.INITIAL_SP_64BIT
             mask = 0xFFFF_FFFF_FFFF_FFFF
         else:
-            raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+            raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
         return (base_v + offset) & mask
 
     def merge(self, *others: LiveDefinitions) -> tuple[LiveDefinitions, bool]:

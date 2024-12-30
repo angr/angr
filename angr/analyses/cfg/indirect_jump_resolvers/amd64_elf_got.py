@@ -19,7 +19,7 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        return jumpkind == "Ijk_Call" or jumpkind == "Ijk_Boring" and addr == func_addr
+        return jumpkind == "Ijk_Call" or (jumpkind == "Ijk_Boring" and addr == func_addr)
 
     def resolve(  # pylint:disable=unused-argument
         self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs

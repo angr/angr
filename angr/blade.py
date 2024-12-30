@@ -144,13 +144,13 @@ class Blade:
                 else:
                     stmt_str = str(stmt)
 
-                block_str += "%02s %02d | %s\n" % ("+" if i in included_stmts else " ", i, stmt_str)
+                block_str += f"{'+' if i in included_stmts else ' '} {i:02d} | {stmt_str}\n"
 
             block_str += " + " if default_exit_included else "   "
             if isinstance(block.next, pyvex.IRExpr.Const):
                 block_str += f"Next: {block.next.con.value:#x}\n"
             elif isinstance(block.next, pyvex.IRExpr.RdTmp):
-                block_str += "Next: t%d\n" % block.next.tmp
+                block_str += f"Next: t{block.next.tmp}\n"
             else:
                 block_str += f"Next: {block.next!s}\n"
 

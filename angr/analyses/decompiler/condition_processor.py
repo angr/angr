@@ -113,41 +113,53 @@ _ail2claripy_op_mapping = {
     "LogicalOr": lambda expr, conv, _, ia: claripy.Or(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
-    "CmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) == conv(expr.operands[1], ins_addr=ia),
-    "CmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) != conv(expr.operands[1], ins_addr=ia),
-    "CmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) <= conv(expr.operands[1], ins_addr=ia),
+    "CmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    == conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "CmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    != conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "CmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    <= conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CmpLE (signed)": lambda expr, conv, _, ia: claripy.SLE(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) < conv(expr.operands[1], ins_addr=ia),
+    "CmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    < conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CmpLT (signed)": lambda expr, conv, _, ia: claripy.SLT(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) >= conv(expr.operands[1], ins_addr=ia),
+    "CmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    >= conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CmpGE (signed)": lambda expr, conv, _, ia: claripy.SGE(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) > conv(expr.operands[1], ins_addr=ia),
+    "CmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    > conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CmpGT (signed)": lambda expr, conv, _, ia: claripy.SGT(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CasCmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) == conv(expr.operands[1], ins_addr=ia),
-    "CasCmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) != conv(expr.operands[1], ins_addr=ia),
-    "CasCmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) <= conv(expr.operands[1], ins_addr=ia),
+    "CasCmpEQ": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    == conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "CasCmpNE": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    != conv(expr.operands[1], nobool=True, ins_addr=ia),
+    "CasCmpLE": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    <= conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CasCmpLE (signed)": lambda expr, conv, _, ia: claripy.SLE(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CasCmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) < conv(expr.operands[1], ins_addr=ia),
+    "CasCmpLT": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    < conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CasCmpLT (signed)": lambda expr, conv, _, ia: claripy.SLT(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CasCmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) >= conv(expr.operands[1], ins_addr=ia),
+    "CasCmpGE": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    >= conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CasCmpGE (signed)": lambda expr, conv, _, ia: claripy.SGE(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "CasCmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], ins_addr=ia) > conv(expr.operands[1], ins_addr=ia),
+    "CasCmpGT": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
+    > conv(expr.operands[1], nobool=True, ins_addr=ia),
     "CasCmpGT (signed)": lambda expr, conv, _, ia: claripy.SGT(
-        conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
     "Add": lambda expr, conv, _, ia: conv(expr.operands[0], nobool=True, ins_addr=ia)
     + conv(expr.operands[1], nobool=True, ins_addr=ia),
@@ -802,9 +814,13 @@ class ConditionProcessor:
             f"Condition variable {cond} has an unsupported operator {cond.op}. Consider implementing."
         )
 
-    def claripy_ast_from_ail_condition(self, condition, nobool: bool = False, *, ins_addr: int = 0) -> claripy.ast.Bool:
+    def claripy_ast_from_ail_condition(
+        self, condition, nobool: bool = False, *, ins_addr: int = 0
+    ) -> claripy.ast.Bool | claripy.ast.Bits:
         # Unpack a condition all the way to the leaves
-        if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type
+        if isinstance(
+            condition, (claripy.ast.Bits, claripy.ast.Bool)
+        ):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
 
         if isinstance(
@@ -832,11 +848,11 @@ class ConditionProcessor:
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
             if condition.to_bits == 1:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = "ailcond_Conv(%d->%d, %d)" % (condition.from_bits, condition.to_bits, hash(var_))
+                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
                 var = claripy.BoolS(name, explicit_name=True)
             else:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = "ailexpr_Conv(%d->%d, %d)" % (condition.from_bits, condition.to_bits, hash(var_))
+                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
@@ -851,17 +867,17 @@ class ConditionProcessor:
         if isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
             if condition.bits == 1:
-                var = claripy.BoolS("ailtmp_%d" % condition.tmp_idx, explicit_name=True)
+                var = claripy.BoolS(f"ailtmp_{condition.tmp_idx}", explicit_name=True)
             else:
-                var = claripy.BVS("ailtmp_%d" % condition.tmp_idx, condition.bits, explicit_name=True)
+                var = claripy.BVS(f"ailtmp_{condition.tmp_idx}", condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.MultiStatementExpression):
             # just cache it
             if condition.bits == 1:
-                var = claripy.BoolS("mstmtexpr_%d" % hash(condition), explicit_name=True)
+                var = claripy.BoolS(f"mstmtexpr_{hash(condition)}", explicit_name=True)
             else:
-                var = claripy.BVS("mstmtexpr_%d" % hash(condition), condition.bits, explicit_name=True)
+                var = claripy.BVS(f"mstmtexpr_{hash(condition)}", condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
 
@@ -885,7 +901,7 @@ class ConditionProcessor:
             self._condition_mapping[r.args[0]] = condition
 
         if r is NotImplemented:
-            if condition.bits == 1:
+            if condition.bits == 1 and not nobool:
                 r = claripy.BoolS(f"ailexpr_{condition!r}", explicit_name=True)
             else:
                 r = claripy.BVS(f"ailexpr_{condition!r}", condition.bits, explicit_name=True)

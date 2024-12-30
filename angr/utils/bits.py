@@ -31,3 +31,16 @@ def zeroextend_on_demand(op0: claripy.ast.BV, op1: claripy.ast.BV) -> claripy.as
     if op0.size() > op1.size():
         return claripy.ZeroExt(op0.size() - op1.size(), op1)
     return op1
+
+
+def s2u(s, bits):
+    mask = (1 << bits) - 1
+    if s > 0:
+        return s & mask
+    return ((1 << bits) + s) & mask
+
+
+def u2s(u, bits):
+    if u < (1 << (bits - 1)):
+        return u
+    return (u & ((1 << bits) - 1)) - (1 << bits)

@@ -600,7 +600,7 @@ class Clinic(Analysis):
             arg_list.append(arg_vvars[idx][1])
 
         # Get virtual variable mapping that can de-phi the SSA representation
-        vvar2vvar = self._collect_dephi_vvar_mapping_and_rewrite_blocks(ail_graph)
+        vvar2vvar, copied_vvar_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(ail_graph, arg_vvars)
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
@@ -608,7 +608,11 @@ class Clinic(Analysis):
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
+        ail_graph = self._run_simplification_passes(
+            ail_graph,
+            stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
+            avoid_vvar_ids=copied_vvar_ids,
+        )
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
@@ -1389,16 +1393,19 @@ class Clinic(Analysis):
         return ssailification.out_graph
 
     @timethis
-    def _collect_dephi_vvar_mapping_and_rewrite_blocks(self, ail_graph: networkx.DiGraph) -> dict[int, int]:
+    def _collect_dephi_vvar_mapping_and_rewrite_blocks(
+        self, ail_graph: networkx.DiGraph, arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]]
+    ) -> tuple[dict[int, int], set[int]]:
         dephication = self.project.analyses.GraphDephicationVVarMapping(
             self.function,
             ail_graph,
             fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             vvar_id_start=self.vvar_id_start,
+            arg_vvars=[arg_vvar for arg_vvar, _ in arg_vvars.values()],
         )
         self.vvar_id_start = dephication.vvar_id_start + 1
-        return dephication.vvar_to_vvar_mapping
+        return dephication.vvar_to_vvar_mapping, dephication.copied_vvar_ids
 
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
@@ -1412,7 +1419,7 @@ class Clinic(Analysis):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
-                            ident="arg_%d" % idx,
+                            ident=f"arg_{idx}",
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
@@ -1421,13 +1428,13 @@ class Clinic(Analysis):
                             arg.stack_offset,
                             arg.size,
                             base="bp",
-                            ident="arg_%d" % idx,
+                            ident=f"arg_{idx}",
                             name=arg_names[idx],
                             region=self.function.addr,
                         )
                     else:
                         argvar = SimVariable(
-                            ident="arg_%d" % idx,
+                            ident=f"arg_{idx}",
                             name=arg_names[idx],
                             region=self.function.addr,
                             size=arg.size,

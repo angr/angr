@@ -44,7 +44,7 @@ class StringObfType3Rewriter(OptimizationPass):
 
     @staticmethod
     def is_call_or_call_assignment(stmt) -> bool:
-        return isinstance(stmt, Call) or isinstance(stmt, Assignment) and isinstance(stmt.src, Call)
+        return isinstance(stmt, Call) or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call))
 
     def _analyze(self, cache=None):
 

@@ -47,7 +47,7 @@ except ImportError:
 
 from angr import __version__
 
-__all__ = ["get_tracer", "get_current_span", "Status", "StatusCode"]
+__all__ = ["Status", "StatusCode", "get_current_span", "get_tracer"]
 
 
 def get_tracer(name: str) -> Tracer:

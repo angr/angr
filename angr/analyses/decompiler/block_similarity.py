@@ -127,10 +127,8 @@ def _kmp_search_ail_obj(search_pattern, stmt_seq, graph=None, partial=True):
     start_pos = 0
     match_len = 0
     for c in stmt_seq:
-        while (
-            match_len == len(search_pattern)
-            or match_len >= 0
-            and not is_similar(search_pattern[match_len], c, graph=graph, partial=partial)
+        while match_len == len(search_pattern) or (
+            match_len >= 0 and not is_similar(search_pattern[match_len], c, graph=graph, partial=partial)
         ):
             start_pos += shifts[match_len]
             match_len -= shifts[match_len]

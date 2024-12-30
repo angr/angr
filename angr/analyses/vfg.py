@@ -93,11 +93,11 @@ class PendingJob:
 
     __slots__ = (
         "block_id",
-        "state",
         "call_stack",
         "src_block_id",
-        "src_stmt_idx",
         "src_ins_addr",
+        "src_stmt_idx",
+        "state",
     )
 
     def __init__(
@@ -147,7 +147,7 @@ class FunctionAnalysis(AnalysisTask):
         self.jobs = []
 
     def __repr__(self):
-        return "<Function @ %#08x with %d jobs>" % (self.function_address, len(self.jobs))
+        return f"<Function @ {self.function_address:#08x} with {len(self.jobs)} jobs>"
 
     #
     # Properties
@@ -182,7 +182,7 @@ class CallAnalysis(AnalysisTask):
         self._final_jobs = []
 
     def __repr__(self):
-        return "<Call @ %#08x with %d function tasks>" % (self.address, len(self.function_analysis_tasks))
+        return f"<Call @ {self.address:#08x} with {len(self.function_analysis_tasks)} function tasks>"
 
     #
     # Properties
@@ -1668,7 +1668,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
             except SimValueError:
                 l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.history.jumpkind)
         l.debug("Remaining/pending jobs: %d/%d", len(self._job_info_queue), len(self._pending_returns))
-        l.debug("Remaining jobs: %s", ["%s %d" % (ent.job, id(ent.job)) for ent in self._job_info_queue])
+        l.debug("Remaining jobs: %s", [f"{ent.job} {id(ent.job)}" for ent in self._job_info_queue])
         l.debug("Task stack: %s", self._task_stack)
 
     @staticmethod

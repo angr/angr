@@ -12,7 +12,6 @@ from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
-from angr.block import Block
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
 from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
@@ -39,51 +38,51 @@ class Function(Serializable):
     """
 
     __slots__ = (
-        "transition_graph",
-        "_local_transition_graph",
-        "normalized",
-        "_ret_sites",
-        "_jumpout_sites",
-        "_callout_sites",
-        "_endpoints",
-        "_call_sites",
-        "_retout_sites",
-        "addr",
-        "_function_manager",
-        "is_syscall",
-        "_project",
-        "is_plt",
-        "addr",
-        "is_simprocedure",
-        "_name",
-        "previous_names",
-        "is_default_name",
-        "from_signature",
-        "binary_name",
+        "_addr_to_block_node",
         "_argument_registers",
         "_argument_stack_variables",
-        "bp_on_stack",
-        "retaddr_on_stack",
-        "sp_delta",
-        "calling_convention",
-        "prototype",
-        "prototype_libname",
+        "_block_cache",
+        "_block_sizes",
+        "_call_sites",
+        "_callout_sites",
+        "_cyclomatic_complexity",
+        "_endpoints",
+        "_function_manager",
+        "_jumpout_sites",
+        "_local_block_addrs",
+        "_local_blocks",
+        "_local_transition_graph",
+        "_name",
+        "_project",
+        "_ret_sites",
+        "_retout_sites",
         "_returning",
+        "addr",
+        "addr",
+        "binary_name",
+        "bp_on_stack",
+        "calling_convention",
+        "from_signature",
+        "info",
+        "is_alignment",
+        "is_default_name",
+        "is_plt",
+        "is_prototype_guessed",
+        "is_simprocedure",
+        "is_syscall",
+        "normalized",
         "prepared_registers",
         "prepared_stack_variables",
-        "registers_read_afterwards",
-        "startpoint",
-        "_addr_to_block_node",
-        "_block_sizes",
-        "_block_cache",
-        "_local_blocks",
-        "_local_block_addrs",
-        "info",
-        "tags",
-        "is_alignment",
-        "is_prototype_guessed",
+        "previous_names",
+        "prototype",
+        "prototype_libname",
         "ran_cca",
-        "_cyclomatic_complexity",
+        "registers_read_afterwards",
+        "retaddr_on_stack",
+        "sp_delta",
+        "startpoint",
+        "tags",
+        "transition_graph",
     )
 
     def __init__(
@@ -403,7 +402,7 @@ class Function(Serializable):
     def nodes(self) -> Iterable[CodeNode]:
         return self.transition_graph.nodes()
 
-    def get_node(self, addr) -> Block:
+    def get_node(self, addr) -> BlockNode | None:
         return self._addr_to_block_node.get(addr, None)
 
     @property
@@ -586,17 +585,18 @@ class Function(Serializable):
         return False
 
     def __str__(self):
-        s = f"Function {self.name} [{self.addr:#x}]\n"
-        s += f"  Syscall: {self.is_syscall}\n"
-        s += "  SP difference: %d\n" % self.sp_delta
-        s += f"  Has return: {self.has_return}\n"
-        s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
-        s += f"  Alignment: {self.alignment}\n"
-        s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
-        s += "  Blocks: [{}]\n".format(", ".join([f"{i:#x}" for i in self.block_addrs]))
-        s += f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
-        s += f"  Calling convention: {self.calling_convention}"
-        return s
+        return (
+            f"Function {self.name} [{self.addr:#x}]\n"
+            f"  Syscall: {self.is_syscall}\n"
+            f"  SP difference: {self.sp_delta}\n"
+            f"  Has return: {self.has_return}\n"
+            f"  Returning: {'Unknown' if self.returning is None else self.returning}\n"
+            f"  Alignment: {self.alignment}\n"
+            f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
+            f"  Blocks: [{', '.join(f'{i:#x}' for i in self.block_addrs)}]\n"
+            f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
+            f"  Calling convention: {self.calling_convention}"
+        )
 
     def __repr__(self):
         if self.is_syscall:
@@ -1035,8 +1035,9 @@ class Function(Serializable):
                     if function.returning is False:
                         # the target function does not return
                         the_node = self.get_node(src.addr)
-                        self._callout_sites.add(the_node)
-                        self._add_endpoint(the_node, "call")
+                        if the_node is not None:
+                            self._callout_sites.add(the_node)
+                            self._add_endpoint(the_node, "call")
 
     def get_call_sites(self) -> Iterable[int]:
         """
@@ -1093,10 +1094,8 @@ class Function(Serializable):
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
             if "type" in data and (
-                data["type"] in ("transition", "exception")
-                and ("outside" not in data or data["outside"] is False)
-                or data["type"] == "fake_return"
-                and ("outside" not in data or data["outside"] is False)
+                (data["type"] in ("transition", "exception") and ("outside" not in data or data["outside"] is False))
+                or (data["type"] == "fake_return" and ("outside" not in data or data["outside"] is False))
             ):
                 g.add_edge(src, dst, **data)
 
@@ -1268,11 +1267,8 @@ class Function(Serializable):
             if b.addr <= addr < b.addr + b.size:
                 # found it
                 for i, instr_addr in enumerate(b.instruction_addrs):
-                    if (
-                        i < len(b.instruction_addrs) - 1
-                        and instr_addr <= addr < b.instruction_addrs[i + 1]
-                        or i == len(b.instruction_addrs) - 1
-                        and instr_addr <= addr
+                    if (i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i + 1]) or (
+                        i == len(b.instruction_addrs) - 1 and instr_addr <= addr
                     ):
                         return instr_addr
                 # Not covered by any instruction... why?

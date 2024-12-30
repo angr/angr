@@ -11,10 +11,10 @@ class SimLightState:
     """
 
     __slots__ = (
-        "temps",
+        "options",
         "regs",
         "stack_offsets",
-        "options",
+        "temps",
     )
 
     def __init__(self, temps=None, regs=None, stack_offsets=None, options=None):
@@ -155,11 +155,8 @@ class SimSlicer:
     def _forward_handler_expr_Get(self, expr, state):
         reg = expr.offset
 
-        if (
-            state.options["mock_sp"]
-            and reg == self._arch.sp_offset
-            or state.options["mock_bp"]
-            and reg == self._arch.bp_offset
+        if (state.options["mock_sp"] and reg == self._arch.sp_offset) or (
+            state.options["mock_bp"] and reg == self._arch.bp_offset
         ):
             return state.regs[reg]
 

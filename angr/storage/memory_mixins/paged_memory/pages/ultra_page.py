@@ -430,10 +430,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
             return None
         else:
             obj = self.symbolic_data[place]
-            if (
-                obj.includes(start + page_addr)
-                or memory is not None
-                and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
+            if obj.includes(start + page_addr) or (
+                memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
             ):
                 return obj
             return None

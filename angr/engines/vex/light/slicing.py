@@ -1,6 +1,8 @@
 from __future__ import annotations
-from .light import VEXMixin
+
 from angr.utils.constants import DEFAULT_STATEMENT
+
+from .light import VEXMixin
 
 
 class VEXSlicingMixin(VEXMixin):
@@ -11,8 +13,6 @@ class VEXSlicingMixin(VEXMixin):
         self._skip_stmts = 0
         self._last_stmt = None
         self._whitelist = None
-
-    __tls = ("__no_exit_sliced", "_skip_stmts", "_last_stmt", "_whitelist")
 
     def process(self, state, block=None, skip_stmts=0, last_stmt=None, whitelist=None, **kwargs):
         self._skip_stmts = skip_stmts

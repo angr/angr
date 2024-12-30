@@ -268,11 +268,8 @@ class SimSuccessors:
             if o.VALIDATE_APPROXIMATIONS in state.options and state.solver.satisfiable():
                 raise Exception("WTF")
             self.unsat_successors.append(state)
-        elif (
-            not state.scratch.guard.symbolic
-            and state.solver.is_false(state.scratch.guard)
-            or o.LAZY_SOLVES not in state.options
-            and not state.satisfiable()
+        elif (not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard)) or (
+            o.LAZY_SOLVES not in state.options and not state.satisfiable()
         ):
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.solver.symbolic(target):

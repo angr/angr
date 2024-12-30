@@ -13,7 +13,7 @@ class Segment:
         self.size = size
 
     def __repr__(self):
-        return "Seg (%s [ %d ])" % (hex(self.offset), self.size)
+        return f"Seg ({hex(self.offset)} [ {self.size} ])"
 
 
 class AbstractLocation:
@@ -120,22 +120,20 @@ class AbstractLocation:
         return False
 
     def __repr__(self):
-        return "(%xh, %d) %s" % (
-            (self.basicblock_key if self.basicblock_key is not None else -1),
-            (self.statement_id if self.statement_id is not None else -1),
-            self._segment_list,
-        )
+        bbl_key = self.basicblock_key if self.basicblock_key is not None else -1
+        stmt_id = self.statement_id if self.statement_id is not None else -1
+        return f"({bbl_key:x}h, {stmt_id}) {self._segment_list}"
 
 
 class MemoryRegionMetaMixin(MemoryMixin):
     __slots__ = (
+        "_alocs",
         "_endness",
         "_id",
-        "_state",
         "_is_stack",
-        "_related_function_addr",
-        "_alocs",
         "_memory",
+        "_related_function_addr",
+        "_state",
     )
 
     def __init__(self, related_function_addr=None, **kwargs):

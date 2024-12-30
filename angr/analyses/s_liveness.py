@@ -29,6 +29,7 @@ class SLivenessAnalysis(Analysis):
         func_graph=None,
         entry=None,
         func_addr: int | None = None,
+        arg_vvars: list[VirtualVariable] | None = None,
     ):
         self.func = func
         self.func_addr = func_addr if func_addr is not None else func.addr
@@ -38,6 +39,7 @@ class SLivenessAnalysis(Analysis):
             if entry is not None
             else next(iter(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx is None))
         )
+        self.arg_vvars = arg_vvars or []
 
         self.model = SLivenessModel()
 
@@ -146,6 +148,12 @@ class SLivenessAnalysis(Analysis):
                         graph.add_edge(def_vvar, live_vvar)
                     live.discard(def_vvar)
                 live |= vvar_use_collector.vvars
+
+            if block.addr == self.func_addr:
+                # deal with function arguments
+                for arg_vvar in self.arg_vvars:
+                    for live_vvar in live:
+                        graph.add_edge(arg_vvar.varid, live_vvar)
 
         return graph
 

@@ -339,7 +339,7 @@ class Veritesting(Analysis):
             for merge_point_addr, merge_point_looping_times in merge_points:
                 manager.stash(
                     lambda s, merge_point_addr=merge_point_addr: s.addr == merge_point_addr,
-                    to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times),
+                    to_stash=f"_merge_{merge_point_addr:x}_{merge_point_looping_times}",
                 )
 
             # Try to merge a set of previously stashed paths, and then unstash them
@@ -370,7 +370,7 @@ class Veritesting(Analysis):
             if merged_anything:
                 break
 
-            stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+            stash_name = f"_merge_{merge_point_addr:x}_{merge_point_looping_times}"
             if stash_name not in manager.stashes:
                 continue
 

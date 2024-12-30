@@ -110,10 +110,9 @@ class BackwardSlice(Analysis):
         s = repr(self) + "\n"
 
         if len(self.chosen_statements) > max_display:
-            s += "%d SimRuns in program slice, displaying %d.\n" % (len(self.chosen_statements), max_display)
+            s += f"{len(self.chosen_statements)} SimRuns in program slice, displaying {max_display}.\n"
         else:
-            s += "%d SimRuns in program slice.\n" % len(self.chosen_statements)
-
+            s += f"{len(self.chosen_statements)} SimRuns in program slice.\n"
         # Pretty-print the first `max_display` basic blocks
         if max_display is None:
             # Output all
@@ -150,7 +149,7 @@ class BackwardSlice(Analysis):
             statements = vex_block.statements
             for i in range(len(statements)):
                 line = "+" if i in chosen_statements else "-"
-                line += "[% 3d] " % i
+                line += f"[{i: 3d}] "
                 line += str(statements[i])
                 ss += line + "\n"
 

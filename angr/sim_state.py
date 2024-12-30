@@ -598,7 +598,7 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-            merge_flag = claripy.BVS("state_merge_%d" % next(merge_counter), 16)
+            merge_flag = claripy.BVS(f"state_merge_{next(merge_counter)}", 16)
             merge_values = range(len(others) + 1)
             merge_conditions = [merge_flag == b for b in merge_values]
         else:
