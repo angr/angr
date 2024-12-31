@@ -32,6 +32,35 @@ class String(ailment.Const):
         return String(self.idx, self.variable, self.value, self.bits, self.decoded_str, **self.tags)
 
 
+class StringLiteral(ailment.Expression):
+    def __init__(self, idx, data, bits, **kwargs):
+        super().__init__(idx, 0, **kwargs)
+        self.data = data
+        self._bits = bits
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def bits(self):
+        return self._bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f'"{self.data}"'
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash(self.data)
+
+    def likes(self, other):
+        return type(self) is type(other) and self.data == other.data
+
+
 class Array(ailment.Expression):
     def __init__(self, idx, elements, array_type: ArrayReference, **kwargs):
         super().__init__(idx, (max(ele.depth for ele in elements) if len(elements) else 0) + 1, **kwargs)

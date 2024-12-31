@@ -9,6 +9,7 @@ from angr.rust.ailment.expression import Struct, Array, String
 from angr.rust.ailment.statement import FunctionLikeMacro
 from angr.rust.mixins.cfa_mixin import CFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
+from angr.rust.sim_type import RustSimType, RustSimTypeString
 
 PRINT_FUNCTIONS = (
     "std::io::stdio::_print",
@@ -53,22 +54,20 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
         return decoded_str
 
     @staticmethod
-    def _select_macro(func_name, fmt_str) -> Tuple[str, str] | Tuple[None, None]:
+    def _select_macro(func_name, fmt_str) -> Tuple[str, str, RustSimType | None] | Tuple[None, None, None]:
         if func_name.endswith("::_print"):
             if fmt_str.endswith("\n"):
-                return "println", fmt_str[:-1]
-            return "print", fmt_str
+                return "println", fmt_str[:-1], None
+            return "print", fmt_str, None
         elif func_name.endswith("::_eprint"):
             if fmt_str.endswith("\n"):
-                return "eprintln", fmt_str[:-1]
-            return "eprint", fmt_str
-        elif func_name.endswith("::format_inner"):
-            return "format", fmt_str
-        elif func_name.endswith("::map_or_else"):
-            return "format", fmt_str
+                return "eprintln", fmt_str[:-1], None
+            return "eprint", fmt_str, None
+        elif func_name.endswith("::format_inner") or func_name.endswith("::map_or_else"):
+            return "format", fmt_str, RustSimTypeString()
         elif func_name.endswith("::panic_fmt"):
-            return "panic", fmt_str
-        return None, None
+            return "panic", fmt_str, None
+        return None, None, None
 
     def replace_call(self, call: Call, block: Block, is_expr):
         if (
@@ -113,12 +112,14 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                     fmt_str = ""
                     for piece, placeholder in zip(pieces, placeholders):
                         fmt_str += piece + placeholder
-                    macro_name, fmt_str = self._select_macro(name, fmt_str)
+                    macro_name, fmt_str, returnty = self._select_macro(name, fmt_str)
+                    if returnty is not None:
+                        returnty = returnty.with_arch(self.project.arch)
                     if macro_name and fmt_str:
                         args = [arg.get_field("value") for arg in args]
                         args.insert(0, String(None, None, 0, self.project.arch.bits, fmt_str))
                         macro = FunctionLikeMacro(
-                            None, macro_name, args, bits=call.bits if is_expr else None, **call.tags
+                            None, macro_name, args, bits=call.bits if is_expr else None, returnty=returnty, **call.tags
                         )
                         self._stmts_to_remove[block] = stmts_to_remove
                         return macro

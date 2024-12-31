@@ -22,6 +22,12 @@ class FunctionLikeMacro(Macro):
 
     __hash__ = TaggedObject.__hash__
 
+    @property
+    def size(self):
+        if self.bits:
+            return self.bits // 8
+        return None
+
     def _hash_core(self):
         return stable_hash((FunctionLikeMacro, self.idx, self.name))
 

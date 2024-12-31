@@ -8,11 +8,11 @@ from angr.rust.sim_type import RustSimTypeFunction
 from angr.rust.utils.ail_util import get_terminal_call
 
 
-class CallsiteSimplifier(TransformationPass):
+class FunctionPrototypeInference(TransformationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
-    NAME = "Simplify function return sites"
+    NAME = "Infer potential struct/enum argument types and return types"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

@@ -1,4 +1,4 @@
-from .callsite_simplifier import CallsiteSimplifier
+from .function_prototype_inference import FunctionPrototypeInference
 from .calling_convention_recovery import CallingConventionRecovery
 from .callsite_corrector import CallsiteCorrector
 from .cleanup_code_remover import CleanupCodeRemover
@@ -27,8 +27,9 @@ def get_rust_optimization_passes():
         LibFunctionIdentifier,
         # AFTER_GLOBAL_SIMPLIFICATION
         CleanupCodeRemover,
-        AllocSimplifier,
-        CallsiteSimplifier,
+        SecurityCheckRemover,
+        AllocSimplifier,  # Maybe useless when inlining is disabled
+        FunctionPrototypeInference,
         CallsiteCorrector,
         UnwrapSimplifier,
         PatternMatchIdentifier,
@@ -36,7 +37,6 @@ def get_rust_optimization_passes():
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
         VecMacroSimplifier,
-        SecurityCheckRemover,
         # StructFieldAccessSimplifier,
         DerefCoercionSimplifier,
         # AFTER_VARIABLE_RECOVERY
