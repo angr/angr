@@ -31,6 +31,8 @@ jobs:
     name: "Check that the dependent repositories exist and are operable."
     runs-on: ubuntu-latest
 
+    outputs:
+      ready: ${{ steps.is_ready.outputs.is_ready }}
     steps:
       - name: Checkout current repository
         uses: actions/checkout@v4
@@ -50,8 +52,20 @@ jobs:
 
       - env:
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        id: is_ready
         run: |
-          set -euo pipefail
+          set +e
+          set -uo pipefail
+
+          # Check if any of the commits in the PR have 'corpus test' in them.
+          if gh pr view --json commits -q '.commits[].messageHeadline' ${{ github.event.pull_request.number }} | grep -q 'corpus test'; then
+            echo "is_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          set -e
 
           # Check that the corpus repo is available.
           gh repo list \
@@ -66,10 +80,13 @@ jobs:
           gh pr list \
             --limit 1 \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
+          # Get the current API usage rate limit values.
+          gh api rate_limit | jq
 
   build:
     name: "Download dependencies to a cached virtual environment."
     needs: [precondition]
+    if: ${{ needs.precondition.outputs.ready == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current repository
