@@ -63,7 +63,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, Struct, Array, Let
+from ....rust.ailment.expression import String, Struct, Array, Let, StringLiteral
 
 if TYPE_CHECKING:
     import archinfo
@@ -1696,6 +1696,25 @@ class RustLet(RustExpression):
         yield from RustExpression._try_c_repr_chunks(self.codegen._handle(self.let_expr.src))
 
 
+class RustStringLiteral(RustExpression):
+    __slots__ = ("data", "tags")
+
+    def __init__(self, data, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.data = data
+        self._type = RustSimTypeReference(RustSimTypeString()).with_arch(self.codegen.project.arch)
+
+    @property
+    def type(self):
+        return self._type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield '"', None
+        yield self.data, None
+        yield '"', None
+
+
 class RustFakeVariable(RustExpression):
     """
     An uninterpreted name to display in the decompilation output. Pretty much always represents an error?
@@ -2662,6 +2681,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
             String: self._handle_Expr_String,
+            StringLiteral: self._handle_Expr_StringLiteral,
             Struct: self._handle_Expr_Struct,
             Array: self._handle_Expr_Array,
             Let: self._handle_Expr_Let,
@@ -3771,6 +3791,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             type_ = RustSimTypeReference(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
         reference_values = {type_: expr}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
+        return RustStringLiteral(expr.data, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Struct(self, expr: Struct, **kwargs):
         return RustStruct(expr.fields, expr.field_names, expr.type, tags=expr.tags, codegen=self)

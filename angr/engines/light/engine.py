@@ -569,6 +569,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "BasePointerOffset": self._handle_expr_BasePointerOffset,
             "StackBaseOffset": self._handle_expr_StackBaseOffset,
             "String": self._handle_expr_String,
+            "StringLiteral": self._handle_expr_StringLiteral,
             "Struct": self._handle_expr_Struct,
             "Array": self._handle_expr_Array,
             "Let": self._handle_expr_Let,
@@ -821,6 +822,9 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co: ...
 
     def _handle_expr_String(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_StringLiteral(self, expr):
         return self._top(expr.bits)
 
     def _handle_expr_Struct(self, expr) -> DataType_co:

@@ -2,7 +2,9 @@ import ailment
 from ailment.expression import VirtualVariable
 from ailment.statement import Call, Store, Assignment
 
+from ..ailment.statement import FunctionLikeMacro
 from ..sim_type import RustSimStruct, RustSimEnum, is_composite_type
+from ...utils.graph import GraphUtils
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..ailment.expression import Struct
 from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
@@ -58,7 +60,7 @@ class TypeCorrector(OptimizationPass):
         )
 
     def _analyze(self, cache=None):
-        for block in list(self._graph.nodes()):
+        for block in list(GraphUtils.quasi_topological_sort_nodes(self._graph, list(self._graph.nodes))):
             block: ailment.Block
             for stmt in block.statements:
                 if isinstance(stmt, Store) and isinstance(stmt.data, Struct):
@@ -77,8 +79,13 @@ class TypeCorrector(OptimizationPass):
                     and stmt.src.prototype
                     and is_composite_type(stmt.src.prototype.returnty)
                 ):
-                    # self.force_new_variable(stmt.dst.variable)
                     self._set_variable_type(stmt.dst.variable, stmt.src.prototype.returnty)
+                elif (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.src, FunctionLikeMacro)
+                    and is_composite_type(stmt.src.returnty)
+                ):
+                    self._set_variable_type(stmt.dst.variable, stmt.src.returnty)
                 elif (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)

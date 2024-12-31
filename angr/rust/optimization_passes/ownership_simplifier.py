@@ -1,21 +1,23 @@
 from collections import defaultdict
 
 from ailment.expression import BasePointerOffset, Load, StackBaseOffset
-from ailment.statement import Call, Store
+from ailment.statement import Call, Store, Assignment
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference, is_composite_type
+from .base import SSAVariableHelper
+from ..ailment.statement import FunctionLikeMacro
 from ..mixins.srda_mixin import SRDAMixin
 from ..mixins.dfa_mixin import DFAMixin
 from ..mixins.cfa_mixin import CFAMixin
 from ...code_location import CodeLocation
 
 
-class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
+class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSAVariableHelper):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
     NAME = "Simplify ownership transfer operations"
 
     def __init__(self, func, **kwargs):
@@ -23,6 +25,7 @@ class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
         CFAMixin.__init__(self, self._graph, self.project)
         DFAMixin.__init__(self)
         SRDAMixin.__init__(self, func, self._graph, self.project)
+        SSAVariableHelper.__init__(self, self)
 
         self.analyze()
 
@@ -61,6 +64,8 @@ class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                         value = self.get_terminal_vvar_value(vvar) if vvar else None
                         if isinstance(value, Call) and value.prototype and is_composite_type(value.prototype.returnty):
                             struct_ty = value.prototype.returnty
+                        elif isinstance(value, FunctionLikeMacro):
+                            struct_ty = value.returnty
 
                     if struct_ty:
                         cur_offset = dst_offset
@@ -81,7 +86,7 @@ class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                                     )
                                     defs.append(codeloc)
                             if not value:
-                                vvar = self.get_stack_vvar_by_insn(cur_offset, ins_addr, block.idx)
+                                vvar = self.get_stack_vvar_by_insn(cur_offset, ins_addr, block.idx, op_type=OP_AFTER)
                                 def_ = self.get_def_by_vvar(vvar) if vvar else None
                                 if vvar and def_:
                                     value = self.get_vvar_value(vvar)
@@ -97,22 +102,30 @@ class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                             and (block.addr, block.idx) == (defs[0].block_addr, defs[0].block_idx)
                             and self._is_consecutive_defs(defs)
                         ):
-                            addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
-                            data = Load(
+                            dst_vvar = self.new_stack_vvar(dst_offset, struct_ty.size, stmt.tags)
+                            # addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
+                            src_vvar = self.get_stack_vvar_by_insn(
+                                src_offset,
+                                block.statements[-1].ins_addr,
+                                block.idx,
+                                size=struct_ty.size // 8,
+                                op_type=OP_AFTER,
+                            )
+                            data = src_vvar or Load(
                                 None,
                                 StackBaseOffset(None, self.project.arch.bits, src_offset),
                                 struct_ty.size // 8,
                                 endness=self.project.arch.memory_endness,
                             )
-                            # assignment = Assignment(idx=None, dst=dst_vvar, src=src, **stmt.tags)
-                            replacement = Store(
-                                idx=None,
-                                addr=addr,
-                                data=data,
-                                size=data.size,
-                                endness=self.project.arch.memory_endness,
-                                **stmt.tags,
-                            )
+                            replacement = Assignment(idx=None, dst=dst_vvar, src=data, **stmt.tags)
+                            # replacement = Store(
+                            #     idx=None,
+                            #     addr=addr,
+                            #     data=data,
+                            #     size=data.size,
+                            #     endness=self.project.arch.memory_endness,
+                            #     **stmt.tags,
+                            # )
                             stmts_to_replace.append((block, defs[0].stmt_idx, replacement))
                             for vvar_def in defs[1:]:
                                 stmts_to_remove[block].add(block.statements[vvar_def.stmt_idx])

@@ -333,6 +333,10 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         # TODO
         pass
 
+    def _handle_expr_StringLiteral(self, expr):
+        # TODO
+        pass
+
     def _handle_expr_Struct(self, expr):
         # TODO
         pass

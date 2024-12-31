@@ -853,6 +853,10 @@ class Clinic(Analysis):
     def _stage_recover_variables(self) -> None:
         assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
 
+        # Run simplification passes
+        self._update_progress(65.0, text="Running simplifications 3.5")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION)
+
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
         variable_kb = self._recover_and_link_variables(
