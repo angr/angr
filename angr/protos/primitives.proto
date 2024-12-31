@@ -108,6 +108,22 @@ message Edge {
         NoRedir = 14;
         ClientReq = 15;
         Exception = 16;
+        _8jzf8 = 17;
+        EmFail = 18;
+        FlushDCache = 19;
+        InvalICache = 20;
+        Privileged = 21;
+        SigBUS = 22;
+        SigFPE_IntOvf = 23;
+        SigILL = 24;
+        Sys_int129 = 25;
+        Sys_int130 = 26;
+        Sys_int145 = 27;
+        Sys_int210 = 28;
+        Sys_int32 = 29;
+        Sys_sysenter = 30;
+        Yield = 31;
+        SigFPE = 32;
     }
 
     uint64              src_ea = 1; // Address of the source block
