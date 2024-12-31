@@ -346,7 +346,7 @@ class Decompiler(Analysis):
                 seq_node,
                 cfg=self._cfg,
                 ail_graph=clinic.graph,
-                inlined_functions=[ self.kb.functions[k] for k in clinic._inlined_counts.keys() ],
+                inlined_functions=[self.kb.functions[k] for k in clinic._inlined_counts.keys()],
                 flavor=self._flavor,
                 func_args=clinic.arg_list,
                 kb=self.kb,
