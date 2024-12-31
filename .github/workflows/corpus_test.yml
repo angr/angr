@@ -57,8 +57,8 @@ jobs:
           set +e
           set -uo pipefail
 
-          # Check if any of the commits in the PR have 'corpus test' in them.
-          if gh pr view --json commits -q '.commits[].messageHeadline' ${{ github.event.pull_request.number }} | grep -q 'corpus test'; then
+          # Check if any of the commits in the PR have '[corpus test]' in them.
+          if gh pr view --json commits -q '.commits[].messageHeadline' ${{ github.event.pull_request.number }} | grep -q '[corpus test]'; then
             echo "is_ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_ready=false" >> "$GITHUB_OUTPUT"
