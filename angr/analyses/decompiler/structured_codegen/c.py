@@ -581,8 +581,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         if self.codegen._func.is_plt:
             yield "// attributes: PLT stub\n", None
 
-        for f in self.codegen.inlined_functions:
-            yield f"// function '{f.name}' has been inlined into this function\n", None
+        if self.codegen.inlined_functions:
+            for f in self.codegen.inlined_functions:
+                yield f"// function '{f.name}' has been inlined into this function\n", None
+            yield "\n", None
 
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
