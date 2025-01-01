@@ -26,7 +26,7 @@ def print_timing_total():
 
         # list top-ten slowest calls
         sorted_calls = sorted(time_distribution[func], reverse=True)
-        print(f"[timing]   Slowest top 10:")
+        print("[timing]   Slowest top 10:")
         for idx, call in enumerate(sorted_calls[:10]):
             print(f"[timing]     {idx + 1}: {call} ms")
 
