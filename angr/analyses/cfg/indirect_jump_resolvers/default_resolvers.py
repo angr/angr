@@ -19,6 +19,9 @@ DEFAULT_RESOLVERS = {
         cle.PE: [
             X86PeIatResolver,
         ],
+        cle.XBE: [
+            X86PeIatResolver,
+        ],
     },
     "AMD64": {
         cle.MetaELF: [

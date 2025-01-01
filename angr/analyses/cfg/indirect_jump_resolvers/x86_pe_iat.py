@@ -3,7 +3,6 @@ import logging
 
 from capstone.x86_const import X86_OP_MEM
 
-from angr.simos import SimWindows
 from .resolver import IndirectJumpResolver
 
 l = logging.getLogger(name=__name__)
@@ -18,8 +17,6 @@ class X86PeIatResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(self.project.simos, SimWindows):
-            return False
         if jumpkind != "Ijk_Call":
             return False
 
