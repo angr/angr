@@ -1,9 +1,9 @@
 # Generating proto files
 #
 #  $ cd angr
-#  $ protoc -I=. --python_out=. protos/xxx.proto
+#  $ protoc -I=. --python_out=. protos/*.proto
+#  $ sed -i -e 's/from protos import/from . import/g' protos/*_pb2.py
 #
-# Then you need to manually fix all _pb2 imports to be relative because of this unresolved issue:
 # https://github.com/protocolbuffers/protobuf/issues/1491
 from __future__ import annotations
 
