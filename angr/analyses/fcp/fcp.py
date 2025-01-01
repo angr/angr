@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any
+from collections.abc import Callable
 from collections import defaultdict
 
 import networkx
@@ -106,10 +107,17 @@ class SimEngineFCPVEX(
     THe engine for FastConstantPropagation.
     """
 
-    def __init__(self, project, bp_as_gpr: bool, replacements: dict[int, dict] = None):
+    def __init__(self, project, bp_as_gpr: bool, replacements: dict[int, dict], load_callback: Callable | None = None):
         self.bp_as_gpr = bp_as_gpr
-        self.replacements = replacements if replacements is not None else defaultdict(dict)
+        self.replacements = replacements
+        self._load_callback = load_callback
+        self.base_state = None
         super().__init__(project)
+
+    def _allow_loading(self, addr: int, size: int) -> bool:
+        if self._load_callback is None:
+            return True
+        return self._load_callback(addr, size)
 
     def _process_block_end(self, stmt_result: list, whitelist: set[int] | None) -> None:
         if self.block.vex.jumpkind == "Ijk_Call":
@@ -134,7 +142,8 @@ class SimEngineFCPVEX(
             size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
             codeloc = self._codeloc()
             self.state.register_written(stmt.offset, size, v)
-            self.replacements[codeloc][VEXReg(stmt.offset, size)] = v
+            if stmt.offset != self.arch.ip_offset:
+                self.replacements[codeloc][VEXReg(stmt.offset, size)] = v
 
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
@@ -144,6 +153,13 @@ class SimEngineFCPVEX(
                 self.state.stack_written(addr.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width, data)
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
+        if isinstance(stmt.data, pyvex.IRExpr.Binop):
+            if not (
+                stmt.data.op.startswith("Iop_Add")
+                or stmt.data.op.startswith("Iop_Sub")
+                or stmt.data.op.startswith("Iop_And")
+            ):
+                return
         v = self._expr(stmt.data)
         if v is not None:
             self.state.tmps[stmt.tmp] = v
@@ -175,10 +191,24 @@ class SimEngineFCPVEX(
     def _handle_expr_ITE(self, expr):
         return None
 
-    def _handle_expr_Load(self, expr):
+    def _handle_expr_Load(self, expr) -> int | SpOffset | None:
         addr = self._expr(expr.addr)
         if isinstance(addr, SpOffset):
             return self.state.stack.get(addr.offset)
+        if isinstance(addr, int):
+            size = expr.result_size(self.tyenv) // self.arch.byte_width
+            if self._allow_loading(addr, size):
+                # Try loading from the state
+                if self.base_state is not None:
+                    data = self.base_state.memory.load(addr, size, endness=expr.endness)
+                    if not data.symbolic:
+                        return data.args[0]
+                else:
+                    try:
+                        val = self.project.loader.memory.unpack_word(addr, size=size, endness=expr.endness)
+                        return val
+                    except KeyError:
+                        pass
         return None
 
     def _handle_expr_RdTmp(self, expr):
@@ -219,7 +249,6 @@ class SimEngineFCPVEX(
         if isinstance(op1, SpOffset):
             return op1
         if isinstance(op0, int) and isinstance(op1, int):
-            mask = (1 << expr.result_size(self.tyenv)) - 1
             return op0 & op1
         return None
 
@@ -230,9 +259,18 @@ class FastConstantPropagation(Analysis):
     false negative rates.
     """
 
-    def __init__(self, func: Function, blocks: set[Block] | None = None):
+    def __init__(
+        self,
+        func: Function,
+        blocks: set[Block] | None = None,
+        vex_cross_insn_opt: bool = False,
+        load_callback: Callable | None = None,
+    ):
         self.function = func
         self._blocks = blocks
+        self._vex_cross_insn_opt = vex_cross_insn_opt
+        self._load_callback = load_callback
+
         self.replacements = {}
 
         self._analyze()
@@ -244,7 +282,7 @@ class FastConstantPropagation(Analysis):
         startpoint = self.function.startpoint
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
         replacements = defaultdict(dict)
-        engine = SimEngineFCPVEX(self.project, bp_as_gpr, replacements)
+        engine = SimEngineFCPVEX(self.project, bp_as_gpr, replacements, load_callback=self._load_callback)
         init_state = FCPState()
         if self.project.arch.call_pushes_ret:
             init_state.sp_value = self.project.arch.bytes
@@ -264,7 +302,7 @@ class FastConstantPropagation(Analysis):
             else:
                 state = self._merge_states(input_states)
 
-            if self._blocks and node.addr in block_addrs:
+            if self._blocks and node.addr not in block_addrs:
                 # skip this block
                 states[node] = state
                 continue
@@ -284,7 +322,7 @@ class FastConstantPropagation(Analysis):
                     self._handle_function(state, node)
                 continue
 
-            block = self.project.factory.block(node.addr, size=node.size)
+            block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self._vex_cross_insn_opt)
             engine.process(state, block=block)
 
             # if the node ends with a function call, call _handle_function
@@ -333,20 +371,22 @@ class FastConstantPropagation(Analysis):
 
         out_state = state.copy()
         if func is not None and func.prototype is not None:
+            arg_locs = None
             try:
                 arg_locs = cc.arg_locs(func.prototype)
             except (TypeError, ValueError):
-                return None
+                arg_locs = None
 
             if None in arg_locs:
-                return None
+                arg_locs = None
 
-            for arg_loc in arg_locs:
-                for loc in arg_loc.get_footprint():
-                    if isinstance(loc, SimStackArg):
-                        sp_value = out_state.sp_value
-                        if sp_value is not None:
-                            out_state.stack_read(sp_value + loc.stack_offset, loc.size)
+            if arg_locs is not None:
+                for arg_loc in arg_locs:
+                    for loc in arg_loc.get_footprint():
+                        if isinstance(loc, SimStackArg):
+                            sp_value = out_state.sp_value
+                            if sp_value is not None:
+                                out_state.stack_read(sp_value + loc.stack_offset, loc.size)
 
         # clobber caller-saved regs
         for reg_name in cc.CALLER_SAVED_REGS:

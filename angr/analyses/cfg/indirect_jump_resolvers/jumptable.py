@@ -144,15 +144,17 @@ class ConstantValueManager:
 
     __slots__ = (
         "func",
+        "indirect_jump_addr",
         "kb",
         "mapping",
         "project",
     )
 
-    def __init__(self, project: Project, kb, func: Function):
+    def __init__(self, project: Project, kb, func: Function, ij_addr: int):
         self.project = project
         self.kb = kb
         self.func = func
+        self.indirect_jump_addr = ij_addr
 
         self.mapping: dict[Any, dict[Any, claripy.ast.Base]] | None = None
 
@@ -168,18 +170,51 @@ class ConstantValueManager:
                 reg_read_offset = reg_read_offset.args[0]
             variable = VEXReg(reg_read_offset, state.inspect.reg_read_length)
             if variable in self.mapping[codeloc]:
-                state.inspect.reg_read_expr = self.mapping[codeloc][variable]
+                v = self.mapping[codeloc][variable]
+                if isinstance(v, int):
+                    v = claripy.BVV(v, state.inspect.reg_read_length * state.arch.byte_width)
+                state.inspect.reg_read_expr = v
 
     def _build_mapping(self):
         # constant propagation
-        l.debug("JumpTable: Propagating for %r.", self.func)
-        prop = self.project.analyses[PropagatorAnalysis].prep()(
-            func=self.func,
-            only_consts=True,
+        l.debug("JumpTable: Propagating for %r at %#x.", self.func, self.indirect_jump_addr)
+
+        # determine blocks to run FCP on
+
+        # - include at most three levels of successors from the entrypoint
+        startpoint = self.func.startpoint
+        blocks = set()
+        succs = [startpoint]
+        for _ in range(3):
+            new_succs = []
+            for node in succs:
+                if node in blocks:
+                    continue
+                blocks.add(node)
+                new_succs += list(self.func.graph.successors(node))
+            succs = new_succs
+            if not succs:
+                break
+
+        # - include at most six levels of predecessors from the indirect jump block
+        ij_block = self.func.get_node(self.indirect_jump_addr)
+        preds = [ij_block]
+        for _ in range(6):
+            new_preds = []
+            for node in preds:
+                if node in blocks:
+                    continue
+                blocks.add(node)
+                new_preds += list(self.func.graph.predecessors(node))
+            preds = new_preds
+            if not preds:
+                break
+
+        prop = self.project.analyses.FastConstantPropagation(
+            self.func,
+            blocks=blocks,
             vex_cross_insn_opt=True,
             load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
-            cache_results=True,
-            key_prefix="cfg_intermediate",
         )
         self.mapping = prop.replacements
 
@@ -853,7 +888,7 @@ class JumpTableResolver(IndirectJumpResolver):
         potential_call_table = jumpkind == "Ijk_Call" or self._sp_moved_up(block) or len(func.block_addrs_set) <= 5
         # we only perform full-function propagation for jump tables or call tables in really small functions
         if not potential_call_table or len(func.block_addrs_set) <= 5:
-            cv_manager = ConstantValueManager(self.project, cfg.kb, func)
+            cv_manager = ConstantValueManager(self.project, cfg.kb, func, addr)
         else:
             cv_manager = None
 
@@ -2402,6 +2437,3 @@ class JumpTableResolver(IndirectJumpResolver):
         if load_stmt_ids:
             return [load_stmt_ids[-1]]
         return []
-
-
-from angr.analyses.propagator import PropagatorAnalysis
