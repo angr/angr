@@ -328,10 +328,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             for codeloc in list(self.model.replacements.keys()):
                 filtered_rep = {}
                 for k, v in self.model.replacements[codeloc].items():
-                    if isinstance(v, claripy.ast.Base):
-                        # claripy expressions
-                        if not PropagatorState.is_top(v):
-                            filtered_rep[k] = v
+                    if isinstance(v, claripy.ast.Base) and not PropagatorState.is_top(v):
+                        filtered_rep[k] = v
                 self.model.replacements[codeloc] = filtered_rep
 
         if self._cache_results:

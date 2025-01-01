@@ -19,6 +19,10 @@ l = logging.getLogger(name=__name__)
 class SimEnginePropagatorBaseMixin(
     Generic[StateType, DataType_co, BlockType], SimEngineLight[StateType, DataType_co, BlockType, StateType]
 ):  # pylint:disable=abstract-method
+    """
+    The base class for the propagator VEX engine.
+    """
+
     def __init__(
         self,
         project: Project,
