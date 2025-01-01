@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+from typing import Any
 import logging
 import time
 import contextlib

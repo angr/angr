@@ -66,9 +66,8 @@ class PropagationModel(Serializable):
         if not preds:
             if isinstance(node, ailment.Block):
                 raise NotImplementedError
-            else:
-                state = PropagatorVEXState.initial_state(self._function.project, func_addr=self._function.addr)
-                state.store_register(state.arch.ip_offset, state.arch.bytes, claripy.BVV(block_addr, state.arch.bits))
+            state = PropagatorVEXState.initial_state(self._function.project, func_addr=self._function.addr)
+            state.store_register(state.arch.ip_offset, state.arch.bytes, claripy.BVV(block_addr, state.arch.bits))
         else:
             state, _ = preds[0].merge(*preds[1:])
         return state

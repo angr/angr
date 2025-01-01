@@ -17,11 +17,7 @@ from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from angr.storage.memory_mixins import LabeledMemory
 from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
-from angr.knowledge_plugins.key_definitions import atoms
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.engines.light.data import SpOffset
 
-from .prop_value import PropValue, Detail
 
 if TYPE_CHECKING:
     from archinfo import Arch
