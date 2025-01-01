@@ -157,7 +157,7 @@ class ConstantValueManager:
         self.mapping: dict[Any, dict[Any, claripy.ast.Base]] | None = None
 
     def reg_read_callback(self, state: SimState):
-        if not self.mapping:
+        if self.mapping is None:
             self._build_mapping()
             assert self.mapping is not None
 
