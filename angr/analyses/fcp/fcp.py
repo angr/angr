@@ -6,16 +6,15 @@ import networkx
 import pyvex
 import claripy
 
-from angr.utils.bits import s2u, u2s
+from angr.utils.bits import s2u
 from angr.block import Block
 from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
-from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.calling_conventions import SimStackArg, default_cc
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
-from angr.sim_type import SimTypeBottom
 
 
 class SV:
@@ -254,7 +253,7 @@ class FastConstantPropagation(Analysis):
         sorted_nodes = reversed(list(networkx.dfs_postorder_nodes(func_graph, startpoint)))
         block_addrs = None
         if self._blocks:
-            block_addrs = set(b.addr for b in self._blocks)
+            block_addrs = {b.addr for b in self._blocks}
 
         states: dict[BlockNode, FCPState] = {}
         for node in sorted_nodes:
@@ -337,10 +336,10 @@ class FastConstantPropagation(Analysis):
             try:
                 arg_locs = cc.arg_locs(func.prototype)
             except (TypeError, ValueError):
-                return
+                return None
 
             if None in arg_locs:
-                return
+                return None
 
             for arg_loc in arg_locs:
                 for loc in arg_loc.get_footprint():
