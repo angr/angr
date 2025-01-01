@@ -153,13 +153,12 @@ class SimEngineFCPVEX(
                 self.state.stack_written(addr.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width, data)
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
-        if isinstance(stmt.data, pyvex.IRExpr.Binop):
-            if not (
-                stmt.data.op.startswith("Iop_Add")
-                or stmt.data.op.startswith("Iop_Sub")
-                or stmt.data.op.startswith("Iop_And")
-            ):
-                return
+        if isinstance(stmt.data, pyvex.IRExpr.Binop) and not (
+            stmt.data.op.startswith("Iop_Add")
+            or stmt.data.op.startswith("Iop_Sub")
+            or stmt.data.op.startswith("Iop_And")
+        ):
+            return
         v = self._expr(stmt.data)
         if v is not None:
             self.state.tmps[stmt.tmp] = v
@@ -205,8 +204,7 @@ class SimEngineFCPVEX(
                         return data.args[0]
                 else:
                     try:
-                        val = self.project.loader.memory.unpack_word(addr, size=size, endness=expr.endness)
-                        return val
+                        return self.project.loader.memory.unpack_word(addr, size=size, endness=expr.endness)
                     except KeyError:
                         pass
         return None
@@ -297,10 +295,7 @@ class FastConstantPropagation(Analysis):
         for node in sorted_nodes:
             preds = func_graph.predecessors(node)
             input_states = [states[pred] for pred in preds if pred in states]
-            if not input_states:
-                state = init_state.copy()
-            else:
-                state = self._merge_states(input_states)
+            state = init_state.copy() if not input_states else self._merge_states(input_states)
 
             if self._blocks and node.addr not in block_addrs:
                 # skip this block
@@ -341,7 +336,8 @@ class FastConstantPropagation(Analysis):
 
         self.replacements = replacements
 
-    def _merge_states(self, states: list[FCPState]) -> FCPState:
+    @staticmethod
+    def _merge_states(states: list[FCPState]) -> FCPState:
         state = FCPState()
         for s in states:
             for offset, value in s.regs.items():
