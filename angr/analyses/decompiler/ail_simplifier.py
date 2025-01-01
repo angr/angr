@@ -216,7 +216,7 @@ class AILSimplifier(Analysis):
         self._reaching_definitions = rd
         return rd
 
-    def _compute_propagation(self, immediate_stmt_removal: bool = False) -> SPropagatorAnalysis:
+    def _compute_propagation(self) -> SPropagatorAnalysis:
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
@@ -225,7 +225,6 @@ class AILSimplifier(Analysis):
             func_graph=self.func_graph,
             # gp=self._gp,
             only_consts=self._only_consts,
-            immediate_stmt_removal=immediate_stmt_removal,
         )
         self._propagator = prop
         return prop
@@ -591,7 +590,7 @@ class AILSimplifier(Analysis):
         """
 
         # propagator
-        propagator = self._compute_propagation(immediate_stmt_removal=True)
+        propagator = self._compute_propagation()
         replacements = propagator.replacements
 
         # take replacements and rebuild the corresponding blocks

@@ -53,7 +53,6 @@ class SPropagatorAnalysis(Analysis):
         subject: Block | Function,
         func_graph=None,
         only_consts: bool = True,
-        immediate_stmt_removal: bool = False,
         stack_pointer_tracker=None,
         func_addr: int | None = None,
     ):
@@ -71,7 +70,6 @@ class SPropagatorAnalysis(Analysis):
         self.func_graph = func_graph
         self.func_addr = func_addr
         self.only_consts = only_consts
-        self.immediate_stmt_removal = immediate_stmt_removal
         self._sp_tracker = stack_pointer_tracker
 
         bp_as_gpr = False
