@@ -25,7 +25,6 @@ class SimEnginePropagatorBaseMixin(
         stack_pointer_tracker=None,
         propagate_tmps=True,
         reaching_definitions: ReachingDefinitionsModel | None = None,
-        immediate_stmt_removal: bool = False,
         bp_as_gpr: bool = False,
     ):
         super().__init__(project)
@@ -36,9 +35,7 @@ class SimEnginePropagatorBaseMixin(
         self._load_callback = None
         self._propagate_tmps: bool = propagate_tmps
         self._reaching_definitions = reaching_definitions
-        self._immediate_stmt_removal = immediate_stmt_removal
         self.bp_as_gpr = bp_as_gpr
-        self.stmts_to_remove = set()
 
         # Used in the AIL engine
         self._stack_pointer_tracker = stack_pointer_tracker

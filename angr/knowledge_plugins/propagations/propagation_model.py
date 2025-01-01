@@ -6,7 +6,7 @@ import claripy
 import ailment
 from angr.serializable import Serializable
 from angr.knowledge_plugins.functions.function import Function
-from .states import PropagatorVEXState, PropagatorAILState, PropagatorState
+from .states import PropagatorVEXState, PropagatorState
 
 
 class PropagationModel(Serializable):
@@ -65,7 +65,7 @@ class PropagationModel(Serializable):
         preds = [self.states[pnode.addr] for pnode in self._function.graph.predecessors(node)]
         if not preds:
             if isinstance(node, ailment.Block):
-                state = PropagatorAILState.initial_state(self._function.project, func_addr=self._function.addr)
+                raise NotImplementedError
             else:
                 state = PropagatorVEXState.initial_state(self._function.project, func_addr=self._function.addr)
                 state.store_register(state.arch.ip_offset, state.arch.bytes, claripy.BVV(block_addr, state.arch.bits))

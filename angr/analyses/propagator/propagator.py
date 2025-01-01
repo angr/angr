@@ -12,15 +12,11 @@ import pyvex
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis, visitors
 from angr.knowledge_plugins.propagations.propagation_model import PropagationModel
-from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
-from angr.knowledge_plugins.propagations.states import PropagatorAILState, PropagatorVEXState, PropagatorState
+from angr.knowledge_plugins.propagations.states import PropagatorVEXState, PropagatorState
 from angr import sim_options
 from angr.analyses import register_analysis
 from angr.analyses.analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
-
-if TYPE_CHECKING:
-    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
 
 
 _l = logging.getLogger(name=__name__)
@@ -31,8 +27,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     PropagatorAnalysis implements copy propagation. It propagates values (either constant values or variables) and
     expressions inside a block or across a function.
 
-    PropagatorAnalysis supports both VEX and AIL. The VEX propagator only performs constant propagation. The AIL
-    propagator performs both constant propagation and copy propagation of depth-N expressions.
+    PropagatorAnalysis only supports VEX. For AIL, please use SPropagator.
 
     PropagatorAnalysis performs certain arithmetic operations between constants, including but are not limited to:
 
@@ -66,8 +61,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         gp: int | None = None,
         cache_results: bool = False,
         key_prefix: str | None = None,
-        reaching_definitions: ReachingDefinitionsModel | None = None,
-        immediate_stmt_removal: bool = False,
         profiling: bool = False,
     ):
         if block is None and func is not None:
@@ -95,11 +88,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._do_binops = do_binops
         self._store_tops = store_tops
         self._vex_cross_insn_opt = vex_cross_insn_opt
-        self._immediate_stmt_removal = immediate_stmt_removal
         self._gp = gp
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
-        self._reaching_definitions = reaching_definitions
         self._initial_codeloc: CodeLocation
         self.stmts_to_remove: set[CodeLocation] = set()
         if self.flavor == "function":
@@ -167,7 +158,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # pyright says pylint is wrong about this
         self._engine_vex = SimEnginePropagatorVEX(  # pylint: disable=abstract-class-instantiated
             project=self.project,
-            reaching_definitions=self._reaching_definitions,
             bp_as_gpr=bp_as_gpr,
         )
 
@@ -176,7 +166,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         # performance counters
         self._analyzed_states: int = 0
-        self._analyzed_statements: int = 0
 
         self._analyze()
 
@@ -188,12 +177,12 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             elapsed = time.perf_counter_ns() / 1000000 - start
             if self.flavor == "function":
                 _l.warning("%r:", self._function)
+                _l.warning("  Blocks: %d", len(self._function.block_addrs_set))
             else:
                 _l.warning("%r:", self._block)
-            _l.warning("  Time elapsed: %s milliseconds", elapsed)
+            _l.warning("  Time elapsed: %0.02f milliseconds", elapsed)
             _l.warning("  Cache used: %s", cache_used)
             _l.warning("  Analyzed states: %d", self._analyzed_states)
-            _l.warning("  Analyzed statements: %d", self._analyzed_statements)
 
     @property
     def prop_key(self) -> tuple[str | None, str, int, bool, bool, bool]:
@@ -232,7 +221,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         self._initial_state = PropagatorVEXState.initial_state(
             self.project,
-            rda=self._reaching_definitions,
             only_consts=self._only_consts,
             gp=self._gp,
             do_binops=self._do_binops,
@@ -261,7 +249,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if state is not self._initial_state:
             # make a copy of the state if it's not the initial state
             state = state.copy()
-            state._equivalence.clear()
             state.init_replacements()
         else:
             # clear self._initial_state so that we *do not* run this optimization again!
@@ -284,10 +271,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         )
         state.filter_replacements()
 
-        if self._immediate_stmt_removal:
-            self.stmts_to_remove |= engine.stmts_to_remove
-            engine.stmts_to_remove = set()
-
         self.model.node_iterations[block_key] += 1
         self.model.states[block_key] = state
         self.model.block_initial_reg_values.update(state.block_initial_reg_values)
@@ -297,35 +280,19 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             PropagatorState.merge_replacements(self.model.replacements, state._replacements)
 
-        self.model.equivalence |= state._equivalence
-
         # TODO: Clear registers according to calling conventions
 
         if self.model.node_iterations[block_key] < self._max_iterations:
             return None, state
         return False, state
 
-    def _process_input_state_for_successor(self, node, successor, input_state: PropagatorAILState | PropagatorVEXState):
-        if self._only_consts:
-            if isinstance(input_state, PropagatorAILState):
-                key = node.addr, successor.addr
-                if key in self.model.block_initial_reg_values:
-                    input_state: PropagatorAILState = input_state.copy()
-                    for reg_atom, reg_value in self.model.block_initial_reg_values[key]:
-                        input_state.store_register(
-                            reg_atom,
-                            PropValue(
-                                claripy.BVV(reg_value.value, reg_value.bits),
-                                offset_and_details={0: Detail(reg_atom.size, reg_value, self._initial_codeloc)},
-                            ),
-                        )
-                    return input_state
-            elif isinstance(input_state, PropagatorVEXState):
-                key = node.addr, successor.addr
-                if key in self.model.block_initial_reg_values:
-                    input_state: PropagatorVEXState = input_state.copy()
-                    for reg_offset, reg_size, value in self.model.block_initial_reg_values[key]:
-                        input_state.store_register(reg_offset, reg_size, claripy.BVV(value, reg_size * 8))
+    def _process_input_state_for_successor(self, node, successor, input_state: PropagatorVEXState):
+        if self._only_consts and isinstance(input_state, PropagatorVEXState):
+            key = node.addr, successor.addr
+            if key in self.model.block_initial_reg_values:
+                input_state: PropagatorVEXState = input_state.copy()
+                for reg_offset, reg_size, value in self.model.block_initial_reg_values[key]:
+                    input_state.store_register(reg_offset, reg_size, claripy.BVV(value, reg_size * 8))
         return input_state
 
     def _intra_analysis(self):
@@ -364,10 +331,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                     if isinstance(v, claripy.ast.Base):
                         # claripy expressions
                         if not PropagatorState.is_top(v):
-                            filtered_rep[k] = v
-                    else:
-                        # AIL expressions
-                        if not PropagatorAILState.is_top(v):
                             filtered_rep[k] = v
                 self.model.replacements[codeloc] = filtered_rep
 
