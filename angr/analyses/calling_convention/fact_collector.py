@@ -297,7 +297,6 @@ class FactCollector(Analysis):
         try:
             arg_locs = func.calling_convention.arg_locs(func.prototype)
         except (TypeError, ValueError):
-            func.prototype = None
             return
 
         if None in arg_locs:
