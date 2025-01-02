@@ -26,10 +26,9 @@ class PropagatorLoadCallback:
                 return True
         else:
             segment = self.project.loader.find_segment_containing(addr_v)
-            if segment is not None:
-                if segment.is_readable and not segment.is_writable:
-                    # read-only segment
-                    return True
+            if segment is not None and segment.is_readable and not segment.is_writable:
+                # read-only segment
+                return True
 
         if (size == self.project.arch.bytes and (section is not None and section.is_readable)) or (
             segment is not None and segment.is_readable
