@@ -229,7 +229,7 @@ class SimEngineFCPVEX(
     def _handle_expr_RdTmp(self, expr):
         return self.state.tmps.get(expr.tmp, None)
 
-    def _dummy_handler(self, expr):
+    def _dummy_handler(self, expr):  # pylint:disable=unused-argument,no-self-use
         return None
 
     _handle_expr_VECRET = _dummy_handler
