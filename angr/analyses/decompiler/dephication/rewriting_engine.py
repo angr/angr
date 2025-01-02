@@ -32,6 +32,8 @@ from angr.ailment.expression import (
     DirtyExpression,
     Reinterpret,
 )
+
+from angr.engines.engine import DataType_co
 from angr.engines.light import SimEngineNostmtAIL
 
 if TYPE_CHECKING:
@@ -342,6 +344,10 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         pass
 
     def _handle_expr_Array(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Enum(self, expr):
         # TODO
         pass
 

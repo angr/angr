@@ -4,7 +4,7 @@ from ailment.tagged_object import TaggedObject
 from ailment.utils import stable_hash
 
 from angr.rust.definitions.structs import ArrayReference
-from angr.rust.sim_type import RustSimStruct
+from angr.rust.sim_type import RustSimStruct, EnumVariant, RustSimEnum
 
 
 class String(ailment.Const):
@@ -92,6 +92,43 @@ class Array(ailment.Expression):
 
     def likes(self, other):
         return type(self) is type(other) and self.type == other.type and (self.elements == other.elements)
+
+
+class Enum(ailment.Expression):
+    def __init__(self, idx, associated_exprs, variant: EnumVariant, enum_type: RustSimEnum, **kwargs):
+        super().__init__(
+            idx, (max(ele.depth for ele in associated_exprs) if len(associated_exprs) else 0) + 1, **kwargs
+        )
+        self.associated_exprs = associated_exprs
+        self.variant = variant
+        self.type = enum_type
+
+    @property
+    def size(self):
+        return self.type.size // 8
+
+    @property
+    def bits(self):
+        return self.type.size
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f"{self.variant.name}({str(self.associated_exprs)})"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((tuple(self.associated_exprs), self.variant, self.type))
+
+    def likes(self, other):
+        return (
+            type(self) is type(other)
+            and self.type == other.type
+            and self.associated_exprs == other.associated_exprs
+            and self.variant == other.variant
+        )
 
 
 class Struct(ailment.Expression):

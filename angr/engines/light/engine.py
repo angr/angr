@@ -572,6 +572,7 @@ class SimEngineLightAIL(
             "StringLiteral": self._handle_expr_StringLiteral,
             "Struct": self._handle_expr_Struct,
             "Array": self._handle_expr_Array,
+            "Enum": self._handle_expr_Enum,
             "Let": self._handle_expr_Let,
             "FunctionLikeMacro": self._handle_expr_FunctionLikeMacro,
         }
@@ -835,6 +836,11 @@ class SimEngineLightAIL(
     def _handle_expr_Array(self, expr) -> DataType_co:
         for element in expr.elements:
             self._expr(element)
+        return self._top(expr.bits)
+
+    def _handle_expr_Enum(self, expr) -> DataType_co:
+        for child_expr in expr.associated_exprs:
+            self._expr(child_expr)
         return self._top(expr.bits)
 
     def _handle_expr_Let(self, expr) -> DataType_co:

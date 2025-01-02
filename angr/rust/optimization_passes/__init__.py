@@ -1,5 +1,4 @@
 from .function_prototype_inference import FunctionPrototypeInference
-from .calling_convention_recovery import CallingConventionRecovery
 from .callsite_corrector import CallsiteCorrector
 from .cleanup_code_remover import CleanupCodeRemover
 from .deref_coercion_simplifier import DerefCoercionSimplifier
