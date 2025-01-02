@@ -373,7 +373,7 @@ class SimSolver(SimStatePlugin):
         max=None,
         stride=None,
         uninitialized=False,
-        explicit_name=None,
+        explicit_name=False,
         key=None,
         eternal=False,
         inspect=True,
