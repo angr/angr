@@ -69,8 +69,12 @@ class FCPState:
 
     def register_written(self, offset: int, size_in_bytes: int, value: int | None):
         if value is None:
-            if offset in self.regs:
-                del self.regs[offset]
+            to_remove = set()
+            for off, v in self.regs.items():
+                if (off <= offset < off + v.bits // 8) or (offset <= off < offset + size_in_bytes):
+                    to_remove.add(off)
+            for off in to_remove:
+                del self.regs[off]
         else:
             self.regs[offset] = SV(value, size_in_bytes * 8)
 
@@ -81,8 +85,16 @@ class FCPState:
                 return v.value
         return None
 
-    def stack_written(self, offset: int, size_int_bytes: int, value: int):
-        self.stack[offset] = SV(value, size_int_bytes * 8)
+    def stack_written(self, offset: int, size_int_bytes: int, value: int | None):
+        if value is None:
+            to_remove = set()
+            for off, v in self.stack.items():
+                if (off <= offset < off + v.bits // 8) or (offset <= off < offset + size_int_bytes):
+                    to_remove.add(off)
+            for off in to_remove:
+                del self.stack[off]
+        else:
+            self.stack[offset] = SV(value, size_int_bytes * 8)
 
     def copy(self, with_tmps: bool = False) -> FCPState:
         new_state = FCPState()
@@ -144,6 +156,9 @@ class SimEngineFCPVEX(
             self.state.register_written(stmt.offset, size, v)
             if stmt.offset != self.arch.ip_offset:
                 self.replacements[codeloc][VEXReg(stmt.offset, size)] = v
+        else:
+            size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
+            self.state.register_written(stmt.offset, size, None)
 
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
@@ -151,6 +166,8 @@ class SimEngineFCPVEX(
             data = self._expr(stmt.data)
             if isinstance(data, int):
                 self.state.stack_written(addr.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width, data)
+            else:
+                self.state.stack_written(addr.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width, None)
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
         if isinstance(stmt.data, pyvex.IRExpr.Binop) and not (
