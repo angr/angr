@@ -3,9 +3,8 @@ from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootArgument, SootNullConstant
-from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
-from claripy.ast.fp import FP, fpToIEEEBV
-from claripy.ast.bv import BV
+from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS, fpToIEEEBV
+from claripy.ast import BV, FP
 
 from angr import SIM_PROCEDURES, options
 
@@ -348,7 +347,7 @@ class SimJavaVM(SimOS):
             sort = FSORT_FLOAT if to_type == "float" else FSORT_DOUBLE
             return FPV(value, sort)
 
-        if to_type == "int" and isinstance(value, FP):
+        if to_type == "int" and isinstance(value, claripy.ast.FP):
             # TODO fix fpToIEEEBV in claripty
             l.warning("Converting FP to BV might provide incorrect results.")
             return fpToIEEEBV(value)[63:32]

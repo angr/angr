@@ -6,7 +6,6 @@ import itertools
 import contextlib
 
 import claripy
-from claripy.ast.bv import BV
 
 from .plugin import SimStatePlugin
 from angr import sim_options
@@ -41,7 +40,7 @@ class SimStateHistory(SimStatePlugin):
         self.jump_target = None if clone is None else clone.jump_target
         self.jump_source = None if clone is None else clone.jump_source
         self.jump_avoidable = None if clone is None else clone.jump_avoidable
-        self.jump_guard: BV | None = None if clone is None else clone.jump_guard
+        self.jump_guard: claripy.ast.BV | None = None if clone is None else clone.jump_guard
         self.jumpkind: str | None = None if clone is None else clone.jumpkind
 
         # the execution log for this history
