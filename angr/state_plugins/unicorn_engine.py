@@ -990,7 +990,7 @@ class Unicorn(SimStatePlugin):
         :param from_where: the ID of the memory region it comes from ('mem' or 'reg')
         :returns: the value to be inserted into Unicorn, or None
         """
-        allowed_annotations = (claripy.annotations.UninitializedAnnotation,)
+        allowed_annotations = (claripy.annotation.UninitializedAnnotation,)
         filtered_annotations = [
             a for a in d.annotations if not isinstance(a, allowed_annotations) and not a.eliminatable
         ]
