@@ -9,6 +9,7 @@ from .amd64_elf_got import AMD64ElfGotResolver
 from .arm_elf_fast import ArmElfFastResolver
 from .const_resolver import ConstantResolver
 from .amd64_pe_iat import AMD64PeIatResolver
+from .memload_resolver import MemoryLoadResolver
 
 
 __all__ = (
@@ -17,6 +18,7 @@ __all__ = (
     "ArmElfFastResolver",
     "ConstantResolver",
     "JumpTableResolver",
+    "MemoryLoadResolver",
     "MipsElfFastResolver",
     "MipsElfGotResolver",
     "X86ElfPicPltResolver",

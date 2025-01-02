@@ -1,5 +1,6 @@
 from __future__ import annotations
 import cle
+from angr.analyses.cfg.indirect_jump_resolvers import MemoryLoadResolver
 
 from . import MipsElfFastResolver
 from . import X86ElfPicPltResolver
@@ -57,7 +58,7 @@ DEFAULT_RESOLVERS = {
             ArmElfFastResolver,
         ]
     },
-    "ALL": [JumpTableResolver, ConstantResolver],
+    "ALL": [MemoryLoadResolver, JumpTableResolver, ConstantResolver],
 }
 
 
