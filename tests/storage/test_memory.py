@@ -6,6 +6,7 @@ import time
 import unittest
 
 import claripy
+from claripy.annotation import UninitializedAnnotation
 
 from angr.storage.memory_mixins import (
     DataNormalizationMixin,
@@ -127,9 +128,9 @@ class TestMemory(unittest.TestCase):
         expr = s.memory.load(100, 4)
         assert expr is claripy.BVV(0x1337, 32)
         expr = s.memory.load(100, 2)
-        assert expr is claripy.BVV(0, 16)
+        assert expr.clear_annotations() is claripy.BVV(0, 16)
         expr = s.memory.load(102, 2)
-        assert expr is claripy.BVV(0x1337, 16)
+        assert expr.clear_annotations() is claripy.BVV(0x1337, 16)
 
         # partially symbolic
         expr = s.memory.load(102, 4)
@@ -140,13 +141,13 @@ class TestMemory(unittest.TestCase):
         # partial overwrite
         s.memory.store(101, claripy.BVV(0x1415, 16))
         expr = s.memory.load(101, 3)
-        assert expr is claripy.BVV(0x141537, 24)
+        assert expr.clear_annotations() is claripy.BVV(0x141537, 24)
         expr = s.memory.load(100, 2)
         assert s.solver.min(expr) == 0x14
         expr = s.memory.load(102, 2)
-        assert expr is claripy.BVV(0x1537, 16)
+        assert expr.clear_annotations() is claripy.BVV(0x1537, 16)
         expr = s.memory.load(102, 2, endness="Iend_LE")
-        assert expr is claripy.BVV(0x3715, 16)
+        assert expr.clear_annotations() is claripy.BVV(0x3715, 16)
 
         s.memory.store(0x100, claripy.BVV(b"AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH"), endness="Iend_LE")
         expr = s.memory.load(0x104, 13)
@@ -756,7 +757,7 @@ class TestMemory(unittest.TestCase):
         # test that under-constrained load is constrained
         ptr1 = state.memory.load(0x4141414141414000, size=8, endness="Iend_LE")
         assert state.uc_manager.get_alloc_depth(ptr1) == 0
-        assert ptr1.uninitialized
+        assert ptr1.has_annotation_type(UninitializedAnnotation)
         state.memory.load(ptr1, size=1)
         # ptr1 should have been constrained
         assert state.solver.min_int(ptr1) == state.solver.max_int(ptr1)
@@ -764,7 +765,7 @@ class TestMemory(unittest.TestCase):
         # test that under-constrained store is constrained
         ptr2 = state.memory.load(0x4141414141414008, size=8, endness="Iend_LE")
         assert state.uc_manager.get_alloc_depth(ptr2) == 0
-        assert ptr2.uninitialized
+        assert ptr2.has_annotation_type(UninitializedAnnotation)
         state.memory.store(ptr2, b"\x41", size=1)
         # ptr2 should have been constrained
         assert state.solver.min_int(ptr2) == state.solver.max_int(ptr2)
@@ -777,7 +778,7 @@ class TestMemory(unittest.TestCase):
             state.memory.load(0x4141414141414010, size=4, endness="Iend_LE"),
             state.memory.load(0x4141414141414014, size=4, endness="Iend_LE"),
         )
-        assert ptr3.uninitialized
+        assert ptr3.has_annotation_type(UninitializedAnnotation)
         assert state.uc_manager.get_alloc_depth(ptr3) is None  # because uc_alloc_depth doesn't carry across Concat
         # we don't care what these do, as long as they don't crash
         state.memory.store(ptr3, b"\x41", size=1)

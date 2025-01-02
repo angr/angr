@@ -134,7 +134,7 @@ class SmartFindMixin(MemoryMixin):
     def _find_are_bytes_symbolic(self, b):
         if not b.symbolic:
             return False
-        if b.uninitialized:
+        if b.has_annotation_type(claripy.annotation.UninitializedAnnotation):
             return True
         return len(self.state.solver.eval_upto(b, 2)) > 1
 

@@ -52,7 +52,7 @@ class UnderconstrainedMixin(MemoryMixin):
         if (
             o.UNDER_CONSTRAINED_SYMEXEC in self.state.options
             and isinstance(addr, claripy.ast.Base)
-            and addr.uninitialized
+            and addr.has_annotation_type(claripy.annotation.UninitializedAnnotation)
             and self.state.uc_manager.get_alloc_depth(addr) is not None
         ) and (
             not self.state.uc_manager.is_bounded(addr)

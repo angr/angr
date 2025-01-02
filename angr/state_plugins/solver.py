@@ -408,18 +408,23 @@ class SimSolver(SimStatePlugin):
         if key is not None and eternal and key in self.eternal_tracked_variables:
             r = self.eternal_tracked_variables[key]
             # pylint: disable=too-many-boolean-expressions
-            if size != r.length or uninitialized != r.uninitialized or bool(explicit_name) ^ (r.args[0] == name):
+            if (
+                size != r.length
+                or uninitialized != r.has_annotation_type(claripy.annotation.UninitializedAnnotation)
+                or bool(explicit_name) ^ (r.args[0] == name)
+            ):
                 l.warning("Variable %s being retrieved with different settings than it was tracked with", name)
         else:
             r = claripy.BVS(
                 name,
                 size,
-                uninitialized=uninitialized,
                 explicit_name=explicit_name,
                 **kwargs,
             )
             if any(x is not None for x in (min, max, stride)):
                 r = r.annotate(claripy.annotation.StridedIntervalAnnotation(stride, min, max))
+            if uninitialized:
+                r = r.annotate(claripy.annotation.UninitializedAnnotation())
             if key is not None:
                 self.register_variable(r, key, eternal)
 
