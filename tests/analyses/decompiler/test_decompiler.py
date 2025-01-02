@@ -3919,12 +3919,12 @@ class TestDecompiler(unittest.TestCase):
             regions=[(0x40D760, 0x40DD50), (0x451C3F, 0x452E0F)],
             start_at_entry=False,
         )
-        assert len(cfg.jump_tables) == 7  # there are 7 jump tables in the function
+        assert len(cfg.jump_tables) == 8  # there are 8 jump tables in the function
         f = proj.kb.functions[0x40D760]
 
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
-        assert d.codegen.text.count("switch") == 7
+        assert d.codegen.text.count("switch") == 8
 
     def test_decompiling_abnormal_switch_case_within_a_loop_case_1(self, decompiler_options=None):
         bin_path = os.path.join(

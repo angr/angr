@@ -54,6 +54,7 @@ from .patchfinder import PatchFinderAnalysis
 from .pathfinder import Pathfinder
 from .smc import SelfModifyingCodeAnalysis
 from .unpacker import PackingDetector
+from .fcp import FastConstantPropagation
 from . import deobfuscator
 
 
@@ -85,6 +86,7 @@ __all__ = (
     "Disassembly",
     "DominanceFrontier",
     "FactCollector",
+    "FastConstantPropagation",
     "FlirtAnalysis",
     "ForwardAnalysis",
     "Identifier",
