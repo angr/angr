@@ -191,6 +191,9 @@ class ConstantValueManager:
                 if node in blocks:
                     continue
                 blocks.add(node)
+                if node.addr == self.indirect_jump_addr:
+                    # stop at the indirect jump block
+                    continue
                 new_succs += list(self.func.graph.successors(node))
             succs = new_succs
             if not succs:

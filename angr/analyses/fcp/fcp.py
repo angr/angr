@@ -148,7 +148,7 @@ class SimEngineFCPVEX(
         v = self._expr(stmt.data)
         if stmt.offset == self.arch.sp_offset and isinstance(v, SpOffset):
             self.state.sp_value = v.offset
-        elif stmt.offset == self.arch.bp_offset and isinstance(v, SpOffset):
+        elif stmt.offset == self.arch.bp_offset and not self.bp_as_gpr and isinstance(v, SpOffset):
             self.state.bp_value = v.offset
         elif isinstance(v, int):
             size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
@@ -356,21 +356,29 @@ class FastConstantPropagation(Analysis):
     @staticmethod
     def _merge_states(states: list[FCPState]) -> FCPState:
         state = FCPState()
+        to_drop = set()
         for s in states:
             for offset, value in s.regs.items():
                 if offset in state.regs:
                     if state.regs[offset] != value:
-                        del state.regs[offset]
+                        to_drop.add(offset)
                 else:
                     state.regs[offset] = value
+        for offset in to_drop:
+            del state.regs[offset]
 
+        to_drop = set()
+        for s in states:
             for offset, value in s.stack.items():
                 if offset in state.stack:
                     if state.stack[offset] != value:
-                        del state.stack[offset]
+                        to_drop.add(offset)
                 else:
                     state.stack[offset] = value
+        for offset in to_drop:
+            del state.stack[offset]
 
+        for s in states:
             state.sp_value = max(state.sp_value, s.sp_value)
             state.bp_value = max(state.bp_value, s.bp_value)
         return state
