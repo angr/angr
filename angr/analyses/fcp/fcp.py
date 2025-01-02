@@ -229,8 +229,13 @@ class SimEngineFCPVEX(
     def _handle_expr_RdTmp(self, expr):
         return self.state.tmps.get(expr.tmp, None)
 
-    def _handle_expr_VECRET(self, expr):
+    def _dummy_handler(self, expr):
         return None
+
+    _handle_expr_VECRET = _dummy_handler
+    _handle_expr_CCall = _dummy_handler
+    _handle_expr_Unop = _dummy_handler
+    _handle_expr_Triop = _dummy_handler
 
     @binop_handler
     def _handle_binop_Add(self, expr):
@@ -357,24 +362,28 @@ class FastConstantPropagation(Analysis):
     def _merge_states(states: list[FCPState]) -> FCPState:
         state = FCPState()
         to_drop = set()
+        common_keys = set.intersection(*[set(s.regs) for s in states])
         for s in states:
             for offset, value in s.regs.items():
-                if offset in state.regs:
-                    if state.regs[offset] != value:
-                        to_drop.add(offset)
-                else:
-                    state.regs[offset] = value
+                if offset in common_keys:
+                    if offset in state.regs:
+                        if state.regs[offset] != value:
+                            to_drop.add(offset)
+                    else:
+                        state.regs[offset] = value
         for offset in to_drop:
             del state.regs[offset]
 
         to_drop = set()
+        common_keys = set.intersection(*[set(s.stack) for s in states])
         for s in states:
             for offset, value in s.stack.items():
-                if offset in state.stack:
-                    if state.stack[offset] != value:
-                        to_drop.add(offset)
-                else:
-                    state.stack[offset] = value
+                if offset in common_keys:
+                    if offset in state.stack:
+                        if state.stack[offset] != value:
+                            to_drop.add(offset)
+                    else:
+                        state.stack[offset] = value
         for offset in to_drop:
             del state.stack[offset]
 
