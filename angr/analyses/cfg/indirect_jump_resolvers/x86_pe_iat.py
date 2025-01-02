@@ -10,14 +10,14 @@ l = logging.getLogger(name=__name__)
 
 class X86PeIatResolver(IndirectJumpResolver):
     """
-    A timeless indirect jump resolver for IAT in x86 PEs.
+    A timeless indirect jump resolver for IAT in x86 PEs and xbes.
     """
 
     def __init__(self, project):
         super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if jumpkind != "Ijk_Call":
+        if jumpkind not in {"Ijk_Call", "Ijk_Boring"}:  # both call and jmp
             return False
 
         insns = self.project.factory.block(addr).capstone.insns
