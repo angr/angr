@@ -347,7 +347,7 @@ class SimJavaVM(SimOS):
             sort = FSORT_FLOAT if to_type == "float" else FSORT_DOUBLE
             return FPV(value, sort)
 
-        if to_type == "int" and isinstance(value, claripy.ast.FP):
+        if to_type == "int" and isinstance(value, FP):
             # TODO fix fpToIEEEBV in claripty
             l.warning("Converting FP to BV might provide incorrect results.")
             return fpToIEEEBV(value)[63:32]
