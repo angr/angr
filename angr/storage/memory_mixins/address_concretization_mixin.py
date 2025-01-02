@@ -22,7 +22,7 @@ class MultiwriteAnnotation(claripy.Annotation):
 
 def _multiwrite_filter(mem, ast):  # pylint:disable=unused-argument
     # this is a huge hack, but so is the whole multiwrite crap
-    return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminatable_annotations)
+    return ast.has_annotation(MultiwriteAnnotation)
 
 
 SimStateOptions.register_option(
