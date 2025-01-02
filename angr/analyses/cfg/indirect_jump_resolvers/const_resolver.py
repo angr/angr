@@ -158,7 +158,7 @@ class ConstantResolver(IndirectJumpResolver):
                         and self._is_target_valid(cfg, resolved_tmp.args[0])
                     ):
                         return True, [resolved_tmp.args[0]]
-                    elif isinstance(resolved_tmp, int) and self._is_target_valid(cfg, resolved_tmp):
+                    if isinstance(resolved_tmp, int) and self._is_target_valid(cfg, resolved_tmp):
                         return True, [resolved_tmp]
 
         return False, []
