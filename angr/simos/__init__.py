@@ -14,6 +14,7 @@ from .cgc import SimCGC
 from .windows import SimWindows
 from .javavm import SimJavaVM
 from .snimmuc_nxp import SimSnimmucNxp
+from .xbox import SimXbox
 
 os_mapping = defaultdict(lambda: SimOS)
 
@@ -31,6 +32,7 @@ register_simos("windows", SimWindows)
 register_simos("cgc", SimCGC)
 register_simos("javavm", SimJavaVM)
 register_simos("snimmuc_nxp", SimSnimmucNxp)
+register_simos("xbox", SimXbox)
 
 
 __all__ = (
