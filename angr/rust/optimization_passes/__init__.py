@@ -28,7 +28,7 @@ def get_rust_optimization_passes():
         # AFTER_GLOBAL_SIMPLIFICATION
         CleanupCodeRemover,
         SecurityCheckRemover,
-        AllocSimplifier,  # Maybe useless when inlining is disabled
+        # AllocSimplifier,  # Maybe useless when inlining is disabled
         FunctionPrototypeInference,
         CallsiteCorrector,
         UnwrapSimplifier,
@@ -39,10 +39,10 @@ def get_rust_optimization_passes():
         VecMacroSimplifier,
         # StructFieldAccessSimplifier,
         DerefCoercionSimplifier,
+        StructReturnSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
         StrArgumentSimplifier,
         # AFTER_STRUCTURING
         PatternMatchSimplifier,
-        StructReturnSimplifier,
     ]
