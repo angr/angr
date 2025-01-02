@@ -5,10 +5,17 @@ from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset
 from ailment.statement import Return, Store, ConditionalJump, Jump, Label, Call
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.rust.ailment.expression import Struct
+from angr.rust.ailment.expression import Struct, Enum
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.rust.mixins.srda_mixin import SRDAMixin
-from angr.rust.sim_type import RustSimTypeInt, RustSimStruct
+from angr.rust.sim_type import (
+    RustSimTypeInt,
+    RustSimStruct,
+    RustSimTypeFunction,
+    RustSimTypeResult,
+    RustSimTypeOption,
+    EnumVariant,
+)
 
 
 class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin):
@@ -117,6 +124,33 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             return vvar
         return None
 
+    def _remove_discriminant_from_struct(self, struct: Struct, variant: EnumVariant):
+        new_fields = {}
+        for offset, v in struct.fields.items():
+            new_offset = offset - variant.discriminant_size
+            if new_offset >= 0:
+                new_fields[new_offset] = v
+        struct_ty = self._build_struct_ty(new_fields)
+        struct_ty.name = f"struct{struct_ty.size // 8}"
+        return Struct(None, new_fields, struct_ty)
+
+    def try_convert_to_enum(self, struct: Struct):
+        prototype = self._func.prototype
+        if isinstance(prototype, RustSimTypeFunction):
+            prototype = prototype.normalize()
+            discriminant = None
+            if isinstance(struct.fields[0], Const):
+                discriminant = struct.fields[0].value
+            variant = None
+            if isinstance(prototype.returnty, (RustSimTypeResult, RustSimTypeOption)):
+                variant = prototype.returnty.get_variant(discriminant)
+                if not variant and discriminant is not None:
+                    variant = prototype.returnty.get_variant(None)
+            if variant and struct.size == variant.size // 8 + variant.discriminant_size:
+                new_struct = self._remove_discriminant_from_struct(struct, variant)
+                return Enum(None, [new_struct], variant, prototype.returnty.with_arch(self.project.arch))
+        return struct
+
     def collect_ret_expr(self, path):
         fields = {}
         for block in path:
@@ -131,7 +165,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
         if 0 in fields:
             struct_ty = self._build_struct_ty(fields)
             result = Struct(None, fields, struct_ty)
-            return result
+            return self.try_convert_to_enum(result)
         return None
 
     def derive_paths(self, block, max_paths):

@@ -22,6 +22,9 @@ class FunctionPrototypeInference(TransformationPass):
         return self.project.is_rust_binary, None
 
     def _analyze(self, cache=None):
+        if not isinstance(self._func.prototype, RustSimTypeFunction):
+            rcc = self.project.analyses.RustCallingConvention(self._func)
+            self._func.prototype = rcc.model.inferred_prototype
         for block in self._graph.nodes:
             call = get_terminal_call(block)
             if (

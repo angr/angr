@@ -584,7 +584,9 @@ class RustSimTypeResult(RustSimEnum):
         self.err_discriminant = err_discriminant
 
         variants = [
-            EnumVariant.from_single_struct("Ok", ok_discriminant, ok_type, discriminant_size),
+            EnumVariant.from_single_struct(
+                "Ok", ok_discriminant, ok_type, discriminant_size if ok_discriminant is not None else 0
+            ),
             EnumVariant.from_single_struct("Err", err_discriminant, err_type, discriminant_size),
         ]
         super().__init__(variants, discriminant_size=discriminant_size)

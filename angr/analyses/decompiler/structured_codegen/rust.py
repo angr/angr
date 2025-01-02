@@ -63,7 +63,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, Struct, Array, Let, StringLiteral
+from ....rust.ailment.expression import String, Struct, Array, Let, StringLiteral, Enum
 
 if TYPE_CHECKING:
     import archinfo
@@ -1464,7 +1464,9 @@ class RustReturn(RustStatement):
         else:
             yield indent_str, None
             yield "return ", self
-            yield from self.retval.c_repr_chunks(indent=indent if isinstance(self.retval, RustStruct) else 0)
+            yield from self.retval.c_repr_chunks(
+                indent=indent if isinstance(self.retval, (RustStruct, RustEnum)) else 0
+            )
             yield ";\n", self
 
 
@@ -1598,6 +1600,40 @@ class RustStruct(RustExpression):
             yield "\n", None
         yield indent_str, None
         yield "}", brace
+
+
+class RustEnum(RustExpression):
+    __slots__ = (
+        "name",
+        "associated_exprs",
+        "enum_type",
+        "tags",
+    )
+
+    def __init__(self, name, associated_exprs, enum_type, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.name = name
+        self.associated_exprs = associated_exprs
+        self.enum_type = enum_type
+        self.tags = tags
+
+    @property
+    def type(self):
+        return self.enum_type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        paren = RustClosingObject("{")
+        if self.collapsed:
+            yield "...", self
+            return
+        yield self.name, self
+        yield "(", paren
+        for idx, expr in enumerate(self.associated_exprs):
+            if idx > 0:
+                yield ", ", None
+            yield from expr.c_repr_chunks(indent=indent)
+        yield ")", paren
 
 
 class RustStructField(RustExpression):
@@ -2683,6 +2719,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             String: self._handle_Expr_String,
             StringLiteral: self._handle_Expr_StringLiteral,
             Struct: self._handle_Expr_Struct,
+            Enum: self._handle_Expr_Enum,
             Array: self._handle_Expr_Array,
             Let: self._handle_Expr_Let,
         }
@@ -3797,6 +3834,15 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Struct(self, expr: Struct, **kwargs):
         return RustStruct(expr.fields, expr.field_names, expr.type, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Enum(self, expr: Enum, **kwargs):
+        return RustEnum(
+            expr.variant.name,
+            [self._handle(child_expr) for child_expr in expr.associated_exprs],
+            expr.type,
+            tags=expr.tags,
+            codegen=self,
+        )
 
     def _handle_Expr_Array(self, expr: Array, **kwargs):
         return RustArray(expr.elements, expr.length, expr.type, tags=expr.tags, codegen=self)

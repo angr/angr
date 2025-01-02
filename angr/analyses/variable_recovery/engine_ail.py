@@ -19,7 +19,7 @@ from angr.utils.types import dereference_simtype_by_lib
 from ...engines.engine import DataType_co
 from ...rust.ailment.statement import FunctionLikeMacro
 from ...rust.sim_type import RustSimTypeStr, RustSimTypeString, RustSimTypeFunction
-from ...rust.ailment.expression import String, Struct, Array, Let
+from ...rust.ailment.expression import String, Struct, Array, Let, Enum
 from ...rust.sim_type import RustSimTypeFunction, RustSimStruct, RustSimTypeStr, RustSimTypeReference
 from ...rust.typehoon.lifter import RustTypeLifter
 from .engine_base import SimEngineVRBase, RichR
@@ -606,6 +606,11 @@ class SimEngineVRAIL(
     def _handle_expr_Struct(self, expr: Struct):
         for field in expr.fields.values():
             self._expr(field)
+        return RichR(self.state.top(expr.bits))
+
+    def _handle_expr_Enum(self, expr: Enum):
+        for associated_expr in expr.associated_exprs:
+            self._expr(associated_expr)
         return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Array(self, expr: Array):

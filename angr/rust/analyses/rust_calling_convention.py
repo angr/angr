@@ -254,7 +254,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             if discriminant is None:
                                 ok_type = struct_ty
                             else:
-                                err_type = struct_ty
+                                err_type = self._remove_discriminant_from_struct(struct_ty)
                                 err_discriminant = discriminant
                         return RustSimTypeResult(
                             ok_type,
@@ -425,6 +425,8 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
     def collect_callsite_facts(self):
         callsite_block = self.model.callsite_block
+        if callsite_block is None:
+            return
         call = self.terminal_call(callsite_block)
         if call and call.args:
             stack_offsets = []
@@ -462,6 +464,8 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
     def collect_post_callsite_facts(self):
         callsite_block = self.model.callsite_block
+        if not callsite_block:
+            return
         call = self.terminal_call(callsite_block)
         post_callsite_block = self.model.post_callsite_block
         if post_callsite_block and call.args and len(call.args):
