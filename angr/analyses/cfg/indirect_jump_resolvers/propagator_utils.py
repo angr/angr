@@ -31,10 +31,8 @@ class PropagatorLoadCallback:
                     # read-only segment
                     return True
 
-        if (
-            size == self.project.arch.bytes
-            and (section is not None and section.is_readable)
-            or (segment is not None and segment.is_readable)
+        if (size == self.project.arch.bytes and (section is not None and section.is_readable)) or (
+            segment is not None and segment.is_readable
         ):
             # memory is mapped and readable. does it contain a valid address?
             try:
