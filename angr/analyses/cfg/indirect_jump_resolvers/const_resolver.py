@@ -75,7 +75,31 @@ class ConstantResolver(IndirectJumpResolver):
 
         vex_block = block.vex
         if isinstance(vex_block.next, pyvex.expr.RdTmp):
-            # what does the jump rely on? slice it back and see
+            tmp_stmt_idx, tmp_ins_addr = self._find_tmp_write_stmt_and_ins(vex_block, vex_block.next.tmp)
+            if tmp_stmt_idx is None or tmp_ins_addr is None:
+                return False, []
+
+            # first check: is it jumping to a target loaded from memory? if so, it should have been resolved by
+            # MemoryLoadResolver.
+            stmt = vex_block.statements[tmp_stmt_idx]
+            assert isinstance(stmt, pyvex.IRStmt.WrTmp)
+            if (
+                isinstance(stmt.data, pyvex.IRExpr.Load)
+                and isinstance(stmt.data.addr, pyvex.IRExpr.Const)
+                and stmt.data.result_size(vex_block.tyenv) == self.project.arch.bits
+            ):
+                # well, if MemoryLoadResolver hasn't resolved it, we can try to resolve it here, or bail early because
+                # ConstantResolver won't help.
+                load_addr = stmt.data.addr.con.value
+                try:
+                    value = self.project.loader.memory.unpack_word(load_addr, size=self.project.arch.bytes)
+                    if isinstance(value, int) and self._is_target_valid(cfg, value):
+                        return True, [value]
+                except KeyError:
+                    pass
+                return False, []
+
+            # second check: what does the jump rely on? slice it back and see
             b = Blade(
                 cfg.graph,
                 addr,
@@ -104,26 +128,25 @@ class ConstantResolver(IndirectJumpResolver):
                     block = self.project.factory.block(pred_addr, cross_insn_opt=True).vex
                     if stmt_idx != DEFAULT_STATEMENT:
                         stmt = block.statements[stmt_idx]
-                        if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
+                        if (
+                            isinstance(stmt, pyvex.IRStmt.WrTmp)
+                            and isinstance(stmt.data, pyvex.IRExpr.Load)
+                            and not isinstance(stmt.data.addr, pyvex.IRExpr.Const)
+                        ):
                             # loading from memory - unsupported
                             return False, []
                 break
 
             _l.debug("ConstantResolver: Propagating for %r at %#x.", func, addr)
-            prop = self.project.analyses.Propagator(
-                func=func,
-                only_consts=True,
-                do_binops=True,
+            prop = self.project.analyses.FastConstantPropagation(
+                func,
                 vex_cross_insn_opt=False,
-                completed_funcs=cfg._completed_functions,
                 load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
-                cache_results=True,
-                key_prefix="cfg_intermediate",
             )
 
             replacements = prop.replacements
             if replacements:
-                block_loc = CodeLocation(block.addr, None)
+                block_loc = CodeLocation(block.addr, tmp_stmt_idx, ins_addr=tmp_ins_addr)
                 tmp_var = vex_vars.VEXTmp(vex_block.next.tmp)
 
                 if exists_in_replacements(replacements, block_loc, tmp_var):
@@ -135,5 +158,18 @@ class ConstantResolver(IndirectJumpResolver):
                         and self._is_target_valid(cfg, resolved_tmp.args[0])
                     ):
                         return True, [resolved_tmp.args[0]]
+                    if isinstance(resolved_tmp, int) and self._is_target_valid(cfg, resolved_tmp):
+                        return True, [resolved_tmp]
 
         return False, []
+
+    @staticmethod
+    def _find_tmp_write_stmt_and_ins(vex_block, tmp: int) -> tuple[int | None, int | None]:
+        stmt_idx = None
+        for idx, stmt in enumerate(reversed(vex_block.statements)):
+            if isinstance(stmt, pyvex.IRStmt.IMark) and stmt_idx is not None:
+                ins_addr = stmt.addr + stmt.delta
+                return stmt_idx, ins_addr
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == tmp:
+                stmt_idx = len(vex_block.statements) - idx - 1
+        return None, None
