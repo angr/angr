@@ -3,12 +3,11 @@ from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootArgument, SootNullConstant
-from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
-from claripy.ast.fp import FP, fpToIEEEBV
-from claripy.ast.bv import BV
+from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS, fpToIEEEBV
+from claripy.ast import BV, FP
 
+import angr
 from angr import SIM_PROCEDURES, options
-
 from angr.calling_conventions import default_cc, SimCCSoot
 from angr.engines.soot import SootMixin
 from angr.engines.soot.expressions import SimSootExpr_NewArray
@@ -44,12 +43,11 @@ class SimJavaVM(SimOS):
                 raise AngrSimOSError("No JNI lib was loaded. Is the jni_libs_ld_path set correctly?")
 
             # Step 2: determine and set the native SimOS
-            from . import os_mapping  # import dynamically, since the JavaVM class is part of the os_mapping dict
 
             # for each native library get the Arch
             native_libs_arch = {obj.arch.__class__ for obj in self.native_libs}
             # for each native library get the compatible SimOS
-            native_libs_simos = {os_mapping[obj.os] for obj in self.native_libs}
+            native_libs_simos = {angr.simos.os_mapping[obj.os] for obj in self.native_libs}
             # show warning, if more than one SimOS or Arch would be required
             if len(native_libs_simos) > 1 or len(native_libs_arch) > 1:
                 l.warning(

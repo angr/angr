@@ -1,16 +1,19 @@
 from __future__ import annotations
-from collections.abc import Reversible
-import operator
-import logging
-import itertools
+
 import contextlib
+import itertools
+import logging
+import operator
+from collections.abc import Reversible
 
 import claripy
-from claripy.ast.bv import BV
 
-from .plugin import SimStatePlugin
 from angr import sim_options
+from angr.sim_state import SimState
 from angr.state_plugins.sim_action import SimActionObject
+from .plugin import SimStatePlugin
+from .sim_action import SimAction, SimActionConstraint
+from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
 
@@ -41,7 +44,7 @@ class SimStateHistory(SimStatePlugin):
         self.jump_target = None if clone is None else clone.jump_target
         self.jump_source = None if clone is None else clone.jump_source
         self.jump_avoidable = None if clone is None else clone.jump_avoidable
-        self.jump_guard: BV | None = None if clone is None else clone.jump_guard
+        self.jump_guard: claripy.ast.BV | None = None if clone is None else clone.jump_guard
         self.jumpkind: str | None = None if clone is None else clone.jumpkind
 
         # the execution log for this history
@@ -542,9 +545,4 @@ class LambdaIterIter(LambdaAttrIter):
             yield from reversed(self._f(hist)) if self._reverse else self._f(hist)
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("history", SimStateHistory)
-
-from .sim_action import SimAction, SimActionConstraint
-from .sim_event import SimEvent

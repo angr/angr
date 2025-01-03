@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from networkx import DiGraph
 
 import claripy
-from claripy.ast.bv import BV
+from claripy.ast import BV
 from .dep_nodes import DepNodeTypes, ConstantDepNode, MemDepNode, VarDepNode, RegDepNode, TmpDepNode
 from .sim_act_location import SimActLocation, DEFAULT_LOCATION, ParsedInstruction
 from angr.analyses import Analysis
@@ -173,7 +173,7 @@ class DataDependencyGraphAnalysis(Analysis):
         self,
         type_: int,
         sim_act: SimActionData,
-        val: tuple[BV, int],
+        val: tuple[claripy.ast.BV, int],
         *constructor_params,
     ) -> BaseDepNode:
         """
