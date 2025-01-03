@@ -6,7 +6,6 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Callable
 from collections import defaultdict
-import bisect
 import string
 
 import networkx
