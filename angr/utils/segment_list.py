@@ -17,11 +17,11 @@ class Segment:
 
     __slots__ = ["end", "sort", "start"]
 
-    def __init__(self, start, end, sort):
+    def __init__(self, start: int, end: int, sort: int | None):
         """
-        :param int start:   Start address.
-        :param int end:     End address.
-        :param str sort:    Type of the segment, can be code, data, etc.
+        :param start:   Start address.
+        :param end:     End address.
+        :param sort:    Type of the segment, can be code, data, etc.
         :return: None
         """
 
@@ -54,11 +54,18 @@ class Segment:
     def _cmp_key(self):
         return self.start, self.end
 
+    def _sort_key(self) -> str:
+        return "None" if self.sort is None else self.sort
+
     def __eq__(self, other: Segment):
-        return self._cmp_key() == other._cmp_key()
+        return self._cmp_key() == other._cmp_key() and self._sort_key() == other._sort_key()
 
     def __lt__(self, other: Segment):
-        return self._cmp_key() < other._cmp_key()
+        return (
+            (self._sort_key() < other._sort_key())
+            if self._cmp_key() == other._cmp_key()
+            else (self._cmp_key() < other._cmp_key())
+        )
 
 
 class SegmentList:

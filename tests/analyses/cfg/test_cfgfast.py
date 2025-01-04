@@ -1141,7 +1141,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         )
         proj = angr.Project(path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast(show_progressbar=True)
+        cfg = proj.analyses.CFGFast(show_progressbar=False)
         cfg_model = cfg.model
         assert cfg._seg_list.is_occupied(0x100018BC) is True
         assert cfg._seg_list.occupied_by_sort(0x100018BC) == "pointer-array"
