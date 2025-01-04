@@ -221,7 +221,11 @@ class SegmentList:
                     new_size = sum(seg.size for seg in new_segments)
                     bytes_changed = new_size - old_size
 
-                    self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
+                    if len(new_segments) == 2:
+                        self._list[previous_segment_pos] = new_segments[0]
+                        self._list[segment_pos] = new_segments[1]
+                    else:
+                        self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
 
                     merged = True
 
