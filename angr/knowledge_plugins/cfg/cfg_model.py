@@ -291,8 +291,10 @@ class CFGModel(Serializable):
         # fastpath: directly look in the nodes list
         if not anyaddr or addr in self._nodes_by_addr:
             try:
-                return self._nodes_by_addr[addr][0]
-            except (KeyError, IndexError):
+                if is_syscall is None:
+                    return self._nodes_by_addr[addr][0]
+                return next(iter(node for node in self._nodes_by_addr[addr] if node.is_syscall == is_syscall))
+            except (KeyError, IndexError, StopIteration):
                 pass
 
         if force_fastpath:
