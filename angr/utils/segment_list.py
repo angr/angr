@@ -359,25 +359,14 @@ class SegmentList:
         :return: The offset of the segment.
         """
 
-        start = 0
-        end = len(self._list)
+        pos = self._list.bisect_left(Segment(addr, 0, None))
+        if pos > 0 and addr < self._list[pos - 1].end:
+            a = pos - 1
+        else:
+            a = pos
+        return a
 
-        while start != end:
-            mid = (start + end) // 2
-
-            segment = self._list[mid]
-            if addr < segment.start:
-                end = mid
-            elif addr >= segment.end:
-                start = mid + 1
-            else:
-                # Overlapped :(
-                start = mid
-                break
-
-        return start
-
-    def next_free_pos(self, address):
+    def next_free_pos(self, address: int):
         """
         Returns the next free position with respect to an address, including that address itself
 
@@ -386,16 +375,19 @@ class SegmentList:
         """
 
         idx = self.search(address)
-        if idx < len(self._list) and self._list[idx].start <= address < self._list[idx].end:
-            # Occupied
-            i = idx
-            while i + 1 < len(self._list) and self._list[i].end == self._list[i + 1].start:
-                i += 1
-            if i == len(self._list):
-                return self._list[-1].end
+        if idx < len(self._list):
+            seg = self._list[idx]
+            if seg.start <= address < seg.end:
+                # Occupied
+                last_seg = seg
+                for seg in self._list.islice(start=idx + 1):
+                    if last_seg.end != seg.start:
+                        break
+                    last_seg = seg
 
-            return self._list[i].end
+                return last_seg.end
 
+        # not occupied
         return address
 
     def next_pos_with_sort_not_in(self, address, sorts, max_distance=None):
@@ -429,13 +421,11 @@ class SegmentList:
                 # tick the idx forward by 1
                 idx += 1
 
-            i = idx
-            while i < list_length:
-                if max_distance is not None and address + max_distance < self._list[i].start:
+            for block in self._list.islice(start=idx):
+                if max_distance is not None and address + max_distance < block.start:
                     return None
-                if self._list[i].sort not in sorts:
-                    return self._list[i].start
-                i += 1
+                if block.sort not in sorts:
+                    return block.start
 
         return None
 
@@ -450,7 +440,8 @@ class SegmentList:
         idx = self.search(address)
         if len(self._list) <= idx:
             return False
-        if self._list[idx].start <= address < self._list[idx].end:
+        seg = self._list[idx]
+        if seg.start <= address < seg.end:
             return True
         # TODO: It seems that this is never True. Should it be removed?
         return idx > 0 and address < self._list[idx - 1].end
@@ -466,11 +457,13 @@ class SegmentList:
         idx = self.search(address)
         if len(self._list) <= idx:
             return None
-        if self._list[idx].start <= address < self._list[idx].end:
-            return self._list[idx].sort
-        if idx > 0 and address < self._list[idx - 1].end:
+        seg = self._list[idx]
+        if seg.start <= address < seg.end:
+            return seg.sort
+        prev_seg = self._list[idx - 1]
+        if idx > 0 and address < prev_seg.end:
             # TODO: It seems that this branch is never reached. Should it be removed?
-            return self._list[idx - 1].sort
+            return prev_seg.sort
         return None
 
     def occupied_by(self, address: int) -> tuple[int, int, str] | None:
@@ -484,13 +477,13 @@ class SegmentList:
         idx = self.search(address)
         if len(self._list) <= idx:
             return None
-        if self._list[idx].start <= address < self._list[idx].end:
-            block = self._list[idx]
+        block = self._list[idx]
+        if block.start <= address < block.end:
             return block.start, block.size, block.sort
-        if idx > 0 and address < self._list[idx - 1].end:
+        prev_block = self._list[idx - 1]
+        if idx > 0 and address < prev_block.end:
             # TODO: It seems that this branch is never reached. Should it be removed?
-            block = self._list[idx - 1]
-            return block.start, block.size, block.sort
+            return prev_block.start, prev_block.size, prev_block.sort
         return None
 
     def occupy(self, address, size, sort):
