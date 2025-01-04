@@ -6,10 +6,10 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Callable
 from collections import defaultdict
-import bisect
 import string
 
 import networkx
+from sortedcontainers import SortedList
 
 import cle
 
@@ -81,7 +81,7 @@ class CFGModel(Serializable):
         # CFGNodes dict indexed by block ID. Don't serialize
         self._nodes: dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
-        self._node_addrs: list[int] = []
+        self._node_addrs: SortedList[int] | None = None
 
         self.normalized = False
 
@@ -176,7 +176,7 @@ class CFGModel(Serializable):
                     "The resulting graph may be broken."
                 )
 
-        model._node_addrs = sorted(model._nodes_by_addr.keys())
+        model._node_addrs = None
 
         # edges
         for edge_pb2 in cmsg.edges:
@@ -219,6 +219,9 @@ class CFGModel(Serializable):
 
         return model
 
+    def _build_node_addr_index(self):
+        self._node_addrs = SortedList(iter(k for k, lst in self._nodes_by_addr.items() if lst))
+
     #
     # Node insertion and removal
     #
@@ -227,12 +230,8 @@ class CFGModel(Serializable):
         self._nodes[block_id] = node
         self._nodes_by_addr[node.addr].append(node)
 
-        if isinstance(node.addr, int):
-            pos = bisect.bisect_left(self._node_addrs, node.addr)
-            if pos >= len(self._node_addrs):
-                self._node_addrs.append(node.addr)
-            elif self._node_addrs[pos] != node.addr:
-                self._node_addrs.insert(pos, node.addr)
+        if self._node_addrs is not None and isinstance(node.addr, int) and node.addr not in self._node_addrs:
+            self._node_addrs.add(node.addr)
 
     def remove_node(self, block_id: int, node: CFGNode) -> None:
         """
@@ -250,10 +249,8 @@ class CFGModel(Serializable):
             if not self._nodes_by_addr[node.addr]:
                 del self._nodes_by_addr[node.addr]
 
-                if isinstance(node.addr, int):
-                    pos = bisect.bisect_left(self._node_addrs, node.addr)
-                    if pos < len(self._node_addrs) and self._node_addrs[pos] == node.addr:
-                        self._node_addrs.pop(pos)
+                if self._node_addrs is not None and isinstance(node.addr, int) and node.addr in self._node_addrs:
+                    self._node_addrs.remove(node.addr)
 
     #
     # CFG View
@@ -302,9 +299,12 @@ class CFGModel(Serializable):
             return None
 
         if isinstance(addr, int):
+            if self._node_addrs is None:
+                self._build_node_addr_index()
+
             # slower path
             # find all potential addresses that the block may cover
-            pos = bisect.bisect_left(self._node_addrs, max(addr - VEX_IRSB_MAX_SIZE, 0))
+            pos = self._node_addrs.bisect_left(max(addr - VEX_IRSB_MAX_SIZE, 0))
 
             is_cfgemulated = self.ident == "CFGEmulated"
 
