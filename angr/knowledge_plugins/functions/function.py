@@ -922,7 +922,7 @@ class Function(Serializable):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
-            if node.addr not in self:
+            if node.addr not in self and node not in self.transition_graph:
                 # only add each node once
                 self.transition_graph.add_node(node)
 
