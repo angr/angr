@@ -2,6 +2,8 @@
 from __future__ import annotations
 import logging
 
+from sortedcontainers import SortedList
+
 from angr.errors import AngrCFGError, AngrRuntimeError
 
 
@@ -49,6 +51,15 @@ class Segment:
         """
         return Segment(self.start, self.end, self.sort)
 
+    def _cmp_key(self):
+        return self.start, self.end
+
+    def __eq__(self, other: Segment):
+        return self._cmp_key() == other._cmp_key()
+
+    def __lt__(self, other: Segment):
+        return self._cmp_key() < other._cmp_key()
+
 
 class SegmentList:
     """
@@ -59,7 +70,7 @@ class SegmentList:
     __slots__ = ["_bytes_occupied", "_list"]
 
     def __init__(self):
-        self._list: list[Segment] = []
+        self._list: SortedList[Segment] = SortedList()
         self._bytes_occupied = 0
 
     #
@@ -96,16 +107,15 @@ class SegmentList:
 
         # Insert the block first
         # The new block might be overlapping with other blocks. _insert_and_merge_core will fix the overlapping.
-        if idx == len(self._list):
-            self._list.append(Segment(address, address + size, sort))
-        else:
-            self._list.insert(idx, Segment(address, address + size, sort))
+        segment = Segment(address, address + size, sort)
+        self._list.add(segment)
+        segment_pos = self._list.index(segment)
         # Apparently _bytes_occupied will be wrong if the new block overlaps with any existing block. We will fix it
         # later
         self._bytes_occupied += size
 
         # Search forward to merge blocks if necessary
-        pos = idx
+        pos = segment_pos
         while pos < len(self._list):
             merged, pos, bytes_change = self._insert_and_merge_core(pos, "forward")
 
@@ -115,7 +125,7 @@ class SegmentList:
             self._bytes_occupied += bytes_change
 
         # Search backward to merge blocks if necessary
-        pos = idx
+        pos = segment_pos
 
         while pos > 0:
             merged, pos, bytes_change = self._insert_and_merge_core(pos, "backward")
@@ -165,8 +175,9 @@ class SegmentList:
                 new_end = max(previous_segment.end, segment.start + segment.size)
                 new_start = min(previous_segment.start, segment.start)
                 new_size = new_end - new_start
-                self._list[segment_pos] = Segment(new_start, new_end, segment.sort)
+                self._list.pop(segment_pos)
                 self._list.pop(previous_segment_pos)
+                self._list.add(Segment(new_start, new_end, segment.sort))
                 bytes_changed = -(segment.size + previous_segment.size - new_size)
 
                 merged = True
@@ -221,7 +232,9 @@ class SegmentList:
                     new_size = sum(seg.size for seg in new_segments)
                     bytes_changed = new_size - old_size
 
-                    self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
+                    self._list.pop(segment_pos)
+                    self._list.pop(previous_segment_pos)
+                    self._list.update(new_segments)
 
                     merged = True
 
@@ -259,11 +272,11 @@ class SegmentList:
                     seg0 = Segment(segment.start, address, segment.sort)
                     seg1 = Segment(address + size, segment.start + segment.size, segment.sort)
                     # remove the current segment
-                    self._list.remove(segment)
+                    self._list.pop(idx)
                     if seg1.size > 0:
-                        self._list.insert(idx, seg1)
+                        self._list.add(seg1)
                     if seg0.size > 0:
-                        self._list.insert(idx, seg0)
+                        self._list.add(seg0)
                     # done
                     break
                 else:
@@ -282,12 +295,12 @@ class SegmentList:
                     segment.start = address + size
                     if segment.size == 0:
                         # remove the segment
-                        self._list.remove(segment)
+                        self._list.pop(idx)
                     break
                 if address + size > segment.start + segment.size:
                     #            |---- segment ----|
                     # |--------- address + size ----------|
-                    self._list.remove(segment)
+                    self._list.pop(idx)
                     new_address = segment.end
                     size = address + size - new_address
                     address = new_address
@@ -489,7 +502,7 @@ class SegmentList:
 
         # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
         if not self._list:
-            self._list.append(Segment(address, address + size, sort))
+            self._list.add(Segment(address, address + size, sort))
             self._bytes_occupied += size
             return
         # Find adjacent element in our list
@@ -527,7 +540,7 @@ class SegmentList:
         """
         n = SegmentList()
 
-        n._list = [a.copy() for a in self._list]
+        n._list = SortedList(iter(a.copy() for a in self._list))
         n._bytes_occupied = self._bytes_occupied
         return n
 
