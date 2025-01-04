@@ -1576,7 +1576,7 @@ class CFGBase(Analysis):
             function.mark_nonreturning_calls_endpoints()
             if function.returning is False:
                 # remove all FakeRet edges that are related to this function
-                func_node = self.model.get_any_node(function.addr)
+                func_node = self.model.get_any_node(function.addr, force_fastpath=True)
                 if func_node is not None:
                     callsite_nodes = [
                         src
@@ -1602,7 +1602,7 @@ class CFGBase(Analysis):
             if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
                 function_nodes.add(dst)
 
-        entry_node = self.model.get_any_node(self._binary.entry)
+        entry_node = self.model.get_any_node(self._binary.entry, force_fastpath=True)
         if entry_node is not None:
             function_nodes.add(entry_node)
 
@@ -1663,7 +1663,7 @@ class CFGBase(Analysis):
         secondary_function_nodes = set()
         # add all function chunks ("functions" that are not called from anywhere)
         for func_addr in tmp_functions:
-            node = self.model.get_any_node(func_addr)
+            node = self.model.get_any_node(func_addr, force_fastpath=True)
             if node is None:
                 continue
             if node.addr not in blockaddr_to_function:
@@ -1992,8 +1992,8 @@ class CFGBase(Analysis):
                 if not transition_found:
                     continue
 
-                cfgnode_0 = self.model.get_any_node(block_node.addr)
-                cfgnode_1 = self.model.get_any_node(addr_1)
+                cfgnode_0 = self.model.get_any_node(block_node.addr, force_fastpath=True)
+                cfgnode_1 = self.model.get_any_node(addr_1, force_fastpath=True)
 
                 if cfgnode_0 is None or cfgnode_1 is None:
                     continue
@@ -2089,7 +2089,7 @@ class CFGBase(Analysis):
                 continue
             if func_addr in jumptable_entries:
                 # is there any call edge pointing to it?
-                func_node = self.get_any_node(func_addr)
+                func_node = self.get_any_node(func_addr, force_fastpath=True)
                 if func_node is not None:
                     in_edges = self.graph.in_edges(func_node, data=True)
                     has_transition_pred = None
@@ -2128,7 +2128,7 @@ class CFGBase(Analysis):
         else:
             is_syscall = self.project.simos.is_syscall_addr(addr)
 
-            n = self.model.get_any_node(addr, is_syscall=is_syscall)
+            n = self.model.get_any_node(addr, is_syscall=is_syscall, force_fastpath=True)
             node = addr if n is None else self._to_snippet(n)
 
             if isinstance(addr, SootAddressDescriptor):
@@ -2304,7 +2304,7 @@ class CFGBase(Analysis):
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
 
         if src_addr not in src_function.block_addrs_set:
-            n = self.model.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr, force_fastpath=True)
             node = src_addr if n is None else self._to_snippet(n)
             self.kb.functions._add_node(src_function.addr, node)
 
@@ -2315,7 +2315,7 @@ class CFGBase(Analysis):
         jumpkind = data["jumpkind"]
 
         if jumpkind == "Ijk_Ret":
-            n = self.model.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr, force_fastpath=True)
             from_node = src_addr if n is None else self._to_snippet(n)
             self.kb.functions._add_return_from(src_function.addr, from_node, None)
 
@@ -2334,7 +2334,7 @@ class CFGBase(Analysis):
             # It must be calling a function
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
-            n = self.model.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr, force_fastpath=True)
             if n is None:
                 src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
             else:
@@ -2374,7 +2374,7 @@ class CFGBase(Analysis):
 
                 to_outside = blockaddr_to_function[returning_target] is not src_function
 
-                n = self.model.get_any_node(returning_target)
+                n = self.model.get_any_node(returning_target, force_fastpath=True)
                 if n is None:
                     try:
                         returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
@@ -2391,10 +2391,10 @@ class CFGBase(Analysis):
 
         elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
             # convert src_addr and dst_addr to CodeNodes
-            n = self.model.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr, force_fastpath=True)
             src_node = src_addr if n is None else self._to_snippet(cfg_node=n)
 
-            n = self.model.get_any_node(dst_addr)
+            n = self.model.get_any_node(dst_addr, force_fastpath=True)
             dst_node = dst_addr if n is None else self._to_snippet(cfg_node=n)
 
             if self._skip_unmapped_addrs:
@@ -2460,10 +2460,10 @@ class CFGBase(Analysis):
 
         elif jumpkind == "Ijk_FakeRet":
             # convert src_addr and dst_addr to CodeNodes
-            n = self.model.get_any_node(src_addr)
+            n = self.model.get_any_node(src_addr, force_fastpath=True)
             src_node = src_addr if n is None else self._to_snippet(n)
 
-            n = self.model.get_any_node(dst_addr)
+            n = self.model.get_any_node(dst_addr, force_fastpath=True)
             dst_node = dst_addr if n is None else self._to_snippet(n)
 
             if dst_addr not in blockaddr_to_function:
