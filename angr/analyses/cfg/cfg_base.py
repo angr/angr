@@ -1570,7 +1570,7 @@ class CFGBase(Analysis):
         # TODO: Is it required that PLT stubs are always aligned by 16? If so, on what architectures and platforms is it
         # TODO:  enforced?
 
-        tmp_functions = self.kb.functions.copy()
+        tmp_functions = self.kb.functions
 
         for function in tmp_functions.values():
             function.mark_nonreturning_calls_endpoints()
@@ -1588,8 +1588,8 @@ class CFGBase(Analysis):
                             if data.get("jumpkind", None) == "Ijk_FakeRet":
                                 self.graph.remove_edge(callsite_node, dst)
 
-        # Clear old functions dict
-        self.kb.functions.clear()
+        # Clear old functions dict by creating a new function manager
+        self.kb.functions = FunctionManager(self.kb)
 
         blockaddr_to_function = {}
         traversed_cfg_nodes = set()
