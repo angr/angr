@@ -2741,7 +2741,11 @@ class Clinic(Analysis):
                 continue
             last_stmt = node.statements[-1]
             if isinstance(last_stmt, ailment.Stmt.Call) and isinstance(last_stmt.target, ailment.Expr.Const):
-                func = self.project.kb.functions.get_by_addr(last_stmt.target.value)
+                func = (
+                    self.project.kb.functions.get_by_addr(last_stmt.target.value)
+                    if self.project.kb.functions.contains_addr(last_stmt.target.value)
+                    else None
+                )
                 if func is not None and func.info.get("is_rust_probestack", False) is True:
                     # get rid of this call
                     node.statements = node.statements[:-1]
