@@ -527,6 +527,9 @@ class Clinic(Analysis):
         # TODO: Totally remove this dict
         self._blocks_by_addr_and_size = None
 
+        # Rust-specific; only call this on Rust binaries when we can identify language and compiler
+        ail_graph = self._rewrite_rust_probestack_call(ail_graph)
+
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
         _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
@@ -2731,6 +2734,32 @@ class Clinic(Analysis):
                             extra_regs.add(self.project.arch.registers[reg_name][0])
 
         return extra_regs
+
+    def _rewrite_rust_probestack_call(self, ail_graph):
+        for node in ail_graph:
+            if not node.statements or ail_graph.out_degree[node] != 1:
+                continue
+            last_stmt = node.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Call) and isinstance(last_stmt.target, ailment.Expr.Const):
+                func = self.project.kb.functions.get_by_addr(last_stmt.target.value)
+                if func is not None and func.info.get("is_rust_probestack", False) is True:
+                    # get rid of this call
+                    node.statements = node.statements[:-1]
+                    if self.project.arch.call_pushes_ret and node.statements:
+                        last_stmt = node.statements[-1]
+                        succ = next(iter(ail_graph.successors(node)))
+                        if (
+                            isinstance(last_stmt, ailment.Stmt.Store)
+                            and isinstance(last_stmt.addr, ailment.Expr.StackBaseOffset)
+                            and isinstance(last_stmt.addr.offset, int)
+                            and last_stmt.addr.offset < 0
+                            and isinstance(last_stmt.data, ailment.Expr.Const)
+                            and last_stmt.data.value == succ.addr
+                        ):
+                            # remove the statement that pushes the return address
+                            node.statements = node.statements[:-1]
+                    break
+        return ail_graph
 
     def _rewrite_alloca(self, ail_graph):
         # pylint:disable=too-many-boolean-expressions

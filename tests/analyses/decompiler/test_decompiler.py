@@ -3992,6 +3992,23 @@ class TestDecompiler(unittest.TestCase):
             "return &g_1234;",
         ]
 
+    def test_decompiling_rust_binary_rust_probestack(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "1cbbf108f44c8f4babde546d26425ca5340dccf878d306b90eb0fbec2f83ab51"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        f = proj.kb.functions[0x40B720]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "linux_encryptor::files::create_note::hd3c91fc90c0b0684" in d.codegen.text
+        assert "Luna.ini.exe.dll.lnk" in d.codegen.text  # sanity check
+        assert "probe_stack" not in d.codegen.text
+        # "{reg 48}" would show up if SPTracker does not understand __rust_probestack
+        assert "{reg " not in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
