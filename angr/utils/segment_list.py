@@ -258,6 +258,9 @@ class SegmentList:
                     #      |---address + size---|
                     # shrink segment
                     segment.end = address
+                    if segment.size == 0:
+                        # remove the segment
+                        self._list.pop(idx)
                     # adjust address
                     new_address = segment.start + segment.size
                     # adjust size
@@ -272,7 +275,7 @@ class SegmentList:
                     seg0 = Segment(segment.start, address, segment.sort)
                     seg1 = Segment(address + size, segment.start + segment.size, segment.sort)
                     # remove the current segment
-                    self._list.remove(segment)
+                    self._list.pop(idx)
                     if seg1.size > 0:
                         self._list.insert(idx, seg1)
                     if seg0.size > 0:
@@ -295,12 +298,12 @@ class SegmentList:
                     segment.start = address + size
                     if segment.size == 0:
                         # remove the segment
-                        self._list.remove(segment)
+                        self._list.pop(idx)
                     break
                 if address + size > segment.start + segment.size:
                     #            |---- segment ----|
                     # |--------- address + size ----------|
-                    self._list.remove(segment)
+                    self._list.pop(idx)  # remove the segment
                     new_address = segment.end
                     size = address + size - new_address
                     address = new_address
@@ -487,7 +490,7 @@ class SegmentList:
             # Cannot occupy a non-existent block
             return
 
-        # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
+        # l.debug("Occupying 0x%08x-0x%08x", address, address + size)
         if not self._list:
             self._list.append(Segment(address, address + size, sort))
             self._bytes_occupied += size
