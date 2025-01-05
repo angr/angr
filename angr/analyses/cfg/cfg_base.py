@@ -2352,16 +2352,9 @@ class CFGBase(Analysis):
             if isinstance(dst_addr, SootAddressDescriptor):
                 dst_addr = dst_addr.method
 
-            self.kb.functions._add_call_to(
-                src_function.addr,
-                src_snippet,
-                dst_addr,
-                None,  # we set retn_node to None so that no fakeret edges will be added; we add it later.
-                syscall=is_syscall,
-                ins_addr=ins_addr,
-                stmt_idx=stmt_idx,
-            )
-
+            # determining the returning target
+            return_to_outside = False
+            returning_snippet = None
             if dst_function.returning and fakeret_node is not None:
                 returning_target = src.addr + src.size
                 if returning_target not in blockaddr_to_function:
@@ -2370,7 +2363,7 @@ class CFGBase(Analysis):
                     else:
                         self._addr_to_function(returning_target, blockaddr_to_function, known_functions)
 
-                to_outside = blockaddr_to_function[returning_target] is not src_function
+                return_to_outside = blockaddr_to_function[returning_target] is not src_function
 
                 n = self.model.get_any_node(returning_target, force_fastpath=True)
                 if n is None:
@@ -2382,10 +2375,21 @@ class CFGBase(Analysis):
                 else:
                     returning_snippet = self._to_snippet(cfg_node=n)
 
-                if returning_snippet is not None:
-                    self.kb.functions._add_fakeret_to(
-                        src_function.addr, src_snippet, returning_snippet, confirmed=True, to_outside=to_outside
-                    )
+            self.kb.functions._add_call_to(
+                src_function.addr,
+                src_snippet,
+                dst_addr,
+                retn_node=returning_snippet,
+                syscall=is_syscall,
+                ins_addr=ins_addr,
+                stmt_idx=stmt_idx,
+                return_to_outside=return_to_outside,
+            )
+
+            if returning_snippet is not None:
+                self.kb.functions._add_fakeret_to(
+                    src_function.addr, src_snippet, returning_snippet, confirmed=True, to_outside=return_to_outside
+                )
 
         elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
             # convert src_addr and dst_addr to CodeNodes
