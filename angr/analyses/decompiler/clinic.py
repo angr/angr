@@ -1013,13 +1013,15 @@ class Clinic(Analysis):
                 if node is None:
                     continue
                 successors = self._cfg.get_successors(node, excluding_fakeret=True, jumpkind="Ijk_Call")
-                if len(successors) == 1 and not isinstance(
-                    self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
-                ):
-                    # found a single successor - replace the last statement
-                    new_last_stmt = last_stmt.copy()
-                    new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
-                    block.statements[-1] = new_last_stmt
+                if len(successors) == 1:
+                    succ_addr = successors[0].addr
+                    if not self.project.is_hooked(succ_addr) or not isinstance(
+                        self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
+                    ):
+                        # found a single successor - replace the last statement
+                        new_last_stmt = last_stmt.copy()
+                        new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
+                        block.statements[-1] = new_last_stmt
 
             elif isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
                 # indirect jump
