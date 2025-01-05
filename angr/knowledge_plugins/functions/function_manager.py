@@ -6,6 +6,7 @@ from collections.abc import Generator
 import logging
 import collections.abc
 import re
+import weakref
 from sortedcontainers import SortedDict
 
 import networkx
@@ -31,7 +32,7 @@ class FunctionDict(SortedDict):
     """
 
     def __init__(self, backref, *args, **kwargs):
-        self._backref = backref
+        self._backref = weakref.proxy(backref)
         self._key_types = kwargs.pop("key_types", int)
         super().__init__(*args, **kwargs)
 

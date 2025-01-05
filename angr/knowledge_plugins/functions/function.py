@@ -928,7 +928,7 @@ class Function(Serializable):
 
             if not isinstance(node, CodeNode):
                 continue
-            node._graph = self.transition_graph
+            node.set_graph(self.transition_graph)
             if self._block_sizes.get(node.addr, 0) == 0:
                 self._block_sizes[node.addr] = node.size
             if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):

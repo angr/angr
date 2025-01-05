@@ -50,7 +50,7 @@ class CFGFastSoot(CFGFast):
         self._initialize_cfg()
 
         # Initialize variables used during analysis
-        self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
+        self._pending_jobs = PendingJobs(self.kb, self._deregister_analysis_job)
         self._traced_addresses = set()
         self._changed_functions = set()
         self._updated_nonreturning_functions = set()
