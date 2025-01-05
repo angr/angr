@@ -32,7 +32,7 @@ class FunctionDict(SortedDict):
     """
 
     def __init__(self, backref, *args, **kwargs):
-        self._backref = weakref.proxy(backref)
+        self._backref = weakref.proxy(backref) if backref is not None else None
         self._key_types = kwargs.pop("key_types", int)
         super().__init__(*args, **kwargs)
 
