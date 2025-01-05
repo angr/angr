@@ -2349,8 +2349,6 @@ class CFGBase(Analysis):
             else:
                 fakeret_node = self._one_fakeret_node(all_edges)
 
-            fakeret_snippet = None if fakeret_node is None else self._to_snippet(cfg_node=fakeret_node)
-
             if isinstance(dst_addr, SootAddressDescriptor):
                 dst_addr = dst_addr.method
 
@@ -2358,7 +2356,7 @@ class CFGBase(Analysis):
                 src_function.addr,
                 src_snippet,
                 dst_addr,
-                fakeret_snippet,
+                None,  # we set retn_node to None so that no fakeret edges will be added; we add it later.
                 syscall=is_syscall,
                 ins_addr=ins_addr,
                 stmt_idx=stmt_idx,

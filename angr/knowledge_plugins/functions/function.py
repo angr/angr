@@ -861,14 +861,13 @@ class Function(Serializable):
         """
 
         from_node = self._register_node(True, from_node)
-        if ret_node is not None:
-            ret_node = self._register_node(True, ret_node)
 
         if to_func.is_syscall:
             self.transition_graph.add_edge(from_node, to_func, type="syscall", stmt_idx=stmt_idx, ins_addr=ins_addr)
         else:
             self.transition_graph.add_edge(from_node, to_func, type="call", stmt_idx=stmt_idx, ins_addr=ins_addr)
             if ret_node is not None:
+                ret_node = self._register_node(return_to_outside is False, ret_node)
                 self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
 
         self._local_transition_graph = None
