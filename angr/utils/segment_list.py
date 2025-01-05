@@ -1,5 +1,6 @@
 # pylint:disable=no-else-break
 from __future__ import annotations
+from bisect import bisect_left
 import logging
 
 from angr.errors import AngrCFGError, AngrRuntimeError
@@ -224,7 +225,15 @@ class SegmentList:
                     if len(new_segments) == 2:
                         self._list[previous_segment_pos] = new_segments[0]
                         self._list[segment_pos] = new_segments[1]
+                    elif len(new_segments) == 1:
+                        self._list.pop(segment_pos)
+                        self._list[previous_segment_pos] = new_segments[0]
+                    elif len(new_segments) == 3:
+                        self._list[previous_segment_pos] = new_segments[0]
+                        self._list[segment_pos] = new_segments[1]
+                        self._list.insert(segment_pos + 1, new_segments[2])
                     else:
+                        # this does not happen for now, but may happen when the above logic changes
                         self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
 
                     merged = True
@@ -343,23 +352,10 @@ class SegmentList:
         :return: The offset of the segment.
         """
 
-        start = 0
-        end = len(self._list)
-
-        while start != end:
-            mid = (start + end) // 2
-
-            segment = self._list[mid]
-            if addr < segment.start:
-                end = mid
-            elif addr >= segment.end:
-                start = mid + 1
-            else:
-                # Overlapped :(
-                start = mid
-                break
-
-        return start
+        off = bisect_left(self._list, addr, key=lambda x: x.start)
+        if 0 < off <= len(self._list) and self._list[off - 1].end > addr:
+            off -= 1
+        return off
 
     def next_free_pos(self, address):
         """
