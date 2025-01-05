@@ -406,8 +406,8 @@ class TestCfgfast(unittest.TestCase):
         seg_list.occupy(2, 3, "code")
 
         assert len(seg_list) == 2
-        assert seg_list._list[0].end == 1
-        assert seg_list._list[1].end == 5
+        assert seg_list._posmap[0].end == 1
+        assert seg_list._posmap[2].end == 5
         assert seg_list.is_occupied(4)
         assert seg_list.is_occupied(5) is False
 
@@ -419,8 +419,8 @@ class TestCfgfast(unittest.TestCase):
         seg_list.occupy(1, 2, "code")
 
         assert len(seg_list) == 1
-        assert seg_list._list[0].start == 0
-        assert seg_list._list[0].end == 3
+        assert seg_list._posmap[0].start == 0
+        assert seg_list._posmap[0].end == 3
 
     def test_segment_list_2(self):
         seg_list = SegmentList()
@@ -430,10 +430,10 @@ class TestCfgfast(unittest.TestCase):
         seg_list.occupy(1, 2, "data")
 
         assert len(seg_list) == 2
-        assert seg_list._list[0].start == 0
-        assert seg_list._list[0].end == 1
-        assert seg_list._list[1].start == 1
-        assert seg_list._list[1].end == 3
+        assert seg_list._posmap[0].start == 0
+        assert seg_list._posmap[0].end == 1
+        assert seg_list._posmap[1].start == 1
+        assert seg_list._posmap[1].end == 3
 
     def test_segment_list_3(self):
         seg_list = SegmentList()
@@ -445,17 +445,17 @@ class TestCfgfast(unittest.TestCase):
 
         assert len(seg_list) == 3
 
-        assert seg_list._list[0].start == 0
-        assert seg_list._list[0].end == 1
-        assert seg_list._list[0].sort == "code"
+        assert seg_list._posmap[0].start == 0
+        assert seg_list._posmap[0].end == 1
+        assert seg_list._posmap[0].sort == "code"
 
-        assert seg_list._list[1].start == 1
-        assert seg_list._list[1].end == 3
-        assert seg_list._list[1].sort == "data"
+        assert seg_list._posmap[1].start == 1
+        assert seg_list._posmap[1].end == 3
+        assert seg_list._posmap[1].sort == "data"
 
-        assert seg_list._list[2].start == 3
-        assert seg_list._list[2].end == 10
-        assert seg_list._list[2].sort == "code"
+        assert seg_list._posmap[3].start == 3
+        assert seg_list._posmap[3].end == 10
+        assert seg_list._posmap[3].sort == "code"
 
     def test_segment_list_4(self):
         seg_list = SegmentList()
@@ -465,8 +465,8 @@ class TestCfgfast(unittest.TestCase):
         seg_list.occupy(2, 2, "code")
 
         assert len(seg_list) == 1
-        assert seg_list._list[0].start == 2
-        assert seg_list._list[0].end == 10
+        assert seg_list._posmap[2].start == 2
+        assert seg_list._posmap[2].end == 10
 
     def test_segment_list_5(self):
         seg_list = SegmentList()
@@ -476,14 +476,14 @@ class TestCfgfast(unittest.TestCase):
         seg_list.occupy(2, 2, "data")
 
         assert len(seg_list) == 3
-        assert seg_list._list[0].start == 2
-        assert seg_list._list[2].end == 10
+        assert seg_list._posmap[2].start == 2
+        assert seg_list._posmap[5].end == 10
 
         seg_list.occupy(3, 2, "data")
 
         assert len(seg_list) == 1
-        assert seg_list._list[0].start == 2
-        assert seg_list._list[0].end == 10
+        assert seg_list._posmap[2].start == 2
+        assert seg_list._posmap[2].end == 10
 
     def test_segment_list_6(self):
         seg_list = SegmentList()
@@ -492,13 +492,13 @@ class TestCfgfast(unittest.TestCase):
         seg_list.occupy(9, 2, "data")
 
         assert len(seg_list) == 2
-        assert seg_list._list[0].start == 9
-        assert seg_list._list[0].end == 11
-        assert seg_list._list[0].sort == "data"
+        assert seg_list._posmap[9].start == 9
+        assert seg_list._posmap[9].end == 11
+        assert seg_list._posmap[9].sort == "data"
 
-        assert seg_list._list[1].start == 11
-        assert seg_list._list[1].end == 30
-        assert seg_list._list[1].sort == "code"
+        assert seg_list._posmap[11].start == 11
+        assert seg_list._posmap[11].end == 30
+        assert seg_list._posmap[11].sort == "code"
 
     #
     # Serialization
