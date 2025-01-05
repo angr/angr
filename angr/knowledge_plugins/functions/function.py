@@ -1,11 +1,14 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 import os
 import logging
-import networkx
 import itertools
 from collections import defaultdict
 from collections.abc import Iterable
+import contextlib
+from typing import overload
 
+import networkx
 from itanium_demangler import parse
 
 from cle.backends.symbol import Symbol
@@ -13,7 +16,6 @@ from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-
 from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
 from angr.serializable import Serializable
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
@@ -22,14 +24,12 @@ from angr.procedures.definitions import SimSyscallLibrary
 from angr.protos import function_pb2
 from angr.calling_conventions import DEFAULT_CC, default_cc
 from angr.misc.ux import deprecated
-from .function_parser import FunctionParser
-
-l = logging.getLogger(name=__name__)
-
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
 from angr.project import Project
-import contextlib
+from .function_parser import FunctionParser
+
+l = logging.getLogger(name=__name__)
 
 
 class Function(Serializable):
@@ -430,7 +430,7 @@ class Function(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return function_pb2.Function()
+        return function_pb2.Function()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         return FunctionParser.serialize(self)
@@ -631,7 +631,7 @@ class Function(Serializable):
 
     @property
     def size(self):
-        return sum([b.size for b in self.blocks])
+        return sum(b.size for b in self.blocks)
 
     @property
     def binary(self):
@@ -664,7 +664,7 @@ class Function(Serializable):
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
         return dec.codegen.text
 
-    def add_jumpout_site(self, node):
+    def add_jumpout_site(self, node: CodeNode):
         """
         Add a custom jumpout site.
 
@@ -672,11 +672,11 @@ class Function(Serializable):
         :return:        None
         """
 
-        self._register_nodes(True, node)
+        node = self._register_node(True, node)
         self._jumpout_sites.add(node)
         self._add_endpoint(node, "transition")
 
-    def add_retout_site(self, node):
+    def add_retout_site(self, node: CodeNode):
         """
         Add a custom retout site.
 
@@ -692,7 +692,7 @@ class Function(Serializable):
         :return:     None
         """
 
-        self._register_nodes(True, node)
+        node = self._register_node(True, node)
         self._retout_sites.add(node)
         self._add_endpoint(node, "return")
 
@@ -800,11 +800,13 @@ class Function(Serializable):
 
         # it's confirmed. register the node if needed
         if "outside" not in data or data["outside"] is False:
-            self._register_nodes(True, dst)
+            dst = self._register_node(True, dst)
 
         self.transition_graph[src][dst]["confirmed"] = True
 
-    def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False):
+    def _transit_to(
+        self, from_node: CodeNode, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False
+    ):
         """
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
@@ -818,16 +820,15 @@ class Function(Serializable):
         """
 
         if outside:
-            self._register_nodes(True, from_node)
+            from_node = self._register_node(True, from_node)
             if to_node is not None:
-                self._register_nodes(False, to_node)
+                to_node = self._register_node(False, to_node)
 
             self._jumpout_sites.add(from_node)
         else:
+            from_node = self._register_node(True, from_node)
             if to_node is not None:
-                self._register_nodes(True, from_node, to_node)
-            else:
-                self._register_nodes(True, from_node)
+                to_node = self._register_node(True, to_node)
 
         type_ = "transition" if not is_exception else "exception"
         if to_node is not None:
@@ -859,7 +860,9 @@ class Function(Serializable):
         :type  ins_addr:    int or None
         """
 
-        self._register_nodes(True, from_node)
+        from_node = self._register_node(True, from_node)
+        if ret_node is not None:
+            ret_node = self._register_node(True, ret_node)
 
         if to_func.is_syscall:
             self.transition_graph.add_edge(from_node, to_func, type="syscall", stmt_idx=stmt_idx, ins_addr=ins_addr)
@@ -871,7 +874,9 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
-        self._register_nodes(True, from_node)
+        from_node = self._register_node(True, from_node)
+        if confirmed:
+            to_node = self._register_node(not to_outside, to_node)
 
         if confirmed is None:
             self.transition_graph.add_edge(from_node, to_node, type="fake_return", outside=to_outside)
@@ -879,8 +884,6 @@ class Function(Serializable):
             self.transition_graph.add_edge(
                 from_node, to_node, type="fake_return", confirmed=confirmed, outside=to_outside
             )
-            if confirmed:
-                self._register_nodes(not to_outside, to_node)
 
         self._local_transition_graph = None
 
@@ -898,45 +901,56 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     def _update_local_blocks(self, node: CodeNode):
-        self._local_blocks[node.addr] = node
-        self._local_block_addrs.add(node.addr)
+        if node.addr not in self._local_blocks or self._local_blocks[node.addr] != node:
+            self._local_blocks[node.addr] = node
+            self._local_block_addrs.add(node.addr)
 
     def _update_addr_to_block_cache(self, node: BlockNode):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
 
-    def _register_nodes(self, is_local, *nodes):
-        if not isinstance(is_local, bool):
-            raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
+    @overload
+    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode: ...
 
-        for node in nodes:
-            if node.addr not in self and node not in self.transition_graph:
-                # only add each node once
-                self.transition_graph.add_node(node)
+    @overload
+    def _register_node(self, is_local: bool, node: Function) -> Function: ...
 
-            if not isinstance(node, CodeNode):
-                continue
-            node.set_graph(self.transition_graph)
-            if self._block_sizes.get(node.addr, 0) == 0:
-                self._block_sizes[node.addr] = node.size
-            if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
-                self.startpoint = node
-            if is_local and node.addr not in self._local_blocks:
-                self._update_local_blocks(node)
-            # add BlockNodes to the addr_to_block_node cache if not already there
-            if isinstance(node, BlockNode):
-                self._update_addr_to_block_cache(node)
-                # else:
-                #    # checks that we don't have multiple block nodes at a single address
-                #    assert node == self._addr_to_block_node[node.addr]
+    def _register_node(self, is_local: bool, node: CodeNode | Function) -> CodeNode | Function:
+        # if the node already exists and is the same, we reuse the existing node
+        if is_local and self._local_blocks.get(node.addr, None) == node:
+            return self._local_blocks[node.addr]
 
-    def _add_return_site(self, return_site):
+        if node.addr not in self and node not in self.transition_graph:
+            # only add each node to the graph once
+            self.transition_graph.add_node(node)
+
+        if not isinstance(node, CodeNode):
+            # function and other things bail here
+            return node
+
+        # this is either a new node or a different node at the same address
+        node._graph = self.transition_graph
+        if self._block_sizes.get(node.addr, 0) == 0:
+            self._block_sizes[node.addr] = node.size
+        if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
+            self.startpoint = node
+        if is_local and node.addr not in self._local_blocks:
+            self._update_local_blocks(node)
+        # add BlockNodes to the addr_to_block_node cache if not already there
+        if isinstance(node, BlockNode):
+            self._update_addr_to_block_cache(node)
+            # else:
+            #    # checks that we don't have multiple block nodes at a single address
+            #    assert node == self._addr_to_block_node[node.addr]
+        return node
+
+    def _add_return_site(self, return_site: CodeNode):
         """
         Registers a basic block as a site for control flow to return from this function.
 
-        :param CodeNode return_site:     The block node that ends with a return.
+        :param return_site:     The block node that ends with a return.
         """
-        self._register_nodes(True, return_site)
+        return_site = self._register_node(True, return_site)
 
         self._ret_sites.add(return_site)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
@@ -1273,8 +1287,8 @@ class Function(Serializable):
         """
         Draw the graph and save it to a PNG file.
         """
-        import matplotlib.pyplot as pyplot  # pylint: disable=import-error
-        from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error
+        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel
+        from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error,import-outside-toplevel
 
         tmp_graph = networkx.classes.digraph.DiGraph()
         for from_block, to_block in self.transition_graph.edges():

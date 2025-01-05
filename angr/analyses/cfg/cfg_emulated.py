@@ -2083,7 +2083,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if src_node_key is None:
             if dst_node is None:
                 raise ValueError("Either src_node_key or dst_node_key must be specified.")
-            self.kb.functions.function(dst_node.function_address, create=True)._register_nodes(True, dst_codenode)
+            self.kb.functions.function(dst_node.function_address, create=True)._register_node(True, dst_codenode)
             return
 
         src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)

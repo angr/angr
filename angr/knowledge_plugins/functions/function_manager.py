@@ -149,7 +149,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall
-        dst_func._register_nodes(True, node)
+        dst_func._register_node(True, node)
         self.block_map[node.addr] = node
 
     def _add_call_to(
