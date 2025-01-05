@@ -246,7 +246,7 @@ class FunctionParser:
         # add leftover blocks
         for block in blocks.values():
             if block not in added_nodes:
-                obj._register_nodes(True, block)
+                obj._register_node(True, block)
 
         return obj
 

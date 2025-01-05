@@ -149,7 +149,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall
-        dst_func._register_nodes(True, node)
+        dst_func._register_node(True, node)
         self.block_map[node.addr] = node
 
     def _add_call_to(
@@ -161,7 +161,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         syscall=None,
         stmt_idx=None,
         ins_addr=None,
-        return_to_outside=False,
+        return_to_outside: bool = False,
     ):
         """
         Add a call to a function.
@@ -173,7 +173,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :param bool syscall:        If this is a call to a syscall or not.
         :param int stmt_idx:        ID of the statement where this call happens.
         :param int ins_addr:        Address of the instruction where this call happens.
-        :param bool return_to_outside:  True if the return of the call is considered going to outside of the current
+        :param return_to_outside:  True if the return of the call is considered going to outside of the current
                                         function.
         :return:                    None
         """
