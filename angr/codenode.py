@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import weakref
 
 l = logging.getLogger(name=__name__)
 
@@ -17,7 +18,7 @@ class CodeNode:
         self.addr: int = addr
         self.size: int = size
         self.thumb = thumb
-        self._graph = graph
+        self._graph = weakref.proxy(graph) if graph is not None else None
 
         self._hash = None
 
@@ -45,6 +46,9 @@ class CodeNode:
         if self._hash is None:
             self._hash = hash((self.addr, self.size))
         return self._hash
+
+    def set_graph(self, graph):
+        self._graph = weakref.proxy(graph)
 
     def successors(self) -> list[CodeNode]:
         if self._graph is None:

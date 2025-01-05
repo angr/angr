@@ -135,15 +135,19 @@ class PendingJobs:
     A collection of pending jobs during CFG recovery.
     """
 
-    def __init__(self, functions, deregister_job_callback):
+    def __init__(self, kb, deregister_job_callback):
         self._jobs = OrderedDict()  # A mapping between function addresses and lists of pending jobs
-        self._functions = functions
+        self._kb = kb
         self._deregister_job_callback = deregister_job_callback
 
         self._returning_functions = set()
         self._updated_functions = set()  # Addresses of functions whose returning status have changed between two
         # consecutive calls to cleanup().
         self._job_count = 0
+
+    @property
+    def _functions(self):
+        return self._kb.functions
 
     def __len__(self):
         return self._job_count
@@ -1316,7 +1320,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._known_thunks = self._find_thunks()
 
         # Initialize variables used during analysis
-        self._pending_jobs: PendingJobs = PendingJobs(self.functions, self._deregister_analysis_job)
+        self._pending_jobs: PendingJobs = PendingJobs(self.kb, self._deregister_analysis_job)
         self._traced_addresses: set[int] = {a for a, n in self._nodes_by_addr.items() if n}
         self._function_returns = defaultdict(set)
 
@@ -1744,6 +1748,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # Clean up
         self._traced_addresses = None
         self._lifter_deregister_readonly_regions()
+        self._function_returns = None
 
         self._finish_progress()
 
