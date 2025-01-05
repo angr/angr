@@ -258,11 +258,11 @@ class StackPointerTrackerState:
             pass
         raise CouldNotResolveException
 
-    def put(self, reg, val):
+    def put(self, reg, val, force: bool = False):
         # strong update, but we only update values for registers that are already in self.regs and ignore all other
         # registers. obviously, self.regs should be initialized with registers that should be considered during
         # tracking,
-        if reg in self.regs:
+        if reg in self.regs or force:
             self.regs[reg] = val
 
     def copy(self):
@@ -702,6 +702,22 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             # who are we calling?
             callees = [] if self._func is None else self._find_callees(node)
             if callees:
+                if (
+                    len(callees) == 1
+                    and callees[0].info.get("is_rust_probestack", False) is True
+                    and self.project.arch.name == "AMD64"
+                ):
+                    # special-case for rust_probestack: sp = sp - rax right after returning from the call, so we need
+                    # to keep track of rax
+                    for stmt in reversed(vex_block.statements):
+                        if (
+                            isinstance(stmt, pyvex.IRStmt.Put)
+                            and stmt.offset == self.project.arch.registers["rax"][0]
+                            and isinstance(stmt.data, pyvex.IRExpr.Const)
+                        ):
+                            state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
+                            break
+
                 callee_cleanups = [
                     callee
                     for callee in callees

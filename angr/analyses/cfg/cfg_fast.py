@@ -1502,6 +1502,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         pass
 
     def _function_completed(self, func_addr: int):
+        if self.project.arch.name == "AMD64":
+            # determine if the function is __rust_probestack
+            func = self.kb.functions.get_by_addr(func_addr) if self.kb.functions.contains_addr(func_addr) else None
+            if func is not None and len(func.block_addrs_set) == 3:
+                block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
+                if block_bytes == {
+                    b"UH\x89\xe5I\x89\xc3I\x81\xfb\x00\x10\x00\x00v\x1c",
+                    b"H\x81\xec\x00\x10\x00\x00H\x85d$\x08I\x81\xeb\x00\x10\x00\x00I\x81\xfb\x00\x10\x00\x00w\xe4",
+                    b"L)\xdcH\x85d$\x08H\x01\xc4\xc9\xc3",
+                }:
+                    func.info["is_rust_probestack"] = True
+
         if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
             # this is a pcode arch - use Clinic to recover data references
 
