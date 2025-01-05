@@ -41,7 +41,6 @@ class Function(Serializable):
         "_addr_to_block_node",
         "_argument_registers",
         "_argument_stack_variables",
-        "_block_cache",
         "_block_sizes",
         "_call_sites",
         "_callout_sites",
@@ -158,7 +157,6 @@ class Function(Serializable):
         # function, it may not be removed from _addr_to_block_node. if you want to list
         # all blocks of a function, access .blocks.
         self._block_sizes = {}  # map addresses to block sizes
-        self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = {}  # a dict of all blocks inside the function
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
@@ -374,13 +372,6 @@ class Function(Serializable):
         :param byte_string:
         :return:
         """
-        if addr in self._block_cache:
-            b = self._block_cache[addr]
-            if size is None or b.size == size:
-                return b
-            # size seems to be updated. remove this cached entry from the block cache
-            del self._block_cache[addr]
-
         if size is None and addr in self.block_addrs:
             # we know the size
             size = self._block_sizes[addr]
@@ -389,7 +380,6 @@ class Function(Serializable):
         if size is None:
             # update block_size dict
             self._block_sizes[addr] = block.size
-        self._block_cache[addr] = block
         return block
 
     # compatibility
@@ -613,7 +603,6 @@ class Function(Serializable):
         d["_local_transition_graph"] = None
         d["_project"] = None
         d["_function_manager"] = None
-        d["_block_cache"] = {}
         return d
 
     @property
@@ -785,7 +774,6 @@ class Function(Serializable):
         return None
 
     def _clear_transition_graph(self):
-        self._block_cache = {}
         self._block_sizes = {}
         self._addr_to_block_node = {}
         self._local_blocks = {}
@@ -1416,11 +1404,8 @@ class Function(Serializable):
                     self._local_blocks[n.addr] = new_node
 
                 # update block_cache and block_sizes
-                if (n.addr in self._block_cache and self._block_cache[n.addr].size != new_node.size) or (
-                    n.addr in self._block_sizes and self._block_sizes[n.addr] != new_node.size
-                ):
+                if n.addr in self._block_sizes and self._block_sizes[n.addr] != new_node.size:
                     # the cache needs updating
-                    self._block_cache.pop(n.addr, None)
                     self._block_sizes[n.addr] = new_node.size
 
                 for p, _, data in original_predecessors:
@@ -1680,7 +1665,6 @@ class Function(Serializable):
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()
-        func._block_cache = self._block_cache.copy()
         func._local_blocks = self._local_blocks.copy()
         func._local_block_addrs = self._local_block_addrs.copy()
         func.info = self.info.copy()
