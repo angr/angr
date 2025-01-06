@@ -460,7 +460,7 @@ class BinaryOptimizer(Analysis):
         # make sure we never gets the address of those stack variables into any register
         # say, lea edx, [ebp-0x4] is forbidden
         # check all edges in data graph
-        for src, dst, _data in data_graph.edges(data=True):
+        for src, dst in data_graph.edges():
             if (
                 isinstance(dst.variable, SimRegisterVariable)
                 and dst.variable.reg != ebp_offset

@@ -364,7 +364,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_nodes[node] = new_node
 
         # fixup every single jump target (before adding them to the graph)
-        for src, dst, _data in graph.edges(data=True):
+        for src, dst in graph.edges():
             new_src = new_nodes[src]
             new_dst = new_nodes[dst]
             if new_dst is not dst:
