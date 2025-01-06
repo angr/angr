@@ -519,7 +519,7 @@ class RustSimEnum(RustSimType, SimType):
         self.variants = variants
         self.discriminant_size = discriminant_size
 
-        self._size = max(variant.size for variant in self.variants)
+        self._size = max(variant.size for variant in self.variants) + self.discriminant_size
 
     def copy(self):
         return RustSimEnum(self.variants, self.discriminant_size).with_arch(self._arch)
