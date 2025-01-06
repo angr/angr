@@ -66,10 +66,10 @@ class AngrObjectFactory:
         self.procedure_engine = ProcedureEngine(project)
 
     def __getstate__(self):
-        return self.project, self.default_engine_factory, self.procedure_engine, self.concrete_engine, self._default_cc
+        return self.project, self.default_engine_factory, self.procedure_engine, self._default_cc
 
     def __setstate__(self, state):
-        self.project, self.default_engine_factory, self.procedure_engine, self.concrete_engine, self._default_cc = state
+        self.project, self.default_engine_factory, self.procedure_engine, self._default_cc = state
         self._tls = threading.local()
 
     @property
