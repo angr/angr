@@ -70,7 +70,7 @@ Arguments = RustSimStruct(
     name="Arguments",
     fields={
         "pieces": ArrayReference(StrReference()),
-        "fmt": RustSimTypeOption(RustSimTypeInt(64), none_discriminant=None, discriminant_size=8),
         "args": ArrayReference(Argument),
+        "fmt": RustSimTypeOption(RustSimTypeInt(64), none_discriminant=None),
     },
 )
