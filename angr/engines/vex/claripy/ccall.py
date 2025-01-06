@@ -3,8 +3,11 @@ import logging
 
 import claripy
 from archinfo.arch_arm import is_arm_arch
-from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
+
 from angr import errors
+from angr.errors import SimError, SimCCallError
+from angr.sim_options import USE_SIMPLIFIED_CCALLS
+from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
 
 l = logging.getLogger(name=__name__)
 
@@ -2022,8 +2025,8 @@ def _get_flags(state) -> claripy.ast.bv.BV:
         args = [cc_op, cc_dep1, cc_dep2, cc_ndep]
         try:
             i = args.index(to_replace)
-        except ValueError as e:
-            raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument") from e
+        except ValueError as ve:
+            raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument") from ve
         return claripy.ite_cases([(case, func(state, *args[:i], value_, *args[i + 1 :])) for case, value_ in cases], 0)
 
 
@@ -2063,7 +2066,3 @@ def _get_nbits(cc_str):
     elif cc_str.endswith("64"):
         nbits = 64
     return nbits
-
-
-from angr.errors import SimError, SimCCallError
-from angr.sim_options import USE_SIMPLIFIED_CCALLS
