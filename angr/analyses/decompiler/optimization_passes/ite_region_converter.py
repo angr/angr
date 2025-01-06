@@ -263,7 +263,7 @@ class ITERegionConverter(OptimizationPass):
 
             # is this the statement that we are looking for?
             found_true_src_vvar, found_false_src_vvar = False, False
-            for src, vvar in stmt.src.src_and_vvars:
+            for _src, vvar in stmt.src.src_and_vvars:
                 if vvar is not None:
                     if vvar.varid == true_stmt_dst.varid:
                         found_true_src_vvar = True

@@ -1536,7 +1536,7 @@ class PhoenixStructurer(StructurerBase):
                     full_graph.remove_edge(head, out_dst)
 
                 # fix full_graph if needed: remove successors that are no longer needed
-                for out_src, out_dst in out_edges[1:]:
+                for _out_src, out_dst in out_edges[1:]:
                     if out_dst in full_graph and out_dst not in graph and full_graph.in_degree[out_dst] == 0:
                         full_graph.remove_node(out_dst)
                         if out_dst in self._region.successors:

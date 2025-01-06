@@ -557,7 +557,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     varhash_to_caselists[v].append((cases, extra_cmp_nodes))
 
         for v, caselists in list(varhash_to_caselists.items()):
-            for idx, (cases, redundant_nodes) in list(enumerate(caselists)):
+            for idx, (cases, _redundant_nodes) in list(enumerate(caselists)):
                 # filter: each case value should only appear once
                 if len({case.value for case in cases}) != len(cases):
                     caselists[idx] = None

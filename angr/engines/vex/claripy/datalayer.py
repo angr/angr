@@ -130,11 +130,10 @@ class ClaripyDataMixin(VEXMixin):
         except ccall.CCallMultivaluedException as e:
             cases, to_replace = e.args
             # pylint: disable=undefined-loop-variable
-            for i, arg in enumerate(args):
-                if arg is to_replace:
-                    break
-            else:
-                raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
+            try:
+                i = args.index(to_replace)
+            except ValueError as e:
+                raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument") from e
             evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i + 1 :])) for case, value_ in cases]
             try:
                 return claripy.ite_cases(evaluated_cases, value(ty, 0))

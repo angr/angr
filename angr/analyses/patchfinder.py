@@ -34,7 +34,7 @@ class OverlappingFunctionsAnalysis(Analysis):
             func_max_addr = max((block.addr + block.size) for block in func.blocks)
             addr_to_func_max_addr[func.addr] = (func, func_max_addr)
 
-        for idx, (addr, (func, max_addr)) in enumerate(addr_to_func_max_addr.items()):
+        for idx, (addr, (_func, max_addr)) in enumerate(addr_to_func_max_addr.items()):
             for other_addr in addr_to_func_max_addr.islice(idx + 1):
                 if other_addr >= max_addr:
                     break

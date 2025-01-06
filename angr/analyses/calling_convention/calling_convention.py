@@ -923,9 +923,10 @@ class CallingConventionAnalysis(Analysis):
         if not set(spilled_regs).issubset(set(allowed_spilled_regs)):
             return False, None
 
-        for i, reg in enumerate(allowed_spilled_regs):
-            if reg in spilled_regs:
-                break
+        i = next(
+            (i for i, reg in enumerate(allowed_spilled_regs) if reg in spilled_regs),
+            len(allowed_spilled_regs),
+        )
 
         return True, i
 

@@ -353,7 +353,7 @@ class AILSimplifier(Analysis):
     ):
         repeat = False
         narrowable_phivarids = set()
-        for def_vvarid, (_, narrow_info) in narrowing_candidates.items():
+        for def_vvarid in narrowing_candidates:
             if def_vvarid in blacklist_varids:
                 continue
             if def_vvarid in rd.phi_vvar_ids:

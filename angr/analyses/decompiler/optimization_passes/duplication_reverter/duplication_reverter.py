@@ -167,7 +167,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
     def _reinsert_merged_candidate(self, ail_merge_graph: AILMergeGraph, candidate: tuple[Block, Block]) -> bool:
         og_succs, og_preds = {}, {}
-        for block, original_blocks in ail_merge_graph.original_blocks.items():
+        for original_blocks in ail_merge_graph.original_blocks.values():
             # collect all the old edges
             for og_block in original_blocks:
                 og_succs[og_block] = list(self.write_graph.successors(og_block))
@@ -364,7 +364,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_nodes[node] = new_node
 
         # fixup every single jump target (before adding them to the graph)
-        for src, dst, data in graph.edges(data=True):
+        for src, dst, _data in graph.edges(data=True):
             new_src = new_nodes[src]
             new_dst = new_nodes[dst]
             if new_dst is not dst:

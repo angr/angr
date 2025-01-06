@@ -304,7 +304,7 @@ class AILMergeGraph:
         end_pair_map = {}
         end_pairs = set()
         merge_to_end_pair = {}
-        for split, sblocks in self.merge_blocks_to_originals.items():
+        for sblocks in self.merge_blocks_to_originals.values():
             for sblock in sblocks:
                 if isinstance(sblock, AILBlockSplit) and sblock.original in self.merge_blocks_to_originals:
                     deletable_blocks.add(sblock.original)
@@ -429,7 +429,7 @@ class AILMergeGraph:
                     self.original_split_blocks[updated] = self.original_split_blocks[k]
                     del self.original_split_blocks[k]
 
-            for k, v in self.original_split_blocks.items():
+            for v in self.original_split_blocks.values():
                 for sblock in v:
                     for attr in ["up_split", "match_split", "down_split"]:
                         if getattr(sblock, attr) == original:

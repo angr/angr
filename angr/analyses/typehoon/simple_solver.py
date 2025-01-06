@@ -870,7 +870,7 @@ class SimpleSolver:
             for x, y, data in graph.edges(data=True):
                 lbl = data.get("label")
                 if lbl and lbl[1] == "recall":
-                    for label, z in R[x]:
+                    for _label, z in R[x]:
                         if not graph.has_edge(z, y):
                             changed = True
                             graph.add_edge(z, y)
@@ -1167,7 +1167,7 @@ class SimpleSolver:
 
             candidate_bases = defaultdict(set)
 
-            for labels, succ in path_and_successors:
+            for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
                     # TODO: Really determine the maximum possible size of the field when MAX_POINTSTO_BITS is in use

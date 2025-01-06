@@ -33,7 +33,6 @@ extend-select = [
 	"UP",
 ]
 extend-ignore = [
-	"B007", # Unused loop control variable
 	"B011", # Asserts
 	"E402", # Bottom imports
 	"E741", # Variable names

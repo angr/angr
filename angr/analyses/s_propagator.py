@@ -207,7 +207,7 @@ class SPropagatorAnalysis(Analysis):
                         stmt_src = stmt_src.operand
                     if isinstance(stmt_src, Load) and isinstance(stmt_src.addr, Const):
                         gv_updated = False
-                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                        for _vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                             gv_updated |= self.is_global_variable_updated(
                                 self.func_graph,
                                 blocks,

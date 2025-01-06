@@ -498,11 +498,7 @@ class PagedMemoryMixin(
 
         # everything from here on out has exactly one goal: to maximize the amount of concrete data
         # we can return (up to the limit!)
-        for i, byte in enumerate(bitmap):
-            if byte != 0:
-                break
-        else:
-            i = len(bitmap)
+        i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
 
         if i != subsize:
             return data[:i]
@@ -523,11 +519,7 @@ class PagedMemoryMixin(
                 break
             else:
                 newdata, bitmap = concrete_load(offset, subsize, with_bitmap=True, **kwargs)
-                for i, byte in enumerate(bitmap):
-                    if byte != 0:
-                        break
-                else:
-                    i = len(bitmap)
+                i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
 
                 # magic: check if the memory regions are physically adjacent
                 if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(

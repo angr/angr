@@ -2020,11 +2020,10 @@ def _get_flags(state) -> claripy.ast.bv.BV:
     except CCallMultivaluedException as e:
         cases, to_replace = e.args
         args = [cc_op, cc_dep1, cc_dep2, cc_ndep]
-        for i, arg in enumerate(args):
-            if arg is to_replace:
-                break
-        else:
-            raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
+        try:
+            i = args.index(to_replace)
+        except ValueError as e:
+            raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument") from e
         return claripy.ite_cases([(case, func(state, *args[:i], value_, *args[i + 1 :])) for case, value_ in cases], 0)
 
 
