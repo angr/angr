@@ -1842,19 +1842,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         break
 
             # special handling: some binaries do not have SecurityCookie set, but still contain _security_init_cookie
-            if security_init_cookie_found is False:
+            if security_init_cookie_found is False and self.functions.contains_addr(self.project.entry):
                 start_func = self.functions.get_by_addr(self.project.entry)
-                if start_func is not None:
-                    for callee in start_func.transition_graph:
-                        if (
-                            isinstance(callee, Function)
-                            and not security_init_cookie_found
-                            and is_function_likely_security_init_cookie(callee)
-                        ):
-                            security_init_cookie_found = True
-                            callee.is_default_name = False
-                            callee.name = "_security_init_cookie"
-                            break
+                for callee in start_func.transition_graph:
+                    if (
+                        isinstance(callee, Function)
+                        and not security_init_cookie_found
+                        and is_function_likely_security_init_cookie(callee)
+                    ):
+                        security_init_cookie_found = True
+                        callee.is_default_name = False
+                        callee.name = "_security_init_cookie"
+                        break
 
     def _post_process_string_references(self) -> None:
         """

@@ -40,7 +40,7 @@ class FunctionDict(SortedDict):
         try:
             return super().__getitem__(addr)
         except KeyError as ex:
-            if not isinstance(addr, self._key_types):
+            if isinstance(addr, bool) or not isinstance(addr, self._key_types):
                 raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
 
             if isinstance(addr, SootMethodDescriptor):
@@ -307,7 +307,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         try:
             _ = self[item]
             return True
-        except KeyError:
+        except (KeyError, TypeError):
             return False
 
     def __getitem__(self, k) -> Function:
@@ -407,7 +407,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
         try:
             prev_addr = self._function_map.floor_addr(addr)
-            return self._function_map[prev_addr]
+            return self._function_map.get(prev_addr)
 
         except KeyError:
             return None
