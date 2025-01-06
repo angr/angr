@@ -8,7 +8,6 @@ from .procedure import ProcedureMixin, ProcedureEngine
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
-from .concrete import SimEngineConcrete
 from .hook import HooksMixin
 from .soot import SootMixin
 
@@ -37,7 +36,6 @@ __all__ = [
     "ProcedureEngine",
     "ProcedureMixin",
     "SimEngine",
-    "SimEngineConcrete",
     "SimEngineFailure",
     "SimEngineSyscall",
     "SimEngineUnicorn",

@@ -11,7 +11,7 @@ from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
 from .errors import AngrAssemblyError, AngrError
-from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
+from .engines import UberEngine, ProcedureEngine
 from .sim_type import SimTypeFunction, SimTypeInt
 from .codenode import HookNode, SyscallNode
 from .block import Block, SootBlock
@@ -39,7 +39,6 @@ class AngrObjectFactory:
     project: Project
     default_engine_factory: type[SimEngine]
     procedure_engine: ProcedureEngine
-    concrete_engine: SimEngineConcrete | None
     _default_cc: type[SimCC] | None
 
     # We use thread local storage to cache engines on a per-thread basis
@@ -65,11 +64,6 @@ class AngrObjectFactory:
             project.arch.name, platform=project.simos.name if project.simos is not None else None, default=SimCCUnknown
         )
         self.procedure_engine = ProcedureEngine(project)
-
-        if project.concrete_target:
-            self.concrete_engine = SimEngineConcrete(project)
-        else:
-            self.concrete_engine = None
 
     def __getstate__(self):
         return self.project, self.default_engine_factory, self.procedure_engine, self.concrete_engine, self._default_cc

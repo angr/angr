@@ -23,7 +23,6 @@ from .loop_data import SimStateLoopData
 from .view import SimRegNameView, SimMemView, StructMode
 from .filesystem import Stat, SimFilesystem, SimMount, SimHostFilesystem
 from .heap import SimHeapBase, SimHeapBrk, SimHeapLibc, SimHeapPTMalloc, PTChunk, PTChunkIterator
-from .concrete import Concrete
 from .jni_references import SimStateJNIReferences
 from .javavm_classloader import SimJavaVmClassloader
 from .symbolizer import SimSymbolizer
@@ -39,7 +38,6 @@ __all__ = (
     "GDB",
     "NO_OVERRIDE",
     "CallStack",
-    "Concrete",
     "PTChunk",
     "PTChunkIterator",
     "PosixDevFS",
