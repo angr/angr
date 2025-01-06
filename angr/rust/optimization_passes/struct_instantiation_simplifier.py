@@ -245,7 +245,8 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMi
         builder = StructBuilder(struct_ty, collected_members, self)
         struct = builder.build(block, last_stmt)
 
-        if struct and 0 in offset_to_codeloc and self._is_consecutive_codelocs(offset_to_codeloc.values()):
+        # if struct and 0 in offset_to_codeloc and self._is_consecutive_codelocs(offset_to_codeloc.values()):
+        if struct and 0 in offset_to_codeloc:
             codeloc = offset_to_codeloc[0]
             head_stmt = self._get_stmt_by_codeloc(codeloc)
             store = Store(
