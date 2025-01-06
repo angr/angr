@@ -144,7 +144,7 @@ class StackCanarySimplifier(OptimizationPass):
                 nodes_to_process.append((pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node))
 
             # Awesome. Now patch this function.
-            for pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node in nodes_to_process:
+            for pred, _canary_check_stmt_idx, stack_chk_fail_caller, ret_node in nodes_to_process:
                 # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
                 pred_copy = pred.copy()
                 pred_copy.statements[-1] = ailment.Stmt.Jump(

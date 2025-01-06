@@ -1,16 +1,17 @@
 from __future__ import annotations
-import cffi
-from typing import Any, Generic, Literal, overload
-from collections.abc import Iterable
+
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
+from typing import Any, Generic, Literal, overload
 
+import cffi
 import claripy
 
+from angr.errors import SimMemoryError
 from angr.state_plugins.sim_action_object import SimActionObject
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
-from angr.errors import SimMemoryError
 
 # yeet
 ffi = cffi.FFI()
@@ -107,7 +108,12 @@ class PagedMemoryMixin(
                     permissions = perms
                     break
 
-        return dict(memory=self, memory_id=f"{self.id}_{pageno}", permissions=permissions, **self._extra_page_kwargs)
+        return {
+            "memory": self,
+            "memory_id": f"{self.id}_{pageno}",
+            "permissions": permissions,
+            **self._extra_page_kwargs,
+        }
 
     def _divide_addr(self, addr: int) -> tuple[int, int]:
         return divmod(addr, self.page_size)
@@ -498,11 +504,7 @@ class PagedMemoryMixin(
 
         # everything from here on out has exactly one goal: to maximize the amount of concrete data
         # we can return (up to the limit!)
-        for i, byte in enumerate(bitmap):
-            if byte != 0:
-                break
-        else:
-            i = len(bitmap)
+        i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
 
         if i != subsize:
             return data[:i]
@@ -523,11 +525,7 @@ class PagedMemoryMixin(
                 break
             else:
                 newdata, bitmap = concrete_load(offset, subsize, with_bitmap=True, **kwargs)
-                for i, byte in enumerate(bitmap):
-                    if byte != 0:
-                        break
-                else:
-                    i = len(bitmap)
+                i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
 
                 # magic: check if the memory regions are physically adjacent
                 if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(

@@ -44,13 +44,12 @@ class StochasticSearch(ExplorationTechnique):
                 assert len(states) >= 2
                 total_weight = sum(self.affinity[s.addr] for s in states)
                 selected = self._random.uniform(0, total_weight)
-                i = 0
                 for i, state in enumerate(states):
                     weight = self.affinity[state.addr]
                     if selected < weight:
-                        break
+                        return states[i]
                     selected -= weight
-                return states[i]
+                return states[len(states) - 1]
 
             simgr.stashes[stash] = [weighted_pick(simgr.stashes[stash])]
 

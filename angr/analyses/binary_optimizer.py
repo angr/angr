@@ -430,7 +430,7 @@ class BinaryOptimizer(Analysis):
 
         # find out all call instructions
         call_insns = set()
-        for src, dst, data in function.transition_graph.edges(data=True):
+        for src, _dst, data in function.transition_graph.edges(data=True):
             if "type" in data and data["type"] == "call":
                 src_block = function._get_block(src.addr)
                 call_insns.add(src_block.instruction_addrs[-1])
@@ -460,7 +460,7 @@ class BinaryOptimizer(Analysis):
         # make sure we never gets the address of those stack variables into any register
         # say, lea edx, [ebp-0x4] is forbidden
         # check all edges in data graph
-        for src, dst, data in data_graph.edges(data=True):
+        for src, dst in data_graph.edges():
             if (
                 isinstance(dst.variable, SimRegisterVariable)
                 and dst.variable.reg != ebp_offset

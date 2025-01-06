@@ -651,7 +651,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 l.debug("%s is not recorded. Skip the job.", job)
                 raise AngrSkipJobNotice
             # unwind the stack till the target, unless we see any pending jobs for each new top task
-            for i in range(unwind_count):
+            for _ in range(unwind_count):
                 if isinstance(self._top_task, FunctionAnalysis):
                     # are there any pending job belonging to the current function that we should handle first?
                     pending_job_key = self._get_pending_job(self._top_task.function_address)

@@ -1600,7 +1600,7 @@ class SimCCSystemVAMD64(SimCC):
                     # TODO I think we need an explicit stride field on array types
                     result[idx * ty.elem_type.size // self.arch.byte_width + suboffset] += subsubty_list
         elif isinstance(ty, SimUnion):
-            for field, subty in ty.members.items():
+            for subty in ty.members.values():
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
@@ -1772,7 +1772,7 @@ class SimCCARM(SimCC):
                     # TODO I think we need an explicit stride field on array types
                     result[idx * ty.elem_type.size // self.arch.byte_width + suboffset] += subsubty_list
         elif isinstance(ty, SimUnion):
-            for field, subty in ty.members.items():
+            for subty in ty.members.values():
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
@@ -1991,7 +1991,7 @@ class SimCCO32(SimCC):
                     # TODO I think we need an explicit stride field on array types
                     result[idx * ty.elem_type.size // self.arch.byte_width + suboffset] += subsubty_list
         elif isinstance(ty, SimUnion):
-            for field, subty in ty.members.items():
+            for subty in ty.members.values():
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
