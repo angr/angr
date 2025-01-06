@@ -46,6 +46,7 @@ class SequenceWalker:
             CascadingConditionNode: self._handle_CascadingCondition,
             SwitchCaseNode: self._handle_SwitchCase,
             PatternMatchNode: self._handle_PatternMatch,
+            IfLetNode: self._handle_IfLet,
             IncompleteSwitchCaseNode: self._handle_IncompleteSwitchCase,
             LoopNode: self._handle_Loop,
             MultiNode: self._handle_MultiNode,
