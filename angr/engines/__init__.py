@@ -8,13 +8,10 @@ from .procedure import ProcedureMixin, ProcedureEngine
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
-from .concrete import SimEngineConcrete
 from .hook import HooksMixin
 from .soot import SootMixin
 
 
-# The default execution engine
-# You may remove unused mixins from this default engine to speed up execution
 class UberEngine(
     SimEngineFailure,
     SimEngineSyscall,
@@ -27,7 +24,14 @@ class UberEngine(
     SootMixin,
     HeavyVEXMixin,
 ):
-    pass
+    """
+    The default execution engine for angr. This engine includes mixins for most
+    common functionality in angr, including VEX IR, unicorn, syscall handling,
+    and simprocedure handling.
+
+    For some performance-sensitive applications, you may want to create a custom
+    engine with only the necessary mixins.
+    """
 
 
 __all__ = [
@@ -37,7 +41,6 @@ __all__ = [
     "ProcedureEngine",
     "ProcedureMixin",
     "SimEngine",
-    "SimEngineConcrete",
     "SimEngineFailure",
     "SimEngineSyscall",
     "SimEngineUnicorn",

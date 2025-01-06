@@ -17,7 +17,6 @@ from .manual_mergepoint import ManualMergepoint
 from .tech_builder import TechniqueBuilder
 from .stochastic import StochasticSearch
 from .unique import UniqueSearch
-from .symbion import Symbion
 from .memory_watcher import MemoryWatcher
 from .bucketizer import Bucketizer
 from .local_loop_seer import LocalLoopSeer
@@ -45,7 +44,6 @@ __all__ = (
     "StochasticSearch",
     "StubStasher",
     "Suggestions",
-    "Symbion",
     "TechniqueBuilder",
     "Threading",
     "Timeout",
