@@ -10,6 +10,7 @@ from angr.rust.ailment.statement import FunctionLikeMacro
 from angr.rust.mixins.cfa_mixin import CFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimType, RustSimTypeString
+from angr.rust.utils.library import demangle
 
 PRINT_FUNCTIONS = (
     "std::io::stdio::_print",
@@ -69,6 +70,15 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
             return "panic", fmt_str, None
         return None, None, None
 
+    def _is_debug_formatter(self, arg: Struct):
+        formatter = arg.get_field("formatter")
+        if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
+            name = demangle(self.project.kb.functions[formatter.value].name)
+            if "core::fmt::Display" in name:
+                return False
+            return True
+        return False
+
     def replace_call(self, call: Call, block: Block, is_expr):
         if (
             (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
@@ -107,7 +117,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                     if len(pieces) == len(args):
                         pieces.append("")
 
-                    placeholders = ["{:?}" if arg.get_field("formatter") else "{}" for arg in args]
+                    placeholders = ["{:?}" if self._is_debug_formatter(arg) else "{}" for arg in args]
                     placeholders.append("")
                     fmt_str = ""
                     for piece, placeholder in zip(pieces, placeholders):
