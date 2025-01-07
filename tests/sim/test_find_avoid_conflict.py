@@ -36,7 +36,7 @@ class TestFindAvoidConflict(unittest.TestCase):
                     instAddrs = set(proj.factory.block(addr).instruction_addrs)
                 except angr.errors.AngrError:
                     instAddrs = {}
-                assert avoidAddr not in instAddrs
+                self.assertNotIn(avoidAddr, instAddrs)
 
 
 if __name__ == "__main__":
