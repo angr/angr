@@ -137,7 +137,8 @@ class CFGModel(Serializable):
             edge.dst_ea = dst.addr
             for k, v in data.items():
                 if k == "jumpkind":
-                    edge.jumpkind = cfg_jumpkind_to_pb(v)
+                    jk = cfg_jumpkind_to_pb(v)
+                    edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk
                 elif k == "ins_addr":
                     edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
                 elif k == "stmt_idx":
