@@ -31,6 +31,7 @@ _CFG_JUMPKINDS = {
     "Ijk_SigSEGV": Edge.SigSEGV,
     "Ijk_SigTRAP": Edge.SigTRAP,
     "Ijk_Syscall": Edge.Syscall,
+    "Ijk_Sys_int": Edge.Sys_int,
     "Ijk_Sys_int128": Edge.Sys_int128,
     "Ijk_Sys_int129": Edge.Sys_int129,
     "Ijk_Sys_int130": Edge.Sys_int130,

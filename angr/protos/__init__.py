@@ -1,10 +1,7 @@
 # Generating proto files
 #
-#  $ cd angr
-#  $ protoc -I=. --python_out=. protos/*.proto
-#  $ sed -i -e 's/from protos import/from . import/g' protos/*_pb2.py
-#
-# https://github.com/protocolbuffers/protobuf/issues/1491
+#  $ cd angr  # you would expect angr/protos to exist after this
+#  $ protoc -I=. --python_out=. angr/protos/*.proto
 from __future__ import annotations
 
 from . import primitives_pb2

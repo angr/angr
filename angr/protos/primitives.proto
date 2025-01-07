@@ -124,6 +124,7 @@ message Edge {
         Sys_sysenter = 30;
         Yield = 31;
         SigFPE = 32;
+        Sys_int = 33;
     }
 
     uint64              src_ea = 1; // Address of the source block
