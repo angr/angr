@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import os
 import unittest
 
-import angr
 import claripy
+
+import angr
 
 from tests.common import bin_location, slow_test
 
 
+# pylint: disable=missing-class-docstring
 class TestMemcmpDefiniteSize(unittest.TestCase):
     @slow_test
     def test_memcmp_strlen_simprocedure_interaction(self):

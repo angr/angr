@@ -1,10 +1,14 @@
 from __future__ import annotations
-import angr
-import unittest
 
 import os
+import unittest
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries", "tests")
+import angr
+
+from tests.common import bin_location
+
+
+# pylint: disable=missing-class-docstring
 
 
 # While exploring, if the 'find' and 'avoid' addresses occur in the same run
@@ -16,7 +20,7 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 # level between the start of the else branch and the target address.
 class TestFindAvoidConflict(unittest.TestCase):
     def test_find_avoid_conflict(self):
-        proj = angr.Project(os.path.join(test_location, "i386", "ite_FindAvoidConflict-O3"))
+        proj = angr.Project(os.path.join(bin_location, "tests", "i386", "ite_FindAvoidConflict-O3"))
         initial_state = proj.factory.blank_state()
         sm = proj.factory.simulation_manager(initial_state)
 
