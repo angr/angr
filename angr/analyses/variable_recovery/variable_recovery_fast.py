@@ -12,6 +12,7 @@ import ailment
 from ailment.expression import VirtualVariable
 
 import angr.errors
+from angr.analyses import AnalysesHub
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.block import Block
 from angr.errors import AngrVariableRecoveryError, SimEngineError
@@ -599,7 +600,5 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             if adjusted:
                 state.register_region.store(self.project.arch.sp_offset, sp_v)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)

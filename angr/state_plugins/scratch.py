@@ -3,7 +3,12 @@ import logging
 
 import claripy
 
+from angr import sim_options as o
+from angr.errors import SimValueError, SimMissingTempError
+from angr.sim_state import SimState
+from .inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
+from .sim_action import SimActionObject, SimActionData
 
 
 l = logging.getLogger(name=__name__)
@@ -164,13 +169,5 @@ class SimStateScratch(SimStatePlugin):
         self.state = s
         self.jumpkind = j  # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
 
-
-# pylint:disable=wrong-import-position
-from .sim_action import SimActionObject, SimActionData
-from angr.errors import SimValueError, SimMissingTempError
-from angr import sim_options as o
-from .inspect import BP_AFTER, BP_BEFORE
-
-from angr.sim_state import SimState
 
 SimState.register_default("scratch", SimStateScratch)

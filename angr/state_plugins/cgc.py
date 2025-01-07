@@ -1,5 +1,8 @@
 from __future__ import annotations
+
 import operator
+
+from angr.sim_state import SimState
 from .plugin import SimStatePlugin
 
 
@@ -148,7 +151,5 @@ class SimStateCGC(SimStatePlugin):
 
         self.sinkholes.add((address, length))
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("cgc", SimStateCGC)

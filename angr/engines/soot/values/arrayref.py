@@ -3,7 +3,7 @@ import logging
 
 import claripy
 
-from . import translate_value
+import angr
 from angr.errors import SimEngineError
 from .base import SimSootValue
 from .constants import SimSootValue_IntConstant
@@ -60,7 +60,7 @@ class SimSootValue_ArrayRef(SimSootValue):
 
     @classmethod
     def from_sootvalue(cls, soot_value, state):
-        base_local = translate_value(soot_value.base, state)
+        base_local = angr.engines.soot.values.translate_value(soot_value.base, state)
         base = state.memory.load(base_local)
         idx = cls.translate_array_index(soot_value.index, state)
         cls.check_array_bounds(idx, base, state)
@@ -68,7 +68,7 @@ class SimSootValue_ArrayRef(SimSootValue):
 
     @staticmethod
     def translate_array_index(idx, state):
-        idx_value = translate_value(idx, state)
+        idx_value = angr.engines.soot.values.translate_value(idx, state)
         if isinstance(idx_value, SimSootValue_IntConstant):
             # idx is a constant
             return idx_value.value

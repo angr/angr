@@ -1,8 +1,10 @@
 from __future__ import annotations
-from .engine import SuccessorsMixin
-from .procedure import ProcedureMixin
 
 import logging
+
+from angr.errors import AngrExitError
+from .engine import SuccessorsMixin
+from .procedure import ProcedureMixin
 
 l = logging.getLogger(name=__name__)
 
@@ -23,6 +25,3 @@ class SimEngineFailure(SuccessorsMixin, ProcedureMixin):
             return self.process_procedure(state, successors, terminator, **kwargs)
 
         return super().process_successors(successors, **kwargs)
-
-
-from angr.errors import AngrExitError

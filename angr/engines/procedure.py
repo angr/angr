@@ -1,10 +1,13 @@
 from __future__ import annotations
 import logging
 
-l = logging.getLogger(name=__name__)
-
+from angr import sim_options as o
+from angr import errors
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 from .engine import SuccessorsMixin
 
+
+l = logging.getLogger(name=__name__)
 # pylint: disable=arguments-differ
 
 
@@ -65,8 +68,3 @@ class ProcedureEngine(ProcedureMixin, SuccessorsMixin):
         if procedure is None:
             raise errors.SimEngineError("Must provide the procedure explicitly to use ProcedureEngine")
         self.process_procedure(self.state, successors, procedure, **kwargs)
-
-
-from angr import sim_options as o
-from angr import errors
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER

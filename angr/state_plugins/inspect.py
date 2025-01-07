@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import logging
 
+from angr.sim_state import SimState
+from .plugin import SimStatePlugin
+
 l = logging.getLogger(name=__name__)
 
 event_types = {
@@ -224,9 +227,6 @@ class BP:
         )
 
 
-from .plugin import SimStatePlugin
-
-
 class SimInspector(SimStatePlugin):
     """
     The breakpoint interface, used to instrument execution. For usage information, look here:
@@ -371,7 +371,5 @@ class SimInspector(SimStatePlugin):
         super().set_state(state)
         state.supports_inspect = True
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("inspect", SimInspector)

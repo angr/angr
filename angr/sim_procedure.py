@@ -9,6 +9,21 @@ import claripy
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
+from angr import sim_options as o
+from angr.errors import SimProcedureError, SimShadowStackError
+from angr.state_plugins.sim_action import SimActionExit
+from angr.calling_conventions import (
+    DEFAULT_CC,
+    default_cc,
+    SimTypeFunction,
+    SimTypePointer,
+    SimTypeChar,
+    ArgSession,
+    SimTypeNum,
+)
+from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from .sim_type import parse_signature, parse_type
+
 if TYPE_CHECKING:
     import angr
     import archinfo
@@ -589,19 +604,3 @@ class SimProcedure:
     @return_type.setter
     def return_type(self, v):  # pylint: disable=unused-argument,no-self-use
         l.critical("SimProcedure.return_type is deprecated. specify the function signature in the prototype param")
-
-
-from . import sim_options as o
-from angr.errors import SimProcedureError, SimShadowStackError
-from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import (
-    DEFAULT_CC,
-    default_cc,
-    SimTypeFunction,
-    SimTypePointer,
-    SimTypeChar,
-    ArgSession,
-    SimTypeNum,
-)
-from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
-from .sim_type import parse_signature, parse_type

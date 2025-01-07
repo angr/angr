@@ -3,6 +3,7 @@ import logging
 
 import networkx
 
+from angr.analyses import AnalysesHub
 from angr.utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
 from . import Analysis
 
@@ -184,7 +185,5 @@ class CDG(Analysis):
                 else:
                     _l.debug("%s is not in post dominator dict.", b2)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CDG", CDG)

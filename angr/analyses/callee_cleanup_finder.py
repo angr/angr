@@ -1,8 +1,10 @@
 from __future__ import annotations
-from . import Analysis
-from angr import SIM_PROCEDURES
 
 import logging
+
+from angr import SIM_PROCEDURES
+from angr.analyses import AnalysesHub, Analysis
+
 
 l = logging.getLogger(name=__name__)
 
@@ -68,7 +70,5 @@ class CalleeCleanupFinder(Analysis):
 
         return None
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CalleeCleanupFinder", CalleeCleanupFinder)

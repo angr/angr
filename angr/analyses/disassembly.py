@@ -1,22 +1,24 @@
 from __future__ import annotations
+
+import contextlib
 import logging
 from collections import defaultdict
-from typing import Union, Any
 from collections.abc import Sequence
+from typing import Union, Any
 
 import pyvex
 import archinfo
-from angr.knowledge_plugins import Function
 
 from . import Analysis
 
+from angr.analyses import AnalysesHub
 from angr.errors import AngrTypeError
+from angr.knowledge_plugins import Function
 from angr.utils.library import get_cpp_function_name
 from angr.utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
 from angr.codenode import BlockNode
 from .disassembly_utils import decode_instruction
-import contextlib
 
 try:
     from angr.engines import pcode
@@ -1294,7 +1296,5 @@ class Disassembly(Analysis):
 
         return "\n".join(buf)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Disassembly", Disassembly)

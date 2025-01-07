@@ -9,7 +9,8 @@ from sortedcontainers import SortedDict
 import claripy
 
 from angr.errors import SimMemoryError
-from . import PageBase
+from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview
+from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
 
 
@@ -500,6 +501,3 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 self._update_mappings(b, old.object, new.object, memory=memory)
 
         return new
-
-
-from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview

@@ -3,6 +3,8 @@ import logging
 
 import claripy
 
+from angr.errors import AngrIncongruencyError
+from angr.analyses import AnalysesHub
 from . import Analysis
 
 l = logging.getLogger(name=__name__)
@@ -371,8 +373,5 @@ class CongruencyCheck(Analysis):
 
         return True
 
-
-from angr.errors import AngrIncongruencyError
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CongruencyCheck", CongruencyCheck)

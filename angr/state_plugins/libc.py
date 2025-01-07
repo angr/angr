@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from angr.sim_state import SimState
 from .plugin import SimStatePlugin
 
 
@@ -1257,7 +1259,5 @@ class SimStateLibc(SimStatePlugin):
         self.errno = ival
         return -1
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("libc", SimStateLibc)

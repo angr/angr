@@ -1,6 +1,6 @@
 from __future__ import annotations
-from . import translate_expr
-from angr.engines.soot.values import translate_value
+
+import angr
 
 
 class SimSootExpr:
@@ -15,7 +15,7 @@ class SimSootExpr:
         raise NotImplementedError
 
     def _translate_expr(self, expr):
-        return translate_expr(expr, self.state)
+        return angr.engines.soot.expressions.translate_expr(expr, self.state)
 
     def _translate_value(self, value):
-        return translate_value(value, self.state)
+        return angr.engines.soot.values.translate_value(value, self.state)

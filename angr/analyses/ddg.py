@@ -6,8 +6,7 @@ import claripy
 import networkx
 import pyvex
 
-from . import Analysis
-
+from angr.analyses import Analysis, AnalysesHub
 from angr.code_location import CodeLocation
 from angr.errors import SimSolverModeError, SimUnsatError, AngrDDGError
 from angr.sim_variable import (
@@ -1667,7 +1666,5 @@ class DDG(Analysis):
 
         return sources
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("DDG", DDG)

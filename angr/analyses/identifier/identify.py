@@ -10,7 +10,7 @@ from networkx import NetworkXError
 from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
-from angr.analyses import Analysis
+from angr.analyses import Analysis, AnalysesHub
 from angr import options
 from angr.errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
@@ -821,7 +821,5 @@ class Identifier(Analysis):
         symbolic_state.regs.bp = input_state.regs.bp
         return symbolic_state
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Identifier", Identifier)

@@ -1,6 +1,9 @@
 from __future__ import annotations
-import angr
+
 import logging
+
+import angr
+from angr.sim_options import ABSTRACT_MEMORY
 
 l = logging.getLogger(name=__name__)
 
@@ -33,6 +36,3 @@ class memcpy(angr.SimProcedure):
                 self.state.memory.store(dst_addr, src_mem, size=limit, endness="Iend_BE")
 
         return dst_addr
-
-
-from angr.sim_options import ABSTRACT_MEMORY

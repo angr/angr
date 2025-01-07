@@ -3,6 +3,7 @@ from __future__ import annotations
 import claripy
 from archinfo.arch_arm import is_arm_arch
 
+from angr.errors import SimMemoryError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 stn_map = {f"st{n}": n for n in range(8)}
@@ -64,6 +65,3 @@ class NameResolutionMixin(MemoryMixin):
             named_addr, named_size = self._resolve_location_name(addr, is_write=False)
             return super().load(named_addr, size=named_size if size is None else size, **kwargs)
         return super().load(addr, size=size, **kwargs)
-
-
-from angr.errors import SimMemoryError

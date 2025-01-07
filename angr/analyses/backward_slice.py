@@ -6,6 +6,7 @@ import networkx
 import pyvex
 from . import Analysis
 
+from angr.analyses import AnalysesHub
 from angr.code_location import CodeLocation
 from angr.annocfg import AnnotatedCFG
 from angr.errors import AngrBackwardSlicingError
@@ -681,7 +682,5 @@ class BackwardSlice(Analysis):
 
         return cmp_stmt_id, cmp_tmp_id
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BackwardSlice", BackwardSlice)

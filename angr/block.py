@@ -6,13 +6,14 @@ import pyvex
 from pyvex import IRSB
 from archinfo import ArchARM
 
+from .protos import primitives_pb2 as pb2
+from .serializable import Serializable
+
 try:
     from .engines import pcode
 except ImportError:
     pcode = None
 
-from .protos import primitives_pb2 as pb2
-from .serializable import Serializable
 
 l = logging.getLogger(name=__name__)
 

@@ -12,6 +12,7 @@ import cle
 import networkx
 import pyvex
 
+from angr.analyses import AnalysesHub
 from . import Analysis
 from .cfg.cfg_emulated import CFGEmulated
 from .ddg import DDG
@@ -2895,7 +2896,5 @@ class Reassembler(Analysis):
         except KeyError:
             return None
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Reassembler", Reassembler)

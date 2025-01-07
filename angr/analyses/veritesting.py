@@ -4,11 +4,14 @@ from collections import defaultdict
 from functools import cmp_to_key
 
 import networkx
+from claripy import ClaripyError
 
 from angr import SIM_PROCEDURES
 from angr import options as o
+from angr.analyses import AnalysesHub
 from angr.knowledge_base import KnowledgeBase
-from angr.errors import AngrError, AngrCFGError
+from angr.errors import AngrError, AngrCFGError, SimValueError, SimSolverModeError, SimError
+from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
 from angr.sim_manager import SimulationManager
 from angr.utils.graph import shallow_reverse
 from . import Analysis, CFGEmulated
@@ -620,10 +623,4 @@ class Veritesting(Analysis):
         return [(n.addr, n.looping_times) for n in nodes]
 
 
-from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default("Veritesting", Veritesting)
-
-from angr.errors import SimValueError, SimSolverModeError, SimError
-from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
-from claripy import ClaripyError

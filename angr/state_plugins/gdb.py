@@ -1,12 +1,15 @@
 from __future__ import annotations
+
+import binascii
+import logging
 import os
 import re
-import logging
-import claripy
-import binascii
 
-from .plugin import SimStatePlugin
+import claripy
+
 from angr.errors import SimStateError
+from angr.sim_state import SimState
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 
@@ -141,7 +144,5 @@ class GDB(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         return GDB()
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("gdb", GDB)

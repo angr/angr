@@ -1,14 +1,14 @@
 # This module contains data structures for handling memory, code, and register references.
 from __future__ import annotations
 
+import contextlib
 import logging
+
+from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
 
 _noneset = frozenset()
-
-from .sim_event import SimEvent
-import contextlib
 
 
 class SimAction(SimEvent):

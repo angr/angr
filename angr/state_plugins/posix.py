@@ -1,12 +1,16 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from .plugin import SimStatePlugin
-from .filesystem import SimMount, Stat
-from angr.storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from angr import sim_options as options
+from angr.errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError
+from angr.sim_state import SimState
+from angr.storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
+from .filesystem import SimMount, Stat
+from .plugin import SimStatePlugin
+
 
 l = logging.getLogger(name=__name__)
 
@@ -696,8 +700,4 @@ class SimSystemPosix(SimStatePlugin):
         return self.get_fd(fd).concretize(**kwargs)
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("posix", SimSystemPosix)
-
-from angr.errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError

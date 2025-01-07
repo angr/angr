@@ -2,10 +2,9 @@
 from __future__ import annotations
 import logging
 
-l = logging.getLogger(name=__name__)
-
 from angr.protos.primitives_pb2 import Edge
 
+l = logging.getLogger(name=__name__)
 
 _CFG_JUMPKINDS = {
     None: Edge.UnknownJumpkind,

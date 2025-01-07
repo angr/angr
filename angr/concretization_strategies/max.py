@@ -1,6 +1,7 @@
 from __future__ import annotations
+
 from angr.errors import SimSolverError
-from . import SimConcretizationStrategy
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyMax(SimConcretizationStrategy):

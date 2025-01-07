@@ -1,13 +1,7 @@
 # " pylint:disable=wrong-import-position
 from __future__ import annotations
 
-from .analysis import Analysis, AnalysesHub
-
-
-def register_analysis(cls, name):
-    AnalysesHub.register_default(name, cls)
-
-
+from .analysis import Analysis, AnalysesHub, register_analysis
 from .forward_analysis import ForwardAnalysis, visitors
 from .propagator import PropagatorAnalysis
 from .cfg import CFGFast, CFGEmulated, CFG, CFGArchOptions, CFGFastSoot
