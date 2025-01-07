@@ -395,9 +395,10 @@ class SimStackVariable(SimMemoryVariable):
         if not -0x8000_0000 <= self.offset < 0x8000_0000:
             _l.warning(
                 "The offset of stack variable %r (%d) is out of allowable range; force it to within the int32 range.",
+                self,
                 self.offset,
             )
-            obj.offset = -0x7FFF_FFFF if self.offset < 0 else 0x7FFF_FFFF
+            obj.offset = -0x7FFF_DEAD if self.offset < 0 else 0x7FFF_DEAD
         else:
             obj.offset = self.offset
         obj.size = self.size

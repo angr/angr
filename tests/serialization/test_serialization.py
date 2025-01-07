@@ -12,6 +12,7 @@ import tempfile
 import unittest
 
 import angr
+from angr.sim_variable import SimStackVariable
 
 from tests.common import bin_location
 
@@ -126,6 +127,16 @@ class TestSerialization(unittest.TestCase):
 
         cfg = internaltest_cfg(p)
         internaltest_vfg(p, cfg)
+
+    def test_simstackvariable_offest_too_large(self):
+        v0 = SimStackVariable(-0x8000_0001, 4, ident="s_0")
+        cmsg = v0.serialize_to_cmessage()
+        assert cmsg.offset == -0x7FFF_DEAD
+
+        v1 = SimStackVariable(0, 4, ident="s_1")
+        v1.offset = 0x8000_0000  # we gotta force it
+        cmsg = v1.serialize_to_cmessage()
+        assert cmsg.offset == 0x7FFF_DEAD
 
 
 if __name__ == "__main__":
