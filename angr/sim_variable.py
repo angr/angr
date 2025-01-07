@@ -1,6 +1,7 @@
 from __future__ import annotations
 import collections.abc
 from typing import TYPE_CHECKING
+import logging
 
 import claripy
 
@@ -9,6 +10,9 @@ from .serializable import Serializable
 
 if TYPE_CHECKING:
     import archinfo
+
+
+_l = logging.getLogger(__name__)
 
 
 class SimVariable(Serializable):
@@ -388,7 +392,15 @@ class SimStackVariable(SimMemoryVariable):
         obj = self._get_cmsg()
         self._set_base(obj)
         obj.sp_base = self.base == "sp"
-        obj.offset = self.offset
+        if not -0x8000_0000 <= self.offset < 0x8000_0000:
+            _l.warning(
+                "The offset of stack variable %r (%d) is out of allowable range; force it to within the int32 range.",
+                self,
+                self.offset,
+            )
+            obj.offset = -0x7FFF_DEAD if self.offset < 0 else 0x7FFF_DEAD
+        else:
+            obj.offset = self.offset
         obj.size = self.size
         return obj
 
