@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 from itertools import groupby
 
 import claripy
 
-from . import SimConcretizationStrategy
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyControlledData(SimConcretizationStrategy):

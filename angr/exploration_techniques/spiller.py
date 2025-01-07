@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import logging
 
+from angr import vaults
 from .base import ExplorationTechnique
 
 
@@ -277,6 +278,3 @@ class Spiller(ExplorationTechnique):
     @staticmethod
     def state_priority(state):
         return id(state)
-
-
-from angr import vaults

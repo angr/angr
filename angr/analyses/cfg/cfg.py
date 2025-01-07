@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import sys
 
+from angr.analyses import AnalysesHub
 from .cfg_fast import CFGFast
 
 
@@ -68,7 +70,5 @@ class CFG(CFGFast):  # pylint: disable=abstract-method
         # Now initializes CFGFast :-)
         CFGFast.__init__(self, **kwargs)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CFG", CFG)

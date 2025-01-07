@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import claripy
 
-from . import SimConcretizationStrategy
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategySignedAdd(SimConcretizationStrategy):

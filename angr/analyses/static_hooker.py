@@ -4,6 +4,7 @@ import logging
 from . import Analysis
 
 from angr import SIM_LIBRARIES
+from angr.analyses import AnalysesHub
 from angr.errors import AngrValueError
 
 l = logging.getLogger(name=__name__)
@@ -46,7 +47,5 @@ class StaticHooker(Analysis):
             else:
                 l.debug("Failed to hook %s at %#x", func.name, func.rebased_addr)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("StaticHooker", StaticHooker)

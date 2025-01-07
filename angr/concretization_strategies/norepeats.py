@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import itertools
 
-from . import SimConcretizationStrategy
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyNorepeats(SimConcretizationStrategy):

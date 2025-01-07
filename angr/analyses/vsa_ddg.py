@@ -5,6 +5,7 @@ from collections import defaultdict
 import networkx
 from . import Analysis, VFG
 
+from angr.analyses import AnalysesHub
 from angr.code_location import CodeLocation
 from angr.errors import AngrDDGError
 from angr.sim_variable import SimRegisterVariable, SimMemoryVariable
@@ -415,7 +416,5 @@ class VSA_DDG(Analysis):
                 nodes.add(n)
         return nodes
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VSA_DDG", VSA_DDG)

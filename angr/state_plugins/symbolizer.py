@@ -1,10 +1,13 @@
 from __future__ import annotations
+
 import logging
-import claripy
 import struct
 
-from .plugin import SimStatePlugin
+import claripy
+
+from angr.sim_state import SimState
 from angr.storage.memory_mixins import PagedMemoryMixin
+from .plugin import SimStatePlugin
 
 
 l = logging.getLogger(name=__name__)
@@ -284,7 +287,5 @@ class SimSymbolizer(SimStatePlugin):  # pylint:disable=abstract-method
         sc.page_symbols = dict(sc.page_symbols)
         return sc
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("symbolizer", SimSymbolizer)

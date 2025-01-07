@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import logging
-from . import SimConcretizationStrategy
+
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyLogging(SimConcretizationStrategy):

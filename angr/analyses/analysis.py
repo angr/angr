@@ -409,3 +409,7 @@ class Analysis:
 
 default_analyses = VendorPreset()
 AnalysesHub.register_preset("default", default_analyses)
+
+
+def register_analysis(cls, name):
+    AnalysesHub.register_default(name, cls)

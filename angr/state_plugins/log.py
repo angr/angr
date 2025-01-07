@@ -1,11 +1,16 @@
 from __future__ import annotations
-import logging
-
-l = logging.getLogger(name=__name__)
 
 import itertools
+import logging
 
+from angr.errors import SimEventError
+from angr.sim_state import SimState
 from .plugin import SimStatePlugin
+from .sim_event import SimEvent
+from .sim_action import SimAction, SimActionConstraint
+
+
+l = logging.getLogger(name=__name__)
 
 
 class SimStateLog(SimStatePlugin):
@@ -75,12 +80,5 @@ class SimStateLog(SimStatePlugin):
         # self.used_variables.clear()
         # self.input_variables.clear()
 
-
-from angr.errors import SimEventError
-from .sim_event import SimEvent
-from .sim_action import SimAction, SimActionConstraint
-
-
-from angr.sim_state import SimState
 
 SimState.register_default("log", SimStateLog)

@@ -1,5 +1,6 @@
 from __future__ import annotations
-from . import SimConcretizationStrategy
+
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyEval(SimConcretizationStrategy):

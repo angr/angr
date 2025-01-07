@@ -13,6 +13,11 @@ import io
 
 import claripy
 
+from .errors import AngrVaultError
+from .project import Project
+from .sim_state import SimState
+from .sim_type import SimType
+
 l = logging.getLogger("angr.vault")
 
 
@@ -360,9 +365,3 @@ class VaultDirShelf(VaultDict):
             else:
                 s.add(n[: n.rfind(".")])  # remove the suffix
         return s
-
-
-from .errors import AngrVaultError
-from .project import Project
-from .sim_type import SimType
-from .sim_state import SimState

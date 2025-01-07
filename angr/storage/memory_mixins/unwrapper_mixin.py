@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.state_plugins.sim_action_object import _raw_ast
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
@@ -23,6 +24,3 @@ class UnwrapperMixin(MemoryMixin):
 
     def copy_contents(self, dst, src, size, condition=None, **kwargs):
         return super().copy_contents(_raw_ast(dst), _raw_ast(src), _raw_ast(size), _raw_ast(condition), **kwargs)
-
-
-from angr.state_plugins.sim_action_object import _raw_ast

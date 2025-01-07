@@ -3,9 +3,10 @@ import logging
 
 import claripy
 
-from .plugin import SimStatePlugin
 from angr import sim_options as o
 from angr.errors import AngrError
+from angr.sim_state import SimState
+from .plugin import SimStatePlugin
 
 
 l = logging.getLogger(name=__name__)
@@ -191,7 +192,5 @@ class SimStatePreconstrainer(SimStatePlugin):
                     else:
                         l.warning("var %s not found in self.variable_map", var)
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("preconstrainer", SimStatePreconstrainer)

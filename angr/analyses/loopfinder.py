@@ -1,9 +1,12 @@
 from __future__ import annotations
+
+import contextlib
 import logging
 
 import networkx
+
+from angr.analyses import AnalysesHub
 from . import Analysis
-import contextlib
 
 l = logging.getLogger(name=__name__)
 
@@ -164,7 +167,5 @@ class LoopFinder(Analysis):
                 outtop.append(thisloop)
         return outtop, outall
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("LoopFinder", LoopFinder)

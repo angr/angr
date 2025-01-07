@@ -6,9 +6,9 @@ from collections.abc import Callable
 import cle
 from cle.backends.externs import KernelObject, ExternObject
 from cle.backends.tls.elf_tls import ELFTLSObject
-
 from sortedcontainers import SortedDict
 
+from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort, MemoryData
 from angr.analyses.analysis import Analysis
 
@@ -423,8 +423,6 @@ class CFBlanket(Analysis):
             else:
                 addr = max_addr
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CFB", CFBlanket)
 AnalysesHub.register_default("CFBlanket", CFBlanket)

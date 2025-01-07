@@ -1,7 +1,6 @@
 from __future__ import annotations
 from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
-from . import translate_expr
 from angr.engines.soot.method_dispatcher import resolve_method
 from angr.engines.soot.exceptions import SootMethodNotLoadedException
 from .base import SimSootExpr
@@ -56,7 +55,7 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
 
     def _resolve_invoke_target(self, expr, state):
         # get the type of the base object
-        base = translate_expr(self.expr.base, self.state).expr
+        base = self._translate_expr(self.expr.base).expr
         # if the base is not set, for example if we process an invocation of an
         # unloaded library function
         # => fallback: use the statically retrieved type

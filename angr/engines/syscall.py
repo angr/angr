@@ -1,11 +1,12 @@
 from __future__ import annotations
-import angr
 import logging
 
-l = logging.getLogger(name=__name__)
-
+import angr
+from angr.errors import AngrUnsupportedSyscallError
 from .engine import SuccessorsMixin
 from .procedure import ProcedureMixin
+
+l = logging.getLogger(name=__name__)
 
 
 # pylint:disable=abstract-method,arguments-differ
@@ -48,6 +49,3 @@ class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
             sys_procedure = angr.SIM_PROCEDURES["stubs"]["syscall"](cc=cc)
 
         return self.process_procedure(state, successors, sys_procedure, **kwargs)
-
-
-from angr.errors import AngrUnsupportedSyscallError

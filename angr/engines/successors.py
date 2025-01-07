@@ -6,6 +6,13 @@ import claripy
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
+from angr import sim_options as o
+from angr.errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
+from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.state_plugins.callstack import CallStack
+from angr.state_plugins.sim_action_object import _raw_ast
+
 
 if TYPE_CHECKING:
     from angr import SimState
@@ -533,10 +540,4 @@ class SimSuccessors:
 
 
 # pylint: disable=wrong-import-position
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from angr.errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
 from angr.calling_conventions import SYSCALL_CC
-from angr.state_plugins.sim_action_object import _raw_ast
-from angr.state_plugins.callstack import CallStack
-from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
-from angr import sim_options as o

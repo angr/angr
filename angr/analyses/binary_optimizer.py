@@ -4,6 +4,7 @@ import re
 from typing import TYPE_CHECKING
 from collections import defaultdict
 
+from angr.analyses import AnalysesHub
 from angr.knowledge_base import KnowledgeBase
 from angr.codenode import HookNode
 from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
@@ -665,7 +666,5 @@ class BinaryOptimizer(Analysis):
                 da = DeadAssignment(reg)
                 self.dead_assignments.append(da)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BinaryOptimizer", BinaryOptimizer)

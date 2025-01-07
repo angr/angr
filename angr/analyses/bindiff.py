@@ -3,17 +3,17 @@ import logging
 import math
 import types
 from collections import deque, defaultdict
+from typing import TYPE_CHECKING
 
 import networkx
 
-from typing import TYPE_CHECKING
+from angr.analyses import AnalysesHub, Analysis, CFGEmulated
+from angr.errors import SimEngineError, SimMemoryError
+
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
-from . import Analysis, CFGEmulated
-
-from angr.errors import SimEngineError, SimMemoryError
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants
@@ -1233,7 +1233,5 @@ class BinDiff(Analysis):
 
         return matches
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BinDiff", BinDiff)
