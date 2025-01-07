@@ -6,7 +6,6 @@ import pyvex
 from pyvex import IRSB
 from archinfo import ArchARM
 
-from .codenode import BlockNode, SootBlockNode
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
 
@@ -504,3 +503,6 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
+
+
+from .codenode import BlockNode, SootBlockNode
