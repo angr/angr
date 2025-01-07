@@ -581,6 +581,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         if self.codegen._func.is_plt:
             yield "// attributes: PLT stub\n", None
 
+        if self.codegen.inlined_functions:
+            for f in self.codegen.inlined_functions:
+                yield f"// function '{f.name}' has been inlined into this function\n", None
+            yield "\n", None
+
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
@@ -2486,6 +2491,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         simplify_else_scope=True,
         cstyle_ifs=True,
         omit_func_header=False,
+        inlined_functions: list[Function] | None = None,
     ):
         super().__init__(flavor=flavor)
 
@@ -2566,6 +2572,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label: dict[tuple[int, int | None], CLabel] = {}
         self.cfunc: CFunction | None = None
         self.cexterns: set[CVariable] | None = None
+        self.inlined_functions = inlined_functions
 
         self._analyze()
 
