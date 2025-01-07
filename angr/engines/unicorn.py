@@ -6,6 +6,7 @@ import logging
 import archinfo
 import claripy
 
+import angr
 from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
 from .vex.heavy.heavy import VEXEarlyExit
@@ -30,8 +31,8 @@ class SimEngineUnicorn(SuccessorsMixin):
     - extra_stop_points:   A collection of addresses at which execution should halt
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, project: angr.Project):
+        super().__init__(project)
         # Cache of details of basic blocks containing statements that need to re-executed
         self._block_details_cache = {}
         # Addresses of basic blocks which native interface will not execute

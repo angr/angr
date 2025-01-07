@@ -32,9 +32,7 @@ class SimEngineBase(Generic[StateType]):
 
     state: StateType
 
-    def __init__(self, project: angr.Project, **kwargs):
-        if kwargs:
-            raise TypeError("Unused initializer args: " + ", ".join(kwargs.keys()))
+    def __init__(self, project: angr.Project):
         self.project = project
         self.arch = self.project.arch
 
@@ -66,8 +64,8 @@ class SuccessorsMixin(SimEngine[HeavyState, SimSuccessors]):
     and dispatches to a ``process_successors`` method to fill a SimSuccessors object with the results.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, project: angr.Project):
+        super().__init__(project)
 
         self.successors: SimSuccessors | None = None
 
