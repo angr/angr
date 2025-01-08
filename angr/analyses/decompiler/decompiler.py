@@ -368,6 +368,7 @@ class Decompiler(Analysis):
         self.cache.clinic = self.clinic
 
         self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
+        self._finish_progress()
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(

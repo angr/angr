@@ -2141,7 +2141,8 @@ class CConstant(CExpression):
         result = self.fmt.get("neg", None)
         if result is None:
             result = False
-            if isinstance(self.value, int):
+            # guess it
+            if isinstance(self._type, (SimTypeInt, SimTypeChar)) and self._type.signed and isinstance(self.value, int):
                 value_size = self._type.size if self._type is not None else None
                 if (value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF) or (
                     value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
@@ -3106,14 +3107,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Handlers
     #
 
-    def _handle(self, node, is_expr: bool = True, lvalue: bool = False):
+    def _handle(self, node, is_expr: bool = True, lvalue: bool = False, likely_signed=False):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
         handler: Callable | None = self._handlers.get(node.__class__, None)
         if handler is not None:
             # special case for Call
-            converted = handler(node, is_expr=is_expr) if isinstance(node, Stmt.Call) else handler(node, lvalue=lvalue)
+            converted = (
+                handler(node, is_expr=is_expr)
+                if isinstance(node, Stmt.Call)
+                else handler(node, lvalue=lvalue, likely_signed=likely_signed)
+            )
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
@@ -3474,7 +3479,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         l.warning("FIXME: Leftover Tmp expressions are found.")
         return self._variable(SimTemporaryVariable(expr.tmp_idx, expr.bits), expr.size)
 
-    def _handle_Expr_Const(self, expr: Expr.Const, type_=None, reference_values=None, variable=None, **kwargs):
+    def _handle_Expr_Const(
+        self, expr: Expr.Const, type_=None, reference_values=None, variable=None, likely_signed=True, **kwargs
+    ):
         inline_string = False
         function_pointer = False
 
@@ -3550,8 +3557,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                             inline_string = True
 
         if type_ is None:
-            # default to int
-            type_ = self.default_simtype_from_bits(expr.bits)
+            # default to int or unsigned int, determined by likely_signed
+            type_ = self.default_simtype_from_bits(expr.bits, signed=likely_signed)
 
         if variable is None and hasattr(expr, "reference_variable") and expr.reference_variable is not None:
             variable = expr.reference_variable
@@ -3583,7 +3590,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
 
         lhs = self._handle(expr.operands[0])
-        rhs = self._handle(expr.operands[1])
+        rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
         return CBinaryOp(
             expr.op,
