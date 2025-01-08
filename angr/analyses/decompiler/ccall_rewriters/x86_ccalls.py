@@ -28,7 +28,7 @@ class X86CCallRewriter(CCallRewriterBase):
             if isinstance(cond, Expr.Const) and isinstance(op, Expr.Const):
                 cond_v = cond.value
                 op_v = op.value
-                if cond_v == X86_CondTypes["CondLE"]:
+                if cond_v == X86_CondTypes["CondLE"]:  # noqa: SIM102
                     if op_v in {
                         X86_OpTypes["G_CC_OP_SUBB"],
                         X86_OpTypes["G_CC_OP_SUBW"],
@@ -52,6 +52,7 @@ class X86CCallRewriter(CCallRewriterBase):
 
                         r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), True, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+        return None
 
     @staticmethod
     def _fix_size(expr, op_v: int, type_8bit, type_16bit, tags):
