@@ -2,7 +2,15 @@ from ..mixins.cfg_transformation_mixin import CFGTransformationMixin
 from ..mixins.cfa_mixin import CFAMixin
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
-SECURITY_CHECK_FUNCTIONS = ("core::panicking::panic_bounds_check",)
+SECURITY_CHECK_FUNCTIONS = (
+    "core::panicking::panic_bounds_check",
+    "core::str::slice_error_fail",
+    "core::panicking::panic_const::panic_const_div_by_zero",
+    "core::panicking::panic_const::panic_const_rem_by_zero",
+    "core::slice::index::slice_start_index_len_fail",
+    "core::slice::index::slice_end_index_len_fail",
+    "core::slice::index::slice_index_order_fail",
+)
 
 
 class SecurityCheckRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
