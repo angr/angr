@@ -68,11 +68,17 @@ class CFGTransformationMixin:
     def remove_block(self, block: Block):
         graph = self._graph
 
-        for pred in list(graph.predecessors(block)):
-            self.remove_jump_target(pred, block.addr, block.idx)
+        if len(list(graph.successors(block))) == 1:
+            new_target_block = list(graph.successors(block))[0]
+            for pred in list(graph.predecessors(block)):
+                self.replace_jump_target(pred, block.addr, block.idx, new_target_block.addr, new_target_block.idx)
+        else:
+            return
 
         if block in graph:
             graph.remove_node(block)
+            if (block.addr, block.idx) in self._block_by_addr_and_idx:
+                del self._block_by_addr_and_idx[(block.addr, block.idx)]
 
     def replace_jump_target(
         self,
@@ -88,7 +94,6 @@ class CFGTransformationMixin:
             old_target = old_target.value
         if isinstance(new_target, Const):
             new_target = new_target.value
-        replaced = False
         last_stmt = block.statements[-1]
         if isinstance(last_stmt, Jump):
             if old_target is None or (
@@ -100,7 +105,6 @@ class CFGTransformationMixin:
                 new_stmt.target = Const(0, None, new_target, last_stmt.target.bits)
                 new_stmt.target_idx = new_target_idx
                 block.statements[-1] = new_stmt
-                replaced = True
         elif isinstance(last_stmt, ConditionalJump):
             if old_target is None or (
                 isinstance(last_stmt.true_target, Const)
@@ -127,7 +131,6 @@ class CFGTransformationMixin:
                     new_target_idx,
                     **last_stmt.tags,
                 )
-                replaced = True
             elif (
                 isinstance(last_stmt.true_target, Const)
                 and last_stmt.true_target.value == old_target
@@ -135,30 +138,27 @@ class CFGTransformationMixin:
             ):
                 last_stmt.true_target.value = new_target
                 last_stmt.true_target_idx = new_target_idx
-                replaced = True
             elif (
                 isinstance(last_stmt.false_target, Const)
                 and last_stmt.false_target.value == old_target
                 and last_stmt.false_target_idx == old_target_idx
             ):
-                last_stmt.false_target.value = new_target.addr
-                last_stmt.false_target_idx = new_target.idx
-                replaced = True
+                last_stmt.false_target.value = new_target
+                last_stmt.false_target_idx = new_target_idx
 
-        if replaced:
-            if old_target:
+        if old_target:
+            try:
+                old_target_block = self._block_by_addr_and_idx.get((old_target, old_target_idx), None)
+                if old_target_block:
+                    self._graph.remove_edge(block, old_target_block)
+            except NetworkXError:
+                pass
+        else:
+            for succ in list(self._graph.successors(block)):
                 try:
-                    old_target_block = self._block_by_addr_and_idx.get((old_target, old_target_idx), None)
-                    if old_target_block:
-                        self._graph.remove_edge(block, old_target_block)
+                    self._graph.remove_edge(block, succ)
                 except NetworkXError:
                     pass
-            else:
-                for succ in list(self._graph.successors(block)):
-                    try:
-                        self._graph.remove_edge(block, succ)
-                    except NetworkXError:
-                        pass
-            new_target_block = self._block_by_addr_and_idx.get((new_target, new_target_idx), None)
-            if new_target_block:
-                self._graph.add_edge(block, new_target_block)
+        new_target_block = self._block_by_addr_and_idx.get((new_target, new_target_idx), None)
+        if new_target_block:
+            self._graph.add_edge(block, new_target_block)

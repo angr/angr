@@ -16,9 +16,19 @@ class PatternMatchWalker(SequenceWalker):
     def _build_pattern_match(self, true_node, false_node, condition, addr):
         scrutinee = condition.tags.get("scrutinee", None)
         match_arms = condition.tags.get("match_arms", None)
-        if scrutinee and match_arms and true_node.addr in match_arms and false_node.addr in match_arms:
-            true_variant_and_moves = match_arms[true_node.addr]
-            false_variant_and_moves = match_arms[false_node.addr]
+        true_variant_and_moves, false_variant_and_moves = None, None
+        if match_arms:
+            if true_node.addr in match_arms and false_node.addr in match_arms:
+                true_variant_and_moves = match_arms[true_node.addr]
+                false_variant_and_moves = match_arms[false_node.addr]
+            elif true_node.addr in match_arms and false_node.addr not in match_arms:
+                true_variant_and_moves = match_arms[true_node.addr]
+                false_variant_and_moves = next(iter(v for k, v in match_arms.items() if k != true_node.addr))
+            elif false_node.addr in match_arms and true_node.addr not in match_arms:
+                false_variant_and_moves = match_arms[false_node.addr]
+                true_variant_and_moves = next(iter(v for k, v in match_arms.items() if k != false_node.addr))
+
+        if scrutinee and match_arms and true_variant_and_moves is not None and false_variant_and_moves is not None:
             if set(false_variant_and_moves[1]) == {None} and set(true_variant_and_moves[1]) != {None}:
                 pattern = true_variant_and_moves
                 result = IfLetNode(pattern, scrutinee, true_node, false_node, addr)
@@ -27,6 +37,7 @@ class PatternMatchWalker(SequenceWalker):
                 result = IfLetNode(pattern, scrutinee, true_node, false_node, addr)
             # else:
             arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
+            scrutinee.tags["call"] = condition.tags.get("call", None)
             result = PatternMatchNode(scrutinee, arms, None, addr)
             for stmt in true_variant_and_moves[1] + false_variant_and_moves[1]:
                 if stmt:
@@ -45,7 +56,6 @@ class PatternMatchWalker(SequenceWalker):
             pattern_match = self._build_pattern_match(true_node, false_node, node.condition, node.addr)
             if pattern_match:
                 new_node = pattern_match
-
         return new_node
 
     def _handle_Sequence(self, seq_node, **kwargs):

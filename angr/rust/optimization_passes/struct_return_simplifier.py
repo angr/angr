@@ -1,8 +1,10 @@
+from collections import defaultdict
 from typing import Tuple
 
 from ailment import BinaryOp, AILBlockWalker, Statement, Block
 from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset
 from ailment.statement import Return, Store, ConditionalJump, Jump, Label, Call
+from sqlalchemy.testing.assertsql import Conditional
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.ailment.expression import Struct, Enum
@@ -153,20 +155,22 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
 
     def collect_ret_expr(self, path):
         fields = {}
+        stmts_to_remove = defaultdict(list)
         for block in path:
             for stmt in block.statements:
                 if isinstance(stmt, Store):
                     vvar, offset = self._get_dst_vvar_and_offset(stmt)
                     if vvar and vvar.was_parameter and vvar.varid == 0:
                         fields[offset] = stmt.data
+                        stmts_to_remove[block].append(stmt)
         existing_vvar = self.get_existing_vvar(fields, path[0])
         if existing_vvar:
-            return existing_vvar
+            return existing_vvar, stmts_to_remove
         if 0 in fields:
             struct_ty = self._build_struct_ty(fields)
             result = Struct(None, fields, struct_ty)
-            return self.try_convert_to_enum(result)
-        return None
+            return self.try_convert_to_enum(result), stmts_to_remove
+        return None, None
 
     def derive_paths(self, block, max_paths):
         paths = [[block]]
@@ -186,7 +190,17 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 if not path_changed:
                     new_paths.append(path)
             paths = new_paths
-        return [tuple(path) for path in paths]
+        deduplicated_paths = set()
+        for path in paths:
+            path = list(path)
+            while path and (
+                all(isinstance(stmt, Label) for stmt in path[-1].statements)
+                or isinstance(path[-1].statements[-1], ConditionalJump)
+            ):
+                path.pop()
+            if path:
+                deduplicated_paths.add(tuple(path))
+        return list(deduplicated_paths)
 
     def _analyze(self, cache=None):
         ret_blocks = set()
@@ -195,28 +209,19 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 ret_blocks.add(block)
 
         blocks_to_remove = set()
-        stmts_to_remove = set()
         for ret_block in ret_blocks:
             paths = self.derive_paths(ret_block, max_paths=4)
             for path in paths:
-                path = list(path)
-                while path and all(isinstance(stmt, Label) for stmt in path[-1].statements):
-                    path.pop()
-                ret_expr = self.collect_ret_expr(path)
+                ret_expr, stmts_to_remove = self.collect_ret_expr(path)
                 if ret_expr:
                     for block in path[:-1]:
                         blocks_to_remove.add(block)
                     head_block = path[-1]
                     ret = Return(None, [ret_expr], **head_block.statements[-1].tags)
                     head_block.statements[-1] = ret
-                    for stmt in head_block.statements:
-                        if isinstance(stmt, Store):
-                            vvar, offset = self._get_dst_vvar_and_offset(stmt)
-                            if vvar and vvar.was_parameter and vvar.varid == 0:
-                                stmts_to_remove.add((head_block, stmt))
-
-        for block, stmt in stmts_to_remove:
-            if stmt in block.statements:
-                block.statements.remove(stmt)
+                    for block, stmts in stmts_to_remove.items():
+                        for stmt in stmts:
+                            if stmt in block.statements:
+                                block.statements.remove(stmt)
         for block in blocks_to_remove:
             self.remove_block(block)
