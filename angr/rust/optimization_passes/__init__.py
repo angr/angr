@@ -32,6 +32,8 @@ def get_rust_optimization_passes():
         CallsiteCorrector,
         UnwrapSimplifier,
         PatternMatchIdentifier,
+        StrArgumentSimplifier,
+        # RUST_SPECIFIC_SIMPLIFICATION
         OwnershipSimplifier,
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
@@ -41,7 +43,6 @@ def get_rust_optimization_passes():
         StructReturnSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
-        StrArgumentSimplifier,
         # AFTER_STRUCTURING
         PatternMatchSimplifier,
     ]
