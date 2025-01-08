@@ -82,7 +82,6 @@ class SimulationManager:
         completion_mode=any,
         techniques=None,
         suggestions=True,
-        **kwargs,
     ):
         super().__init__()
 
@@ -249,7 +248,7 @@ class SimulationManager:
         def _is_overridden(name):
             return getattr(tech, name).__code__ is not getattr(ExplorationTechnique, name).__code__
 
-        overridden = filter(_is_overridden, ("step", "filter", "selector", "step_state", "successors"))
+        overridden = {m for m in ("step", "filter", "selector", "step_state", "successors") if _is_overridden(m)}
         hooks = {name: getattr(tech, name) for name in overridden}
         HookSet.remove_hooks(self, **hooks)
 
@@ -716,8 +715,6 @@ class SimulationManager:
             keep, split = ranked_paths[:limit], ranked_paths[limit:]
         else:
             keep, split = states[:limit], states[limit:]
-
-        keep, split = map(list, (keep, split))
 
         self._clear_states(from_stash)
         self._store_states(from_stash, keep)
