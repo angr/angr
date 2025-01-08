@@ -462,7 +462,7 @@ class SimEngineSSARewriting(
         base_mask = Const(self.ail_manager.next_atom(), None, base_mask, existing_vvar.bits)
         new_base_expr = BinaryOp(
             self.ail_manager.next_atom(),
-            "Or",
+            "And",
             [existing_vvar, base_mask],
             False,
             bits=existing_vvar.bits,
@@ -651,24 +651,29 @@ class SimEngineSSARewriting(
             ins_addr=reg_expr.ins_addr,
         )
         # extract
-        shift_amount = Const(
-            self.ail_manager.next_atom(),
-            None,
-            (reg_expr.reg_offset - vvar.oident) * self.arch.byte_width,
-            8,
-            **reg_expr.tags,
-        )
-        shifted = BinaryOp(
-            self.ail_manager.next_atom(),
-            "Shr",
-            [
-                vvar,
-                shift_amount,
-            ],
-            False,
-            bits=vvar.bits,
-            **reg_expr.tags,
-        )
+        if reg_expr.reg_offset == vvar.oident:
+            shifted = vvar
+        else:
+            shift_amount = Const(
+                self.ail_manager.next_atom(),
+                None,
+                (reg_expr.reg_offset - vvar.oident) * self.arch.byte_width,
+                8,
+                **reg_expr.tags,
+            )
+            shifted = BinaryOp(
+                self.ail_manager.next_atom(),
+                "Shr",
+                [
+                    vvar,
+                    shift_amount,
+                ],
+                False,
+                bits=vvar.bits,
+                **reg_expr.tags,
+            )
+        if shifted.bits == reg_expr.bits:
+            return shifted
         return Convert(
             self.ail_manager.next_atom(),
             shifted.bits,

@@ -2141,7 +2141,8 @@ class CConstant(CExpression):
         result = self.fmt.get("neg", None)
         if result is None:
             result = False
-            if isinstance(self.value, int):
+            # guess it
+            if isinstance(self._type, (SimTypeInt, SimTypeChar)) and self._type.signed and isinstance(self.value, int):
                 value_size = self._type.size if self._type is not None else None
                 if (value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF) or (
                     value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
@@ -3550,8 +3551,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                             inline_string = True
 
         if type_ is None:
-            # default to int
-            type_ = self.default_simtype_from_bits(expr.bits)
+            # default to unsigned int
+            type_ = self.default_simtype_from_bits(expr.bits, signed=False)
 
         if variable is None and hasattr(expr, "reference_variable") and expr.reference_variable is not None:
             variable = expr.reference_variable
