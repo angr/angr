@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
+import contextlib
 import re
 import logging
 from collections import defaultdict
@@ -15,7 +16,6 @@ from angr.knowledge_plugins import Function
 from angr.block import BlockNode
 from angr.errors import SimTranslationError
 from .analysis import Analysis
-import contextlib
 
 try:
     import pypcode
@@ -702,21 +702,31 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             # who are we calling?
             callees = [] if self._func is None else self._find_callees(node)
             if callees:
-                if (
-                    len(callees) == 1
-                    and callees[0].info.get("is_rust_probestack", False) is True
-                    and self.project.arch.name == "AMD64"
-                ):
-                    # special-case for rust_probestack: sp = sp - rax right after returning from the call, so we need
-                    # to keep track of rax
-                    for stmt in reversed(vex_block.statements):
-                        if (
-                            isinstance(stmt, pyvex.IRStmt.Put)
-                            and stmt.offset == self.project.arch.registers["rax"][0]
-                            and isinstance(stmt.data, pyvex.IRExpr.Const)
-                        ):
-                            state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
-                            break
+                if len(callees) == 1:
+                    callee = callees[0]
+
+                    if callee.info.get("is_rust_probestack", False) is True and self.project.arch.name == "AMD64":
+                        # special-case for rust_probestack: sp = sp - rax right after returning from the call, so we
+                        # need to keep track of rax
+                        for stmt in reversed(vex_block.statements):
+                            if (
+                                isinstance(stmt, pyvex.IRStmt.Put)
+                                and stmt.offset == self.project.arch.registers["rax"][0]
+                                and isinstance(stmt.data, pyvex.IRExpr.Const)
+                            ):
+                                state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
+                                break
+                    elif callee.name == "__chkstk":
+                        # special-case for __chkstk: sp = sp - rax right after returning from the call, so we need to
+                        # keep track of rax
+                        for stmt in reversed(vex_block.statements):
+                            if (
+                                isinstance(stmt, pyvex.IRStmt.Put)
+                                and stmt.offset == self.project.arch.registers["rax"][0]
+                                and isinstance(stmt.data, pyvex.IRExpr.Const)
+                            ):
+                                state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
+                                break
 
                 callee_cleanups = [
                     callee
