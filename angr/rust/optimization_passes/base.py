@@ -77,7 +77,7 @@ class TransformationPass(OptimizationPass):
                 ins_addr=terminal.ins_addr,
             )
 
-    def replace_jump_target(self, block, old_target: Optional[Block], new_target: Block):
+    def old_replace_jump_target(self, block, old_target: Optional[Block], new_target: Block):
         if not block.statements:
             return
         terminal = block.statements[-1]

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ailment import BinaryOp
+from ailment import BinaryOp, Assignment
 from ailment.expression import BasePointerOffset, Const, Load, StackBaseOffset, VirtualVariable
 from ailment.statement import ConditionalJump, Call, Store
 
@@ -15,7 +15,7 @@ from angr.rust.sim_type import RustSimEnum, EnumVariant
 class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSAVariableHelper):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
     NAME = "Simplify enum pattern match"
 
     def __init__(self, func, **kwargs):
@@ -54,21 +54,25 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
             ty_size = ty.size // self.project.arch.byte_width
             stmts, dst_offset = self.find_stack_data_flow(block, src_offset, ty_size)
             if stmts:
-                addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
-                data = Load(
+                # addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
+                dst = self.new_stack_vvar(dst_offset, ty.size, {})
+                src = Load(
                     None,
                     StackBaseOffset(None, self.project.arch.bits, src_offset),
                     ty_size,
                     endness=self.project.arch.memory_endness,
                 )
-                move_stmt = Store(
-                    idx=None,
-                    addr=addr,
-                    data=data,
-                    size=data.size,
-                    endness=self.project.arch.memory_endness,
-                    **sorted(stmts, key=lambda s: block.statements.index(s))[-1].tags,
+                move_stmt = Assignment(
+                    None, dst, src, **sorted(stmts, key=lambda s: block.statements.index(s))[-1].tags
                 )
+                # move_stmt = Store(
+                #     idx=None,
+                #     addr=addr,
+                #     data=src,
+                #     size=src.size,
+                #     endness=self.project.arch.memory_endness,
+                #     **sorted(stmts, key=lambda s: block.statements.index(s))[-1].tags,
+                # )
                 self.replace_stmt(block, stmts, move_stmt)
                 moves.append(move_stmt)
             else:
@@ -122,6 +126,7 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                                 true_block.addr: (true_variant, true_moves),
                                 false_block.addr: (false_variant, false_moves),
                             }
+                            cond.tags["call"] = value
                             cond.tags["scrutinee"] = vvar
                             cond.tags["match_arms"] = match_arms
                             # if variant:

@@ -1,3 +1,4 @@
+from .error_propagation_simplifier import ErrorPropagationSimplifier
 from .function_prototype_inference import FunctionPrototypeInference
 from .callsite_corrector import CallsiteCorrector
 from .cleanup_code_remover import CleanupCodeRemover
@@ -31,9 +32,9 @@ def get_rust_optimization_passes():
         FunctionPrototypeInference,
         CallsiteCorrector,
         UnwrapSimplifier,
-        PatternMatchIdentifier,
         StrArgumentSimplifier,
         # RUST_SPECIFIC_SIMPLIFICATION
+        PatternMatchIdentifier,
         OwnershipSimplifier,
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
@@ -45,4 +46,5 @@ def get_rust_optimization_passes():
         TypeCorrector,
         # AFTER_STRUCTURING
         PatternMatchSimplifier,
+        ErrorPropagationSimplifier,
     ]

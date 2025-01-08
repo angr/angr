@@ -336,10 +336,10 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
                 true_visited_blocks, true_block = self._get_real_jump_target(jump.true_target, jump.true_target_idx)
                 false_visited_blocks, false_block = self._get_real_jump_target(jump.false_target, jump.false_target_idx)
                 if true_block in error_handling_blocks and false_block not in error_handling_blocks:
-                    self.replace_jump_target(block, true_visited_blocks[0], false_block)
+                    self.old_replace_jump_target(block, true_visited_blocks[0], false_block)
                     blocks_to_remove |= set(true_visited_blocks)
                 elif false_block in error_handling_blocks and true_block not in error_handling_blocks:
-                    self.replace_jump_target(block, false_visited_blocks[0], true_block)
+                    self.old_replace_jump_target(block, false_visited_blocks[0], true_block)
                     blocks_to_remove |= set(false_visited_blocks)
 
         for block in blocks_to_remove:
