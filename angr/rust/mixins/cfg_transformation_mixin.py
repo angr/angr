@@ -68,11 +68,16 @@ class CFGTransformationMixin:
     def remove_block(self, block: Block):
         graph = self._graph
 
-        if len(list(graph.successors(block))) == 1:
+        num_successors = len(list(graph.successors(block)))
+        if num_successors == 1:
             new_target_block = list(graph.successors(block))[0]
             for pred in list(graph.predecessors(block)):
                 self.replace_jump_target(pred, block.addr, block.idx, new_target_block.addr, new_target_block.idx)
+        elif num_successors == 0:
+            for pred in list(graph.predecessors(block)):
+                self.remove_jump_target(pred, block.addr, block.idx)
         else:
+            # Hmm... We do not handle the case where number of successors > 1
             return
 
         if block in graph:
