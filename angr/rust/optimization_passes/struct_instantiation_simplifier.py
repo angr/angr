@@ -145,7 +145,7 @@ class StructBuilder:
 class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
     NAME = "Make callsite based on known/recovered prototypes"
 
     def __init__(self, func, **kwargs):

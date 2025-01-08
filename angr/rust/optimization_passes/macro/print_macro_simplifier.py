@@ -24,7 +24,7 @@ PRINT_FUNCTIONS = (
 class PrintMacroSimplifier(OptimizationPass, CFAMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
     NAME = "Recover print-family macros"
 
     def __init__(self, func, **kwargs):
