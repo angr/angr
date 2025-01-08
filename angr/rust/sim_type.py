@@ -281,6 +281,13 @@ class RustSimStruct(RustSimType, SimStruct):
                 offset_so_far += ty.size
         return out
 
+    @property
+    def size(self):
+        size = super().size
+        if size % self.alignment != 0:
+            size += self.alignment - (size % self.alignment)
+        return size
+
     def repr(self, name=None, full=0, memo=None, indent=0):
         if not full or (memo is not None and self in memo):
             if name is None:

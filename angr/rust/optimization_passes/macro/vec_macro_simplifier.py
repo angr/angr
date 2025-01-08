@@ -135,7 +135,7 @@ RUST_CONVERT_TO_VEC_FUNCTIONS = ["alloc::slice::hack::into_vec"]
 class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixin, CFGTransformationMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
     NAME = "Rust Memory Allocation Simplifier"
 
     def __init__(self, func, **kwargs):
