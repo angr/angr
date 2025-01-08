@@ -14,7 +14,7 @@ AMD64_CondBitOffsets = data["AMD64"]["CondBitOffsets"]
 
 class AMD64CCallRewriter(CCallRewriterBase):
     """
-    Implements ccall rewriter for AMD64.
+    Implements VEX ccall rewriter for AMD64.
     """
 
     __slots__ = ()
