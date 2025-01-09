@@ -93,7 +93,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             src = stmt.src if new_src is None else new_src
             if isinstance(dst, VirtualVariable) and isinstance(src, VirtualVariable) and dst.varid == src.varid:
                 # skip it
-                return tuple()
+                return ()
 
             return Assignment(stmt.idx, dst, src, **stmt.tags)
         return None

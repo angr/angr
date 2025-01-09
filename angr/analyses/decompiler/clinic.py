@@ -49,7 +49,6 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
-from .utils import first_nonlabel_statement_id
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
