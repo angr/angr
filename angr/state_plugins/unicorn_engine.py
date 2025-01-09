@@ -859,7 +859,7 @@ class Unicorn(SimStatePlugin):
         if arch == "x86_64":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
             self.uc.hook_add(
-                unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None, arg1=self._uc_const.UC_X86_INS_SYSCALL
+                unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None, aux1=self._uc_const.UC_X86_INS_SYSCALL
             )
         elif arch == "i386":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
