@@ -679,14 +679,23 @@ class CStatements(CStatement):
     Represents a sequence of statements in C.
     """
 
-    __slots__ = ("statements",)
+    __slots__ = (
+        "statements",
+        "addr",
+    )
 
-    def __init__(self, statements, **kwargs):
+    def __init__(self, statements, addr=None, **kwargs):
         super().__init__(**kwargs)
 
         self.statements = statements
+        self.addr = addr
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent)
+        if self.codegen.display_block_addrs:
+            yield indent_str, None
+            yield f"/* Block {hex(self.addr) if self.addr is not None else 'unknown'} */", None
+            yield "\n", None
         for stmt in self.statements:
             yield from stmt.c_repr_chunks(indent=indent, asexpr=asexpr)
             if asexpr:
@@ -1572,15 +1581,19 @@ class CVariable(CExpression):
         "unified_variable",
         "variable",
         "variable_type",
+        "vvar_id",
     )
 
-    def __init__(self, variable: SimVariable, unified_variable=None, variable_type=None, tags=None, **kwargs):
+    def __init__(
+        self, variable: SimVariable, unified_variable=None, variable_type=None, tags=None, vvar_id=None, **kwargs
+    ):
         super().__init__(**kwargs)
 
         self.variable: SimVariable = variable
         self.unified_variable: SimVariable | None = unified_variable
         self.variable_type: SimType = variable_type.with_arch(self.codegen.project.arch)
         self.tags = tags
+        self.vvar_id = vvar_id
 
     @property
     def type(self):
@@ -1598,6 +1611,8 @@ class CVariable(CExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.name, self
+        if self.codegen.display_vvar_ids:
+            yield f"<vvar_{self.vvar_id}>", self
 
 
 class CIndexedVariable(CExpression):
@@ -2487,6 +2502,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         simplify_else_scope=True,
         cstyle_ifs=True,
         omit_func_header=False,
+        display_block_addrs=False,
+        display_vvar_ids=False,
     ):
         super().__init__(flavor=flavor)
 
@@ -2559,6 +2576,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
         self.omit_func_header = omit_func_header
+        self.display_block_addrs = display_block_addrs
+        self.display_vvar_ids = display_vvar_ids
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2741,7 +2760,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
-    def _variable(self, variable: SimVariable, fallback_type_size: int | None) -> CVariable:
+    def _variable(self, variable: SimVariable, fallback_type_size: int | None, vvar_id: int | None = None) -> CVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
         unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
@@ -2752,7 +2771,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             variable_type = self.default_simtype_from_bits(
                 (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
-        cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self)
+        cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self, vvar_id=vvar_id)
         self._variables_in_use[variable] = cvar
         return cvar
 
@@ -3133,9 +3152,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             lines.append(self._handle(node, is_expr=False))
 
         if not lines:
-            return CStatements([], codegen=None)
+            return CStatements([], codegen=None, addr=seq.addr)
 
-        return CStatements(lines, codegen=self) if len(lines) > 1 else lines[0]
+        return CStatements(lines, codegen=self, addr=seq.addr) if len(lines) > 1 else lines[0]
 
     def _handle_Loop(self, loop_node, **kwargs):
         tags = {"ins_addr": loop_node.addr}
@@ -3222,7 +3241,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             r = self._handle(n, is_expr=False)
             lines.append(r)
 
-        return CStatements(lines, codegen=self) if len(lines) > 1 else lines[0]
+        return CStatements(lines, codegen=self, addr=node.addr) if len(lines) > 1 else lines[0]
 
     def _handle_SwitchCase(self, node, **kwargs):
         """
@@ -3265,7 +3284,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 cstmt = CUnsupportedStatement(stmt, codegen=self)
             cstmts.append(cstmt)
 
-        return CStatements(cstmts, codegen=self)
+        return CStatements(cstmts, codegen=self, addr=node.addr)
 
     #
     # AIL statement handlers
@@ -3320,9 +3339,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if stmt.dst.variable is not None:
                 if "struct_member_info" in stmt.dst.tags:
                     offset, var, _ = stmt.dst.struct_member_info
-                    cvar = self._variable(var, stmt.dst.size)
+                    cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
                 else:
-                    cvar = self._variable(stmt.dst.variable, stmt.dst.size)
+                    cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
                     offset = stmt.dst.variable_offset or 0
                 assert type(offset) is int  # I refuse to deal with the alternative
 
@@ -3686,7 +3705,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
         if expr.variable:
-            cvar = self._variable(expr.variable, None)
+            cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
             if expr.variable.size != expr.size:
                 l.warning(
                     "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
