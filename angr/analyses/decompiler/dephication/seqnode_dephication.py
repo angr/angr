@@ -77,10 +77,10 @@ class SeqNodeRewriter(SequenceWalker):
     def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:  # pylint:disable=unused-argument
         return self.engine._handle_stmt_Assignment(stmt)
 
-    def _handle_BinaryOp(self, expr, **kwargs):
+    def _handle_BinaryOp(self, expr, **kwargs):  # pylint:disable=unused-argument
         return self.engine._handle_expr_BinaryOp(expr)
 
-    def _handle_UnaryOp(self, expr, **kwargs):
+    def _handle_UnaryOp(self, expr, **kwargs):  # pylint:disable=unused-argument
         return self.engine._handle_expr_UnaryOp(expr)
 
     def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
@@ -92,9 +92,6 @@ class SeqNodeRewriter(SequenceWalker):
             self.engine.out_block = None
             return out
         return None
-
-    def _handle_Condition(self, node, **kwargs):
-        return super()._handle_Condition(node, **kwargs)
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
         new_loop = super()._handle_Loop(node, **kwargs)
