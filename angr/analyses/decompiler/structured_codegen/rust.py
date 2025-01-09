@@ -1082,7 +1082,7 @@ class RustSwitchCase(RustStatement):
         brace = RustClosingObject("{")
 
         yield indent_str, None
-        yield "switch ", self
+        yield "match ", self
         yield "(", paren
         yield from self.switch.c_repr_chunks()
         yield ")", paren
@@ -1095,25 +1095,31 @@ class RustSwitchCase(RustStatement):
         yield "\n", None
 
         # cases
+        indent_str = self.indent_str(indent=indent + INDENT_DELTA)
         for id_or_ids, case in self.cases:
             yield indent_str, None
             if isinstance(id_or_ids, int):
-                yield f"case {id_or_ids}", self
-                yield ":\n", None
+                yield f"{id_or_ids}", self
+                yield " => {\n", None
             else:
                 for i, case_id in enumerate(id_or_ids):
-                    yield f"case {case_id}", self
-                    yield ":", None
+                    yield f"{case_id}", self
+                    yield " ", None
                     if i != len(id_or_ids) - 1:
-                        yield " ", None
-                yield "\n", None
-            yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
+                        yield "| ", None
+                yield "=> {\n", None
+            yield from case.c_repr_chunks(indent=indent + INDENT_DELTA * 2)
+            yield indent_str, None
+            yield "}\n", None
 
         if self.default is not None:
             yield indent_str, None
-            yield "default:\n", self
-            yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield "_ => {\n", self
+            yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA * 2)
+            yield indent_str, None
+            yield "}\n", None
 
+        indent_str = self.indent_str(indent=indent)
         yield indent_str, None
         yield "}", brace
         yield "\n", None
