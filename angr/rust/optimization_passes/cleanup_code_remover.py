@@ -121,6 +121,6 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin):
                 self.remove_block(block)
 
     def _analyze(self, cache=None):
-        # self._simplify_for_loop_drop()
-        # self._simplify_if_drop()
+        self._simplify_for_loop_drop()
+        self._simplify_if_drop()
         self._simplify_drop()
