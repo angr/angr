@@ -1,7 +1,8 @@
 from typing import Optional, Tuple
 
 from ailment import Const, Block, Expression
-from ailment.statement import Jump, ConditionalJump, Call
+from ailment.expression import VirtualVariable, Phi
+from ailment.statement import Jump, ConditionalJump, Call, Assignment
 from networkx import NetworkXError
 
 
@@ -65,10 +66,28 @@ class CFGTransformationMixin:
             jump = block.statements[-1]
             self.remove_jump_target(block, jump.false_target, jump.false_target_idx)
 
+    @staticmethod
+    def _update_phi_variables_after_removing_block(graph, preds, removed_block: Block) -> None:
+        for block in graph.nodes:
+            for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
+                stmt = block.statements[idx]
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
+                    # remove the variable from the specified source
+                    new_src_and_vvars = []
+                    for src, vvar in stmt.src.src_and_vvars:
+                        if src != (removed_block.addr, removed_block.idx):
+                            new_src_and_vvars.append((src, vvar))
+                        else:
+                            for pred in preds:
+                                new_src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                    new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
+                    block.statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+
     def remove_block(self, block: Block):
         graph = self._graph
 
         num_successors = len(list(graph.successors(block)))
+        preds = list(self._graph.predecessors(block))
         if num_successors == 1:
             new_target_block = list(graph.successors(block))[0]
             for pred in list(graph.predecessors(block)):
@@ -82,6 +101,7 @@ class CFGTransformationMixin:
 
         if block in graph:
             graph.remove_node(block)
+            CFGTransformationMixin._update_phi_variables_after_removing_block(graph, preds, block)
             if (block.addr, block.idx) in self._block_by_addr_and_idx:
                 del self._block_by_addr_and_idx[(block.addr, block.idx)]
 

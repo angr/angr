@@ -1,14 +1,13 @@
 from ailment.statement import Return
 
-from .base import TransformationPass
 from ..mixins.cfg_transformation_mixin import CFGTransformationMixin
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
-from ...utils.graph import GraphUtils
+from ..mixins.cfa_mixin import CFAMixin
+from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 
 CLEANUP_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place", "core::ops::drop::Drop::drop")
 
 
-class CleanupCodeRemover(TransformationPass, CFGTransformationMixin):
+class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
@@ -18,6 +17,7 @@ class CleanupCodeRemover(TransformationPass, CFGTransformationMixin):
         super().__init__(func, **kwargs)
 
         CFGTransformationMixin.__init__(self, self._graph)
+        CFAMixin.__init__(self, self._graph, self.project)
 
         self.analyze()
 
@@ -55,8 +55,8 @@ class CleanupCodeRemover(TransformationPass, CFGTransformationMixin):
                 fixed_blocks_to_replace[block] = (new_predecessors, new_successor)
         for block, (predecessors, successor) in fixed_blocks_to_replace.items():
             for predecessor in predecessors:
-                self.old_replace_jump_target(predecessor, block, successor)
-            self._remove_block(block)
+                self.replace_jump_target(predecessor, block.addr, block.idx, successor.addr, successor.idx)
+            self.remove_block(block)
 
     def _is_do_while_loop(self, do_while_loop_head, do_while_loop_end):
         return self.num_successors(do_while_loop_end) == 2 and do_while_loop_head in set(
@@ -104,9 +104,9 @@ class CleanupCodeRemover(TransformationPass, CFGTransformationMixin):
                                 jumps_to_replace[for_loop_head] = for_loop_end
 
         for src, dst in jumps_to_replace.items():
-            self.old_replace_jump_target(src, None, dst)
+            self.replace_jump_target(src, None, None, dst.addr, dst.idx)
         for block in blocks_to_remove:
-            self._remove_block(block)
+            self.remove_block(block)
 
     def _simplify_drop(self):
         blocks_to_remove = set()
@@ -117,9 +117,10 @@ class CleanupCodeRemover(TransformationPass, CFGTransformationMixin):
                 else:
                     blocks_to_remove.add(block)
         for block in blocks_to_remove:
-            self.remove_block(block)
+            if block.addr != self._func.addr:
+                self.remove_block(block)
 
     def _analyze(self, cache=None):
-        self._simplify_for_loop_drop()
-        self._simplify_if_drop()
+        # self._simplify_for_loop_drop()
+        # self._simplify_if_drop()
         self._simplify_drop()
