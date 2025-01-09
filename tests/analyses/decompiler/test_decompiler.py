@@ -34,6 +34,7 @@ from angr.analyses.decompiler.optimization_passes import (
     ReturnDuplicatorLow,
     ReturnDuplicatorHigh,
     DuplicationReverter,
+    ITERegionConverter,
 )
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
@@ -1560,10 +1561,10 @@ class TestDecompiler(unittest.TestCase):
         retexpr = next(line for line in lines if "return " in line).strip(" ;")[7:]
 
         # find the statement "v2 = v0 / 3"
-        div3 = [line for line in lines if re.match(retexpr + r" = v\d+ / 3;", line.strip(" ")) is not None]
+        div3 = [line for line in lines if re.match(retexpr + r" = [av]\d+ / 3;", line.strip(" ")) is not None]
         assert len(div3) == 1, f"Cannot find statement {retexpr} = v0 / 3."
         # find the statement "v2 = v0 * 7"
-        mul7 = [line for line in lines if re.match(retexpr + r" = v\d+ \* 7;", line.strip(" ")) is not None]
+        mul7 = [line for line in lines if re.match(retexpr + r" = [av]\d+ \* 7;", line.strip(" ")) is not None]
         assert len(mul7) == 1, f"Cannot find statement {retexpr} = v0 * 7."
 
     # @for_all_structuring_algos
@@ -2528,7 +2529,15 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions[0x400EA0]
-        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        all_optimization_passes = DECOMPILATION_PRESETS["fast"].get_optimization_passes(
+            "AMD64", "linux", disable_opts=[ITERegionConverter]
+        )
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f,
+            cfg=cfg.model,
+            options=decompiler_options,
+            optimization_passes=all_optimization_passes,
+        )
         self._print_decompilation_result(d)
 
         # ITE expressions should not exist. we convert them to if-then-else properly.
