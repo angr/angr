@@ -74,9 +74,20 @@ class SimEngineVRAIL(
 
         elif dst_type is ailment.Expr.VirtualVariable:
             data = self._expr(stmt.src)
-            self._assign_to_vvar(
+            variable = self._assign_to_vvar(
                 stmt.dst, data, src=stmt.src, dst=stmt.dst, vvar_id=self._mapped_vvarid(stmt.dst.varid)
             )
+
+            if variable is not None and isinstance(stmt.src, ailment.Expr.Phi):
+                # this is a phi node - we update variable manager's phi variable tracking
+                for _, vvar in stmt.src.src_and_vvars:
+                    if vvar is not None:
+                        r = self._read_from_vvar(vvar, expr=stmt.src, vvar_id=self._mapped_vvarid(vvar.varid))
+                        if r.variable is not None:
+                            pv = self.variable_manager[self.func_addr]._phi_variables
+                            if variable not in pv:
+                                pv[variable] = set()
+                            pv[variable].add(r.variable)
 
             if stmt.dst.was_stack and isinstance(stmt.dst.stack_offset, int):
                 # store it to the stack region in case it's directly referenced later

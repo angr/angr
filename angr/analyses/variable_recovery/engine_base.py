@@ -387,7 +387,7 @@ class SimEngineVRBase(
         ) or not create_variable:
             # only store the value. don't worry about variables.
             self.vvar_region[vvar_id] = richr.data
-            return
+            return None
 
         codeloc: CodeLocation = self._codeloc()
         data = richr.data
@@ -464,6 +464,8 @@ class SimEngineVRBase(
                 typevar = self.state.typevars.get_type_variable(variable, codeloc)
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
+
+        return variable
 
     def _store(
         self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, stmt=None

@@ -1033,7 +1033,7 @@ class VariableManagerInternal(Serializable):
         Map SSA variables to a unified variable. Fill in self._unified_variables.
         """
 
-        stack_vars: dict[int, list[SimStackVariable]] = defaultdict(list)
+        stack_vars: set[SimStackVariable] = set()
         reg_vars: set[SimRegisterVariable] = set()
 
         # unify stack variables based on their locations
@@ -1042,19 +1042,14 @@ class VariableManagerInternal(Serializable):
                 # do not unify twice
                 continue
             if isinstance(v, SimStackVariable):
-                stack_vars[v.offset].append(v)
+                stack_vars.add(v)
             elif isinstance(v, SimRegisterVariable):
                 reg_vars.add(v)
-
-        for _, vs in stack_vars.items():
-            unified = vs[0].copy()
-            for v in vs:
-                self.set_unified_variable(v, unified)
 
         # unify register variables based on phi nodes
         graph = networkx.DiGraph()  # an edge v1 -> v2 means v2 is the phi variable for v1
         for v, subvs in self._phi_variables.items():
-            if not isinstance(v, SimRegisterVariable):
+            if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                 continue
             for subv in subvs:
                 graph.add_edge(subv, v)
@@ -1086,8 +1081,12 @@ class VariableManagerInternal(Serializable):
                 self.set_unified_variable(v, unified)
             for v in nodes:
                 reg_vars.discard(v)
+                stack_vars.discard(v)
 
+        # deal with remaining variables
         for v in reg_vars:
+            self.set_unified_variable(v, v)
+        for v in stack_vars:
             self.set_unified_variable(v, v)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
