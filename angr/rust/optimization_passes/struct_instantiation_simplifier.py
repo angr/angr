@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 import claripy
-from ailment.expression import BasePointerOffset, Const, VirtualVariable
+from ailment.expression import BasePointerOffset, Const, VirtualVariable, Phi
 from ailment.statement import Store, Assignment, Call
 from archinfo import Endness
 
@@ -230,7 +230,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, StrMi
                 def_ = self.get_def_by_vvar(vvar) if vvar else None
                 if vvar and def_:
                     value = self.get_vvar_value(vvar)
-                    if isinstance(value, Call):
+                    if isinstance(value, (Call, Phi)):
                         value = vvar
                     else:
                         codeloc = def_.codeloc
