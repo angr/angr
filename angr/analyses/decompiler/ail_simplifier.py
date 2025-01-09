@@ -207,7 +207,7 @@ class AILSimplifier(Analysis):
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
-        func_args = {vvar for vvar, _ in self._arg_vvars.values()}
+        func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
         rd = self.project.analyses.SReachingDefinitions(
             subject=self.func,
             func_graph=self.func_graph,
@@ -222,9 +222,11 @@ class AILSimplifier(Analysis):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
-        prop = self.project.analyses[SPropagatorAnalysis].prep()(
+        func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
+        prop = self.project.analyses[SPropagatorAnalysis].prep(fail_fast=self._fail_fast)(
             subject=self.func,
             func_graph=self.func_graph,
+            func_args=func_args,
             # gp=self._gp,
             only_consts=self._only_consts,
         )
