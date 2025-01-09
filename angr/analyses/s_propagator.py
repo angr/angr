@@ -179,7 +179,20 @@ class SPropagatorAnalysis(Analysis):
                         continue
 
                     if is_const_and_vvar_assignment(stmt):
-                        replacements[vvar_useloc][vvar_used] = stmt.src
+                        # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
+                        # variable
+                        useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
+                            vvar_useloc.stmt_idx
+                        ]
+                        if is_phi_assignment(useloc_stmt):
+                            if (
+                                isinstance(stmt.src, VirtualVariable)
+                                and stmt.src.oident == useloc_stmt.dst.oident
+                                and stmt.src.category == useloc_stmt.dst.category
+                            ):
+                                replacements[vvar_useloc][vvar_used] = stmt.src
+                        else:
+                            replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
                 elif (
