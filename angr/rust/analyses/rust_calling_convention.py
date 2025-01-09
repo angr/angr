@@ -219,8 +219,12 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                         some_type = next(filter(lambda ty: ty.size != discriminant_size, struct_type_to_discriminant))
                         # Get the discriminant for None and Some variants
                         # Notice that if overlapping_discriminant is True, some_discriminant maybe None
-                        none_discriminant = struct_type_to_discriminant[none_type].value
+                        none_discriminant = struct_type_to_discriminant[none_type]
                         some_discriminant = struct_type_to_discriminant[some_type]
+                        if none_discriminant is not None:
+                            none_discriminant = none_discriminant.value
+                        elif some_discriminant is not None:
+                            none_discriminant = some_discriminant.value - 1
                         if some_discriminant:
                             some_discriminant = some_discriminant.value
                         if not overlapping_discriminant:

@@ -66,11 +66,20 @@ Argument = RustSimStruct(
     fields={"value": RustSimTypeReference(RustSimTypeBottom()), "formatter": RustSimTypeReference(RustSimTypeBottom())},
 )
 
+# Arguments = RustSimStruct(
+#     name="Arguments",
+#     fields={
+#         "pieces": ArrayReference(StrReference()),
+#         "args": ArrayReference(Argument),
+#         "fmt": RustSimTypeOption(RustSimTypeInt(64), none_discriminant=None),
+#     },
+# )
+
 Arguments = RustSimStruct(
     name="Arguments",
     fields={
         "pieces": ArrayReference(StrReference()),
+        "fmt": RustSimTypeOption(RustSimTypeInt(128), none_discriminant=None),
         "args": ArrayReference(Argument),
-        "fmt": RustSimTypeOption(RustSimTypeInt(64), none_discriminant=None),
     },
 )
