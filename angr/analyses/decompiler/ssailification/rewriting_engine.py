@@ -618,6 +618,15 @@ class SimEngineSSARewriting(
             ):
                 vvar = self.state.registers[reg_expr.reg_offset][reg_expr.size]
                 assert vvar is not None
+                if vvar.category == VirtualVariableCategory.PARAMETER:
+                    return VirtualVariable(
+                        reg_expr.idx,
+                        vvar.varid,
+                        vvar.bits,
+                        VirtualVariableCategory.PARAMETER,
+                        oident=vvar.oident,
+                        **vvar.tags,
+                    )
                 return VirtualVariable(
                     reg_expr.idx,
                     vvar.varid,
@@ -640,6 +649,20 @@ class SimEngineSSARewriting(
                             vvar,
                             **reg_expr.tags,
                         )
+                elif reg_expr.size > existing_size:
+                    # part of the variable exists... maybe it's a parameter?
+                    vvar = self.state.registers[reg_expr.reg_offset][existing_size]
+                    if vvar.category == VirtualVariableCategory.PARAMETER:
+                        # just zero-extend it
+                        return Convert(
+                            self.ail_manager.next_atom(),
+                            existing_size * self.project.arch.byte_width,
+                            reg_expr.size * self.project.arch.byte_width,
+                            False,
+                            vvar,
+                            **vvar.tags,
+                        )
+                    break
                 else:
                     break
 
@@ -705,6 +728,15 @@ class SimEngineSSARewriting(
             # TODO: Support truncation
             # TODO: Maybe also support concatenation
             vvar = self.state.stackvars[expr.addr.offset][expr.size]
+            if vvar.category == VirtualVariableCategory.PARAMETER:
+                return VirtualVariable(
+                    expr.idx,
+                    vvar.varid,
+                    vvar.bits,
+                    VirtualVariableCategory.PARAMETER,
+                    oident=vvar.oident,
+                    **vvar.tags,
+                )
             return VirtualVariable(
                 expr.idx,
                 vvar.varid,

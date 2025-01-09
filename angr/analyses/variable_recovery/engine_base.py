@@ -387,7 +387,7 @@ class SimEngineVRBase(
         ) or not create_variable:
             # only store the value. don't worry about variables.
             self.vvar_region[vvar_id] = richr.data
-            return
+            return None
 
         codeloc: CodeLocation = self._codeloc()
         data = richr.data
@@ -463,10 +463,14 @@ class SimEngineVRBase(
             else:
                 typevar = self.state.typevars.get_type_variable(variable, codeloc)
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+            # the constraint below is a default constraint that may conflict with more specific ones with different
+            # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
             self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
+        return variable
+
     def _store(
-        self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, stmt=None
+        self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None
     ):  # pylint:disable=unused-argument
         """
 
@@ -481,19 +485,19 @@ class SimEngineVRBase(
 
         if addr.concrete:
             # fully concrete. this is a global address
-            self._store_to_global(addr.concrete_value, data, size, stmt=stmt)
+            self._store_to_global(addr.concrete_value, data, size, stmt=atom)
             stored = True
         elif self._addr_has_concrete_base(addr) and (parsed := self._parse_offsetted_addr(addr)) is not None:
             # we are storing to a concrete global address with an offset
             base_addr, offset, elem_size = parsed
-            self._store_to_global(base_addr.concrete_value, data, size, stmt=stmt, offset=offset, elem_size=elem_size)
+            self._store_to_global(base_addr.concrete_value, data, size, stmt=atom, offset=offset, elem_size=elem_size)
             stored = True
         else:
             if self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
                 if stack_offset is not None:
                     # fast path: Storing data to stack
-                    self._store_to_stack(stack_offset, data, size, stmt=stmt)
+                    self._store_to_stack(stack_offset, data, size, atom=atom)
                     stored = True
 
         if not stored:
@@ -504,21 +508,21 @@ class SimEngineVRBase(
             codeloc = self._codeloc()
             if existing_vars:
                 for existing_var, _ in list(existing_vars):
-                    self.variable_manager[self.func_addr].remove_variable_by_atom(codeloc, existing_var, stmt)
+                    self.variable_manager[self.func_addr].remove_variable_by_atom(codeloc, existing_var, atom)
 
             # storing to a location specified by a pointer whose value cannot be determined at this point
-            self._store_to_variable(richr_addr, size, stmt=stmt)
+            self._store_to_variable(richr_addr, size)
 
     def _store_to_stack(
-        self, stack_offset, data: RichR[claripy.ast.BV | claripy.ast.FP], size, offset=0, stmt=None, endness=None
+        self, stack_offset, data: RichR[claripy.ast.BV | claripy.ast.FP], size, offset=0, atom=None, endness=None
     ):
-        if stmt is None:
+        if atom is None:
             existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory"
             )
         else:
             existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(
-                self.block.addr, self.stmt_idx, stmt
+                self.block.addr, self.stmt_idx, atom
             )
         if not existing_vars:
             variable = SimStackVariable(
@@ -562,7 +566,7 @@ class SimEngineVRBase(
                     var,
                     offset_into_var,
                     codeloc,
-                    atom=stmt,
+                    atom=atom,
                 )
 
             # create type constraints
@@ -673,9 +677,7 @@ class SimEngineVRBase(
                 self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
-    def _store_to_variable(
-        self, richr_addr: RichR[claripy.ast.BV], size: int, stmt=None
-    ):  # pylint:disable=unused-argument
+    def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], size: int):
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
 

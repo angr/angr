@@ -74,7 +74,7 @@ class SimEngineVRVEX(
         size = stmt.data.result_size(self.tyenv) // 8
         r = self._expr(stmt.data)
 
-        self._store(addr_r, r, size, stmt=stmt)
+        self._store(addr_r, r, size, atom=stmt)
 
     def _handle_stmt_StoreG(self, stmt):
         guard = self._expr(stmt.guard)
@@ -82,7 +82,7 @@ class SimEngineVRVEX(
             addr = self._expr_bv(stmt.addr)
             size = stmt.data.result_size(self.tyenv) // 8
             data = self._expr(stmt.data)
-            self._store(addr, data, size, stmt=stmt)
+            self._store(addr, data, size, atom=stmt)
 
     def _handle_stmt_LoadG(self, stmt):
         guard = self._expr(stmt.guard)

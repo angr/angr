@@ -5,7 +5,7 @@ from typing import Any
 
 from ailment.block import Block
 from ailment.statement import Assignment
-from ailment.expression import VirtualVariable, Phi
+from ailment.expression import VirtualVariable, Phi, BinaryOp, UnaryOp
 
 import angr
 from angr.utils.ail import is_phi_assignment
@@ -60,6 +60,9 @@ class SeqNodeRewriter(SequenceWalker):
                 Block: self._handle_Block,
                 # statement handlers
                 Assignment: self._handle_Assignment,
+                # expression handlers
+                BinaryOp: self._handle_BinaryOp,
+                UnaryOp: self._handle_UnaryOp,
             }
         )
 
@@ -73,6 +76,12 @@ class SeqNodeRewriter(SequenceWalker):
 
     def _handle_Assignment(self, stmt: Assignment, **kwargs) -> Assignment:  # pylint:disable=unused-argument
         return self.engine._handle_stmt_Assignment(stmt)
+
+    def _handle_BinaryOp(self, expr, **kwargs):  # pylint:disable=unused-argument
+        return self.engine._handle_expr_BinaryOp(expr)
+
+    def _handle_UnaryOp(self, expr, **kwargs):  # pylint:disable=unused-argument
+        return self.engine._handle_expr_UnaryOp(expr)
 
     def _handle_Block(self, block: Block, **kwargs) -> Block | None:  # pylint:disable=unused-argument
         self.engine.out_block = None

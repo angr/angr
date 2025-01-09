@@ -15,8 +15,9 @@ class SRDAModel:
     The model for SRDA.
     """
 
-    def __init__(self, func_graph, arch):
+    def __init__(self, func_graph, func_args, arch):
         self.func_graph = func_graph
+        self.func_args = func_args
         self.arch = arch
         self.varid_to_vvar: dict[int, VirtualVariable] = {}
         self.all_vvar_definitions: dict[VirtualVariable, CodeLocation] = {}

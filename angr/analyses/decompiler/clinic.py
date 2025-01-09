@@ -49,7 +49,6 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
-from .utils import first_nonlabel_statement_id
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -461,12 +460,12 @@ class Clinic(Analysis):
         # Make function arguments
         self._update_progress(33.0, text="Making argument list")
         arg_list = self._make_argument_list()
-        arg_vvars = {}
-        ail_graph = self._create_argument_accessing_statements(arg_list, ail_graph, arg_vvars)
+        arg_vvars = self._create_function_argument_vvars(arg_list)
+        func_args = {arg_vvar for arg_vvar, _ in arg_vvars.values()}
 
         # Transform the graph into partial SSA form
         self._update_progress(35.0, text="Transforming to partial-SSA form")
-        ail_graph = self._transform_to_ssa_level0(ail_graph)
+        ail_graph = self._transform_to_ssa_level0(ail_graph, func_args)
 
         # full-function constant-only propagation
         self._update_progress(36.0, text="Constant propagation")
@@ -521,7 +520,7 @@ class Clinic(Analysis):
         )
 
         # rewrite (qualified) stack variables into SSA form
-        ail_graph = self._transform_to_ssa_level1(ail_graph)
+        ail_graph = self._transform_to_ssa_level1(ail_graph, func_args)
 
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
@@ -534,7 +533,7 @@ class Clinic(Analysis):
 
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
-        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
+        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, func_args, stack_pointer_tracker=spt)
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2")
@@ -1308,84 +1307,57 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _create_argument_accessing_statements(
-        self,
-        arg_list: list[SimVariable],
-        ail_graph: networkx.DiGraph,
-        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]],
-    ) -> networkx.DiGraph:
-        entrypoint = next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr))
-        new_stmts = []
+    def _create_function_argument_vvars(self, arg_list) -> dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]]:
+        arg_vvars = {}
         for arg in arg_list:
-            if not isinstance(arg, SimRegisterVariable):
-                continue
-
-            # get the full register if needed
-            basereg_offset, basereg_size = self.project.arch.get_base_register(arg.reg, size=arg.size)
-
-            arg_vvar = ailment.Expr.VirtualVariable(
-                self._ail_manager.next_atom(),
-                self.vvar_id_start,
-                arg.bits,
-                ailment.Expr.VirtualVariableCategory.PARAMETER,
-                oident=arg.reg,
-                ins_addr=self.function.addr,
-                vex_block_addr=self.function.addr,
-            )
-            self.vvar_id_start += 1
-            arg_vvars[arg_vvar.varid] = arg_vvar, arg
-
-            if basereg_size != arg.size:
-                # extend the value to the full register
-                arg_vvar = ailment.Expr.Convert(
+            if isinstance(arg, SimRegisterVariable):
+                # get the full register if needed
+                arg_vvar = ailment.Expr.VirtualVariable(
                     self._ail_manager.next_atom(),
-                    arg.size * self.project.arch.byte_width,
-                    basereg_size * self.project.arch.byte_width,
-                    False,
-                    arg_vvar,
+                    self.vvar_id_start,
+                    arg.bits,
+                    ailment.Expr.VirtualVariableCategory.PARAMETER,
+                    oident=(ailment.Expr.VirtualVariableCategory.REGISTER, arg.reg),
                     ins_addr=self.function.addr,
                     vex_block_addr=self.function.addr,
                 )
+                self.vvar_id_start += 1
+                arg_vvars[arg_vvar.varid] = arg_vvar, arg
+            elif isinstance(arg, SimStackVariable):
+                arg_vvar = ailment.Expr.VirtualVariable(
+                    self._ail_manager.next_atom(),
+                    self.vvar_id_start,
+                    arg.bits,
+                    ailment.Expr.VirtualVariableCategory.PARAMETER,
+                    oident=(ailment.Expr.VirtualVariableCategory.STACK, arg.offset),
+                    ins_addr=self.function.addr,
+                    vex_block_addr=self.function.addr,
+                )
+                self.vvar_id_start += 1
+                arg_vvars[arg_vvar.varid] = arg_vvar, arg
 
-            fullreg_dst = ailment.Expr.Register(
-                self._ail_manager.next_atom(),
-                None,
-                basereg_offset,
-                basereg_size * self.project.arch.byte_width,
-                ins_addr=self.function.addr,
-                vex_block_addr=self.function.addr,
-            )
-            stmt = ailment.Stmt.Assignment(
-                self._ail_manager.next_atom(),
-                fullreg_dst,
-                arg_vvar,
-                ins_addr=self.function.addr,
-                vex_block_addr=self.function.addr,
-            )
-            new_stmts.append(stmt)
-
-        non_label_stmt_idx = first_nonlabel_statement_id(entrypoint)
-        # update the ail block in-place
-        entrypoint.statements = (
-            entrypoint.statements[:non_label_stmt_idx] + new_stmts + entrypoint.statements[non_label_stmt_idx:]
-        )
-        return ail_graph
+        return arg_vvars
 
     @timethis
-    def _transform_to_ssa_level0(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+    def _transform_to_ssa_level0(
+        self, ail_graph: networkx.DiGraph, func_args: set[ailment.Expr.VirtualVariable]
+    ) -> networkx.DiGraph:
         ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
+            func_args=func_args,
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         return ssailification.out_graph
 
     @timethis
-    def _transform_to_ssa_level1(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+    def _transform_to_ssa_level1(
+        self, ail_graph: networkx.DiGraph, func_args: set[ailment.Expr.VirtualVariable]
+    ) -> networkx.DiGraph:
         ssailification = self.project.analyses.Ssailification(
             self.function,
             ail_graph,
@@ -1394,6 +1366,7 @@ class Clinic(Analysis):
             ail_manager=self._ail_manager,
             ssa_tmps=True,
             ssa_stackvars=True,
+            func_args=func_args,
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
@@ -1451,7 +1424,7 @@ class Clinic(Analysis):
         return []
 
     @timethis
-    def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
+    def _make_callsites(self, ail_graph, func_args: set[ailment.Expr.VirtualVariable], stack_pointer_tracker=None):
         """
         Simplify all function call statements.
         """
@@ -1460,6 +1433,7 @@ class Clinic(Analysis):
         rd = self.project.analyses.SReachingDefinitions(
             subject=self.function,
             func_graph=ail_graph,
+            func_args=func_args,
             fail_fast=self._fail_fast,
             # use_callee_saved_regs_at_return=not self._register_save_areas_removed,  FIXME
         )

@@ -141,7 +141,7 @@ class BlockSimplifier(Analysis):
 
     def _compute_propagation(self, block) -> SPropagatorAnalysis:
         if self._propagator is None:
-            self._propagator = self.project.analyses[SPropagatorAnalysis].prep()(
+            self._propagator = self.project.analyses[SPropagatorAnalysis].prep(fail_fast=self._fail_fast)(
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
@@ -152,7 +152,7 @@ class BlockSimplifier(Analysis):
         if self._reaching_definitions is None:
             self._reaching_definitions = (
                 self.project.analyses[SReachingDefinitionsAnalysis]
-                .prep()(
+                .prep(fail_fast=self._fail_fast)(
                     subject=block,
                     track_tmps=True,
                     func_addr=self.func_addr,

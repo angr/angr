@@ -915,7 +915,7 @@ class VariableManagerInternal(Serializable):
         # rename variables in a fixed order
         var_ctr = count(0)
 
-        sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: v.offset)
+        sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: (v.offset, v.ident))
         sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: _id_from_varident(v.ident))
 
         # find variables that are likely only used by phi assignments
@@ -1033,7 +1033,7 @@ class VariableManagerInternal(Serializable):
         Map SSA variables to a unified variable. Fill in self._unified_variables.
         """
 
-        stack_vars: dict[int, list[SimStackVariable]] = defaultdict(list)
+        stack_vars: set[SimStackVariable] = set()
         reg_vars: set[SimRegisterVariable] = set()
 
         # unify stack variables based on their locations
@@ -1042,19 +1042,14 @@ class VariableManagerInternal(Serializable):
                 # do not unify twice
                 continue
             if isinstance(v, SimStackVariable):
-                stack_vars[v.offset].append(v)
+                stack_vars.add(v)
             elif isinstance(v, SimRegisterVariable):
                 reg_vars.add(v)
-
-        for _, vs in stack_vars.items():
-            unified = vs[0].copy()
-            for v in vs:
-                self.set_unified_variable(v, unified)
 
         # unify register variables based on phi nodes
         graph = networkx.DiGraph()  # an edge v1 -> v2 means v2 is the phi variable for v1
         for v, subvs in self._phi_variables.items():
-            if not isinstance(v, SimRegisterVariable):
+            if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                 continue
             for subv in subvs:
                 graph.add_edge(subv, v)
@@ -1086,9 +1081,20 @@ class VariableManagerInternal(Serializable):
                 self.set_unified_variable(v, unified)
             for v in nodes:
                 reg_vars.discard(v)
+                stack_vars.discard(v)
 
-        for v in reg_vars:
+        # deal with remaining variables
+        for v in sorted(reg_vars, key=lambda v: v.ident):
             self.set_unified_variable(v, v)
+
+        stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
+        for v in stack_vars:
+            stack_vars_by_offset[v.offset].append(v)
+        for vs in stack_vars_by_offset.values():
+            vs = sorted(vs, key=lambda v: v.ident)
+            unified = vs[0].copy()
+            for v in vs:
+                self.set_unified_variable(v, unified)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
         """

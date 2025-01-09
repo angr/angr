@@ -17,7 +17,7 @@ from ailment.expression import (
 from ailment.statement import Assignment, Store, Return, Jump
 
 from angr.knowledge_plugins.functions import Function
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import (
     get_vvar_uselocs,
@@ -54,6 +54,7 @@ class SPropagatorAnalysis(Analysis):
         func_graph=None,
         only_consts: bool = True,
         stack_pointer_tracker=None,
+        func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
     ):
         if isinstance(subject, Block):
@@ -69,6 +70,7 @@ class SPropagatorAnalysis(Analysis):
 
         self.func_graph = func_graph
         self.func_addr = func_addr
+        self.func_args = func_args
         self.only_consts = only_consts
         self._sp_tracker = stack_pointer_tracker
 
@@ -109,6 +111,11 @@ class SPropagatorAnalysis(Analysis):
         # find all vvar uses
         vvar_uselocs = get_vvar_uselocs(blocks.values())
 
+        # update vvar_deflocs using function arguments
+        if self.func_args:
+            for func_arg in self.func_args:
+                vvar_deflocs[func_arg] = ExternalCodeLocation()
+
         # find all ret sites and indirect jump sites
         retsites: set[tuple[int, int | None, int]] = set()
         jumpsites: set[tuple[int, int | None, int]] = set()
@@ -130,8 +137,9 @@ class SPropagatorAnalysis(Analysis):
 
             vvarid_to_vvar[vvar.varid] = vvar
             defloc = vvar_deflocs[vvar]
-            assert defloc.block_addr is not None
-            assert defloc.stmt_idx is not None
+            if isinstance(defloc, ExternalCodeLocation):
+                continue
+
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
             r, v = is_const_assignment(stmt)
@@ -179,7 +187,20 @@ class SPropagatorAnalysis(Analysis):
                         continue
 
                     if is_const_and_vvar_assignment(stmt):
-                        replacements[vvar_useloc][vvar_used] = stmt.src
+                        # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
+                        # variable
+                        useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
+                            vvar_useloc.stmt_idx
+                        ]
+                        if is_phi_assignment(useloc_stmt):
+                            if (
+                                isinstance(stmt.src, VirtualVariable)
+                                and stmt.src.oident == useloc_stmt.dst.oident
+                                and stmt.src.category == useloc_stmt.dst.category
+                            ):
+                                replacements[vvar_useloc][vvar_used] = stmt.src
+                        else:
+                            replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
                 elif (

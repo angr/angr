@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import count
 from bisect import bisect_left
 
-from ailment.expression import Expression, Register, StackBaseOffset, Tmp
+from ailment.expression import Expression, Register, StackBaseOffset, Tmp, VirtualVariable, VirtualVariableCategory
 from ailment.statement import Statement, Store
 
 from angr.knowledge_plugins.functions import Function
@@ -34,6 +34,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         ail_manager=None,
         ssa_stackvars: bool = False,
         ssa_tmps: bool = False,
+        func_args: set[VirtualVariable] | None = None,
         vvar_id_start: int = 0,
     ):
         """
@@ -53,6 +54,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._ail_manager = ail_manager
         self._ssa_stackvars = ssa_stackvars
         self._ssa_tmps = ssa_tmps
+        self._func_args = func_args if func_args is not None else set()
         self._entry = (
             entry
             if entry is not None
@@ -71,6 +73,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             bp_as_gpr,
             ssa_stackvars,
             ssa_tmps,
+            self._func_args,
         )
 
         # calculate virtual variables and phi nodes
@@ -91,6 +94,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._stackvar_locs,
             self._ssa_tmps,
             self._ail_manager,
+            self._func_args,
             vvar_id_start=vvar_id_start,
         )
         self.out_graph = rewriter.out_graph
@@ -122,6 +126,11 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             # for stack variables, we collect all definitions and identify stack variable locations using heuristics
 
             stackvar_locs = self._synthesize_stackvar_locs([def_ for def_, _ in def_to_loc if isinstance(def_, Store)])
+            # handle function arguments
+            if self._func_args:
+                for func_arg in self._func_args:
+                    if func_arg.oident[0] == VirtualVariableCategory.STACK:
+                        stackvar_locs[func_arg.oident[1]] = func_arg.size
             sorted_stackvar_offs = sorted(stackvar_locs)
         else:
             stackvar_locs = {}

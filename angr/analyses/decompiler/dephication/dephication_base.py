@@ -77,6 +77,8 @@ class DephicationBase(Analysis):
             mapped_phivarid = phivarid_to_phivarid.get(phi_varid, phi_varid)
             for varid in varids:
                 vvar_to_vvar[varid] = mapped_phivarid
+            if phi_varid != mapped_phivarid:
+                vvar_to_vvar[phi_varid] = mapped_phivarid
 
         return vvar_to_vvar
 
