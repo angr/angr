@@ -902,6 +902,13 @@ class AILSimplifier(Analysis):
 
                 to_replace_def = the_def
 
+                # check: the definition of expression being replaced should not be a phi variable
+                if (
+                    isinstance(to_replace_def.atom, atoms.VirtualVariable)
+                    and to_replace_def.atom.varid in rd.phi_vvar_ids
+                ):
+                    continue
+
                 # find all uses of this definition
                 # we make a copy of the set since we may touch the set (uses) when replacing expressions
                 all_uses: set[tuple[CodeLocation, Any]] = set(rd.get_vvar_uses_with_expr(to_replace_def.atom))
