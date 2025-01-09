@@ -3,6 +3,7 @@ from .function_prototype_inference import FunctionPrototypeInference
 from .callsite_corrector import CallsiteCorrector
 from .cleanup_code_remover import CleanupCodeRemover
 from .deref_coercion_simplifier import DerefCoercionSimplifier
+from .macro.show_macro_simplifier import ShowMacroSimplifier
 from .macro.vec_macro_simplifier import VecMacroSimplifier
 from .pattern_match_identifier import PatternMatchIdentifier
 from .pattern_match_simplifier import PatternMatchSimplifier
@@ -39,6 +40,7 @@ def get_rust_optimization_passes():
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
         VecMacroSimplifier,
+        ShowMacroSimplifier,
         # StructFieldAccessSimplifier,
         DerefCoercionSimplifier,
         StructReturnSimplifier,
