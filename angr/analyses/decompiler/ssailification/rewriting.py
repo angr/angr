@@ -40,6 +40,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         stackvar_locs: dict[int, int],
         rewrite_tmps: bool,
         ail_manager,
+        func_args: set[VirtualVariable],
         vvar_id_start: int = 0,
     ):
         self.project = project
@@ -55,6 +56,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         self._stackvar_locs = stackvar_locs
         self._rewrite_tmps = rewrite_tmps
         self._ail_manager = ail_manager
+        self._func_args = func_args
         self._engine_ail = SimEngineSSARewriting(
             self.project,
             sp_tracker=sp_tracker,
@@ -205,12 +207,19 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
                 self.insert_phi_statements(node, phi_stmts)
 
     def _initial_abstract_state(self, node) -> RewritingState:
-        return RewritingState(
+        state = RewritingState(
             CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, block_idx=node.idx),
             self.project.arch,
             self._function,
             node,
         )
+        # update state with function arguments
+        for func_arg in self._func_args:
+            if func_arg.oident[0] == VirtualVariableCategory.REGISTER:
+                state.registers[func_arg.oident[1]][func_arg.size] = func_arg
+            elif func_arg.oident[0] == VirtualVariableCategory.STACK:
+                state.stackvars[func_arg.oident[1]][func_arg.size] = func_arg
+        return state
 
     def _run_on_node(self, node, state: RewritingState):
         """

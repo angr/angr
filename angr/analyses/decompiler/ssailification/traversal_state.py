@@ -37,7 +37,12 @@ class TraversalState:
                 merge_occurred = True
             all_regs |= o.live_registers
 
-        # TODO: merge of live_stackvars
+        all_stackvars: set[tuple[int, int]] = self.live_stackvars.copy()
+        for o in others:
+            if o.live_stackvars.difference(all_stackvars):
+                merge_occurred = True
+            all_stackvars |= o.live_stackvars
 
         self.live_registers = all_regs
+        self.live_stackvars = all_stackvars
         return merge_occurred

@@ -618,6 +618,15 @@ class SimEngineSSARewriting(
             ):
                 vvar = self.state.registers[reg_expr.reg_offset][reg_expr.size]
                 assert vvar is not None
+                if vvar.category == VirtualVariableCategory.PARAMETER:
+                    return VirtualVariable(
+                        reg_expr.idx,
+                        vvar.varid,
+                        vvar.bits,
+                        VirtualVariableCategory.PARAMETER,
+                        oident=vvar.oident,
+                        **vvar.tags,
+                    )
                 return VirtualVariable(
                     reg_expr.idx,
                     vvar.varid,
@@ -705,6 +714,15 @@ class SimEngineSSARewriting(
             # TODO: Support truncation
             # TODO: Maybe also support concatenation
             vvar = self.state.stackvars[expr.addr.offset][expr.size]
+            if vvar.category == VirtualVariableCategory.PARAMETER:
+                return VirtualVariable(
+                    expr.idx,
+                    vvar.varid,
+                    vvar.bits,
+                    VirtualVariableCategory.PARAMETER,
+                    oident=vvar.oident,
+                    **vvar.tags,
+                )
             return VirtualVariable(
                 expr.idx,
                 vvar.varid,

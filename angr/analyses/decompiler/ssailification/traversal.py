@@ -17,13 +17,24 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
     TraversalAnalysis traverses the AIL graph and collects definitions.
     """
 
-    def __init__(self, project, func, ail_graph, sp_tracker, bp_as_gpr: bool, stackvars: bool, tmps: bool):
+    def __init__(
+        self,
+        project,
+        func,
+        ail_graph,
+        sp_tracker,
+        bp_as_gpr: bool,
+        stackvars: bool,
+        tmps: bool,
+        func_args: set[ailment.Expr.VirtualVariable],
+    ):
 
         self.project = project
         self._stackvars = stackvars
         self._tmps = tmps
         self._function = func
         self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
+        self._func_args = func_args
 
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
@@ -52,13 +63,22 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         pass
 
     def _initial_abstract_state(self, node: ailment.Block) -> TraversalState:
-        return TraversalState(self.project.arch, self._function)
+        state = TraversalState(self.project.arch, self._function)
+        # update it with function arguments
+        if self._func_args:
+            for func_arg in self._func_args:
+                if func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.REGISTER:
+                    state.live_registers.add(func_arg.oident[1])
+                elif func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.STACK:
+                    state.live_stackvars.add((func_arg.oident[1], func_arg.size))
+        return state
 
     def _merge_states(self, node: ailment.Block, *states: TraversalState) -> tuple[TraversalState, bool]:
         merged_state = TraversalState(
             self.project.arch,
             self._function,
             live_registers=states[0].live_registers.copy(),
+            live_stackvars=states[0].live_stackvars.copy(),
         )
         merge_occurred = merged_state.merge(*states[1:])
         return merged_state, not merge_occurred
