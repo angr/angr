@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import networkx
 from ailment.expression import VirtualVariable
-from ailment.statement import Assignment
+from ailment.statement import Assignment, Call
 
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
@@ -86,6 +86,8 @@ class SLivenessAnalysis(Analysis):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     live.discard(stmt.dst.varid)
+                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
+                    live.discard(stmt.ret_expr.varid)
 
                 phi_expr = phi_assignment_get_src(stmt)
                 if phi_expr is not None:
@@ -136,6 +138,8 @@ class SLivenessAnalysis(Analysis):
             for stmt in reversed(block.statements):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvar = stmt.dst.varid
+                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
+                    def_vvar = stmt.ret_expr.varid
                 else:
                     def_vvar = None
 
