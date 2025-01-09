@@ -88,12 +88,14 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
 
         if new_dst is not None or new_src is not None:
-            return Assignment(
-                stmt.idx,
-                stmt.dst if new_dst is None else new_dst,
-                stmt.src if new_src is None else new_src,
-                **stmt.tags,
-            )
+            # ensure we do not generate vvar_A = vvar_A
+            dst = stmt.dst if new_dst is None else new_dst
+            src = stmt.src if new_src is None else new_src
+            if isinstance(dst, VirtualVariable) and isinstance(src, VirtualVariable) and dst.varid == src.varid:
+                # skip it
+                return tuple()
+
+            return Assignment(stmt.idx, dst, src, **stmt.tags)
         return None
 
     def _handle_stmt_Store(self, stmt):
