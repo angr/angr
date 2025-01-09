@@ -915,7 +915,7 @@ class VariableManagerInternal(Serializable):
         # rename variables in a fixed order
         var_ctr = count(0)
 
-        sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: v.offset)
+        sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: (v.offset, v.ident))
         sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: _id_from_varident(v.ident))
 
         # find variables that are likely only used by phi assignments
@@ -1084,10 +1084,17 @@ class VariableManagerInternal(Serializable):
                 stack_vars.discard(v)
 
         # deal with remaining variables
-        for v in reg_vars:
+        for v in sorted(reg_vars, key=lambda v: v.ident):
             self.set_unified_variable(v, v)
+
+        stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
         for v in stack_vars:
-            self.set_unified_variable(v, v)
+            stack_vars_by_offset[v.offset].append(v)
+        for vs in stack_vars_by_offset.values():
+            vs = sorted(vs, key=lambda v: v.ident)
+            unified = vs[0].copy()
+            for v in vs:
+                self.set_unified_variable(v, unified)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
         """
