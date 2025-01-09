@@ -20,7 +20,8 @@ from angr.knowledge_plugins import Function
 from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.analyses import ForwardAnalysis, visitors
-from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables
+from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
+from angr.analyses.typehoon.typeconsts import Int
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
@@ -499,6 +500,26 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                 sorted_typevars = sorted(typevars, key=lambda x: str(x))  # pylint:disable=unnecessary-lambda
                 for tv in sorted_typevars[1:]:
                     self.type_constraints[self.func_typevar].add(Equivalence(sorted_typevars[0], tv))
+
+        # remove default constraints with size conflicts
+        for func_var in self.type_constraints:
+            var_to_subtyping: dict[TypeVariable, list[Subtype]] = defaultdict(list)
+            for constraint in self.type_constraints[func_var]:
+                if isinstance(constraint, Subtype) and isinstance(constraint.sub_type, TypeVariable):
+                    var_to_subtyping[constraint.sub_type].append(constraint)
+
+            for constraints in var_to_subtyping.values():
+                if len(constraints) <= 1:
+                    continue
+                default_subtyping_constraints = set()
+                has_nondefault_subtyping_constraints = False
+                for constraint in constraints:
+                    if isinstance(constraint.super_type, Int):
+                        default_subtyping_constraints.add(constraint)
+                    elif isinstance(constraint.super_type, DerivedTypeVariable) and constraint.super_type.labels:
+                        has_nondefault_subtyping_constraints = True
+                if has_nondefault_subtyping_constraints:
+                    self.type_constraints[func_var].difference_update(default_subtyping_constraints)
 
         self.variable_manager[self.function.addr].ret_val_size = self.ret_val_size
 

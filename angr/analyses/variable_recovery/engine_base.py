@@ -463,6 +463,8 @@ class SimEngineVRBase(
             else:
                 typevar = self.state.typevars.get_type_variable(variable, codeloc)
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+            # the constraint below is a default constraint that may conflict with more specific ones with different
+            # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
             self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
         return variable
