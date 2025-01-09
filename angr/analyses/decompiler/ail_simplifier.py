@@ -207,9 +207,11 @@ class AILSimplifier(Analysis):
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
+        func_args = {vvar for vvar, _ in self._arg_vvars.values()}
         rd = self.project.analyses.SReachingDefinitions(
             subject=self.func,
             func_graph=self.func_graph,
+            func_args=func_args,
             # use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
             # track_tmps=True,
         ).model

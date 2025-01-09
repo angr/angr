@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ailment.block import Block
 from ailment.statement import Assignment, Call, Return
+from ailment.expression import VirtualVariable
 import networkx
 
 from angr.knowledge_plugins.functions import Function
@@ -24,6 +25,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         subject,
         func_addr: int | None = None,
         func_graph: networkx.DiGraph[Block] | None = None,
+        func_args: set[VirtualVariable] | None = None,
         track_tmps: bool = False,
     ):
         if isinstance(subject, Block):
@@ -39,13 +41,14 @@ class SReachingDefinitionsAnalysis(Analysis):
 
         self.func_graph = func_graph
         self.func_addr = func_addr if func_addr is not None else self.func.addr if self.func is not None else None
+        self.func_args = func_args
         self._track_tmps = track_tmps
 
         self._bp_as_gpr = False
         if self.func is not None:
             self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
 
-        self.model = SRDAModel(func_graph, self.project.arch)
+        self.model = SRDAModel(func_graph, func_args, self.project.arch)
 
         self._analyze()
 
@@ -65,6 +68,13 @@ class SReachingDefinitionsAnalysis(Analysis):
         vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
         # find all explicit vvar uses
         vvar_uselocs = get_vvar_uselocs(blocks.values())
+
+        # update vvar definitions using function arguments
+        if self.func_args:
+            for vvar in self.func_args:
+                if vvar not in vvar_deflocs:
+                    vvar_deflocs[vvar] = ExternalCodeLocation()
+            self.model.func_args = self.func_args
 
         # update model
         for vvar, defloc in vvar_deflocs.items():

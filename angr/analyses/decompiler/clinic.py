@@ -533,7 +533,7 @@ class Clinic(Analysis):
 
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
-        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
+        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, func_args, stack_pointer_tracker=spt)
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2")
@@ -1424,7 +1424,7 @@ class Clinic(Analysis):
         return []
 
     @timethis
-    def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
+    def _make_callsites(self, ail_graph, func_args: set[ailment.Expr.VirtualVariable], stack_pointer_tracker=None):
         """
         Simplify all function call statements.
         """
@@ -1433,6 +1433,7 @@ class Clinic(Analysis):
         rd = self.project.analyses.SReachingDefinitions(
             subject=self.function,
             func_graph=ail_graph,
+            func_args=func_args,
             fail_fast=self._fail_fast,
             # use_callee_saved_regs_at_return=not self._register_save_areas_removed,  FIXME
         )

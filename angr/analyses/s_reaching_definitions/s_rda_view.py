@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 
 from ailment.statement import Statement, Assignment, Call, Label
-from ailment.expression import VirtualVariable, Expression
+from ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
@@ -133,6 +133,16 @@ class SRDAView:
         predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
+        if not vvars:
+            # not found - check function arguments
+            for func_arg in self.model.func_args:
+                if isinstance(func_arg, VirtualVariable):
+                    func_arg_category = func_arg.oident[0]
+                    if func_arg_category == VirtualVariableCategory.REGISTER:
+                        func_arg_regoff = func_arg.oident[1]
+                        if func_arg_regoff == reg_offset:
+                            vvars.add(func_arg)
+
         assert len(vvars) <= 1
         return next(iter(vvars), None)
 
@@ -149,6 +159,15 @@ class SRDAView:
         predicater = StackVVarPredicate(stack_offset, size, vvars)
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
+        if not vvars:
+            # not found - check function arguments
+            for func_arg in self.model.func_args:
+                if isinstance(func_arg, VirtualVariable):
+                    func_arg_category = func_arg.oident[0]
+                    if func_arg_category == VirtualVariableCategory.STACK:
+                        func_arg_stackoff = func_arg.oident[1]
+                        if func_arg_stackoff == stack_offset and func_arg.size == size:
+                            vvars.add(func_arg)
         assert len(vvars) <= 1
         return next(iter(vvars), None)
 
