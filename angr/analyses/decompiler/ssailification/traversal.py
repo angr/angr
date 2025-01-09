@@ -68,7 +68,13 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         if self._func_args:
             for func_arg in self._func_args:
                 if func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.REGISTER:
-                    state.live_registers.add(func_arg.oident[1])
+                    reg_offset = func_arg.oident[1]
+                    reg_size = func_arg.size
+                    state.live_registers.add(reg_offset)
+                    # get the full register if needed
+                    basereg_offset, basereg_size = self.project.arch.get_base_register(reg_offset, size=reg_size)
+                    if basereg_size != reg_size or basereg_offset != reg_offset:
+                        state.live_registers.add(basereg_offset)
                 elif func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.STACK:
                     state.live_stackvars.add((func_arg.oident[1], func_arg.size))
         return state

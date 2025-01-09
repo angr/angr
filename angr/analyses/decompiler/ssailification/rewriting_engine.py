@@ -649,6 +649,20 @@ class SimEngineSSARewriting(
                             vvar,
                             **reg_expr.tags,
                         )
+                elif reg_expr.size > existing_size:
+                    # part of the variable exists... maybe it's a parameter?
+                    vvar = self.state.registers[reg_expr.reg_offset][existing_size]
+                    if vvar.category == VirtualVariableCategory.PARAMETER:
+                        # just zero-extend it
+                        return Convert(
+                            self.ail_manager.next_atom(),
+                            existing_size * self.project.arch.byte_width,
+                            reg_expr.size * self.project.arch.byte_width,
+                            False,
+                            vvar,
+                            **vvar.tags,
+                        )
+                    break
                 else:
                     break
 

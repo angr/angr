@@ -216,7 +216,8 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         # update state with function arguments
         for func_arg in self._func_args:
             if func_arg.oident[0] == VirtualVariableCategory.REGISTER:
-                state.registers[func_arg.oident[1]][func_arg.size] = func_arg
+                reg_offset, reg_size = func_arg.oident[1], func_arg.size
+                state.registers[reg_offset][reg_size] = func_arg
             elif func_arg.oident[0] == VirtualVariableCategory.STACK:
                 state.stackvars[func_arg.oident[1]][func_arg.size] = func_arg
         return state
