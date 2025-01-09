@@ -204,13 +204,17 @@ class SequenceWalker:
 
         new_false_node = self._handle(node.false_node, parent=node, index=1) if node.false_node is not None else None
 
-        if new_true_node is None and new_false_node is None:
+        new_condition = (
+            self._handle(node.condition, parent=node, label="condition") if node.condition is not None else None
+        )
+
+        if new_true_node is None and new_false_node is None and new_condition is None:
             return None
 
         return ConditionNode(
             node.addr,
             node.reaching_condition,
-            node.condition,
+            node.condition if new_condition is None else new_condition,
             node.true_node if new_true_node is None else new_true_node,
             false_node=node.false_node if new_false_node is None else new_false_node,
         )
