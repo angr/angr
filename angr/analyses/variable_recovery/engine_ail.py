@@ -95,7 +95,7 @@ class SimEngineVRAIL(
                     RichR(self.state.stack_address(stmt.dst.stack_offset)),
                     data,
                     stmt.dst.bits // self.arch.byte_width,
-                    stmt=stmt,
+                    atom=stmt.dst,
                 )
 
         else:
@@ -105,7 +105,7 @@ class SimEngineVRAIL(
         addr_r = self._expr_bv(stmt.addr)
         data = self._expr(stmt.data)
         size = stmt.size
-        self._store(addr_r, data, size, stmt=stmt)
+        self._store(addr_r, data, size, atom=stmt)
 
     def _handle_stmt_Jump(self, stmt):
         pass
