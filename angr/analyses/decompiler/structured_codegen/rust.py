@@ -235,7 +235,14 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
         yield "<missing-type> ", None
         yield name, name_type
     else:
-        return type_to_rust_repr_chunks(RustSimTypeInt(ty.size))
+        yield from type_to_rust_repr_chunks(
+            RustSimTypeInt(ty.size),
+            name=name,
+            name_type=name_type,
+            full=full,
+            indent_str=indent_str,
+        )
+        return
         # TODO: Handle other types
         import ipdb
 
