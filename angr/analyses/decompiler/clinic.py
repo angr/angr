@@ -2303,6 +2303,10 @@ class Clinic(Analysis):
                 assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
 
+            elif stmt_type is FunctionLikeMacro:
+                for arg in stmt.args:
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
+
     def _link_variables_on_return(
         self, variable_manager, global_variables, block: ailment.Block, stmt_idx: int, stmt: ailment.Stmt.Return
     ):
