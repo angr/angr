@@ -4,7 +4,6 @@ from typing import Tuple
 from ailment import BinaryOp, AILBlockWalker, Statement, Block
 from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset
 from ailment.statement import Return, Store, ConditionalJump, Jump, Label, Call
-from sqlalchemy.testing.assertsql import Conditional
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.ailment.expression import Struct, Enum
