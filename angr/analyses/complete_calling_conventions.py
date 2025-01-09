@@ -208,6 +208,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 self._update_progress(percentage, text=f"{idx + 1}/{total_funcs} - {func.demangled_name}")
                 if self._low_priority:
                     self._release_gil(idx + 1, 10, 0.000001)
+            self._finish_progress()
 
         else:
             self._remaining_funcs.value = len(self._func_addrs)
@@ -297,6 +298,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
             for proc in procs:
                 proc.join()
+
+            self._finish_progress()
 
     def _worker_routine(self, worker_id: int, initializer: Initializer):
         initializer.initialize()
