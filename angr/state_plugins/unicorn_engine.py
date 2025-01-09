@@ -314,7 +314,7 @@ class Uniwrapper:
         self.id = None
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, aux1: int = 0, aux2: int = 0):
-        h = self.inner.hook_add(htype, callback, user_data=user_data, begin=begin, end=end, arg1=aux1, arg2=aux2)
+        h = self.inner.hook_add(htype, callback, user_data=user_data, begin=begin, end=end, aux1=aux1, aux2=aux2)
         self.wrapped_hooks.add(h)
         return h
 
