@@ -853,7 +853,7 @@ class Unicorn(SimStatePlugin):
         # l.debug('adding native hooks')
         _UC_NATIVE.hook(self._uc_state)  # prefer to use native hooks
 
-        self.uc.hook_add(HOOK_MEM_INVALID_CFUNC, self._hook_mem_unmapped, None, 1)
+        self.uc.hook_add(unicorn.UC_HOOK_MEM_INVALID, self._hook_mem_unmapped, None, 1)
 
         arch = self.state.arch.qemu_name
         if arch == "x86_64":
