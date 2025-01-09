@@ -351,6 +351,12 @@ class Uniwrapper:
     def reset(self):
         self.mem_reset()
 
+    def reg_write(self, reg_id: int, value) -> None:
+        if self.arch.name == "AMD64" and reg_id == unicorn.x86_const.UC_X86_REG_CR8:
+            l.warning("Unicorn doesn't like the CR8 register. Skipping.")
+            return
+        self.inner.reg_write(reg_id, value)
+
     # I'm sorry
     def __getattr__(self, item):
         return getattr(self.inner, item)
