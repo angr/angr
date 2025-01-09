@@ -680,8 +680,8 @@ class CStatements(CStatement):
     """
 
     __slots__ = (
-        "statements",
         "addr",
+        "statements",
     )
 
     def __init__(self, statements, addr=None, **kwargs):
