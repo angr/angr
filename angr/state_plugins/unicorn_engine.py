@@ -29,8 +29,8 @@ ffi = cffi.FFI()
 try:
     import unicorn
     from unicorn.unicorn_py3.unicorn import HOOK_MEM_INVALID_CFUNC
-except ImportError as e:
-    l.exception("Unicorn failed to import. Support disabled.", e)
+except ImportError:
+    l.error("Unicorn failed to import. Support disabled.")
     unicorn = None
 
 
@@ -324,19 +324,16 @@ class Uniwrapper:
         return h
 
     def mem_map(self, addr, size, perms=7):
-        m = self.inner.mem_map(addr, size, perms=perms)
+        self.inner.mem_map(addr, size, perms=perms)
         self.wrapped_mapped.add((addr, size))
-        return m
 
     def mem_map_ptr(self, addr, size, perms, ptr):
-        m = self.inner.mem_map_ptr(addr, size, perms, ptr)
+        self.inner.mem_map_ptr(addr, size, perms, ptr)
         self.wrapped_mapped.add((addr, size))
-        return m
 
     def mem_unmap(self, addr, size):
-        m = self.inner.mem_unmap(addr, size)
+        self.inner.mem_unmap(addr, size)
         self.wrapped_mapped.discard((addr, size))
-        return m
 
     def mem_reset(self):
         for addr, size in self.wrapped_mapped:
@@ -863,7 +860,7 @@ class Unicorn(SimStatePlugin):
             )
         elif arch == "i386":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-        elif arch == "mips" or arch == "mipsel":
+        elif arch in ("mips", "mipsel"):
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         elif arch == "arm":
             # EDG says: Unicorn's ARM support has no concept of interrupts.
@@ -1079,14 +1076,8 @@ class Unicorn(SimStatePlugin):
         if bitmap.readonly:
             # old-style mapping, do it via copy
             self.uc.mem_map(addr, 0x1000, perm)
-            # huge hack. why doesn't ctypes let you pass memoryview as void*?
-            unicorn.unicorn._uc.uc_mem_write(
-                self.uc._uch,
-                addr,
-                ctypes.cast(int(ffi.cast("uint64_t", ffi.from_buffer(data))), ctypes.c_void_p),
-                len(data),
-            )
-            # self.uc.mem_write(addr, data)
+            data_array = ctypes.Array(ctypes.c_uint8, len(data))
+            self.uc.mem_write(addr, data_array)
             self._mapped += 1
             _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast("uint64_t", ffi.from_buffer(bitmap))), None)
         else:
