@@ -102,7 +102,7 @@ class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSAVa
                             and (block.addr, block.idx) == (defs[0].block_addr, defs[0].block_idx)
                             and self._is_consecutive_defs(defs)
                         ):
-                            dst_vvar = self.new_stack_vvar(dst_offset, struct_ty.size, stmt.tags)
+                            dst_vvar = self.new_stack_vvar(dst_offset, struct_ty.size, {"ins_addr": block.addr})
                             # addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
                             src_vvar = self.get_stack_vvar_by_insn(
                                 src_offset,
@@ -117,7 +117,7 @@ class OwnershipSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSAVa
                                 struct_ty.size // 8,
                                 endness=self.project.arch.memory_endness,
                             )
-                            replacement = Assignment(idx=None, dst=dst_vvar, src=data, **stmt.tags)
+                            replacement = Assignment(idx=None, dst=dst_vvar, src=data, ins_addr=block.addr)
                             # replacement = Store(
                             #     idx=None,
                             #     addr=addr,
