@@ -171,6 +171,14 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             return self.try_convert_to_enum(result), stmts_to_remove
         return None, None
 
+    def _has_write(self, block):
+        for stmt in reversed(block.statements):
+            if isinstance(stmt, Store):
+                vvar, _ = self._get_dst_vvar_and_offset(stmt)
+                if isinstance(vvar, VirtualVariable) and vvar.was_parameter and vvar.varid == 0:
+                    return True
+        return False
+
     def derive_paths(self, block, max_paths):
         paths = [[block]]
         changed = True
@@ -195,6 +203,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             while path and (
                 all(isinstance(stmt, Label) for stmt in path[-1].statements)
                 or isinstance(path[-1].statements[-1], ConditionalJump)
+                or not self._has_write(path[-1])
             ):
                 path.pop()
             if path:
