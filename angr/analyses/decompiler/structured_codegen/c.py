@@ -3151,10 +3151,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         for node in seq.nodes:
             lines.append(self._handle(node, is_expr=False))
 
-        if not lines:
-            return CStatements([], codegen=None, addr=seq.addr)
-
-        return CStatements(lines, codegen=self, addr=seq.addr) if len(lines) > 1 else lines[0]
+        return lines[0] if len(lines) == 1 else CStatements(lines, codegen=self, addr=seq.addr)
 
     def _handle_Loop(self, loop_node, **kwargs):
         tags = {"ins_addr": loop_node.addr}
@@ -3241,7 +3238,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             r = self._handle(n, is_expr=False)
             lines.append(r)
 
-        return CStatements(lines, codegen=self, addr=node.addr) if len(lines) > 1 else lines[0]
+        return lines[0] if len(lines) == 1 else CStatements(lines, codegen=self, addr=node.addr)
 
     def _handle_SwitchCase(self, node, **kwargs):
         """
