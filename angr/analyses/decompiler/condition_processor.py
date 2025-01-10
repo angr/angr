@@ -721,6 +721,8 @@ class ConditionProcessor:
         :return: None
         """
 
+        if not isinstance(cond, claripy.ast.Base):
+            return cond
         if memo is None:
             memo = {}
         if cond._hash in memo:
