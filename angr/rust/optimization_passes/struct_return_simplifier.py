@@ -128,7 +128,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
     def _remove_discriminant_from_struct(self, struct: Struct, variant: EnumVariant):
         new_fields = {}
         for offset, v in struct.fields.items():
-            new_offset = offset - variant.discriminant_size
+            new_offset = offset - variant.data_offset
             if new_offset >= 0:
                 new_fields[new_offset] = v
         struct_ty = self._build_struct_ty(new_fields)
