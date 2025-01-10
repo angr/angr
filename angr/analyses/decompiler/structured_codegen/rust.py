@@ -3838,12 +3838,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_String(self, expr: String, **kwargs):
-        if expr.is_heap_str:
-            type_ = RustSimTypeString().with_arch(self.project.arch)
-        else:
-            type_ = RustSimTypeReference(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
-        reference_values = {type_: expr}
-        return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+        return RustStringLiteral(expr.decoded_str, tags=expr.tags, codegen=self)
+        # if expr.is_heap_str:
+        #     type_ = RustSimTypeString().with_arch(self.project.arch)
+        # else:
+        #     type_ = RustSimTypeReference(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
+        # reference_values = {type_: expr}
+        # return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
         return RustStringLiteral(expr.data, tags=expr.tags, codegen=self)
