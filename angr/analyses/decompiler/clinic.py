@@ -1690,6 +1690,9 @@ class Clinic(Analysis):
             elif stmt_type is ailment.Stmt.ConditionalJump:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.condition)
 
+            elif stmt_type is ailment.Stmt.Jump and not isinstance(stmt.target, ailment.Expr.Const):
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
+
             elif stmt_type is ailment.Stmt.Call:
                 self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False)
 

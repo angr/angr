@@ -26,6 +26,7 @@ from angr.analyses.decompiler.utils import (
     is_empty_or_label_only_node,
     has_nonlabel_nonphi_statements,
     first_nonlabel_nonphi_statement,
+    switch_extract_bitwiseand_jumptable_info,
 )
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from .structurer_nodes import (
@@ -1045,6 +1046,11 @@ class PhoenixStructurer(StructurerBase):
         if r:
             return r
         jump_tables = self.kb.cfgs["CFGFast"].jump_tables
+        r = self._match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(
+            node, graph, full_graph, jump_tables
+        )
+        if r:
+            return r
         r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph, jump_tables)
         if r:
             return r
@@ -1240,6 +1246,93 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
+    def _match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(
+        self, node, graph, full_graph, jump_tables
+    ) -> bool:
+        if node.addr not in jump_tables:
+            return False
+
+        try:
+            last_stmt = self.cond_proc.get_last_statement(node)
+        except EmptyBlockNotice:
+            return False
+        if not (isinstance(last_stmt, Jump) and not isinstance(last_stmt.target, Const)):
+            return False
+
+        jump_table = jump_tables[node.addr]
+        if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
+            return False
+
+        # extract the index expression, lower-, and upper-bounds from the last statement
+        index = switch_extract_bitwiseand_jumptable_info(last_stmt)
+        if not index:
+            return False
+        index_expr, cmp_lb, cmp_ub = index  # pylint:disable=unused-variable
+        case_count = cmp_ub - cmp_lb + 1
+
+        # ensure we have the same number of cases
+        if case_count != len(jump_table.jumptable_entries):
+            return False
+
+        # populate whitelist_edges
+        for case_node_addr in jump_table.jumptable_entries:
+            self.whitelist_edges.add((node.addr, case_node_addr))
+        self.switch_case_known_heads.add(node)
+
+        # sanity check: case nodes are successors to node. all case nodes must have at most common one successor
+        node_pred = None
+        if graph.in_degree[node] == 1:
+            node_pred = next(iter(graph.predecessors(node)))
+
+        case_nodes = list(graph.successors(node))
+
+        # case 1: the common successor happens to be directly reachable from node_a (usually as a result of compiler
+        # optimization)
+        # example: touch_touch_no_switch.o:main
+        r = self.switch_case_entry_node_has_common_successor_case_1(graph, jump_table, case_nodes, node_pred)
+
+        # case 2: the common successor is not directly reachable from node_a. this is a more common case.
+        if not r:
+            r |= self.switch_case_entry_node_has_common_successor_case_2(graph, jump_table, case_nodes, node_pred)
+
+        if not r:
+            return False
+
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
+
+        cases, node_default, to_remove = self._switch_build_cases(
+            case_and_entry_addrs,
+            node,
+            node,
+            None,
+            graph,
+            full_graph,
+        )
+
+        assert node_default is None
+        switch_end_addr = None
+
+        r = self._make_switch_cases_core(
+            node,
+            index_expr,
+            cases,
+            None,
+            None,
+            last_stmt.ins_addr,
+            to_remove,
+            graph,
+            full_graph,
+            node_a=None,
+        )
+        if not r:
+            return False
+
+        # fully structured into a switch-case. remove node from switch_case_known_heads
+        self.switch_case_known_heads.remove(node)
+        self._switch_handle_gotos(cases, node_default, switch_end_addr)
+
+        return True
+
     def _match_acyclic_switch_cases_address_computed(self, node, graph, full_graph, jump_tables) -> bool:
         if node.addr not in jump_tables:
             return False
@@ -1333,7 +1426,7 @@ class PhoenixStructurer(StructurerBase):
         case_and_entryaddrs: dict[int, int | tuple[int, int | None]],
         head_node,
         node_a: BaseNode,
-        node_b_addr,
+        node_b_addr: int | None,
         graph,
         full_graph,
     ) -> tuple[OrderedDict, Any, set[Any]]:
@@ -1343,7 +1436,9 @@ class PhoenixStructurer(StructurerBase):
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
         # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
         # successor to node_a
-        default_node_candidates = [nn for nn in graph.nodes if nn.addr == node_b_addr]
+        default_node_candidates = (
+            [nn for nn in graph.nodes if nn.addr == node_b_addr] if node_b_addr is not None else []
+        )
         node_default: BaseNode | None = next(
             iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
         )
@@ -1355,7 +1450,6 @@ class PhoenixStructurer(StructurerBase):
             self.replace_nodes(full_graph, node_default, new_node)
             node_default = new_node
 
-        # entry_addrs_set = set(jumptable_entries)
         converted_nodes: dict[tuple[int, int | None], Any] = {}
         entry_addr_to_ids: defaultdict[tuple[int, int | None], set[int]] = defaultdict(set)
 
@@ -1442,7 +1536,7 @@ class PhoenixStructurer(StructurerBase):
         head,
         cmp_expr,
         cases: OrderedDict,
-        node_default_addr: int,
+        node_default_addr: int | None,
         node_default,
         addr,
         to_remove: set,
@@ -1491,7 +1585,7 @@ class PhoenixStructurer(StructurerBase):
                 pass
             graph.remove_edge(head, node_default)
             full_graph.remove_edge(head, node_default)
-        else:
+        elif node_default_addr is not None:
             # the default node is not in the current graph, but it might be in the full graph
             node_default_in_full_graph = next(iter(nn for nn in full_graph if nn.addr == node_default_addr), None)
             if node_default_in_full_graph is not None and full_graph.has_edge(head, node_default_in_full_graph):
@@ -1570,12 +1664,21 @@ class PhoenixStructurer(StructurerBase):
 
         return case_and_entry_addrs
 
-    def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
+    def _is_node_unstructured_switch_case_head(self, node) -> bool:
         jump_tables = self.kb.cfgs["CFGFast"].jump_tables
         if node.addr in jump_tables:
+            # maybe it has been structured?
+            try:
+                last_stmts = self.cond_proc.get_last_statements(node)
+            except EmptyBlockNotice:
+                return False
+            return len(last_stmts) == 1 and isinstance(last_stmts[0], Jump)
+
+    def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
+        if self._is_node_unstructured_switch_case_head(node):
             return True
         for succ in graph.successors(node):
-            if succ.addr in jump_tables:
+            if self._is_node_unstructured_switch_case_head(succ):
                 return True
         return node in self.switch_case_known_heads
 
@@ -1634,13 +1737,11 @@ class PhoenixStructurer(StructurerBase):
                 )
             ):
                 # potentially ITE
-                jump_tables = self.kb.cfgs["CFGFast"].jump_tables
-
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
-                    and left.addr not in jump_tables
-                    and right.addr not in jump_tables
+                    and not self._is_node_unstructured_switch_case_head(left)
+                    and not self._is_node_unstructured_switch_case_head(right)
                 ):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
@@ -1681,9 +1782,9 @@ class PhoenixStructurer(StructurerBase):
                 left_succs, right_succs = right_succs, left_succs
             if left in graph and not left_succs and full_graph.in_degree[left] == 1 and right in graph:
                 # potentially If-Then
-                jump_tables = self.kb.cfgs["CFGFast"].jump_tables
-
-                if left.addr not in jump_tables and right.addr not in jump_tables:
+                if not self._is_node_unstructured_switch_case_head(
+                    left
+                ) and not self._is_node_unstructured_switch_case_head(right):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):

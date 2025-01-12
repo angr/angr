@@ -107,8 +107,9 @@ class SimEngineVRAIL(
         size = stmt.size
         self._store(addr_r, data, size, atom=stmt)
 
-    def _handle_stmt_Jump(self, stmt):
-        pass
+    def _handle_stmt_Jump(self, stmt: ailment.Stmt.Jump):
+        if not isinstance(stmt.target, ailment.Expr.Const):
+            self._expr(stmt.target)
 
     def _handle_stmt_ConditionalJump(self, stmt):
         self._expr(stmt.condition)
