@@ -146,9 +146,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 udef_to_defs[("reg", base_off, base_reg_bits)].add(def_)
                 udef_to_blockkeys[("reg", base_off, base_reg_bits)].add((loc.block_addr, loc.block_idx))
                 # add a definition for the partial register
-                if base_off != def_.reg_offset:
+                if base_off != def_.reg_offset or base_size != def_.size:
                     reg_bits = def_.size * self.project.arch.byte_width
-                    udef_to_defs[("reg", def_.reg_offset, reg_bits)].add((loc.block_addr, loc.block_idx))
+                    udef_to_defs[("reg", def_.reg_offset, reg_bits)].add(def_)
+                    udef_to_blockkeys[("reg", def_.reg_offset, reg_bits)].add((loc.block_addr, loc.block_idx))
             elif isinstance(def_, Store):
                 if isinstance(def_.addr, StackBaseOffset) and isinstance(def_.addr.offset, int):
                     idx_begin = bisect_left(sorted_stackvar_offs, def_.addr.offset)
