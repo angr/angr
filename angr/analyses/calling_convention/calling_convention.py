@@ -436,7 +436,8 @@ class CallingConventionAnalysis(Analysis):
             if caller.is_simprocedure or caller.is_alignment:
                 # do not analyze SimProcedures or alignment stubs
                 continue
-            call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
+            if src.instruction_addrs:
+                call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
 
         call_sites_by_function_list = sorted(call_sites_by_function.items(), key=lambda x: x[0].addr)[
             :max_analyzing_callsites
