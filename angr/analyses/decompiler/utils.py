@@ -277,6 +277,7 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
 
     if coeff is not None and index_expr is not None and lb is not None and ub is not None:
         return index_expr, lb, ub
+    return None
 
 
 def get_ast_subexprs(claripy_ast):

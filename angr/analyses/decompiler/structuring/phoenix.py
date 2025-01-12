@@ -1673,6 +1673,7 @@ class PhoenixStructurer(StructurerBase):
             except EmptyBlockNotice:
                 return False
             return len(last_stmts) == 1 and isinstance(last_stmts[0], Jump)
+        return False
 
     def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
         if self._is_node_unstructured_switch_case_head(node):
