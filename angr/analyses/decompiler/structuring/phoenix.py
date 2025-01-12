@@ -1,4 +1,5 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
+# ruff: noqa: SIM102
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
