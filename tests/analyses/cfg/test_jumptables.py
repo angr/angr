@@ -3041,6 +3041,17 @@ class TestJumpTableResolver(unittest.TestCase):
             0x18E5A,
         ]
 
+    def test_amd64_rust_jumptable_single_block_no_overbound_check(self):
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "1cbbf108f44c8f4babde546d26425ca5340dccf878d306b90eb0fbec2f83ab51"),
+            auto_load_libs=False,
+        )
+        cfg = p.analyses[CFGFast].prep()()
+
+        assert 0x40BD1B in cfg.model.jump_tables
+        assert len(cfg.model.jump_tables[0x40BD1B].jumptable_entries) == 4
+        assert cfg.model.jump_tables[0x40BD1B].jumptable_entries == [0x40BD38, 0x40C5D1, 0x40C59E, 0x40C5AE]
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """

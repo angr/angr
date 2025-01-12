@@ -506,6 +506,21 @@ class JumpTableProcessor(
         return v
 
     @binop_handler
+    def _handle_binop_And(self, expr):
+        arg0 = self._expr(expr.args[0])
+        if (
+            isinstance(arg0, claripy.ast.BV)
+            and self._is_registeroffset(arg0)
+            and isinstance(expr.args[1], pyvex.IRExpr.Const)
+        ):
+            mask_value = expr.args[1].con.value
+            if mask_value in {1, 3, 7, 15, 31, 63, 127, 255}:
+                # 1cbbf108f44c8f4babde546d26425ca5340dccf878d306b90eb0fbec2f83ab51:0x40bd1b
+                self.state.is_jumptable = True
+                return arg0 & mask_value
+        return self._top(expr.result_size(self.tyenv))
+
+    @binop_handler
     def _handle_binop_CmpLE(self, expr):
         return self._handle_Comparison(*expr.args)
 
