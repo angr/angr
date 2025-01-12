@@ -175,6 +175,111 @@ def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> tuple[
     return None
 
 
+def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tuple[Any, int, int] | None:
+    """
+    Check the last statement of the switch-case header node (whose address is loaded from a jump table and computed
+    using an index) and extract necessary information for rebuilding the switch-case construct.
+
+    An example of the statement:
+
+    Goto(Conv(32->s64, (
+        Load(addr=(0x4530e4<64> + (Conv(32->64, (Conv(64->32, vvar_287{reg 32}) & 0x3<32>)) * 0x4<64>)),
+             size=4, endness=Iend_LE) + 0x4530e4<32>))
+    )
+
+    :param last_stmt:   The last statement of the switch-case header node.
+    :return:            A tuple of (index expression, lower bound, upper bound), or None
+    """
+
+    if not isinstance(last_stmt, ailment.Stmt.Jump):
+        return None
+
+    # unpack the target expression
+    target = last_stmt.target
+    jump_addr_offset = None
+    jumptable_load_addr = None
+    while True:
+        if isinstance(target, ailment.Expr.Convert) and (
+            (target.from_bits == 32 and target.to_bits == 64) or (target.from_bits == 16 and target.to_bits == 32)
+        ):
+            target = target.operand
+            continue
+        if isinstance(target, ailment.Expr.BinaryOp) and target.op == "Add":
+            if isinstance(target.operands[0], ailment.Expr.Const) and isinstance(target.operands[1], ailment.Expr.Load):
+                jump_addr_offset = target.operands[0]
+                jumptable_load_addr = target.operands[1].addr
+                break
+            if isinstance(target.operands[1], ailment.Expr.Const) and isinstance(target.operands[0], ailment.Expr.Load):
+                jump_addr_offset = target.operands[1]
+                jumptable_load_addr = target.operands[0].addr
+                break
+            return None
+        if isinstance(target, ailment.Expr.Const):
+            return None
+        break
+
+    if jump_addr_offset is None or jumptable_load_addr is None:
+        return None
+
+    # parse jumptable_load_addr
+    jumptable_offset = None
+    jumptable_base_addr = None
+    if isinstance(jumptable_load_addr, ailment.Expr.BinaryOp) and jumptable_load_addr.op == "Add":
+        if isinstance(jumptable_load_addr.operands[0], ailment.Expr.Const):
+            jumptable_base_addr = jumptable_load_addr.operands[0]
+            jumptable_offset = jumptable_load_addr.operands[1]
+        elif isinstance(jumptable_load_addr.operands[1], ailment.Expr.Const):
+            jumptable_offset = jumptable_load_addr.operands[0]
+            jumptable_base_addr = jumptable_load_addr.operands[1]
+
+    if jumptable_offset is None or jumptable_base_addr is None:
+        return None
+
+    # parse jumptable_offset
+    expr = jumptable_offset
+    coeff = None
+    index_expr = None
+    lb = None
+    ub = None
+    while expr is not None:
+        if isinstance(expr, ailment.Expr.BinaryOp):
+            if expr.op == "Mul":
+                if isinstance(expr.operands[1], ailment.Expr.Const):
+                    coeff = expr.operands[1].value
+                    expr = expr.operands[0]
+                elif isinstance(expr.operands[0], ailment.Expr.Const):
+                    coeff = expr.operands[0].value
+                    expr = expr.operands[1]
+                else:
+                    return None
+            elif expr.op == "And":
+                masks = {0x1, 0x3, 0x7, 0xF, 0x1F, 0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF}
+                if isinstance(expr.operands[1], ailment.Expr.Const) and expr.operands[1].value in masks:
+                    lb = 0
+                    ub = expr.operands[1].value
+                    index_expr = expr
+                    break
+                if isinstance(expr.operands[0], ailment.Expr.Const) and expr.operands[1].value in masks:
+                    lb = 0
+                    ub = expr.operands[0].value
+                    index_expr = expr
+                    break
+                return None
+            else:
+                return None
+        elif isinstance(expr, ailment.Expr.Convert):
+            if expr.is_signed is False:
+                expr = expr.operand
+            else:
+                return None
+        else:
+            break
+
+    if coeff is not None and index_expr is not None and lb is not None and ub is not None:
+        return index_expr, lb, ub
+    return None
+
+
 def get_ast_subexprs(claripy_ast):
     queue = [claripy_ast]
     while queue:
