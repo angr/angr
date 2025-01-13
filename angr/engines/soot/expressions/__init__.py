@@ -39,10 +39,8 @@ l = logging.getLogger("angr.engines.soot.expressions")
 
 def translate_expr(expr, state):
     expr_name = expr.__class__.__name__.split(".")[-1]
-    if expr_name.startswith("Soot"):
-        expr_name = expr_name[4:]
-    if expr_name.endswith("Expr"):
-        expr_name = expr_name[:-4]
+    expr_name = expr_name.removeprefix("Soot")
+    expr_name = expr_name.removesuffix("Expr")
     expr_cls_name = "SimSootExpr_" + expr_name
 
     g = globals()

@@ -273,8 +273,7 @@ def main():
         basename = os.path.basename(ar_path)
 
         # sanitize basename since otherwise sigmake is not happy with it
-        if basename.endswith(".a"):
-            basename = basename[:-2]
+        basename = basename.removesuffix(".a")
         basename = basename.replace("+", "plus")
 
         # sanitize signame as well

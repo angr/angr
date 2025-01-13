@@ -12,8 +12,7 @@ from .strref import SimSootValue_StringRef
 
 def translate_value(value, state):
     value_name = value.__class__.__name__
-    if value_name.startswith("Soot"):
-        value_name = value_name[4:]
+    value_name = value_name.removeprefix("Soot")
     value_cls_name = "SimSootValue_" + value_name
 
     g = globals()
