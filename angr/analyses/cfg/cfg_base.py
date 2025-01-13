@@ -2520,18 +2520,17 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
-    def _is_noop_block(arch: archinfo.Arch, block):
+    def _is_noop_block(arch: archinfo.Arch, block) -> bool:
         """
         Check if the block is a no-op block by checking VEX statements.
 
         :param arch:    An architecture descriptor.
         :param block: The VEX block instance.
         :return: True if the entire block is a single-byte or multi-byte nop instruction, False otherwise.
-        :rtype: bool
         """
 
         if arch.name == "X86" or arch.name == "AMD64":
-            if set(block.bytes) == {"b\x90"}:
+            if set(block.bytes) == {0x90}:
                 return True
         elif arch.name == "MIPS32":
             if arch.memory_endness == "Iend_BE":
@@ -2577,36 +2576,7 @@ class CFGBase(Analysis):
                 if THUMB_NOOPS.issuperset(insns):
                     return True
 
-        # Fallback
-        # the block is a noop block if it only has IMark statements **and** it jumps to its immediate successor. VEX
-        # will generate such blocks when opt_level==1 and cross_insn_opt is True
-        fallthrough_addr = block.addr + block.size
-        next_ = block.vex.next
-        if (
-            isinstance(next_, pyvex.IRExpr.Const)
-            and next_.con.value == fallthrough_addr
-            and all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements)
-        ):
-            return True
-
-        # the block is a noop block if it only has IMark statements and IP-setting statements that set the IP to the
-        # next location. VEX will generate such blocks when opt_level==1 and cross_insn_opt is False
-        ip_offset = arch.ip_offset
-        if (
-            all(
-                (type(stmt) is pyvex.IRStmt.IMark or (type(stmt) is pyvex.IRStmt.Put and stmt.offset == ip_offset))
-                for stmt in block.vex.statements
-            )
-            and block.vex.statements
-        ):
-            last_stmt = block.vex.statements[-1]
-            if (
-                isinstance(last_stmt, pyvex.IRStmt.IMark)
-                and isinstance(next_, pyvex.IRExpr.Const)
-                and next_.con.value == fallthrough_addr
-            ):
-                return True
-        return False
+        return block.vex_nostmt.is_noop_block
 
     @staticmethod
     def _is_noop_insn(insn):
