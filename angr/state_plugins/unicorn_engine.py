@@ -28,8 +28,9 @@ ffi = cffi.FFI()
 
 try:
     import unicorn
+    from unicorn.unicorn_py3.unicorn import HOOK_MEM_INVALID_CFUNC
 except ImportError:
-    l.warning("Unicorn is not installed. Support disabled.")
+    l.error("Unicorn failed to import. Support disabled.")
     unicorn = None
 
 
@@ -294,65 +295,62 @@ class AggressiveConcretizationAnnotation(claripy.SimplificationAvoidanceAnnotati
 _unicounter = itertools.count()
 
 
-class Uniwrapper(unicorn.Uc if unicorn is not None else object):
-    # pylint: disable=non-parent-init-called,missing-class-docstring
+class Uniwrapper:
+    """
+    Uniwrapper is a wrapper around unicorn.Uc that makes it easier to cache
+    instances (see Unicorn.uc in this file) as well as to hook certain
+    memory-related functions.
+    """
+
+    inner: unicorn.Uc
+
     def __init__(self, arch, cache_key, thumb=False):
-        l.debug("Creating unicorn state!")
+        self.inner = unicorn.Uc(arch.uc_arch, arch.uc_mode_thumb if thumb else arch.uc_mode)
+
         self.arch = arch
         self.cache_key = cache_key
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        uc_mode = arch.uc_mode_thumb if thumb else arch.uc_mode
-        unicorn.Uc.__init__(self, arch.uc_arch, uc_mode)
 
-    def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
-        h = unicorn.Uc.hook_add(self, htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
-        # l.debug("Hook: %s,%s -> %s", htype, callback.__name__, h)
+    def hook_add(self, htype, callback, user_data=None, begin=1, end=0, aux1: int = 0, aux2: int = 0):
+        h = self.inner.hook_add(htype, callback, user_data=user_data, begin=begin, end=end, aux1=aux1, aux2=aux2)
         self.wrapped_hooks.add(h)
         return h
 
     def hook_del(self, h):
-        # l.debug("Clearing hook %s", h)
-        unicorn.Uc.hook_del(self, h)
+        self.inner.hook_del(h)
         self.wrapped_hooks.discard(h)
         return h
 
     def mem_map(self, addr, size, perms=7):
-        # l.debug("Mapping %d bytes at %#x", size, addr)
-        m = unicorn.Uc.mem_map(self, addr, size, perms=perms)
+        self.inner.mem_map(addr, size, perms=perms)
         self.wrapped_mapped.add((addr, size))
-        return m
 
     def mem_map_ptr(self, addr, size, perms, ptr):
-        m = unicorn.Uc.mem_map_ptr(self, addr, size, perms, ptr)
+        self.inner.mem_map_ptr(addr, size, perms, ptr)
         self.wrapped_mapped.add((addr, size))
-        return m
 
     def mem_unmap(self, addr, size):
-        # l.debug("Unmapping %d bytes at %#x", size, addr)
-        m = unicorn.Uc.mem_unmap(self, addr, size)
+        self.inner.mem_unmap(addr, size)
         self.wrapped_mapped.discard((addr, size))
-        return m
 
     def mem_reset(self):
-        # l.debug("Resetting memory.")
         for addr, size in self.wrapped_mapped:
-            # l.debug("Unmapping %d bytes at %#x", size, addr)
-            unicorn.Uc.mem_unmap(self, addr, size)
+            self.inner.mem_unmap(addr, size)
         self.wrapped_mapped.clear()
 
     def hook_reset(self):
-        # l.debug("Resetting hooks.")
         for h in self.wrapped_hooks:
-            # l.debug("Clearing hook %s", h)
-            unicorn.Uc.hook_del(self, h)
+            self.inner.hook_del(h)
         self.wrapped_hooks.clear()
 
     def reset(self):
         self.mem_reset()
-        # self.hook_reset()
-        # l.debug("Reset complete.")
+
+    # I'm sorry
+    def __getattr__(self, item):
+        return getattr(self.inner, item)
 
 
 _unicorn_tls = threading.local()
@@ -470,7 +468,7 @@ def _load_native():
         _setup_prototype(h, "set_tracking", None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, "executed_pages", ctypes.c_uint64, state_t)
         _setup_prototype(h, "in_cache", ctypes.c_bool, state_t, ctypes.c_uint64)
-        _setup_prototype(h, "set_map_callback", None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
+        _setup_prototype(h, "set_map_callback", None, state_t, HOOK_MEM_INVALID_CFUNC)
         _setup_prototype(
             h,
             "set_vex_to_unicorn_reg_mappings",
@@ -675,9 +673,7 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
-        self._bullshit_cb = ctypes.cast(
-            unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
-        )
+        self._bullshit_cb = ctypes.cast(HOOK_MEM_INVALID_CFUNC(self._hook_mem_unmapped), HOOK_MEM_INVALID_CFUNC)
 
     @SimStatePlugin.memo
     def copy(self, _memo):
@@ -777,9 +773,7 @@ class Unicorn(SimStatePlugin):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self._bullshit_cb = ctypes.cast(
-            unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
-        )
+        self._bullshit_cb = ctypes.cast(HOOK_MEM_INVALID_CFUNC(self._hook_mem_unmapped), HOOK_MEM_INVALID_CFUNC)
         self._unicount = next(_unicounter)
         self._uc_state = None
         self.cache_key = hash(self)
@@ -856,17 +850,17 @@ class Unicorn(SimStatePlugin):
         # l.debug('adding native hooks')
         _UC_NATIVE.hook(self._uc_state)  # prefer to use native hooks
 
-        self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1)
+        self.uc.hook_add(unicorn.UC_HOOK_MEM_INVALID, self._hook_mem_unmapped, None, 1)
 
         arch = self.state.arch.qemu_name
         if arch == "x86_64":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
             self.uc.hook_add(
-                unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None, arg1=self._uc_const.UC_X86_INS_SYSCALL
+                unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None, aux1=self._uc_const.UC_X86_INS_SYSCALL
             )
         elif arch == "i386":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-        elif arch == "mips" or arch == "mipsel":
+        elif arch in ("mips", "mipsel"):
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         elif arch == "arm":
             # EDG says: Unicorn's ARM support has no concept of interrupts.
@@ -1082,14 +1076,8 @@ class Unicorn(SimStatePlugin):
         if bitmap.readonly:
             # old-style mapping, do it via copy
             self.uc.mem_map(addr, 0x1000, perm)
-            # huge hack. why doesn't ctypes let you pass memoryview as void*?
-            unicorn.unicorn._uc.uc_mem_write(
-                self.uc._uch,
-                addr,
-                ctypes.cast(int(ffi.cast("uint64_t", ffi.from_buffer(data))), ctypes.c_void_p),
-                len(data),
-            )
-            # self.uc.mem_write(addr, data)
+            data_array = ctypes.Array(ctypes.c_uint8, len(data))
+            self.uc.mem_write(addr, data_array)
             self._mapped += 1
             _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast("uint64_t", ffi.from_buffer(bitmap))), None)
         else:
