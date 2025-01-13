@@ -67,6 +67,7 @@ class CFGNode(Generic[A], Serializable):
         "function_address",
         "has_return",
         "instruction_addrs",
+        "irsb",
         "is_syscall",
         "no_ret",
         "simprocedure_name",
@@ -125,6 +126,7 @@ class CFGNode(Generic[A], Serializable):
             # We have to collect instruction addresses by ourselves
             self.instruction_addrs = irsb.instruction_addresses
 
+        self.irsb = None
         self.soot_block = soot_block
         self.has_return = False
         self._hash = None
@@ -300,6 +302,7 @@ class CFGNode(Generic[A], Serializable):
             no_ret=self.no_ret,
             function_address=self.function_address,
             block_id=self.block_id,
+            irsb=self.irsb,
             instruction_addrs=self.instruction_addrs,
             thumb=self.thumb,
             byte_string=self.byte_string,
@@ -531,6 +534,7 @@ class CFGENode(CFGNode):
             no_ret=self.no_ret,
             function_address=self.function_address,
             block_id=self.block_id,
+            irsb=self.irsb,
             instruction_addrs=self.instruction_addrs,
             thumb=self.thumb,
             byte_string=self.byte_string,
