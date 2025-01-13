@@ -88,10 +88,6 @@ class SootFunction(Function):
         if hooker and hasattr(hooker, "NO_RET"):
             self.returning = not hooker.NO_RET
 
-        self.prepared_registers = set()
-        self.prepared_stack_variables = set()
-        self.registers_read_afterwards = set()
-
         # startpoint can always be None if this CFGNode is a syscall node
         self.startpoint = None
 

@@ -70,13 +70,10 @@ class Function(Serializable):
         "is_simprocedure",
         "is_syscall",
         "normalized",
-        "prepared_registers",
-        "prepared_stack_variables",
         "previous_names",
         "prototype",
         "prototype_libname",
         "ran_cca",
-        "registers_read_afterwards",
         "retaddr_on_stack",
         "sp_delta",
         "startpoint",
@@ -149,9 +146,6 @@ class Function(Serializable):
         self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
-        self.prepared_registers = set()
-        self.prepared_stack_variables = set()
-        self.registers_read_afterwards = set()
 
         self._addr_to_block_node = {}  # map addresses to nodes. it's a cache of blocks. if a block is removed from the
         # function, it may not be removed from _addr_to_block_node. if you want to list
