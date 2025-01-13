@@ -308,7 +308,7 @@ class VEXLifter(SimEngineBase):
 
         # Load from the clemory if we can
         if not load_from_state or not state:
-            if isinstance(clemory, cle.Clemory):
+            if isinstance(clemory, (cle.Clemory, cle.ClemoryReadOnlyView)):
                 try:
                     start, backer = next(clemory.backers(addr))
                 except StopIteration:

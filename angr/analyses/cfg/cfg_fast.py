@@ -1313,6 +1313,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         return job.addr
 
     def _pre_analysis(self):
+        # Create a read-only memory view in loader for faster data loading
+        self.project.loader.gen_ro_memview()
+
         # Call _initialize_cfg() before self.functions is used.
         self._initialize_cfg()
 
@@ -1756,6 +1759,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._rename_common_functions_and_symbols()
 
         CFGBase._post_analysis(self)
+
+        # drop the read-only memory view in loader
+        self.project.loader.discard_ro_memview()
 
         # Clean up
         self._traced_addresses = None

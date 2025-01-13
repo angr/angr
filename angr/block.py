@@ -206,8 +206,15 @@ class Block(Serializable):
             else:
                 if self._initial_regs:
                     self.set_initial_regs()
+                clemory = None
+                if project is not None:
+                    clemory = (
+                        project.loader.memory_ro_view
+                        if project.loader.memory_ro_view is not None
+                        else project.loader.memory
+                    )
                 vex = self._vex_engine.lift_vex(
-                    clemory=project.loader.memory,
+                    clemory=clemory,
                     state=backup_state,
                     insn_bytes=byte_string,
                     addr=addr,
@@ -331,8 +338,15 @@ class Block(Serializable):
         if not self._vex:
             if self._initial_regs:
                 self.set_initial_regs()
+            clemory = None
+            if self._project is not None:
+                clemory = (
+                    self._project.loader.memory_ro_view
+                    if self._project.loader.memory_ro_view is not None
+                    else self._project.loader.memory
+                )
             self._vex = self._vex_engine.lift_vex(
-                clemory=self._project.loader.memory if self._project is not None else None,
+                clemory=clemory,
                 insn_bytes=self._bytes,
                 addr=self.addr,
                 thumb=self.thumb,
@@ -362,8 +376,15 @@ class Block(Serializable):
 
         if self._initial_regs:
             self.set_initial_regs()
+        clemory = None
+        if self._project is not None:
+            clemory = (
+                self._project.loader.memory_ro_view
+                if self._project.loader.memory_ro_view is not None
+                else self._project.loader.memory
+            )
         self._vex_nostmt = self._vex_engine.lift_vex(
-            clemory=self._project.loader.memory if self._project is not None else None,
+            clemory=clemory,
             insn_bytes=self._bytes,
             addr=self.addr,
             thumb=self.thumb,
@@ -428,7 +449,12 @@ class Block(Serializable):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            self._bytes = self._project.loader.memory.load(addr, self.size)
+            mem = (
+                self._project.loader.memory_ro_view
+                if self._project.loader.memory_ro_view is not None
+                else self._project.loader.memory
+            )
+            self._bytes = mem.load(addr, self.size)
         return self._bytes
 
     @property
