@@ -1284,7 +1284,11 @@ class PcodeLifterEngineMixin(SimEngineBase):
             raise SimTranslationError("Unable to translate bytecode") from e
 
     def _load_bytes(
-        self, addr: int, max_size: int, state: SimState | None = None, clemory: cle.Clemory | None = None
+        self,
+        addr: int,
+        max_size: int,
+        state: SimState | None = None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
     ) -> tuple[bytes, int, int]:
         if clemory is None and state is None:
             raise SimEngineError("state and clemory cannot both be None in _load_bytes().")
@@ -1306,7 +1310,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
 
         # Load from the clemory if we can
         if not load_from_state or not state:
-            if isinstance(clemory, cle.Clemory):
+            if isinstance(clemory, (cle.Clemory, cle.ClemoryReadOnlyView)):
                 try:
                     start, backer = next(clemory.backers(addr))
                 except StopIteration:

@@ -288,7 +288,9 @@ class VEXLifter(SimEngineBase):
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
             raise SimTranslationError("Unable to translate bytecode") from e
 
-    def _load_bytes(self, addr, max_size, state=None, clemory=None) -> tuple[bytes, int, int]:
+    def _load_bytes(
+        self, addr, max_size, state=None, clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None
+    ) -> tuple[bytes, int, int]:
         if clemory is None and state is None:
             raise SimEngineError("state and clemory cannot both be None in _load_bytes().")
 
