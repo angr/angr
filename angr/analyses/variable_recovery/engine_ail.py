@@ -161,7 +161,7 @@ class SimEngineVRAIL(
                 prototype_libname = func.prototype_libname
 
         # dump the type of the return value
-        ret_ty = typevars.TypeVariable() if prototype is not None else typevars.TypeVariable()
+        ret_ty = typevars.TypeVariable()
         if isinstance(ret_ty, typeconsts.BottomType):
             ret_ty = typevars.TypeVariable()
 
@@ -230,7 +230,7 @@ class SimEngineVRAIL(
                 prototype_libname = func.prototype_libname
 
         # dump the type of the return value
-        ret_ty = typevars.TypeVariable() if prototype is not None else typevars.TypeVariable()
+        ret_ty = typevars.TypeVariable()
         if isinstance(ret_ty, typeconsts.BottomType):
             ret_ty = typevars.TypeVariable()
 

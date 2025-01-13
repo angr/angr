@@ -571,8 +571,7 @@ class ReturnDuplicatorBase:
                 new_name = stmt.name if stmt.name else f"Label_{stmt.ins_addr:x}"
                 if stmt.block_idx is not None:
                     suffix = f"__{stmt.block_idx}"
-                    if new_name.endswith(suffix):
-                        new_name = new_name[: -len(suffix)]
+                    new_name = new_name.removesuffix(suffix)
                 else:
                     new_name = stmt.name
                 new_name += f"__{block.idx}"

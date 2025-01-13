@@ -30,8 +30,7 @@ class ClassIdentifier(Analysis):
                 continue
             col_ind = func.demangled_name.rfind("::")
             class_name = func.demangled_name[:col_ind]
-            if class_name.startswith("non-virtual thunk for "):
-                class_name = class_name[len("non-virtual thunk for ") :]
+            class_name = class_name.removeprefix("non-virtual thunk for ")
             if col_ind != -1:
                 if class_name not in self.classes:
                     ctor = False

@@ -16,8 +16,7 @@ l = logging.getLogger("angr.engines.soot.statements")
 
 def translate_stmt(stmt, state):
     stmt_name = stmt.__class__.__name__.split(".")[-1]
-    if stmt_name.endswith("Stmt"):
-        stmt_name = stmt_name[:-4]
+    stmt_name = stmt_name.removesuffix("Stmt")
 
     stmt_cls_name = f"SimSootStmt_{stmt_name}"
     if stmt_cls_name in globals():

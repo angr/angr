@@ -22,9 +22,7 @@ def get_basic_info(ar_path: str) -> dict[str, str]:
     """
 
     with tempfile.TemporaryDirectory() as tempdirname:
-        cwd = os.getcwd()
-        os.chdir(tempdirname)
-        subprocess.call(["ar", "x", ar_path])
+        subprocess.call(["ar", "x", ar_path], cwd=tempdirname)
 
         # Load arch and OS information from the first .o file
         o_files = [f for f in os.listdir(".") if f.endswith(".o")]
@@ -32,8 +30,8 @@ def get_basic_info(ar_path: str) -> dict[str, str]:
             proj = angr.Project(o_files[0], auto_load_libs=False)
             arch_name = proj.arch.name.lower()
             os_name = proj.simos.name.lower()
-
-        os.chdir(cwd)
+        else:
+            raise ValueError("No .o files found in the archive.")
 
     return {
         "arch": arch_name,
@@ -64,9 +62,7 @@ def get_unique_strings(ar_path: str) -> list[str]:
     # extract the archive file into a temporary directory
     all_strings = set()
     with tempfile.TemporaryDirectory() as tempdirname:
-        cwd = os.getcwd()
-        os.chdir(tempdirname)
-        subprocess.call(["ar", "x", ar_path])
+        subprocess.call(["ar", "x", ar_path], cwd=tempdirname)
 
         for filename in os.listdir("."):
             if filename.endswith(".o"):
@@ -92,8 +88,6 @@ def get_unique_strings(ar_path: str) -> list[str]:
                             continue
                     non_symbol_strings.add(s)
                 all_strings |= non_symbol_strings
-
-        os.chdir(cwd)
 
     grouped_strings = defaultdict(set)
     for s in all_strings:
@@ -138,7 +132,7 @@ def process_exc_file(exc_path: str):
 
     TODO: Add caller-callee-based de-duplication.
     """
-    with open(exc_path) as f:
+    with open(exc_path, encoding="utf-8") as f:
         data = f.read()
         lines = data.split("\n")
 
@@ -184,7 +178,7 @@ def process_exc_file(exc_path: str):
         g[the_chosen_one] = "+" + line
 
     # output
-    with open(exc_path, "w") as f:
+    with open(exc_path, "w", encoding="utf-8") as f:
         for g in groups.values():
             for line in g.values():
                 f.write(line + "\n")
@@ -273,8 +267,7 @@ def main():
         basename = os.path.basename(ar_path)
 
         # sanitize basename since otherwise sigmake is not happy with it
-        if basename.endswith(".a"):
-            basename = basename[:-2]
+        basename = basename.removesuffix(".a")
         basename = basename.replace("+", "plus")
 
         # sanitize signame as well
@@ -292,7 +285,7 @@ def main():
 
             assert not has_collision
 
-    with open(meta_path, "w") as f:
+    with open(meta_path, "w", encoding="utf-8") as f:
         metadata = {
             "unique_strings": unique_strings,
         }
