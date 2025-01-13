@@ -57,7 +57,7 @@ class VEXLifter(SimEngineBase):
                 self.selfmodifying_code = False
 
         # block cache
-        self._block_cache = None
+        self._block_cache: LRUCache = None
         self._block_cache_hits = 0
         self._block_cache_misses = 0
 
@@ -79,7 +79,7 @@ class VEXLifter(SimEngineBase):
         addr=None,
         state=None,
         clemory=None,
-        insn_bytes=None,
+        insn_bytes: bytes | None = None,
         offset=None,
         arch=None,
         size=None,
@@ -245,6 +245,7 @@ class VEXLifter(SimEngineBase):
             raise SimEngineError(f"No bytes in memory for block starting at {addr:#x}.")
 
         # phase 5: call into pyvex
+        buff: bytes | claripy.ast.BV
         l.debug("Creating IRSB of %s at %#x", arch, addr)
         try:
             for subphase in range(2):
@@ -287,7 +288,7 @@ class VEXLifter(SimEngineBase):
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
             raise SimTranslationError("Unable to translate bytecode") from e
 
-    def _load_bytes(self, addr, max_size, state=None, clemory=None):
+    def _load_bytes(self, addr, max_size, state=None, clemory=None) -> tuple[bytes, int, int]:
         if clemory is None and state is None:
             raise SimEngineError("state and clemory cannot both be None in _load_bytes().")
 

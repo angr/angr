@@ -1,10 +1,11 @@
 # pylint:disable=wrong-import-position,arguments-differ
 from __future__ import annotations
 import logging
+from typing import TYPE_CHECKING
 
 import pyvex
 from pyvex import IRSB
-from archinfo import ArchARM
+from archinfo import Arch, ArchARM
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
@@ -13,6 +14,11 @@ try:
     from .engines import pcode
 except ImportError:
     pcode = None
+
+if TYPE_CHECKING:
+    from angr import Project
+    from angr.engines.vex import VEXLifter
+    from angr.engines.pcode.lifter import PcodeLifterEngineMixin
 
 
 l = logging.getLogger(name=__name__)
@@ -168,6 +174,7 @@ class Block(Serializable):
         skip_stmts=False,
     ):
         # set up arch
+        self.arch: Arch
         if project is not None:
             self.arch = project.arch
         else:
@@ -187,7 +194,7 @@ class Block(Serializable):
         else:
             thumb = False
 
-        self._project = project
+        self._project: Project | None = project
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
@@ -276,7 +283,7 @@ class Block(Serializable):
         else:
             # Convert bytestring to a str
             # size will ALWAYS be known at this point
-            self._bytes = str(pyvex.ffi.buffer(byte_string, self.size))
+            self._bytes = bytes(pyvex.ffi.buffer(byte_string, self.size))
 
     def _parse_vex_info(self, vex_block):
         if vex_block is not None:
@@ -330,7 +337,9 @@ class Block(Serializable):
         pyvex.pvc.reset_initial_register_values()
 
     @property
-    def _vex_engine(self):
+    def _vex_engine(self) -> VEXLifter | PcodeLifterEngineMixin:
+        if self._project is None:
+            raise ValueError("Project is not set")
         return self._project.factory.default_engine
 
     @property
@@ -421,7 +430,7 @@ class Block(Serializable):
         return self._disassembly
 
     @property
-    def capstone(self):
+    def capstone(self) -> CapstoneBlock:
         if self._capstone:
             return self._capstone
 
@@ -449,12 +458,13 @@ class Block(Serializable):
             addr = self.addr
             if self.thumb:
                 addr = (addr >> 1) << 1
-            mem = (
-                self._project.loader.memory_ro_view
-                if self._project.loader.memory_ro_view is not None
-                else self._project.loader.memory
-            )
-            self._bytes = mem.load(addr, self.size)
+            if self._project is not None:
+                mem = (
+                    self._project.loader.memory_ro_view
+                    if self._project.loader.memory_ro_view is not None
+                    else self._project.loader.memory
+                )
+                self._bytes = mem.load(addr, self.size)
         return self._bytes
 
     @property
