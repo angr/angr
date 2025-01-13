@@ -297,7 +297,7 @@ class SimSuccessors:
 
             if "ip_at_syscall" in state.arch.registers:
                 # Misuse the ip_at_syscall register to save the return address for this syscall
-                # state.ip *might be* changed to be the real address 
+                # state.ip *might be* changed to be the real address
                 # of syscall SimProcedures by syscall handling code in angr
                 state.regs.ip_at_syscall = state.ip
             else:
