@@ -269,11 +269,11 @@ class SimSuccessors:
         # categorize the state
         if o.APPROXIMATE_GUARDS in state.options and state.solver.is_false(state.scratch.guard, exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options and state.satisfiable():
-                raise Exception("WTF")
+                raise AssertionError("WTF")
             self.unsat_successors.append(state)
         elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options and state.solver.satisfiable():
-                raise Exception("WTF")
+                raise AssertionError("WTF")
             self.unsat_successors.append(state)
         elif (not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard)) or (
             o.LAZY_SOLVES not in state.options and not state.satisfiable()
@@ -295,10 +295,15 @@ class SimSuccessors:
             # syscall
             self.successors.append(state)
 
-            # Misuse the ip_at_syscall register to save the return address for this syscall
-            # state.ip *might be* changed to be the real address of syscall SimProcedures by syscall handling code in
-            # angr
-            state.regs.ip_at_syscall = state.ip
+            if "ip_at_syscall" in state.arch.registers:
+                # Misuse the ip_at_syscall register to save the return address for this syscall
+                # state.ip *might be* changed to be the real address
+                # of syscall SimProcedures by syscall handling code in angr
+                state.regs.ip_at_syscall = state.ip
+            else:
+                # The architecture doesn't have an ip_at_syscall register.
+                # Nothing to do but hope vigorously.
+                l.warning(f"Handling syscall on arch {state.arch.name:s} without ip_at_syscall register")
 
             try:
                 symbolic_syscall_num, concrete_syscall_nums = self._resolve_syscall(state)
