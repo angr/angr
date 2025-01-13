@@ -92,7 +92,7 @@ class PcodeEmulatorMixin(SimEngineBase):
                 self.state,
                 fallthru_addr,
                 self.state.scratch.guard,
-                "Ijk_Boring",
+                irsb.jumpkind,
                 exit_stmt_idx=DEFAULT_STATEMENT,
                 exit_ins_addr=self.state.scratch.ins_addr,
             )
