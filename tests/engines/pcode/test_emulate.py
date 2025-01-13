@@ -81,6 +81,7 @@ class MockIRSB:
     _ops: list[MockPcodeOp]
     addr: int = 0
     behaviors: BehaviorFactory = BEHAVIORS
+    jumpkind: str = "Ijk_Boring"
 
 
 OP = MockPcodeOp
