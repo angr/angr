@@ -1,7 +1,11 @@
+# pylint:disable=super-init-not-called
 from __future__ import annotations
 import os
-import networkx
 from collections import defaultdict
+
+import networkx
+
+from angr.codenode import BlockNode
 from .function import Function
 
 
@@ -122,6 +126,3 @@ class SootFunction(Function):
         if isinstance(node, BlockNode) and node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
         return node
-
-
-from angr.codenode import BlockNode
