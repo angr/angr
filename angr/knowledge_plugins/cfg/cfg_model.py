@@ -15,6 +15,7 @@ import cle
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.misc.ux import once
+from angr.project import Project
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.serializable import Serializable
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
@@ -24,7 +25,7 @@ from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
 
 if TYPE_CHECKING:
-    from angr.knowledge_base.knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
     from angr.utils.segment_list import SegmentList
@@ -92,7 +93,7 @@ class CFGModel(Serializable):
     #
 
     @property
-    def project(self):
+    def project(self) -> Project | None:
         if self._cfg_manager is None:
             return None
         return self._cfg_manager._kb._project

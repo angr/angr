@@ -39,6 +39,7 @@ from angr.errors import (
     SimError,
     SimIRSBNoDecodeError,
 )
+from angr.sim_state import SimState
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.funcid import (
     is_function_security_check_cookie,
@@ -580,6 +581,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     tag = "CFGFast"
 
+    _pending_jobs: PendingJobs
+    _traced_addresses: set[int]
+    _initial_state: SimState[int, claripy.ast.BV]
+
     def __init__(
         self,
         binary=None,
@@ -808,7 +813,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # mapping to all known thunks
         self._known_thunks = {}
 
-        self._initial_state = None
         self._next_addr: int | None = None
 
         # Create the segment list
@@ -825,15 +829,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         #
         # Variables used during analysis
         #
-        self._pending_jobs = None
-        self._traced_addresses = None
         self._function_returns = None
-        self._function_exits = None
         self._gp_value: int | None = None
         self._ro_region_cdata_cache: list | None = None
         self._job_ctr = 0
         self._decoding_assumptions: dict[int, DecodingAssumption] = {}
         self._decoding_assumption_relations = None
+
+        # Sadly, not all calls to functions are explicitly made by call
+        # instruction - they could be a jmp or b, or something else. So we
+        # should record all exits from a single function, and then add
+        # necessary calling edges in our call map during the post-processing
+        # phase.
+        self._function_exits: defaultdict[int, set[int]] = defaultdict(set)
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -914,7 +922,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     # Methods for scanning the entire image
 
-    def _next_unscanned_addr(self, alignment=None):
+    def _next_unscanned_addr(self, alignment=None) -> int | None:
         """
         Find the next address that we haven't processed
 
@@ -970,7 +978,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self._next_addr is not None and self._next_addr >= new_addr:
             self._next_addr = new_addr - 1
 
-    def _load_a_byte_as_int(self, addr):
+    def _load_a_byte_as_int(self, addr) -> int | None:
         if self._base_state is not None:
             try:
                 val = self._base_state.mem_concrete(addr, 1, inspect=False, disable_actions=True)
@@ -1320,8 +1328,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._known_thunks = self._find_thunks()
 
         # Initialize variables used during analysis
-        self._pending_jobs: PendingJobs = PendingJobs(self.kb, self._deregister_analysis_job)
-        self._traced_addresses: set[int] = {a for a, n in self._nodes_by_addr.items() if n}
+        self._pending_jobs = PendingJobs(self.kb, self._deregister_analysis_job)
+        self._traced_addresses = {a for a, n in self._nodes_by_addr.items() if n}
         self._function_returns = defaultdict(set)
 
         # Populate known objects in segment tracker
@@ -1330,13 +1338,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             self._seg_list.occupy(n.addr, n.size, "code")
         for d in self.model.memory_data.values():
             self._seg_list.occupy(d.addr, d.size, d.sort)
-
-        # Sadly, not all calls to functions are explicitly made by call
-        # instruction - they could be a jmp or b, or something else. So we
-        # should record all exits from a single function, and then add
-        # necessary calling edges in our call map during the post-processing
-        # phase.
-        self._function_exits: defaultdict[int, set[int]] = defaultdict(set)
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(
@@ -1758,7 +1759,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         CFGBase._post_analysis(self)
 
         # Clean up
-        self._traced_addresses = None
+        del self._traced_addresses
         self._lifter_deregister_readonly_regions()
         self._function_returns = None
 
