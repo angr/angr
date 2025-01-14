@@ -1032,7 +1032,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         self,
         addr: int | None = None,
         state: SimState | None = None,
-        clemory: cle.Clemory | None = None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
         insn_bytes: bytes | None = None,
         arch: archinfo.Arch | None = None,
         size: int | None = None,
@@ -1047,7 +1047,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
         const_prop: bool | None = None,
-    ):
+    ) -> IRSB:
         """
         Temporary compatibility interface for integration with block code.
         """
@@ -1075,7 +1075,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         self,
         addr: int | None = None,
         state: SimState | None = None,
-        clemory: cle.Clemory | None = None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
         insn_bytes: bytes | None = None,
         arch: archinfo.Arch | None = None,
         size: int | None = None,
@@ -1090,7 +1090,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
         const_prop: bool | None = None,
-    ):
+    ) -> IRSB:
         """
         Lift an IRSB.
 

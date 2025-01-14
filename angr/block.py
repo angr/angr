@@ -18,7 +18,8 @@ except ImportError:
 if TYPE_CHECKING:
     from angr import Project
     from angr.engines.vex import VEXLifter
-    from angr.engines.pcode.lifter import PcodeLifterEngineMixin
+    from angr.engines.pcode.lifter import PcodeLifterEngineMixin, IRSB as PcodeIRSB
+    from angr.engines.soot.engine import SootMixin
 
 
 l = logging.getLogger(name=__name__)
@@ -154,7 +155,7 @@ class Block(Serializable):
         self,
         addr,
         project=None,
-        arch=None,
+        arch: Arch = None,
         size=None,
         max_size=None,
         byte_string=None,
@@ -257,7 +258,7 @@ class Block(Serializable):
         self._load_from_ro_regions = load_from_ro_regions
         self._const_prop = const_prop
 
-        self._instructions = num_inst
+        self._instructions: int | None = num_inst
         self._instruction_addrs: list[int] = []
 
         if skip_stmts:
@@ -272,7 +273,7 @@ class Block(Serializable):
                 if type(self._bytes) is memoryview:
                     self._bytes = bytes(self._bytes)
                 elif type(self._bytes) is not bytes:
-                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))
+                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))  # type:ignore
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
@@ -283,7 +284,7 @@ class Block(Serializable):
         else:
             # Convert bytestring to a str
             # size will ALWAYS be known at this point
-            self._bytes = bytes(pyvex.ffi.buffer(byte_string, self.size))
+            self._bytes = bytes(pyvex.ffi.buffer(byte_string, self.size))  # type:ignore
 
     def _parse_vex_info(self, vex_block):
         if vex_block is not None:
@@ -340,10 +341,10 @@ class Block(Serializable):
     def _vex_engine(self) -> VEXLifter | PcodeLifterEngineMixin:
         if self._project is None:
             raise ValueError("Project is not set")
-        return self._project.factory.default_engine
+        return self._project.factory.default_engine  # type:ignore
 
     @property
-    def vex(self) -> IRSB:
+    def vex(self) -> IRSB | PcodeIRSB:
         if not self._vex:
             if self._initial_regs:
                 self.set_initial_regs()
@@ -373,6 +374,7 @@ class Block(Serializable):
                 self.reset_initial_regs()
             self._parse_vex_info(self._vex)
 
+        assert self._vex is not None
         return self._vex
 
     @property
@@ -424,7 +426,7 @@ class Block(Serializable):
         """
         if self._disassembly is None:
             if self._using_pcode_engine:
-                self._disassembly = self.vex.disassembly
+                self._disassembly = self.vex.disassembly  # type:ignore
             else:
                 self._disassembly = self.capstone
         return self._disassembly
@@ -434,7 +436,7 @@ class Block(Serializable):
         if self._capstone:
             return self._capstone
 
-        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb
+        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb  # type:ignore
 
         insns = []
 
@@ -453,7 +455,7 @@ class Block(Serializable):
         return BlockNode(self.addr, self.size, bytestr=self.bytes, thumb=self.thumb)
 
     @property
-    def bytes(self) -> bytes:
+    def bytes(self) -> bytes | None:
         if self._bytes is None:
             addr = self.addr
             if self.thumb:
@@ -473,6 +475,7 @@ class Block(Serializable):
             # initialize from VEX
             _ = self.vex
 
+        assert self._instructions is not None
         return self._instructions
 
     @property
@@ -513,17 +516,17 @@ class SootBlock:
     Represents a Soot IR basic block.
     """
 
-    def __init__(self, addr, project=None, arch=None):
+    def __init__(self, addr, *, project: Project, arch: Arch):
         self.addr = addr
         self.arch = arch
         self._project = project
         self._the_binary = project.loader.main_object
 
     @property
-    def _soot_engine(self):
+    def _soot_engine(self) -> SootMixin:
         if self._project is None:
             assert False, "This should be unreachable"
-        return self._project.factory.default_engine
+        return self._project.factory.default_engine  # type:ignore
 
     @property
     def soot(self):

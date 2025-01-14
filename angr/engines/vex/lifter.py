@@ -78,7 +78,7 @@ class VEXLifter(SimEngineBase):
         self,
         addr=None,
         state=None,
-        clemory=None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
         insn_bytes: bytes | None = None,
         offset=None,
         arch=None,
@@ -94,7 +94,7 @@ class VEXLifter(SimEngineBase):
         cross_insn_opt=None,
         load_from_ro_regions=False,
         const_prop=False,
-    ):
+    ) -> pyvex.IRSB:
         """
         Lift an IRSB.
 
