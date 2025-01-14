@@ -379,7 +379,7 @@ class FunctionHandler:
                 else hook_libname
             )
             type_collections = []
-            if prototype_libname is not None:
+            if prototype_libname is not None and prototype_libname in SIM_LIBRARIES:
                 prototype_lib = SIM_LIBRARIES[prototype_libname]
                 if prototype_lib.type_collection_names:
                     for typelib_name in prototype_lib.type_collection_names:
