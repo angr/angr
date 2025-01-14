@@ -1,5 +1,6 @@
 # pylint:disable=superfluous-parens,too-many-boolean-expressions,line-too-long
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import itertools
 import logging
 import math
@@ -51,6 +52,10 @@ from angr.utils.segment_list import SegmentList
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
+
+if TYPE_CHECKING:
+    from angr.block import Block
+    from angr.engines.pcode.lifter import IRSB as PcodeIRSB
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -825,10 +830,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         #
         # Variables used during analysis
         #
-        self._pending_jobs = None
-        self._traced_addresses = None
+        self._pending_jobs = None  # type:ignore
+        self._traced_addresses = None  # type:ignore
         self._function_returns = None
-        self._function_exits = None
+        self._function_exits = None  # type:ignore
         self._gp_value: int | None = None
         self._ro_region_cdata_cache: list | None = None
         self._job_ctr = 0
@@ -872,7 +877,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if size is None:
             size = len(data)
 
-        data = bytes(pyvex.ffi.buffer(data, size))
+        data = bytes(pyvex.ffi.buffer(data, size))  # type:ignore
         for x in range(256):
             p_x = float(data.count(x)) / size
             if p_x > 0:
@@ -1229,7 +1234,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 # umm now it's probably code
                 break
 
-        instr_alignment = self._initial_state.arch.instruction_alignment
+        instr_alignment = self.project.arch.instruction_alignment
+        if not instr_alignment:
+            instr_alignment = 1
         if start_addr % instr_alignment > 0:
             # occupy those few bytes
             size = instr_alignment - (start_addr % instr_alignment)
@@ -1286,7 +1293,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         nodecode_bytes_ratio = (
             0.0 if self._next_addr is None else self._nodecode_bytes_ratio(self._next_addr, self._nodecode_window_size)
         )
-        if nodecode_bytes_ratio >= self._nodecode_threshold:
+        if nodecode_bytes_ratio >= self._nodecode_threshold and self._next_addr is not None:
             next_allowed_addr = self._next_addr + self._nodecode_step
         else:
             next_allowed_addr = 0
@@ -1313,6 +1320,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         return job.addr
 
     def _pre_analysis(self):
+        # Create a read-only memory view in loader for faster data loading
+        self.project.loader.gen_ro_memview()
+
         # Call _initialize_cfg() before self.functions is used.
         self._initialize_cfg()
 
@@ -1756,6 +1766,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._rename_common_functions_and_symbols()
 
         CFGBase._post_analysis(self)
+
+        # drop the read-only memory view in loader
+        self.project.loader.discard_ro_memview()
 
         # Clean up
         self._traced_addresses = None
@@ -2926,7 +2939,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         if v is not None:
                             tmps[stmt.tmp] = v
 
-                elif type(stmt.data) in (pyvex.IRExpr.Binop,):  # pylint: disable=unidiomatic-typecheck
+                elif type(stmt.data) is pyvex.IRExpr.Binop:  # pylint: disable=unidiomatic-typecheck
                     # rip-related addressing
                     if stmt.data.op in ("Iop_Add32", "Iop_Add64"):
                         if all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
@@ -4412,8 +4425,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
-            irsb = None
-            lifted_block = None
+            irsb: pyvex.IRSB | PcodeIRSB | None = None
+            lifted_block: Block = None  # type:ignore
             try:
                 lifted_block = self._lift(
                     addr,
@@ -4427,10 +4440,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             except SimTranslationError:
                 nodecode = True
 
-            irsb_string: bytes = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
+            irsb_string: bytes = b""
+            lifted_block_bytes = lifted_block.bytes if lifted_block.bytes is not None else b""
+            if lifted_block is not None:
+                irsb_string = lifted_block_bytes[: irsb.size] if irsb is not None else lifted_block_bytes
 
             # special logic during the complete scanning phase
-            if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING and is_arm_arch(self.project.arch):
+            if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING and is_arm_arch(self.project.arch) and irsb is not None:
                 # it's way too easy to incorrectly disassemble THUMB code contains 0x4f as ARM code svc?? #????
                 # if we get a single block that getting decoded to svc?? under ARM mode, we treat it as nodecode
                 if (
@@ -4468,7 +4484,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     except SimTranslationError:
                         nodecode = True
 
-                    irsb_string: bytes = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
+                    irsb_string = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
 
                     if not (nodecode or irsb.size == 0 or irsb.jumpkind == "Ijk_NoDecode"):
                         # it is decodeable

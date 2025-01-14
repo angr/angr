@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable, Sequence
 
 import archinfo
@@ -33,6 +33,12 @@ try:
     import pypcode
 except ImportError:
     pypcode = None
+
+
+if TYPE_CHECKING:
+    # this is to make pyright happy; otherwise it believes pypcode is None
+    import pypcode
+    from pypcode import PcodeOp, Context
 
 
 l = logging.getLogger(__name__)
@@ -130,8 +136,8 @@ class IRSB:
 
     _direct_next: bool | None
     _exit_statements: Sequence[tuple[int, int, ExitStatement]]
-    _instruction_addresses: Sequence[int] | None
-    _ops: Sequence[pypcode.PcodeOp]  # FIXME: Merge into _statements
+    _instruction_addresses: list[int] | None
+    _ops: list[PcodeOp]  # FIXME: Merge into _statements
     _size: int | None
     _statements: Iterable  # Note: currently unused
     _disassembly: PcodeDisassemblerBlock | None
@@ -140,7 +146,7 @@ class IRSB:
     behaviors: BehaviorFactory | None
     data_refs: Sequence  # Note: currently unused
     const_vals: Sequence  # Note: currently unused
-    default_exit_target: Optional  # Note: currently used
+    default_exit_target: Any  # Note: currently used
     jumpkind: str | None
     next: int | None
 
@@ -199,7 +205,7 @@ class IRSB:
         self._direct_next = None
         self._exit_statements = []
         self._instruction_addresses = None
-        self._ops = []
+        self._ops: list[PcodeOp] = []
         self._size = None
         self._statements = []
         self.addr = mem_addr
@@ -248,7 +254,7 @@ class IRSB:
 
     @property
     def has_statements(self) -> bool:
-        return self.statements is not None and self.statements
+        return bool(self.statements is not None and self.statements)
 
     @property
     def exit_statements(self) -> Sequence[tuple[int, int, ExitStatement]]:
@@ -320,7 +326,7 @@ class IRSB:
         return len(self.statements)
 
     @property
-    def offsIP(self) -> int:
+    def offsIP(self) -> int | None:
         return self.arch.ip_offset
 
     @property
@@ -459,10 +465,10 @@ class IRSB:
         jumpkind: str | None = None,
         direct_next: bool | None = None,
         size: int | None = None,
-        ops: Sequence[pypcode.PcodeOp] | None = None,
-        instruction_addresses: Iterable[int] | None = None,
+        ops: list[PcodeOp] | None = None,
+        instruction_addresses: list[int] | None = None,
         exit_statements: Sequence[tuple[int, int, ExitStatement]] | None = None,
-        default_exit_target: Optional | None = None,
+        default_exit_target: Any = None,
     ) -> None:
         # pylint: disable=unused-argument
         self._statements = statements if statements is not None else []
@@ -490,7 +496,7 @@ class IRSB:
         )
 
     @property
-    def statements(self) -> Iterable:
+    def statements(self) -> list:
         # FIXME: For compatibility, may want to implement Ist_IMark and
         # pyvex.IRStmt.Exit to ease analyses.
         l.debug("Returning empty statements list!")
@@ -807,7 +813,7 @@ class PcodeBasicBlockLifter:
     Lifts basic blocks to P-code
     """
 
-    context: pypcode.Context
+    context: Context
     behaviors: BehaviorFactory
 
     def __init__(self, arch: archinfo.Arch):
@@ -1032,7 +1038,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         self,
         addr: int | None = None,
         state: SimState | None = None,
-        clemory: cle.Clemory | None = None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
         insn_bytes: bytes | None = None,
         arch: archinfo.Arch | None = None,
         size: int | None = None,
@@ -1047,7 +1053,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
         const_prop: bool | None = None,
-    ):
+    ) -> IRSB:
         """
         Temporary compatibility interface for integration with block code.
         """
@@ -1075,7 +1081,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         self,
         addr: int | None = None,
         state: SimState | None = None,
-        clemory: cle.Clemory | None = None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
         insn_bytes: bytes | None = None,
         arch: archinfo.Arch | None = None,
         size: int | None = None,
@@ -1090,7 +1096,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         load_from_ro_regions: bool = False,
         cross_insn_opt: bool | None = None,
         const_prop: bool | None = None,
-    ):
+    ) -> IRSB:
         """
         Lift an IRSB.
 
@@ -1137,6 +1143,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
 
         # phase 1: parameter defaults
         if addr is None:
+            assert state is not None
             addr = state.solver.eval(state._ip)
         if size is not None:
             size = min(size, IRSB_MAX_SIZE)
@@ -1158,6 +1165,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
                     " disabled."
                 )
             opt_level = 0
+            assert state is not None
             if state and o.OPTIMIZE_IR in state.options:
                 state.options.remove(o.OPTIMIZE_IR)
         if skip_stmts is not True:
@@ -1278,13 +1286,18 @@ class PcodeLifterEngineMixin(SimEngineBase):
                     )
                 return irsb
 
+            raise SimEngineError("Unreachable code reached")
         # phase x: error handling
         except PyVEXError as e:
             l.debug("Translation error at %#x", addr)
             raise SimTranslationError("Unable to translate bytecode") from e
 
     def _load_bytes(
-        self, addr: int, max_size: int, state: SimState | None = None, clemory: cle.Clemory | None = None
+        self,
+        addr: int,
+        max_size: int,
+        state: SimState | None = None,
+        clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None,
     ) -> tuple[bytes, int, int]:
         if clemory is None and state is None:
             raise SimEngineError("state and clemory cannot both be None in _load_bytes().")
@@ -1306,7 +1319,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
 
         # Load from the clemory if we can
         if not load_from_state or not state:
-            if isinstance(clemory, cle.Clemory):
+            if isinstance(clemory, (cle.Clemory, cle.ClemoryReadOnlyView)):
                 try:
                     start, backer = next(clemory.backers(addr))
                 except StopIteration:
