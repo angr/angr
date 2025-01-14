@@ -7,6 +7,7 @@ from collections import defaultdict
 import networkx
 from sortedcontainers import SortedDict
 
+import claripy
 import pyvex
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource, Hex, Coff, SRec, XBE
 from cle.backends import NamedRegion
@@ -63,7 +64,7 @@ class CFGBase(Analysis):
         exclude_sparse_regions=True,
         skip_specific_regions=True,
         force_segment=False,
-        base_state=None,
+        base_state: SimState[int, claripy.ast.BV] | None = None,
         resolve_indirect_jumps=True,
         indirect_jump_resolvers=None,
         indirect_jump_target_limit=100000,
@@ -605,7 +606,7 @@ class CFGBase(Analysis):
 
     # Methods for determining scanning scope
 
-    def _inside_regions(self, address: int | None) -> bool:
+    def _inside_regions(self, address: int) -> bool:
         """
         Check if the address is inside any existing region.
 
@@ -642,7 +643,7 @@ class CFGBase(Analysis):
         :return:        The next address that is inside one of the memory regions, or None if there is no such address.
         """
 
-        if self._inside_regions(address):
+        if address is not None and self._inside_regions(address):
             return address
 
         try:
@@ -650,7 +651,9 @@ class CFGBase(Analysis):
         except StopIteration:
             return None
 
-    def _is_region_extremely_sparse(self, start: int, end: int, base_state: SimState | None = None) -> bool:
+    def _is_region_extremely_sparse(
+        self, start: int, end: int, base_state: SimState[int, claripy.ast.BV] | None = None
+    ) -> bool:
         """
         Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
 
@@ -701,14 +704,13 @@ class CFGBase(Analysis):
 
         return True
 
-    def _should_skip_region(self, region_start):
+    def _should_skip_region(self, region_start) -> bool:
         """
         Some regions usually do not contain any executable code, but are still marked as executable. We should skip
         those regions by default.
 
         :param int region_start: Address of the beginning of the region.
         :return:                 True/False
-        :rtype:                  bool
         """
 
         obj = self.project.loader.find_object_containing(region_start, membership_check=False)
@@ -723,7 +725,7 @@ class CFGBase(Analysis):
 
         return False
 
-    def _executable_memory_regions(self, objects=None, force_segment=False):
+    def _executable_memory_regions(self, objects=None, force_segment=False) -> list[tuple[int, int]]:
         """
         Get all executable memory regions from the binaries
 
@@ -826,18 +828,17 @@ class CFGBase(Analysis):
 
         return sorted(memory_regions, key=lambda x: x[0])
 
-    def _addr_in_exec_memory_regions(self, addr):
+    def _addr_in_exec_memory_regions(self, addr) -> bool:
         """
         Test if the address belongs to an executable memory region.
 
         :param int addr: The address to test
-        :return: True if the address belongs to an exectubale memory region, False otherwise
-        :rtype: bool
+        :return: True if the address belongs to an executable memory region, False otherwise
         """
 
         return any(start <= addr < end for start, end in self._exec_mem_regions)
 
-    def _addrs_belong_to_same_section(self, addr_a, addr_b):
+    def _addrs_belong_to_same_section(self, addr_a, addr_b) -> bool:
         """
         Test if two addresses belong to the same section.
 
@@ -845,7 +846,6 @@ class CFGBase(Analysis):
         :param int addr_b:  The second address to test.
         :return:            True if the two addresses belong to the same section or both of them do not belong to any
                             section, False otherwise.
-        :rtype:             bool
         """
 
         obj = self.project.loader.find_object_containing(addr_a, membership_check=False)
@@ -865,7 +865,7 @@ class CFGBase(Analysis):
 
         return src_section.contains_addr(addr_b)
 
-    def _addrs_belong_to_same_segment(self, addr_a, addr_b):
+    def _addrs_belong_to_same_segment(self, addr_a, addr_b) -> bool:
         """
         Test if two addresses belong to the same segment.
 
@@ -873,7 +873,6 @@ class CFGBase(Analysis):
         :param int addr_b:  The second address to test.
         :return:            True if the two addresses belong to the same segment or both of them do not belong to any
                             section, False otherwise.
-        :rtype:             bool
         """
 
         obj = self.project.loader.find_object_containing(addr_a, membership_check=False)
@@ -891,12 +890,11 @@ class CFGBase(Analysis):
 
         return src_segment.contains_addr(addr_b)
 
-    def _object_has_executable_sections(self, obj):
+    def _object_has_executable_sections(self, obj) -> bool:
         """
         Check whether an object has at least one executable section.
 
         :param cle.Backend obj: The object to test.
-        :return:                None
         """
 
         if obj in self._object_to_executable_sections:
@@ -905,12 +903,11 @@ class CFGBase(Analysis):
         self._object_to_executable_sections[obj] = r
         return r
 
-    def _object_has_executable_segments(self, obj):
+    def _object_has_executable_segments(self, obj) -> bool:
         """
         Check whether an object has at least one executable segment.
 
         :param cle.Backend obj: The object to test.
-        :return:                None
         """
 
         if obj in self._object_to_executable_segments:
@@ -919,24 +916,22 @@ class CFGBase(Analysis):
         self._object_to_executable_segments[obj] = r
         return r
 
-    def _addr_hooked_or_syscall(self, addr):
+    def _addr_hooked_or_syscall(self, addr) -> bool:
         """
         Check whether the address belongs to a hook or a syscall.
 
         :param int addr:    The address to check.
         :return:            True if the address is hooked or belongs to a syscall. False otherwise.
-        :rtype:             bool
         """
 
         return self.project.is_hooked(addr) or self.project.simos.is_syscall_addr(addr)
 
-    def _fast_memory_load_byte(self, addr):
+    def _fast_memory_load_byte(self, addr) -> int | None:
         """
         Perform a fast memory loading of a byte.
 
         :param int addr: Address to read from.
         :return:         A char or None if the address does not exist.
-        :rtype:          int or None
         """
 
         try:
@@ -944,14 +939,13 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_bytes(self, addr, length):
+    def _fast_memory_load_bytes(self, addr, length) -> bytes | None:
         """
         Perform a fast memory loading of some data.
 
         :param int addr: Address to read from.
         :param int length: Size of the string to load.
         :return:         A string or None if the address does not exist.
-        :rtype:          bytes or None
         """
 
         try:
@@ -959,14 +953,13 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr, size=None):
+    def _fast_memory_load_pointer(self, addr, size=None) -> int | None:
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
         :param int size: Size of the pointer. Default to machine-word size.
         :return:         A pointer or None if the address does not exist.
-        :rtype:          int
         """
 
         try:
@@ -974,22 +967,20 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _load_func_addrs_from_symbols(self):
+    def _load_func_addrs_from_symbols(self) -> set[str]:
         """
         Get all possible function addresses that are specified by the symbols in the binary
 
         :return: A set of addresses that are probably functions
-        :rtype:  set
         """
 
         return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
 
-    def _load_func_addrs_from_eh_frame(self):
+    def _load_func_addrs_from_eh_frame(self) -> set[int]:
         """
         Get possible function addresses from  .eh_frame.
 
         :return:    A set of addresses that are probably functions.
-        :rtype:     set
         """
 
         addrs = set()
@@ -1543,6 +1534,7 @@ class CFGBase(Analysis):
                     self.kb.functions[func_addr].alignment = True
                     continue
                 node = function.get_node(block.addr)
+                assert node is not None
                 successors = list(function.graph.successors(node))
                 if len(successors) == 1 and successors[0].addr == node.addr:
                     # self loop. mark this function as a function alignment
@@ -2111,16 +2103,17 @@ class CFGBase(Analysis):
 
         return functions_to_remove
 
-    def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
+    def _addr_to_function(
+        self, addr: int, blockaddr_to_function: dict[int, Function], known_functions: FunctionManager
+    ) -> Function:
         """
         Convert an address to a Function object, and store the mapping in a dict. If the block is known to be part of a
         function, just return that function.
 
-        :param int addr: Address to convert
-        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge_plugins.FunctionManager known_functions: Recovered functions.
+        :param addr: Address to convert
+        :param blockaddr_to_function: A mapping between block addresses to Function instances.
+        :param known_functions: Recovered functions.
         :return: a Function object
-        :rtype: angr.knowledge.Function
         """
 
         if addr in blockaddr_to_function:
@@ -2155,13 +2148,13 @@ class CFGBase(Analysis):
     def _is_tail_call_optimization(
         self,
         g: networkx.DiGraph[CFGNode],
-        src_addr,
-        dst_addr,
-        src_function,
+        src_addr: int,
+        dst_addr: int,
+        src_function: Function,
         all_edges: list[tuple[CFGNode, CFGNode, Any]],
-        known_functions,
-        blockaddr_to_function,
-    ):
+        known_functions: FunctionManager,
+        blockaddr_to_function: dict[int, Function],
+    ) -> bool:
         """
         If source and destination belong to the same function, and the following criteria apply:
         - source node has only one default exit
@@ -2285,7 +2278,16 @@ class CFGBase(Analysis):
                     ):
                         stack.add(dst)
 
-    def _graph_traversal_handler(self, g, src, dst, data, blockaddr_to_function, known_functions, all_edges):
+    def _graph_traversal_handler(
+        self,
+        g: networkx.DiGraph[CFGNode],
+        src: CFGNode,
+        dst: CFGNode,
+        data: dict[str, Any],
+        blockaddr_to_function: dict[int, Function],
+        known_functions: FunctionManager,
+        all_edges: list[tuple[Any, Any, dict[str, Any]]] | None,
+    ):
         """
         Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
         functions accordingly. Oh, it also create edges on the transition map of functions.
@@ -2325,8 +2327,8 @@ class CFGBase(Analysis):
         dst_addr = dst.addr
 
         # get instruction address and statement index
-        ins_addr = data.get("ins_addr", None)
-        stmt_idx = data.get("stmt_idx", None)
+        ins_addr = data.get("ins_addr")
+        stmt_idx = data.get("stmt_idx")
 
         if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
             is_syscall = jumpkind.startswith("Ijk_Sys")
@@ -2638,7 +2640,7 @@ class CFGBase(Analysis):
         return nop_length
 
     @staticmethod
-    def _one_fakeret_node(all_edges):
+    def _one_fakeret_node(all_edges: list[tuple[CFGNode, CFGNode, dict[str, Any]]]) -> CFGNode | None:
         """
         Pick the first Ijk_FakeRet edge from all_edges, and return the destination node.
 
