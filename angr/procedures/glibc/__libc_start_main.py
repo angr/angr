@@ -251,11 +251,18 @@ class __libc_start_main(angr.SimProcedure):
         args = cc.get_args(state, ty)
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
-        return [
-            {"address": init, "jumpkind": "Ijk_Call", "namehint": "init"},
+        # skip invalid results
+        result = [
             {"address": main, "jumpkind": "Ijk_Call", "namehint": "main"},
-            {"address": fini, "jumpkind": "Ijk_Call", "namehint": "fini"},
         ]
+        if init.concrete and init.concrete_value != 0:
+            init_item = {"address": init, "jumpkind": "Ijk_Call", "namehint": "init"}
+            result.insert(0, init_item)
+        if fini.concrete and fini.concrete_value != 0:
+            fini_item = {"address": fini, "jumpkind": "Ijk_Call", "namehint": "fini"}
+            result.append(fini_item)
+
+        return result
 
     @staticmethod
     def _extract_args(state, main, argc, argv, init, fini):
