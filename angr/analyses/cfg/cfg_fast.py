@@ -2103,6 +2103,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     addr_ = addr_.concrete_value
                 if not isinstance(addr_, int):
                     continue
+                # is it valid?
+                if self.project.loader.find_object_containing(addr_) is None:
+                    continue
                 entries += self._create_jobs(
                     addr_,
                     jumpkind,
