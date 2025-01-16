@@ -203,21 +203,25 @@ class SPropagatorAnalysis(Analysis):
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                elif (
-                    len(
-                        {
-                            loc
-                            for _, loc in vvar_uselocs[vvar.varid]
-                            if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in (retsites | jumpsites)
-                        }
-                    )
-                    == 1
-                ):
+                else:
+                    non_exitsite_uselocs = [
+                        loc
+                        for _, loc in vvar_uselocs[vvar.varid]
+                        if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in (retsites | jumpsites)
+                    ]
                     if is_const_and_vvar_assignment(stmt):
-                        # this vvar is used once if we exclude its uses at ret sites or jump sites. we can propagate it
-                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
-                            replacements[vvar_useloc][vvar_used] = stmt.src
-                        continue
+                        if len(non_exitsite_uselocs) == 1:
+                            # this vvar is used once if we exclude its uses at ret sites or jump sites. we can propagate it
+                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                replacements[vvar_useloc][vvar_used] = stmt.src
+                            continue
+
+                        if len(set(non_exitsite_uselocs)) == 1 and isinstance(stmt.src, (Const, Load, VirtualVariable)):
+                            # remove duplicate use locs (e.g., if the variable is used multiple times by the same
+                            # statement) - but ensure stmt is simple enough
+                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                replacements[vvar_useloc][vvar_used] = stmt.src
+                            continue
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load
