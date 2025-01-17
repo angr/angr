@@ -176,16 +176,23 @@ class SPropagatorAnalysis(Analysis):
                             replacements[useloc][vvar_at_use] = const_value
 
             if self.mode == "function" and vvar.varid in vvar_uselocs:
+                if len(vvar_uselocs[vvar.varid]) <= 2:
+                    if isinstance(stmt, Assignment) and isinstance(stmt.src, Load):
+                        can_replace = True
+                        for _, vvar_useloc in vvar_uselocs[vvar.varid]:
+                            if self.has_store_stmt_in_between(blocks, defloc, vvar_useloc):
+                                can_replace = False
+
+                        if can_replace:
+                            # we can propagate this load because there is no store between its def and use
+                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                replacements[vvar_useloc][vvar_used] = stmt.src
+                            continue
+
                 if len(vvar_uselocs[vvar.varid]) == 1:
                     vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
-                    if (
-                        is_const_vvar_load_assignment(stmt)
-                        and vvar_useloc.block_addr == defloc.block_addr
-                        and vvar_useloc.block_idx == defloc.block_idx
-                        and not any(
-                            isinstance(stmt_, Store)
-                            for stmt_ in block.statements[defloc.stmt_idx + 1 : vvar_useloc.stmt_idx]
-                        )
+                    if is_const_vvar_load_assignment(stmt) and not self.has_store_stmt_in_between(
+                        blocks, defloc, vvar_useloc
                     ):
                         # we can propagate this load because there is no store between its def and use
                         replacements[vvar_useloc][vvar_used] = stmt.src
@@ -400,6 +407,38 @@ class SPropagatorAnalysis(Analysis):
 
                     seen.add(succ)
                     queue.append(succ)
+
+        return False
+
+    def has_store_stmt_in_between(
+        self, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+    ) -> bool:
+        use_block = blocks[(useloc.block_addr, useloc.block_idx)]
+        def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+
+        # traverse the graph, go from use_block until we reach def_block, and look for Store statements
+        seen = {use_block}
+        queue = [use_block]
+        while queue:
+            block = queue.pop(0)
+
+            starting_stmt_idx, ending_stmt_idx = 0, len(block.statements)
+            if block is def_block:
+                starting_stmt_idx = defloc.stmt_idx + 1
+            if block is use_block:
+                ending_stmt_idx = useloc.stmt_idx + 1
+
+            for i in range(starting_stmt_idx, ending_stmt_idx):
+                if isinstance(block.statements[i], Store):
+                    return True
+
+            if block is def_block:
+                continue
+
+            for pred in self.func_graph.predecessors(block):
+                if pred not in seen:
+                    seen.add(pred)
+                    queue.append(pred)
 
         return False
 
