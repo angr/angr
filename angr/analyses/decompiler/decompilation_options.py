@@ -230,6 +230,16 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Show block addresses",
+        "Show block addresses as comments",
+        bool,
+        "codegen",
+        "display_block_addrs",
+        category="Display",
+        default_value=False,
+        clears_cache=True,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,
