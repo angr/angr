@@ -4047,7 +4047,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert "chunkqueue_compact_mem(" in d.codegen.text
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
-        line_idx, the_line = [(idx, line) for idx, line in enumerate(lines) if "chunkqueue_compact_mem(" in line][0]
+        line_idx, the_line = next(iter((idx, line) for idx, line in enumerate(lines) if "chunkqueue_compact_mem(" in line))
 
         assert len(the_line) < 55  # can't be too long
         assert line_idx > 3

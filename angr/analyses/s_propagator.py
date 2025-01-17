@@ -213,7 +213,8 @@ class SPropagatorAnalysis(Analysis):
                     ]
                     if is_const_and_vvar_assignment(stmt):
                         if len(non_exitsite_uselocs) == 1:
-                            # this vvar is used once if we exclude its uses at ret sites or jump sites. we can propagate it
+                            # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
+                            # propagate it
                             for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                                 replacements[vvar_useloc][vvar_used] = stmt.src
                             continue
