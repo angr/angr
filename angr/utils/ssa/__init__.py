@@ -4,7 +4,7 @@ from typing import Any, Literal, overload
 
 import archinfo
 from ailment import Expression, Block
-from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression
+from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression, ITE
 from ailment.statement import Statement, Assignment, Call
 from ailment.block_walker import AILBlockWalkerBase
 
@@ -213,12 +213,25 @@ def is_dephi_vvar(vvar: VirtualVariable) -> bool:
     return vvar.varid == DEPHI_VVAR_REG_OFFSET
 
 
+def has_ite_expr(expr: Expression) -> bool:
+    walker = AILBlacklistExprTypeWalker((ITE,))
+    walker.walk_expression(expr)
+    return walker.has_blacklisted_exprs
+
+
+def has_ite_stmt(stmt: Statement) -> bool:
+    walker = AILBlacklistExprTypeWalker((ITE,))
+    walker.walk_statement(stmt)
+    return walker.has_blacklisted_exprs
+
+
 __all__ = (
     "VVarUsesCollector",
     "get_tmp_deflocs",
     "get_tmp_uselocs",
     "get_vvar_deflocs",
     "get_vvar_uselocs",
+    "has_ite_expr",
     "is_const_and_vvar_assignment",
     "is_const_assignment",
     "is_const_vvar_load_assignment",

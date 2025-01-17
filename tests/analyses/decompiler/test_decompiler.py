@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long,no-member
+# pyright: ignore
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -4032,6 +4033,31 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("switch") == 2
+
+    def test_decompiling_lighttpd_expression_over_folding(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "lighttpd")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        f = proj.kb.functions[0x422E80]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("rewrite_ites_to_diamonds", False)])
+        )
+        self._print_decompilation_result(d)
+
+        assert "chunkqueue_compact_mem(" in d.codegen.text
+        lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
+        line_idx, the_line = next(
+            iter((idx, line) for idx, line in enumerate(lines) if "chunkqueue_compact_mem(" in line)
+        )
+
+        assert len(the_line) < 55  # can't be too long
+        assert line_idx > 3
+        # we should find three consecutive assignments before this line
+        assert re.match(r"v\d+ = ", lines[line_idx - 1])
+        assert re.match(r"v\d+ = ", lines[line_idx - 2])
+        assert re.match(r"v\d+ = ", lines[line_idx - 3])
 
 
 if __name__ == "__main__":
