@@ -22,6 +22,8 @@ from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import (
     get_vvar_uselocs,
     get_vvar_deflocs,
+    has_ite_expr,
+    has_ite_stmt,
     is_phi_assignment,
     is_const_assignment,
     is_const_and_vvar_assignment,
@@ -216,12 +218,15 @@ class SPropagatorAnalysis(Analysis):
                                 replacements[vvar_useloc][vvar_used] = stmt.src
                             continue
 
-                        if len(set(non_exitsite_uselocs)) == 1 and isinstance(stmt.src, (Const, Load, VirtualVariable)):
-                            # remove duplicate use locs (e.g., if the variable is used multiple times by the same
-                            # statement) - but ensure stmt is simple enough
-                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
-                                replacements[vvar_useloc][vvar_used] = stmt.src
-                            continue
+                        if len(set(non_exitsite_uselocs)) == 1 and not has_ite_expr(stmt.src):
+                            useloc = non_exitsite_uselocs[0]
+                            useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+                            if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
+                                # remove duplicate use locs (e.g., if the variable is used multiple times by the same
+                                # statement) - but ensure stmt is simple enough
+                                for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                    replacements[vvar_useloc][vvar_used] = stmt.src
+                                continue
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load
