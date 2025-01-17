@@ -142,6 +142,9 @@ class SPropagatorAnalysis(Analysis):
             if isinstance(defloc, ExternalCodeLocation):
                 continue
 
+            assert defloc.block_addr is not None
+            assert defloc.stmt_idx is not None
+
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
             r, v = is_const_assignment(stmt)
@@ -221,6 +224,8 @@ class SPropagatorAnalysis(Analysis):
 
                         if len(set(non_exitsite_uselocs)) == 1 and not has_ite_expr(stmt.src):
                             useloc = non_exitsite_uselocs[0]
+                            assert useloc.block_addr is not None
+                            assert useloc.stmt_idx is not None
                             useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
                             if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
                                 # remove duplicate use locs (e.g., if the variable is used multiple times by the same
@@ -236,7 +241,11 @@ class SPropagatorAnalysis(Analysis):
                     # unpack conversions
                     while isinstance(stmt_src, Convert):
                         stmt_src = stmt_src.operand
-                    if isinstance(stmt_src, Load) and isinstance(stmt_src.addr, Const):
+                    if (
+                        isinstance(stmt_src, Load)
+                        and isinstance(stmt_src.addr, Const)
+                        and isinstance(stmt_src.addr.value, int)
+                    ):
                         gv_updated = False
                         for _vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                             gv_updated |= self.is_global_variable_updated(
@@ -296,6 +305,8 @@ class SPropagatorAnalysis(Analysis):
         for block_loc, tmp_and_uses in tmp_uselocs.items():
             for tmp_atom, tmp_uses in tmp_and_uses.items():
                 # take a look at the definition and propagate the definition if supported
+                assert block_loc.block_addr is not None
+
                 block = blocks[(block_loc.block_addr, block_loc.block_idx)]
                 tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
 
@@ -360,6 +371,8 @@ class SPropagatorAnalysis(Analysis):
 
             start_stmt_idx = defloc.stmt_idx if block is defblock else 0  # inclusive
             end_stmt_idx = useloc.stmt_idx if block is useblock else len(block.statements)  # exclusive
+            assert start_stmt_idx is not None
+            assert end_stmt_idx is not None
 
             for idx in range(start_stmt_idx, end_stmt_idx):
                 stmt = block.statements[idx]
