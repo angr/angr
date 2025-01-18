@@ -17,7 +17,7 @@ class FlipBooleanWalker(SequenceWalker):
     Uses the flip_size to determine when to flip the condition on large if-statement bodies.
     """
 
-    def __init__(self, graph, flip_size=10, last_node=None):
+    def __init__(self, graph, flip_size=9, last_node=None):
         super().__init__()
         self._graph = graph
         self._last_node = last_node
@@ -77,7 +77,7 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     NAME = "Flip small ret booleans"
     DESCRIPTION = "When false node has no successors, flip condition so else scope can be simplified later"
 
-    def __init__(self, func, flip_size=10, **kwargs):
+    def __init__(self, func, flip_size=9, **kwargs):
         super().__init__(func, **kwargs)
         self._graph = kwargs.get("graph")
         self._flip_size = flip_size

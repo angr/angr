@@ -17,7 +17,7 @@ from angr.utils.graph import GraphUtils
 from angr.simos import SimWindows
 from angr.utils.mp import mp_context, Initializer
 from angr.knowledge_plugins.cfg import CFGModel
-from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis, FactCollector
+from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis, FactCollector, CFGFast
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
@@ -56,7 +56,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         recover_variables=False,
         low_priority=False,
         force=False,
-        cfg: CFGModel | None = None,
+        cfg: CFGFast | CFGModel | None = None,
         analyze_callsites: bool = False,
         skip_signature_matched_functions: bool = False,
         max_function_blocks: int | None = None,
@@ -89,7 +89,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._recover_variables = recover_variables
         self._low_priority = low_priority
         self._force = force
-        self._cfg = cfg
+        self._cfg: CFGModel | None = cfg.model if isinstance(cfg, CFGFast) else cfg
         self._analyze_callsites = analyze_callsites
         self._skip_signature_matched_functions = skip_signature_matched_functions
         self._max_function_blocks = max_function_blocks

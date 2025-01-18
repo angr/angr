@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long,no-member
-# pyright: ignore
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -4058,6 +4057,10 @@ class TestDecompiler(unittest.TestCase):
         assert re.match(r"v\d+ = ", lines[line_idx - 1])
         assert re.match(r"v\d+ = ", lines[line_idx - 2])
         assert re.match(r"v\d+ = ", lines[line_idx - 3])
+
+        # there can be at most 5 variables (we no longer under-propagate)
+        for i in range(6, 100):
+            assert f"v{i}" not in d.codegen.text
 
 
 if __name__ == "__main__":

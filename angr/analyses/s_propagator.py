@@ -4,6 +4,8 @@ import contextlib
 from collections.abc import Mapping
 from collections import defaultdict
 
+import networkx
+
 from ailment.block import Block
 from ailment.expression import (
     Const,
@@ -53,7 +55,7 @@ class SPropagatorAnalysis(Analysis):
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         subject: Block | Function,
-        func_graph=None,
+        func_graph: networkx.DiGraph | None = None,
         only_consts: bool = True,
         stack_pointer_tracker=None,
         func_args: set[VirtualVariable] | None = None,
@@ -160,32 +162,45 @@ class SPropagatorAnalysis(Analysis):
             if v is not None:
                 src_varids = {vvar.varid if vvar is not None else None for _, vvar in v.src_and_vvars}
                 if None not in src_varids and all(varid in const_vvars for varid in src_varids):
+                    all_int_src_varids: set[int] = {varid for varid in src_varids if varid is not None}
                     src_values = {
                         (
                             (const_vvars[varid].value, const_vvars[varid].bits)
                             if isinstance(const_vvars[varid], Const)
                             else const_vvars[varid]
                         )
-                        for varid in src_varids
+                        for varid in all_int_src_varids
                     }
                     if len(src_values) == 1:
                         # replace it!
-                        const_value = const_vvars[next(iter(src_varids))]
+                        const_value = const_vvars[next(iter(all_int_src_varids))]
                         const_vvars[vvar.varid] = const_value
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                             replacements[useloc][vvar_at_use] = const_value
 
             if self.mode == "function" and vvar.varid in vvar_uselocs:
+                if len(vvar_uselocs[vvar.varid]) <= 2 and isinstance(stmt, Assignment) and isinstance(stmt.src, Load):
+                    # do we want to propagate this Load expression if it's used for less than twice?
+                    # it's often seen in the following pattern, where propagation will be beneficial:
+                    #    v0 = Load(...)
+                    #    if (!v0) {
+                    #       v1 = v0 + 1;
+                    #    }
+                    can_replace = True
+                    for _, vvar_useloc in vvar_uselocs[vvar.varid]:
+                        if self.has_store_stmt_in_between(blocks, defloc, vvar_useloc):
+                            can_replace = False
+
+                    if can_replace:
+                        # we can propagate this load because there is no store between its def and use
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                            replacements[vvar_useloc][vvar_used] = stmt.src
+                        continue
+
                 if len(vvar_uselocs[vvar.varid]) == 1:
                     vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
-                    if (
-                        is_const_vvar_load_assignment(stmt)
-                        and vvar_useloc.block_addr == defloc.block_addr
-                        and vvar_useloc.block_idx == defloc.block_idx
-                        and not any(
-                            isinstance(stmt_, Store)
-                            for stmt_ in block.statements[defloc.stmt_idx + 1 : vvar_useloc.stmt_idx]
-                        )
+                    if is_const_vvar_load_assignment(stmt) and not self.has_store_stmt_in_between(
+                        blocks, defloc, vvar_useloc
                     ):
                         # we can propagate this load because there is no store between its def and use
                         replacements[vvar_useloc][vvar_used] = stmt.src
@@ -194,6 +209,8 @@ class SPropagatorAnalysis(Analysis):
                     if is_const_and_vvar_assignment(stmt):
                         # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
                         # variable
+                        assert vvar_useloc.block_addr is not None
+                        assert vvar_useloc.stmt_idx is not None
                         useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
                             vvar_useloc.stmt_idx
                         ]
@@ -400,6 +417,44 @@ class SPropagatorAnalysis(Analysis):
 
                     seen.add(succ)
                     queue.append(succ)
+
+        return False
+
+    def has_store_stmt_in_between(
+        self, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+    ) -> bool:
+        assert defloc.block_addr is not None
+        assert defloc.stmt_idx is not None
+        assert useloc.block_addr is not None
+        assert useloc.stmt_idx is not None
+        assert self.func_graph is not None
+
+        use_block = blocks[(useloc.block_addr, useloc.block_idx)]
+        def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+
+        # traverse the graph, go from use_block until we reach def_block, and look for Store statements
+        seen = {use_block}
+        queue = [use_block]
+        while queue:
+            block = queue.pop(0)
+
+            starting_stmt_idx, ending_stmt_idx = 0, len(block.statements)
+            if block is def_block:
+                starting_stmt_idx = defloc.stmt_idx + 1
+            if block is use_block:
+                ending_stmt_idx = useloc.stmt_idx + 1
+
+            for i in range(starting_stmt_idx, ending_stmt_idx):
+                if isinstance(block.statements[i], Store):
+                    return True
+
+            if block is def_block:
+                continue
+
+            for pred in self.func_graph.predecessors(block):
+                if pred not in seen:
+                    seen.add(pred)
+                    queue.append(pred)
 
         return False
 
