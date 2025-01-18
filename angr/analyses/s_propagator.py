@@ -4,6 +4,8 @@ import contextlib
 from collections.abc import Mapping
 from collections import defaultdict
 
+import networkx
+
 from ailment.block import Block
 from ailment.expression import (
     Const,
@@ -53,7 +55,7 @@ class SPropagatorAnalysis(Analysis):
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         subject: Block | Function,
-        func_graph=None,
+        func_graph: networkx.DiGraph | None = None,
         only_consts: bool = True,
         stack_pointer_tracker=None,
         func_args: set[VirtualVariable] | None = None,
@@ -160,17 +162,18 @@ class SPropagatorAnalysis(Analysis):
             if v is not None:
                 src_varids = {vvar.varid if vvar is not None else None for _, vvar in v.src_and_vvars}
                 if None not in src_varids and all(varid in const_vvars for varid in src_varids):
+                    all_int_src_varids: set[int] = {varid for varid in src_varids if varid is not None}
                     src_values = {
                         (
                             (const_vvars[varid].value, const_vvars[varid].bits)
                             if isinstance(const_vvars[varid], Const)
                             else const_vvars[varid]
                         )
-                        for varid in src_varids
+                        for varid in all_int_src_varids
                     }
                     if len(src_values) == 1:
                         # replace it!
-                        const_value = const_vvars[next(iter(src_varids))]
+                        const_value = const_vvars[next(iter(all_int_src_varids))]
                         const_vvars[vvar.varid] = const_value
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                             replacements[useloc][vvar_at_use] = const_value
@@ -206,6 +209,8 @@ class SPropagatorAnalysis(Analysis):
                     if is_const_and_vvar_assignment(stmt):
                         # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
                         # variable
+                        assert vvar_useloc.block_addr is not None
+                        assert vvar_useloc.stmt_idx is not None
                         useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
                             vvar_useloc.stmt_idx
                         ]
@@ -418,6 +423,12 @@ class SPropagatorAnalysis(Analysis):
     def has_store_stmt_in_between(
         self, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
     ) -> bool:
+        assert defloc.block_addr is not None
+        assert defloc.stmt_idx is not None
+        assert useloc.block_addr is not None
+        assert useloc.stmt_idx is not None
+        assert self.func_graph is not None
+
         use_block = blocks[(useloc.block_addr, useloc.block_idx)]
         def_block = blocks[(defloc.block_addr, defloc.block_idx)]
 
