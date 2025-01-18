@@ -176,18 +176,23 @@ class SPropagatorAnalysis(Analysis):
                             replacements[useloc][vvar_at_use] = const_value
 
             if self.mode == "function" and vvar.varid in vvar_uselocs:
-                if len(vvar_uselocs[vvar.varid]) <= 2:
-                    if isinstance(stmt, Assignment) and isinstance(stmt.src, Load):
-                        can_replace = True
-                        for _, vvar_useloc in vvar_uselocs[vvar.varid]:
-                            if self.has_store_stmt_in_between(blocks, defloc, vvar_useloc):
-                                can_replace = False
+                if len(vvar_uselocs[vvar.varid]) <= 2 and isinstance(stmt, Assignment) and isinstance(stmt.src, Load):
+                    # do we want to propagate this Load expression if it's used for less than twice?
+                    # it's often seen in the following pattern, where propagation will be beneficial:
+                    #    v0 = Load(...)
+                    #    if (!v0) {
+                    #       v1 = v0 + 1;
+                    #    }
+                    can_replace = True
+                    for _, vvar_useloc in vvar_uselocs[vvar.varid]:
+                        if self.has_store_stmt_in_between(blocks, defloc, vvar_useloc):
+                            can_replace = False
 
-                        if can_replace:
-                            # we can propagate this load because there is no store between its def and use
-                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
-                                replacements[vvar_useloc][vvar_used] = stmt.src
-                            continue
+                    if can_replace:
+                        # we can propagate this load because there is no store between its def and use
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                            replacements[vvar_useloc][vvar_used] = stmt.src
+                        continue
 
                 if len(vvar_uselocs[vvar.varid]) == 1:
                     vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
