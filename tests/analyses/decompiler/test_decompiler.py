@@ -4058,7 +4058,7 @@ class TestDecompiler(unittest.TestCase):
         assert re.match(r"v\d+ = ", lines[line_idx - 2])
         assert re.match(r"v\d+ = ", lines[line_idx - 3])
 
-        # there can be at most 5 variables (we no longer over-propagate)
+        # there can be at most 5 variables (we no longer under-propagate)
         for i in range(6, 100):
             assert f"v{i}" not in d.codegen.text
 
