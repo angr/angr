@@ -47,8 +47,7 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
             vvar_id_start=vvar_id_start,
             scratch=scratch,
         )
-        # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
-        self._ri = self._recover_regions(self._graph)
+        self._ri = None
 
         self.analyze()
 
@@ -60,6 +59,8 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
         return dst_is_const_ret
 
     def _analyze(self, cache=None):
+        # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
+        self._ri = self._recover_regions(self._graph)
         copy_graph = networkx.DiGraph(self._graph)
         if self._analyze_core(copy_graph):
             self.out_graph = self._simplify_graph(copy_graph)
