@@ -27,11 +27,16 @@ class DeadblockRemover(OptimizationPass):
     NAME = "Remove blocks with unsatisfiable conditions"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
+    def __init__(self, func, node_cutoff: int = 200, **kwargs):
         super().__init__(func, **kwargs)
+        self._node_cutoff = node_cutoff
         self.analyze()
 
     def _check(self):
+        # don't run this optimization on super large functions
+        if len(self._graph) >= self._node_cutoff:
+            return False, None
+
         cond_proc = ConditionProcessor(self.project.arch)
         if networkx.is_directed_acyclic_graph(self._graph):
             acyclic_graph = self._graph
