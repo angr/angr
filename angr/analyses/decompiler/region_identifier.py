@@ -790,6 +790,9 @@ class RegionIdentifier(Analysis):
                         replaced_nodes = set(region.graph)
                         self._update_postdoms(postdoms, region, replaced_nodes)
                         self._update_dominance_frontiers(df, region, replaced_nodes)
+                        # update graph_copy
+                        if graph_copy is not graph:
+                            self._update_graph(graph_copy, region, replaced_nodes)
                         break
 
                 failed_region_attempts.add((node, postdom_node))
@@ -819,6 +822,18 @@ class RegionIdentifier(Analysis):
                     df[k].remove(v)
             if has_replaced_node:
                 df[k].add(new_region)
+
+    @staticmethod
+    def _update_graph(graph: networkx.DiGraph, new_region, replaced_nodes: set) -> None:
+        region_in_edges = RegionIdentifier._region_in_edges(graph, new_region, data=True)
+        region_out_edges = RegionIdentifier._region_out_edges(graph, new_region, data=True)
+        for node in replaced_nodes:
+            graph.remove_node(node)
+        graph.add_node(new_region)
+        for src, _, data in region_in_edges:
+            graph.add_edge(src, new_region, **data)
+        for _, dst, data in region_out_edges:
+            graph.add_edge(new_region, dst, **data)
 
     @staticmethod
     def _check_region(graph, start_node, end_node, doms, df):
