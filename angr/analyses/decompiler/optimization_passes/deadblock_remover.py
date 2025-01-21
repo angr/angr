@@ -25,7 +25,7 @@ class DeadblockRemover(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION
     NAME = "Remove blocks with unsatisfiable conditions"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, func, node_cutoff: int = 200, **kwargs):
         super().__init__(func, **kwargs)
@@ -34,6 +34,7 @@ class DeadblockRemover(OptimizationPass):
 
     def _check(self):
         # don't run this optimization on super large functions
+        assert self._graph is not None
         if len(self._graph) >= self._node_cutoff:
             return False, None
 
@@ -50,7 +51,10 @@ class DeadblockRemover(OptimizationPass):
         cache = {"cond_proc": cond_proc}
         return True, cache
 
-    def _analyze(self, cache=None):
+    def _analyze(self, cache: dict | None = None):
+        assert cache is not None
+        assert self._graph is not None
+
         cond_proc = cache["cond_proc"]
         to_remove = {
             blk
