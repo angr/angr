@@ -288,6 +288,8 @@ class Decompiler(Analysis):
         )
         ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
 
+        self._update_progress(73.0, text="Running region-simplification passes")
+
         # run optimizations that may require re-RegionIdentification
         clinic.graph, ri = self._run_region_simplification_passes(
             clinic.graph,

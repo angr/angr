@@ -2002,8 +2002,8 @@ class Clinic(Analysis):
 
         original_block = next(iter(b for b in ail_graph if b.addr == block_addr))
 
-        original_block_in_edges = list(ail_graph.in_edges(original_block))
-        original_block_out_edges = list(ail_graph.out_edges(original_block))
+        original_block_in_edges = list(ail_graph.in_edges(original_block, data=True))
+        original_block_out_edges = list(ail_graph.out_edges(original_block, data=True))
 
         # build the target block if the target block does not exist in the current function
         end_block_addr = ite_ins_addr + ite_insn_size
@@ -2040,19 +2040,19 @@ class Clinic(Analysis):
 
         if end_block_ail not in ail_graph:
             # newly created. add it and the necessary edges into the graph
-            for _, dst in original_block_out_edges:
+            for _, dst, data in original_block_out_edges:
                 if dst is original_block:
-                    ail_graph.add_edge(end_block_ail, new_head_ail)
+                    ail_graph.add_edge(end_block_ail, new_head_ail, **data)
                 else:
-                    ail_graph.add_edge(end_block_ail, dst)
+                    ail_graph.add_edge(end_block_ail, dst, **data)
 
         # in edges
-        for src, _ in original_block_in_edges:
+        for src, _, data in original_block_in_edges:
             if src is original_block:
                 # loop
-                ail_graph.add_edge(end_block_ail, new_head_ail)
+                ail_graph.add_edge(end_block_ail, new_head_ail, **data)
             else:
-                ail_graph.add_edge(src, new_head_ail)
+                ail_graph.add_edge(src, new_head_ail, **data)
 
         # triangle
         ail_graph.add_edge(new_head_ail, true_block_ail)
