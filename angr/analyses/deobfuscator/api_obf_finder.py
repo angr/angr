@@ -25,6 +25,8 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CVariable,
 )
 
+from .api_obf_type2_finder import APIObfuscationType2Finder
+
 _l = logging.getLogger(name=__name__)
 
 
@@ -90,7 +92,8 @@ class APIObfuscationFinder(Analysis):
 
     Currently, we support the following API "obfuscation" styles:
 
-    - sub_A("dll_name", "api_name) where sub_a ends up calling LoadLibrary.
+    - Type 1: sub_A("dll_name", "api_name") where sub_A ends up calling LoadLibrary.
+    - Type 2: GetProcAddress(_, "api_name").
     """
 
     def __init__(self):
@@ -105,6 +108,8 @@ class APIObfuscationFinder(Analysis):
             for desc in self.type1_candidates:
                 type1_deobfuscated = self._analyze_type1(desc.func_addr, desc)
                 self.kb.obfuscations.type1_deobfuscated_apis.update(type1_deobfuscated)
+
+        APIObfuscationType2Finder(self.project).analyze()
 
     def _find_type1(self):
         cfg = self.kb.cfgs.get_most_accurate()

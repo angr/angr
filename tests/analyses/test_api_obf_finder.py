@@ -52,6 +52,24 @@ class TestAPIObfFinder(TestCase):
         dec = proj.analyses.Decompiler(cfg.kb.functions[0x401530], cfg=cfg.model)
         print(dec.codegen.text)
 
+    def test_type2(self):
+        bin_path = os.path.join(binaries_base, "x86_64", "windows", "GetProcAddress.exe")
+        func_ptr_addr, func_name = 0x140007030, "MessageBoxA"
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+        # Ensure variable not resolved yet (via symbols)
+        assert not proj.kb.variables["global"].get_global_variables(func_ptr_addr)
+
+        proj.analyses.APIObfuscationFinder()
+
+        # Ensure APIObfuscationFinder resolved the call to GetProcAddress
+        assert proj.kb.obfuscations.type2_deobfuscated_apis == {func_ptr_addr: func_name}
+        (var,) = proj.kb.variables["global"].get_global_variables(func_ptr_addr)
+        assert var.name == f"p_{func_name}"
+
 
 if __name__ == "__main__":
     main()
