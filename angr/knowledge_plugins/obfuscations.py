@@ -20,6 +20,7 @@ class Obfuscations(KnowledgeBasePlugin):
 
         self.obfuscated_apis_analyzed: bool = False
         self.type1_deobfuscated_apis: dict[int, tuple[str, str]] = {}
+        self.type2_deobfuscated_apis: dict[int, str] = {}
 
     def copy(self):
         o = Obfuscations(self._kb)
