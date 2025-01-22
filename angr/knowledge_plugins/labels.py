@@ -95,14 +95,14 @@ class Labels(KnowledgeBasePlugin):
         :return:            A unique label name.
         """
 
-        if label not in self._labels:
+        if label not in self._reverse_labels:
             return label
 
         # use it as the prefix
         i = 1
         while True:
             new_label = f"{label}_{i}"
-            if new_label not in self._labels:
+            if new_label not in self._reverse_labels:
                 return new_label
             i += 1
 
