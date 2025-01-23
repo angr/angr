@@ -332,6 +332,9 @@ class FactCollector(Analysis):
         cc_cls = default_cc(
             self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
         )
+        if cc_cls is None:
+            # don't know what the calling convention may be... give up
+            return
         cc = cc_cls(self.project.arch)
         if isinstance(cc.RETURN_VAL, SimRegArg):
             retreg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
@@ -460,7 +463,24 @@ class FactCollector(Analysis):
                     if pred not in traversed and depth + 1 <= self._max_depth and edge_type == "transition":
                         queue.append((depth + 1, pred))
 
-        return callee_restored_regs
+        # remove offsets of registers that may store return values from callee_restored_regs
+        ret_reg_offsets = set()
+        cc_cls = default_cc(
+            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        )
+        if cc_cls is not None:
+            cc = cc_cls(self.project.arch)
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                retreg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
+                ret_reg_offsets.add(retreg_offset)
+            if isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
+                retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+                ret_reg_offsets.add(retreg_offset)
+            if isinstance(cc.FP_RETURN_VAL, SimRegArg):
+                retreg_offset = cc.FP_RETURN_VAL.check_offset(self.project.arch)
+                ret_reg_offsets.add(retreg_offset)
+
+        return callee_restored_regs.difference(ret_reg_offsets)
 
     def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []
