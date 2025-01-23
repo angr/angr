@@ -3583,11 +3583,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif function_pointer:
                 self._function_pointers.add(expr.reference_variable)
 
+        var_access = None
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
             offset = getattr(expr, "reference_variable_offset", 0)
-            return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
+            var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
+        if var_access is not None and expr.value >= 0x400_000:
+            return var_access
+
+        reference_values["offset"] = var_access
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):
