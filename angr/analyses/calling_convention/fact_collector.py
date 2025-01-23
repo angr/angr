@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any
 
@@ -401,6 +402,16 @@ class FactCollector(Analysis):
         func_graph = self.function.transition_graph
         callee_restored_regs = set()
 
+        sp_masks = {
+            0xFFFFFFFE,
+            0xFFFFFFFC,
+            0xFFFFFFF8,
+            0xFFFFFFF0,
+            0xFFFFFFFF_FFFFFFFE,
+            0xFFFFFFFF_FFFFFFFC,
+            0xFFFFFFFF_FFFFFFF8,
+            0xFFFFFFFF_FFFFFFF0,
+        }
         for endpoint in self.function.endpoints:
             traversed = set()
             queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
@@ -434,17 +445,29 @@ class FactCollector(Analysis):
                             tmps[stmt.tmp] = "stack_value"
                         elif isinstance(stmt.data, pyvex.IRExpr.Const):
                             tmps[stmt.tmp] = "const"
-                        elif isinstance(stmt.data, pyvex.IRExpr.Binop) and (  # noqa:SIM102
-                            stmt.data.op.startswith("Iop_Add") or stmt.data.op.startswith("Iop_Sub")
-                        ):
-                            if (
-                                isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
-                                and tmps.get(stmt.data.args[0].tmp) == "sp"
-                            ) or (
-                                isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
-                                and tmps.get(stmt.data.args[1].tmp) == "sp"
-                            ):
-                                tmps[stmt.tmp] = "sp"
+                        elif isinstance(stmt.data, pyvex.IRExpr.Binop):
+                            if stmt.data.op.startswith("Iop_Add") or stmt.data.op.startswith("Iop_Sub"):
+                                if (
+                                    isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                                    and tmps.get(stmt.data.args[0].tmp) == "sp"
+                                ) or (
+                                    isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
+                                    and tmps.get(stmt.data.args[1].tmp) == "sp"
+                                ):
+                                    tmps[stmt.tmp] = "sp"
+                            elif stmt.data.op.startswith("Iop_And"):  # noqa: SIM102
+                                if (
+                                    isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                                    and tmps.get(stmt.data.args[0].tmp) == "sp"
+                                    and isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
+                                    and stmt.data.args[1].con.value in sp_masks
+                                ) or (
+                                    isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
+                                    and tmps.get(stmt.data.args[1].tmp) == "sp"
+                                    and isinstance(stmt.data.args[0], pyvex.IRExpr.Const)
+                                    and stmt.data.args[0].con.value in sp_masks
+                                ):
+                                    tmps[stmt.tmp] = "sp"
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
                         # is the data loaded from the stack?
