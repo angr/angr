@@ -477,8 +477,12 @@ class FactCollector(Analysis):
                 retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
                 ret_reg_offsets.add(retreg_offset)
             if isinstance(cc.FP_RETURN_VAL, SimRegArg):
-                retreg_offset = cc.FP_RETURN_VAL.check_offset(self.project.arch)
-                ret_reg_offsets.add(retreg_offset)
+                try:
+                    retreg_offset = cc.FP_RETURN_VAL.check_offset(self.project.arch)
+                    ret_reg_offsets.add(retreg_offset)
+                except KeyError:
+                    # register name does not exist
+                    pass
 
         return callee_restored_regs.difference(ret_reg_offsets)
 
