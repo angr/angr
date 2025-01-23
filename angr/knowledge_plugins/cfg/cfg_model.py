@@ -631,8 +631,9 @@ class CFGModel(Serializable):
 
                 if boundary is not None:
                     data.max_size = boundary - data_addr
-
-                assert data.max_size is not None
+                else:
+                    # boundary does not exist, which means the data address is not mapped at all
+                    data.max_size = 0
 
         keys = sorted(self.memory_data.keys())
 
