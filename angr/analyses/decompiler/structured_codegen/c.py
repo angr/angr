@@ -2504,6 +2504,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         omit_func_header=False,
         display_block_addrs=False,
         display_vvar_ids=False,
+        min_data_addr: int = 0x400_000,
     ):
         super().__init__(flavor=flavor)
 
@@ -2578,6 +2579,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.omit_func_header = omit_func_header
         self.display_block_addrs = display_block_addrs
         self.display_vvar_ids = display_vvar_ids
+        self.min_data_addr = min_data_addr
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -3589,7 +3591,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             offset = getattr(expr, "reference_variable_offset", 0)
             var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
-        if var_access is not None and expr.value >= 0x400_000:
+        if var_access is not None and expr.value >= self.min_data_addr:
             return var_access
 
         reference_values["offset"] = var_access
