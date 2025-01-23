@@ -4178,7 +4178,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and segment.memsize >= 8:
                     # the gp area is sometimes writable, so we can't test for (not segment.is_writable)
-                    content = self.project.loader.memory.load(segment.vaddr, segment.memsize)
+                    try:
+                        content = self.project.loader.memory.load(segment.vaddr, segment.memsize)
+                    except KeyError:
+                        continue
                     content_buf = pyvex.ffi.from_buffer(content)
                     self._ro_region_cdata_cache.append(content_buf)
                     pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
@@ -4187,7 +4190,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 # also map .got
                 for section in self.project.loader.main_object.sections:
                     if section.name == ".got":
-                        content = self.project.loader.memory.load(section.vaddr, section.memsize)
+                        try:
+                            content = self.project.loader.memory.load(section.vaddr, section.memsize)
+                        except KeyError:
+                            continue
                         content_buf = pyvex.ffi.from_buffer(content)
                         self._ro_region_cdata_cache.append(content_buf)
                         pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
