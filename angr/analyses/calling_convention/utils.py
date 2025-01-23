@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 
 import archinfo
-from archinfo.arch_arm import is_arm_arch, ArchARMHF
+from archinfo.arch_arm import is_arm_arch, ArchARMHF, ArchARMCortexM
 
 from angr.calling_conventions import SimCC
 
@@ -37,7 +37,7 @@ def is_sane_register_variable(arch: archinfo.Arch, reg_offset: int, reg_size: in
         # 224 <= reg_offset < 480)  # xmm0-xmm7
 
     if is_arm_arch(arch):
-        if isinstance(arch, ArchARMHF):
+        if isinstance(arch, (ArchARMHF, ArchARMCortexM)):
             return 8 <= reg_offset < 24 or 128 <= reg_offset < 160  # r0 - 32  # s0 - s7, or d0 - d4
         return 8 <= reg_offset < 24  # r0-r3
 

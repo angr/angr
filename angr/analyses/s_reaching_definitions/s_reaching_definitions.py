@@ -144,6 +144,8 @@ class SReachingDefinitionsAnalysis(Analysis):
 
                     codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
                     arg_locs = cc.ARG_REGS
+                    if cc.FP_ARG_REGS:
+                        arg_locs += [r_name for r_name in cc.FP_ARG_REGS if r_name not in arg_locs]
 
                     for arg_reg_name in arg_locs:
                         reg_offset = self.project.arch.registers[arg_reg_name][0]

@@ -7,7 +7,7 @@ import archinfo
 from ailment import Stmt, Expr, Const
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
-from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, dereference_simtype
+from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, SimTypeFloat, dereference_simtype
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg, SimComboArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
@@ -155,6 +155,16 @@ class CallSiteMaker(Analysis):
                             oident=vvar_def.oident,
                             **vvar_def.tags,
                         )
+                        # we may need to narrow the value
+                        if vvar_def.size > arg_loc.size:
+                            vvar_use = Expr.Convert(
+                                self._ail_manager.next_atom(),
+                                vvar_use.bits,
+                                arg_loc.size * self.project.arch.byte_width,
+                                False,
+                                vvar_use,
+                                **vvar_use.tags,
+                            )
                         args.append(vvar_use)
                     else:
                         reg = Expr.Register(
@@ -233,8 +243,22 @@ class CallSiteMaker(Analysis):
                 }
 
         ret_expr = call_stmt.ret_expr
-        # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return
-        # value of this call statement as useless and is removed.
+        fp_ret_expr = call_stmt.fp_ret_expr
+        # if ret_expr and fp_ret_expr are None, it means in previous steps (such as during AIL simplification) we have
+        # deemed the return value of this call statement as useless and is removed.
+
+        if (
+            ret_expr is not None
+            and fp_ret_expr is not None
+            and prototype is not None
+            and prototype.returnty is not None
+        ):
+            # we need to determine the return type of this call (ret_expr vs fp_ret_expr)
+            is_float = isinstance(prototype.returnty, SimTypeFloat)
+            if is_float:
+                ret_expr = None
+            else:
+                fp_ret_expr = None
 
         if (
             ret_expr is not None
@@ -243,7 +267,7 @@ class CallSiteMaker(Analysis):
             and not isinstance(prototype.returnty, SimTypeBottom)
             and not isinstance(ret_expr, Expr.VirtualVariable)
         ):
-            # try to narrow the return expression if needed
+            # try to narrow the non-float return expression if needed
             ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
             if ret_expr.bits > ret_type_bits:
                 ret_expr = ret_expr.copy()
@@ -257,6 +281,7 @@ class CallSiteMaker(Analysis):
             prototype=prototype,
             args=args,
             ret_expr=ret_expr,
+            fp_ret_expr=fp_ret_expr,
             arg_vvars=arg_vvars,
             **call_stmt.tags,
         )

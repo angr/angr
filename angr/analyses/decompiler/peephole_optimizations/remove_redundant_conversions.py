@@ -169,29 +169,65 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     @staticmethod
     def _optimize_Convert(expr: Convert):
         operand_expr = expr.operand
-        if isinstance(operand_expr, BinaryOp) and operand_expr.op in {
-            "Mul",
-            "Shl",
-            "Div",
-            "DivMod",
-            "Mod",
-            "Add",
-            "Sub",
-        }:
-            op0, op1 = operand_expr.operands
-            if (
-                isinstance(op0, Convert)
-                and isinstance(op1, Convert)
-                and op0.from_bits == op1.from_bits
-                and op0.to_bits == op1.to_bits
-                and expr.from_bits == op0.to_bits
-                and expr.to_bits == op1.from_bits
-            ):
-                return BinaryOp(
-                    operand_expr.idx,
-                    operand_expr.op,
-                    [op0.operand, op1.operand],
-                    expr.is_signed,
-                    **operand_expr.tags,
-                )
+        if isinstance(operand_expr, BinaryOp):
+            if operand_expr.op in {
+                "Mul",
+                "Shl",
+                "Div",
+                "DivMod",
+                "Mod",
+                "Add",
+                "Sub",
+            }:
+                op0, op1 = operand_expr.operands
+                if (
+                    isinstance(op0, Convert)
+                    and isinstance(op1, Convert)
+                    and op0.from_bits == op1.from_bits
+                    and op0.to_bits == op1.to_bits
+                    and expr.from_bits == op0.to_bits
+                    and expr.to_bits == op1.from_bits
+                ):
+                    return BinaryOp(
+                        operand_expr.idx,
+                        operand_expr.op,
+                        [op0.operand, op1.operand],
+                        expr.is_signed,
+                        **operand_expr.tags,
+                    )
+            elif operand_expr.op == "Or" and expr.from_bits > expr.to_bits:
+                # Conv(64->32,((vvar_183{reg 128} & 0xffffffff00000000<64>)
+                #   | Conv(32->64, Load(addr=0x200002dc<32>, size=4, endness=Iend_LE))))
+                # =>
+                # Conv(64->32, Load(addr=0x200002dc<32>, size=4, endness=Iend_LE))
+                high_mask = ((1 << expr.from_bits) - 1) - ((1 << expr.to_bits) - 1)
+                op0, op1 = operand_expr.operands
+                if (
+                    isinstance(op0, BinaryOp)
+                    and op0.op == "And"
+                    and isinstance(op0.operands[1], Const)
+                    and op0.operands[1].value == high_mask
+                ):
+                    return Convert(
+                        expr.idx,
+                        expr.from_bits,
+                        expr.to_bits,
+                        expr.is_signed,
+                        op1,
+                        **expr.tags,
+                    )
+                if (
+                    isinstance(op1, BinaryOp)
+                    and op1.op == "And"
+                    and isinstance(op1.operands[1], Const)
+                    and op1.operands[1].value == high_mask
+                ):
+                    return Convert(
+                        expr.idx,
+                        expr.from_bits,
+                        expr.to_bits,
+                        expr.is_signed,
+                        op0,
+                        **expr.tags,
+                    )
         return None

@@ -582,7 +582,12 @@ class SimCC:
     FP_RETURN_VAL: SimFunctionArgument | None = (
         None  # The location where floating-point argument return values are stored
     )
-    ARCH = None  # The archinfo.Arch class that this CC must be used for, if relevant
+    ARCH: type[archinfo.Arch] | None = (
+        None  # The archinfo.Arch class for which this CC is most likely relevant, if related
+    )
+    # archinfo.Arch classes for which this CC is relevant, in addition to self.ARCH.
+    # you should access cls.arches() to get a list of all arches for which this CC is relevant
+    EXTRA_ARCHES: tuple[type[archinfo.Arch], ...] = ()
     CALLEE_CLEANUP = False  # Whether the callee has to deallocate the stack space for the arguments
 
     STACK_ALIGNMENT = 1  # the alignment requirement of the stack pointer at function start BEFORE call
@@ -1082,8 +1087,8 @@ class SimCC:
 
     @classmethod
     def _match(cls, arch, args: list, sp_delta):
-        if cls.ARCH is not None and not isinstance(
-            arch, cls.ARCH
+        if (
+            cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches())
         ):  # pylint:disable=isinstance-second-argument-not-valid-type
             return False
         if sp_delta != cls.STACKARG_SP_DIFF:
@@ -1148,6 +1153,12 @@ class SimCC:
             if cc_cls._match(arch, args, sp_delta):
                 return cc_cls(arch)
         return None
+
+    @classmethod
+    def arches(cls) -> tuple[type[archinfo.Arch], ...]:
+        if cls.ARCH is not None:
+            return (cls.ARCH, *cls.EXTRA_ARCHES)
+        return cls.EXTRA_ARCHES
 
     def get_arg_info(self, state, prototype):
         """
@@ -1444,7 +1455,7 @@ class SimCCSystemVAMD64(SimCC):
 
     @classmethod
     def _match(cls, arch, args, sp_delta):
-        if cls.ARCH is not None and not isinstance(arch, cls.ARCH):
+        if cls.ARCH is not None and ":" not in arch.name and not isinstance(arch, cls.ARCH):
             return False
         # if sp_delta != cls.STACKARG_SP_DIFF:
         #    return False
@@ -1789,8 +1800,54 @@ class SimCCARMHF(SimCCARM):
     FP_RETURN_VAL = SimRegArg("s0", 32)
     CALLER_SAVED_REGS = []
     RETURN_ADDR = SimRegArg("lr", 4)
-    RETURN_VAL = SimRegArg("r0", 4)  # TODO Return val can also include reg r1
+    RETURN_VAL = SimRegArg("r0", 4)
+    OVERFLOW_RETURN_VAL = SimRegArg("r1", 4)
     ARCH = archinfo.ArchARMHF
+    EXTRA_ARCHES = (archinfo.ArchARMCortexM,)
+
+    def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        state = session.getstate()
+        classification = self._classify(arg_type)
+        try:
+            mapped_classes = []
+            for cls in classification:
+                if cls == "DOUBLEP":
+                    if session.getstate()[1] % 2 == 1:  # doubles must start on an even register
+                        next(session.int_iter)
+
+                    if session.getstate()[1] == len(self.ARG_REGS) - 2:
+                        mapped_classes.append(next(session.int_iter))
+                        mapped_classes.append(next(session.both_iter))
+                    else:
+                        try:
+                            mapped_classes.append(next(session.int_iter))
+                            mapped_classes.append(next(session.int_iter))
+                        except StopIteration:
+                            mapped_classes.append(next(session.both_iter))
+                            mapped_classes.append(next(session.both_iter))
+                elif cls == "NO_CLASS":
+                    raise NotImplementedError("Bug. Report to @rhelmot")
+                elif cls == "MEMORY":
+                    mapped_classes.append(next(session.both_iter))
+                elif cls == "INTEGER":
+                    try:
+                        mapped_classes.append(next(session.int_iter))
+                    except StopIteration:
+                        mapped_classes.append(next(session.both_iter))
+                elif cls == "SINGLEP":
+                    try:
+                        mapped_classes.append(next(session.fp_iter))
+                    except StopIteration:
+                        mapped_classes.append(next(session.both_iter))
+                else:
+                    raise NotImplementedError("Bug. Report to @rhelmot")
+        except StopIteration:
+            session.setstate(state)
+            mapped_classes = [next(session.both_iter) for _ in classification]
+
+        return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
 
 
 class SimCCARMLinuxSyscall(SimCCSyscall):
@@ -2226,7 +2283,7 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "X86": {"Linux": SimCCCdecl, "CGC": SimCCCdecl, "Win32": SimCCMicrosoftCdecl},
     "ARMEL": {"Linux": SimCCARM},
     "ARMHF": {"Linux": SimCCARMHF},
-    "ARMCortexM": {"Linux": SimCCARM},
+    "ARMCortexM": {"Linux": SimCCARMHF},
     "MIPS32": {"Linux": SimCCO32},
     "MIPS64": {"Linux": SimCCN64},
     "PPC32": {"Linux": SimCCPowerPC},
