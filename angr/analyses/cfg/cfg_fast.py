@@ -2825,7 +2825,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # this value can either be a pointer or an offset from the pc... we need to try them both
             # attempt 1: a direct pointer
             sec_2nd = self.project.loader.find_section_containing(v)
-            if sec_2nd is not None and sec_2nd.is_readable and not sec_2nd.is_executable:
+            if sec_2nd is not None and sec_2nd.is_readable:
                 # found it!
                 self._add_data_reference(
                     irsb_addr,
@@ -2874,7 +2874,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 actual_ref_ins_addr = ref.ins_addr + 4
                 v += 8 + actual_ref_ins_addr
             sec_3rd = self.project.loader.find_section_containing(v)
-            if sec_3rd is not None and sec_3rd.is_readable and not sec_3rd.is_executable:
+            if sec_3rd is not None and sec_3rd.is_readable:
                 # found it!
                 self._add_data_reference(
                     irsb_addr, ref.stmt_idx, actual_ref_ins_addr, v, data_size=None, data_type=MemoryDataSort.Unknown
