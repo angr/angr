@@ -19,6 +19,7 @@ from ailment.expression import (
     ITE,
     Tmp,
     DirtyExpression,
+    Reinterpret,
 )
 
 from angr.engines.light.engine import SimEngineNostmtAIL
@@ -429,7 +430,18 @@ class SimEngineSSARewriting(
     def _handle_expr_Phi(self, expr):
         return None
 
-    def _handle_expr_Reinterpret(self, expr):
+    def _handle_expr_Reinterpret(self, expr: Reinterpret) -> Reinterpret | None:
+        new_operand = self._expr(expr.operand)
+        if new_operand is not None:
+            return Reinterpret(
+                expr.idx,
+                expr.from_bits,
+                expr.from_type,
+                expr.to_bits,
+                expr.to_type,
+                new_operand,
+                **expr.tags,
+            )
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
