@@ -2819,11 +2819,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if sec is not None and sec.is_readable and not sec.is_writable:
             # points to a non-writable region. read it out and see if there is another pointer!
             v = self._fast_memory_load_pointer(ref.data_addr, ref.data_size)
+            if v is None:
+                return
 
             # this value can either be a pointer or an offset from the pc... we need to try them both
             # attempt 1: a direct pointer
             sec_2nd = self.project.loader.find_section_containing(v)
-            if sec_2nd is not None and sec_2nd.is_readable and not sec_2nd.is_writable:
+            if sec_2nd is not None and sec_2nd.is_readable:
                 # found it!
                 self._add_data_reference(
                     irsb_addr,
@@ -2872,7 +2874,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 actual_ref_ins_addr = ref.ins_addr + 4
                 v += 8 + actual_ref_ins_addr
             sec_3rd = self.project.loader.find_section_containing(v)
-            if sec_3rd is not None and sec_3rd.is_readable and not sec_3rd.is_writable:
+            if sec_3rd is not None and sec_3rd.is_readable:
                 # found it!
                 self._add_data_reference(
                     irsb_addr, ref.stmt_idx, actual_ref_ins_addr, v, data_size=None, data_type=MemoryDataSort.Unknown

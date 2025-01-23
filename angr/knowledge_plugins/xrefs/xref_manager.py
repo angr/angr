@@ -24,6 +24,10 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         xm.xrefs_by_dst = self.xrefs_by_dst.copy()
         return xm
 
+    def clear(self):
+        self.xrefs_by_ins_addr = defaultdict(set)
+        self.xrefs_by_dst = defaultdict(set)
+
     def add_xref(self, xref):
         to_remove = set()
         # Overwrite existing "offset" refs
