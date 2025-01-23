@@ -2504,6 +2504,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         omit_func_header=False,
         display_block_addrs=False,
         display_vvar_ids=False,
+        min_data_addr: int = 0x400_000,
     ):
         super().__init__(flavor=flavor)
 
@@ -2578,6 +2579,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.omit_func_header = omit_func_header
         self.display_block_addrs = display_block_addrs
         self.display_vvar_ids = display_vvar_ids
+        self.min_data_addr = min_data_addr
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -3583,11 +3585,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif function_pointer:
                 self._function_pointers.add(expr.reference_variable)
 
+        var_access = None
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
             offset = getattr(expr, "reference_variable_offset", 0)
-            return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
+            var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
+        if var_access is not None and expr.value >= self.min_data_addr:
+            return var_access
+
+        reference_values["offset"] = var_access
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):

@@ -3997,10 +3997,10 @@ class TestDecompiler(unittest.TestCase):
             "else",
             "v1 = a0;",
             "g_1234 = v1;",
-            "return &g_1234;",
+            "return 4660;",
         ] or lines[start_pos + 1 :][:2] == [
             "*((int *)&g_1234) = (a1 ? a1 : a0);",
-            "return &g_1234;",
+            "return 4660;",
         ]
 
     def test_decompiling_rust_binary_rust_probestack(self, decompiler_options=None):
