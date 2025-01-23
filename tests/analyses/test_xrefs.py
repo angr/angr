@@ -24,6 +24,16 @@ class TestXrefs(unittest.TestCase):
 
         func = cfg.functions[0x23C9]
         state = p.factory.blank_state()
+
+        timenow_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x1FFF36F4)  # the value in .bss
+        assert len(timenow_xrefs) == 2
+        assert timenow_xrefs == {
+            XRef(ins_addr=0x23C9, dst=0x1FFF36F4, xref_type=XRefType.Offset),
+            XRef(ins_addr=0x241D, dst=0x1FFF36F4, xref_type=XRefType.Offset),
+        }
+
+        # kill existing xrefs
+        p.kb.xrefs.clear()
         prop = p.analyses.Propagator(func=func, base_state=state)
         _ = p.analyses.XRefs(func=func, replacements=prop.replacements)
 
