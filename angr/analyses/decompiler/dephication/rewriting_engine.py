@@ -15,6 +15,7 @@ from ailment.expression import (
     ITE,
     VEXCCallExpression,
     DirtyExpression,
+    Reinterpret,
 )
 
 from angr.engines.light import SimEngineNostmtAIL
@@ -164,7 +165,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             return Load(expr.idx, new_addr, expr.size, expr.endness, guard=expr.guard, alt=expr.alt, **expr.tags)
         return None
 
-    def _handle_expr_Convert(self, expr):
+    def _handle_expr_Convert(self, expr: Convert) -> Convert | None:
         new_operand = self._expr(expr.operand)
         if new_operand is not None:
             return Convert(
@@ -176,6 +177,20 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 from_type=expr.from_type,
                 to_type=expr.to_type,
                 rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
+        return None
+
+    def _handle_expr_Reinterpret(self, expr: Reinterpret) -> Reinterpret | None:
+        new_operand = self._expr(expr.operand)
+        if new_operand is not None:
+            return Reinterpret(
+                expr.idx,
+                expr.from_bits,
+                expr.from_type,
+                expr.to_bits,
+                expr.to_type,
+                new_operand,
                 **expr.tags,
             )
         return None
@@ -346,16 +361,10 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
         return None
 
-    def _handle_expr_DirtyExpression(self, expr):
-        return None
-
     def _handle_expr_MultiStatementExpression(self, expr):
         return None
 
     def _handle_expr_Register(self, expr):
-        return None
-
-    def _handle_expr_Reinterpret(self, expr):
         return None
 
     def _handle_expr_Tmp(self, expr):

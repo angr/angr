@@ -205,7 +205,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_binop_Set = _handle_binop_Default
 
     def _handle_unop_Default(self, expr):
-        self._expr(expr.operands[0])
+        self._expr(expr.operand)
 
     _handle_unop_BitwiseNeg = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
@@ -243,16 +243,17 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
         if expr.maddr is not None:
             self._expr(expr.maddr)
 
+    _handle_expr_Convert = _handle_unop_Default
+    _handle_expr_Reinterpret = _handle_unop_Default
+
     def _handle_Dummy(self, expr):
         pass
 
     _handle_expr_VirtualVariable = _handle_Dummy
     _handle_expr_Phi = _handle_Dummy
     _handle_expr_Load = _handle_Dummy
-    _handle_expr_Convert = _handle_Dummy
     _handle_expr_Const = _handle_Dummy
     _handle_expr_MultiStatementExpression = _handle_Dummy
-    _handle_expr_Reinterpret = _handle_Dummy
     _handle_expr_StackBaseOffset = _handle_Dummy
     _handle_expr_BasePointerOffset = _handle_Dummy
     _handle_expr_Call = _handle_Dummy

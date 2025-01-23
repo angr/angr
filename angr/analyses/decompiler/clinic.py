@@ -1807,7 +1807,7 @@ class Clinic(Analysis):
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
-        elif type(expr) is ailment.Expr.Convert:
+        elif type(expr) in {ailment.Expr.Convert, ailment.Expr.Reinterpret}:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
         elif type(expr) is ailment.Expr.ITE:
