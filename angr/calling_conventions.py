@@ -307,7 +307,7 @@ class SimRegArg(SimFunctionArgument):
     def __hash__(self):
         return hash((self.size, self.reg_name, self.reg_offset))
 
-    def check_offset(self, arch):
+    def check_offset(self, arch) -> int:
         return arch.registers[self.reg_name][0] + self.reg_offset
 
     def set_value(self, state, value, **kwargs):  # pylint: disable=unused-argument,arguments-differ
