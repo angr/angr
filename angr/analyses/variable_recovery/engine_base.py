@@ -120,9 +120,9 @@ class SimEngineVRBase(
                 if abs_offset.op == "__lshift__" and cast(claripy.ast.BV, abs_offset.args[1]).concrete:
                     offset = cast(claripy.ast.BV, abs_offset.args[0])
                     elem_size = 2 ** cast(claripy.ast.BV, abs_offset.args[1]).concrete_value
-                elif abs_offset.op == "__mul__" and abs_offset.args[1].concrete:
-                    offset = abs_offset.args[0]
-                    elem_size = abs_offset.args[1].concrete_value
+                elif abs_offset.op == "__mul__" and cast(claripy.ast.BV, abs_offset.args[1]).concrete:
+                    offset = cast(claripy.ast.BV, abs_offset.args[0])
+                    elem_size = cast(claripy.ast.BV, abs_offset.args[1]).concrete_value
 
             if base_addr is not None and offset is not None and elem_size is not None:
                 return base_addr, offset, elem_size

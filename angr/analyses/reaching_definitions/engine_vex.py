@@ -509,9 +509,9 @@ class SimEngineRDVEX(
         iftrue = self._expr(expr.iftrue)
         iffalse = self._expr(expr.iffalse)
 
-        if claripy.is_true(cond_v):
+        if isinstance(cond_v, claripy.ast.Bool) and claripy.is_true(cond_v):
             return iftrue
-        if claripy.is_false(cond_v):
+        if isinstance(cond_v, claripy.ast.Bool) and claripy.is_false(cond_v):
             return iffalse
         return iftrue.merge(iffalse)
 
