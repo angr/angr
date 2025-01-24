@@ -1,4 +1,4 @@
-# pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring
+# pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 from collections.abc import Sequence
@@ -127,13 +127,16 @@ class Const(Atom):
         )
 
     matches = likes
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.value, self.bits))
 
     @property
     def sign_bit(self):
+        if not self.is_int:
+            raise TypeError("Sign bit is only available for int constants.")
+        assert isinstance(self.value, int)
         return self.value >> (self.bits - 1)
 
     def copy(self) -> Const:
@@ -167,7 +170,7 @@ class Tmp(Atom):
         return type(self) is type(other) and self.tmp_idx == other.tmp_idx and self.bits == other.bits
 
     matches = likes
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("tmp", self.tmp_idx, self.bits))
@@ -204,7 +207,7 @@ class Register(Atom):
             return "%s" % str(self.variable.name)
 
     matches = likes
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("reg", self.reg_offset, self.bits, self.idx))
@@ -269,18 +272,44 @@ class VirtualVariable(Atom):
     @property
     def reg_offset(self) -> int:
         if self.was_reg:
+            assert isinstance(self.oident, int)
             return self.oident
         raise TypeError("Is not a register")
 
     @property
     def stack_offset(self) -> int:
         if self.was_stack:
+            assert isinstance(self.oident, int)
             return self.oident
         raise TypeError("Is not a stack variable")
 
     @property
     def tmp_idx(self) -> int | None:
-        return self.oident if self.was_tmp else None
+        if self.was_tmp:
+            assert isinstance(self.oident, int)
+            return self.oident
+        return None
+
+    @property
+    def parameter_category(self) -> VirtualVariableCategory | None:
+        if self.was_parameter:
+            assert isinstance(self.oident, tuple)
+            return self.oident[0]
+        return None
+
+    @property
+    def parameter_reg_offset(self) -> int | None:
+        if self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
+            assert isinstance(self.oident, tuple)
+            return self.oident[1]
+        return None
+
+    @property
+    def parameter_stack_offset(self) -> int | None:
+        if self.was_parameter and self.parameter_category == VirtualVariableCategory.STACK:
+            assert isinstance(self.oident, tuple)
+            return self.oident[1]
+        return None
 
     def likes(self, other):
         return (
@@ -308,7 +337,7 @@ class VirtualVariable(Atom):
                 ori_str = f"{{stack {self.oident}}}"
         return f"vvar_{self.varid}{ori_str}"
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("var", self.varid, self.bits, self.category, self.oident))
@@ -379,7 +408,7 @@ class Phi(Atom):
                     and other_vvar is not None
                     or self_vvar is not None
                     and other_vvar is None
-                    or not self_vvar.matches(other_vvar)
+                    or (self_vvar is not None and other_vvar is not None and not self_vvar.matches(other_vvar))
                 ):
                     return False
             return True
@@ -388,7 +417,7 @@ class Phi(Atom):
     def __repr__(self):
         return f"𝜙@{self.bits}b {self.src_and_vvars}"
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars, key=self._src_and_vvar_filter))))
@@ -432,7 +461,7 @@ class Phi(Atom):
         if src[1] is None:
             src = src[0], -1
         vvar_id = vvar.varid if vvar is not None else -1
-        return src, vvar_id
+        return src, vvar_id  # type: ignore
 
 
 class Op(Expression):
@@ -493,7 +522,7 @@ class UnaryOp(Op):
             and self.operand.matches(other.operand)
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.op, self.operand, self.bits))
@@ -608,7 +637,7 @@ class Convert(UnaryOp):
             and self.rounding_mode == other.rounding_mode
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(
@@ -716,7 +745,7 @@ class Reinterpret(UnaryOp):
             and self.operand.matches(other.operand)
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(
@@ -900,7 +929,7 @@ class BinaryOp(Op):
             and self.rounding_mode == other.rounding_mode
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(
@@ -1087,7 +1116,7 @@ class Load(Expression):
             and self.alt == other.alt
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("Load", self.addr, self.size, self.endness))
@@ -1166,7 +1195,7 @@ class ITE(Expression):
             and self.bits == other.bits
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
@@ -1236,7 +1265,7 @@ class DirtyExpression(Expression):
         maddr: Expression | None = None,
         msize: int | None = None,
         # TODO: fxstate (guest state effects) is not modeled yet
-        bits=None,
+        bits: int,
         **kwargs,
     ):
         super().__init__(idx, 1, **kwargs)
@@ -1283,7 +1312,7 @@ class DirtyExpression(Expression):
             and self.bits == other.bits
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(
@@ -1393,7 +1422,7 @@ class VEXCCallExpression(Expression):
             and all(op1.matches(op2) for op1, op2 in zip(other.operands, self.operands))
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((VEXCCallExpression, self.callee, self.bits, tuple(self.operands)))
@@ -1424,7 +1453,7 @@ class VEXCCallExpression(Expression):
                     new_operands.append(operand)
 
         if replaced:
-            return True, VEXCCallExpression(self.idx, self.callee, list(new_operands), bits=self.bits, **self.tags)
+            return True, VEXCCallExpression(self.idx, self.callee, tuple(new_operands), bits=self.bits, **self.tags)
         else:
             return False, self
 
@@ -1451,7 +1480,7 @@ class MultiStatementExpression(Expression):
         self.expr = expr
         self.bits = self.expr.bits
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((MultiStatementExpression,) + tuple(self.stmts) + (self.expr,))
@@ -1568,7 +1597,7 @@ class BasePointerOffset(Expression):
         )
 
     matches = likes
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.bits, self.base, self.offset))
