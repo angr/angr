@@ -5,9 +5,18 @@ import logging
 
 import archinfo
 from ailment import Stmt, Expr, Const
+from ailment.manager import Manager
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
-from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt, SimTypeFloat, dereference_simtype
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypePointer,
+    SimTypeChar,
+    SimTypeInt,
+    SimTypeFloat,
+    dereference_simtype,
+    SimTypeFunction,
+)
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg, SimComboArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
@@ -27,7 +36,7 @@ class CallSiteMaker(Analysis):
     Add calling convention, declaration, and args to a call site.
     """
 
-    def __init__(self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager=None):
+    def __init__(self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager: Manager = None):
         self.block = block
 
         self._reaching_definitions = reaching_definitions
@@ -60,7 +69,7 @@ class CallSiteMaker(Analysis):
             return
 
         cc = None
-        prototype = None
+        prototype: SimTypeFunction | None = None
         func = None
         stack_arg_locs: list[SimStackArg] = []
         stackarg_sp_diff = 0
@@ -106,7 +115,9 @@ class CallSiteMaker(Analysis):
                     for typelib_name in prototype_lib.type_collection_names:
                         type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
             if type_collections:
-                prototype = dereference_simtype(prototype, type_collections).with_arch(self.project.arch)
+                prototype = dereference_simtype(prototype, type_collections).with_arch(  # type: ignore
+                    self.project.arch
+                )
 
         args = []
         arg_vvars = []
@@ -120,15 +131,17 @@ class CallSiteMaker(Analysis):
                 arg_locs = cc.arg_locs(prototype)
                 if prototype.variadic:
                     # determine the number of variadic arguments
+                    assert func is not None
                     variadic_args = self._determine_variadic_arguments(func, cc, call_stmt)
                     if variadic_args:
                         callsite_ty = copy.copy(prototype)
-                        callsite_ty.args = list(callsite_ty.args)
+                        callsite_args = list(callsite_ty.args)
                         for _ in range(variadic_args):
-                            callsite_ty.args.append(SimTypeInt().with_arch(self.project.arch))
+                            callsite_args.append(SimTypeInt().with_arch(self.project.arch))
+                        callsite_ty.args = tuple(callsite_args)
                         arg_locs = cc.arg_locs(callsite_ty)
 
-        if arg_locs is not None:
+        if arg_locs is not None and cc is not None:
             expanded_arg_locs = []
             for arg_loc in arg_locs:
                 if isinstance(arg_loc, SimComboArg):
@@ -158,10 +171,13 @@ class CallSiteMaker(Analysis):
                         vvar_def_reg_offset = None
                         if vvar_def.was_reg:
                             vvar_def_reg_offset = vvar_def.reg_offset
-                        elif vvar_def.was_parameter and vvar_def.oident[0] == Expr.VirtualVariableCategory.REGISTER:
-                            vvar_def_reg_offset = vvar_def.oident[1]
+                        elif (
+                            vvar_def.was_parameter
+                            and vvar_def.parameter_category == Expr.VirtualVariableCategory.REGISTER
+                        ):
+                            vvar_def_reg_offset = vvar_def.parameter_reg_offset
 
-                        if offset > vvar_def_reg_offset:
+                        if vvar_def_reg_offset is not None and offset > vvar_def_reg_offset:
                             # we need to shift the value
                             vvar_use = Expr.BinaryOp(
                                 self._ail_manager.next_atom(),
@@ -248,6 +264,7 @@ class CallSiteMaker(Analysis):
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
         if stack_arg_locs:
+            assert self._stack_pointer_tracker is not None
             sp_offset = self._stack_pointer_tracker.offset_before(call_stmt.ins_addr, self.project.arch.sp_offset)
             if sp_offset is None:
                 l.warning(
@@ -288,7 +305,7 @@ class CallSiteMaker(Analysis):
         ):
             # try to narrow the non-float return expression if needed
             ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
-            if ret_expr.bits > ret_type_bits:
+            if ret_type_bits is not None and ret_expr.bits > ret_type_bits:
                 ret_expr = ret_expr.copy()
                 ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
@@ -335,7 +352,7 @@ class CallSiteMaker(Analysis):
         l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
         return None
 
-    def _resolve_register_argument(self, arg_loc) -> tuple[int | None, Expr.VirtualVariable] | None:
+    def _resolve_register_argument(self, arg_loc) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
         offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:
@@ -354,6 +371,8 @@ class CallSiteMaker(Analysis):
         return None
 
     def _resolve_stack_argument(self, call_stmt, arg_loc) -> tuple[Any, Any]:  # pylint:disable=unused-argument
+        assert self._stack_pointer_tracker is not None
+
         size = arg_loc.size
         offset = arg_loc.stack_offset
         if self.project.arch.call_pushes_ret:
@@ -435,8 +454,8 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Function | None, cc: SimCC, call_stmt) -> int | None:
-        if (func is not None and "printf" in func.name) or "scanf" in func.name:
+    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_stmt) -> int | None:
+        if "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
 
