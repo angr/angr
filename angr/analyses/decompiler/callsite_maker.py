@@ -155,8 +155,13 @@ class CallSiteMaker(Analysis):
                             oident=vvar_def.oident,
                             **vvar_def.tags,
                         )
+                        vvar_def_reg_offset = None
+                        if vvar_def.was_reg:
+                            vvar_def_reg_offset = vvar_def.reg_offset
+                        elif vvar_def.was_parameter and vvar_def.oident[0] == Expr.VirtualVariableCategory.REGISTER:
+                            vvar_def_reg_offset = vvar_def.oident[1]
 
-                        if offset > vvar_def.reg_offset:
+                        if offset > vvar_def_reg_offset:
                             # we need to shift the value
                             vvar_use = Expr.BinaryOp(
                                 self._ail_manager.next_atom(),
@@ -164,7 +169,7 @@ class CallSiteMaker(Analysis):
                                 [
                                     vvar_use,
                                     Expr.Const(
-                                        self._ail_manager.next_atom(), None, (offset - vvar_def.reg_offset) * 8, 8
+                                        self._ail_manager.next_atom(), None, (offset - vvar_def_reg_offset) * 8, 8
                                     ),
                                 ],
                                 **vvar_use.tags,
