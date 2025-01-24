@@ -59,7 +59,7 @@ class SimEngineRDVEX(
     ):
         self._visited_blocks = visited_blocks
         self._dep_graph = dep_graph
-        # we are using a completely different state. Therefore, we directly call our _process() method before
+        # we are using a completely different state. Therefore, we directly call our process() method before
         # SimEngine becomes flexible enough.
         try:
             return super().process(

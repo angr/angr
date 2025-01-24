@@ -51,7 +51,7 @@ class SimEngineVRVEX(
 
     def _process_block(self, whitelist=None):
         scanner = VEXIRSBScanner(self.project, logger=self.l)
-        scanner._process(None, block=self.block)
+        scanner.process(None, block=self.block)
         self.stmts_to_lower = scanner.stmts_to_lower
         self.reg_read_stmts_to_ignore = scanner.reg_read_stmts_to_ignore
 
