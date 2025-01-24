@@ -1,4 +1,4 @@
-# pylint:disable=no-self-use,missing-class-docstring
+# pylint:disable=no-self-use,too-many-boolean-expressions
 from __future__ import annotations
 from ailment.expression import BinaryOp, Const, Convert
 
@@ -7,6 +7,10 @@ from .utils import get_expr_shift_left_amount
 
 
 class RemoveRedundantShifts(PeepholeOptimizationExprBase):
+    """
+    Remove redundant bitshift operations.
+    """
+
     __slots__ = ()
 
     NAME = "Remove redundant bitshifts"
