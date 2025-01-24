@@ -100,8 +100,7 @@ class SimEngineVRBase(
                 return True
         return False
 
-    @staticmethod
-    def _parse_offsetted_addr(addr: claripy.ast.Bits) -> tuple[claripy.ast.BV, claripy.ast.BV, int] | None:
+    def _parse_offsetted_addr(self, addr: claripy.ast.Bits) -> tuple[claripy.ast.BV, claripy.ast.BV, int] | None:
         if addr.op == "__add__" and len(addr.args) == 2:
             concrete_base, byte_offset = None, None
             if cast(claripy.ast.BV, addr.args[0]).concrete:
@@ -685,9 +684,6 @@ class SimEngineVRBase(
             else:
                 base_typevar = typevar
                 field_offset = 0
-
-            # if addr_variable is not None:
-            #     self.state.variable_manager[self.func_addr].reference_at(addr_variable, field_offset, codeloc, atom=stmt)
 
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             if addr_variable is not None:
