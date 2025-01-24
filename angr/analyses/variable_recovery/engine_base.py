@@ -100,7 +100,8 @@ class SimEngineVRBase(
                 return True
         return False
 
-    def _parse_offsetted_addr(self, addr: claripy.ast.Bits) -> tuple[claripy.ast.BV, claripy.ast.BV, int] | None:
+    @staticmethod
+    def _parse_offsetted_addr(addr: claripy.ast.Bits) -> tuple[claripy.ast.BV, claripy.ast.BV, int] | None:
         if addr.op == "__add__" and len(addr.args) == 2:
             concrete_base, byte_offset = None, None
             if cast(claripy.ast.BV, addr.args[0]).concrete:
