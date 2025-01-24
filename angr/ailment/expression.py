@@ -139,6 +139,10 @@ class Const(Atom):
     def copy(self) -> Const:
         return Const(self.idx, self.variable, self.value, self.bits, **self.tags)
 
+    @property
+    def is_int(self) -> bool:
+        return isinstance(self.value, int)
+
 
 class Tmp(Atom):
     __slots__ = ("tmp_idx",)
