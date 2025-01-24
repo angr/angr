@@ -41,7 +41,7 @@ class CCondPropBlockWalker(AILBlockWalker):
         super().walk(block)
         return self._new_block
 
-    def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block):
+    def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block):  # type: ignore
         r = super()._handle_stmt(stmt_idx, stmt, block)
         if r is not None:
             # replace the original statement
@@ -49,7 +49,7 @@ class CCondPropBlockWalker(AILBlockWalker):
                 self._new_block = block.copy()
             self._new_block.statements[stmt_idx] = r
 
-    def _handle_VirtualVariable(
+    def _handle_VirtualVariable(  # type: ignore
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
     ) -> Const | None:
         if expr.varid == self.vvar_id:
@@ -66,7 +66,7 @@ class ConditionConstantPropagation(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Propagate constants using information deduced from conditionals."
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -107,10 +107,10 @@ class ConditionConstantPropagation(OptimizationPass):
             frontier = df.get(head_block)
             if frontier is None:
                 continue
-            slice = RegionIdentifier.slice_graph(self._graph, head_block, frontier, include_frontier=False)
+            graph_slice = RegionIdentifier.slice_graph(self._graph, head_block, frontier, include_frontier=False)
             for ccond in cconds:
                 walker = CCondPropBlockWalker(ccond.vvar_id, ccond.value)
-                for block in slice:
+                for block in graph_slice:
                     new_block = walker.walk(block)
                     if new_block is not None:
                         self._update_block(block, new_block)
@@ -134,15 +134,15 @@ class ConditionConstantPropagation(OptimizationPass):
                     op0, op1 = cond.operands
                     if isinstance(op0, Const):
                         op0, op1 = op1, op0
-                    if isinstance(op0, VirtualVariable) and isinstance(op1, Const):
+                    if isinstance(op0, VirtualVariable) and isinstance(op1, Const) and op1.is_int:
                         if op == "CmpEQ":
                             ccond = ConstantCondition(
-                                op0.varid, op1, last_stmt.true_target.value, last_stmt.true_target_idx
+                                op0.varid, op1, last_stmt.true_target.value, last_stmt.true_target_idx  # type: ignore
                             )
                             cconds.append(ccond)
                         elif op == "CmpNE":
                             ccond = ConstantCondition(
-                                op0.varid, op1, last_stmt.false_target.value, last_stmt.false_target_idx
+                                op0.varid, op1, last_stmt.false_target.value, last_stmt.false_target_idx  # type: ignore
                             )
                             cconds.append(ccond)
 
